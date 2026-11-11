@@ -413,10 +413,7 @@ fn of_at(
                 // ruled out: std's `List` comes with `std.rt`, whose
                 // runtime items hd_driver roots whenever std has their
                 // bodies, so a program with a list links the allocator.
-                debug_assert!(
-                    input.runtime.is_some(),
-                    "a boundary list without std's allocator"
-                );
+
                 if matches!(
                     pool.get(layout::strip(pool, env, e)),
                     TyData::Prim(Prim::U8)
@@ -427,10 +424,10 @@ fn of_at(
                     let elem = Elem {
                         size: mem.size,
                         leaves: mem.leaves,
-                        walk: input.runtime.and_then(|_| layout::walk(pool, env, e)),
+                        walk: layout::walk(pool, env, e),
                         drops: Vec::new(),
                         colls: layout::coll_leaves(pool, env, e),
-                        cyclic: input.runtime.is_some() && crate::cycle::object(pool, env, t),
+                        cyclic: crate::cycle::object(pool, env, t),
                     };
                     let ty = of_at(input, m, e, path, at)?;
                     LTy::List(Box::new(LList { elem, ty }))
@@ -580,7 +577,6 @@ fn object_of(
 ) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
     let mem = layout::mem(pool, env, target)?;
-    let counts = input.runtime.is_some();
     let tracked = crate::cycle::holding(pool, env, &[target]);
     let key = hd_mono::layout::canon(
         pool,
@@ -592,17 +588,15 @@ fn object_of(
     let elem = Elem {
         size: mem.size,
         leaves: mem.leaves,
-        walk: input
-            .runtime
-            .and_then(|_| layout::count_walk(pool, env, target)),
+        walk: layout::count_walk(pool, env, target),
         drops: Vec::new(),
         colls: Vec::new(),
-        cyclic: counts && tracked,
+        cyclic: tracked,
     };
     let ty = of_at(input, m, target, path, at)?;
     Ok(LTy::Object(Box::new(LObject {
         elem,
-        recursive: counts && crate::cycle::recursive_object(pool, env, target),
+        recursive: crate::cycle::recursive_object(pool, env, target),
         weak,
         tracked,
         ty,
@@ -717,7 +711,7 @@ fn codec(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy>
         );
     Ok(LTy::Codec(Box::new(LCodec {
         vals: layout::vals(pool, env, s)?,
-        walk: match layout::pass(pool, env, input.runtime.is_some(), s) {
+        walk: match layout::pass(pool, env, true, s) {
             layout::Pass::Owned(w) => Some(w),
             _ => None,
         },
@@ -1212,40 +1206,31 @@ fn args_area(
             borrowed_colls.extend(local.iter().map(|k| first + k));
         }
     }
-    let counts = input.runtime.is_some();
     let area = Elem {
         size: mem.size,
         leaves: mem.leaves,
-        walk: if counts {
-            layout::fields_walk(pool, env, types)
-        } else {
-            None
-        },
+        walk: layout::fields_walk(pool, env, types),
         drops: Vec::new(),
-        colls: if counts { colls } else { Vec::new() },
+        colls,
         // The leaf frame that keeps a host call's arguments takes part as
         // they say: only an open value holds the frame.
-        cyclic: counts && crate::cycle::holding(pool, env, types),
+        cyclic: crate::cycle::holding(pool, env, types),
     };
-    let mut borrowed = None;
-    let mut owned = None;
-    if counts {
-        borrowed = layout::fields_walk_by(pool, env, types, &|ty| {
-            (!env.cold_transfers(method, ty))
-                .then(|| layout::count_walk(pool, env, ty))
-                .flatten()
-        });
-        owned = layout::fields_walk_by(pool, env, types, &|ty| {
-            env.cold_transfers(method, ty)
-                .then(|| layout::count_walk(pool, env, ty))
-                .flatten()
-        });
-    }
+    let borrowed = layout::fields_walk_by(pool, env, types, &|ty| {
+        (!env.cold_transfers(method, ty))
+            .then(|| layout::count_walk(pool, env, ty))
+            .flatten()
+    });
+    let owned = layout::fields_walk_by(pool, env, types, &|ty| {
+        env.cold_transfers(method, ty)
+            .then(|| layout::count_walk(pool, env, ty))
+            .flatten()
+    });
     Ok((
         area,
         crate::rt::HostCounts {
             borrowed,
-            borrowed_colls: if counts { borrowed_colls } else { Vec::new() },
+            borrowed_colls,
             owned,
         },
     ))
@@ -1899,8 +1884,8 @@ fn dec_into(f: &mut Func, off: u32, b: &LTy) -> Vec<u32> {
 
 /// One count less on the values in locals `ls`, laid out with counted
 /// references at `walk`, when the program counts.
-fn release(f: &mut Func, m: &Module, ls: &[u32], vals: Vec<Val>, walk: Option<Walk>) {
-    let (Some(_), Some(walk)) = (m.runtime, walk) else {
+fn release(f: &mut Func, _m: &Module, ls: &[u32], vals: Vec<Val>, walk: Option<Walk>) {
+    let Some(walk) = walk else {
         return;
     };
     for l in ls {
@@ -2115,7 +2100,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
                     f.get(k);
                 }
             };
-            if m.runtime.is_some() {
+            {
                 own_arg(f, &c.vals, c.walk.as_ref(), &get);
             }
             get(f);
@@ -2402,7 +2387,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             } else {
                 crate::rt::push_desc_recursive(f, glue, o.elem.cyclic, o.recursive);
             }
-            if m.runtime.is_some_and(|r| r.checked.is_none())
+            if m.runtime.checked.is_none()
                 && o.elem
                     .size
                     .checked_add(crate::module::HEADER)
@@ -2506,7 +2491,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
                 // The reference arrives with a count of its own; the box's
                 // first goes. `wrap` owns its argument (`layout::Pass`),
                 // so it takes a count of the box of its own.
-                if m.runtime.is_some() {
+                {
                     own_arg(f, &[Val::I32], Some(&Walk::Ref(0)), &|f| f.get(data));
                 }
                 f.call(Sym::Inst(wrap));

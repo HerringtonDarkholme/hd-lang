@@ -826,7 +826,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
             #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.and_then(|r| r.checked) {
+            if let Some(c) = m.runtime.checked {
                 m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
                 m.export("hd.cycles.length", Sym::Inst(c.length));
                 m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
@@ -845,7 +845,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
                     }),
                 );
                 let poll = poll(input, m, i.init, i.key, None, i.after.clone())?;
-                m.export(format!("hd.poll.{n}"), collecting(m, poll));
+                m.export(format!("hd.poll.{n}"), collecting(poll));
                 bang |= m.frames.contains_key(&i.key);
             }
             m.export("hd.reset", Sym::Helper(Helper::EntryReset));
@@ -869,13 +869,13 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     // `hd.scenario.cleanup` after the root has ended, so it keeps them
     // and has no audit.
     let poll = if matches!(input.entry, Entry::Scenario { .. }) {
-        collecting(m, poll)
+        collecting(poll)
     } else {
         checked(m, poll, Vec::new())
     };
     m.export("hd.poll", poll);
     // Checked mode's count totals, for measuring elision (§23.24).
-    if let Some(c) = m.runtime.and_then(|r| r.checked) {
+    if let Some(c) = m.runtime.checked {
         m.export("hd.retained", Sym::Inst(c.retained));
         m.export("hd.released", Sym::Inst(c.released));
         m.export("hd.uniques", Sym::Inst(c.unique_checks));
@@ -938,23 +938,19 @@ fn poll(
 /// itself.
 fn checked(m: &Module, poll: Sym, reinit: Vec<Hash128>) -> Sym {
     match poll {
-        Sym::Helper(h) if m.runtime.is_some_and(|r| r.checked.is_some()) => {
-            Sym::Helper(Helper::CheckedPoll {
-                poll: Box::new(h),
-                reinit,
-            })
-        }
-        other => collecting(m, other),
+        Sym::Helper(h) if m.runtime.checked.is_some() => Sym::Helper(Helper::CheckedPoll {
+            poll: Box::new(h),
+            reinit,
+        }),
+        other => collecting(other),
     }
 }
 
 /// `poll` behind a cycle collection ([`Helper::CollectPoll`]) when the
 /// program links the runtime.
-fn collecting(m: &Module, poll: Sym) -> Sym {
+fn collecting(poll: Sym) -> Sym {
     match poll {
-        Sym::Helper(h) if m.runtime.is_some() => {
-            Sym::Helper(Helper::CollectPoll { poll: Box::new(h) })
-        }
+        Sym::Helper(h) => Sym::Helper(Helper::CollectPoll { poll: Box::new(h) }),
         other => other,
     }
 }
@@ -962,7 +958,8 @@ fn collecting(m: &Module, poll: Sym) -> Sym {
 /// [`Helper::CheckedPoll`].
 fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     let mut f = m.func("rt:checked_poll", vec![Val::I32], vec![Val::I32]);
-    let (r, c) = m.runtime.and_then(|r| Some((r, r.checked?))).unwrap();
+    let r = m.runtime;
+    let c = r.checked.unwrap();
     let status = f.local(Val::I32);
     f.get(0);
     f.helper(poll.clone());
@@ -1319,14 +1316,14 @@ fn dyn_read(
     // borrows it. Other arguments follow the slot's handoff rules.
     let mut owned = own.to_vec();
     let recv_owned = owned.first_mut().is_some_and(|r| r.1.take().is_some());
-    own_lent(&mut f, &rvals, &recv, params, &owned, m);
+    own_lent(&mut f, &rvals, &recv, params, &owned);
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
     if !recv_owned {
         ref_count(&mut f, &held, &read.value, false);
     }
-    release_given(&mut f, own, given, m);
+    release_given(&mut f, own, given);
     f
 }
 
@@ -1568,7 +1565,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Opaque => {
             let mut f = m.func("rt:opaque", vec![Val::I32], vec![]);
-            if let Some(r) = m.runtime {
+            {
+                let r = m.runtime;
                 f.get(0);
                 f.call(Sym::Inst(r.cycle.opaque));
             }
@@ -1577,7 +1575,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::CycleFree => {
             let mut f = m.func("rt:cycle_free", vec![Val::I32; 3], vec![]);
             #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.and_then(|r| r.checked) {
+            if let Some(c) = m.runtime.checked {
                 f.get(1);
                 f.call(Sym::Inst(c.collected));
             }
@@ -1694,7 +1692,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::TakeBox => take_box(m),
         Helper::RetainKnown => {
             let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
-            if let Some(r) = m.runtime {
+            {
+                let r = m.runtime;
                 f.get(0);
                 f.call(Sym::Inst(r.retain_known));
             }
@@ -1759,7 +1758,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             let rvals = leaves
                 .as_ref()
                 .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
-            own_lent(&mut f, &rvals, &recv, params, own, m);
+            own_lent(&mut f, &rvals, &recv, params, own);
             recv(&mut f);
             push_slot_params(
                 &mut f,
@@ -1767,7 +1766,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
-            release_given(&mut f, own, given, m);
+            release_given(&mut f, own, given);
             f
         }
         Helper::DynRead {
@@ -1846,7 +1845,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::RetainAny => {
             let mut f = m.func("rt:retain_any", vec![Val::I32], vec![]);
-            if let Some(r) = m.runtime {
+            {
+                let r = m.runtime;
                 f.get(0);
                 f.call(Sym::Inst(r.retain));
             }
@@ -2151,11 +2151,7 @@ fn own_lent(
     recv: &dyn Fn(&mut Func),
     params: &[Val],
     own: &[(u32, Option<Walk>)],
-    m: &Module,
 ) {
-    if m.runtime.is_none() {
-        return;
-    }
     let ((_, r), rest) = own.split_first().unwrap();
     own_arg(f, rvals, r.as_ref(), recv);
     let mut at = 1u32;
@@ -2175,15 +2171,7 @@ fn own_lent(
 /// (an index in `own`, whose entries give each parameter's value count,
 /// and its layout), whose ownership the dynamic call handed in and the target
 /// only borrowed. The target's results stay on the stack.
-fn release_given(
-    f: &mut Func,
-    own: &[(u32, Option<Walk>)],
-    given: &[(u32, RefLayout)],
-    m: &Module,
-) {
-    if m.runtime.is_none() {
-        return;
-    }
+fn release_given(f: &mut Func, own: &[(u32, Option<Walk>)], given: &[(u32, RefLayout)]) {
     for (k, value) in given {
         let first: u32 = 1 + own[1..*k as usize].iter().map(|o| o.0).sum::<u32>();
         let n = own[*k as usize].0;
@@ -2208,13 +2196,12 @@ pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn
 
 /// What retains the address on the stack, given whether it is a known
 /// payload start: std's `retain`, `retain_known` for a known start, or
-/// nothing when the program counts nothing.
+/// using the required std runtime.
 pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, Addr) {
-    let retain = m.runtime.map(|r| r.retain);
-    move |f: &mut Func, addr: Addr| match retain {
-        Some(_) if addr != Addr::Ref => f.helper(Helper::RetainKnown),
-        Some(k) => f.call(Sym::Inst(k)),
-        None => f.op(Instruction::Drop),
+    let retain = m.runtime.retain;
+    move |f: &mut Func, addr: Addr| match addr {
+        Addr::Known => f.helper(Helper::RetainKnown),
+        Addr::Ref => f.call(Sym::Inst(retain)),
     }
 }
 
@@ -2373,7 +2360,7 @@ const FREED: u32 = 256;
 /// this into each allocation.
 fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     let mut f = m.func(format!("rt:alloc_class/{class}"), vec![], vec![Val::I32]);
-    let r = m.runtime.unwrap();
+    let r = m.runtime;
     let (table, page, slot, next, bump) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -2466,9 +2453,10 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
 
 /// Runs a collection when the collector says one is due.
 fn collect_if_due(f: &mut Func, m: &Module) {
-    let Some(r) = m.runtime.filter(|_| !m.acyclic) else {
+    if m.acyclic {
         return;
-    };
+    }
+    let r = m.runtime;
     f.call(Sym::Inst(r.cycle.due));
     f.op(Instruction::If(BlockType::Empty));
     // A cold call (§23.17): through the table, V8 does not inline the
@@ -2513,7 +2501,7 @@ fn free_class_loaded(m: &Module) -> Func {
 /// dispatch, so its generic path can reuse both values instead of loading and
 /// decoding the word again in [`Helper::FreeClass`].
 fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) {
-    let r = m.runtime.unwrap();
+    let r = m.runtime;
     let list = f.local(Val::I32);
     f.op(Instruction::Block(BlockType::Empty));
     f.get(class);
@@ -2546,7 +2534,7 @@ fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) 
 }
 
 fn free_object(f: &mut Func, m: &Module, block: u32) {
-    let r = m.runtime.unwrap();
+    let r = m.runtime;
     clear_weak(f, m, block);
     f.get(block);
     if m.fixed_allocations && r.checked.is_none() {
@@ -2563,7 +2551,7 @@ fn clear_weak(f: &mut Func, m: &Module, block: u32) {
     if !(m.uses_weak || m.open_world) {
         return;
     }
-    let r = m.runtime.unwrap();
+    let r = m.runtime;
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.u32(WEAK);
@@ -2579,9 +2567,7 @@ fn clear_weak(f: &mut Func, m: &Module, block: u32) {
 /// The common lowering of `weak` and `weak_mut`.
 fn weak_type_init(m: &Module) -> Func {
     let mut f = m.func("rt:weak_type_init", vec![Val::I32, Val::I32], vec![]);
-    let Some(r) = m.runtime else {
-        return f;
-    };
+    let r = m.runtime;
     let (row, at) = (f.local(Val::I32), f.local(Val::I32));
     f.op(Instruction::Block(BlockType::Empty));
     f.op(Instruction::Loop(BlockType::Empty));
@@ -2616,10 +2602,7 @@ fn weak_new(m: &Module) -> Func {
         vec![Val::I64, Val::I32, Val::I32, Val::I32],
         vec![Val::I32],
     );
-    let Some(r) = m.runtime else {
-        f.i32(0);
-        return f;
-    };
+    let r = m.runtime;
     let (target, block, entry, actual, row, valid) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -2731,7 +2714,7 @@ fn weak_new(m: &Module) -> Func {
 
 fn weak_entry_drop(m: &Module) -> Func {
     let mut f = m.func("rt:weak_entry_drop", vec![Val::I32], vec![]);
-    let r = m.runtime.unwrap();
+    let r = m.runtime;
     let target = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -2755,7 +2738,7 @@ fn weak_entry_drop(m: &Module) -> Func {
 }
 
 /// [`Helper::New`]: a block of the header and the payload from std's
-/// `alloc`, or from the bump pointer when the program counts nothing.
+/// `alloc`.
 ///
 /// With the runtime, a collection runs first when one is due (at a known
 /// class, only on the class's slow path). An object whose descriptor has
@@ -2763,7 +2746,9 @@ fn weak_entry_drop(m: &Module) -> Func {
 /// its collector bits clear, black and no frame (§23.28).
 fn new_object(m: &Module, fixed: Option<u32>) -> Func {
     let small = fixed.and_then(|size| {
-        m.runtime.filter(|r| r.checked.is_none())?;
+        if m.runtime.checked.is_some() {
+            return None;
+        }
         small_class(size.checked_add(HEADER)?)
     });
     let name = small.map_or_else(
@@ -2776,21 +2761,14 @@ fn new_object(m: &Module, fixed: Option<u32>) -> Func {
     if small.is_none() {
         collect_if_due(&mut f, m);
     }
-    match (m.runtime, small) {
+    if let Some((class, bytes)) = small {
         // The class's block holds the header and the payload.
-        (Some(_), Some((class, bytes))) => f.helper(Helper::AllocClass { class, bytes }),
-        (Some(r), None) => {
-            f.get(0);
-            f.u32(HEADER);
-            f.op(Instruction::I32Add);
-            f.call(Sym::Inst(r.alloc));
-        }
-        (None, _) => {
-            f.get(0);
-            f.u32(HEADER);
-            f.op(Instruction::I32Add);
-            f.helper(Helper::Alloc);
-        }
+        f.helper(Helper::AllocClass { class, bytes });
+    } else {
+        f.get(0);
+        f.u32(HEADER);
+        f.op(Instruction::I32Add);
+        f.call(Sym::Inst(m.runtime.alloc));
     }
     f.set(block);
     f.get(block);
@@ -2812,9 +2790,10 @@ fn new_object(m: &Module, fixed: Option<u32>) -> Func {
 /// [`Helper::Collect`].
 fn collect(m: &Module) -> Func {
     let mut f = m.func("rt:collect", vec![], vec![]);
-    let Some(r) = m.runtime.filter(|_| !m.acyclic) else {
+    if m.acyclic {
         return f;
-    };
+    }
+    let r = m.runtime;
     for h in [Helper::CycleTrace, Helper::CycleRelease, Helper::CycleFree] {
         f.table_slot(Sym::Helper(h));
         f.i32(0);
@@ -2837,9 +2816,7 @@ fn collect(m: &Module) -> Func {
 /// or a known payload start ([`Helper::ReleaseKnown`]).
 fn release_ref(m: &Module, addr: Addr) -> Func {
     let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
-    let Some(r) = m.runtime else {
-        return f;
-    };
+    let r = m.runtime;
     let block = f.local(Val::I32);
     let known = addr != Addr::Ref;
     if !m.acyclic {
@@ -2897,10 +2874,6 @@ fn release_ref(m: &Module, addr: Addr) -> Func {
 /// [`Helper::TakeBox`].
 fn take_box(m: &Module) -> Func {
     let mut f = m.func("rt:take_box", vec![Val::I32], vec![Val::I32]);
-    if m.runtime.is_none() {
-        f.i32(1);
-        return f;
-    }
     let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.u32(HEADER);
@@ -2971,7 +2944,7 @@ fn release_drain(m: &Module) -> Func {
 /// has loaded it for glue dispatch, so a fixed allocation can decode its
 /// class once and enter the same free body without a helper reload.
 fn free_loaded_object(f: &mut Func, m: &Module, block: u32, desc: u32) {
-    let r = m.runtime.unwrap();
+    let r = m.runtime;
     if m.fixed_allocations && r.checked.is_none() {
         let class = f.local(Val::I32);
         f.get(desc);
@@ -3449,7 +3422,7 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
 /// the original load; checked builds count the executed test in std.
 pub(crate) fn unique_count(f: &mut Func, m: &Module) {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    if let Some(c) = m.runtime.and_then(|r| r.checked) {
+    if let Some(c) = m.runtime.checked {
         f.call(Sym::Inst(c.observe_unique));
     }
 }
@@ -3654,8 +3627,7 @@ fn str_from_bytes(m: &Module) -> Func {
     f.set(n);
     f.get(n);
     f.op(Instruction::If(BlockType::Empty));
-    // A module that counts nothing has no holder count to read.
-    if m.runtime.is_some() {
+    {
         f.get(b);
         f.u32(HEADER);
         f.op(Instruction::I32Sub);
@@ -3729,7 +3701,8 @@ fn str_append(m: &Module) -> Func {
     f.set(total);
     f.get(right_len);
     f.op(Instruction::If(BlockType::Empty));
-    if let Some(r) = m.runtime {
+    {
+        let r = m.runtime;
         f.get(left);
         f.call(Sym::Inst(r.block_of));
         f.set(block);
@@ -3994,7 +3967,7 @@ pub(crate) fn ref_store(
 /// added in unchecked builds; the linker aliases the same release glue.
 #[cfg(feature = "checked-report")]
 pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
-    if m.runtime.is_none_or(|r| r.checked.is_none()) {
+    if m.runtime.checked.is_none() {
         return;
     }
     if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::TableSlot(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {
@@ -4019,10 +3992,7 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
     f.get(cap);
     f.i32(stride);
     f.op(Instruction::I32Mul);
-    match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.alloc)),
-        None => f.helper(Helper::Alloc),
-    }
+    f.call(Sym::Inst(m.runtime.alloc));
     f.set(fresh);
     f.get(fresh);
     f.i32(0);
@@ -4038,7 +4008,8 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
     f.i32(stride);
     f.op(Instruction::I32Mul);
     f.push(crate::bulk::copy(HEAP, HEAP));
-    if let Some(r) = m.runtime {
+    {
+        let r = m.runtime;
         f.global_get(tab);
         f.call(Sym::Inst(r.acyclic.free));
     }
@@ -4340,17 +4311,11 @@ fn spill_remove(f: &mut Func, m: &Module, i: u32, e: u32) {
 
 /// Allocates a raw block of the size on the stack, leaving its address.
 fn spill_alloc(f: &mut Func, m: &Module) {
-    match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.alloc)),
-        None => f.helper(Helper::Alloc),
-    }
+    f.call(Sym::Inst(m.runtime.alloc));
 }
 
 /// Frees the raw block whose address is on the stack: the free that skips
 /// the collector's candidate test.
 fn spill_free(f: &mut Func, m: &Module) {
-    match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.acyclic.free)),
-        None => f.op(Instruction::Drop),
-    }
+    f.call(Sym::Inst(m.runtime.acyclic.free));
 }

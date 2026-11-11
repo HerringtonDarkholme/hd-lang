@@ -749,9 +749,6 @@ pub(super) fn binds(
 
 /// Install the TIR link pass's pointer-loan tables for emission.
 pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
-    if input.runtime.is_none() {
-        return;
-    }
     let decisions = super::loan_facts::decide(input, m);
     m.kept = decisions.kept;
     m.lent = decisions.lent;

@@ -734,16 +734,43 @@ fn collected_init_constants_cross_temporaries_only_in_closed_programs() {
         };
         validate(&wasm);
         let mut sets = 0;
+        let mut function = 0;
+        let mut init_index = None;
         for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
-            if let wasmparser::Payload::CodeSectionEntry(body) = payload.expect("payload") {
-                for op in body.get_operators_reader().expect("operators") {
-                    sets += usize::from(matches!(
-                        op.expect("operator"),
-                        wasmparser::Operator::GlobalSet { .. }
-                    ));
+            match payload.expect("payload") {
+                wasmparser::Payload::ImportSection(imports) => {
+                    for import in imports.into_imports() {
+                        function += u32::from(matches!(
+                            import.expect("import").ty,
+                            wasmparser::TypeRef::Func(_)
+                        ));
+                    }
                 }
+                wasmparser::Payload::ExportSection(exports) => {
+                    for export in exports {
+                        let export = export.expect("export");
+                        if export.name == "init" {
+                            init_index = Some(export.index);
+                        }
+                    }
+                }
+                wasmparser::Payload::CodeSectionEntry(body) => {
+                    // Runtime helpers may write their own globals. This test
+                    // measures the collected initializer's storage writes.
+                    if Some(function) == init_index {
+                        for op in body.get_operators_reader().expect("operators") {
+                            sets += usize::from(matches!(
+                                op.expect("operator"),
+                                wasmparser::Operator::GlobalSet { .. }
+                            ));
+                        }
+                    }
+                    function += 1;
+                }
+                _ => {}
             }
         }
+        assert!(init_index.is_some());
         assert_eq!(sets, 2 * usize::from(session));
     }
 }
@@ -1327,4 +1354,57 @@ fn a_constant_operand_range_matches_the_exact_result() {
             assert_eq!((lo..=hi).contains(&x), (min..=max).contains(&-x));
         }
     }
+}
+
+/// Symbolic runtime identities for assembler-only tests. Program behaviour is
+/// exercised through driver builds with the actual std runtime definitions.
+pub(crate) fn runtime() -> crate::Runtime {
+    let keys: Vec<_> = crate::runtime_items(false)
+        .iter()
+        .enumerate()
+        .map(|(i, _)| Some(Hash128((1u128 << 127) + i as u128)))
+        .collect();
+    // ruled out: the test supplies one key for every runtime_items entry.
+    crate::Runtime::from_keys(&keys).expect("complete test runtime keys")
+}
+
+/// Assembler harness definitions, not a runtime implementation: these tests
+/// validate linking and generated helper control flow, never ownership counts.
+/// Keep their historical bump allocation while making every runtime symbol
+/// explicit. Count/drop behaviour is covered by driver tests with std linked.
+pub(crate) fn define_runtime(module: &mut Module) {
+    let runtime = runtime();
+    let keys = crate::runtime_items(false);
+    for (i, (_, name)) in keys.into_iter().enumerate() {
+        let (args, result) = match name {
+            "collect" => (6, false),
+            "due" | "marking" | "metadata" => (0, true),
+            "alloc_class" | "lookup" | "type_of" => {
+                (if name == "alloc_class" { 2 } else { 1 }, true)
+            }
+            "alloc"
+            | "block_of"
+            | "block_bytes"
+            | "visit"
+            | "release"
+            | "release_known"
+            | "release_acyclic"
+            | "release_known_acyclic" => (1, true),
+            "bind" | "forget" | "type_bind" => (2, false),
+            _ => (1, false),
+        };
+        let mut f = module.func(
+            format!("test-runtime:{name}"),
+            vec![Val::I32; args],
+            if result { vec![Val::I32] } else { vec![] },
+        );
+        if name == "alloc" {
+            f.get(0);
+            f.helper(Helper::Alloc);
+        } else if result {
+            f.i32(0);
+        }
+        module.define(Sym::Inst(Hash128((1u128 << 127) + i as u128)), f);
+    }
+    assert_eq!(module.runtime, runtime);
 }

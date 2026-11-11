@@ -806,13 +806,13 @@ impl Func {
         if cfg!(not(target_arch = "wasm32"))
             && self.names_counts
             && let Ins::Call(s) = &ins
-            && crate::views::count_action(&self.symbols.get(*s), None).is_some()
+            && crate::views::helper_count_action(&self.symbols.get(*s)).is_some()
         {
             self.assert_named();
         }
         let action = if self.origins.is_some() {
             match &ins {
-                Ins::Call(s) => crate::views::count_action(&self.symbols.get(*s), None),
+                Ins::Call(s) => crate::views::helper_count_action(&self.symbols.get(*s)),
                 _ => None,
             }
         } else {
@@ -1094,7 +1094,6 @@ fn vtable_hash((slots, parents, drives): &VTable) -> Hash128 {
 }
 
 /// The module under construction.
-#[derive(Default)]
 pub struct Module {
     pub track_origins: bool,
     #[cfg(feature = "checked-report")]
@@ -1147,8 +1146,8 @@ pub struct Module {
     exports: Vec<(String, SymId)>,
     /// Development fixture roots, independent of the public export ABI.
     retained: Vec<SymId>,
-    /// The std runtime that helpers call, when the program links it.
-    pub runtime: Option<crate::Runtime>,
+    /// The std runtime every linked program provides to its helpers.
+    pub runtime: crate::Runtime,
     /// Each instance by its key, for a caller to read how its callee takes
     /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
@@ -1232,6 +1231,72 @@ pub struct Module {
     /// With origins: each top-level binding's or once-cell's path, by its
     /// path hash, which names its globals.
     pub storage_names: BTreeMap<Hash128, String>,
+}
+
+impl Module {
+    pub fn new(runtime: &crate::Runtime) -> Self {
+        Self {
+            track_origins: Default::default(),
+            #[cfg(feature = "checked-report")]
+            count_audit: Default::default(),
+            init_insts: Vec::default(),
+            open_world: Default::default(),
+            package_contract: hd_host_abi::schema::Contract::default(),
+            symbols: Symbols::default(),
+            funcs: Vec::default(),
+            inst_order: Vec::default(),
+            data: Vec::default(),
+            data_at: BTreeMap::default(),
+            vtables: Vec::default(),
+            vtable_at: hd_base::HashMap::default(),
+            #[cfg(test)]
+            vtable_compares: Default::default(),
+            reserved_vtables: hd_base::HashSet::default(),
+            handle_vtables: hd_base::HashMap::default(),
+            named_codecs: crate::boundary::Named::default(),
+            driven: hd_base::HashSet::default(),
+            blocking_driven: hd_base::HashSet::default(),
+            blocking_only: hd_base::HashSet::default(),
+            exports: Vec::default(),
+            retained: Vec::default(),
+            runtime: *runtime,
+            inst_of: hd_base::HashMap::default(),
+            loan_stores: Vec::default(),
+            element_checks: Vec::default(),
+            frames: BTreeMap::default(),
+            addressed: BTreeMap::default(),
+            objects: hd_base::HashSet::default(),
+            binding_slots: BTreeMap::default(),
+            stored: BTreeMap::default(),
+            release: Default::default(),
+            acyclic: Default::default(),
+            cycle_insts: BTreeSet::default(),
+            runtime_insts: BTreeSet::default(),
+            cold_insts: BTreeSet::default(),
+            inline_counts: Default::default(),
+            fixed_allocations: Default::default(),
+            uses_weak: Default::default(),
+            weak_types: BTreeSet::default(),
+            drain_glues: Vec::default(),
+            wakers: Default::default(),
+            lent: hd_base::HashMap::default(),
+            kept: hd_base::HashSet::default(),
+            result_inner: hd_base::HashSet::default(),
+            dyn_types: hd_base::HashMap::default(),
+            cancellable: Default::default(),
+            static_labels: BTreeMap::default(),
+            storage_names: BTreeMap::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Default for Module {
+    fn default() -> Self {
+        let mut module = Self::new(&crate::tests::runtime());
+        crate::tests::define_runtime(&mut module);
+        module
+    }
 }
 
 /// Stored values and their counted-reference walk (§23.24), with a static
@@ -1558,7 +1623,7 @@ impl Module {
         self.cancellable = false;
         let original_runtime = self.runtime;
         // The count tests call it, after reachability is first known.
-        if let Some(c) = self.runtime.and_then(|r| r.checked) {
+        if let Some(c) = self.runtime.checked {
             self.retain_instances(&[c.skipped_test]);
         }
         for f in self.funcs.iter_mut().flatten() {
@@ -1631,18 +1696,17 @@ impl Module {
         if self.fixed_allocations || self.wakers || !self.drain_glues.is_empty() {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
-        if let Some(r) = self.runtime
-            && !cyclic
-        {
+        if !cyclic {
+            let r = self.runtime;
             // No allocation takes part in cycle collection: build the
             // helpers again over the runtime's releases without hooks.
             self.acyclic = true;
-            self.runtime = Some(crate::Runtime {
+            self.runtime = crate::Runtime {
                 free: r.acyclic.free,
                 release: r.acyclic.release,
                 release_known: r.acyclic.release_known,
                 ..r
-            });
+            };
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
             // Code that calls the collector itself, as std's own tests do,
             // still needs its state: run its module init after all.
@@ -1756,7 +1820,8 @@ impl Module {
             .enumerate()
             .filter_map(|(id, f)| Some((id, f.as_mut()?)))
         {
-            if let Some(r) = self.runtime {
+            {
+                let r = self.runtime;
                 let constant = crate::opt::static_counts(f, r.retain, &arity, &static_params[id]);
                 if constant {
                     crate::opt::locals(f, &arity);
@@ -1771,7 +1836,7 @@ impl Module {
             }
         }
         // Checked mode keeps every count a call, so its runtime audits them.
-        if self.inline_counts && self.runtime.is_some_and(|r| r.checked.is_none()) {
+        if self.inline_counts && self.runtime.checked.is_none() {
             let mut inlined = false;
             for f in self.funcs.iter_mut().flatten() {
                 if crate::opt::inline_counts(f, self.acyclic) {
@@ -1786,7 +1851,8 @@ impl Module {
                 self.reach();
             }
         }
-        if let Some(r) = self.runtime {
+        {
+            let r = self.runtime;
             let counts = crate::count_tests::Counts {
                 retain: r.retain,
                 acyclic: self.acyclic,
@@ -1837,10 +1903,10 @@ impl Module {
         #[cfg(feature = "checked-report")]
         let mut count_sites = hd_base::wire::Writer::default();
         #[cfg(feature = "checked-report")]
-        if let Some(r) = self.runtime
-            && let Some(c) = r.checked
+        if let Some(c) = self.runtime.checked
             && self.count_audit
         {
+            let r = self.runtime;
             count_sites.u8(1);
             let mut next = 1;
             for f in self.funcs.iter_mut().flatten() {
@@ -2054,7 +2120,7 @@ impl Module {
                     }
                     Ins::TableSlot(t) => {
                         #[cfg(feature = "checked-report")]
-                        let descriptor = self.runtime.is_some_and(|r| r.checked.is_some())
+                        let descriptor = self.runtime.checked.is_some()
                             && matches!(f.body.get(position + 1), Some(Ins::Op(Instruction::I32Const(c))) if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)
                             && matches!(
                                 f.body.get(position + 2),
@@ -2279,11 +2345,11 @@ impl Module {
                     let note = origin.and_then(|o| f.count_origin(o));
                     let action = match i {
                         Ins::Call(s) => {
-                            crate::views::count_action(&self.symbols.get(*s), self.runtime.as_ref())
+                            crate::views::count_action(&self.symbols.get(*s), &self.runtime)
                                 .or_else(|| {
                                     crate::views::count_action(
                                         &self.symbols.get(*s),
-                                        original_runtime.as_ref(),
+                                        &original_runtime,
                                     )
                                 })
                         }
@@ -2403,7 +2469,7 @@ impl Module {
                     }
                     Ins::TableSlot(t) => {
                         #[cfg(feature = "checked-report")]
-                        let descriptor = self.runtime.is_some_and(|r| r.checked.is_some())
+                        let descriptor = self.runtime.checked.is_some()
                             && matches!(f.body.get(position + 1), Some(Ins::Op(Instruction::I32Const(c))) if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)
                             && matches!(
                                 f.body.get(position + 2),
@@ -2647,7 +2713,7 @@ impl Module {
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
         #[cfg(feature = "checked-report")]
-        if self.runtime.is_some_and(|r| r.checked.is_some()) {
+        if self.runtime.checked.is_some() {
             exports.export("hd.heap", ExportKind::Memory, HEAP);
         }
         let mut manifest = previous.cloned().unwrap_or_default();
@@ -2783,7 +2849,7 @@ impl Module {
             module.section(&name_sec);
         }
         #[cfg(feature = "checked-report")]
-        if self.runtime.is_some_and(|r| r.checked.is_some()) {
+        if self.runtime.checked.is_some() {
             let mut data = vec![1];
             let mut descriptors: Vec<_> = descriptors.iter().collect();
             descriptors.sort_stable_by(|((a, ka), _), ((b, kb), _)| {

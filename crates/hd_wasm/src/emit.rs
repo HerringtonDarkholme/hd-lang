@@ -156,11 +156,7 @@ fn body_func<'a>(
     // Promoted arguments (§23.40): a call that takes a local's value
     // where its declaration takes a reference. A plain function picks
     // its own for primitive comparisons in the optimized pipeline.
-    let pick = input.promote_args
-        && sub == 0
-        && !suspending
-        && own.cold.is_none()
-        && input.runtime.is_some();
+    let pick = input.promote_args && sub == 0 && !suspending && own.cold.is_none();
     let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick);
     // Where each local lives (`Body::storage`).
     let (stored, slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
@@ -514,7 +510,7 @@ fn body_func<'a>(
         em.open(Ctl::Exit);
     }
     em.prepare_own_loans();
-    if em.input.runtime.is_some() {
+    {
         let short_loans = hd_tir::own::short::mark(b, &em.topo, &em);
         em.prepare_short_loans(short_loans);
     }
@@ -573,19 +569,19 @@ fn body_func<'a>(
             }
         }
     }
-    if !suspending {
+    let Some(suspension) = em.susp.take() else {
         if let Some((base, size)) = em.frame.filter(|f| f.0 != NONE) {
             crate::wide::locals_frame(&mut em.f, base, size);
         }
         return Ok(em.f);
-    }
-    em.exit_frame();
+    };
+    em.exit_frame(suspension.cancelled);
     let held = if sub == 0 {
         input.entry.held(item)
     } else {
         None
     };
-    susp::finish(em, key, &plocals, &params, ret, closure, held)
+    susp::finish(em, suspension, key, &plocals, &params, ret, closure, held)
 }
 
 /// The evaluating flag of a flag method on a call cycle
@@ -614,7 +610,7 @@ impl Reentry {
 
     fn enter(&self, em: &mut Em<'_, '_, '_>, path: &dyn Fn(DefId) -> String, item: DefId) {
         let cell = self.cell;
-        if em.input.runtime.and_then(|r| r.checked).is_some() {
+        if em.input.runtime.checked.is_some() {
             // Teardown zeros the flag between test cases, as a once-cell's.
             em.m.stored.insert(
                 cell,
@@ -699,7 +695,7 @@ impl OnceCell<'_> {
     }
 
     fn enter(&self, em: &mut Em<'_, '_, '_>, ret: Ty) -> StageResult<()> {
-        if em.input.runtime.and_then(|r| r.checked).is_some() {
+        if em.input.runtime.checked.is_some() {
             // Teardown releases the cached count and zeros the whole cell,
             // including an uncounted result and the flag, between test cases.
             let mut vals = self.results.clone();
@@ -941,8 +937,8 @@ fn forward(
         let t = subst(pool, env, callee, cargs, p);
         let vs = vals(pool, env, t)?;
         let target_lends = k < 64 && lends & (1 << k) != 0;
-        if let Pass::Owned(w) = crate::layout::pass(pool, env, m.runtime.is_some(), t) {
-            let value_pass = crate::layout::function_pass(pool, env, m.runtime.is_some(), t);
+        if let Pass::Owned(w) = crate::layout::pass(pool, env, true, t) {
+            let value_pass = crate::layout::function_pass(pool, env, true, t);
             // ruled out: collected function signatures use Wasm's u32
             // parameter indices, as the existing signature encoding does.
             let at = u32::try_from(params.len()).expect("params");
@@ -1324,8 +1320,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
     /// A build that checks each count op's reason ([`Func::names_counts`]).
     fn names_counts(&self) -> bool {
         self.m.track_origins
-            || cfg!(not(target_arch = "wasm32"))
-                && self.input.runtime.is_some_and(|r| r.checked.is_some())
+            || cfg!(not(target_arch = "wasm32")) && self.input.runtime.checked.is_some()
     }
 
     fn annotate_func(&self, f: &mut Func) {
@@ -2766,7 +2761,7 @@ impl Em<'_, '_, '_> {
 
     /// How a plain function takes a parameter of type `t`.
     pub(super) fn pass(&self, t: Ty) -> Pass {
-        crate::layout::pass(self.pool(), self.env(), self.input.runtime.is_some(), t)
+        crate::layout::pass(self.pool(), self.env(), true, t)
     }
 
     /// How an instance whose release summary lends the parameters in
@@ -2794,12 +2789,7 @@ impl Em<'_, '_, '_> {
     fn argument_pass(&self, lends: Option<u64>, k: usize, t: Ty) -> Pass {
         match lends {
             Some(lends) => self.pass_at(lends, k, t),
-            None => crate::layout::function_pass(
-                self.pool(),
-                self.env(),
-                self.input.runtime.is_some(),
-                t,
-            ),
+            None => crate::layout::function_pass(self.pool(), self.env(), true, t),
         }
     }
 
@@ -3165,7 +3155,7 @@ impl Em<'_, '_, '_> {
             (None, false)
         } else {
             let (target, ls, loaded) = self.read_dyn_value(recv)?;
-            if loaded && self.input.runtime.is_some() {
+            if loaded {
                 let reason = self.operation_count(i, Tag::Retain, CountPart::DynamicReceiver);
                 // ruled out: ownership states the temporary count for a
                 // dynamic receiver loaded through a thin reference.
@@ -3220,7 +3210,6 @@ impl Em<'_, '_, '_> {
         self.f.call_indirect(params, results.clone());
         if let Some(value) = payload
             && owned
-            && self.input.runtime.is_some()
         {
             let reason = self.operation_count(i, Tag::Release, CountPart::DynamicReceiver);
             // ruled out: ownership pairs the loaded receiver's retain with
@@ -3324,19 +3313,19 @@ impl Em<'_, '_, '_> {
                 self.comp(args[0], 0)?;
                 self.f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
                 self.store_owned(i)?;
-                if let Some(retain) =
-                    hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
-                {
-                    let address = self.computed(i)[0];
-                    self.f.get(address);
-                    self.f.op(Instruction::If(BlockType::Empty));
-                    self.because(Reason::from_word(retain.reason), |em| {
-                        em.f.get(address);
-                        em.f.helper(Helper::RetainKnown);
-                    });
-                    self.f.op(Instruction::End);
-                    self.retained_before_result.insert(i);
-                }
+                // ruled out: own::retains_result states an adjacent Retain for
+                // every Weak::upgrade/WeakMut::upgrade intrinsic result.
+                let retain = hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
+                    .expect("weak upgrade has a stated result Retain");
+                let address = self.computed(i)[0];
+                self.f.get(address);
+                self.f.op(Instruction::If(BlockType::Empty));
+                self.because(Reason::from_word(retain.reason), |em| {
+                    em.f.get(address);
+                    em.f.helper(Helper::RetainKnown);
+                });
+                self.f.op(Instruction::End);
+                self.retained_before_result.insert(i);
                 Ok(())
             }
             "weak_weaken" => {

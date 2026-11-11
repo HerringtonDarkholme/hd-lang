@@ -699,10 +699,7 @@ fn wake_slot(m: &Module) -> Func {
     f.get(cap);
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
-    match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.alloc)),
-        None => f.helper(Helper::Alloc),
-    }
+    f.call(Sym::Inst(m.runtime.alloc));
     f.set(fresh);
     f.get(fresh);
     f.i32(0);
@@ -718,7 +715,8 @@ fn wake_slot(m: &Module) -> Func {
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     f.push(crate::bulk::copy(HEAP, HEAP));
-    if let Some(r) = m.runtime {
+    {
+        let r = m.runtime;
         // A raw block: the free that skips the collector's candidate test.
         f.global_get(Global::WakeTab);
         f.call(Sym::Inst(r.acyclic.free));
@@ -1595,7 +1593,7 @@ fn drive(m: &Module, blocking: bool, cold: &Helper, params: &[Val], results: &[V
         f.set(*l);
     }
     f.op(Instruction::If(BlockType::Empty));
-    if m.runtime.is_some() {
+    {
         f.get(fr);
         f.helper(Helper::ReleaseRef);
     }

@@ -204,10 +204,7 @@ impl CountAction {
     }
 }
 
-pub(crate) fn count_action(
-    s: &crate::module::Sym,
-    runtime: Option<&crate::Runtime>,
-) -> Option<CountAction> {
+pub(crate) fn helper_count_action(s: &crate::module::Sym) -> Option<CountAction> {
     use crate::{Helper, module::Sym};
     use CountAction::{Copy, Free, Release, Retain, Unique};
     match s {
@@ -229,8 +226,19 @@ pub(crate) fn count_action(
             | Helper::CycleRelease,
         ) => Some(Release),
         Sym::Helper(Helper::CycleFree) => Some(Free),
+        _ => None,
+    }
+}
+
+pub(crate) fn count_action(
+    s: &crate::module::Sym,
+    runtime: &crate::Runtime,
+) -> Option<CountAction> {
+    use crate::module::Sym;
+    use CountAction::{Free, Release, Retain};
+    match s {
         Sym::Inst(k) => {
-            let r = runtime?;
+            let r = runtime;
             if [r.retain, r.retain_known].contains(k) {
                 Some(Retain)
             } else if [
@@ -248,7 +256,7 @@ pub(crate) fn count_action(
                 None
             }
         }
-        _ => None,
+        _ => helper_count_action(s),
     }
 }
 
@@ -300,12 +308,8 @@ mod tests {
     /// direct free at the real backend encoder, including acyclic relinking.
     #[test]
     fn a_final_free_call_keeps_its_source_and_block_label() {
-        let keys: Vec<_> = (1..=crate::runtime_items(false).len())
-            .map(|n| Some(Hash128(n as u128)))
-            .collect();
-        let runtime = crate::Runtime::from_keys(&keys).expect("runtime keys");
         let mut module = Module::default();
-        module.runtime = Some(runtime);
+        let runtime = module.runtime;
         module.track_origins = true;
         let free = module.func("free", vec![Val::I32], vec![]);
         module.define(Sym::Inst(runtime.free), free);
