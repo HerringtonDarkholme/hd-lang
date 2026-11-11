@@ -802,9 +802,13 @@ A warm run reads no source file it does not check, and hashes none
   further inputs (`hd_driver::result_key`): the CLI stores a whole
   `hd check` or `hd lint` report there, lint source allows, rendered
   doc links and doc tests included, and `hd build`'s artifact with its
-  positions section, for a build that reported nothing. `hd run` and
-  `hd test` stay per-module: their panic frames need each module's
-  `check` entry, and a test's outcome is not a function of its sources.
+  positions section, for a build that reported nothing. `hd run` stores
+  its module the same way, without positions: a panic's frames need each
+  module's `check` entry, so a stored module's panic builds the program
+  again, per module, and names its frames only when that build's module
+  is the stored one. A run that does not panic resolves nothing.
+  `hd test` stays per-module: a test's outcome is not a function of its
+  sources.
 - **Fingerprints** of `hd test --affected` hold content hashes, never
   stamps: a source file's from the build's skims
   (`Output::source_hashes`), any other package file's from

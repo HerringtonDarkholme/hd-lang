@@ -724,7 +724,11 @@ pub(crate) fn run(args: &[OsString]) -> ExitCode {
     };
     let mut rep = Reporter::stderr(false);
     crate::execute(
-        &Compiled { wasm, frames: None },
+        &Compiled {
+            wasm,
+            frames: None,
+            stored: None,
+        },
         &name,
         &table,
         None,

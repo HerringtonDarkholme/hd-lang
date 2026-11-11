@@ -498,21 +498,53 @@ pub(crate) fn take_built() -> Vec<Pipeline> {
 pub(crate) fn build_goal_in(
     program: &disk::Program,
     goal: &Goal,
-    (profile, pipeline): (BuildProfile, Pipeline),
+    settings: (BuildProfile, Pipeline),
     doc_scopes: bool,
     rep: &mut Reporter,
+) -> Result<Output, ExitCode> {
+    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
+    // reach the disk when the store drops, after the diagnostics.
+    let store = hd_cache::DeferredStore::new(disk_store());
+    build_goal_through(program, goal, settings, doc_scopes, rep, &store)
+}
+
+/// [`build_goal_in`] through `store`.
+fn build_goal_through(
+    program: &disk::Program,
+    goal: &Goal,
+    settings: (BuildProfile, Pipeline),
+    doc_scopes: bool,
+    rep: &mut Reporter,
+    store: &dyn hd_cache::CacheStore,
 ) -> Result<Output, ExitCode> {
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
-    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
-    // reach the disk when the store drops, after the diagnostics.
-    let store = hd_cache::DeferredStore::new(disk_store());
+    let out = build_output(program, goal, settings, doc_scopes, store);
+    let as_written = program.as_written.as_deref().filter(|_| rep.json);
+    let mut diags = report::from_output(&out, as_written);
+    diags.extend(caps::required(program, &out));
+    report::relocate(&mut diags, |f| program.sources.display(f));
+    if rep.diags(&diags) {
+        return Err(rep.finish(HD_FAILURE));
+    }
+    Ok(out)
+}
+
+/// The driver's output for `goal` over `program` through `store`,
+/// reporting nothing.
+fn build_output(
+    program: &disk::Program,
+    goal: &Goal,
+    (profile, pipeline): (BuildProfile, Pipeline),
+    doc_scopes: bool,
+    store: &dyn hd_cache::CacheStore,
+) -> Output {
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
         sources: &program.sources,
-        store: &store,
+        store,
         clock: &clock,
         executor: executor(),
     };
@@ -526,14 +558,7 @@ pub(crate) fn build_goal_in(
     };
     let out: Output = hd_driver::build_packages(&host, &program.package, &packages, goal);
     note_built(&out);
-    let as_written = program.as_written.as_deref().filter(|_| rep.json);
-    let mut diags = report::from_output(&out, as_written);
-    diags.extend(caps::required(program, &out));
-    report::relocate(&mut diags, |f| program.sources.display(f));
-    if rep.diags(&diags) {
-        return Err(rep.finish(HD_FAILURE));
-    }
-    Ok(out)
+    out
 }
 
 /// [`compile`] for `hd build`: the module with its frames' positions
@@ -557,7 +582,7 @@ fn compile_standalone_in(
 ) -> Result<Vec<u8>, ExitCode> {
     // A warm build with nothing changed writes the artifact a build of the
     // same inputs stored (#1510): one lookup, no per-module entry.
-    let stored = stored_artifact(program, (profile, pipeline), store);
+    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1");
     if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
         if rep.diags(&program.problems) {
             return Err(rep.finish(HD_FAILURE));
@@ -565,7 +590,7 @@ fn compile_standalone_in(
         return Ok(wasm);
     }
     let reported = (rep.errors, rep.warnings);
-    let built = compile_traced(program, (profile, pipeline), rep)?;
+    let built = build_traced(program, (profile, pipeline), rep, store)?;
     let mut wasm = built.wasm;
     if let Some((frames, sources)) = &built.frames {
         let section = frames.positions_section(&wasm, sources);
@@ -582,14 +607,16 @@ fn compile_standalone_in(
     Ok(wasm)
 }
 
-/// The key of `program`'s stored `hd build` artifact (#1510): the inputs of
-/// its program build, and what the CLI reads besides them, the manifest's
-/// text (`caps::required`). The artifact is a function of these: the
-/// positions written into it come from the same sources.
+/// The key of `program`'s stored artifact (#1510), `client_tag` naming
+/// which: `hd build`'s module or `hd run`'s. It holds the inputs of the
+/// program build, and what the CLI reads besides them, the manifest's text
+/// (`caps::required`). The artifact is a function of these: the positions
+/// `hd build` writes into it come from the same sources.
 fn stored_artifact(
     program: &disk::Program,
     (profile, pipeline): (BuildProfile, Pipeline),
     store: &dyn hd_cache::CacheStore,
+    client_tag: &str,
 ) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
     if program.as_written.is_some() {
         return None;
@@ -612,7 +639,7 @@ fn stored_artifact(
         entry: program.entry.clone(),
     };
     let key = hd_driver::result_key(&host, &program.package, &packages, &goal)?;
-    let mut client = hd_base::StableHasher::new("cli-build-artifact-v1");
+    let mut client = hd_base::StableHasher::new(client_tag);
     match hd_project::SourceSet::read(&program.sources, "hd.toml") {
         Some(text) => client.hash(hd_base::hash128(&text)),
         None => client.u8(0),
@@ -635,24 +662,99 @@ fn compile(
 struct Compiled<'a> {
     wasm: Vec<u8>,
     frames: Option<(test_cmd::Frames, &'a disk::DiskSources)>,
+    /// A stored artifact's program and settings: its frames' positions
+    /// come from building it again, only when a panic asks for them.
+    stored: Option<(&'a disk::Program, (BuildProfile, Pipeline))>,
+}
+
+impl Compiled<'_> {
+    /// The lines of a trap's frames ([`test_cmd::Frames::lines`]). A stored
+    /// artifact's program is built again through `store` for its positions
+    /// (a warm build, each module's entries looked up), and only a build
+    /// whose module is the stored one names them: a source edited since the
+    /// lookup could move its anchors.
+    fn frame_lines(&self, trap: &[(u32, u32)], store: &dyn hd_cache::CacheStore) -> Vec<String> {
+        if trap.is_empty() {
+            return Vec::new();
+        }
+        if let Some((frames, sources)) = &self.frames {
+            return frames.lines(&self.wasm, trap, sources);
+        }
+        let Some((program, settings)) = self.stored else {
+            return Vec::new();
+        };
+        let goal = Goal::Program {
+            entry: program.entry.clone(),
+        };
+        let out = build_output(program, &goal, settings, false, store);
+        if out.wasm.as_deref() != Some(self.wasm.as_slice()) {
+            return Vec::new();
+        }
+        let positions = out.positions(&mut hd_driver::PositionPool::default());
+        test_cmd::Frames::new(positions).lines(&self.wasm, trap, &program.sources)
+    }
 }
 
 /// [`compile`], keeping what `hd FILE` and `hd run` need to report a
-/// panic's source location.
+/// panic's source location. A warm run with nothing changed takes the
+/// module a run of the same inputs stored (#1510): one lookup, no
+/// per-module entry, and the positions only when a panic asks.
 fn compile_traced<'a>(
     program: &'a disk::Program,
-    (profile, pipeline): (BuildProfile, Pipeline),
+    settings: (BuildProfile, Pipeline),
     rep: &mut Reporter,
+) -> Result<Compiled<'a>, ExitCode> {
+    let store = hd_cache::DeferredStore::new(disk_store());
+    compile_traced_in(program, settings, rep, &store)
+}
+
+/// [`compile_traced`], its module stored in and replayed from `store`.
+fn compile_traced_in<'a>(
+    program: &'a disk::Program,
+    settings: (BuildProfile, Pipeline),
+    rep: &mut Reporter,
+    store: &dyn hd_cache::CacheStore,
+) -> Result<Compiled<'a>, ExitCode> {
+    let stored = stored_artifact(program, settings, store, "cli-run-module-v1");
+    if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
+        if rep.diags(&program.problems) {
+            return Err(rep.finish(HD_FAILURE));
+        }
+        return Ok(Compiled {
+            wasm,
+            frames: None,
+            stored: Some((program, settings)),
+        });
+    }
+    let reported = (rep.errors, rep.warnings);
+    let built = build_traced(program, settings, rep, store)?;
+    // Only a build that reported nothing: a hit reports nothing either.
+    if let Some((key, client)) = stored
+        && (rep.errors, rep.warnings) == reported
+    {
+        key.write(store, client, &built.wasm);
+    }
+    Ok(built)
+}
+
+/// [`compile_traced`] with no stored module: the build through `store`,
+/// with its positions.
+fn build_traced<'a>(
+    program: &'a disk::Program,
+    settings: (BuildProfile, Pipeline),
+    rep: &mut Reporter,
+    store: &dyn hd_cache::CacheStore,
 ) -> Result<Compiled<'a>, ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
-    let out = build_goal_in(program, &goal, (profile, pipeline), false, rep)?;
+    let out = build_goal_through(program, &goal, settings, false, rep, store)?;
     let positions = out.positions(&mut hd_driver::PositionPool::default());
     match out.wasm {
         Some(wasm) => Ok(Compiled {
             wasm,
             frames: Some((test_cmd::Frames::new(positions), &program.sources)),
+            stored: None,
         }),
         None => Err(rep.fail("no Wasm produced")),
     }
@@ -707,8 +809,9 @@ fn execute(
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
-            if let Some((frames, sources)) = &built.frames {
-                for line in frames.lines(wasm, &trap, sources) {
+            if (built.frames.is_some() || built.stored.is_some()) && !trap.is_empty() {
+                let store = hd_cache::DeferredStore::new(disk_store());
+                for line in built.frame_lines(&trap, &store) {
                     eprintln!("    {line}");
                 }
             } else if !trap.is_empty()
@@ -966,7 +1069,11 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
     let table = provider_program
         .as_ref()
         .map_or(&[][..], |p| p.capabilities.as_slice());
-    let built = Compiled { wasm, frames: None };
+    let built = Compiled {
+        wasm,
+        frames: None,
+        stored: None,
+    };
     execute(
         &built,
         &file.to_string_lossy(),
@@ -1448,19 +1555,17 @@ mod stored_artifact_tests {
     use hd_cache::{CacheStore, EntryKind, MemoryStore};
     use hd_testkit::Scratch;
 
-    /// A store that counts the lookups that found an entry.
+    /// A store that counts its lookups.
     #[derive(Default)]
     struct Counted {
         store: MemoryStore,
-        found: AtomicUsize,
+        gets: AtomicUsize,
     }
 
     impl CacheStore for Counted {
         fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            let got = self.store.get(kind, key);
-            self.found
-                .fetch_add(usize::from(got.is_some()), Ordering::Relaxed);
-            got
+            self.gets.fetch_add(1, Ordering::Relaxed);
+            self.store.get(kind, key)
         }
         fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
             self.store.put(kind, key, bytes);
@@ -1476,11 +1581,136 @@ mod stored_artifact_tests {
         let mut program = disk::load_package(root, "main").expect("package");
         program.only_program("main");
         let pipeline = Pipeline::of(engine::EngineKind::default(), false);
-        store.found.store(0, Ordering::Relaxed);
+        store.gets.store(0, Ordering::Relaxed);
         let mut rep = Reporter::stdout(false);
         let wasm = compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
             .expect("built");
-        (wasm, store.found.load(Ordering::Relaxed) == 1)
+        (wasm, store.gets.load(Ordering::Relaxed) == 1)
+    }
+
+    /// Waits until every file written so far has a stamp.
+    fn settle() {
+        std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
+    }
+
+    /// A package `shop` of `n` modules besides `src/main.hd`, whose `main`
+    /// panics in `pick`, which `src/f0/m.hd` declares.
+    fn panicking(name: &str, n: usize) -> Scratch {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            name,
+        );
+        std::fs::create_dir_all(dir.join("src")).expect("src");
+        std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("toml");
+        std::fs::write(
+            dir.join("src/main.hd"),
+            "use pkg.f0.m.{pick}\n\npub fn main() -> void:\n    let _ = pick([1, 2], 5)\n",
+        )
+        .expect("main");
+        for i in 0..n {
+            let path = dir.join(format!("src/f{i}/m.hd"));
+            std::fs::create_dir_all(path.parent().expect("dir")).expect("dir");
+            let text = if i == 0 {
+                "pub fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n".to_owned()
+            } else {
+                format!("pub fn v() -> i32: {i}\n")
+            };
+            std::fs::write(path, text).expect("module");
+        }
+        dir
+    }
+
+    /// `hd run`'s module of the package at `root`, listed now, and the
+    /// lookups that took it.
+    fn compiled<'a>(program: &'a disk::Program, store: &Counted) -> (Compiled<'a>, usize) {
+        let pipeline = Pipeline::of(engine::EngineKind::default(), false);
+        store.gets.store(0, Ordering::Relaxed);
+        let mut rep = Reporter::stderr(false);
+        let Ok(built) = compile_traced_in(program, (profile_of(false), pipeline), &mut rep, store)
+        else {
+            panic!("built");
+        };
+        (built, store.gets.load(Ordering::Relaxed))
+    }
+
+    fn load(root: &Path) -> disk::Program {
+        let mut program = disk::load_package(root, "main").expect("package");
+        program.only_program("main");
+        program
+    }
+
+    /// A run of `wasm`'s trap frames.
+    fn trap_of(wasm: &[u8]) -> Vec<(u32, u32)> {
+        let host = HostSetup {
+            providers: Vec::new(),
+            grants: hd_run::Grants::default(),
+            limits: engine::ProgramLimits::default().into(),
+            args: Vec::new(),
+            program: "main".to_owned(),
+        };
+        let kind = engine::EngineKind::default();
+        let (outcome, trap) =
+            engine::run(kind, OptLevel::Dev, wasm, &host, &[]).expect("the engine runs");
+        assert!(matches!(outcome, Outcome::Exit(3)), "{outcome:?}");
+        trap
+    }
+
+    /// Cost Model (#1510): a warm `hd run` with nothing changed takes the
+    /// stored module with one lookup, at 2 modules as at 40, and builds
+    /// nothing until a panic asks for its frames, which then print the
+    /// lines the cold run's do. A settled edit builds again.
+    #[test]
+    fn a_warm_run_takes_the_stored_module_and_its_panic_names_its_lines() {
+        for n in [1, 40] {
+            let dir = panicking(&format!("run-stored-module-{n}"), n);
+            settle();
+            let store = Counted::default();
+            let program = load(&dir);
+            let (cold, gets) = compiled(&program, &store);
+            assert!(
+                cold.stored.is_none() && gets > n,
+                "{n}: cold, {gets} lookups"
+            );
+            let (warm, gets) = compiled(&program, &store);
+            assert_eq!(gets, 1, "{n}: warm");
+            assert!(warm.frames.is_none() && warm.stored.is_some());
+            assert_eq!(warm.wasm, cold.wasm);
+            let trap = trap_of(&warm.wasm);
+            let lines = warm.frame_lines(&trap, &store);
+            assert_eq!(lines, cold.frame_lines(&trap, &store));
+            assert_eq!(
+                lines,
+                [
+                    "src/f0/m.hd:2 shop.f0.m.pick",
+                    "src/main.hd:4 shop.main.main"
+                ],
+                "{n}"
+            );
+            // A comment moves `pick` down a line; the stored module is the
+            // same, its frames are the edited file's.
+            std::fs::write(
+                dir.join("src/f0/m.hd"),
+                "# Picks.\npub fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n",
+            )
+            .expect("edit");
+            settle();
+            let program = load(&dir);
+            let (edited, gets) = compiled(&program, &store);
+            assert!(
+                edited.stored.is_none() && gets > 1,
+                "{n}: an edit builds again"
+            );
+            let (warm, gets) = compiled(&program, &store);
+            assert_eq!(gets, 1, "{n}: warm after the edit");
+            assert_eq!(
+                warm.frame_lines(&trap_of(&warm.wasm), &store),
+                [
+                    "src/f0/m.hd:3 shop.f0.m.pick",
+                    "src/main.hd:4 shop.main.main"
+                ],
+                "{n}"
+            );
+        }
     }
 
     /// Cost Model (#1510): a warm `hd build` with nothing changed writes

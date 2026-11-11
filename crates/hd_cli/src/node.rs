@@ -1055,6 +1055,7 @@ mod tests {
             let built = crate::Compiled {
                 wasm: out.wasm.ok_or("compiled fixture")?,
                 frames: None,
+                stored: None,
             };
             let code = crate::execute(
                 &built,
