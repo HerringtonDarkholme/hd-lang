@@ -1,0 +1,24 @@
+# @dump: wat counts
+# @build: v8 release
+# Loading either a local or counted trait reference for a local result
+# borrows its payload. Only an explicit ownership retain acquires a count.
+use std.annotation.cold
+
+trait Base:
+    fn read(&self) -> i32
+
+trait Child < Base:
+    fn extra(&self) -> i32
+
+@cold
+fn widened[T < Child](value: &T) -> &dyn Base:
+    value
+    #^^^^^
+
+fn borrowed(value: &dyn Child) -> i32:
+    base := widened::[&dyn Child](&value)
+    base.read()
+
+fn counted(value: *dyn Child) -> i32:
+    base := widened::[*dyn Child](&value)
+    base.read()

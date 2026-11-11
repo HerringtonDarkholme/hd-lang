@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# Each branch needs its own header read; neither initializes the other's cache.
+struct Header:
+    length: usize
+
+fn two_branches(header: &Header, n: usize, choose: bool) -> usize:
+    let i: usize = 0
+    let total: usize = 0
+    # subject
+    while i < n:
+        if choose:
+            total = total + header.length
+        else:
+            total = total + header.length
+        i = i + 1
+    total

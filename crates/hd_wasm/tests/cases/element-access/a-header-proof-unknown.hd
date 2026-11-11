@@ -1,0 +1,26 @@
+# @dump: wat
+# @build: v8 release std
+use std.rt.bytes.panic_with
+
+# Unknown raw storage may alias the header. A write into one parameter's
+# buffer preserves only that parameter's header, not another parameter's.
+use std.rt.memory.{Buffer, Ptr}
+
+struct Header:
+    length: usize
+
+struct Room:
+    room: Buffer[usize]
+    length: usize
+
+fn unknown(header: &Header, raw: Ptr[usize], n: usize) -> usize:
+    let i: usize = 0
+    let total: usize = 0
+    # subject
+    while i < n:
+        raw.offset(i).write(i)
+        if i >= header.length:
+            panic_with("index", "index")
+        total += i
+        i = i + 1
+    total

@@ -2496,13 +2496,16 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
         wasm_encoder::BlockType::FunctionType(_) => None,
     };
     // Pops `n` operands; an unreachable label's stack is polymorphic.
-    let pop = |height: &mut usize, frame: &HeightFrame, n: usize| -> Option<()> {
-        match height.checked_sub(n).filter(|h| *h >= frame.base) {
-            Some(h) => *height = h,
-            None if frame.unreachable => *height = frame.base,
-            None => return None,
-        }
-        Some(())
+    let pop = |height: &mut usize, frame: &HeightFrame, n: usize| {
+        let remaining = height.checked_sub(n).filter(|h| *h >= frame.base);
+        *height = if frame.unreachable {
+            remaining.unwrap_or(frame.base)
+        } else {
+            // ruled out: Func contains typed, balanced Wasm operations;
+            // unknown effects and block signatures leave the walk before
+            // this pop. A reachable known-effect operation cannot underflow.
+            crate::emit::required(remaining, "known stack effects fit their control frame")
+        };
     };
     let mut walk = || -> Option<Vec<usize>> {
         // The function's own label: a `br 0` to it returns.
@@ -2524,7 +2527,7 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
                         I::Block(_) => LabelKind::Block,
                         I::Loop(_) => LabelKind::Loop,
                         _ => {
-                            pop(&mut height, top, 1)?;
+                            pop(&mut height, top, 1);
                             LabelKind::If
                         }
                     };
@@ -2543,10 +2546,12 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
                     top.unreachable = false;
                 }
                 Ins::Op(I::End) => {
-                    if frames.len() == 1 {
-                        return None;
-                    }
-                    let done = frames.pop()?;
+                    // ruled out: Func.body stores only nested End operators;
+                    // module serialization appends the function's final End.
+                    let done = crate::emit::required(
+                        frames.pop().filter(|_| !frames.is_empty()),
+                        "End closes a nested control frame",
+                    );
                     height = done.base + done.results;
                 }
                 Ins::Op(I::Br(depth)) => {
@@ -2561,7 +2566,7 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
                         top.unreachable = true;
                     }
                 }
-                Ins::Op(I::BrIf(_)) => pop(&mut height, top, 1)?,
+                Ins::Op(I::BrIf(_)) => pop(&mut height, top, 1),
                 Ins::Op(I::BrTable(..) | I::Return | I::Unreachable) => {
                     height = top.base;
                     top.unreachable = true;
@@ -2572,7 +2577,7 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
                 Ins::DrainGlue(_) => {}
                 other => {
                     let (pops, pushes) = effect(other, arity, &f.symbols)?;
-                    pop(&mut height, top, pops)?;
+                    pop(&mut height, top, pops);
                     height += pushes;
                 }
             }

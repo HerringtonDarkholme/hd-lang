@@ -104,6 +104,31 @@ pub(super) fn bare_local(b: &hd_tir::ir::Body, word: u32) -> usize {
     (word & !BARE_LOCAL) as usize
 }
 
+/// Pushes a reference to a memory-backed representation. A fat reference
+/// reads the stored data/vtable pair; its permission decides whether this
+/// operation borrows the pair or takes an independent count. Keep this
+/// representation operation separate from place discovery and result storage.
+fn project_reference(
+    function: &mut crate::module::Func,
+    at: u32,
+    value: &RefLayout,
+    fat: bool,
+    counted: bool,
+) {
+    if fat {
+        let locals = if counted {
+            rt::ref_load(function, at, value)
+        } else {
+            rt::ref_lend(function, at, value)
+        };
+        for local in locals {
+            function.get(local);
+        }
+    } else {
+        function.get(at);
+    }
+}
+
 impl Em<'_, '_, '_> {
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
@@ -775,11 +800,8 @@ impl Em<'_, '_, '_> {
         fat: bool,
     ) -> StageResult<()> {
         let at = self.offset_local(at, off);
-        if fat {
-            self.fat_ref_through(i, at, field);
-        } else {
-            self.f.get(at);
-        }
+        let counted = fat && self.counted(self.ty(i)).is_some();
+        project_reference(&mut self.f, at, field, fat, counted);
         self.store_owned(i)?;
         Ok(())
     }
@@ -1024,13 +1046,8 @@ impl Em<'_, '_, '_> {
     /// `at` names: lent when `i` is a `&dyn`, a local reference, which
     /// counts nothing (`ref.count.local`), else with counts of its own.
     fn fat_ref_through(&mut self, i: u32, at: u32, value: &RefLayout) {
-        if self.counted(self.ty(i)).is_none() {
-            for l in rt::ref_lend(&mut self.f, at, value) {
-                self.f.get(l);
-            }
-        } else {
-            self.load_through(at, value);
-        }
+        let counted = self.counted(self.ty(i)).is_some();
+        project_reference(&mut self.f, at, value, true, counted);
     }
 
     /// Pushes the value that the reference in local `at` names, with
@@ -1696,6 +1713,81 @@ mod tests {
     use super::bare_local;
     use hd_base::{DefId, LocalId};
     use hd_tir::ir::{BodyKind, Place, PlaceRoot, Proj, Ref, TirBuilder, place};
+
+    #[test]
+    fn memory_trait_value_projection_loads_both_leaves_and_counts_only_copies() {
+        use crate::layout::{Leaf, Walk};
+        use crate::module::{Func, Ins, Sym, Val};
+        use crate::op::Op;
+        use crate::rt::{Helper, RefLayout};
+
+        // A legal backend representation: two i32 leaves in memory,
+        // data first and vtable second, with a count on the data address.
+        // This exercises representation emission; it does not claim a
+        // checked user expression currently produces this storage form.
+        let value = RefLayout {
+            size: 8,
+            leaves: [0, 4]
+                .map(|offset| Leaf {
+                    offset,
+                    val: Val::I32,
+                    bytes: 4,
+                    signed: false,
+                })
+                .into(),
+            walk: Some(Walk::Ref(0)),
+            drops: Box::default(),
+            colls: Box::default(),
+        };
+        for (fat, counted) in [(false, false), (true, false), (true, true)] {
+            let mut function = Func::default();
+            let address = function.local(Val::I32);
+            super::project_reference(&mut function, address, &value, fat, counted);
+            let loads: Vec<_> = function
+                .body
+                .iter()
+                .filter_map(|instruction| {
+                    if let Ins::Op(Op::I32Load(argument)) = instruction {
+                        Some(argument.offset)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert_eq!(loads, if fat { vec![0, 4] } else { vec![] });
+            let calls: Vec<_> = function
+                .body
+                .iter()
+                .filter_map(|instruction| {
+                    if let Ins::Call(symbol) = instruction {
+                        Some((*function.symbol(*symbol)).clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if counted {
+                assert_eq!(
+                    calls,
+                    vec![Sym::Helper(Helper::Retain {
+                        vals: vec![Val::I32, Val::I32],
+                        walk: Walk::Ref(0),
+                    })]
+                );
+            } else {
+                assert!(calls.is_empty(), "a loan must not acquire a count");
+            }
+            let results = if fat { 2 } else { 1 };
+            assert!(
+                function
+                    .body
+                    .iter()
+                    .rev()
+                    .take(results)
+                    .all(|instruction| matches!(instruction, Ins::Op(Op::LocalGet(_))))
+            );
+        }
+    }
 
     #[test]
     fn bare_local_decodes_canonical_whole_locals() {

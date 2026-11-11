@@ -1534,9 +1534,16 @@ pub(super) fn finish(
         Some(loaded)
     };
     for (l, ls) in places {
-        let Some(loaded) = load(&mut em, &ls) else {
-            continue;
-        };
+        // ruled out: every owned cold parameter/capture uses parameter
+        // value locals or a distinct cell-address local. param_cell replaces
+        // pre-cell arrival locals with new_cell's fresh result; raw_cell
+        // allocates a separate virtual local for each stack-slot address.
+        // None is save_area's skipped FRAME, pc,
+        // cancelled, local-stack base or consumed arrival local.
+        let loaded = super::required(
+            load(&mut em, &ls),
+            "cold owned parameter and capture locals have frame save slots",
+        );
         em.borrow_release(l);
         em.because(Reason::Cancelled, |em| {
             if em.is_cell(l) {

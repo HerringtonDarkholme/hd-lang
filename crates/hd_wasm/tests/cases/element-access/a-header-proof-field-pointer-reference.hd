@@ -1,0 +1,25 @@
+# @dump: wat
+# @build: v8 release std
+# Conservative header proofs never cache across an unknown raw source.
+use std.rt.bytes.panic_with
+use std.rt.memory.Ptr
+
+struct Header:
+    length: usize
+
+struct Holder:
+    ptr: Ptr[usize]
+
+fn field_pointer_reference(header: &Header, holder: &Holder, n: usize) -> usize:
+    reference := &holder.ptr
+    let i: usize = 0
+    let total: usize = 0
+    # subject
+    while i < n:
+        raw := *reference
+        raw.offset(i).write(i)
+        if i >= header.length:
+            panic_with("index", "index")
+        total = total + i
+        i = i + 1
+    total

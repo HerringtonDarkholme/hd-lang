@@ -344,70 +344,16 @@ impl Proof<'_, '_, '_, '_> {
     /// [`Proof::clear`]: one walk up from each break and continue marks
     /// the statements it leaves, then one pass over each block's list.
     fn clear_statements(&self) -> Vec<bool> {
-        let b = self.em.b;
-        let t = &self.em.topo;
-        let n = b.len();
-        let inside = |x: usize, s: usize| (t.first[s] as usize) <= x && x <= s;
-        let mut leaves = vec![false; n];
-        for i in 0..n {
-            if !matches!(b.tags[i], Tag::Break | Tag::Continue) {
-                continue;
-            }
-            let target = b.label_inst[b.data[i][0] as usize] as usize;
-            let mut s = i;
-            while !inside(target, s) {
-                leaves[s] = true;
-                if b.tags[s] == Tag::Block && t.owner[s] != NONE {
-                    leaves[t.owner[s] as usize] = true;
-                }
-                let blk = t.blk[s];
-                if blk == NONE {
-                    break;
-                }
-                s = blk as usize;
-            }
-        }
-        let mut clear = vec![false; n];
-        for blk in 0..n {
-            if b.tags[blk] != Tag::Block {
-                continue;
-            }
-            for &s in b.record(b.data[blk][0]) {
-                clear[s as usize] = true;
-                if leaves[s as usize] {
-                    break;
-                }
-            }
-        }
-        clear
+        clear_statements(self.em.b, &self.em.topo)
     }
 
     /// Whether instruction `d` runs before `j` on every path that reaches
     /// `j`: `d`, or an inlined call's block that runs `d` whenever it
     /// runs, dominates `j` ([`Em::dominates`]).
     fn runs_before(&self, d: u32, j: u32) -> bool {
-        let b = self.em.b;
-        let t = &self.em.topo;
-        let mut x = d;
-        for _ in 0..DEPTH {
-            if self.em.dominates(x, j) {
-                return true;
-            }
-            let blk = t.blk[x as usize];
-            if !self.clear.get(x as usize).copied().unwrap_or(false) || blk == NONE {
-                return false;
-            }
-            let owner = t.owner[blk as usize];
-            if owner == NONE
-                || b.tags[owner as usize] != Tag::Scope
-                || b.data[owner as usize][0] != blk
-                || !b.record(b.data[owner as usize][1]).is_empty()
-            {
-                return false;
-            }
-            x = owner;
-        }
-        false
+        runs_before(self.em.b, &self.em.topo, &self.clear, d, j, |x, j| {
+            self.em.dominates(x, j)
+        })
     }
 
     /// Whether call `x` is a pointer intrinsic, which writes nothing, or
@@ -576,13 +522,9 @@ impl Proof<'_, '_, '_, '_> {
                     (None, _) => Origin::Other,
                 }
             }
-            Tag::NewStruct => match b.record(b.data[i][1]) {
-                [address] => match self.origin(*address, depth + 1) {
-                    Origin::Inline(p) => Origin::PtrInto(p),
-                    _ => Origin::Other,
-                },
-                _ => Origin::Other,
-            },
+            Tag::NewStruct => constructed_origin(b.record(b.data[i][1]), |address| {
+                self.origin(address, depth + 1)
+            }),
             Tag::Call
                 if matches!(
                     self.em.calls.get(&r),
@@ -691,9 +633,12 @@ impl Proof<'_, '_, '_, '_> {
         {
             return None;
         }
-        let [r, one] = *b.record(b.data[x as usize][1]) else {
-            return None;
-        };
+        // ruled out: the checker emits PrimOp::Sub with two operands;
+        // cloning and substitution preserve the primitive operand record.
+        let [r, one] = super::required(
+            b.record(b.data[x as usize][1]).try_into().ok(),
+            "subtraction has two operands",
+        );
         (self.em.const_u32(one) == Some(1)).then_some(r)
     }
 
@@ -712,9 +657,12 @@ impl Proof<'_, '_, '_, '_> {
         if b.tags[c] != Tag::Prim || b.data[c][0] != PrimOp::Ge as u32 {
             return None;
         }
-        let [index, len] = *b.record(b.data[c][1]) else {
-            return None;
-        };
+        // ruled out: the checker emits PrimOp::Ge with two operands;
+        // cloning and substitution preserve the primitive operand record.
+        let [index, len] = super::required(
+            b.record(b.data[c][1]).try_into().ok(),
+            "comparison has two operands",
+        );
         (self.em.ty_of(index) == Ty::prim(hd_types::Prim::Usize)).then_some((index, len))
     }
 
@@ -744,21 +692,17 @@ impl Proof<'_, '_, '_, '_> {
             // A rising counter, read after its test and before its step.
             let rising = self.rising.get(&v).is_some_and(|facts| {
                 facts.iter().any(|f| {
-                    let [a, c] = self.sets[v].as_slice() else {
-                        return false;
-                    };
-                    let (init, step) = if em.in_loop(a.0, f.loop_inst) {
-                        (c, a)
-                    } else {
-                        (a, c)
-                    };
-                    f.end == len
-                        && !em.in_loop(init.0, f.loop_inst)
-                        && em.topo.loop_of[step.0 as usize] == f.loop_inst
-                        && em.topo.loop_of[read as usize] == f.loop_inst
-                        && em.dominates(f.cond, read)
-                        && em.after_test(f.test, read)
-                        && em.dominates(read, step.0)
+                    rising_stores(&self.sets[v], |x| em.in_loop(x, f.loop_inst)).is_some_and(
+                        |[init, step]| {
+                            f.end == len
+                                && !em.in_loop(init.0, f.loop_inst)
+                                && em.topo.loop_of[step.0 as usize] == f.loop_inst
+                                && em.topo.loop_of[read as usize] == f.loop_inst
+                                && em.dominates(f.cond, read)
+                                && em.after_test(f.test, read)
+                                && em.dominates(read, step.0)
+                        },
+                    )
                 })
             });
             if rising {
@@ -789,5 +733,245 @@ impl Proof<'_, '_, '_, '_> {
             return self.below(value, len, depth + 1);
         }
         false
+    }
+}
+
+/// Clear statements depend on the represented block graph, not every
+/// instruction column being reachable from a sub-body root.
+fn clear_statements(b: &hd_tir::ir::Body, t: &hd_tir::ir::Topology) -> Vec<bool> {
+    let n = b.len();
+    let inside = |x: usize, s: usize| (t.first[s] as usize) <= x && x <= s;
+    let mut leaves = vec![false; n];
+    for i in 0..n {
+        if !matches!(b.tags[i], Tag::Break | Tag::Continue) {
+            continue;
+        }
+        let target = b.label_inst[b.data[i][0] as usize] as usize;
+        let mut s = i;
+        while !inside(target, s) {
+            leaves[s] = true;
+            if b.tags[s] == Tag::Block && t.owner[s] != NONE {
+                leaves[t.owner[s] as usize] = true;
+            }
+            // A detached instruction has no enclosing block. It can
+            // remain in a Body's columns without being executed.
+            let blk = t.blk[s];
+            if blk == NONE {
+                break;
+            }
+            s = blk as usize;
+        }
+    }
+    let mut clear = vec![false; n];
+    for blk in 0..n {
+        if b.tags[blk] != Tag::Block {
+            continue;
+        }
+        for &s in b.record(b.data[blk][0]) {
+            clear[s as usize] = true;
+            if leaves[s as usize] {
+                break;
+            }
+        }
+    }
+    clear
+}
+
+/// The existing bounded empty-scope walk, independent of emitter state.
+fn runs_before(
+    b: &hd_tir::ir::Body,
+    t: &hd_tir::ir::Topology,
+    clear: &[bool],
+    d: u32,
+    j: u32,
+    mut dominates: impl FnMut(u32, u32) -> bool,
+) -> bool {
+    let mut x = d;
+    for _ in 0..DEPTH {
+        if dominates(x, j) {
+            return true;
+        }
+        let blk = t.blk[x as usize];
+        if !clear.get(x as usize).copied().unwrap_or(false) || blk == NONE {
+            return false;
+        }
+        let owner = t.owner[blk as usize];
+        if owner == NONE
+            || b.tags[owner as usize] != Tag::Scope
+            || b.data[owner as usize][0] != blk
+            || !b.record(b.data[owner as usize][1]).is_empty()
+        {
+            return false;
+        }
+        x = owner;
+    }
+    false
+}
+
+/// Exactly one initialization and one loop step, ordered by execution.
+/// Instruction identities need not follow the enclosing block's order.
+fn rising_stores(
+    stores: &[(u32, u32)],
+    mut in_loop: impl FnMut(u32) -> bool,
+) -> Option<[(u32, u32); 2]> {
+    let [a, c] = stores else { return None };
+    Some(if in_loop(a.0) { [*c, *a] } else { [*a, *c] })
+}
+
+/// A `Ptr` constructor has one address field. A general aggregate is not
+/// pointer provenance, even if one of its fields came from inline storage.
+fn constructed_origin(fields: &[u32], resolve: impl FnOnce(u32) -> Origin) -> Origin {
+    match fields {
+        [address] => match resolve(*address) {
+            Origin::Inline(p) => Origin::PtrInto(p),
+            _ => Origin::Other,
+        },
+        _ => Origin::Other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_tir::ir::{Body, BodyKind, TirBuilder, TirSink, Topology};
+
+    #[test]
+    fn detached_control_transfers_do_not_clear_live_statements() -> Result<(), String> {
+        for tag in [Tag::Break, Tag::Continue] {
+            let mut build = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
+            let loop_mark = build.open_loop();
+            let label = loop_mark.0.raw();
+            let block = build.open_block();
+            let block = build.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+            let loop_inst = build.close_loop(loop_mark, block, Ty::VOID, NodeIdx::NONE);
+            // A Body can retain a detached control-transfer column while
+            // the live root lists only the loop. The verifier accepts it.
+            let detached = build.emit(tag, label, NONE, Ty::NEVER, NodeIdx::NONE);
+            let record = build.words_record(&[loop_inst.0]);
+            let root = build.emit(Tag::Block, record, NONE, Ty::VOID, NodeIdx::NONE);
+            let body = build.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            let topo = Topology::new(&body);
+            assert_eq!(topo.blk[detached.0 as usize], NONE);
+            let clear = clear_statements(&body, &topo);
+            assert!(!clear[detached.0 as usize]);
+            assert!(clear[loop_inst.0 as usize]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_general_aggregate_cannot_stand_for_a_buffer_room() {
+        let from = |address| {
+            if address == 7 {
+                Origin::Inline(3)
+            } else {
+                Origin::Other
+            }
+        };
+        assert_eq!(constructed_origin(&[7], from), Origin::PtrInto(3));
+        assert_eq!(constructed_origin(&[8], from), Origin::Other);
+        assert_eq!(constructed_origin(&[], from), Origin::Other);
+        assert_eq!(constructed_origin(&[7, 8], from), Origin::Other);
+    }
+
+    #[test]
+    fn empty_scope_dominance_stops_at_the_existing_depth_bound() -> Result<(), String> {
+        for depth in [0, 1, 15, 16, 20] {
+            let mut build = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
+            let root = build.open_block();
+            let mut scopes = Vec::new();
+            for _ in 0..depth {
+                let scope = build.open_scope();
+                let body = build.open_block();
+                scopes.push((scope, body));
+            }
+            let leaf = build.open_block();
+            let d = build.close_block(leaf, None, Ty::VOID, NodeIdx::NONE).0;
+            while let Some((scope, body)) = scopes.pop() {
+                let body = build.close_block(body, None, Ty::VOID, NodeIdx::NONE);
+                build.close_scope(scope, body, Ty::VOID, NodeIdx::NONE);
+            }
+            let next = build.open_block();
+            let j = build.close_block(next, None, Ty::VOID, NodeIdx::NONE).0;
+            let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+            let body = build.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            let topo = Topology::new(&body);
+            // There is no break or continue: every statement is clear.
+            let clear = vec![true; body.len()];
+            let mut visits = 0;
+            let found = runs_before(&body, &topo, &clear, d, j, |x, j| {
+                visits += 1;
+                topo.blk[x as usize] == topo.blk[j as usize]
+                    && topo.pos[x as usize] < topo.pos[j as usize]
+            });
+            assert_eq!(found, depth < DEPTH);
+            assert_eq!(visits, (depth + 1).min(DEPTH));
+        }
+        Ok(())
+    }
+
+    fn counter_body(init_first: bool, count: usize) -> Result<(Body, u32), String> {
+        let mut build = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
+        let cursor = build.local(
+            Ty::prim(hd_types::Prim::Usize),
+            Symbol::default(),
+            0,
+            NodeIdx::NONE,
+        );
+        let zero = build.const_value(Ty::prim(hd_types::Prim::Usize), 0);
+        let one = build.const_value(Ty::prim(hd_types::Prim::Usize), 1);
+        let mut init = None;
+        if init_first && count >= 2 {
+            init = Some(u32::try_from(build.body_mut().len()).map_err(|e| e.to_string())?);
+            build.set(cursor, zero, NodeIdx::NONE);
+        }
+        let loop_mark = build.open_loop();
+        let loop_body = build.open_block();
+        build.set(cursor, one, NodeIdx::NONE);
+        let loop_body = build.close_block(loop_body, None, Ty::VOID, NodeIdx::NONE);
+        let loop_inst = build.close_loop(loop_mark, loop_body, Ty::VOID, NodeIdx::NONE);
+        if !init_first && count >= 2 {
+            init = Some(u32::try_from(build.body_mut().len()).map_err(|e| e.to_string())?);
+            build.set(cursor, zero, NodeIdx::NONE);
+        }
+        let mut statements = init.into_iter().collect::<Vec<_>>();
+        statements.push(loop_inst.0);
+        if count == 3 {
+            statements.push(u32::try_from(build.body_mut().len()).map_err(|e| e.to_string())?);
+            build.set(cursor, zero, NodeIdx::NONE);
+        }
+        let record = build.words_record(&statements);
+        let root = build.emit(Tag::Block, record, NONE, Ty::VOID, NodeIdx::NONE);
+        Ok((
+            build.finish(root, &[]).map_err(|e| format!("{e:?}"))?,
+            loop_inst.0,
+        ))
+    }
+
+    #[test]
+    fn rising_schedule_uses_control_order_and_requires_two_stores() -> Result<(), String> {
+        for count in [1, 2, 3] {
+            for init_first in [false, true] {
+                let (body, loop_inst) = counter_body(init_first, count)?;
+                let topo = Topology::new(&body);
+                let stores = body
+                    .tags
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, tag)| **tag == Tag::Store)
+                    .map(|(i, _)| u32::try_from(i).map(|id| (id, body.data[i][1])))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                let schedule = rising_stores(&stores, |x| topo.loop_of[x as usize] == loop_inst);
+                assert_eq!(schedule.is_some(), count == 2);
+                if let Some([init, step]) = schedule {
+                    assert_ne!(topo.loop_of[init.0 as usize], loop_inst);
+                    assert_eq!(topo.loop_of[step.0 as usize], loop_inst);
+                    assert_eq!(init.0 < step.0, init_first);
+                }
+            }
+        }
+        Ok(())
     }
 }

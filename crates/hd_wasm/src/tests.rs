@@ -1406,3 +1406,238 @@ pub(crate) fn define_runtime(module: &mut Module) {
     }
     assert_eq!(module.runtime, runtime);
 }
+
+/// Declarations queried before reach must match the independently built
+/// helper ABI, including structured boundaries and dispatch adapters.
+#[test]
+fn ungenerated_helper_shapes_match_their_constructed_functions() {
+    use crate::rt::{HostCounts, PrimArg, RefLayout, RefRead};
+    use crate::task::{HostArg, HostRes};
+    let check = |helper: Helper| {
+        let actual = crate::rt::helper(&helper, &mut Module::default());
+        assert_eq!(
+            crate::rt::arity(&helper),
+            (actual.params.len(), actual.results.len()),
+            "{}",
+            actual.name
+        );
+    };
+    let entry = crate::map::Entry {
+        size: 8,
+        leaves: vec![word(0), word(4)],
+        keys: 1,
+        key_walk: None,
+        val_walk: None,
+        colls: vec![],
+        cyclic: false,
+    };
+    let ops = crate::map::KeyOps::I32(Hash128(7));
+    let tuple = crate::layout::Mem {
+        size: 12,
+        align: 4,
+        leaves: vec![word(0), word(4), word(8)],
+        niche: None,
+        uninhabited: false,
+    };
+    for helper in [
+        Helper::MapHash {
+            key: vec![Val::I32],
+            ops: ops.clone(),
+        },
+        Helper::MapFind {
+            entry: entry.clone(),
+            ops: ops.clone(),
+        },
+        Helper::MapPut {
+            entry: entry.clone(),
+            ops,
+        },
+        Helper::MapSlotNext,
+        Helper::MapStep {
+            entry,
+            item: Box::new(crate::layout::flat_of(&[vec![], vec![tuple]])),
+        },
+        Helper::DynSlot {
+            target: Hash128(8),
+            leaves: None,
+            params: vec![Val::I64, Val::F64],
+            results: vec![Val::I32],
+            own: vec![(1, None), (1, None), (1, None)],
+            given: vec![],
+            ctx: None,
+        },
+        Helper::DynRead {
+            target: Hash128(8),
+            read: RefRead {
+                value: RefLayout {
+                    size: 4,
+                    leaves: vec![word(0)],
+                    walk: None,
+                    drops: Box::new([]),
+                    colls: Box::new([]),
+                },
+            },
+            params: vec![Val::I64],
+            results: vec![Val::I32],
+            own: vec![(1, None), (1, None)],
+            given: vec![],
+            ctx: None,
+        },
+    ] {
+        check(helper);
+    }
+    for results in [vec![], vec![Val::I64, Val::F64]] {
+        check(Helper::PendingPoll {
+            results: results.clone(),
+        });
+        for part in 0..=2 {
+            check(Helper::Race {
+                part,
+                results: results.clone(),
+                walk: None,
+            });
+        }
+    }
+    let all_element = Elem {
+        size: 4,
+        leaves: vec![word(0)],
+        walk: None,
+        drops: vec![],
+        colls: vec![],
+        cyclic: false,
+    };
+    for part in 0..=5 {
+        check(Helper::All {
+            part,
+            elem: all_element.clone(),
+        });
+    }
+    check(Helper::Enc(every_boundary_type()));
+    check(Helper::Dec(every_boundary_type()));
+    let args = vec![
+        HostArg::Scalar(Val::I64),
+        HostArg::Buf(every_boundary_type()),
+    ];
+    let vals: Vec<_> = args.iter().flat_map(HostArg::vals).collect();
+    let mut offset: u32 = 0;
+    let leaves = vals
+        .iter()
+        .map(|&val| {
+            let bytes: u8 = match val {
+                Val::I32 | Val::F32 => 4,
+                Val::I64 | Val::F64 => 8,
+            };
+            let align = u32::from(bytes);
+            offset = offset.div_ceil(align) * align;
+            let leaf = crate::layout::Leaf {
+                offset,
+                val,
+                bytes,
+                signed: false,
+            };
+            offset += align;
+            leaf
+        })
+        .collect();
+    let area = Elem {
+        size: offset,
+        leaves,
+        walk: None,
+        drops: vec![],
+        colls: vec![],
+        cyclic: false,
+    };
+    let cold = |res| Helper::HostCold {
+        module: "hd:Probe".into(),
+        method: "shape".into(),
+        args: args.clone(),
+        area: area.clone(),
+        counts: Box::new(HostCounts {
+            borrowed: None,
+            owned: None,
+        }),
+        res,
+    };
+    for helper in [
+        Helper::HostPrim {
+            name: "string_upper".into(),
+            args: vec![PrimArg::Str],
+            result: None,
+        },
+        Helper::HostPrim {
+            name: "parse_f64".into(),
+            args: vec![PrimArg::Str],
+            result: Some(Val::F64),
+        },
+        Helper::HostPrim {
+            name: "format_f64_fixed".into(),
+            args: vec![PrimArg::Scalar(Val::F64), PrimArg::Scalar(Val::I32)],
+            result: None,
+        },
+    ] {
+        check(helper);
+    }
+    for res in [
+        HostRes::Void,
+        HostRes::Tags,
+        HostRes::Buf(every_boundary_type()),
+    ] {
+        for blocking in [false, true] {
+            check(Helper::HostPoll {
+                blocking,
+                module: "hd:Probe".into(),
+                method: "shape".into(),
+                args: args.clone(),
+                area: area.clone(),
+                res: res.clone(),
+            });
+            check(Helper::HostDrive {
+                blocking,
+                module: "hd:Probe".into(),
+                method: "shape".into(),
+                args: args.clone(),
+                area: area.clone(),
+                counts: Box::new(HostCounts {
+                    borrowed: None,
+                    owned: None,
+                }),
+                res: res.clone(),
+            });
+            let mut params = vec![Val::I32];
+            params.extend_from_slice(&vals);
+            check(Helper::Drive {
+                blocking,
+                cold: Box::new(cold(res.clone())),
+                params,
+                results: res.vals(),
+            });
+        }
+    }
+    for result in [
+        crate::boundary::CallRes::Void,
+        crate::boundary::CallRes::Scalar(Val::I64),
+        crate::boundary::CallRes::Buf(every_boundary_type()),
+    ] {
+        let results = match &result {
+            crate::boundary::CallRes::Void => vec![],
+            crate::boundary::CallRes::Scalar(value) => vec![*value],
+            crate::boundary::CallRes::Buf(ty) => ty.vals(),
+        };
+        let inner = Helper::HostCall {
+            module: "hd:Probe".into(),
+            method: "shape".into(),
+            args: args.clone(),
+            result,
+            owned: None,
+        };
+        check(inner.clone());
+        for ctx in [false, true] {
+            check(Helper::HandleSlot {
+                inner: Box::new(inner.clone()),
+                params: vals.clone(),
+                ctx,
+                results: results.clone(),
+            });
+        }
+    }
+}

@@ -1,0 +1,70 @@
+# @dump: wat
+# @build: v8 release
+use std.collections.UniqList
+
+# Eighteen falling links exceed the bounded proof depth; keep the final check.
+fn deep_falling(items: &UniqList[usize]) -> usize:
+    let i: usize = 0
+    let total: usize = 0
+    while i < items.len():
+        let j0: usize = i
+        while j0 > 0:
+            let j1: usize = j0
+            while j1 > 0:
+                let j2: usize = j1
+                while j2 > 0:
+                    let j3: usize = j2
+                    while j3 > 0:
+                        let j4: usize = j3
+                        while j4 > 0:
+                            let j5: usize = j4
+                            while j5 > 0:
+                                let j6: usize = j5
+                                while j6 > 0:
+                                    let j7: usize = j6
+                                    while j7 > 0:
+                                        let j8: usize = j7
+                                        while j8 > 0:
+                                            let j9: usize = j8
+                                            while j9 > 0:
+                                                let j10: usize = j9
+                                                while j10 > 0:
+                                                    let j11: usize = j10
+                                                    while j11 > 0:
+                                                        let j12: usize = j11
+                                                        while j12 > 0:
+                                                            let j13: usize = j12
+                                                            while j13 > 0:
+                                                                let j14: usize = j13
+                                                                while j14 > 0:
+                                                                    let j15: usize = j14
+                                                                    while j15 > 0:
+                                                                        let j16: usize = j15
+                                                                        while j16 > 0:
+                                                                            let j17: usize = j16
+                                                                            while j17 > 0:
+                                                                                # subject
+                                                                                total = (
+                                                                                    total
+                                                                                    + items[j17]
+                                                                                )
+                                                                                j17 = j17 - 1
+                                                                            j16 = j16 - 1
+                                                                        j15 = j15 - 1
+                                                                    j14 = j14 - 1
+                                                                j13 = j13 - 1
+                                                            j12 = j12 - 1
+                                                        j11 = j11 - 1
+                                                    j10 = j10 - 1
+                                                j9 = j9 - 1
+                                            j8 = j8 - 1
+                                        j7 = j7 - 1
+                                    j6 = j6 - 1
+                                j5 = j5 - 1
+                            j4 = j4 - 1
+                        j3 = j3 - 1
+                    j2 = j2 - 1
+                j1 = j1 - 1
+            j0 = j0 - 1
+        i = i + 1
+    total

@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release std
+# A replacement from a field is not a one-step falling index.
+use std.rt.bytes.panic_with
+
+struct Header:
+    length: usize
+    next: usize
+
+fn field_step(header: &Header, start: usize) -> usize:
+    let cursor: usize = start
+    let total: usize = 0
+    while cursor > 0:
+        # subject
+        if cursor >= header.length:
+            panic_with("index", "index")
+        total = total + cursor
+        cursor = header.next
+    total

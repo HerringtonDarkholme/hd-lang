@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+use std.collections.UniqList
+
+# Guard proofs keep checks when the bound is a scalar reference, a unary
+# test supplies no index fact, or the counter has extra/non-unit writes.
+# Parameter counters also exercise schedules without a declaration store.
+struct Header:
+    length: usize
+
+fn unary_test(items: &UniqList[usize], mut again: bool, key: usize) -> usize:
+    let total: usize = 0
+    while !again:
+        # subject
+        total += items[key]
+        again = true
+    total

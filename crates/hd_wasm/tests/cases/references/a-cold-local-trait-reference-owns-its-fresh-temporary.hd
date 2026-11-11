@@ -1,0 +1,130 @@
+# @dump: wat counts
+# @build: v8 release
+# A fresh counted trait result weakened inside a cold frame must stay alive
+# through local and supertrait calls, then release at completion.
+use std.annotation.cold
+use std.weak.{Weak, weak}
+
+trait Base:
+    fn read(&self) -> i32
+
+trait Child < Base:
+    fn extra(&self) -> i32
+
+struct Payload:
+    number: i32
+    label: string
+
+impl Base for Payload:
+    fn read(&self) -> i32:
+        self.number + i32(self.label.len())
+
+impl Child for Payload:
+    fn extra(&self) -> i32:
+        self.number
+
+let witness: Weak[Payload]? = .None
+
+@cold
+fn fresh() -> *dyn Child:
+    value := box(Payload { number: +14, label: "abc" })
+    witness = weak(value)
+    value
+
+@cold
+fn read_base(value: &dyn Base) -> i32:
+    value.read()
+
+fn local!() -> i32:
+    let child: &dyn Child = fresh()
+    let base: &dyn Base = child
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    read_base(base)
+
+fn addressed!() -> i32:
+    let child: &dyn Child = &*fresh()
+    read_base(child)
+
+fn counted_local!() -> i32:
+    let child: *dyn Child = fresh()
+    let base: &dyn Base = child
+    read_base(base)
+
+@cold
+fn observe(value: &*dyn Child) -> i32:
+    value.extra()
+
+fn addressed_counted!() -> i32:
+    let child: *dyn Child = fresh()
+    if observe(&child) != 14:
+        panic("addressed counted trait binding lost its payload")
+    let base: &dyn Base = child
+    read_base(base)
+
+@cold
+fn fresh_mut() -> *mut dyn Child:
+    value := box(Payload { number: +14, label: "abc" })
+    witness = weak(value)
+    value
+
+fn mut_to_shared!() -> i32:
+    let child: &mut dyn Child = fresh_mut()
+    let shared: &dyn Child = child
+    let base: &dyn Base = shared
+    read_base(base)
+
+@cold
+fn fresh_payload() -> *mut Payload:
+    value := box(Payload { number: +14, label: "abc" })
+    witness = weak(value)
+    value
+
+fn thin_mut_to_shared!() -> i32:
+    let child: &mut Payload = fresh_payload()
+    let shared: &Payload = child
+    shared.number + i32(shared.label.len())
+
+struct Holder['a]:
+    value: &'a dyn Child
+
+@cold
+fn generic_view[T < Child](value: &T) -> &dyn Base:
+    value
+
+fn generic_field!() -> i32:
+    let child: *dyn Child = fresh()
+    let local: &dyn Child = &*child
+    holder := Holder { value: local }
+    base := generic_view::[&dyn Child](&holder.value)
+    read_base(base)
+
+fn generic_counted_field!() -> i32:
+    let child: *dyn Child = fresh()
+    base := generic_view::[*dyn Child](&child)
+    read_base(base)
+
+fn expired() -> bool:
+    match witness:
+        .Some(seen) => seen.upgrade().is_none()
+        .None => false
+
+pub fn main!() -> void $ Console:
+    if local!() != 17:
+        panic("cold local trait reference lost its fresh owner")
+    if !expired():
+        panic("cold local trait reference leaked its owner")
+    if addressed!() != 17 || !expired():
+        panic("addressed fresh trait temporary lost or retained its owner")
+    if counted_local!() != 17 || !expired():
+        panic("counted trait binding lost or retained its widened owner")
+    if addressed_counted!() != 17 || !expired():
+        panic("addressed counted trait binding retained its owner")
+    if mut_to_shared!() != 17 || !expired():
+        panic("mutable trait view lost or retained its shared owner")
+    if thin_mut_to_shared!() != 17 || !expired():
+        panic("mutable thin view lost or retained its shared owner")
+    if generic_field!() != 17 || !expired():
+        panic("a loaded local trait reference lost or retained its owner")
+    if generic_counted_field!() != 17 || !expired():
+        panic("a borrowed counted trait field lost or retained its owner")
+    println("ok")

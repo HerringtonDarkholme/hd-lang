@@ -1,0 +1,31 @@
+# @dump: wat
+# @build: v8 release
+# A conditional read cannot supply an uninitialized cached header value.
+# Four nested inline fields exceed the compact header-key path; keep the check.
+struct Header:
+    length: usize
+
+struct One:
+    header: Header
+
+struct Two:
+    inner: One
+
+struct Three:
+    inner: Two
+
+struct Four:
+    inner: Three
+
+fn conditional(header: &Header, n: usize, choose: bool, stop: bool) -> usize:
+    let i: usize = 0
+    let total: usize = 0
+    # subject
+    while i < n:
+        if choose:
+            if stop:
+                break
+            total += header.length
+        total += header.length
+        i = i + 1
+    total
