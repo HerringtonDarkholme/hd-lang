@@ -2,8 +2,8 @@
 //! receives lent.
 //!
 //! The selected ABI can instead supply the count, as it does for
-//! concrete `Drop` values and stable by-value parameters of named
-//! suspending functions. In that case the declaration lowers no copy.
+//! concrete `Drop` values and by-value parameters selected by the
+//! suspending function's instantiated calling convention. In that case the declaration lowers no copy.
 
 use super::{OwnCx, Tri, params};
 use crate::ir::{Body, Tag};

@@ -4,8 +4,7 @@
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
   (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
@@ -29,7 +28,7 @@
     ;; 11 |     log.push("started")
       local.get $s.1
       i32.load $heap offset=4
-      local.tee $text.1
+      local.tee $text.0
       local.get $s.1
       i32.load $heap
       i32.eq
@@ -43,18 +42,18 @@
         i32.store $heap
       end
       local.get $s.1
-      local.get $text.1
+      local.get $text.0
       i32.const 8
       i32.mul
       i32.add
-      local.tee $log
+      local.tee $text.1
       i32.const 65 ;; &"started"
       i32.store $heap offset=16
-      local.get $log
+      local.get $text.1
       i32.const 7
       i32.store $heap offset=20
       local.get $s.1
-      local.get $text.1
+      local.get $text.0
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -89,19 +88,18 @@
       global.set $rewake
       i32.const 0
       local.get $s.1
-      local.set $text.1
+      local.set $text.0
       local.set $s.1
     ;; 10 |     let call: Suspend[i32] = s.put(text)
       local.get $s.0
-      local.tee $log
       if
-        local.get $log
+        local.get $s.0
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $log
-          call $rt:release_ref'1
+          local.get $s.0
+          call $rt:release_ref
         end
       end
     ;; 12 |     match block_on(call):
@@ -115,7 +113,7 @@
                   local.get $s.1
                   br_table 0 3 4 4
                 end
-                local.get $text.1
+                local.get $text.0
                 local.set $n
                 br 1
               end
@@ -131,12 +129,6 @@
     ;; 10 |     let call: Suspend[i32] = s.put(text)
       local.get $n
       local.set $s.0
-    end
-    local.get $text.0
-    local.tee $log
-    if
-      local.get $log
-      call $rt:release_ref'2
     end
     local.get $s.0
   )

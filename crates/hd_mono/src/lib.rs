@@ -100,7 +100,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
-    /// Whether a representation-stable parameter uses the owned cold ABI.
+    /// Whether the selected parameter representation uses the owned cold ABI.
     fn cold_transfers(&self, _def: DefId, _ty: Ty) -> bool {
         false
     }

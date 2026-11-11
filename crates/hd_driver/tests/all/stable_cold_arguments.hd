@@ -55,10 +55,95 @@ fn check!(values: List[string], refs: List[*i32]) -> void $ Clock:
     assert_equal(race!(pending(current, events), quick()), 7)
     assert_equal(*events, [1, 2])
 
+trait Echo[T]:
+    fn echo!(&self, value: T) -> T $ Clock
+
+struct Echoer:
+    padding: usize
+
+impl Echoer:
+    fn inherent![T](&self, value: T) -> T $ Clock:
+        sleep!(ms(1))
+        value
+
+impl[T] Echo[T] for Echoer:
+    fn echo!(&self, value: T) -> T $ Clock:
+        sleep!(ms(1))
+        value
+
+trait Taking:
+    fn take!(self, suffix: string) -> string $ Clock
+
+struct Prefix:
+    text: string
+
+impl Taking for Prefix:
+    fn take!(self, suffix: string) -> string $ Clock:
+        sleep!(ms(1))
+        self.text + suffix
+
+fn bound![S < Echo[List[string]]](echoer: &S, values: List[string], depth: usize) -> usize $ Clock:
+    if depth > 0:
+        return bound!(echoer, values, depth - 1)
+    result := echoer.echo!(values)
+    result.len() + values.len()
+
+fn bound_ref![S < Echo[List[string]]](echoer: &S, values: List[string]) -> usize $ Clock:
+    method := S::echo
+    pending := method(echoer, values)
+    result := pending!()
+    result.len() + values.len()
+
+fn methods!() -> void $ Clock:
+    prefix := Prefix { text: "prefix-" + "value" }
+    by_value := prefix.take("-direct")
+    assert_equal(by_value!(), "prefix-value-direct")
+    assert_equal(prefix.text, "prefix-value")
+    let erased: *dyn Taking = box(prefix)
+    erased_task := erased.take("-dynamic")
+    assert_equal(erased_task!(), "prefix-value-dynamic")
+    echoer := Echoer { padding: 0 }
+    assert_equal(bound!(&echoer, ["bound"], 1), 2)
+    assert_equal(bound_ref!(&echoer, ["bound-reference"]), 2)
+    live := ["inherent"]
+    cold := echoer.inherent(live)
+    assert_equal(cold!(), ["inherent"])
+    assert_equal(live, ["inherent"])
+    assert_equal(echoer.inherent!(["direct"]), ["direct"])
+    inherent_ref := Echoer::inherent::[string]
+    from_method_ref := inherent_ref(&echoer, "method-reference")
+    assert_equal(from_method_ref!(), "method-reference")
+
+    text := "trait-" + "argument"
+    cold_trait := echoer.echo(text)
+    assert_equal(cold_trait!(), "trait-argument")
+    assert_equal(text, "trait-argument")
+    assert_equal(echoer.echo!(["static"]), ["static"])
+
+    let dynamic: *dyn Echo[List[string]] = box(echoer)
+    live_dynamic := ["dynamic"]
+    cold_dynamic := dynamic.echo(live_dynamic)
+    assert_equal(cold_dynamic!(), ["dynamic"])
+    assert_equal(live_dynamic, ["dynamic"])
+    assert_equal(dynamic.echo!(["awaited"]), ["awaited"])
+
+    adapter := fn(value: List[string]) -> Suspend[List[string]] $ Clock: dynamic.echo(value)
+    via_adapter := adapter(["adapter"])
+    assert_equal(via_adapter!(), ["adapter"])
+
+    let thin: *dyn Echo[*i32] = box(echoer)
+    reference := box(+19)
+    cold_reference := thin.echo(reference)
+    assert_equal(*cold_reference!(), +19)
+    assert_equal(*reference, +19)
+
 pub fn main() -> void $ Clock:
     match block_on(size(["a", "b", "c"])):
         .Completed(n) => assert_equal(n, 3)
         _ => panic("fused call did not complete")
+    match block_on(methods()):
+        .Completed(()) => ()
+        _ => panic("method routes did not complete")
     match block_on(check(["start"], [box(+7)])):
         .Completed(()) => ()
         _ => panic("resumed calls did not complete")

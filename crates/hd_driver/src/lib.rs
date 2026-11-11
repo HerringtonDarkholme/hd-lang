@@ -1596,6 +1596,9 @@ struct Run<'a> {
     /// How each parameter of a callee passes its argument, by the
     /// callee's item, the parameter and the argument count (`own.rs`).
     own_params: Mutex<HashMap<(DefId, u32, u32), hd_tir::own::Pass>>,
+    /// Selected cold parameter types and whether the slot lends its receiver,
+    /// keyed by the fixed-width callee record.
+    own_cold: Mutex<HashMap<Vec<u32>, Option<own::ColdSignature>>>,
     /// The release summaries of the bodies the passes ran over
     /// (`own.rs`); `None` in a dev build, which computes none.
     summaries: Option<own::Summaries>,
@@ -2448,6 +2451,7 @@ fn build_packages_inner(
         own_types: Mutex::new(HashMap::default()),
         copy_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
+        own_cold: Mutex::new(HashMap::default()),
         summaries: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"summaries")

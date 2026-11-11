@@ -352,6 +352,8 @@
           call $"impl[T] Suspend[T].cancel[string]"
           local.set $t5
           local.set $t3
+          i32.const 0
+          local.set $t2
           local.get $t5
           if
             local.get $t5
@@ -520,38 +522,9 @@
             call $rt:release_ref'1
           end
         end
-        local.get $t2
-        local.tee $t4
-        if
-          local.get $t4
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
-          if
-            local.get $t4
-            call $rt:release_ref'2
-          end
-        end
         i32.const 1
         local.set $t1
         br 1
-      end
-    ;; 13 |     let mut job = fetch(key)
-      local.get $t2
-      local.tee $t4
-      if
-        local.get $t4
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t4
-          call $rt:release_ref'2
-        end
       end
     ;; 15 |     match end:
       block

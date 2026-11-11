@@ -12,7 +12,6 @@ fn same[T](a: &T, b: &T) -> bool:
 fn take![T < 'static](value: T) -> T $ Clock:
     _ := same(&value, &value)
 > std/rt_tests.stage_case/take
->   retain string (stored)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/take
 >   release string (cancelled)
@@ -21,7 +20,6 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/take
->   retain string (stored)
 >   retain counted reference (stored)
 > std/rt_tests.stage_case/take
 >   release counted reference (last use)

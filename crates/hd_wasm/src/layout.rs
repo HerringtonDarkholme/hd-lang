@@ -856,7 +856,7 @@ pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Op
 }
 
 /// [`fields_walk`], with each field's own walk read by `part`.
-fn fields_walk_by(
+pub(crate) fn fields_walk_by(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     fields: &[Ty],

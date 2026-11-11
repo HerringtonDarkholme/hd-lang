@@ -7,31 +7,21 @@ use std.task.join
 fn ready![T < 'static](value: T) -> T:
     value
 > app/main/ready
->   retain string (stored)
-> app/main/ready
 >   release string (cancelled)
 > app/main/ready
 >   release string (cancelled)
-> app/main/ready
->   retain string (stored)
 
 fn generic![T < 'static](a: T, b: T) -> (T, T):
     join!(ready(a), ready(b))
 > app/main/generic
->   retain string (stored)
->   retain string (stored)
 >   release counted reference (last use)
 >   release string (last use)
 >   release string (last use)
 >   release counted reference (last use)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release string (last use)
 >   release string (last use)
 > app/main/generic
@@ -39,19 +29,12 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 > app/main/generic
 >   release string (cancelled)
 >   release string (cancelled)
-> app/main/generic
->   retain string (stored)
->   retain string (stored)
 
 fn text!(a: string, b: string) -> (string, string):
     generic!(a, b)
 > app/main/text
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release string (cancelled)
->   release string (cancelled)
->   release string (last use)
->   release string (last use)
 >   release string (last use)
 >   release string (last use)
 > app/main/text
@@ -78,17 +61,11 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   release string (last use)
 >   release string (last use)
 >   release counted reference (last use)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release Suspend[string] (last use)
->   release string (last use)
->   release (string, string) [0.0, 1.0] (last use)
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release Suspend[string] (last use)
 >   release string (last use)
 >   release string (last use)
@@ -105,5 +82,4 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   release string (last use)
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)

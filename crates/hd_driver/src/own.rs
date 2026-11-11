@@ -139,6 +139,13 @@ fn instance_leaves(pool: &hd_types::InternPool, args: TyList) -> u64 {
 /// a generic item's own body's, has none.
 pub(super) type Node = (DefId, TyList);
 
+#[derive(Clone, Copy)]
+pub(super) struct ColdSignature {
+    item: DefId,
+    params: TyList,
+    dynamic_receiver: bool,
+}
+
 /// A promoted copy's item, type arguments, whether of the exclusive copy,
 /// and the parameters its call may pass by value and lend with no count
 /// ([`Env::promoted_copy`]).
@@ -504,6 +511,13 @@ impl OwnCx for Env<'_> {
     }
 
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+        if let Some((def, ty)) = self.cold_parameter(callee, k, n) {
+            return if self.cold_transfers_declared(def, ty) || self.cold_moves(ty) {
+                self.value_parameter(ty)
+            } else {
+                Pass::Lent
+            };
+        }
         let chosen = self.chosen(callee);
         let callee = &chosen;
         // Release: a parameter the callee's summary lends, unless the
@@ -522,9 +536,9 @@ impl OwnCx for Env<'_> {
         // it (`Em::push_dyn`): an open value (`Em::dyn_takes`), whose type is
         // open in a generic method's slot or at the caller's instance, or a
         // value holding a `Drop` hook, which moves.
-        // Not for a method that suspends, whose frame keeps its arguments, or
-        // an intrinsic one, whose code the compiler supplies (as
-        // `OwnCx::keeps` reads them).
+        // A cold method's explicit arguments use the selected mode above.
+        // Its erased receiver still lends its payload through the adapter.
+        // An intrinsic supplies its own ownership behavior.
         if let Callee::TraitMethod {
             method,
             self_ty,
@@ -533,11 +547,10 @@ impl OwnCx for Env<'_> {
             ..
         } = callee
             && self.intrinsic(*method).is_none()
-            && !ProgramEnv::suspends(self, *method)
-            && self
-                .sig(*method)
-                .is_some_and(|sig| !sig.suspends && sig.params.len() == n)
-            && (k == 0 || self.slot_lends(*method, *self_ty, *targs, k))
+            && self.sig(*method).is_some_and(|sig| {
+                sig.params.len() == n
+                    && (k == 0 || !sig.suspends && self.slot_lends(*method, *self_ty, *targs, k))
+            })
         {
             return Pass::Lent;
         }
@@ -574,13 +587,8 @@ impl OwnCx for Env<'_> {
     }
 
     fn cold_argument_transfers(&self, callee: &Callee, k: usize, n: usize) -> bool {
-        let Callee::Item { def, .. } = *callee else {
-            return false;
-        };
-        self.sig(def)
-            .filter(|sig| sig.suspends && sig.params.len() == n)
-            .and_then(|sig| sig.params.get(k))
-            .is_some_and(|p| self.cold_transfers_declared(def, self.low(p.1)))
+        self.cold_parameter(callee, k, n)
+            .is_some_and(|(def, ty)| self.cold_transfers_declared(def, ty))
     }
 
     fn call_argument_may_own(&self, callee: &Callee, k: usize, n: usize) -> bool {
@@ -1162,30 +1170,81 @@ impl Env<'_> {
         }
     }
 
-    /// A named function's stable value parameters use the same cold
-    /// ownership convention at its constructor and its fresh body.
-    /// Method slots keep their existing borrowed convention.
+    /// The selected parameter representation decides the cold entry mode.
+    /// Thin references retain their borrowed convention. Counted values
+    /// arrive owned at the constructor and at a fused fresh entry.
     pub(super) fn cold_transfers_declared(&self, def: DefId, ty: Ty) -> bool {
-        if !ProgramEnv::suspends(self, def)
-            || ProgramEnv::parent(self, def).is_some()
-            || !ProgramEnv::has_body(self, def)
-            || self.intrinsic(def).is_some()
-        {
+        if !ProgramEnv::suspends(self, def) || self.intrinsic(def).is_some() {
             return false;
         }
-        let pool = &self.run.pool;
-        let ty = hd_wasm::strip_type(pool, self, ty);
-        // These layouts are counted values independently of their
-        // arguments. Open parameters with a variable representation
-        // stay on the existing convention.
-        let stable = match pool.get(ty) {
-            TyData::Adt { def, .. } => self.std_kind(def) != hd_mono::layout::StdKind::Other,
-            TyData::Fn { .. } | TyData::TraitValue { .. } => true,
-            _ => false,
+        self.value_parameter(ty) == Pass::Owned
+            && !hd_wasm::holds_drop_type(&self.run.pool, self, ty)
+    }
+
+    /// The same selected signature used by direct emission and a trait slot.
+    /// A dynamic receiver lends its erased payload through the slot bridge.
+    fn cold_parameter(&self, callee: &Callee, k: usize, n: usize) -> Option<(DefId, Ty)> {
+        let declared = match callee {
+            Callee::Item { def, .. } => *def,
+            Callee::TraitMethod { method, .. } => *method,
         };
-        (stable || !self.is_open(ty))
-            && self.value_parameter(ty) == Pass::Owned
-            && !hd_wasm::holds_drop_type(pool, self, ty)
+        if !self.sig(declared)?.suspends {
+            return None;
+        }
+        let key = callee.words();
+        let cached = lock(&self.run.own_cold).get(&key).copied();
+        let signature = if let Some(signature) = cached {
+            signature
+        } else {
+            let signature = (|| {
+                let chosen = self.chosen(callee);
+                let (def, args, dynamic) = match chosen {
+                    Callee::Item { def, targs } => (def, targs, false),
+                    Callee::TraitMethod {
+                        method,
+                        self_ty,
+                        targs,
+                        choice: (ChoiceKind::TraitValue, _),
+                        ..
+                    } => {
+                        let args = self
+                            .run
+                            .pool
+                            .list(&[&[self_ty], self.run.pool.list_items(targs)].concat());
+                        (method, args, true)
+                    }
+                    Callee::TraitMethod { .. } => {
+                        let (def, args) = self.impl_target(&chosen)?;
+                        (def, args, false)
+                    }
+                };
+                let sig = self.sig(def).filter(|sig| sig.suspends)?;
+                let mut substitutions = HashMap::default();
+                let params: Vec<_> = sig
+                    .params
+                    .iter()
+                    .map(|p| {
+                        let ty = self.low(p.1);
+                        *substitutions
+                            .entry(ty)
+                            .or_insert_with(|| hd_mono::subst(&self.run.pool, self, def, args, ty))
+                    })
+                    .collect();
+                Some(ColdSignature {
+                    item: def,
+                    params: self.run.pool.list(&params),
+                    dynamic_receiver: dynamic,
+                })
+            })();
+            lock(&self.run.own_cold).insert(key, signature);
+            signature
+        };
+        let signature = signature?;
+        let params = self.run.pool.list_items(signature.params);
+        if params.len() != n || signature.dynamic_receiver && k == 0 {
+            return None;
+        }
+        params.get(k).copied().map(|ty| (signature.item, ty))
     }
 
     /// The borrowed cold convention still transfers inline Drop

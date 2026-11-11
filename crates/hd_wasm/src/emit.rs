@@ -2620,7 +2620,11 @@ impl Em<'_, '_, '_> {
             .unwrap_or_default()
             .into_iter()
             .zip(locals.iter().copied())
-            .filter_map(|(t, l)| self.env().cold_transfers(self.item, t).then_some(l))
+            .filter_map(|(t, l)| {
+                self.env()
+                    .cold_transfers(self.item, self.sub(t))
+                    .then_some(l)
+            })
             .collect()
     }
 
@@ -2631,6 +2635,7 @@ impl Em<'_, '_, '_> {
         i: u32,
         args: &[u32],
         item: DefId,
+        targs: TyList,
         child: Option<u32>,
     ) -> StageResult<()> {
         let params = self.env().params(item).unwrap_or_default();
@@ -2638,26 +2643,43 @@ impl Em<'_, '_, '_> {
             // ruled out: direct check_args fills every declared parameter,
             // including defaults and the separate fields of a tuple spread.
             // Unknown tuple arity uses CallValue and its borrowed ABI.
-            assert!(!params.iter().any(|&t| self.env().cold_transfers(item, t)));
+            assert!(!params.iter().any(|&t| {
+                self.env()
+                    .cold_transfers(item, subst(self.pool(), self.env(), item, targs, t))
+            }));
             return self.push_args(i, args, None, 0, self.f.reason);
         }
         for (operand, (&r, ty)) in (0_u32..).zip(args.iter().zip(params)) {
-            if self.env().cold_transfers(item, ty) {
-                if self.take(r) || Ref(r).as_inst().is_none() || !self.tracked(self.ty_of(r)) {
-                    self.push(r)?;
-                } else {
-                    // ruled out: ownership states a copy for every counted
-                    // cold operand that cannot move at this call.
-                    let reason = self.operation_count(i, Tag::Retain, CountPart::Operand(operand));
-                    assert!(reason.is_some(), "a cold operand copy must be stated");
-                    self.because(reason.as_slice()[0], |em| em.push_cold_copy(r, child))?;
-                }
-            } else if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(r)) {
-                let src = self.consumed(r)?;
-                self.push_src(&src)?;
-            } else {
+            let ty = subst(self.pool(), self.env(), item, targs, ty);
+            let transfers = self.env().cold_transfers(item, ty);
+            self.push_cold_operand(i, operand, r, transfers, child)?;
+        }
+        Ok(())
+    }
+
+    fn push_cold_operand(
+        &mut self,
+        i: u32,
+        operand: u32,
+        r: u32,
+        transfers: bool,
+        child: Option<u32>,
+    ) -> StageResult<()> {
+        if transfers {
+            if self.take(r) || Ref(r).as_inst().is_none() || !self.tracked(self.ty_of(r)) {
                 self.push(r)?;
+            } else {
+                // ruled out: ownership states a copy for every counted
+                // cold operand that cannot move at this call.
+                let reason = self.operation_count(i, Tag::Retain, CountPart::Operand(operand));
+                assert!(reason.is_some(), "a cold operand copy must be stated");
+                self.because(reason.as_slice()[0], |em| em.push_cold_copy(r, child))?;
             }
+        } else if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(r)) {
+            let src = self.consumed(r)?;
+            self.push_src(&src)?;
+        } else {
+            self.push(r)?;
         }
         Ok(())
     }
@@ -2845,7 +2867,7 @@ impl Em<'_, '_, '_> {
                         return self.call_known_drive(i, &ct, &args, on);
                     }
                     if suspends {
-                        self.push_cold_args(i, &args, ct.item, None)?;
+                        self.push_cold_args(i, &args, ct.item, ct.args, None)?;
                     } else {
                         let params = self.param_tys(ct.key, ct.item, ct.args);
                         let lends = self.env().lends(ct.item, ct.args)
@@ -2976,7 +2998,7 @@ impl Em<'_, '_, '_> {
         self.f.at = at;
         self.f.origin_at = origin;
         self.f.i32(0);
-        self.push_cold_args(i, args, target.item, None)?;
+        self.push_cold_args(i, args, target.item, target.args, None)?;
         let context = self.push_call_providers(i, target.item, target.args);
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);
@@ -3094,14 +3116,18 @@ impl Em<'_, '_, '_> {
         } else {
             self.comp(recv, 0)?;
         }
-        for r in rest {
-            params.extend(self.vals(self.ty_of(*r))?);
-            if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r)) {
-                let value = self.consumed(*r)?;
-                self.push_src(&value)?;
-            } else {
-                self.push(*r)?;
-            }
+        let declared = self.env().params(method).unwrap_or_default();
+        let slot_args = self
+            .pool()
+            .list(&[&[value_ty], self.pool().list_items(targs)].concat());
+        for (operand, &r) in (1_u32..).zip(rest) {
+            params.extend(self.vals(self.ty_of(r))?);
+            let transfers = self.env().suspends(method)
+                && declared.get(operand as usize).is_some_and(|&ty| {
+                    let ty = subst(self.pool(), self.env(), method, slot_args, ty);
+                    self.env().cold_transfers(method, ty)
+                });
+            self.push_cold_operand(i, operand, r, transfers, None)?;
         }
         let c = if takes_ctx {
             params.push(Val::I32);
