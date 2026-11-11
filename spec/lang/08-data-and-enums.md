@@ -43,7 +43,7 @@ fn demo() -> f64:
 6. r[data.struct.embed] A struct may embed a struct, by the rules of [Data Embedding](#data-embedding) for names, limits, and member promotion. An embedded field is a value field, held inline.
 7. r[data.struct.embed.plain] A struct literal fills an embedded field as it fills a named field, as in `Post { Timestamps: ts }`, and `post.Timestamps = ts` assigns it. Both copy the value, as every struct copy does.
 8. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
-9. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
+9. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, union members, tuple elements, optional payload, and newtype base, and what those contain.
 10. r[data.struct.contains.ends] A collection, a trait value, or a function value holds a reference, so containment ends there.
 11. r[data.struct.contains.reference] A [counted reference](13-values-and-references.md#reference-types), `*T` or `*mut T`, also ends containment.
 12. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `*` before the type of each field that contains the struct.

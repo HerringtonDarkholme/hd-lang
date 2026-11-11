@@ -1,0 +1,7 @@
+# test: a union member is held inline, so a struct holding itself through one contains itself
+# Spec 08 Structs: data.struct.contains, data.struct.no-recursion.
+struct Node:
+    next: Node | i32 # diagnostic: recursive-value-type
+
+pub fn main() -> void:
+    pass

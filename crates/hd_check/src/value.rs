@@ -544,8 +544,30 @@ fn walk_values(
             }
             field_tys(def, args, &mut inner);
         }
-        TyData::Tuple { elems, .. } => inner.extend(pool.list_items(elems).iter().copied()),
-        _ => {}
+        // A union holds its members inline, as an enum its payloads
+        // (`types.union.representation`, `data.struct.contains`).
+        TyData::Tuple { elems: parts, .. } | TyData::Union(parts) => {
+            inner.extend_from_slice(pool.list_items(parts));
+        }
+        // Containment ends at a reference, a trait value and a function
+        // value (`data.struct.contains.ends`); the rest hold no
+        // declaration's value: a parameter, a primitive, a projection or
+        // opaque type, whose value the instance decides, and a goal in
+        // error or still open.
+        TyData::Ref { .. }
+        | TyData::TraitValue { .. }
+        | TyData::Fn { .. }
+        | TyData::Param(_)
+        | TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Opaque { .. }
+        | TyData::Assoc { .. }
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Row(_)
+        | TyData::Context(_) => {}
     }
     inner
         .into_iter()
