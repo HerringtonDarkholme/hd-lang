@@ -2841,6 +2841,33 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
+Small requirement-row bodies use the same structural copy (#1394).
+`With` remains a lexical scope and its provider operands are relocated;
+`ProviderGet` carries its relocated key record into that scope. Known item
+references become direct calls using the caller's providers. Known literals
+can copy their provider lookups too.
+
+This exposes the existing direct-provider ABI without a context allocation
+or lookup.
+
+It adds no row-specialized function entry and changes no callable
+ABI. Context construction, suspension and cleanup suites keep their call
+boundaries. Escaping reusable contexts, closures and cold frames still own
+their providers through existing machinery.
+
+Row-bearing functions remain ineligible for the quiet-constant shortcut: their hidden providers are
+inputs even when they have no ordinary arguments.
+
+Automatic copies share
+the literal consumer metadata budget, checked before decoding and again
+after nested copies; wide provider records cannot multiply by call sites.
+A folded constant keeps only its formal parameters and result metadata;
+dead tables from its source cannot accumulate through enclosing copies and
+prevent subsequent folding. The existing size and four-round budgets also
+apply. Explicit hints keep
+their specified copy limits. This follows the
+same structural integration used by [rustc's MIR inliner](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_mir_transform/inline/index.html).
+
 One selection rule covers std, `std.rt` included (2026-11-02, #1228: no
 runtime exception, and no inline hints in `lib/std/rt/`), and user callees
 (2026-10-26, #856): a

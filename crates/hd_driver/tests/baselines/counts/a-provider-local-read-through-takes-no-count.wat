@@ -6,7 +6,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t1 i32)
+  (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 28 |     first := box(Count { n: 0 })
     i32.const 4
     i32.const 0
@@ -35,20 +35,31 @@
         call $rt:retain_known
       end
     end
+    local.get $t0
     i32.const 164 ;; &vtable[func40]
-    local.set $t1
+    local.tee $t1
     ;; 31 |         line("ab")
+    local.set $t2
+    local.tee $t3
     i32.const 16 ;; &"ab"
     i32.const 2
-    local.get $t0
-    local.get $t1
-    call $line
+    local.get $t2
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
+    local.get $t3
+    i32.const 18 ;; &"!"
+    i32.const 1
+    local.get $t2
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
     ;; 32 |         swapped("c", second)
-    i32.const 18 ;; &"c"
+    i32.const 19 ;; &"c"
     i32.const 1
     local.get $second
     i32.const 164 ;; &vtable[func40]
+    ;; 30 |     $.with(Sink = first):
     local.get $t0
+    ;; 32 |         swapped("c", second)
     local.get $t1
     call $swapped
     ;; 30 |     $.with(Sink = first):
@@ -114,7 +125,7 @@
     ;; 24 |     sink = other
     local.get $other.0
     ;; 25 |     sink.put("!")
-    i32.const 68 ;; &"!"
+    i32.const 18 ;; &"!"
     i32.const 1
     ;; 24 |     sink = other
     local.get $other.1
@@ -133,7 +144,7 @@
     call_indirect $table0 (param i32 i32 i32)
     ;; 19 |     sink.put("!")
     local.get $provider0
-    i32.const 68 ;; &"!"
+    i32.const 18 ;; &"!"
     i32.const 1
     local.get $provider0.vtable
     i32.load $heap

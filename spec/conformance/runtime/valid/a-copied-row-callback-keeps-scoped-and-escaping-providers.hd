@@ -1,0 +1,71 @@
+# test: copied row callbacks preserve nearest keys, empty rows and escaping context owners
+# expect-stdout: named
+# expect-stdout: literal
+# expect-stdout: inner/other
+# expect-stdout: outer
+# expect-stdout: quiet
+# expect-stdout: saved
+# expect-stdout: captured
+# expect-stdout: pending
+use std.annotation.cold
+
+trait Tag:
+    fn name(&self) -> string
+
+trait Other:
+    fn name(&self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(&self) -> string:
+        self.label
+
+impl Other for Named:
+    fn name(&self) -> string:
+        self.label
+
+fn read_tag() -> string $ Tag:
+    $.use(Tag).name()
+
+fn read_both() -> string $ Tag + Other:
+    $.use(Tag).name() + "/" + $.use(Other).name()
+
+fn quiet() -> string:
+    "quiet"
+
+fn provide[O, $ R](text: string, callback: fn() -> O $ R + Tag) -> O $ R:
+    $.with(Tag=box(Named { label: text })):
+        callback()
+
+@cold
+fn snapshot() -> $.Context[$ Tag] $ Tag:
+    $.context(Tag=$.use(Tag))
+
+@cold
+fn capture() -> (fn() -> string) $ Tag:
+    let tag: *dyn Tag = $.use(Tag)
+    fn() -> string: tag.name()
+
+fn later!() -> string $ Tag:
+    read_tag()
+
+@cold
+fn pending() -> Suspend[string] $ Tag:
+    later()
+
+pub fn main!() -> void $ Console:
+    println(provide("named", read_tag))
+    println(provide("literal", fn() -> string $ Tag: $.use(Tag).name()))
+    $.with(Tag=box(Named { label: "outer" }), Other=box(Named { label: "other" })):
+        println(provide("inner", read_both))
+        println(read_tag())
+    println(provide("unused", quiet))
+    saved := provide("saved", snapshot)
+    $.with(saved...):
+        println(read_tag())
+    reader := provide("captured", capture)
+    println(reader())
+    task := provide("pending", pending)
+    println(task!())

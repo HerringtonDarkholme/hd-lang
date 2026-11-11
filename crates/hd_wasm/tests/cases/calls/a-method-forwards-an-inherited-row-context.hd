@@ -1,6 +1,8 @@
 # @dump: wat
 # @build: v8 release
 # An inherited impl row travels through the existing context argument.
+use std.annotation.inline
+
 struct Task[$ R]:
     job: fn(i32) -> void $ R
 
@@ -11,10 +13,12 @@ struct Holder[$ R]:
     job: fn(i32) -> void $ R
 
 impl[$ R] Holder[$ R]:
+    @inline(.Never)
     # subject
     fn call(&self, n: i32) -> void $ R:
         (self.job)(n)
 
+@inline(.Never)
 # subject
 fn run[$ R](task: Task[$ R]) -> void $ R:
     h := Holder { job: task.job }

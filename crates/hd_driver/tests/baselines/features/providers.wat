@@ -34,13 +34,19 @@
     ;; 22 |     $.with(Namer=f):
     i32.const 160 ;; &vtable[func37]
     ;; 23 |         ask()
-    call $ask
-    ;; 22 |     $.with(Namer=f):
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
+    local.tee $s.1
+    if
+      local.get $s.1
+      call $rt:release_ref
+    end
     ;; 21 |     f := box(Fixed { n: s })
     local.get $t0
+    local.tee $s.1
     if
-      local.get $t0
+      local.get $s.1
       call $rt:release_ref
     end
     local.get $s.0

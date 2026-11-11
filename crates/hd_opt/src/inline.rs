@@ -332,8 +332,10 @@ impl dyn InlineEnv + '_ {
     /// an item (`ItemRef`), directly or through a local stored once with
     /// one, into a `Call` of that item (#1385): the value's code is the
     /// item's adapter, which only calls it. Not for a trait method's
-    /// reference, an item that suspends or has a requirement row, whose
-    /// calls pass more than the arguments. Whether any changed.
+    /// reference or an item that suspends. A row-bearing reference uses the
+    /// current call-site providers, just as a direct call with the empty
+    /// provider trailer does; copying later keeps lexical `With` scopes.
+    /// Whether any changed.
     fn direct_item_calls(&self, body: &mut Body) -> bool {
         if !body.tags.contains(&Tag::ItemRef) {
             return false;
@@ -384,7 +386,7 @@ impl dyn InlineEnv + '_ {
                 .is_some_and(|(owner, _)| self.impl_head(owner).is_none());
             if method_of_trait
                 || self.suspends(def)
-                || !matches!(self.signature(def), Some((_, false, false)))
+                || !matches!(self.signature(def), Some((_, false, _)))
             {
                 continue;
             }
@@ -692,7 +694,9 @@ impl dyn InlineEnv + '_ {
             }
         }
         if self.const_fold()
-            && let Some(c) = self.quiet_constant(def, targs, stack)
+            && let Some(c) = self
+                .quiet_constant(def, targs, stack)
+                .filter(|(body, _)| self.copy_metadata_fits(def, body))
         {
             if let Some(memo) = memo {
                 lock(&memo.inlined).insert((def, targs), Some(c.clone()));
@@ -746,6 +750,7 @@ impl dyn InlineEnv + '_ {
                 _ => fits.then_some((copy, hash)),
             }
         });
+        let made = made.filter(|(body, _)| self.copy_metadata_fits(def, body));
         if let Some(memo) = memo {
             lock(&memo.inlined).insert((def, targs), made.clone());
         }
@@ -1097,11 +1102,11 @@ impl dyn InlineEnv + '_ {
         // Reject oversized metadata before cloning/substitution as well as
         // after: the failed attempt must not scan a large callee per site.
         let (raw, _) = self.checked_body(def)?;
-        if !consumer_metadata_fits(raw) {
+        if !copy_metadata_fits(raw) {
             return None;
         }
         let (copy, hash, _) = self.instance(def, targs)?;
-        if !consumer_metadata_fits(&copy)
+        if !copy_metadata_fits(&copy)
             || !self.fits_size(def, targs, &copy, AUTO_INLINE_LIMIT)
             // The contextual size bonus does not enlarge dependent-result
             // scopes beyond the existing ordinary raw-body boundary.
@@ -1143,11 +1148,18 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
-        let (_, suspends, has_row) = self.signature(def)?;
-        if suspends || has_row {
+        let (_, suspends, _) = self.signature(def)?;
+        if suspends {
             return None;
         }
         let (body, hash) = self.checked_body(def)?;
+        // A With can hold many keys in very few instructions. The same
+        // metadata bound as literal consumers prevents record width from
+        // multiplying by automatic call sites, before a fresh decoding.
+        // Explicit hints retain their specified output-driven copy cost.
+        if !self.copy_metadata_fits(def, body) {
+            return None;
+        }
         // Defaults that may call other code keep their runtime guard.
         // A fresh whole-local reference can move into the caller: inline_calls
         // relocates its local before frame planning, which still marks any
@@ -1176,6 +1188,10 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         Some((self.fresh_body(def)?, *hash))
+    }
+
+    fn copy_metadata_fits(&self, def: DefId, body: &Body) -> bool {
+        self.inline_hint(def) != InlineHint::Default || copy_metadata_fits(body)
     }
 
     /// Whether a parameter of `def` at `targs` is, or may be in an
@@ -1502,11 +1518,11 @@ impl dyn InlineEnv + '_ {
 
 /// Constant-time vector-length checks and at most K string rows, before any
 /// candidate clone. Large literals and side tables cannot multiply by sites.
-fn consumer_metadata_fits(body: &Body) -> bool {
-    consumer_metadata_fits_with(body, || {})
+fn copy_metadata_fits(body: &Body) -> bool {
+    copy_metadata_fits_with(body, || {})
 }
 
-fn consumer_metadata_fits_with(body: &Body, mut visit: impl FnMut()) -> bool {
+fn copy_metadata_fits_with(body: &Body, mut visit: impl FnMut()) -> bool {
     let mut remaining = 16 * AUTO_INLINE_LIMIT;
     for len in [
         body.len(),
@@ -1523,6 +1539,7 @@ fn consumer_metadata_fits_with(body: &Body, mut visit: impl FnMut()) -> bool {
         body.inlined_shared.len(),
         body.inlined_capture_origins.len().saturating_mul(3),
     ] {
+        visit();
         let Some(next) = remaining.checked_sub(len) else {
             return false;
         };
@@ -2155,10 +2172,38 @@ mod tests {
             );
             let body = builder.finish(root, &[]).expect("generated literal table");
             let mut work = 0;
-            assert!(!super::consumer_metadata_fits_with(&body, || work += 1));
-            assert!(work <= 16 * super::AUTO_INLINE_LIMIT + 1);
+            assert!(!super::copy_metadata_fits_with(&body, || work += 1));
+            assert!(work <= 16 * super::AUTO_INLINE_LIMIT + 15);
             if let Some(old) = previous {
                 assert!(work <= old);
+            }
+            previous = Some(work);
+        }
+    }
+
+    #[test]
+    fn provider_metadata_width_and_depth_reject_in_constant_work() {
+        use hd_base::DefId;
+        use hd_tir::ir::{Body, BodyKind, Tag};
+        use hd_types::Ty;
+        let mut previous = None;
+        for (width, depth) in [(1000, 20), (10000, 20), (1000, 200)] {
+            let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
+            for _ in 0..depth {
+                let at = super::index_word(body.extra.len());
+                body.extra.push(super::index_word(2 * width));
+                for _ in 0..width {
+                    body.extra.extend([Ty::I32.0, 0]);
+                }
+                body.tags.push(Tag::With);
+                body.data.push([at, 0]);
+                body.ty.push(Ty::VOID);
+            }
+            let mut work = 0;
+            assert!(!super::copy_metadata_fits_with(&body, || work += 1));
+            assert!(work <= 14);
+            if let Some(old) = previous {
+                assert_eq!(work, old);
             }
             previous = Some(work);
         }
@@ -2185,8 +2230,11 @@ mod tests {
                 .map(|snapshot| (SubId::from_raw(0), snapshot, creator))
                 .collect();
             let mut visits = 0;
-            assert!(!super::consumer_metadata_fits_with(&body, || visits += 1));
-            assert_eq!(visits, 0, "vector lengths reject without walking metadata");
+            assert!(!super::copy_metadata_fits_with(&body, || visits += 1));
+            assert!(
+                visits <= 14,
+                "vector lengths reject without walking metadata"
+            );
         }
     }
 
