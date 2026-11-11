@@ -123,27 +123,6 @@
           end
         end
         local.get $t8
-        local.tee $t6
-        if
-          local.get $t6
-          call $retain
-        end
-        local.get $t8
-        local.get $t8
-        local.tee $t6
-        if
-          local.get $t6
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
-          if
-            local.get $t6
-            call $rt:release_ref'1
-          end
-        end
-        local.tee $t8
         local.set $t4
         i32.const 356 ;; &vtable[func90]
         local.set $t6
@@ -159,7 +138,7 @@
         local.tee $t6
         if
           local.get $t6
-          call $rt:release_ref'2
+          call $rt:release_ref'1
         end
         local.get $t7
         local.tee $t6
@@ -172,7 +151,7 @@
           i32.or
           if
             local.get $t6
-            call $rt:release_ref'1
+            call $rt:release_ref'2
           end
         end
       end
@@ -307,7 +286,7 @@
               local.tee $t6
               if
                 local.get $t6
-                call $rt:release_ref'2
+                call $rt:release_ref'1
               end
             end
           end
@@ -398,7 +377,7 @@
           local.tee $t6
           if
             local.get $t6
-            call $rt:release_ref'2
+            call $rt:release_ref'1
           end
         end
         local.get $t4
@@ -412,7 +391,7 @@
           i32.or
           if
             local.get $t6
-            call $rt:release_ref'1
+            call $rt:release_ref'2
           end
         end
         i32.const 1
@@ -431,7 +410,7 @@
         i32.or
         if
           local.get $t6
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
     end
@@ -439,7 +418,7 @@
     local.tee $t6
     if
       local.get $t6
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     end
     local.get $t10
     local.get $frame
@@ -572,7 +551,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     end
     local.get $t0
@@ -583,7 +562,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     end
   )
@@ -775,7 +754,7 @@
         local.get $t3
         if
           local.get $t3
-          call $rt:release_ref'2
+          call $rt:release_ref'1
         end
       end
     end
@@ -790,7 +769,7 @@
     local.tee $t0
     if
       local.get $t0
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -874,7 +853,7 @@
         local.tee $t6
         if
           local.get $t6
-          call $rt:release_ref'2
+          call $rt:release_ref'1
         end
     ;; 30 |     pending!().len()
         local.set $t2
@@ -1012,7 +991,7 @@
               local.tee $t6
               if
                 local.get $t6
-                call $rt:release_ref'2
+                call $rt:release_ref'1
               end
             end
           end
@@ -1105,7 +1084,7 @@
           local.tee $t6
           if
             local.get $t6
-            call $rt:release_ref'2
+            call $rt:release_ref'1
           end
         end
         local.get $t2
@@ -1119,7 +1098,7 @@
           i32.or
           if
             local.get $t6
-            call $rt:release_ref'1
+            call $rt:release_ref'2
           end
         end
         i32.const 1
@@ -1138,7 +1117,7 @@
         i32.or
         if
           local.get $t6
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
     ;; 30 |     pending!().len()
@@ -1179,7 +1158,7 @@
         i32.or
         if
           local.get $t6
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       local.set $t11
@@ -1188,7 +1167,7 @@
     local.tee $t6
     if
       local.get $t6
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     end
     local.get $t11
     local.get $frame
@@ -1321,7 +1300,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     end
     local.get $t0
@@ -1332,7 +1311,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     end
   )
@@ -1396,7 +1375,7 @@
       local.get $provider0
       if
         local.get $provider0
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
       local.get $provider0.vtable
       local.set $provider0
@@ -1526,7 +1505,7 @@
     local.tee $t0
     if
       local.get $t0
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     end
   )
   (func $tagged'1 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -1568,7 +1547,7 @@
         i32.or
         if
           local.get $key.0
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
     end
@@ -1597,7 +1576,7 @@
         i32.or
         if
           local.get $key.0
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       block

@@ -149,14 +149,14 @@ fn bound!(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %3 consume last
 >   local $1 pending: Suspend[usize] [read assigned] value
->     uses $1: %25 -> %26 lend last
+>     uses $1: %24 -> %25 lend last
 >   local $2 provider: Named [read] value
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %31 Cold local $0 #0 : ()
->   %1 = Retain %31 Entry local $0 #0 : ()
+>   %0 = Retain %30 Cold local $0 #0 : ()
+>   %1 = Retain %30 Entry local $0 #0 : ()
     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
->   %2 = Release %31 FrameDrop child #2 : ()
+>   %2 = Release %30 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = NewStruct [%3] : Named
 >   %5 = Store [$2] %4 : ()
@@ -168,29 +168,28 @@ fn bound!(s: string) -> usize:
 >   %11 = Block - : *mut Named
 >   %12 = Scope %11 [] : *mut Named
 >   %13 = Coerce %12 [RefToTraitValue -] : Tag
->   %14 = Retain %13 Value #0 : ()
->   %15 = Block %13 : Tag
->   %16 = RefDyn %15 : *dyn Tag
->   %17 = Drop [%12] : ()
->   %18 = Coerce %16 [RefAsProvider -] : Tag
->   %19 = LoanEnd [%16] : ()
->   %22 = With [Tag %18] %21 : Suspend[usize]
->   %23 = Drop [%18] : ()
->   %24 = Drop [$3] : ()
->   %25 = Store [$1] %22 : ()
->   %31 = Block %27 : usize
+>   %14 = Block %13 : Tag
+>   %15 = RefDyn %14 : *dyn Tag
+>   %16 = LoanEnd [%12] : ()
+>   %17 = Coerce %15 [RefAsProvider -] : Tag
+>   %18 = LoanEnd [%15] : ()
+>   %21 = With [Tag %17] %20 : Suspend[usize]
+>   %22 = Drop [%17] : ()
+>   %23 = Drop [$3] : ()
+>   %24 = Store [$1] %21 : ()
+>   %30 = Block %26 : usize
 >   %8 finds [$3] full
         tagged()
->   %20 = Call app/main/tagged[] () : Suspend[usize]
->   %21 = Block %20 : Suspend[usize]
+>   %19 = Call app/main/tagged[] () : Suspend[usize]
+>   %20 = Block %19 : Suspend[usize]
     pending!()
->   %26 = Read move [$1] : Suspend[usize]
->   %27 = AwaitValue %26 : usize
->   %28 = Release %27 Operation child #2 : ()
->   %29 = Retain %27 Operation child #0 : ()
->   %30 = Drop [%26] : ()
+>   %25 = Read move [$1] : Suspend[usize]
+>   %26 = AwaitValue %25 : usize
+>   %27 = Release %26 Operation child #2 : ()
+>   %28 = Retain %26 Operation child #0 : ()
+>   %29 = Drop [%25] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 cell
 >   summary none
->   unwind %27 drops [%26]
->   live %27 [%26 $0]
+>   unwind %26 drops [%25]
+>   live %26 [%25 $0]

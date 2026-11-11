@@ -4,10 +4,11 @@
 //! otherwise links this index even though it never runs the verifier.
 
 use super::{
-    Reason, future, held_source, label, loan_holds, moved_consumers, read_start, value_uses,
+    Reason, future, held_source, label, loan_holds, moved_consumers, read_start, takes_count,
+    value_uses,
 };
 use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, ref_word, u32_of};
-use crate::own::{OwnCx, Role, consumes, operands};
+use crate::own::{OwnCx, Role, operands};
 
 /// The reason of each `copy` read of `b`, a body after the passes, in
 /// `out` (`None` for any other instruction): `Stored` when a use of the
@@ -185,16 +186,11 @@ pub fn check_copy_reasons(
             if value >= n || op.role == Role::Dropped {
                 continue;
             }
-            let owner = if op.role == Role::Tail && !topo.is_root[i] {
-                topo.owner[i]
-            } else {
-                NONE
-            };
             // A `move` read hands the value on to what consumes it.
             moved[value] |= b.tags[i] == Tag::Read
                 && b.data[i][1] == ReadMode::Move as u32
                 && b.view(b.data[i][0]).root == Root::Value(op.value);
-            if consumes(b, cx, i, op, owner) {
+            if takes_count(b, topo, cx, i, op) {
                 takers[value].push(i);
             }
         }
