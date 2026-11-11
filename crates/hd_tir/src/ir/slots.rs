@@ -18,8 +18,9 @@ pub enum Role {
     /// a map store's too), a construction part, a `Return` or `Break`
     /// value.
     Consume,
-    /// Argument `k` of a call, which consumes it when its parameter is a
-    /// value parameter ([`crate::own::OwnCx::pass`]).
+    /// Argument `k` of a call or context constructor. A call consumes a
+    /// value parameter ([`crate::own::OwnCx::pass`]); a context consumes
+    /// a direct provider and borrows a spread context.
     Arg(u32),
     /// A block's tail, which its block's value takes when the block's
     /// owner uses that value.
@@ -43,7 +44,8 @@ pub enum Word {
     /// A value, an instruction's or a constant, and how it is used.
     Value(Role),
     /// A provider's value: a call's, or one a `With` or `ContextNew` binds.
-    /// Lent.
+    /// `own::operands` gives constructor entries argument roles; calls
+    /// and lexical scopes borrow their providers.
     Provider,
     /// A block the instruction runs.
     Block,

@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: a new context states one provider packet, copying only each key's final provider; an empty context has no count.
+# expected: a new context moves direct providers, copies spread entries, and releases shadowed direct providers; an empty context has no count.
 trait Tag:
     fn name(self) -> string
 
@@ -22,3 +22,9 @@ fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 
 fn empty() -> $.Context[$ ()]:
     $.context()
+
+fn before_spread(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
+    $.context(Tag=Named { label: label }, ctx...)
+
+fn replace(first: string, last: string) -> $.Context[$ Tag]:
+    $.context(Tag=Named { label: first }, Tag=Named { label: last })

@@ -457,6 +457,12 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
     slots(b, i, |at, value, slot| {
         let role = match slot {
             Word::Value(role) => role,
+            Word::Provider if b.tags[i] == Tag::ContextNew => {
+                let Loc::Extra(at) = at else {
+                    return;
+                };
+                Role::Arg((at - b.data[i][0] - 2) / 2)
+            }
             Word::Provider => Role::Lend,
             Word::Block | Word::Inst => return,
         };
@@ -725,6 +731,10 @@ fn consumes_operand(
                     !read_by_default
                         && cx.pass(&callee, k as usize, n.saturating_sub(3)) == Pass::Owned
                 }
+                Tag::ContextNew => b
+                    .record(a)
+                    .get(2 * k as usize)
+                    .is_some_and(|&key| cx.trait_value(Ty(key))),
                 Tag::CallValue => {
                     let fn_ty = match Ref(a).as_inst() {
                         Some(x) => b.ty[x.0 as usize],

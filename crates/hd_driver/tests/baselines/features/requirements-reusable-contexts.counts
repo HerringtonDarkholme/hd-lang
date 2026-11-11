@@ -22,9 +22,6 @@ fn read_tag() -> usize $ Tag:
 
 fn make(s: string) -> $.Context[$ Tag]:
     $.context(Tag=Named { label: s })
-> app/main/make
->   retain counted reference (stored)
->   release app.main.Tag (last use)
 
 fn run(ctx: $.Context[$ Tag]) -> usize:
     $.with(ctx...):
