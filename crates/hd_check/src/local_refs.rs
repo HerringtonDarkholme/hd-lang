@@ -472,7 +472,7 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
         TyData::Tuple { elems, rest } => {
             list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(r, top_ok)))
         }
-        TyData::Adt { args, .. } => list(args, top_ok),
+        TyData::Adt { args, .. } | TyData::Union(args) => list(args, top_ok),
         // An opaque type that borrows holds a local reference of its own,
         // at the top as a reference is (`types.opaque.borrows`).
         TyData::Opaque { borrows: true, .. } if !top_ok => Some(Escape::TypeArgument),
@@ -496,7 +496,17 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
                 other => other,
             }
         }),
-        _ => None,
+        // Not entered: no reference value inside, a goal in error or still
+        // open, or a row or context, whose keys name providers.
+        TyData::Param(_)
+        | TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Row(_)
+        | TyData::Context(_) => None,
     }
 }
 

@@ -437,7 +437,9 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
             subs.extend_from_slice(pool.list_items(elems));
             subs.extend(rest);
         }
-        TyData::Adt { args, .. } => subs.extend_from_slice(pool.list_items(args)),
+        TyData::Adt { args, .. } | TyData::Union(args) => {
+            subs.extend_from_slice(pool.list_items(args));
+        }
         // A projection meets it when its parts do, as Rust's projection
         // rule has it (RFC 1214). An opaque type's hidden type is unknown
         // here, so it meets it only by an environment clause.
@@ -447,12 +449,12 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
         }
         // An environment clause answers a parameter before this row.
         TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
-        // No part to check: a value with no reference inside, a goal
+        // No part to check: a value with no reference inside, a function
+        // type, which always meets it (`ref.generic.static.meets`), a goal
         // already in error, or one the solver stalls on before this row.
         TyData::Prim(_)
         | TyData::Never
         | TyData::Poison
-        | TyData::Union(_)
         | TyData::Fn { .. }
         | TyData::TraitValue { .. }
         | TyData::Const(_)

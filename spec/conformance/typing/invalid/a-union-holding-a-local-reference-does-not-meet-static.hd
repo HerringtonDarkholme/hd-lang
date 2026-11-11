@@ -1,0 +1,9 @@
+# test: a union with a reference member holds a local reference, so it does not meet 'static
+# Spec 13 Generic Locality: ref.generic.static.meets, ref.generic.static.error.
+fn keep[T < 'static](value: T) -> void:
+    pass
+
+pub fn main() -> void:
+    local := 5
+    let value: &i32 | i32 = ._0(&local)
+    keep(value) # diagnostic: local-reference-escapes
