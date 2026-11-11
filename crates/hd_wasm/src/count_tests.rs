@@ -19,6 +19,15 @@
 //!
 //! A checked build runs the same test and tells its runtime when one skips a
 //! call, so the skipped work stays on the count table (`hd.skipped`).
+//!
+//! A test changes the size of the body it stands in, and on V8 that alone can
+//! move another body's speed by several percent (#1434). `progs/list-sort`
+//! runs 15 count operations, and its `sort`, called once, runs its whole loop
+//! in Liftoff code, since V8 has no on-stack replacement for Wasm. The test in
+//! `main` makes `main`'s Liftoff code 56 bytes longer, which moves where
+//! `sort`'s byte-identical code lands. The result's sign follows the layout,
+//! not the test: with the test, 384 against 403 ms at the default tier, 388
+//! against 355 with `--liftoff-only`, 454 against 456 with `--no-liftoff`.
 
 use crate::module::{Func, Global, HEAP, Ins, Sym, Val, mem};
 use crate::op::Op as I;

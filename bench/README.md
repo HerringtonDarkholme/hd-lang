@@ -198,6 +198,27 @@ There is no local compiler fix to build from this measurement. JSON and
 generated-structure performance remain in issue #929, whose owner-approved
 direction and measured ceilings already cover those mechanisms.
 
+### Code Placement And progs/list-sort, 2026-11-11
+
+`progs/list-sort` calls `sort` once, so its whole loop runs in Liftoff
+code: V8 compiles a TurboFan version during the run (it shows in
+`--trace-wasm-compilation-times`), but has no on-stack replacement for
+Wasm to switch the running call to it. Its default-tier time matches
+`--liftoff-only`, and moves with where `sort`'s Liftoff code lands. A
+change elsewhere that changes another body's size can move it by 5-9%
+either way with `sort` byte-identical (#1434). Node 24.19, 15
+alternating fresh processes each, with and without the call-site count
+test (`main`'s Liftoff code 608 against 552 bytes):
+
+| Tier | with test | without |
+| --- | ---: | ---: |
+| default | 384 | 403 |
+| `--liftoff-only` | 388 | 355 |
+| `--no-liftoff` | 454 | 456 |
+
+Treat a list-sort change under about 10% from a body other than `sort` as
+layout until a `--no-liftoff` run agrees.
+
 ### Returned Iterator Cost, 2026-10-22
 
 Issue #634, commit base `6278705a6`, Apple M3 Max, Node v24.19.0 / V8
