@@ -2638,7 +2638,7 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::NEVER));
             };
             let idx = u32::try_from(i).unwrap_or(0);
-            return Ok((self.b.field(r, idx, t, n.index()), t));
+            return Ok((self.field_read(r, idx, t, n.index()), t));
         }
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {

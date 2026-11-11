@@ -194,9 +194,8 @@ impl Ck<'_, '_> {
     }
 
     /// Whether place `p` reaches its value through a `&T` or `&mut T`, and
-    /// then whether the first such reference is `&mut`. A dereference of a
-    /// data object's payload is not through a reference, and an element
-    /// is left to the element rules.
+    /// then whether the first such reference is `&mut`. An element is left
+    /// to the element rules.
     fn behind_ref(&self, b: &Body, p: &Place) -> Option<bool> {
         self.behind_ref_at(b, p, 0)
     }
@@ -237,12 +236,23 @@ impl Ck<'_, '_> {
         let mut variant = None;
         for proj in &p.proj {
             match *proj {
-                // A box's payload, `*mut T`, is left to a later rule.
-                Proj::Deref => match pool.get(t) {
-                    TyData::Ref { counted: true, .. } => return None,
-                    TyData::Ref { mutable, .. } => return Some(mutable),
-                    _ => {}
-                },
+                // The first dereference decides. A counted reference's
+                // object, `*T` or `*mut T`, has no rule here: the spec
+                // names only `&T` and `&mut T`.
+                // ruled out: a dereference of a value that is no
+                // reference; the checker builds `*` only on a value whose
+                // type `ref_of` reads as a reference, since 064bf1dc7
+                // removed the data objects whose `*` kept the object's own
+                // type.
+                Proj::Deref => {
+                    let TyData::Ref {
+                        counted, mutable, ..
+                    } = pool.get(t)
+                    else {
+                        return None;
+                    };
+                    return (!counted).then_some(mutable);
+                }
                 Proj::Variant(x) => variant = Some(x),
                 Proj::Field(j) => {
                     t = self.field_ty(t, variant.take(), j)?;

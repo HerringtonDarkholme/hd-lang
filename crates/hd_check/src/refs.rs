@@ -303,7 +303,8 @@ impl Ck<'_, '_> {
 
     /// What the value `v` reads when it is a `Read` through a reference
     /// value, `[*%r .f .g]`: the reference `%r`, whether it is `&mut`, and
-    /// the struct fields the read follows from the referent.
+    /// the struct fields and tuple elements the read follows from the
+    /// referent.
     pub(crate) fn read_through(&mut self, v: Ref) -> Option<(Ref, bool, Vec<u32>)> {
         let i = v.as_inst()?;
         let body = self.b.body_mut();
@@ -343,17 +344,19 @@ impl Ck<'_, '_> {
         (self.b.emit(Tag::Read, word, ReadMode::Use as u32, t, at), t)
     }
 
-    /// Field `idx`, of type `ft`, of the struct value `base`. When `base`
-    /// is a `Read` through a reference that nothing uses yet (the last
-    /// instruction), the field extends its place, so `p.x` through `&Point`
-    /// is one `Read [*%r .x]` that loads only `x`; else a read of the
-    /// field ([`hd_tir::ir::TirBuilder::field`]).
+    /// Field or element `idx`, of type `ft`, of the struct or tuple value
+    /// `base`. When `base` is a `Read` through a reference that nothing
+    /// uses yet (the last instruction), the field extends its place, so
+    /// `p.x` through `&Point` is one `Read [*%r .x]` that loads only `x`,
+    /// and a move of it is a move out of the referent
+    /// (`ref.move.out-of-place`); else a read of the field
+    /// ([`hd_tir::ir::TirBuilder::field`]).
     pub(crate) fn field_read(&mut self, base: Ref, idx: u32, ft: Ty, at: NodeIdx) -> Ref {
         let last = base
             .as_inst()
             .is_some_and(|i| i.0 as usize + 1 == self.b.body_mut().len());
         if last
-            && self.is_struct_ty(self.b.ty_of(base))
+            && self.is_value_record_ty(self.b.ty_of(base))
             && let Some((r, _, mut path)) = self.read_through(base)
         {
             path.push(idx);

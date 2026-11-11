@@ -1,0 +1,13 @@
+# test: a tuple element read through a reference without a written `*` moves out of the place behind it
+# Spec 13 Moves: ref.move.out-of-place.
+
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+fn first(pair: &(Photo, i32)) -> Photo:
+    pair._0 # diagnostic: move-out-of-place
+
+fn second(pair: &(Photo, i32)) -> i32:
+    pair._1

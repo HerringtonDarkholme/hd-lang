@@ -1,0 +1,31 @@
+# test: a tuple element read through a reference reads that element of the referent
+# Spec 13 Values And References: ref.read.auto.
+
+struct Photo:
+    width: u32
+
+fn width(pair: &(Photo, i32)) -> u32:
+    pair._0.width
+
+fn count(pair: &mut (Photo, i32)) -> i32:
+    pair._1 = pair._1 + 1
+    pair._1
+
+fn nested(pair: &((i32, string), i32)) -> string:
+    pair._0._1
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads an element through a reference"):
+        let pair = (Photo { width: 7 }, 2)
+        assert_equal(width(&pair), 7, reason="the first element's width")
+
+    it("reads and writes an element through a mutable reference"):
+        let mut pair = (Photo { width: 7 }, 2)
+        assert_equal(count(&mut pair), 3, reason="the second element after one increment")
+        assert_equal(pair._1, 3, reason="the write reached the referent")
+
+    it("reads a nested element"):
+        let pair = ((1, "in"), 2)
+        assert_equal(nested(&pair), "in", reason="the nested element")

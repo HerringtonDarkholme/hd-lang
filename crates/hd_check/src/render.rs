@@ -102,8 +102,8 @@ fn type_of(b: &Body, w: u32) -> Option<Ty> {
 }
 
 /// The type a dereference of a value of type `t` reaches: a reference's
-/// referent; a compiler-supplied data object's payload is the object's own
-/// type.
+/// referent. The checker dereferences only references; a malformed body
+/// keeps `t`, so the dump still prints.
 fn deref_ty(names: &Names<'_>, t: Ty) -> Ty {
     match names.pool.get(t) {
         hd_types::TyData::Ref { inner, .. } => inner,
