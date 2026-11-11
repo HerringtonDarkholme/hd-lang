@@ -31,13 +31,13 @@
     i32.add
     i32.store $heap
   )
-  (func $static_bound (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $static_bound (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
     block
       block
         block
           local.get $s.1
-          local.set $t0
+          local.set $s.0
           br 0
         end
         br 0
@@ -45,16 +45,20 @@
       br 0
     end
     block
-      i32.const 0
-      local.get $s.0
-      local.get $s.1
-      i32.const 0
-      call $static_bound#1
-      local.set $s.0
+      block
+        block
+          br 0
+        end
+        local.get $s.1
+        i32.const 1
+        i32.add
+        local.set $s.1
+        br 0
+      end
       br 0
     end
-    local.get $t0
     local.get $s.0
+    local.get $s.1
     i32.add
     local.set $s.0
     local.get $s.0
@@ -109,24 +113,6 @@
         br 0
       end
     end
-  )
-  (func $static_bound#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32) (result i32)
-    ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
-    block
-      local.get $x.1
-      local.set $env
-      br 0
-    end
-    local.get $x.0
-    if
-      local.get $x.0
-      call $rt:release_ref'1
-    end
-    local.get $env
-    i32.const 1
-    i32.add
-    local.set $env
-    local.get $env
   )
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 11 |     s.len()

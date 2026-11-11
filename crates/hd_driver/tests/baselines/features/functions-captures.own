@@ -10,130 +10,155 @@
 # environment once each.
 fn copied(s: string) -> usize:
 > app/main/copied
->   local $0 s: string [param read captured] value
->     uses $0: entry -> %2 lend, %9 consume, %15 lend last
->   local $1 f: fn() -> usize [:= read assigned] value
->     uses $1: %11 -> %12 lend last
->   %1 = Retain %22 Entry local $0 #0 : ()
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %1 consume, %15 lend last
+>   local $1 s: string [read assigned] place
+>   local $3 self: string [read] value
+>     uses $3: %4 -> %5 lend last
+>   %0 = Release %21 Exit local $0 #2 : ()
     f := fn() -> usize: s.len()
->   %0 = Retain %8 Entry captures #0 : ()
->   %2 = Read borrow [$0] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L1 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Drop [$0] : ()
->   %8 = Block %6 : usize
->   %9 = Closure #1 : fn() -> usize
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Store [$1] %9 : ()
->   %22 = Block %21 : usize
+>   %1 = Read borrow [$0] : string
+>   %2 = Store [$1] %1 : ()
+>   %21 = Block %20 : usize
     f() + s.len()
->   %12 = Read move [$1] : fn() -> usize
->   %13 = CallValue %12 [] : usize
->   %14 = Drop [%12] : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Store [$3] %3 : ()
+>   %5 = Read borrow [$3] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L2 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Read borrow [$1] : string
+>   %11 = Block - : ()
+>   %12 = Break L0 %9 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [%11] : usize
 >   %15 = Read borrow [$0] : string
 >   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
->   %17 = Break L0 %16 : never
+>   %17 = Break L1 %16 : never
 >   %18 = Block - : usize
 >   %19 = Scope %18 [] : usize
->   %20 = Drop [$0] : ()
->   %21 = Prim Add [%13 %19] : usize
->   exit sub 0 drops [$0]
->   exit sub 1 drops [$0]
->   summary kept [$0] writes
+>   %20 = Prim Add [%14 %19] : usize
+>   summary kept [] borrows [$0]
 
 fn shared_list(s: string) -> usize:
 > app/main/shared_list
->   local $0 s: string [param read captured] value
->     uses $0: entry -> %4 consume, %10 consume last
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %3 consume last
 >   local $1 xs: List[string] [read assigned captured] place
 >     frame cell [$1]
->   local $2 add: fn() -> () [:= read assigned] value
->     uses $2: %12 -> %13 lend, %15 lend last
->   %0 = Retain %22 Entry local $0 #0 : ()
+>   local $2 s: string [read assigned] place
+>   %0 = Retain %30 Entry local $0 #0 : ()
     let mut xs: List[string] = []
 >   %1 = NewList - [] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %22 = Block %20 : usize
+>   %30 = Block %28 : usize
     add := fn() -> void: xs.push(s)
->   %3 = Retain %9 Entry captures #0 : ()
->   %4 = Read move [$0] : string
->   %5 = IsUnique [$1] : ()
->   %6 = Read borrow [$1] : List[string]
->   %7 = Intrinsic ListPush [%6 %4] : ()
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
->   %10 = Closure #1 : fn() -> ()
->   %11 = Retain %10 Operation captures #0 : ()
->   %12 = Store [$2] %10 : ()
->   %10 finds [$1] full
+>   %3 = Read move [$0] : string
+>   %4 = Store [$2] %3 : ()
     add()
->   %13 = Read borrow [$2] : fn() -> ()
->   %14 = CallValue %13 [] : ()
+>   %5 = Read copy [$2] : string
+>   %6 = IsUnique [$1] : ()
+>   %7 = Read borrow [$1] : List[string]
+>   %8 = Intrinsic ListPush [%7 %5] : ()
+>   %9 = Read borrow [$2] : string
+>   %10 = Read borrow [$1] : List[string]
+>   %11 = Block - : ()
+>   %12 = Break L0 - : never
+>   %13 = Block - : ()
+>   %14 = Scope %13 [%11] : ()
+>   %6 finds [$1] full
+>   %7 finds [$1] full
     add()
->   %15 = Read move [$2] : fn() -> ()
->   %16 = CallValue %15 [] : ()
->   %17 = Drop [%15] : ()
+>   %15 = Read copy [$2] : string
+>   %16 = IsUnique [$1] : ()
+>   %17 = Read borrow [$1] : List[string]
+>   %18 = Intrinsic ListPush [%17 %15] : ()
+>   %19 = Read borrow [$2] : string
+>   %20 = Read borrow [$1] : List[string]
+>   %21 = Block - : ()
+>   %22 = Break L1 - : never
+>   %23 = Block - : ()
+>   %24 = Scope %23 [%21] : ()
+>   %25 = Drop [$2] : ()
+>   %16 finds [$1] full
+>   %17 finds [$1] full
     xs.len()
->   %18 = Read copy [$1] : List[string]
->   %19 = Drop [$1] : ()
->   %20 = Intrinsic ListLen [%18] : usize
->   %21 = Drop [%18] : ()
->   %18 finds [$1] full
->   exit sub 0 drops [$0 $1]
->   exit sub 1 drops [$0 $1]
+>   %26 = Read copy [$1] : List[string]
+>   %27 = Drop [$1] : ()
+>   %28 = Intrinsic ListLen [%26] : usize
+>   %29 = Drop [%26] : ()
+>   %26 finds [$1] full
+>   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 slot
->   storage sub 1: $1 cell
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn copy_shares(s: string) -> usize:
 > app/main/copy_shares
->   local $0 s: string [param read captured] value
->     uses $0: entry -> %4 lend, %15 consume last
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %2 consume last
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$1]
->   local $2 inc: fn() -> () [:= read assigned] value
->     uses $2: %17 -> %18 lend, %20 lend last
->   %0 = Retain %25 Entry local $0 #0 : ()
+>   local $2 s: string [read assigned] place
+>   local $3 self: string [read] value
+>     uses $3: %23 -> %24 lend last
+>   local $4 self: string [read] value
+>     uses $4: %6 -> %7 lend last
+>   %0 = Release %40 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %25 = Block %23 : usize
+>   %40 = Block %38 : usize
     inc := fn() -> void: n += s.len()
->   %2 = Retain %14 Entry captures #0 : ()
->   %3 = Read copy [$1] : usize
->   %4 = Read borrow [$0] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L0 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = Drop [$0] : ()
->   %10 = Prim Add [%3 %8] : usize
->   %11 = Store [$1] %10 : ()
->   %12 = Release %11 Operation #3 : ()
->   %13 = Drop [$1] : ()
->   %14 = Block - : ()
->   %15 = Closure #1 : fn() -> ()
->   %16 = Retain %15 Operation captures #0 : ()
->   %17 = Store [$2] %15 : ()
->   %15 finds [$1] full
+>   %2 = Read borrow [$0] : string
+>   %3 = Store [$2] %2 : ()
     again := inc
     inc()
->   %18 = Read borrow [$2] : fn() -> ()
->   %19 = CallValue %18 [] : ()
+>   %4 = Read copy [$1] : usize
+>   %5 = Read borrow [$2] : string
+>   %6 = Store [$4] %5 : ()
+>   %7 = Read borrow [$4] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L3 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Prim Add [%4 %11] : usize
+>   %13 = Store [$1] %12 : ()
+>   %14 = Read borrow [$2] : string
+>   %15 = Read borrow [$1] : usize
+>   %16 = Block - : ()
+>   %17 = Release %13 Operation #3 : ()
+>   %18 = Break L0 - : never
+>   %19 = Block - : ()
+>   %20 = Scope %19 [%16] : ()
+>   %4 finds [$1] full
+>   %13 finds [$1] full
     again()
->   %20 = Read move [$2] : fn() -> ()
->   %21 = CallValue %20 [] : ()
->   %22 = Drop [%20] : ()
+>   %21 = Read copy [$1] : usize
+>   %22 = Read borrow [$2] : string
+>   %23 = Store [$3] %22 : ()
+>   %24 = Read borrow [$3] : string
+>   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %26 = Break L2 %25 : never
+>   %27 = Block - : usize
+>   %28 = Scope %27 [] : usize
+>   %29 = Prim Add [%21 %28] : usize
+>   %30 = Store [$1] %29 : ()
+>   %31 = Read borrow [$2] : string
+>   %32 = Read borrow [$1] : usize
+>   %33 = Block - : ()
+>   %34 = Release %30 Operation #3 : ()
+>   %35 = Break L1 - : never
+>   %36 = Block - : ()
+>   %37 = Scope %36 [%33] : ()
+>   %21 finds [$1] full
+>   %30 finds [$1] full
     n
->   %23 = Read copy [$1] : usize
->   %24 = Drop [$1] : ()
->   %23 finds [$1] full
->   exit sub 0 drops [$0 $1]
->   exit sub 1 drops [$0 $1]
+>   %38 = Read copy [$1] : usize
+>   %39 = Drop [$1] : ()
+>   %38 finds [$1] full
+>   exit sub 0 drops [$1]
 >   storage sub 0: $1 slot
->   storage sub 1: $1 cell
->   summary kept [$0] writes
+>   summary kept [] borrows [$0]
 
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 > app/main/through_ptr

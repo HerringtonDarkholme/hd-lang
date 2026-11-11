@@ -7,8 +7,6 @@
 # plain reference.
 fn capture_call(s: string) -> usize:
     f := fn() -> usize: s.len()
-> app/main/capture_call
->   release fn() -> usize (last use)
     f() + f()
 
 fn escape(s: string) -> fn() -> usize:
@@ -20,14 +18,11 @@ fn call_value(f: fn(string) -> usize, s: string) -> usize:
 fn shared(s: string) -> string:
     let mut t = s
 > app/main/shared
->   release fn() -> () (last use)
 >   release string (last use)
     add := fn() -> void: t += "x"
-> app/main/shared
+    add()
 >   retain string (conservative: copy read)
 >   release string (last use)
 >   release string (overwritten)
->   retain counted reference (stored)
-    add()
     t
 >   retain string (stored)

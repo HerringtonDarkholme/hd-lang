@@ -10,34 +10,27 @@
 # environment once each.
 fn copied(s: string) -> usize:
     f := fn() -> usize: s.len()
-> app/main/copied
->   retain counted reference (stored)
->   release fn() -> usize (last use)
->   release string (last use)
     f() + s.len()
 
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
 > app/main/shared_list
->   release fn() -> () (last use)
->   release List[string] (last use)
->   release List[string] (last use)
+>   copy List[string] (conservative: copy read)
     add := fn() -> void: xs.push(s)
-> app/main/shared_list
+    add()
+    add()
 >   retain string (stored)
 >   unique List[string] (may be shared)
->   retain counted reference (stored)
-    add()
-    add()
     xs.len()
->   copy List[string] (conservative: copy read)
+>   retain string (conservative: copy read)
+>   unique List[string] (may be shared)
+>   (no span) release string (last use)
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)
 
 fn copy_shares(s: string) -> usize:
     let n: usize = 0
-> app/main/copy_shares
->   release fn() -> () (last use)
     inc := fn() -> void: n += s.len()
->   retain counted reference (stored)
     again := inc
     inc()
     again()

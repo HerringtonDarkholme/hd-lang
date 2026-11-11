@@ -73,6 +73,138 @@ use crate::rt::Helper;
 /// inlined copy reaches a pointer through locals of its own.
 type Key = (PlaceRoot, Vec<Proj>, u32);
 
+/// Only an eliminated closure's thin whole-pointer capture inherits the
+/// creator's loan context. Ordinary value aliases and child-pointer paths
+/// remain distinct. Metadata parents precede snapshots, so one ascending
+/// pass closes every chain: O(locals + origin rows), no depth walk/retry.
+#[derive(Default)]
+struct CaptureOrigins {
+    roots: Vec<Option<hd_base::LocalId>>,
+    #[cfg(test)]
+    work: usize,
+}
+
+#[cfg(test)]
+mod capture_origin_tests {
+    use super::*;
+    use hd_base::{DefId, LocalId, SubId};
+
+    fn body(locals: usize, edges: &[(u32, u32)]) -> Body {
+        let mut b = Body::new(DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
+        b.local_ty = vec![Ty::VOID; locals];
+        b.inlined_capture_origins = edges
+            .iter()
+            .map(|&(s, c)| {
+                (
+                    SubId::from_raw(0),
+                    LocalId::from_raw(s),
+                    LocalId::from_raw(c),
+                )
+            })
+            .collect();
+        b
+    }
+
+    #[test]
+    fn only_whole_pointer_capture_keys_inherit_creator_context() {
+        let b = body(5, &[(1, 0), (2, 1), (3, 0)]);
+        let origins = CaptureOrigins::new(&b, |l| l.raw() != 3);
+        let root = PlaceRoot::Local(LocalId::from_raw(2));
+        assert_eq!(
+            origins.key((root, vec![], ANY_FRAME)).0,
+            PlaceRoot::Local(LocalId::from_raw(0))
+        );
+        let field = (root, vec![Proj::Field(0)], ANY_FRAME);
+        assert_eq!(origins.key(field.clone()), field);
+        let cell = (root, vec![], 0);
+        assert_eq!(origins.key(cell.clone()), cell);
+        assert_eq!(origins.local(3), 3, "non-pointer capture has no exemption");
+        assert_eq!(origins.local(4), 4, "ordinary aliases have no provenance");
+    }
+
+    #[test]
+    fn capture_provenance_chains_have_linear_counted_work() {
+        for width in [100u32, 1_000] {
+            let depth = 20;
+            let mut edges = Vec::new();
+            for layer in 0..depth {
+                for column in 0..width {
+                    let snapshot = 1 + layer * width + column;
+                    let creator = if layer == 0 { 0 } else { snapshot - width };
+                    edges.push((snapshot, creator));
+                }
+            }
+            let n = 1 + (width * depth) as usize;
+            let b = body(n, &edges);
+            let origins = CaptureOrigins::new(&b, |_| true);
+            assert_eq!(origins.work, 2 * n + edges.len());
+            for l in 0..n {
+                assert_eq!(origins.local(l), 0);
+            }
+        }
+    }
+}
+
+impl CaptureOrigins {
+    fn new(b: &Body, eligible: impl Fn(hd_base::LocalId) -> bool) -> Self {
+        if b.inlined_capture_origins.is_empty() {
+            return Self::default();
+        }
+        let mut roots = vec![None; b.local_ty.len()];
+        #[cfg(test)]
+        let mut work = roots.len();
+        for &(_, snapshot_id, creator_id) in &b.inlined_capture_origins {
+            let (snapshot, creator) = (snapshot_id.idx(), creator_id.idx());
+            // ruled out: the IR producer appends snapshots after creators;
+            // the structural verifier checks bounds, order and uniqueness.
+            assert!(creator < snapshot && snapshot < roots.len());
+            if eligible(snapshot_id) {
+                // ruled out: a snapshot has exactly one creation capture;
+                // ordinary copying relocates that one metadata row.
+                assert!(roots[snapshot].is_none(), "capture snapshot must be unique");
+                roots[snapshot] = Some(creator_id);
+            }
+            #[cfg(test)]
+            {
+                work += 1;
+            }
+        }
+        for l in 0..roots.len() {
+            if let Some(parent) = roots[l] {
+                roots[l] = roots[parent.idx()].or(Some(parent));
+            }
+            #[cfg(test)]
+            {
+                work += 1;
+            }
+        }
+        Self {
+            roots,
+            #[cfg(test)]
+            work,
+        }
+    }
+
+    fn local(&self, l: usize) -> usize {
+        self.roots
+            .get(l)
+            .copied()
+            .flatten()
+            .map_or(l, hd_base::LocalId::idx)
+    }
+
+    fn key(&self, mut key: Key) -> Key {
+        if key.1.is_empty()
+            && key.2 == ANY_FRAME
+            && let PlaceRoot::Local(l) = key.0
+            && let Some(root) = self.roots.get(l.idx()).copied().flatten()
+        {
+            key.0 = PlaceRoot::Local(root);
+        }
+        key
+    }
+}
+
 /// The frame of a pointer's key ([`Key`]).
 const ANY_FRAME: u32 = u32::MAX;
 
@@ -104,6 +236,7 @@ fn frames_of(b: &Body) -> Vec<u32> {
 /// The per-body state of the loans its holders take.
 #[derive(Default)]
 pub(super) struct Borrows {
+    capture_origins: CaptureOrigins,
     /// The holder bindings each `Store` makes.
     binds: HashMap<u32, Vec<(Held, Bind)>>,
     /// The `Ref`s whose loans a holder takes, and the objects each one
@@ -180,6 +313,10 @@ pub(super) struct Borrows {
     /// end or abandonment releases: one it made, or a suspending closure's,
     /// whose frame counts its environment's cells.
     own_cells: HashMap<usize, (u32, bool)>,
+    /// A canonical creator's loaded capture cell, when its environment
+    /// names a snapshot. Keep ownership keyed by the actual loaded local:
+    /// distinct environment fields still release their own held counts.
+    own_cell_sources: HashMap<usize, usize>,
     /// The header locals of call loans on a `*dyn` receiver's object,
     /// which are 0 where its data address is (a trait value of no Wasm
     /// values): no loan is taken then.
@@ -555,6 +692,7 @@ impl Em<'_, '_, '_> {
         let sub = |t| self.sub(t);
         let found = binds(self.pool(), self.env(), self.b, &sub, &sites, true);
         let mut st = Borrows {
+            capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
             shared: super::closure::shared_locals(self.b),
             frames: frames_of(self.b),
             pointers: pointer_locals(self.pool(), self.env(), self.b, &sub, &sites),
@@ -565,10 +703,13 @@ impl Em<'_, '_, '_> {
         // Seed their keys directly from the capture list, rather than
         // rediscovering them by laying out ancestor or sibling stores.
         if let Some(ci) = closure {
-            st.keys.extend(
-                self.own_capture_ids(ci)
-                    .map(|l| ((PlaceRoot::Local(l), Vec::new(), ANY_FRAME), None)),
-            );
+            let origins = &st.capture_origins;
+            st.keys.extend(self.own_capture_ids(ci).map(|l| {
+                (
+                    origins.key((PlaceRoot::Local(l), Vec::new(), ANY_FRAME)),
+                    None,
+                )
+            }));
         }
 
         for (i, held, bind, _) in found {
@@ -701,7 +842,7 @@ impl Em<'_, '_, '_> {
                                 if dyn_recv.is_some() {
                                     p.proj.pop();
                                 }
-                                let key = (p.root, p.proj, ANY_FRAME);
+                                let key = st.capture_origins.key((p.root, p.proj, ANY_FRAME));
                                 if !st.keys.iter().any(|(x, _)| *x == key) {
                                     st.keys.push((key, None));
                                 }
@@ -742,7 +883,11 @@ impl Em<'_, '_, '_> {
         st.loans = st.keys.len();
         for ci in 0..self.b.tags.len() {
             if self.b.tags[ci] == Tag::Closure {
-                st.own_shared.extend(self.own_caps(ci));
+                st.own_shared.extend(
+                    self.own_caps(ci)
+                        .into_iter()
+                        .map(|l| st.capture_origins.local(l)),
+                );
             }
         }
         self.borrows = st;
@@ -768,20 +913,25 @@ impl Em<'_, '_, '_> {
         } else {
             &self.b.cap_local[start..start + len]
         };
-        let own = self.b.closure_self(ci);
-        captures.iter().copied().filter(move |l| {
-            Some(*l) != own
-                && matches!(self.kind(self.sub(self.b.local_ty[l.idx()])), Kind::Ref {
+        let own = self.recursive_bindings.self_local(ci);
+        captures
+            .iter()
+            .copied()
+            .filter(move |l| Some(*l) != own && self.own_pointer(*l))
+    }
+
+    fn own_pointer(&self, l: hd_base::LocalId) -> bool {
+        matches!(self.kind(self.sub(self.b.local_ty[l.idx()])), Kind::Ref {
                 target,
                 fat: false,
                 whole: true,
             } if self.lent_of(target).is_some())
-        })
     }
 
     /// The index of pointer local `l`'s own key, when the body takes a
     /// loan through it.
     fn own_key(&self, l: usize) -> Option<usize> {
+        let l = self.borrows.capture_origins.local(l);
         let k = (self.borrows.keys.iter()).position(|((r, proj, f), _)| {
             matches!(r, PlaceRoot::Local(x) if x.idx() == l) && proj.is_empty() && *f == ANY_FRAME
         })?;
@@ -794,9 +944,25 @@ impl Em<'_, '_, '_> {
         if let Some(&(c, _)) = self.borrows.own_cells.get(&l) {
             return c;
         }
+        let l = self.own_cell_source(l);
+        if let Some(&(c, _)) = self.borrows.own_cells.get(&l) {
+            return c;
+        }
         let c = self.f.local(Val::I32);
         self.borrows.own_cells.insert(l, (c, true));
         c
+    }
+
+    fn own_cell_source(&self, l: usize) -> usize {
+        if self.borrows.own_cells.contains_key(&l) {
+            return l;
+        }
+        let root = self.borrows.capture_origins.local(l);
+        self.borrows
+            .own_cell_sources
+            .get(&root)
+            .copied()
+            .unwrap_or(root)
     }
 
     /// At a closure that captures pointer local `l`: the cell of the own
@@ -807,7 +973,12 @@ impl Em<'_, '_, '_> {
         let own = self.own_key(l).map(|k| self.own_local(k));
         let m = crate::layout::mem(self.pool(), self.env(), Ty::I32)?;
         let c = self.own_cell(l);
-        if self.borrows.own_cells.get(&l).is_some_and(|x| !x.1) {
+        if self
+            .borrows
+            .own_cells
+            .get(&self.own_cell_source(l))
+            .is_some_and(|x| !x.1)
+        {
             return Ok(c);
         }
         self.f.get(c);
@@ -833,6 +1004,10 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_cells_load(&mut self, ci: usize, cells: &[u32], held: bool) {
         for (l, c) in self.own_caps(ci).into_iter().zip(cells.iter().copied()) {
             self.borrows.own_cells.insert(l, (c, held));
+            let root = self.borrows.capture_origins.local(l);
+            if root != l {
+                self.borrows.own_cell_sources.insert(root, l);
+            }
             if let Some(k) = self.own_key(l) {
                 let own = self.own_local(k);
                 self.f.get(c);
@@ -877,7 +1052,7 @@ impl Em<'_, '_, '_> {
         let mut out: Vec<(u32, bool)> = self
             .borrows
             .own_cells
-            .get(&l)
+            .get(&self.own_cell_source(l))
             .map(|x| (x.0, true))
             .into_iter()
             .collect();
@@ -973,7 +1148,9 @@ impl Em<'_, '_, '_> {
             return;
         };
         if let Some((r, _)) = self.roots(&st.shared, &st.pointers).of(self.b, &p) {
-            let key = (r, Vec::new(), st.frames[v as usize]);
+            let key = st
+                .capture_origins
+                .key((r, Vec::new(), st.frames[v as usize]));
             if !st.keys.iter().any(|(x, _)| *x == key) {
                 st.keys.push((key, None));
             }
@@ -998,7 +1175,9 @@ impl Em<'_, '_, '_> {
                             ..
                         })
                     ));
-            let key = (p.root, p.proj[..k].to_vec(), ANY_FRAME);
+            let key = st
+                .capture_origins
+                .key((p.root, p.proj[..k].to_vec(), ANY_FRAME));
             if thin && !st.keys.iter().any(|(x, _)| *x == key) {
                 st.keys.push((key, None));
             }
@@ -1007,6 +1186,7 @@ impl Em<'_, '_, '_> {
 
     /// The index of pointer `key`, interned.
     fn borrow_key(&mut self, key: Key) -> usize {
+        let key = self.borrows.capture_origins.key(key);
         if let Some(k) = self.borrows.keys.iter().position(|(x, _)| *x == key) {
             return k;
         }

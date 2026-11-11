@@ -7,26 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 11 funcref))
-  (func $fresh#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; 22 |         step := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $env
-    ;; 23 |             total = total + 1
-    local.get $env
-    local.get $env
-    i32.load $heap
-    i32.const 1
-    i32.add
-    i32.store $heap
-    ;; 24 |             total
-    local.get $env
-    i32.load $heap
-    ;; 22 |         step := fn() -> i32:
-    local.set $env
-    local.get $env
-  )
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $kept (param $n i32) (result i32) (local $f.0 i32) (local $f.1 i32) (local $t0 i32) (local $i i32) (local $total i32) (local $step.1 i32)
     ;; 8 |     let mut f = fn() -> i32: +0
     i32.const 1
@@ -221,42 +202,23 @@
         local.tee $t2
         local.get $i
         i32.store $heap
-    ;; 22 |         step := fn() -> i32:
-        i32.const 4
-        i32.const 4
-        i32.const -2147483644
-        call $rt:new/class-1
-        local.tee $i
-    ;; 21 |         let total = i
         local.get $t2
-    ;; 22 |         step := fn() -> i32:
-        i32.store $heap
-        local.get $i
-        call $rt:retain_fields
+        local.set $i
     ;; 25 |         out += step()
-        drop
-        local.get $i
-        i32.const 0
-        call $fresh#1
-        local.set $t2
-    ;; 20 |     for i in +0..n:
-        local.get $i
-        local.tee $i
-        if
+        block
           local.get $i
-          i32.const 8
-          i32.sub
+          local.get $i
           i32.load $heap
-          global.get $tracing
-          i32.or
-          if
-            local.get $i
-            call $rt:release_ref
-          end
+          i32.const 1
+          i32.add
+          i32.store $heap
+          local.get $i
+          i32.load $heap
+          local.set $i
+          br 0
         end
-    ;; 25 |         out += step()
         local.get $out
-        local.get $t2
+        local.get $i
         i32.add
         local.set $out
     ;; 20 |     for i in +0..n:

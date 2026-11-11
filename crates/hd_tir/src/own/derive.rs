@@ -526,7 +526,14 @@ impl Tables {
 /// The facts of each value and local: uses, drops, stores.
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
+    let recursive = super::RecursiveBindings::new(b);
     let mut ops = std::mem::take(&mut t.ops);
+    for &(_, capture) in &b.inlined_shared {
+        let local = &mut t.l[b.cap_local[capture as usize].idx()];
+        local.captured = true;
+        local.reached = true;
+        local.escapes = true;
+    }
     for i in 0..n {
         let [a, w] = b.data[i];
         let tag = b.tags[i];
@@ -565,7 +572,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
                     let l = b.cap_local[c].idx();
                     t.l[l].captured = true;
-                    if b.cap_mode[c].shares() && b.closure_self(i).is_none_or(|s| s.idx() != l) {
+                    if b.cap_mode[c].shares()
+                        && recursive.self_local(i).is_none_or(|s| s.idx() != l)
+                    {
                         t.l[l].reached = true;
                         t.l[l].escapes = true;
                     }

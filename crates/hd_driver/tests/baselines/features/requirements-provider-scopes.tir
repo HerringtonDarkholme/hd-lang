@@ -122,3 +122,31 @@ fn lexical(s: string) -> usize:
 >   %15 = Block %14 : usize
 >   %16 = Closure #1 : fn() -> usize
 >   %17 = Call app/main/apply[] (%16) : usize
+
+# An unrelated explicit provider map must not block a known literal call.
+fn unrelated_provider(s: string) -> usize:
+    f := fn() -> usize: s.len()
+> app/main/unrelated_provider
+>   local $0 s: string [param read captured]
+>   local $1 f: fn() -> usize [:= read assigned]
+>   %0 = Ref local [$0] : &string
+>   %1 = Call std/text/impl string.len[] (%0) : usize
+>   %2 = Block %1 : usize
+>   %3 = Closure #1 : fn() -> usize
+>   %4 = Store [$1] %3 : ()
+>   %18 = Block %17 : usize
+    $.with(Tag=Named { label: s }):
+>   %5 = Read [$0] : string
+>   %6 = NewStruct [%5] : Named
+>   %7 = Call std/rt.entry/host_provider[Named] (%6) : *mut Named
+>   %8 = Coerce %7 [RefToTraitValue -] : Tag
+>   %9 = Block %8 : Tag
+>   %10 = RefDyn %9 : *dyn Tag
+>   %11 = Coerce %10 [RefAsProvider -] : Tag
+>   %17 = With [Tag %11] %16 : usize
+        read_tag() + f()
+>   %12 = Call app/main/read_tag[] () : usize
+>   %13 = Read [$1] : fn() -> usize
+>   %14 = CallValue %13 [] : usize
+>   %15 = Prim Add [%12 %14] : usize
+>   %16 = Block %15 : usize

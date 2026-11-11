@@ -24,26 +24,15 @@ fn unbound(u: User) -> usize:
 
 fn bound(u: User) -> usize:
     f := u::name_len
-> app/main/bound
->   release fn() -> usize (last use)
-> app/main/bound
->   retain app.main.User [name.0] (stored)
->   release app.main.User [name.0] (last use)
     f() + f()
 
 fn bound_mut(u: *mut User, n: string) -> void:
     f := u::rename
-> app/main/bound_mut
->   release fn(string) -> () (last use)
     f(n)
 
 fn adapter(us: List[User]) -> usize:
     g := fn(u: User) -> usize: u.name_len()
-> app/main/adapter
->   release app.main.User [name.0] (last use)
     let n: usize = 0
     for u in us:
         n += g(u)
-> app/main/adapter
->   retain app.main.User [name.0] (stored)
     n
