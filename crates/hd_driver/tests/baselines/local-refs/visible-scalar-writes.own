@@ -62,7 +62,7 @@ fn visible(value: i32) -> i32:
 >   %16 = Read copy [$1 .word] : i32
 >   %17 = Read copy [$1 .salt] : i32
 >   %18 = Prim Add [%16 %17] : i32
->   summary kept [] writes
+>   summary kept []
 
 @cold
 fn observe(state: &State) -> i32:

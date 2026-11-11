@@ -56,22 +56,6 @@
     local.get $t1
     call $"impl[T] List[T].slice[string]"
     local.set $t1
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      local.tee $xs
-      if
-        local.get $xs
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $xs
-          call $rt:release_ref'1
-        end
-      end
-    end
     local.get $t1
     local.get $t0
     i32.const 16
@@ -122,34 +106,16 @@
     i32.const 0
     i32.const 2
     call $"impl[T] List[T].slice[string]"
-    local.set $t1
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      local.tee $xs
-      if
-        local.get $xs
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $xs
-          call $rt:release_ref'1
-        end
-      end
-    end
-    local.get $t1
+    local.tee $t1
     i32.load $heap offset=4
     local.get $t1
-    local.tee $xs
     if
-      local.get $xs
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $xs
+        local.get $t1
         call $rt:release_ref'1
       end
     end
@@ -242,22 +208,6 @@
     local.get $t1
     call $"impl[T] List[T].slice[string]"
     local.set $t1
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      local.tee $xs
-      if
-        local.get $xs
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $xs
-          call $rt:release_ref'1
-        end
-      end
-    end
     local.get $t1
     local.get $t0
     i32.const 16

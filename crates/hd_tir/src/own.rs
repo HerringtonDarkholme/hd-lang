@@ -72,6 +72,7 @@ pub(crate) mod join_results;
 mod local_refs;
 pub(crate) mod waker;
 pub use frame::store_finds_empty;
+mod effect_places;
 mod element_checks;
 pub use element_checks::ElementChecks;
 pub(crate) mod hoist;
@@ -1021,13 +1022,14 @@ pub(crate) fn frame_reference_uses(
             }
         }
     }
+    let calls = derive::local_lending_calls(b, cx, &counts, &last);
     let mut wanted = vec![false; b.local_ty.len()];
-    for i in 0..n {
+    for (i, &call) in calls.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && b.data[i][1] & crate::ir::ref_word::MUT != 0
             && b.data[i][1] & crate::ir::ref_word::FRAME != 0
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && !derive::lends_once(b, cx, &counts, &last, i)
+            && call == NONE
         {
             wanted[l.idx()] = true;
         }
@@ -1444,22 +1446,79 @@ impl<'a> AllocationOrigins<'a> {
 /// write, or a call it cannot name (a function value, a trait value, the
 /// host, a provider, a default, a suspension). A place is its own when it
 /// is rooted at a local or a fresh value (a copy included), through the
-/// reads that name their place, with no dereference: its caller reaches
-/// neither these nor a buffer they make unique first.
+/// reads that name their place or an exact local-reference alias. Unknown
+/// references, further dereferences and pointer roots remain conservative;
+/// its caller reaches neither private storage nor a buffer made unique first.
 #[must_use]
 pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
-    writes_with(b, 0..b.len(), &|c| cx.may_write(c), Some(cx))
+    WriteEffects::new(b).writes(cx)
 }
 
-/// Whether an instruction of `b` in `range` may write memory its caller
-/// can reach, as [`writes`] reads them, with `may_write` for a call.
+/// Indexes of one immutable body, shared by promotion's small range
+/// queries and interprocedural summary rounds. Building is O(N + P);
+/// a query visits only its range and its projection/operand words.
+/// Rebuild after changing the body. No call effect is cached: each query
+/// reads the current policy, including a recursive component's summaries.
+pub struct WriteEffects<'a> {
+    body: &'a Body,
+    places: effect_places::Places,
+    suspends: bool,
+    promotion: std::cell::OnceCell<promote::Census>,
+}
+
+impl<'a> WriteEffects<'a> {
+    #[must_use]
+    pub fn new(body: &'a Body) -> Self {
+        Self::new_with(body, |_| {})
+    }
+
+    fn new_with(body: &'a Body, mut measure: impl FnMut(usize)) -> Self {
+        let places = effect_places::Places::new_with(body, &mut measure);
+        let suspends = body.tags.iter().any(|&tag| {
+            measure(1);
+            #[cfg(test)]
+            effect_places::work(1);
+            crate::ir::is_suspension(tag)
+        });
+        Self {
+            body,
+            places,
+            suspends,
+            promotion: std::cell::OnceCell::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn writes(&self, cx: &dyn OwnCx) -> bool {
+        writes_with(
+            self.body,
+            0..self.body.len(),
+            &|c| cx.may_write(c),
+            Some(cx),
+            &self.places,
+            || {},
+        )
+    }
+
+    #[must_use]
+    pub fn in_range(
+        &self,
+        range: std::ops::Range<usize>,
+        may_write: &dyn Fn(&Callee) -> bool,
+    ) -> bool {
+        writes_with(self.body, range, may_write, None, &self.places, || {})
+    }
+}
+
+/// A single whole-body or range query. Repeated range queries should share
+/// a [`WriteEffects`] index rather than rebuilding O(N + P) for each range.
 #[must_use]
 pub fn writes_in(
     b: &Body,
     range: std::ops::Range<usize>,
     may_write: &dyn Fn(&Callee) -> bool,
 ) -> bool {
-    writes_with(b, range, may_write, None)
+    WriteEffects::new(b).in_range(range, may_write)
 }
 
 fn writes_with(
@@ -1467,32 +1526,10 @@ fn writes_with(
     mut range: std::ops::Range<usize>,
     may_write: &dyn Fn(&Callee) -> bool,
     cx: Option<&dyn OwnCx>,
+    places: &effect_places::Places,
+    mut visit: impl FnMut(),
 ) -> bool {
-    // Whether a place is the body's own, and whether its path holds an
-    // element.
-    let place = |mut word: u32| {
-        let (mut own, mut elem) = (true, false);
-        for _ in 0..b.len() {
-            let p = b.view(word);
-            let (derefs, e) = p.kinds(b);
-            (own, elem) = (own && derefs == 0, elem || e);
-            match p.root {
-                // A read that names its place, not a copy or move of it.
-                Root::Value(v)
-                    if b.tags[v as usize] == Tag::Read
-                        && matches!(
-                            ReadMode::from_u32(b.data[v as usize][1]),
-                            Some(ReadMode::Use | ReadMode::Borrow)
-                        ) =>
-                {
-                    word = b.data[v as usize][0];
-                }
-                Root::Local(_) | Root::Value(_) => return (own, elem),
-                _ => break,
-            }
-        }
-        (false, true)
-    };
+    let place = |word| places.get(b, word);
     let read = |v: u32| {
         Ref(v)
             .as_inst()
@@ -1500,6 +1537,9 @@ fn writes_with(
     };
     let mut origins = cx.map(|cx| AllocationOrigins::new(b, cx));
     range.any(|i| {
+        visit();
+        #[cfg(test)]
+        effect_places::work(1);
         let [a, w] = b.data[i];
         match b.tags[i] {
             Tag::Store | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
@@ -1765,6 +1805,76 @@ pub(crate) mod tests {
 
     /// A call's result that an owned argument takes moves into it; a
     /// result that only a borrowed argument reads is dropped after it.
+    #[test]
+    fn shared_effect_queries_keep_call_policy_dynamic() -> Result<(), String> {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let block = b.open_block();
+        call(&mut b, 8, &[], Ty::VOID);
+        let root = b.close_block(block, None, Ty::VOID, n);
+        let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        let effects = super::WriteEffects::new(&body);
+        let writing = std::cell::Cell::new(false);
+        let policy = |_: &Callee| writing.get();
+        assert!(!effects.in_range(0..body.len(), &policy));
+        writing.set(true);
+        assert!(effects.in_range(0..body.len(), &policy));
+        writing.set(false);
+        assert!(!effects.in_range(0..body.len(), &policy));
+        Ok(())
+    }
+
+    #[test]
+    fn many_promotion_windows_share_one_linear_body_index() -> Result<(), String> {
+        use crate::ir::{Place, PlaceRoot, Proj, ref_word};
+        for (width, depth) in [(1, 1), (1000, 1), (1, 20), (1000, 20)] {
+            let n = NodeIdx::from_raw(1);
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let block = b.open_block();
+            let parameter = b.local(Ty::I32, Symbol::NONE, local_flags::PARAM, n);
+            let mut calls = Vec::new();
+            for _ in 0..width {
+                let word = b.place(&Place {
+                    root: PlaceRoot::Local(parameter),
+                    proj: vec![Proj::Deref],
+                });
+                let argument = b.emit(Tag::Ref, word, ref_word::LOCAL, Ty::I32, n);
+                let private = b.local(Ty::I32, Symbol::NONE, 0, n);
+                let word = b.place(&Place::local(private));
+                let mut address = b.emit(Tag::Ref, word, ref_word::LOCAL, Ty::I32, n);
+                for _ in 0..depth {
+                    let alias = b.local(Ty::I32, Symbol::NONE, 0, n);
+                    b.set(alias, address, n);
+                    address = b.get(alias, Ty::I32, n);
+                }
+                let word = b.place(&Place {
+                    root: PlaceRoot::Value(address),
+                    proj: vec![Proj::Deref],
+                });
+                let zero = b.const_value(Ty::I32, 0);
+                b.emit(Tag::Store, word, zero.0, Ty::VOID, n);
+                calls.push(call(&mut b, 8, &[argument], Ty::VOID).0 as usize);
+            }
+            let root = b.close_block(block, None, Ty::VOID, n);
+            let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            super::effect_places::take_work();
+            let effects = super::WriteEffects::new(&body);
+            for call in calls {
+                assert_eq!(
+                    super::promote::inline_args(&effects, call, 1, false, &|_| false),
+                    1
+                );
+            }
+            let work = super::effect_places::take_work();
+            assert!(
+                work <= 16 * (body.len() + body.local_ty.len()),
+                "{width}x{depth}: {work}"
+            );
+            assert!(effects.promotion.get().is_some());
+        }
+        Ok(())
+    }
+
     #[test]
     fn a_value_is_consumed_by_its_one_owned_use_or_dropped_after_its_last() {
         let text = passes(

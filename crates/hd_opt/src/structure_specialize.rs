@@ -5,7 +5,7 @@
 
 use hd_base::{DefId, Hash128, StableHasher};
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, BodyKind, Callee, Place, PlaceRoot, PrimOp, Proj, Ref, Tag};
+use hd_tir::ir::{Body, BodyKind, Callee, Coercion, NONE, Place, PlaceRoot, Proj, Ref, Tag};
 use hd_types::{Ty, TyData, TyList};
 
 use crate::inline::{InlineEnv, InlineHint};
@@ -220,9 +220,12 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
                 let constant = u32::try_from(body.consts.len()).expect("constants");
                 body.consts.push((Ty::BOOL, 1));
                 let value = Ref::konst(constant).0;
-                let values = push_record(body, &[value, value]);
-                body.tags[call] = Tag::Prim;
-                body.data[call] = [PrimOp::Eq as u32, values];
+                // Preserve the proved constant as an ordinary identity,
+                // which the existing decision folder can propagate. A
+                // manufactured equality hides this fact from that folder.
+                let identity = push_record(body, &[Coercion::Identity as u32, NONE]);
+                body.tags[call] = Tag::Coerce;
+                body.data[call] = [value, identity];
             }
             _ => {}
         }

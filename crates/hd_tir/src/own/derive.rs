@@ -127,6 +127,8 @@ struct Local {
     /// The reads of it that keep a count, once solved.
     kept: u32,
     reached: bool,
+    /// Every address is immutable and dies with one direct call.
+    shared_calls_only: bool,
     escapes: bool,
     changed: bool,
     captured: bool,
@@ -246,6 +248,7 @@ impl Tables {
             excl: NONE,
             kept: 0,
             reached: false,
+            shared_calls_only: true,
             escapes: false,
             changed: false,
             captured: false,
@@ -632,13 +635,15 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
     t.ops = ops;
     let (counts, last): (Vec<u32>, Vec<u32>) = t.v.iter().map(|f| (f.uses, f.user)).unzip();
-    for i in 0..n {
+    let calls = local_lending_calls(b, cx, &counts, &last);
+    for (i, &call) in calls.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && b.data[i][1] & ref_word::FRAME == 0
-            && !lends_once(b, cx, &counts, &last, i)
         {
-            t.l[l.idx()].escapes = true;
+            t.l[l.idx()].shared_calls_only &= b.data[i][1] & ref_word::MUT == 0 && call != NONE;
+            if b.data[i][1] & ref_word::FRAME == 0 && call == NONE {
+                t.l[l.idx()].escapes = true;
+            }
         }
     }
     // A value a coercion consumes is kept where the coercion's value is.
@@ -1097,6 +1102,9 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         b.kind,
         BodyKind::Fn | BodyKind::DeriveInstance | BodyKind::Default
     );
+    // Reuse the write index: borrowing an addressed parameter must not
+    // lose the value snapshot while another alias can change its storage.
+    let no_external_write = t.effects.iter().all(|e| !e.may && !e.reach);
     let mut taken = vec![false; b.len()];
     t.crossed.sort_stable();
     t.crossed.dedup();
@@ -1124,7 +1132,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             let lent = lendable
                 && f.stores == 0
                 && !f.captured
-                && !f.reached
+                && (!f.reached || (f.shared_calls_only && no_external_write))
                 && !f.changed
                 && cx.counted(b.local_ty[l as usize])
                 && (f.kept == 0 && !suspends || cx.received(b.item, at, n) == Pass::Lent);
@@ -1331,37 +1339,74 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
     Some((kept, borrows))
 }
 
-/// Whether `Ref` `i` of a part of a local is a local reference
-/// (`ref_word::LOCAL`) that one call takes, through coercions that keep
-/// its value, and that the call's result cannot hold as a local reference:
-/// counted references own their referents. It is dead once
-/// the call returns, and every other use is a `Drop`. Only that call and
-/// the `Ref` reach the local through it, and [`index_writes`] records a
-/// mutable one as a write at both.
-pub(super) fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32], i: usize) -> bool {
-    if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 {
-        return false;
-    }
-    let mut v = i;
-    for _ in 0..DEPTH {
-        if counts[v] != 1 {
-            return false;
-        }
+/// For each local reference, the one direct call it reaches through
+/// same-value coercions, or NONE. Its result holds no local reference,
+/// so the address dies with the call; every other use is a Drop.
+/// Counted-reference results own their referents independently.
+pub(crate) fn local_lending_calls(
+    b: &Body,
+    cx: &dyn OwnCx,
+    counts: &[u32],
+    last: &[u32],
+) -> Vec<u32> {
+    local_lending_calls_with(b, cx, counts, last, || {})
+}
+
+/// One shared def-use proof, not one bounded alias walk per reference.
+/// Seed values used by one call, then propagate backwards through same-value
+/// coercions. Each value enters the worklist at most once, so width and
+/// coercion depth cost O(instructions + operands), without native recursion.
+fn local_lending_calls_with(
+    b: &Body,
+    cx: &dyn OwnCx,
+    counts: &[u32],
+    last: &[u32],
+    mut visit: impl FnMut(),
+) -> Vec<u32> {
+    let mut calls = vec![NONE; b.len()];
+    let mut work = Vec::new();
+    for v in 0..b.len() {
+        visit();
         let u = last[v] as usize;
-        if b.same_value_coercion(u) && b.data[u][0] as usize == v {
-            v = u;
-            continue;
+        if counts[v] == 1
+            && b.tags.get(u) == Some(&Tag::Call)
+            && (!cx.holds_ref(b.ty[u]) || cx.counted_refs_only(b.ty[u]))
+        {
+            calls[v] = last[v];
+            work.push(v);
         }
-        return b.tags[u] == Tag::Call && (!cx.holds_ref(b.ty[u]) || cx.counted_refs_only(b.ty[u]));
     }
-    false
+    while let Some(v) = work.pop() {
+        visit();
+        if b.same_value_coercion(v)
+            && let Some(source) = Ref(b.data[v][0]).as_inst()
+        {
+            let source = source.0 as usize;
+            if counts[source] == 1 && last[source] as usize == v && calls[source] == NONE {
+                calls[source] = calls[v];
+                work.push(source);
+            }
+        }
+    }
+    for (v, call) in calls.iter_mut().enumerate() {
+        visit();
+        if b.tags[v] != Tag::Ref || b.data[v][1] & ref_word::LOCAL == 0 {
+            *call = NONE;
+        }
+    }
+    calls
 }
 
 /// Per local: whether a reference to it outlives the one call it lends to,
-/// or a closure shares it ([`lends_once`]). A reference used only for
+/// or a closure shares it ([`local_lending_calls`]). A reference used only for
 /// read-through projections does not escape either; an inlined reader
 /// has those uses instead of its original call.
-pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
+pub(crate) struct ReferenceUses {
+    pub escaping: Vec<bool>,
+    pub calls: Vec<u32>,
+}
+
+pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
     let n = b.len();
     let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
     let mut read_through = vec![true; n];
@@ -1377,12 +1422,13 @@ pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
             }
         }
     }
+    let calls = local_lending_calls(b, cx, &counts, &last);
     let mut out = vec![false; b.local_ty.len()];
     for (i, &read_through) in read_through.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && b.data[i][1] & crate::ir::ref_word::FRAME == 0
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && !lends_once(b, cx, &counts, &last, i)
+            && calls[i] == NONE
             && !read_through
         {
             out[l.idx()] = true;
@@ -1393,7 +1439,10 @@ pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
             out[l.idx()] = true;
         }
     }
-    out
+    ReferenceUses {
+        escaping: out,
+        calls,
+    }
 }
 
 /// Whether read `r` is in a match's decision block and reads through that
@@ -1485,5 +1534,147 @@ pub(super) fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
         b.extra.push(u32_of(words.len()));
         b.extra.extend_from_slice(&words);
         b.data[r][0] = at;
+    }
+}
+
+#[cfg(test)]
+mod lending_tests {
+    use super::*;
+    use crate::ir::{Coercion, Providers, TirBuilder, TirSink};
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::{Ty, TyList};
+
+    const LOCAL_REF: Ty = Ty(1_000_004);
+
+    struct ReadOnly;
+    impl OwnCx for ReadOnly {
+        fn temporary_owner_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn counted(&self, ty: Ty) -> bool {
+            ty == Ty::STRING
+        }
+        fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
+            Pass::Owned
+        }
+        fn may_write(&self, c: &Callee) -> bool {
+            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(9))
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            false
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+            Pass::Owned
+        }
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
+        }
+        fn holds_ref(&self, ty: Ty) -> bool {
+            ty == LOCAL_REF
+        }
+        fn suspending(&self, _: DefId) -> bool {
+            false
+        }
+    }
+
+    fn call(b: &mut TirBuilder, def: u32, args: &[Ref], ty: Ty) -> Ref {
+        b.call(
+            &Callee::Item {
+                def: DefId::from_raw(def),
+                targs: TyList::EMPTY,
+            },
+            args,
+            Providers::None,
+            ty,
+            NodeIdx::from_raw(1),
+        )
+    }
+
+    #[test]
+    fn addressed_parameters_only_lend_to_readonly_nonretaining_calls() -> Result<(), String> {
+        // A mutable address, an address shared by two calls, a result holding
+        // the address, or a possibly writing call must retain the snapshot.
+        for control in 0..5 {
+            let n = NodeIdx::from_raw(1);
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let block = b.open_block();
+            let local = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+            let place = b.place(
+                &format!("[${}]", local.raw())
+                    .parse()
+                    .map_err(|e| format!("{e:?}"))?,
+            );
+            let flags = ref_word::LOCAL | if control == 1 { ref_word::MUT } else { 0 };
+            let r = b.emit(Tag::Ref, place, flags, LOCAL_REF, n);
+            let result = if control == 3 { LOCAL_REF } else { Ty::VOID };
+            call(&mut b, 8, &[r], result);
+            if control == 2 {
+                call(&mut b, 8, &[r], Ty::VOID);
+            }
+            if control == 4 {
+                call(&mut b, 9, &[], Ty::VOID);
+            }
+            let root = b.close_block(block, None, Ty::VOID, n);
+            let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            super::super::run(
+                &mut body,
+                &ReadOnly,
+                &mut super::super::OwnScratch::default(),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            let errors = crate::ir::verify_owned(&body, &ReadOnly);
+            assert!(errors.is_empty(), "control {control}: {errors:?}");
+            assert_eq!(
+                body.exit_drops.is_empty(),
+                control == 0,
+                "control {control}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn lending_call_work_is_linear_in_width_and_coercion_depth() -> Result<(), String> {
+        for (width, depth) in [(1, 1), (1000, 1), (1, 20), (1000, 20)] {
+            let n = NodeIdx::from_raw(1);
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let block = b.open_block();
+            let mut references = Vec::new();
+            for _ in 0..width {
+                let local = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+                let place = b.place(
+                    &format!("[${}]", local.raw())
+                        .parse()
+                        .map_err(|e| format!("{e:?}"))?,
+                );
+                let mut r = b.emit(Tag::Ref, place, ref_word::LOCAL, LOCAL_REF, n);
+                references.push(r.0 as usize);
+                for _ in 0..depth {
+                    r = b.coerce(Coercion::Identity, NONE, r, LOCAL_REF, n);
+                }
+                call(&mut b, 8, &[r], Ty::VOID);
+            }
+            let root = b.close_block(block, None, Ty::VOID, n);
+            let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            let (mut counts, mut last) = (vec![0; body.len()], vec![NONE; body.len()]);
+            let mut ops = Vec::new();
+            for i in 0..body.len() {
+                operands(&body, i, &mut ops);
+                for op in &ops {
+                    if op.role != Role::Dropped {
+                        counts[op.value as usize] += 1;
+                        last[op.value as usize] = u32_of(i);
+                    }
+                }
+            }
+            let mut visits = 0;
+            let calls = local_lending_calls_with(&body, &ReadOnly, &counts, &last, || visits += 1);
+            assert!(references.iter().all(|&r| calls[r] != NONE));
+            assert!(visits <= 3 * body.len(), "{width}x{depth}: {visits} visits");
+        }
+        Ok(())
     }
 }

@@ -92,7 +92,7 @@ fn new_mut(s: string, t: string) -> usize:
 >   %18 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]
 
 fn field_ref(s: string, t: string) -> usize:
 > app/main/field_ref
@@ -133,4 +133,4 @@ fn field_ref(s: string, t: string) -> usize:
 >   %11 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]

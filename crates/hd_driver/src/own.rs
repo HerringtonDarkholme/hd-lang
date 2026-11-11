@@ -1961,7 +1961,7 @@ impl Env<'_> {
     /// for an item's own body and for one instance's
     /// (`ProgramEnv::instance_body`) alike: generated structure walks,
     /// then, in release, declaration facts and the constants they decide,
-    /// then the inliner, then, where facts folded or the pipeline holds
+    /// then the inliner, then, where generated structure or facts folded or the pipeline holds
     /// `const_fold`, the decisions the result's own values decide (an
     /// inlined trait method's constant among them, #1518). The result's
     /// hash: the fold is a function of the inlined body and the pipeline,
@@ -1969,8 +1969,11 @@ impl Env<'_> {
     pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
         let structure = hd_opt::structure_specialize::specialize_calls(self, body, hash);
         let facts = hd_opt::fact_specialize::specialize_calls(self, body, structure);
+        // Generated structure accessors and declaration facts can both
+        // expose constant decisions before the general folding pipeline.
+        let decided = facts != hash;
         let hash = hd_opt::inline::inline_calls(self, body, facts);
-        if (facts != structure || self.run.const_fold)
+        if (decided || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {
             *body = specialized;
@@ -2533,6 +2536,16 @@ impl Run<'_> {
                 // point over the component, from every member writing
                 // nothing (a member with no inlined body writes).
                 let bodies = inlined.borrow();
+                // One structural index per immutable body, not one per
+                // summary iteration. Call effects still read this round.
+                let effects: Vec<_> = members
+                    .iter()
+                    .map(|m| {
+                        bodies
+                            .get(m)
+                            .map(|(body, _)| hd_tir::own::WriteEffects::new(body))
+                    })
+                    .collect();
                 let mut writes = lock(&all.writes);
                 for m in members.iter() {
                     writes.insert(*m, !bodies.contains_key(m));
@@ -2541,14 +2554,15 @@ impl Run<'_> {
                 let mut grew = true;
                 while grew {
                     grew = false;
-                    for m in members.iter() {
+                    for (m, effects) in members.iter().zip(&effects) {
                         let known = lock(&all.writes)[m];
-                        if !known && hd_tir::own::writes(&bodies[m].0, env) {
+                        if !known && effects.as_ref().is_none_or(|effects| effects.writes(env)) {
                             lock(&all.writes).insert(*m, true);
                             grew = true;
                         }
                     }
                 }
+                drop(effects);
                 drop(bodies);
                 if recursive {
                     for &m in members.iter() {
