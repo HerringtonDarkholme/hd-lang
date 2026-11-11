@@ -24,6 +24,31 @@ pub const INLINE_LIMIT: usize = 16;
 /// `@inline(.Auto)` may have and still be copied.
 pub const AUTO_INLINE_LIMIT: usize = 64;
 
+/// A bounded consumer copy and the inputs whose function identity is only
+/// called or immutably aliased. Cached independently of ordinary eligibility.
+struct LiteralConsumer {
+    body: Body,
+    hash: Hash128,
+    parameters: Vec<bool>,
+    loop_body: bool,
+}
+
+impl LiteralConsumer {
+    fn for_call(&self, inputs: &[usize], in_loop: bool) -> Option<(Body, Hash128)> {
+        // The contextual bonus must not fuse a callee loop into an active
+        // caller loop: V8 cannot tier-up that activation without OSR.
+        // Keep this policy outside the per-callee cached preparation.
+        if (in_loop && self.loop_body)
+            || !inputs
+                .iter()
+                .any(|&k| self.parameters.get(k) == Some(&true))
+        {
+            return None;
+        }
+        Some((self.body.clone(), self.hash))
+    }
+}
+
 /// The most times one body's calls are copied in a release build: what a
 /// round's copies call is copied in the next.
 const MAX_ROUNDS: usize = 4;
@@ -116,6 +141,9 @@ pub struct Memo {
     /// own calls copied first, and its hash, or `None` when a call of it
     /// stays (`callee_copy`).
     inlined: Mutex<HashMap<(DefId, TyList), Option<Inlined>>>,
+    /// Contextual consumer allowance, separate from ordinary eligibility.
+    /// At most one bounded copy per concrete callee (once per racing worker).
+    literal_consumers: Mutex<HashMap<(DefId, TyList), Option<LiteralConsumer>>>,
     /// The instances the inliner found on a cycle of calls
     /// (`inline_into`): a call of one stays a call.
     recursive: Mutex<HashSet<(DefId, TyList)>>,
@@ -171,6 +199,27 @@ pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, hash: Hash128) -> Hash
 struct Stack {
     frames: Vec<Frame>,
     solving: bool,
+}
+
+impl Memo {
+    /// One query per site, one bounded preparation per concrete consumer.
+    /// Locks never cover signature/type queries; a racing worker may prepare
+    /// one additional result, as with the ordinary inliner cache.
+    fn consumer_copy(
+        &self,
+        key: (DefId, TyList),
+        prepare: impl FnOnce() -> Option<LiteralConsumer>,
+        select: impl FnOnce(&LiteralConsumer) -> Option<(Body, Hash128)>,
+    ) -> Option<(Body, Hash128)> {
+        if let Some(made) = lock(&self.literal_consumers).get(&key) {
+            return made.as_ref().and_then(select);
+        }
+        let made = prepare();
+        let result = made.as_ref().and_then(select);
+        // Cache the body facts, never this caller's selection result.
+        lock(&self.literal_consumers).insert(key, made);
+        result
+    }
 }
 
 impl Stack {
@@ -363,6 +412,11 @@ impl dyn InlineEnv + '_ {
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
         let loops = hd_tir::ir::Topology::new(body).loop_of;
+        let literals = if self.memo().is_some() {
+            hd_tir::inline::literal_arguments(body)
+        } else {
+            Vec::new()
+        };
         let writer_origins = if self.memo().is_some() {
             writer_origins(body)
         } else {
@@ -424,9 +478,16 @@ impl dyn InlineEnv + '_ {
                 self.found_cycle(&stack[at..]);
                 continue;
             }
-            let Some((mut copy, callee_hash)) =
-                folded.or_else(|| self.callee_copy(def, targs, stack))
-            else {
+            let ordinary = folded.or_else(|| self.callee_copy(def, targs, stack));
+            let consumer = ordinary.is_none();
+            let Some((mut copy, callee_hash)) = ordinary.or_else(|| {
+                self.literal_consumer(
+                    def,
+                    targs,
+                    literals.get(c).map_or(&[], Vec::as_slice),
+                    in_loop,
+                )
+            }) else {
                 continue;
             };
             // A copy made for another caller may call one on the way down.
@@ -450,6 +511,7 @@ impl dyn InlineEnv + '_ {
                 && !self.fits_size(def, targs, &copy, INLINE_LIMIT)
                 && !in_loop
                 && writer_refs.is_none()
+                && !consumer
             {
                 continue;
             }
@@ -935,27 +997,28 @@ impl dyn InlineEnv + '_ {
     /// existing raw-budget getters and explicit Always copies retain
     /// their established eligibility.
     fn fits_size(&self, def: DefId, targs: TyList, copy: &Body, limit: usize) -> bool {
-        if copy.len() > limit {
-            let declared = self.result(def).map(|t| {
-                let t = self.pool().erase_fn_deps(t);
-                hd_mono::subst(self.pool(), self, def, targs, t)
-            });
-            let root = copy
-                .sub_root
-                .first()
-                .and_then(|&r| copy.ty.get(r as usize))
-                .copied();
-            // A body whose every path explicitly returns has a never
-            // root; its instantiated declaration still carries the loan.
-            if declared
-                .into_iter()
-                .chain(root)
-                .any(|t| holds_local(self.pool(), t, 0))
-            {
-                return false;
-            }
+        if copy.len() > limit && self.result_holds_local(def, targs, copy) {
+            return false;
         }
         hd_tir::inline::inlinable(copy, limit)
+    }
+
+    fn result_holds_local(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
+        let declared = self.result(def).map(|t| {
+            let t = self.pool().erase_fn_deps(t);
+            hd_mono::subst(self.pool(), self, def, targs, t)
+        });
+        let root = copy
+            .sub_root
+            .first()
+            .and_then(|&r| copy.ty.get(r as usize))
+            .copied();
+        // A body whose every path explicitly returns has a never root;
+        // its instantiated declaration still carries the loan.
+        declared
+            .into_iter()
+            .chain(root)
+            .any(|t| holds_local(self.pool(), t, 0))
     }
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
@@ -997,6 +1060,63 @@ impl dyn InlineEnv + '_ {
             InlineHint::Always => hd_tir::inline::copyable(copy),
             InlineHint::Never => false,
         }
+    }
+
+    /// A known literal makes a small higher-order consumer profitable even
+    /// when the loop around its callback exceeds the ordinary size budget.
+    /// Keep the ordinary global limit unchanged. The raw consumer uses the
+    /// existing Auto budget; its calls are handled by later bounded rounds.
+    /// Cost O(K) per admitted site, K <=16*`AUTO_INLINE_LIMIT` budget units;
+    /// each instruction/local unit covers a fixed number of column words.
+    /// no recursive preparation or failed-memo policy is changed.
+    fn literal_consumer(
+        &self,
+        def: DefId,
+        targs: TyList,
+        inputs: &[usize],
+        in_loop: bool,
+    ) -> Option<(Body, Hash128)> {
+        let memo = self.memo()?;
+        if inputs.is_empty()
+            || lock(&memo.recursive).contains(&(def, targs))
+            || self.inline_hint(def) != InlineHint::Default
+        {
+            return None;
+        }
+        memo.consumer_copy(
+            (def, targs),
+            || self.make_literal_consumer(def, targs),
+            |made| made.for_call(inputs, in_loop),
+        )
+    }
+
+    fn make_literal_consumer(&self, def: DefId, targs: TyList) -> Option<LiteralConsumer> {
+        // Reject oversized metadata before cloning/substitution as well as
+        // after: the failed attempt must not scan a large callee per site.
+        let (raw, _) = self.checked_body(def)?;
+        if !consumer_metadata_fits(raw) {
+            return None;
+        }
+        let (copy, hash, _) = self.instance(def, targs)?;
+        if !consumer_metadata_fits(&copy)
+            || !self.fits_size(def, targs, &copy, AUTO_INLINE_LIMIT)
+            // The contextual size bonus does not enlarge dependent-result
+            // scopes beyond the existing ordinary raw-body boundary.
+            || copy.len() > INLINE_LIMIT && self.result_holds_local(def, targs, &copy)
+            || self.takes_reference(def, targs)
+                && self.by_value(def, targs, &copy).is_none()
+                && !self.read_only_refs(def, targs, &copy)
+        {
+            return None;
+        }
+        let parameters = hd_tir::inline::called_parameters(&copy);
+        let loop_body = copy.tags.contains(&Tag::Loop);
+        parameters.contains(&true).then_some(LiteralConsumer {
+            loop_body,
+            body: copy,
+            hash,
+            parameters,
+        })
     }
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
@@ -1375,6 +1495,44 @@ impl dyn InlineEnv + '_ {
             && root.is_some_and(|root| fits(open(caller.ty[c]), root))
             && (!rebound || kinds_agree(copy))
     }
+}
+
+/// Constant-time vector-length checks and at most K string rows, before any
+/// candidate clone. Large literals and side tables cannot multiply by sites.
+fn consumer_metadata_fits(body: &Body) -> bool {
+    consumer_metadata_fits_with(body, || {})
+}
+
+fn consumer_metadata_fits_with(body: &Body, mut visit: impl FnMut()) -> bool {
+    let mut remaining = 16 * AUTO_INLINE_LIMIT;
+    for len in [
+        body.len(),
+        body.extra.len(),
+        body.local_ty.len(),
+        body.consts.len(),
+        body.sub_root.len(),
+        body.cap_local.len(),
+        body.label_inst.len(),
+        body.fallback.len(),
+        body.held_args.len(),
+        body.inlined.len(),
+        body.inlined_origins.len(),
+        body.inlined_shared.len(),
+        body.inlined_capture_origins.len().saturating_mul(3),
+    ] {
+        let Some(next) = remaining.checked_sub(len) else {
+            return false;
+        };
+        remaining = next;
+    }
+    for text in &body.strings {
+        visit();
+        let Some(next) = remaining.checked_sub(text.len().div_ceil(4).max(1)) else {
+            return false;
+        };
+        remaining = next;
+    }
+    true
 }
 
 /// Appends a record of `words` to `body`'s `extra`; its offset.
@@ -1825,6 +1983,7 @@ fn index_word(i: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use hd_base::SliceSort as _;
+    use hd_tir::ir::TirSink as _;
     use std::cell::RefCell;
     use std::collections::BTreeMap;
 
@@ -1833,6 +1992,200 @@ mod tests {
     use hd_types::{InternPool, Ty, TyData};
 
     use super::{bottom_up, keep_parameter_kind};
+
+    #[test]
+    fn consumer_query_prepares_once_across_site_width_and_instance_depth() {
+        for (width, depth) in [(1usize, 1u32), (1000, 1), (1, 20), (1000, 20)] {
+            let memo = super::Memo::default();
+            let mut preparations = 0;
+            let mut copied_rows = 0;
+            for _ in 0..width {
+                for level in 0..depth {
+                    let key = (hd_base::DefId::from_raw(1), hd_types::TyList(level));
+                    let result = memo
+                        .consumer_copy(
+                            key,
+                            || {
+                                preparations += 1;
+                                let n = hd_base::NodeIdx::from_raw(1);
+                                let mut builder =
+                                    hd_tir::ir::TirBuilder::new(key.0, hd_tir::ir::BodyKind::Fn);
+                                let block = builder.open_block();
+                                let value = builder.const_value(hd_types::Ty::I32, 0);
+                                for _ in 1..super::AUTO_INLINE_LIMIT {
+                                    builder.prim(
+                                        hd_tir::ir::PrimOp::Add as u32,
+                                        &[value, value],
+                                        hd_types::Ty::I32,
+                                        n,
+                                    );
+                                }
+                                let root = builder.close_block(block, None, hd_types::Ty::VOID, n);
+                                let body = builder
+                                    .finish(root, &[])
+                                    .expect("generated bounded consumer");
+                                Some(super::LiteralConsumer {
+                                    body,
+                                    hash: hd_base::Hash128::default(),
+                                    parameters: vec![true],
+                                    loop_body: false,
+                                })
+                            },
+                            |made| made.for_call(&[0], false),
+                        )
+                        .expect("admitted consumer");
+                    copied_rows += result.0.len();
+                    let nested = memo
+                        .consumer_copy(
+                            key,
+                            || panic!("cached query"),
+                            |made| made.for_call(&[0], true),
+                        )
+                        .expect("non-loop nested consumer");
+                    copied_rows += nested.0.len();
+                    assert!(
+                        memo.consumer_copy(
+                            key,
+                            || panic!("cached query"),
+                            |made| made.for_call(&[1], true)
+                        )
+                        .is_none()
+                    );
+                }
+            }
+            assert_eq!(preparations, depth);
+            assert_eq!(
+                copied_rows,
+                2 * width * depth as usize * super::AUTO_INLINE_LIMIT
+            );
+            let mut failed = 0;
+            for _ in 0..width {
+                assert!(
+                    memo.consumer_copy(
+                        (hd_base::DefId::from_raw(2), hd_types::TyList::EMPTY),
+                        || {
+                            failed += 1;
+                            None
+                        },
+                        |made| made.for_call(&[0], false)
+                    )
+                    .is_none()
+                );
+            }
+            assert_eq!(failed, 1);
+        }
+    }
+
+    #[test]
+    fn nested_site_rejection_never_caches_a_root_site_rejection() {
+        for size in [17, 31, 48] {
+            for result in [Ty::VOID, Ty::I32, Ty::STRING] {
+                let n = hd_base::NodeIdx::from_raw(1);
+                let mut b = hd_tir::ir::TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+                let root = b.open_block();
+                let loop_mark = b.open_loop();
+                let inner = b.open_block();
+                let value = b.const_value(Ty::I32, 1);
+                for _ in 0..size {
+                    b.prim(hd_tir::ir::PrimOp::Add as u32, &[value, value], Ty::I32, n);
+                }
+                let inner = b.close_block(inner, None, Ty::VOID, n);
+                b.close_loop(loop_mark, inner, Ty::VOID, n);
+                let value = match result {
+                    Ty::VOID => None,
+                    Ty::STRING => Some(b.const_str("result")),
+                    _ => Some(value),
+                };
+                let root = b.close_block(root, value, result, n);
+                let body = b.finish(root, &[]).expect("generated loop consumer");
+                assert!(hd_tir::ir::verify_checked(&body).is_empty());
+                let memo = super::Memo::default();
+                let key = (body.item, hd_types::TyList::EMPTY);
+                assert!(
+                    memo.consumer_copy(
+                        key,
+                        || Some(super::LiteralConsumer {
+                            loop_body: body.tags.contains(&Tag::Loop),
+                            body,
+                            hash: hd_base::Hash128::default(),
+                            parameters: vec![true],
+                        }),
+                        |made| made.for_call(&[0], true)
+                    )
+                    .is_none()
+                );
+                assert!(
+                    memo.consumer_copy(
+                        key,
+                        || panic!("context veto poisoned the cache"),
+                        |made| made.for_call(&[0], false)
+                    )
+                    .is_some()
+                );
+                assert!(
+                    memo.consumer_copy(
+                        key,
+                        || panic!("cached query"),
+                        |made| made.for_call(&[0], true)
+                    )
+                    .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn consumer_metadata_rejection_work_does_not_grow_with_literal_table_width() {
+        let mut previous = None;
+        for width in [1000, 10000] {
+            let mut builder =
+                hd_tir::ir::TirBuilder::new(hd_base::DefId::from_raw(1), hd_tir::ir::BodyKind::Fn);
+            let block = builder.open_block();
+            for _ in 0..width {
+                builder.const_str("x");
+            }
+            let root = builder.close_block(
+                block,
+                None,
+                hd_types::Ty::VOID,
+                hd_base::NodeIdx::from_raw(1),
+            );
+            let body = builder.finish(root, &[]).expect("generated literal table");
+            let mut work = 0;
+            assert!(!super::consumer_metadata_fits_with(&body, || work += 1));
+            assert!(work <= 16 * super::AUTO_INLINE_LIMIT + 1);
+            if let Some(old) = previous {
+                assert!(work <= old);
+            }
+            previous = Some(work);
+        }
+    }
+
+    #[test]
+    fn consumer_capture_origin_budget_rejects_before_scanning_rows() {
+        use hd_base::{DefId, NodeIdx, SubId, Symbol};
+        use hd_tir::ir::{BodyKind, TirBuilder, TirSink};
+        use hd_types::Ty;
+        for width in [350, 3_500] {
+            let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let block = builder.open_block();
+            let creator = builder.local(Ty::VOID, Symbol::from_raw(0), 0, NodeIdx::NONE);
+            let snapshots: Vec<_> = (0..width)
+                .map(|_| builder.local(Ty::VOID, Symbol::from_raw(0), 0, NodeIdx::NONE))
+                .collect();
+            let root = builder.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+            let mut body = builder
+                .finish(root, &[])
+                .expect("generated capture origins");
+            body.inlined_capture_origins = snapshots
+                .into_iter()
+                .map(|snapshot| (SubId::from_raw(0), snapshot, creator))
+                .collect();
+            let mut visits = 0;
+            assert!(!super::consumer_metadata_fits_with(&body, || visits += 1));
+            assert_eq!(visits, 0, "vector lengths reject without walking metadata");
+        }
+    }
 
     #[test]
     fn scalar_writer_values_require_independent_storage() {

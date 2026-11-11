@@ -1,0 +1,31 @@
+# #1383: exposing generic consumers preserves creation snapshots and cells.
+# fn.capture.copy.value; fn.capture.cell.closures; fn.capture.copies;
+# fn.capture.call.any; fn.trait.mut.call.
+use std.function.FnMut
+
+fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
+    for x in xs:
+        f(x)
+
+struct Saved:
+    run: fn(string) -> void
+
+fn exercise() -> string:
+    let mut source = ["old"]
+    snapshot := source
+    let total: usize = 0
+    let mut seen: List[string] = []
+    visit := fn(word: string) -> void:
+        total += word.len()
+        seen.push("${snapshot[0]}:$word")
+    source[0] = "new"
+    each(["a", "bb"], visit)
+    each([], visit)
+    alias := visit
+    each(["ccc"], alias)
+    saved := Saved { run: visit }
+    (saved.run)("dddd")
+    "${source[0]} $total ${seen.join(",")}"
+
+pub fn main() -> void $ Console:
+    println(exercise()) # prints: new 10 old:a,old:bb,old:ccc,old:dddd

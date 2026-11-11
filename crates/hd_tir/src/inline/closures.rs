@@ -414,6 +414,10 @@ struct Flow {
 
 impl Flow {
     fn new(body: &Body) -> Self {
+        Self::build(body, false)
+    }
+
+    fn build(body: &Body, parameters: bool) -> Self {
         let n = body.len();
         let unresolved = u32::MAX;
         let mut stores = vec![(0u32, unresolved); body.local_ty.len()];
@@ -461,6 +465,17 @@ impl Flow {
             if body.tags[i] == Tag::Read
                 && let Some(local) = body.local_read(i)
             {
+                if parameters
+                    && stores[local.idx()].0 == 0
+                    && body.local_flags[local.idx()] & local_flags::PARAM != 0
+                    && body.local_flags[local.idx()] & local_flags::MUTATED == 0
+                    && origins[n + local.idx()] == unresolved
+                {
+                    // A parameter's first whole read is its identity, so
+                    // origin IDs still name real same-sub-body instructions.
+                    origins[n + local.idx()] = u32_of(i);
+                    queue.push(n + local.idx());
+                }
                 edges[n + local.idx()].push(i);
             }
         }
@@ -548,6 +563,53 @@ impl Flow {
         }
         out
     }
+}
+
+/// Known literal argument positions for each direct call. Build once per
+/// immutable caller round, using the same def-use worklist as literal copies.
+/// Cost O(instructions + locals + operands + side rows), no per-call rescan.
+#[must_use]
+pub fn literal_arguments(body: &Body) -> Vec<Vec<usize>> {
+    if !body.tags.contains(&Tag::Closure) {
+        return Vec::new();
+    }
+    let flow = Flow::new(body);
+    let mut out = vec![Vec::new(); body.len()];
+    for (i, args) in out.iter_mut().enumerate() {
+        work!(1);
+        if super::known_call(body, i).is_none() {
+            continue;
+        }
+        for (k, &value) in super::arguments(body, i).iter().enumerate() {
+            work!(1);
+            if Ref(value)
+                .as_inst()
+                .is_some_and(|v| flow.values[v.0 as usize] != NONE)
+            {
+                args.push(k);
+            }
+        }
+    }
+    out
+}
+
+/// For each parameter, whether its identity is only called or immutably
+/// aliased in this consumer. Returned/stored/captured/reassigned callbacks
+/// keep their existing out-of-line eligibility and environment contract.
+/// Call only on the bounded consumer copy, not once per input on the caller.
+#[must_use]
+pub fn called_parameters(body: &Body) -> Vec<bool> {
+    let flow = Flow::build(body, true);
+    crate::own::params(body)
+        .into_iter()
+        .map(|local| {
+            work!(1);
+            let origin = flow.locals[local as usize];
+            origin != NONE
+                && !flow.escapes[origin as usize]
+                && !flow.calls[origin as usize].is_empty()
+        })
+        .collect()
 }
 
 struct Template {
@@ -1140,5 +1202,83 @@ mod tests {
         assert_eq!(moved_creator.raw(), creator.raw() + 1);
         let errors = verify_structure(&body, &Topology::new(&body));
         assert!(errors.is_empty(), "{errors:?}");
+    }
+    fn consumer(aliases: usize, control: usize) -> Body {
+        let n = NodeIdx::from_raw(1);
+        let fn_ty = Ty(1_000_000);
+        let mut b = TirBuilder::new(DefId::from_raw(2), BodyKind::Fn);
+        let block = b.open_block();
+        let parameter = b.local(fn_ty, Symbol::NONE, local_flags::PARAM, n);
+        let mut value = b.get(parameter, fn_ty, n);
+        for _ in 0..aliases {
+            let local = b.local(fn_ty, Symbol::NONE, 0, n);
+            b.set(local, value, n);
+            value = b.get(local, fn_ty, n);
+        }
+        if control == 1 {
+            b.set(parameter, value, n);
+        }
+        if control == 2 {
+            let values = b.refs_record(&[value]);
+            b.emit(Tag::NewStruct, NONE, values, fn_ty, n);
+        }
+        if control != 4 {
+            let args = b.refs_record(&[]);
+            b.emit(Tag::CallValue, value.0, args, Ty::VOID, n);
+        }
+        let root = b.close_block(
+            block,
+            (control == 3).then_some(value),
+            if control == 3 { fn_ty } else { Ty::VOID },
+            n,
+        );
+        b.finish(root, &[]).expect("generated consumer")
+    }
+
+    #[test]
+    fn consumer_admission_preserves_reassigned_stored_and_returned_callbacks() {
+        for control in 0..5 {
+            let body = consumer(20, control);
+            assert_eq!(
+                super::called_parameters(&body),
+                [control == 0],
+                "control {control}"
+            );
+        }
+    }
+
+    #[test]
+    fn literal_argument_and_consumer_work_is_linear_in_width_and_alias_depth() {
+        for (width, depth) in [(1, 1), (1000, 1), (1, 20), (1000, 20)] {
+            let mut body = generated(width, depth, 20);
+            for i in 0..body.len() {
+                if body.tags[i] == Tag::CallValue {
+                    let literal = body.data[i][0];
+                    let callee = super::super::push_record(&mut body, &[0, 2, 0]);
+                    let args = super::super::push_record(&mut body, &[literal, 0, 0, 0]);
+                    body.tags[i] = Tag::Call;
+                    body.data[i] = [callee, args];
+                }
+            }
+            let copy = consumer(depth, 0);
+            measurements::reset();
+            let inputs = super::literal_arguments(&body);
+            let parameters = super::called_parameters(&copy);
+            let mut admitted = 0;
+            for input in inputs.iter().filter(|input| !input.is_empty()) {
+                assert_eq!(input, &[0]);
+                assert!(input.iter().any(|&k| parameters.get(k) == Some(&true)));
+                admitted += 1;
+            }
+            assert_eq!(admitted, width);
+            let work = measurements::total();
+            let rows = body.len()
+                + body.extra.len()
+                + body.local_ty.len()
+                + copy.len()
+                + copy.extra.len()
+                + copy.local_ty.len();
+            assert!(work <= 32 * rows, "{width}x{depth}: {work} for {rows} rows");
+        }
     }
 }
