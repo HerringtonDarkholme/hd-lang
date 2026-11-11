@@ -176,9 +176,6 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
 /// the store and its scalar producer's indices, and the constant.
 type Write = (SymId, usize, usize, Ins);
 
-/// The instructions a rewrite removes, and an instruction it changes.
-type Edit = (Vec<usize>, Option<(usize, Ins)>);
-
 /// The parameter and result counts of each function a call can name.
 pub type Arity = Vec<Option<(usize, usize)>>;
 
@@ -1891,106 +1888,261 @@ fn pure_operands(i: &I) -> Option<usize> {
     })
 }
 
-/// Rules 9 and 10: lets values stay on the stack across a straight-line
-/// run.
+/// Rules 9 and 10 operate on straight-line stack effects. Schedule the
+/// single-use locals first so the store walk sees the resulting stack order.
 fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
-    let mut changed = false;
-    'outer: loop {
-        let (reads, writes) = counts(f);
-        let once = |l: u32| l >= np && reads[l as usize] == 1 && writes[l as usize] == 1;
-        let b = &f.body;
-        let mut edit: Option<Edit> = None;
-        for q in 0..b.len() {
-            // Rule 9.
-            if let (Some(Ins::Op(I::I32Const(c))), Some(Ins::Op(I::I32Add))) =
-                (b.get(q), b.get(q + 1))
-                && *c >= 0
-                && let Some(t) = store_after(b, q + 2, arity, &f.symbols)
-                && let Ins::Op(st) = &b[t]
-                && !is_load(st)
-                && let Some(moved) = with_offset(st, c.cast_unsigned())
-            {
-                edit = Some((vec![q, q + 1], Some((t, Ins::Op(moved)))));
-                break;
-            }
-            // Rule 10.
-            if let (Some(Ins::Op(I::LocalSet(a))), Some(p), Some(Ins::Op(I::LocalGet(g)))) =
-                (b.get(q), b.get(q + 1), b.get(q + 2))
-                && a == g
-                && once(*a)
-                && matches!(
-                    p,
-                    Ins::Op(I::LocalGet(_) | I::I32Const(_) | I::I64Const(_)) | Ins::GlobalGet(_)
-                )
-                && let Some(s) = run_start(b, q, arity, &f.symbols)
-                && !b[s..q].iter().any(|x| clobbers(p, x))
-            {
-                let mut body = b[..s].to_vec();
-                body.push(*p);
-                body.extend_from_slice(&b[s..q]);
-                body.extend_from_slice(&b[q + 3..]);
-                let mut origins = Remap::new(f.origins.as_deref());
-                origins.copy(0..s);
-                origins.copy(q + 1..q + 2);
-                origins.copy(s..q);
-                origins.copy(q + 3..b.len());
-                f.body = body;
-                origins.finish(f);
-                changed = true;
-                continue 'outer;
-            }
-        }
-        let Some((gone, replace)) = edit else {
-            return changed;
+    schedule_with(f, np, arity, || {})
+}
+
+fn schedule_with(f: &mut Func, np: u32, arity: &Arity, mut visit: impl FnMut()) -> bool {
+    let locals = schedule_locals(f, np, arity, &mut visit);
+    let stores = schedule_stores(f, arity, &mut visit);
+    locals || stores
+}
+
+/// The last boundary at each still reachable depth of a straight-line run.
+/// A multi-result instruction can skip depths, so store only the boundaries
+/// that actually occurred. Each instruction adds at most one boundary.
+#[derive(Default)]
+struct StackStarts {
+    depth: usize,
+    starts: Vec<(usize, StackBoundary)>,
+}
+
+#[derive(Clone, Copy)]
+struct StackBoundary {
+    instruction: usize,
+    /// Original position of the first instruction of the run. Only pure
+    /// pushes move, so this remains the cut for earlier writes.
+    before: usize,
+}
+
+impl StackStarts {
+    fn advance(&mut self, i: usize, effect: Option<(usize, usize)>, visit: &mut impl FnMut()) {
+        let Some((pops, pushes)) = effect else {
+            self.depth = 0;
+            self.starts.clear();
+            return;
         };
-        if let Some((t, i)) = replace {
-            f.body[t] = i;
-            if let Some(origins) = &mut f.origins {
-                origins[t] = gone
-                    .iter()
-                    .chain(std::iter::once(&t))
-                    .find_map(|&i| origins[i]);
+        let below = self.depth.saturating_sub(pops);
+        if pops > self.depth {
+            self.starts.clear();
+        }
+        self.depth = below + pushes;
+        while self
+            .starts
+            .last()
+            .is_some_and(|&(d, _)| d > below || d == self.depth)
+        {
+            visit();
+            self.starts.pop();
+        }
+        if pops == 0 && pushes != 0 {
+            self.starts.push((
+                below,
+                StackBoundary {
+                    instruction: i,
+                    before: i,
+                },
+            ));
+        }
+    }
+
+    fn single_result(&self) -> Option<StackBoundary> {
+        let &(depth, start) = self.starts.last()?;
+        (depth + 1 == self.depth).then_some(start)
+    }
+
+    fn moved_push(&mut self, at: usize, start: StackBoundary) {
+        if let Some((_, boundary)) = self.starts.last_mut() {
+            boundary.instruction = at;
+        }
+        self.starts.push((self.depth, start));
+        self.depth += 1;
+    }
+}
+
+/// Instruction indices stay stable until all edits are committed. The
+/// sentinel is both the predecessor of the first and successor of the last.
+struct ScheduleOrder {
+    prev: Vec<usize>,
+    next: Vec<usize>,
+}
+
+impl ScheduleOrder {
+    fn new(n: usize, visit: &mut impl FnMut()) -> Self {
+        let (prev, next) = (0..=n)
+            .map(|i| {
+                visit();
+                (
+                    i.checked_sub(1).unwrap_or(n),
+                    if i == n { 0 } else { i + 1 },
+                )
+            })
+            .unzip();
+        Self { prev, next }
+    }
+
+    fn remove(&mut self, i: usize) {
+        let (prev, next) = (self.prev[i], self.next[i]);
+        self.next[prev] = next;
+        self.prev[next] = prev;
+    }
+
+    fn move_before(&mut self, i: usize, before: usize) {
+        self.remove(i);
+        let prev = self.prev[before];
+        self.prev[i] = prev;
+        self.next[i] = before;
+        self.next[prev] = i;
+        self.prev[before] = i;
+    }
+
+    fn finish(self, f: &mut Func, visit: &mut impl FnMut()) {
+        let n = f.body.len();
+        let mut out = Vec::with_capacity(n);
+        let mut origins = Remap::new(f.origins.as_deref());
+        let mut i = self.next[n];
+        while i != n {
+            visit();
+            out.push(f.body[i]);
+            origins.copy(i..i + 1);
+            i = self.next[i];
+        }
+        f.body = out;
+        origins.finish(f);
+    }
+}
+
+fn schedule_locals(f: &mut Func, np: u32, arity: &Arity, visit: &mut impl FnMut()) -> bool {
+    let (reads, writes) = counts_with(f, visit);
+    let n = f.body.len();
+    let mut stack = StackStarts::default();
+    let mut local_write = vec![None; reads.len()];
+    let mut global_write = BTreeMap::new();
+    let mut call = None;
+    let mut order = None;
+    let mut i = 0;
+    while i < n {
+        visit();
+        if let [Ins::Op(I::LocalSet(a)), push, Ins::Op(I::LocalGet(g)), ..] = &f.body[i..]
+            && a == g
+            && *a >= np
+            && reads[*a as usize] == 1
+            && writes[*a as usize] == 1
+            && let Some(start) = stack.single_result()
+        {
+            let last_write = match push {
+                Ins::Op(I::LocalGet(l)) => Some(local_write[*l as usize]),
+                Ins::GlobalGet(g) => Some(global_write.get(g).copied().max(call)),
+                Ins::Op(I::I32Const(_) | I::I64Const(_)) => Some(None),
+                _ => None,
+            };
+            if last_write.is_some_and(|last| last.is_none_or(|at| at < start.before)) {
+                let order = order.get_or_insert_with(|| ScheduleOrder::new(n, visit));
+                order.move_before(i + 1, start.instruction);
+                order.remove(i);
+                order.remove(i + 2);
+                stack.moved_push(i + 1, start);
+                i += 3;
+                continue;
             }
         }
-        for k in gone.into_iter().rev() {
-            f.remove(k);
+        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = f.body[i] {
+            local_write[l as usize] = Some(i);
+        } else if let Ins::GlobalSet(g) = f.body[i] {
+            global_write.insert(g, i);
+        } else if matches!(f.body[i], Ins::Call(_) | Ins::CallIndirect(_)) {
+            call = Some(i);
         }
-        changed = true;
+        stack.advance(i, effect(&f.body[i], arity, &f.symbols), visit);
+        i += 1;
     }
+    let Some(order) = order else {
+        return false;
+    };
+    order.finish(f, visit);
+    true
 }
 
-/// The latest `s` before `q` whose run `b[s..q]` ends one deeper than it
-/// starts without reaching below its start, in one backward walk. Each
-/// step prepends an instruction to the run, keeping the depth the run
-/// needs at its start and its net change.
-fn run_start(b: &[Ins], q: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
-    let (mut need, mut net) = (0usize, 0isize);
-    for s in (0..q).rev() {
-        let (pops, pushes) = effect(&b[s], arity, symbols)?;
-        need = pops + need.saturating_sub(pushes);
-        net += pushes.cast_signed() - pops.cast_signed();
-        if need == 0 && net == 1 {
-            return Some(s);
-        }
-    }
-    None
+#[derive(Clone, Copy)]
+struct StoreOffset {
+    at: usize,
+    addend: u32,
+    parent: Option<usize>,
 }
 
-/// The store that takes the address below the straight-line run from
-/// `at` and the one value the run pushes over it: the first instruction
-/// of the run that reaches below its start, when that is a store at depth
-/// one.
-fn store_after(b: &[Ins], at: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
+fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> bool {
     let mut depth = 0usize;
-    for (k, i) in b.iter().enumerate().skip(at) {
-        let (pops, pushes) = effect(i, arity, symbols)?;
-        if pops > depth {
-            let store = matches!(i, Ins::Op(op) if !is_load(op) && with_offset(op, 0).is_some());
-            return (store && depth == 1).then_some(k);
+    let mut active = Vec::<(usize, usize)>::new();
+    let mut offsets = Vec::<StoreOffset>::new();
+    let mut order = None;
+    for i in 0..f.body.len() {
+        visit();
+        let Some((pops, pushes)) = effect(&f.body[i], arity, &f.symbols) else {
+            depth = 0;
+            active.clear();
+            continue;
+        };
+        // An offset candidate lives at the address's depth until the
+        // first consumer reaches it. One intervening value above the
+        // address makes that consumer eligible when it is a store.
+        // Markers have distinct increasing stack depths. Only the top
+        // value's marker can stand above the address marker, so a two-pop
+        // instruction needs at most the last two markers.
+        let address = if pops == 2 {
+            active
+                .iter()
+                .rev()
+                .take(2)
+                .find_map(|&(d, id)| (d + 1 == depth).then_some(id))
+        } else {
+            None
+        };
+        let below = depth.saturating_sub(pops);
+        while active.last().is_some_and(|&(d, _)| d > below) {
+            visit();
+            active.pop();
         }
-        depth = depth - pops + pushes;
+        depth = below + pushes;
+        if let (Some(Ins::Op(I::I32Const(c))), Ins::Op(I::I32Add)) =
+            (i.checked_sub(1).and_then(|p| f.body.get(p)), f.body[i])
+            && *c >= 0
+        {
+            active.push((depth, offsets.len()));
+            offsets.push(StoreOffset {
+                at: i - 1,
+                addend: c.cast_unsigned(),
+                parent: address,
+            });
+        } else if let Ins::Op(mut op) = f.body[i]
+            && !is_load(&op)
+            && with_offset(&op, 0).is_some()
+        {
+            let mut address = address;
+            while let Some(id) = address {
+                visit();
+                let StoreOffset { at, addend, parent } = offsets[id];
+                let Some(store) = with_offset(&op, addend) else {
+                    break;
+                };
+                op = store;
+                let order = order.get_or_insert_with(|| ScheduleOrder::new(f.body.len(), visit));
+                order.remove(at);
+                order.remove(at + 1);
+                if let Some(origins) = &mut f.origins {
+                    origins[i] = origins[at].or(origins[at + 1]).or(origins[i]);
+                }
+                address = parent;
+            }
+            f.body[i] = Ins::Op(op);
+        }
     }
-    None
+    let Some(order) = order else {
+        return false;
+    };
+    order.finish(f, visit);
+    true
 }
 
 /// What straight-line instruction `i` pops and pushes; `None` for control
@@ -2489,9 +2641,14 @@ fn ends_run(i: &Ins) -> bool {
 
 /// Each local's reads and writes; a `local.tee` is a write.
 fn counts(f: &Func) -> (Vec<u32>, Vec<u32>) {
+    counts_with(f, &mut || {})
+}
+
+fn counts_with(f: &Func, visit: &mut impl FnMut()) -> (Vec<u32>, Vec<u32>) {
     let n = f.params.len() + f.locals.len();
     let (mut reads, mut writes) = (vec![0u32; n], vec![0u32; n]);
     for i in &f.body {
+        visit();
         match i {
             Ins::Op(I::LocalGet(l)) => reads[*l as usize] += 1,
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => writes[*l as usize] += 1,
@@ -3388,6 +3545,152 @@ mod origin_tests {
             },
         );
         assert_eq!(spans(&f), [12, 10, 14]);
+    }
+
+    #[test]
+    fn scheduling_visits_are_linear_at_width_and_depth() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for (width, depth) in [(256u32, 1u32), (1024, 1), (1, 1024)] {
+            let mut body = Vec::new();
+            for w in 0..width {
+                body.extend([
+                    op(I::LocalGet(0)),
+                    op(I::I32Const(4)),
+                    op(I::I32Add),
+                    op(I::I32Const(9)),
+                    op(I::I32Store(mem(HEAP, 0, 2))),
+                    op(I::LocalGet(0)),
+                ]);
+                for d in 0..depth {
+                    let local = 1 + w * depth + d;
+                    body.extend([
+                        op(I::LocalSet(local)),
+                        op(I::I32Const(5)),
+                        op(I::LocalGet(local)),
+                        op(I::I32Sub),
+                    ]);
+                }
+                body.push(op(I::Drop));
+            }
+            let before = body.len();
+            let mut f = tracked(&symbols, 1, (width * depth) as usize, body);
+            let mut visits = 0;
+            assert!(schedule_with(&mut f, 1, &Arity::new(), || visits += 1));
+            assert_eq!(f.body.len(), (width * (5 + 2 * depth)) as usize);
+            assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
+            assert!(
+                visits <= 9 * before,
+                "{visits} scheduling visits for {before} instructions"
+            );
+            eprintln!(
+                "scheduling width {width}, depth {depth}: {visits} visits for {before} instructions"
+            );
+            let mut settled = 0;
+            assert!(!schedule_with(&mut f, 1, &Arity::new(), || settled += 1));
+            assert!(settled <= 5 * f.body.len());
+            for chunk in f.body.chunks_exact((5 + 2 * depth) as usize) {
+                assert!(matches!(chunk[2], Ins::Op(I::I32Store(m)) if m.offset == 4));
+                assert!(
+                    chunk[3..3 + depth as usize]
+                        .iter()
+                        .all(|i| matches!(i, Ins::Op(I::I32Const(5))))
+                );
+                assert!(matches!(chunk[3 + depth as usize], Ins::Op(I::LocalGet(0))));
+            }
+        }
+    }
+
+    #[test]
+    fn scheduling_indexes_nested_store_regions_once() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for depth in [1000, 4000] {
+            let mut body = Vec::new();
+            for _ in 0..depth {
+                body.extend([op(I::LocalGet(0)), op(I::I32Const(4)), op(I::I32Add)]);
+            }
+            for _ in 0..depth {
+                body.extend([op(I::I32Const(9)), op(I::I32Store(mem(HEAP, 0, 2)))]);
+            }
+            let n = body.len();
+            let mut f = tracked(&symbols, 1, 0, body);
+            let mut visits = 0;
+            assert!(schedule_with(&mut f, 1, &Arity::new(), || visits += 1));
+            assert_eq!(f.body.len(), 3 * depth);
+            assert!(visits <= 9 * n, "{visits} visits for {n} instructions");
+            assert!(
+                f.body[..depth]
+                    .iter()
+                    .all(|i| matches!(i, Ins::Op(I::LocalGet(0))))
+            );
+            assert!(f.body[depth..].chunks_exact(2).all(|pair| matches!(pair, [Ins::Op(I::I32Const(9)), Ins::Op(I::I32Store(m))] if m.offset == 4)));
+            eprintln!("scheduling nested stores {depth}: {visits} visits for {n} instructions");
+        }
+    }
+
+    #[test]
+    fn scheduling_keeps_global_reads_after_calls_and_writes() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let global = symbols.intern_global(Global::HeapTop);
+        let call = call(
+            &symbols,
+            Sym::Import(crate::module::Import::new("fixture", "effect", &[], &[])),
+        );
+        for effect in [vec![call], vec![op(I::I32Const(2)), Ins::GlobalSet(global)]] {
+            let mut body = vec![op(I::I32Const(1))];
+            body.extend(effect);
+            body.extend([
+                op(I::LocalSet(0)),
+                Ins::GlobalGet(global),
+                op(I::LocalGet(0)),
+                op(I::I32Sub),
+                op(I::Drop),
+            ]);
+            let mut f = tracked(&symbols, 0, 1, body);
+            let before = spans(&f);
+            assert!(!schedule(&mut f, 0, &Arity::new()));
+            assert_eq!(spans(&f), before);
+        }
+    }
+
+    #[test]
+    fn scheduling_respects_clobbers_and_multi_result_boundaries() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let multi = call(
+            &symbols,
+            Sym::Import(crate::module::Import {
+                module: "fixture".to_owned(),
+                name: "multi".to_owned(),
+                params: vec![],
+                results: vec![Val::I32; 2],
+            }),
+        );
+        let mut f = tracked(
+            &symbols,
+            1,
+            2,
+            vec![
+                op(I::I32Const(1)),
+                op(I::LocalTee(0)),
+                op(I::LocalSet(1)),
+                op(I::LocalGet(0)),
+                op(I::LocalGet(1)),
+                op(I::I32Sub),
+                op(I::Drop),
+                multi,
+                op(I::LocalSet(2)),
+                op(I::I32Const(2)),
+                op(I::LocalGet(2)),
+                op(I::I32Sub),
+                op(I::Drop),
+                op(I::Drop),
+            ],
+        );
+        assert!(!schedule(&mut f, 1, &Arity::new()));
+        assert_eq!(spans(&f), (10..24).collect::<Vec<_>>());
     }
 
     #[test]
