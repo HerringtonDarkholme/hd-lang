@@ -768,7 +768,7 @@ impl Em<'_, '_, '_> {
         } else {
             &self.b.cap_local[start..start + len]
         };
-        let own = self.b.closure_self(ci);
+        let own = self.recursive_bindings.self_local(ci);
         captures.iter().copied().filter(move |l| {
             Some(*l) != own
                 && matches!(self.kind(self.sub(self.b.local_ty[l.idx()])), Kind::Ref {

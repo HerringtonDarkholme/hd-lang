@@ -2,12 +2,10 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 10 funcref))
-  (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (import "fixture" "table0" (table $table0 4 funcref))
+  (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 36 |     $.with(Tag=Named { label: s }):
     block
       i32.const 8
@@ -25,7 +23,7 @@
     end
     local.get $s.0
     local.set $s.1
-    i32.const 160 ;; &vtable[func62]
+    i32.const 160 ;; &vtable[func42]
     local.set $t0
     ;; 37 |         tag := $.use(Tag)
     local.get $s.1
@@ -35,91 +33,47 @@
       call $retain
     end
     ;; 38 |         apply(fn() -> usize: tag.name().len())
-    i32.const 2
-    i32.const 8
-    i32.const -2147483646
-    call $rt:new/class-1
-    local.tee $t1
-    ;; 37 |         tag := $.use(Tag)
-    local.get $s.1
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
-    i32.store $heap
-    local.get $t1
-    ;; 37 |         tag := $.use(Tag)
-    local.get $t0
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
-    i32.store $heap offset=4
-    drop
     block
-      local.get $t1
-      i32.const 0
-      call $lexical#1
-      local.set $s.1
+      block
+        local.get $s.1
+        local.get $t0
+        i32.load $heap
+        call_indirect $table0 (param i32) (result i32 i32)
+        local.set $t2
+        local.set $t0
+        block
+          br 0
+        end
+        local.get $t0
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+        local.get $t2
+        local.set $t0
+        br 0
+      end
       br 0
     end
     ;; 36 |     $.with(Tag=Named { label: s }):
-    local.get $t1
+    local.get $s.1
     local.tee $t1
     if
       local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
+      call $rt:release_ref
     end
+    local.get $t0
+    local.set $s.1
     local.get $s.0
     local.tee $t1
     if
       local.get $t1
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     local.get $s.1
     local.set $s.0
     local.get $s.0
-  )
-  (func $lexical#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
-    local.get $env
-    i32.load $heap
-    local.set $ctx
-    local.get $env
-    i32.load $heap offset=4
-    local.set $env
-    local.get $ctx
-    local.tee $t0
-    if
-      local.get $t0
-      call $retain
-    end
-    local.get $ctx
-    local.get $env
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32 i32)
-    local.get $ctx
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref'2
-    end
-    local.set $ctx
-    local.set $env
-    block
-      br 0
-    end
-    local.get $env
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref'2
-    end
-    local.get $ctx
-    local.set $env
-    local.get $env
   )
   (func $apply (param $f.0 i32) (param $f.1 i32) (result i32)
     ;; 33 |     f()
@@ -144,7 +98,7 @@
     local.get $provider0
     if
       local.get $provider0
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     local.get $provider0.vtable
     local.set $provider0
@@ -168,7 +122,7 @@
     end
     local.get $s.0
     local.set $s.1
-    i32.const 160 ;; &vtable[func62]
+    i32.const 160 ;; &vtable[func42]
     local.set $t0
     ;; 24 |         read_tag()
     local.get $s.1
@@ -179,7 +133,7 @@
     local.get $s.0
     if
       local.get $s.0
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     local.get $s.1
     local.set $s.0
@@ -189,6 +143,64 @@
     ;; 17 |         self.label
     local.get $self.label.0
     local.get $self.label.1
+  )
+  (func $unrelated_provider (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 42 |     f := fn() -> usize: s.len()
+    local.get $s.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    ;; 43 |     $.with(Tag=Named { label: s }):
+    local.get $s.0
+    local.get $s.1
+    local.set $t1
+    local.set $t0
+    block
+      i32.const 8
+      i32.const 2
+      call $rt:new/class-1
+      local.tee $t2
+      local.get $t0
+      i32.store $heap
+      local.get $t2
+      local.get $t1
+      i32.store $heap offset=4
+      local.get $t2
+      local.set $t0
+      br 0
+    end
+    local.get $t0
+    ;; (no span)
+    local.set $t1
+    ;; 43 |     $.with(Tag=Named { label: s }):
+    i32.const 160 ;; &vtable[func42]
+    ;; (no span)
+    local.set $t2
+    ;; 44 |         read_tag() + f()
+    local.get $t1
+    local.get $t2
+    call $read_tag
+    ;; 43 |     $.with(Tag=Named { label: s }):
+    local.get $s.1
+    i32.add
+    ;; (no span)
+    local.set $s.1
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $s.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $s.1
+    local.set $s.0
+    local.get $s.0
   )
   (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     $.with(Tag=Named { label: a }):
@@ -208,7 +220,7 @@
     end
     local.get $a.0
     local.set $a.1
-    i32.const 160 ;; &vtable[func62]
+    i32.const 160 ;; &vtable[func42]
     local.set $t0
     ;; 28 |         outer := read_tag()
     local.get $a.1
@@ -232,7 +244,7 @@
     end
     local.get $b.0
     local.set $b.1
-    i32.const 160 ;; &vtable[func62]
+    i32.const 160 ;; &vtable[func42]
     local.set $t0
     ;; 30 |             outer + read_tag()
     local.get $a.1
@@ -247,13 +259,13 @@
     local.tee $b.0
     if
       local.get $b.0
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     local.get $a.0
     local.tee $b.0
     if
       local.get $b.0
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     local.get $a.1
     local.set $a.0

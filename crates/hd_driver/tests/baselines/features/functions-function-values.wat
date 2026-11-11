@@ -28,11 +28,6 @@
     local.get $x.0
     local.get $x.1
   )
-  (func $variant_value#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
-    ;; 32 |     map_one(s, Event.Named)
-    local.get $t0
-    local.get $t1
-  )
   (func $named_value (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     apply(width, s)
     block
@@ -51,13 +46,9 @@
   (func $variant_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 32 |     map_one(s, Event.Named)
     block
-      i32.const 0
-      local.get $s.0
-      local.get $s.1
-      i32.const 0
-      call $variant_value#1
-      local.set $s.1
-      local.set $s.0
+      block
+        br 0
+      end
       br 0
     end
     local.get $s.0

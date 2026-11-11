@@ -43,12 +43,19 @@ fn apply(f: fn() -> usize) -> usize:
 fn lexical(s: string) -> usize:
     $.with(Tag=Named { label: s }):
 > app/main/lexical
->   release fn() -> usize (last use)
+>   release &app.main.Tag (by design)
 >   release app.main.Tag (last use)
         tag := $.use(Tag)
 >   retain app.main.Tag (stored)
         apply(fn() -> usize: tag.name().len())
-> app/main/lexical
->   retain app.main.Tag (second owner)
->   release app.main.Tag (last use)
 >   release string (last use)
+
+# An unrelated explicit provider map must not block a known literal call.
+fn unrelated_provider(s: string) -> usize:
+    f := fn() -> usize: s.len()
+> app/main/unrelated_provider
+>   retain string (stored)
+    $.with(Tag=Named { label: s }):
+        read_tag() + f()
+>   (no span) release app.main.Tag (last use)
+>   (no span) release string (last use)

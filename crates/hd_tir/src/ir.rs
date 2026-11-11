@@ -984,6 +984,14 @@ pub struct Body {
     /// is itself `INLINED | a` of an earlier row for a copy made inside a
     /// copy (release, bottom-up). Never written to the wire.
     pub inlined: Vec<[u32; 4]>,
+    /// Sparse source-instruction overrides for dense inlined anchors: the
+    /// virtual anchor and its instruction in the frame's checked body.
+    /// Sorted, pass output only; never written to the TIR wire.
+    pub inlined_origins: Vec<[u32; 2]>,
+    /// Logical shared captures whose function values were eliminated by
+    /// inlining: (creation sub-body, row in `cap_local`/`cap_mode`). Their cell
+    /// alias/loan contract survives the environment. Pass output, not wire.
+    pub inlined_shared: Vec<(SubId, u32)>,
 }
 
 impl Body {
@@ -1023,6 +1031,8 @@ impl Body {
             regions: vec![],
             anchors: vec![],
             inlined: vec![],
+            inlined_origins: vec![],
+            inlined_shared: vec![],
         }
     }
 
@@ -1178,7 +1188,11 @@ impl Body {
         let a = a & !INLINED;
         let k = self.inlined.partition_point(|e| e[0] <= a).checked_sub(1)?;
         let [first, _, callee, call] = self.inlined[k];
-        Some((DefId::from_raw(callee), a - first, call))
+        let source = self
+            .inlined_origins
+            .binary_search_by_key(&a, |row| row[0])
+            .map_or(a - first, |i| self.inlined_origins[i][1]);
+        Some((DefId::from_raw(callee), source, call))
     }
 
     /// A record in `extra`: its words after the length word.
@@ -1325,22 +1339,7 @@ impl Body {
     /// the checker's shared initialization capture needs no mutable cell.
     #[must_use]
     pub fn closure_self(&self, ci: usize) -> Option<LocalId> {
-        if self.tags.get(ci) != Some(&Tag::Closure) || self.syn[ci] == NodeIdx::NONE {
-            return None;
-        }
-        let rec = self.record(self.data[ci][1]);
-        let (start, n) = (rec[0] as usize, rec[1] as usize);
-        self.cap_local[start..start + n].iter().copied().find(|l| {
-            self.local_flags[l.idx()] & local_flags::SHORT != 0
-                && self.local_syn[l.idx()] == self.syn[ci]
-                && !(0..self.len()).any(|i| {
-                    self.tags[i] == Tag::Ref
-                        && self.decode_place(self.data[i][0]).is_some_and(|p| {
-                            p.root == PlaceRoot::Local(*l)
-                                && p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
-                        })
-                })
-        })
+        crate::own::RecursiveBindings::new(self).self_local(ci)
     }
 
     /// The value projection read `i` projects from and its one step: a
@@ -2349,6 +2348,18 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
                 invariant: 10,
                 inst: NONE,
                 what: format!("capture {c} names no local or has no mode"),
+            });
+        }
+    }
+    for &(sub, capture) in &b.inlined_shared {
+        if sub.idx() >= b.sub_root.len()
+            || capture as usize >= b.cap_local.len()
+            || b.cap_mode.get(capture as usize).is_none_or(|m| !m.shares())
+        {
+            errs.push(VerifyError {
+                invariant: 10,
+                inst: NONE,
+                what: format!("invalid inlined shared capture {capture} in sub {sub:?}"),
             });
         }
     }

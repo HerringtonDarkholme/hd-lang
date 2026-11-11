@@ -99,6 +99,7 @@ pub mod short;
 pub(crate) mod splice;
 mod storage;
 mod temporaries;
+pub use storage::RecursiveBindings;
 pub use storage::captures as closure_captures;
 pub mod values;
 
