@@ -13,10 +13,10 @@
     },
     {
       "program": "bench/runtime/progs/expr-eval.hd",
-      "retained": "251748",
-      "released": "3902726",
+      "retained": "0",
+      "released": "3650978",
       "uniques": "0",
-      "total": "4154474",
+      "total": "3650978",
       "noOpsAndSkipped": "5166006"
     },
     {
