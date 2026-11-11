@@ -990,7 +990,20 @@ impl Ck<'_, '_> {
                 }));
             }
             TyData::Poison | TyData::Never => return Ok(None),
-            _ => {}
+            // The solver answers the rest below.
+            TyData::Prim(_)
+            | TyData::Adt { .. }
+            | TyData::Tuple { .. }
+            | TyData::Union(_)
+            | TyData::Ref { .. }
+            | TyData::Fn { .. }
+            | TyData::Opaque { .. }
+            | TyData::Assoc { .. }
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
         let goal = Goal::Instantiations {
             self_ty: s,

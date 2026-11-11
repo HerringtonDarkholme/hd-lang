@@ -1,0 +1,20 @@
+# test: a type argument inside an opaque result's bound must satisfy its type's declared bounds
+# Spec 09: trait.bound.unsatisfied, for a type argument inside `impl Trait`.
+trait Shown:
+    fn show(self) -> i32
+
+struct Need[T < Shown]:
+    item: T
+
+trait Source[T]:
+    fn get(self) -> T
+
+impl[T] Source[T] for i32:
+    fn get(self) -> T:
+        panic("unreached")
+
+fn f() -> impl Source[Need[bool]]: # diagnostic: unsatisfied-trait-bound
+    +1
+
+pub fn main() -> void:
+    pass

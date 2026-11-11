@@ -6567,6 +6567,11 @@ runtime/valid/char-to-u32.hd	runtime	accept	std/text.md#r-std-text.char.to-u32
 runtime/valid/span-index-of-span.hd	runtime	accept	std/collections.md#r-std-collections.span.index-of-span
 runtime/valid/a-local-trait-and-a-trait-default-name-their-enclosing-parameters.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 typing/valid/a-named-constant-reads-its-module-names-not-the-uses.hd	type	accept	lang/04-type-system.md#r-types.generic.const.named-scope
+typing/invalid/a-row-argument-key-is-an-invariant-position.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.variance.row
+typing/invalid/a-union-holding-a-local-reference-does-not-meet-static.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.meets
+typing/invalid/a-union-member-in-a-signature-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
+typing/invalid/a-struct-holding-itself-through-a-union-is-recursive.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains
+typing/invalid/an-opaque-result-bound-argument-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
@@ -6998,7 +7003,3 @@ typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
-typing/invalid/a-row-argument-key-is-an-invariant-position.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.variance.row
-typing/invalid/a-union-holding-a-local-reference-does-not-meet-static.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.meets
-typing/invalid/a-union-member-in-a-signature-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
-typing/invalid/a-struct-holding-itself-through-a-union-is-recursive.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains

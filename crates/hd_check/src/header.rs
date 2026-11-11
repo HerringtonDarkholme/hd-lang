@@ -1189,7 +1189,28 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.check_row(row, slot)?;
             }
             TyData::Row(row) | TyData::Context(row) => self.check_row(row, slot)?,
-            _ => {}
+            // An opaque type's captured arguments and its bound, and a
+            // projection's parts, are written types too.
+            TyData::Opaque { args, bound, .. } => {
+                for &a in pool.list_items(args) {
+                    self.check_ty(a, slot)?;
+                }
+                self.check_ty(bound, slot)?;
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                self.check_ty(self_ty, slot)?;
+                for &a in pool.list_items(args) {
+                    self.check_ty(a, slot)?;
+                }
+            }
+            // No part and no bound to check.
+            TyData::Param(_)
+            | TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
         }
         Ok(())
     }
