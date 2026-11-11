@@ -54,6 +54,10 @@
 //!    collection), the base's own lists are made unique again right before
 //!    the `Ref`, which reads the base again. The reference counts nothing
 //!    (#1336 phase 10): the list's holder lives until its last use.
+//!    A local immutable address used by one read-only direct call is exempt
+//!    when its result holds no local reference and no intervening operation
+//!    can change storage (`readonly_elements`). Pointer checks and call loans
+//!    remain: only the redundant copy-on-write split is omitted.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves
@@ -94,6 +98,8 @@ pub(crate) struct Tables {
     tracked: Vec<bool>,
     /// Immutable loop elements whose existing pre-loop read pins the buffer.
     pinned: Vec<bool>,
+    /// Immutable local addresses lent only to a read-only direct call.
+    readonly_elements: Vec<bool>,
     /// The uses of each tracked value, in compressed rows by value.
     pub(super) start: Vec<u32>,
     fill: Vec<u32>,
@@ -305,6 +311,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     let framed = super::frame::runs_framed(b, topo, cx);
     super::storage::run(b, topo, cx, framed);
     pinned_elements(b, topo, &mut t.pinned);
+    t.readonly_elements = super::readonly_elements::Calls::new(b).elements(b, cx);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
     }
@@ -806,6 +813,7 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
         let a = b.data[i][0];
         let (blk, pos, syn) = (topo.blk[i], topo.pos[i], b.syn[i]);
         match b.tags[i] {
+            Tag::Ref if t.readonly_elements[i] => {}
             Tag::Ref if t.pinned[i] => b.data[i][1] |= crate::ir::ref_word::PINS,
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;

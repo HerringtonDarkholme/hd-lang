@@ -162,7 +162,7 @@ fn read_top() -> usize:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Prim Add [%2 %5] : usize
 >   %7 = Block %6 : usize
->   summary kept [] writes
+>   summary kept []
 
 fn copy_top() -> string:
     greeting

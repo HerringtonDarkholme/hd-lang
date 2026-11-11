@@ -1,0 +1,55 @@
+# #1379: call-scoped read-only element loans preserve values and later writes.
+# expr.ord.std.sequences; expr.ord.trait.ref; ref.elem.slot; types.coll.value.
+use std.annotation.cold
+
+@cold
+fn ordered(left: List[string], right: List[string]) -> bool:
+    left <= right
+
+@cold
+fn length(value: &string) -> usize:
+    value.len()
+
+@cold
+fn replace(value: &mut string, replacement: string) -> void:
+    *value = replacement
+
+@cold
+fn word(number: usize) -> string:
+    "word-$number"
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list ordering reads fresh values and stops at the first difference"):
+        assert(ordered([word(1), word(2)], [word(1), word(3)]))
+        assert(!ordered([word(1), word(3)], [word(1), word(2)]))
+        assert(ordered([word(1)], [word(1), word(2)]))
+        assert(ordered([], []))
+
+    it("read-only list calls leave live snapshots and writable elements intact"):
+        let mut values = [word(1), word(2)]
+        snapshot := values
+        assert(ordered(values, snapshot))
+        assert(ordered(snapshot, values))
+        assert_equal(length(&values[1]), word(2).len())
+        replace(&mut values[1], word(9))
+        assert_equal(values[1], word(9))
+        assert_equal(snapshot[1], word(2))
+        assert(ordered(snapshot, values))
+
+    it("read-only map calls preserve copy-on-write snapshots"):
+        let mut values: Map[string, string] = { "key": word(2) }
+        snapshot := values
+        assert_equal(length(&values["key"]), word(2).len())
+        replace(&mut values["key"], word(9))
+        assert_equal(values["key"], word(9))
+        assert_equal(snapshot["key"], word(2))
+
+    it("a counted collection loan ends when its scalar reader returns"):
+        values := box([word(1), word(2)])
+        snapshot := *values
+        assert_equal(length(&values[0]), word(1).len())
+        values[0] = word(9)
+        assert_equal(values[0], word(9))
+        assert_equal(snapshot[0], word(1))
