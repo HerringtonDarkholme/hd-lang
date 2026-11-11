@@ -1,0 +1,24 @@
+# @dump: own counts wat
+# @build: v8 release
+# `ref.elem.access.live` and `ref.dep.temporary`: an element reference
+# keeps the actual temporary record containing its collection alive.
+# #1379: a read-only element call keeps the original projected read live;
+# omitting its COW check must omit the matching re-read plan too.
+# expected: hold one Record owner through `read`; borrow its items field
+# without copying the projected collection header.
+struct Record:
+    items: Map[string, u32]
+
+fn source_record(value: u32) -> Record:
+    Record { items: { "key": value } }
+
+fn read(value: &u32) -> u32:
+    replacement := source_record(99)
+    actual := *value
+    if replacement.items["key"] != 99:
+        panic("replacement changed")
+    actual
+
+fn probe() -> u32:
+    # subject
+    read(&source_record(59).items["key"])

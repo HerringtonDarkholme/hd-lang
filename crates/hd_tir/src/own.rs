@@ -74,6 +74,7 @@ pub(crate) mod waker;
 pub use frame::store_finds_empty;
 mod effect_places;
 mod element_checks;
+mod readonly_elements;
 pub use element_checks::ElementChecks;
 pub(crate) mod hoist;
 mod insert;
@@ -1464,6 +1465,8 @@ pub struct WriteEffects<'a> {
     places: effect_places::Places,
     suspends: bool,
     promotion: std::cell::OnceCell<promote::Census>,
+    element_calls: std::cell::OnceCell<readonly_elements::Calls>,
+    pinned: std::cell::OnceCell<Vec<bool>>,
 }
 
 impl<'a> WriteEffects<'a> {
@@ -1485,17 +1488,23 @@ impl<'a> WriteEffects<'a> {
             places,
             suspends,
             promotion: std::cell::OnceCell::new(),
+            element_calls: std::cell::OnceCell::new(),
+            pinned: std::cell::OnceCell::new(),
         }
     }
 
     #[must_use]
     pub fn writes(&self, cx: &dyn OwnCx) -> bool {
+        let readonly = self
+            .element_calls
+            .get_or_init(|| readonly_elements::Calls::new(self.body))
+            .elements(self.body, cx);
         writes_with(
-            self.body,
+            self,
             0..self.body.len(),
             &|c| cx.may_write(c),
             Some(cx),
-            &self.places,
+            Some(&readonly),
             || {},
         )
     }
@@ -1506,7 +1515,7 @@ impl<'a> WriteEffects<'a> {
         range: std::ops::Range<usize>,
         may_write: &dyn Fn(&Callee) -> bool,
     ) -> bool {
-        writes_with(self.body, range, may_write, None, &self.places, || {})
+        writes_with(self, range, may_write, None, None, || {})
     }
 }
 
@@ -1522,21 +1531,21 @@ pub fn writes_in(
 }
 
 fn writes_with(
-    b: &Body,
+    effects: &WriteEffects<'_>,
     mut range: std::ops::Range<usize>,
     may_write: &dyn Fn(&Callee) -> bool,
     cx: Option<&dyn OwnCx>,
-    places: &effect_places::Places,
+    readonly: Option<&[bool]>,
     mut visit: impl FnMut(),
 ) -> bool {
-    let place = |word| places.get(b, word);
+    let b = effects.body;
+    let place = |word| effects.places.get(b, word);
     let read = |v: u32| {
         Ref(v)
             .as_inst()
             .filter(|i| b.tags[i.0 as usize] == Tag::Read)
     };
     let mut origins = cx.map(|cx| AllocationOrigins::new(b, cx));
-    let mut pinned = None;
     range.any(|i| {
         visit();
         #[cfg(test)]
@@ -1568,7 +1577,10 @@ fn writes_with(
                 if !writes || w & crate::ir::ref_word::MUT != 0 {
                     return writes;
                 }
-                let pinned = pinned.get_or_insert_with(|| {
+                if readonly.is_some_and(|elements| elements[i]) {
+                    return false;
+                }
+                let pinned = effects.pinned.get_or_init(|| {
                     let mut elements = Vec::new();
                     insert::pinned_elements(b, &Topology::new(b), &mut elements);
                     elements
