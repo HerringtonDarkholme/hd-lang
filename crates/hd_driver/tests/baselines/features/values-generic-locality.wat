@@ -11,12 +11,6 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $"id[^240]" (param $value i32) (result i32)
-    ;; 16 |     value
-    block
-    end
-    local.get $value
-  )
   (func $left_or_right (param $pair i32) (param $left i32) (result i32)
     ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
     block
@@ -161,11 +155,17 @@
     end
     local.get $u.name.0
   )
+  (func $"id[&string]" (param $value i32) (result i32)
+    ;; 16 |     value
+    block
+    end
+    local.get $value
+  )
   (func $demo (param $u i32) (result i32)
     ;; 23 |     n := id(&u.name)
     block
       local.get $u
-      call $"id[^240]"
+      call $"id[&string]"
     ;; 24 |     n.len()
       call $"impl string.len"
     ;; 23 |     n := id(&u.name)

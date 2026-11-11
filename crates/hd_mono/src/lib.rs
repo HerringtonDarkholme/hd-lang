@@ -38,9 +38,9 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
-    /// Whether `ty`'s layout is one thin counted address, the A1 class
-    /// [`A1Class::Ref`] whose instances share one key; every other type
-    /// keeps its own key.
+    /// Whether `ty` has the layout and owned parameter convention of
+    /// the A1 class [`A1Class::Ref`]. References with a loan convention
+    /// keep their concrete keys even when they fit in one address.
     fn shared_reference_layout(&self, ty: Ty) -> bool;
     fn body(&self, def: DefId) -> Option<&Body>;
     /// Whether `def` has a body ([`ProgramEnv::body`]), asked without
@@ -2198,8 +2198,8 @@ impl Cx<'_> {
         shared
     }
 
-    /// A1 (`crates/hd_mono/DESIGN.md` §13.2): an unbounded, move-only argument of a
-    /// reference layout is keyed and laid out as the class `REF`.
+    /// A1 (`crates/hd_mono/DESIGN.md` §13.2): an unbounded, move-only argument
+    /// with the class's layout and pass mode is keyed and laid out as `REF`.
     fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> TyList {
         let bounded = self.env.bounded(def).unwrap_or_default();
         let pinned = self.exact_params(def);

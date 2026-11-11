@@ -10,11 +10,11 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -161,12 +161,6 @@
     i32.const 16
     i32.add
     global.set $locals
-  )
-  (func $"same[^240]" (param $value i32) (result i32)
-    ;; 16 |     value
-    block
-    end
-    local.get $value
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 35 |     original := word(7)
@@ -325,19 +319,6 @@
       i32.store $heap offset=4
       local.get $shared
     ;; 43 |     println(same(shared).text)
-      local.tee $t2
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
-      end
-      local.get $t2
       i32.const 11
       call_indirect $table0 (param i32) (result i32)
       local.tee $t2
@@ -752,6 +733,23 @@
     end
     local.get $value
     local.get $t0
+  )
+  (func $"same[*Named]" (param $value i32) (result i32)
+    ;; 16 |     value
+    local.get $value
+    if
+      local.get $value
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $value
+        call $rt:retain_known
+      end
+    end
+    block
+    end
+    local.get $value
   )
   (func $"same[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 16 |     value
