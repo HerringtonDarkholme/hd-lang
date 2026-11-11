@@ -1138,7 +1138,10 @@ Those test-only queries do not require a second checker-facing fact API.
     binding local (a `Store` of a borrow) stored with an owned value,
     dropped, moved out of, addressed or in the exit set, and a counted
     parameter outside the exit set (one the body does not own) stored
-    into, dropped, moved out of or addressed. Places overlap as
+    into, dropped or moved out of. Its immutable frame address may lend
+    to one read-only direct call whose result holds no local reference;
+    other addresses remain rejected. The caller keeps its count while
+    the callee borrows the descriptor in its private frame slot. Places overlap as
     docs/compiler/tir-v2.md's "Places" says, with no types: two roots
     overlap only when one goes behind a reference or into a buffer and
     the other is where a reference can reach; a `Drop` of a whole local

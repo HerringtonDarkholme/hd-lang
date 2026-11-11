@@ -1019,13 +1019,14 @@ pub(crate) fn frame_reference_uses(
             }
         }
     }
+    let calls = derive::local_lending_calls(b, cx, &counts, &last);
     let mut wanted = vec![false; b.local_ty.len()];
-    for i in 0..n {
+    for (i, &call) in calls.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && b.data[i][1] & crate::ir::ref_word::MUT != 0
             && b.data[i][1] & crate::ir::ref_word::FRAME != 0
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && !derive::lends_once(b, cx, &counts, &last, i)
+            && call == NONE
         {
             wanted[l.idx()] = true;
         }

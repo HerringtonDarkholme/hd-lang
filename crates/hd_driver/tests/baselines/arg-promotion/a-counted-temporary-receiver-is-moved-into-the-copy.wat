@@ -254,11 +254,6 @@
     local.get $w.name.0
     local.get $w.name.1
     call $"impl Wrap.size'1"
-    local.get $w.name.0
-    if
-      local.get $w.name.0
-      call $rt:release_ref'1
-    end
     local.set $w.name.0
     local.get $w.name.0
   )

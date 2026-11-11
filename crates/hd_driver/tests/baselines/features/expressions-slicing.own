@@ -44,47 +44,41 @@ fn str_slice_len(s: string, n: usize) -> usize:
 fn list_slice(xs: List[string]) -> List[string]:
 > app/main/list_slice
 >   local $0 xs: List[string] [param read captured] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     xs.slice(1, xs.len())
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Ref local frame [$0] : &List[string]
 >   %4 = Call std/collections/impl[T] List[T].slice[string] (%3, 1:usize, %2) : List[string]
 >   %5 = LoanEnd [%3] : ()
->   %6 = Drop [$0] : ()
->   %7 = Block %4 : List[string]
->   exit sub 0 drops [$0]
+>   %6 = Block %4 : List[string]
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn list_full(xs: List[string]) -> List[string]:
 > app/main/list_full
 >   local $0 xs: List[string] [param read captured] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     xs.slice(0, xs.len())
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Ref local frame [$0] : &List[string]
 >   %4 = Call std/collections/impl[T] List[T].slice[string] (%3, 0:usize, %2) : List[string]
 >   %5 = LoanEnd [%3] : ()
->   %6 = Drop [$0] : ()
->   %7 = Block %4 : List[string]
->   exit sub 0 drops [$0]
+>   %6 = Block %4 : List[string]
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn list_slice_len(xs: List[string]) -> usize:
 > app/main/list_slice_len
 >   local $0 xs: List[string] [param read captured] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     xs.slice(0, 2).len()
 >   %1 = Ref local frame [$0] : &List[string]
 >   %2 = Call std/collections/impl[T] List[T].slice[string] (%1, 0:usize, 2:usize) : List[string]
 >   %3 = LoanEnd [%1] : ()
->   %4 = Drop [$0] : ()
->   %5 = Intrinsic ListLen [%2] : usize
->   %6 = Drop [%2] : ()
->   %7 = Block %5 : usize
->   exit sub 0 drops [$0]
+>   %4 = Intrinsic ListLen [%2] : usize
+>   %5 = Drop [%2] : ()
+>   %6 = Block %4 : usize
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]

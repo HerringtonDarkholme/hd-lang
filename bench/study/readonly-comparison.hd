@@ -1,0 +1,34 @@
+# #1379: repeated ordinary value parameters addressed only by read-only
+# comparisons. Keep the wrappers visible so the benchmark exercises their
+# borrowed-parameter contract rather than only an inlined comparison.
+use std.annotation.inline
+
+@derive(Eq)
+struct Key:
+    name: string
+    values: List[string]
+
+@inline(.Never)
+fn different(a: List[string], b: List[string]) -> bool:
+    a != b
+
+@inline(.Never)
+fn same(a: Key, b: Key) -> bool:
+    a == b
+
+@inline(.Never)
+fn text(n: usize) -> string:
+    "item-$n"
+
+pub fn main() -> void $ Console:
+    name := text(17)
+    left := [name, "tail"]
+    right := [name, "other"]
+    key := Key { name: name, values: left }
+    let checksum = 0
+    for _ in 0..3_000_000:
+        if different(left, right):
+            checksum = checksum + 1
+        if same(key, key):
+            checksum = checksum + 1
+    println("$checksum")

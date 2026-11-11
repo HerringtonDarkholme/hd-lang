@@ -16,20 +16,17 @@ fn same(a: Key, b: Key) -> bool:
 > app/main/same
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Retain %9 Entry local $0 #0 : ()
->   %1 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Release %7 Exit local $0 #2 : ()
+>   %1 = Release %7 Exit local $1 #2 : ()
     a == b
 >   %2 = Ref local frame [$0] : &Key
 >   %3 = Ref local frame [$1] : &Key
 >   %4 = Call std/core/Eq.eq for Key [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Drop [$0] : ()
->   %8 = Drop [$1] : ()
->   %9 = Block %4 : bool
->   exit sub 0 drops [$0 $1]
+>   %7 = Block %4 : bool
 >   storage sub 0: $0 slot, $1 slot
->   summary kept [$0 $1]
+>   summary kept [] borrows [$0 $1]
 
 fn before(a: Key, b: Key) -> bool:
 > app/main/before

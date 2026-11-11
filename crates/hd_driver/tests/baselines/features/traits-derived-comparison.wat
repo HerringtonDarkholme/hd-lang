@@ -173,28 +173,6 @@
     local.get $a
     local.get $b
     call $"derive Eq for Key.eq"
-    local.set $t1
-    local.get $a
-    if
-      local.get $a
-      i32.load $heap
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref
-      end
-    end
-    local.get $b
-    if
-      local.get $b
-      i32.load $heap
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref
-      end
-    end
-    local.get $t1
     local.set $b
     local.get $b
     local.get $t0
