@@ -477,6 +477,7 @@ thread_local! {
     static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static THIN_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    static LOCAL_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -490,6 +491,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
         thin_refs: Option<hd_base::HashMap<Ty, bool>>,
+        local_refs: Option<hd_base::HashMap<Ty, bool>>,
         flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
     }
     impl Drop for Reset {
@@ -499,6 +501,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
             COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
             THIN_REFS.set(self.thin_refs.take());
+            LOCAL_REFS.set(self.local_refs.take());
             FLATS.set(self.flats.take());
         }
     }
@@ -509,6 +512,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
         thin_refs: THIN_REFS.take(),
+        local_refs: LOCAL_REFS.take(),
         flats: FLATS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
@@ -516,6 +520,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
     THIN_REFS.set(Some(hd_base::HashMap::default()));
+    LOCAL_REFS.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
     link()
 }
@@ -768,8 +773,8 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     })
 }
 
-/// [`walk`] as counting sees it: a thin local reference
-/// (`ref.count.local`) is a plain address, which counts nothing, though
+/// [`walk`] as counting sees it: a local reference, thin or `&dyn`,
+/// (`ref.count.local`) counts nothing, though
 /// the ownership passes track it as a counted value ([`walk`]).
 pub fn count_walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     memoized(&COUNT_WALKS, pool, env, t, &|u, part| {
@@ -863,28 +868,20 @@ pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: T
     }
 }
 
-/// The values of `t` that are local references held by value on every
-/// path (`ref.count.local`), a thin one's address or a `&dyn`'s data
-/// address: the walk names them, the count walk does not. A local
-/// reference under an enum's discriminant is not held on every path and
-/// is left out.
-pub fn thin_local_ref_values(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
-    fn leaves(w: &Walk, out: &mut Vec<u32>) {
-        match w {
-            Walk::Ref(k) | Walk::Known(k) => out.push(*k),
-            Walk::Seq(ws) => ws.iter().for_each(|w| leaves(w, out)),
-            Walk::Glue | Walk::Switch(..) => {}
-        }
-    }
-    let (mut all, mut counted) = (Vec::new(), Vec::new());
-    if let Some(w) = walk(pool, env, t) {
-        leaves(&w, &mut all);
-    }
-    if let Some(w) = count_walk(pool, env, t) {
-        leaves(&w, &mut counted);
-    }
-    all.retain(|k| !counted.contains(k));
-    all
+/// A cheap ownership query, shared per type within the link. Concrete
+/// frame construction later computes the guarded leaf plan once per parameter.
+pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    memoized(
+        &LOCAL_REFS,
+        pool,
+        env,
+        t,
+        &|t, part| match kind(pool, env, t) {
+            Kind::Ref { whole, .. } => !whole,
+            Kind::Value => value_parts(pool, env, t).into_iter().any(part),
+            Kind::Boxed => false,
+        },
+    )
 }
 
 /// Whether a value of `t` holds a thin reference by value: a `*T` or a
@@ -2018,7 +2015,10 @@ mod tests {
     fn caches_are_absent() -> bool {
         MEMS.with(|m| m.borrow().is_none())
             && WALKS.with(|w| w.borrow().is_none())
+            && COUNT_WALKS.with(|w| w.borrow().is_none())
             && DROPS.with(|d| d.borrow().is_none())
+            && THIN_REFS.with(|r| r.borrow().is_none())
+            && LOCAL_REFS.with(|r| r.borrow().is_none())
             && FLATS.with(|d| d.borrow().is_none())
     }
 

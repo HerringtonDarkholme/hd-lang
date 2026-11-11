@@ -11,6 +11,8 @@ use std.task.block_on
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
+>   release string (last use)
+> app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
 >   release string (cancelled)

@@ -3,11 +3,11 @@
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -82,6 +82,19 @@
     local.get $ctx
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
+    local.get $callback.1
+    if
+      local.get $callback.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $callback.1
+        call $rt:release_ref'2
+      end
+    end
     local.get $frame
     if
       local.get $frame

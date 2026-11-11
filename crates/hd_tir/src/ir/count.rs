@@ -2,7 +2,7 @@
 
 use super::{Body, NONE, Tag, Topology};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u32)]
 pub enum At {
     Value,
@@ -16,7 +16,7 @@ pub enum At {
     FrameDrop,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Part {
     Result,
     Local(u32),
