@@ -13,65 +13,63 @@
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     _ := $.use(Vault).keep(box(Expr.Add(box(Expr.Num(+1)), box(Expr.Num(+2)))))
-    block
-      i32.const 8
-      i32.const -2147483645
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-      local.get $t0
-      i32.const 1
-      i32.store $heap offset=4
-      i32.const 8
-      i32.const -2147483645
-      call $rt:new/class-1
-      local.tee $t1
-      i32.const 0
-      i32.store $heap
-      local.get $t1
-      i32.const 2
-      i32.store $heap offset=4
-      i32.const 8
-      i32.const -2147483645
-      call $rt:new/class-1
-      local.tee $t2
-      local.get $t0
-      i32.store $heap
-      local.get $t2
-      local.get $t1
-      i32.store $heap offset=4
+    i32.const 8
+    i32.const -2147483645
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
+    local.get $t0
+    i32.const 1
+    i32.store $heap offset=4
+    i32.const 8
+    i32.const -2147483645
+    call $rt:new/class-1
+    local.tee $t1
+    i32.const 0
+    i32.store $heap
+    local.get $t1
+    i32.const 2
+    i32.store $heap offset=4
+    i32.const 8
+    i32.const -2147483645
+    call $rt:new/class-1
+    local.tee $t2
+    local.get $t0
+    i32.store $heap
+    local.get $t2
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $provider0
+    local.get $t2
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $provider0
+    if
       local.get $provider0
-      local.get $t2
-      local.get $provider0.vtable
+      i32.const 8
+      i32.sub
       i32.load $heap
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $provider0
+      global.get $tracing
+      i32.or
       if
         local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $provider0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $t2
-      local.tee $provider0
+    end
+    local.get $t2
+    local.tee $provider0
+    if
+      local.get $provider0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $provider0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
   )

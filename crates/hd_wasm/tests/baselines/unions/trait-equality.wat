@@ -60,30 +60,28 @@
     local.get $right
     local.get $t3
     i32.store $heap offset=4
-    block
+    local.get $left
+    local.get $right
+    call $"impl[T < ?Copy & UnionType] Eq for T by Structure.eq[i32 | string]"
+    local.set $t1
+    local.get $left
+    if
       local.get $left
-      local.get $right
-      call $"impl[T < ?Copy & UnionType] Eq for T by Structure.eq[i32 | string]"
-      local.set $t1
+      i32.load $heap
       local.get $left
-      if
-        local.get $left
-        i32.load $heap
-        local.get $left
-        i32.load $heap offset=4
-        call $rt:release
-      end
-      local.get $right
-      if
-        local.get $right
-        i32.load $heap
-        local.get $right
-        i32.load $heap offset=4
-        call $rt:release
-      end
-      local.get $t1
-      local.set $right
+      i32.load $heap offset=4
+      call $rt:release
     end
+    local.get $right
+    if
+      local.get $right
+      i32.load $heap
+      local.get $right
+      i32.load $heap offset=4
+      call $rt:release
+    end
+    local.get $t1
+    local.set $right
     local.get $right
     local.get $t0
     i32.const 32

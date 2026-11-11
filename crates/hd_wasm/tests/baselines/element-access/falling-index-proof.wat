@@ -2,63 +2,61 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $sort (param $items i32) (local $key i32) (local $j i32) (local $t0 i32)
+    ;; ...
     block
-      ;; ...
-      block
-        loop
-          ;; ...
+      loop
+        ;; ...
     ;; 11 |         while j > 0:
-          block
-            loop
-              local.get $j
-              i32.const 0
-              i32.gt_u
-              i32.eqz
-              br_if 1
+        block
+          loop
+            local.get $j
+            i32.const 0
+            i32.gt_u
+            i32.eqz
+            br_if 1
     ;; 12 |             if items[j - 1] <= key:
-              local.get $items
-              local.get $j
-              i32.const 1
-              i32.sub
-              i32.const 4
-              i32.mul
-              i32.add
-              i32.load $heap offset=16
-              local.get $key
-              i32.le_s
-              if
+            local.get $items
+            local.get $j
+            i32.const 1
+            i32.sub
+            i32.const 4
+            i32.mul
+            i32.add
+            i32.load $heap offset=16
+            local.get $key
+            i32.le_s
+            if
     ;; 13 |                 break
-                br 2
+              br 2
     ;; 12 |             if items[j - 1] <= key:
-              end
-    ;; 14 |             items[j] = items[j - 1]
-              local.get $items
-              local.get $j
-              i32.const 1
-              i32.sub
-              i32.const 4
-              i32.mul
-              i32.add
-              i32.load $heap offset=16
-              local.set $t0
-              local.get $items
-              local.get $j
-              i32.const 4
-              i32.mul
-              i32.add
-              local.get $t0
-              i32.store $heap offset=16
-    ;; 15 |             j = j - 1
-              local.get $j
-              i32.const 1
-              i32.sub
-              local.set $j
-    ;; 11 |         while j > 0:
-              br 0
             end
+    ;; 14 |             items[j] = items[j - 1]
+            local.get $items
+            local.get $j
+            i32.const 1
+            i32.sub
+            i32.const 4
+            i32.mul
+            i32.add
+            i32.load $heap offset=16
+            local.set $t0
+            local.get $items
+            local.get $j
+            i32.const 4
+            i32.mul
+            i32.add
+            local.get $t0
+            i32.store $heap offset=16
+    ;; 15 |             j = j - 1
+            local.get $j
+            i32.const 1
+            i32.sub
+            local.set $j
+    ;; 11 |         while j > 0:
+            br 0
           end
-          ;; ...
         end
+        ;; ...
       end
     end
   )

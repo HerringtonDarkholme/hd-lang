@@ -4,18 +4,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $make (param $id i32) (result i32 i32) (local $t0 i32)
     ;; 17 |     box(Worker { id: id })
-    block
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $id
-      i32.store $heap
-      local.get $t0
-      i32.const 356 ;; &vtable[rt:dyn_slot, rt:block_drive]
-      local.set $t0
-      local.set $id
-    end
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $id
+    i32.store $heap
+    local.get $t0
+    i32.const 356 ;; &vtable[rt:dyn_slot, rt:block_drive]
+    local.set $t0
+    local.set $id
     local.get $id
     local.get $t0
   )

@@ -483,14 +483,12 @@
       local.set $t2
     else
     end
-    block
-      local.get $t
-      local.get $t
-      i64.load $heap
-      i64.const 1
-      i64.add
-      i64.store $heap
-    end
+    local.get $t
+    local.get $t
+    i64.load $heap
+    i64.const 1
+    i64.add
+    i64.store $heap
     local.get $t2
     if
       local.get $t2

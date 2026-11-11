@@ -8,75 +8,69 @@
       block
         block
           block
-            block
     ;; 25 |         .Named(n) => n.len()
-              local.get $s
-              i32.load $heap
-              local.set $a.1
+            local.get $s
+            i32.load $heap
+            local.set $a.1
+            block
               block
                 block
-                  block
-                    local.get $a.1
-                    br_table 0 1 5 5
-                  end
-                  local.get $s
-                  i32.load $heap offset=4
-                  local.get $s
-                  i32.load $heap offset=8
-                  local.set $s
-                  drop
-                  br 2
+                  local.get $a.1
+                  br_table 0 1 5 5
                 end
-    ;; 26 |         .Pair(a, b) => a.len() + b.len()
                 local.get $s
                 i32.load $heap offset=4
                 local.get $s
                 i32.load $heap offset=8
-                local.get $s
-                i32.load $heap offset=12
-                local.get $s
-                i32.load $heap offset=16
-                local.set $b.1
+                local.set $s
                 drop
-                local.set $a.1
-                drop
-    ;; 25 |         .Named(n) => n.len()
                 br 2
               end
-    ;; 24 |     match s:
-              unreachable
-            end
-    ;; 25 |         .Named(n) => n.len()
-            block
-              block
-                local.get $s
-                local.set $b.1
-                br 0
-              end
-            end
-    ;; 24 |     match s:
-            br 2
-          end
     ;; 26 |         .Pair(a, b) => a.len() + b.len()
-          block
-            block
-              local.get $a.1
-              local.set $s
-              br 0
+              local.get $s
+              i32.load $heap offset=4
+              local.get $s
+              i32.load $heap offset=8
+              local.get $s
+              i32.load $heap offset=12
+              local.get $s
+              i32.load $heap offset=16
+              local.set $b.1
+              drop
+              local.set $a.1
+              drop
+    ;; 25 |         .Named(n) => n.len()
+              br 2
             end
-          end
-          local.get $s
-          local.get $b.1
-          i32.add
     ;; 24 |     match s:
-          local.set $b.1
-          br 1
+            unreachable
+          end
+    ;; 25 |         .Named(n) => n.len()
+          block
+            local.get $s
+            local.set $b.1
+            br 0
+          end
+    ;; 24 |     match s:
+          br 2
         end
-        br 0
+    ;; 26 |         .Pair(a, b) => a.len() + b.len()
+        block
+          local.get $a.1
+          local.set $s
+          br 0
+        end
+        local.get $s
+        local.get $b.1
+        i32.add
+    ;; 24 |     match s:
+        local.set $b.1
+        br 1
       end
-      local.get $b.1
-      local.set $s
+      br 0
     end
+    local.get $b.1
+    local.set $s
     local.get $s
   )
   (func $read_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32) (local $t0 i32)
@@ -85,59 +79,51 @@
       block
         block
           block
-            block
     ;; 13 |         .Named(n) => n.len()
+            block
               block
                 block
-                  block
-                    local.get $s.0
-                    br_table 0 1 5 5
-                  end
-                  br 2
+                  local.get $s.0
+                  br_table 0 1 5 5
                 end
                 br 2
               end
-    ;; 12 |     match s:
-              unreachable
+              br 2
             end
+    ;; 12 |     match s:
+            unreachable
+          end
     ;; 13 |         .Named(n) => n.len()
-            block
-              block
-                local.get $s.2
-                local.set $t0
-                br 0
-              end
-            end
-    ;; 12 |     match s:
-            br 2
-          end
-    ;; 14 |         .Pair(a, b) => a.len() + b.len()
           block
-            block
-              local.get $s.2
-              local.set $s.0
-              br 0
-            end
+            local.get $s.2
+            local.set $t0
+            br 0
           end
-          block
-            block
-              local.get $s.4
-              local.set $s.1
-              br 0
-            end
-          end
-          local.get $s.0
-          local.get $s.1
-          i32.add
     ;; 12 |     match s:
-          local.set $t0
-          br 1
+          br 2
         end
-        br 0
+    ;; 14 |         .Pair(a, b) => a.len() + b.len()
+        block
+          local.get $s.2
+          local.set $s.0
+          br 0
+        end
+        block
+          local.get $s.4
+          local.set $s.1
+          br 0
+        end
+        local.get $s.0
+        local.get $s.1
+        i32.add
+    ;; 12 |     match s:
+        local.set $t0
+        br 1
       end
-      local.get $t0
-      local.set $s.0
+      br 0
     end
+    local.get $t0
+    local.set $s.0
     local.get $s.0
   )
   (func $take_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32 i32) (local $n.1 i32)
@@ -146,42 +132,31 @@
       block
         block
           block
-            block
     ;; 19 |         .Named(n) => n
+            block
               block
                 block
-                  block
-                    local.get $s.0
-                    br_table 0 1 5 5
-                  end
-                  local.get $s.1
-                  local.get $s.2
-                  local.set $n.1
-                  local.set $s.0
-                  br 2
+                  local.get $s.0
+                  br_table 0 1 5 5
                 end
-    ;; 20 |         .Pair(a, _) => a
                 local.get $s.1
                 local.get $s.2
                 local.set $n.1
                 local.set $s.0
-    ;; 19 |         .Named(n) => n
                 br 2
               end
-    ;; 18 |     match s:
-              unreachable
-            end
-    ;; 19 |         .Named(n) => n
-            local.get $s.0
-            local.tee $s.1
-            if
-              local.get $s.1
-              call $retain
-            end
-    ;; 18 |     match s:
-            br 2
-          end
     ;; 20 |         .Pair(a, _) => a
+              local.get $s.1
+              local.get $s.2
+              local.set $n.1
+              local.set $s.0
+    ;; 19 |         .Named(n) => n
+              br 2
+            end
+    ;; 18 |     match s:
+            unreachable
+          end
+    ;; 19 |         .Named(n) => n
           local.get $s.0
           local.tee $s.1
           if
@@ -189,15 +164,24 @@
             call $retain
           end
     ;; 18 |     match s:
-          br 1
+          br 2
         end
-        i32.const 16 ;; &"heap-exhausted"
-        local.set $s.0
-        br 0
+    ;; 20 |         .Pair(a, _) => a
+        local.get $s.0
+        local.tee $s.1
+        if
+          local.get $s.1
+          call $retain
+        end
+    ;; 18 |     match s:
+        br 1
       end
-      local.get $n.1
-      local.set $s.1
+      i32.const 16 ;; &"heap-exhausted"
+      local.set $s.0
+      br 0
     end
+    local.get $n.1
+    local.set $s.1
     local.get $s.0
     local.get $s.1
   )

@@ -6,13 +6,11 @@
   (import "fixture" "table0" (table $table0 8 funcref))
   (func $"invoke[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 6 |     callback()
-    block
-      local.get $callback.1
-      local.get $ctx
-      local.get $callback.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $callback.0
-    end
+    local.get $callback.1
+    local.get $ctx
+    local.get $callback.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.set $callback.0
     local.get $callback.1
     if
       local.get $callback.1

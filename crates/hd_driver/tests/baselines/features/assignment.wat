@@ -4,45 +4,35 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $compound (param $a.0 i32) (param $a.1 i32) (result i32 i32)
     ;; 12 |     let s = a
-    block
-      local.get $a.0
-      local.get $a.1
+    local.get $a.0
+    local.get $a.1
     ;; 13 |     s += "x"
-      i32.const 16 ;; &"x"
-      i32.const 1
-      call $rt:str_append
+    i32.const 16 ;; &"x"
+    i32.const 1
+    call $rt:str_append
     ;; 12 |     let s = a
-      local.set $a.1
-      local.set $a.0
-    end
+    local.set $a.1
+    local.set $a.0
     local.get $a.0
     local.get $a.1
   )
   (func $assign_list (param $xs i32) (param $ys i32) (result i32)
-    ;; 17 |     let zs = xs
-    block
     ;; 18 |     zs = ys
-      local.get $ys
+    local.get $ys
     ;; 19 |     zs.len()
-      i32.load $heap offset=4
+    i32.load $heap offset=4
     ;; 17 |     let zs = xs
-      local.set $xs
-    end
+    local.set $xs
     local.get $xs
   )
   (func $assign (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    ;; 7 |     let s = a
-    block
     ;; 9 |     s.len()
-      block
-        block
-          local.get $b.1
-          local.set $a.0
-          br 0
-        end
-      end
-    ;; 7 |     let s = a
+    block
+      local.get $b.1
+      local.set $a.0
+      br 0
     end
+    ;; 7 |     let s = a
     local.get $a.0
   )
 )

@@ -9,206 +9,197 @@
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $f.1 i32)
-    ;; 17 |     let mut n = 0
+    ;; 18 |     for f in line.split(","):
+    local.get $line.0
+    local.get $line.1
+    i32.const 65 ;; &","
+    i32.const 1
+    call $"impl string.split"
+    local.tee $line.0
+    i32.load $heap offset=4
+    local.set $line.1
     block
-    ;; 18 |     for f in line.split(","):
-      local.get $line.0
-      local.get $line.1
-      i32.const 65 ;; &","
-      i32.const 1
-      call $"impl string.split"
-      local.tee $line.0
-      i32.load $heap offset=4
-      local.set $line.1
-      block
-        loop
-          local.get $t0
-          local.get $line.1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $line.0
-          local.get $t0
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t1
-          i32.load $heap offset=16
-          local.get $t1
-          i32.load $heap offset=20
-          local.set $f.1
-          drop
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $line.1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $line.0
+        local.get $t0
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $t1
+        i32.load $heap offset=16
+        local.get $t1
+        i32.load $heap offset=20
+        local.set $f.1
+        drop
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
+        block
           block
-            block
-              br 0
-              unreachable
-            end
+            br 0
+            unreachable
+          end
     ;; 19 |         n += f.len()
-            block
-              block
-                local.get $f.1
-                local.set $t1
-                br 0
-              end
-            end
-            local.get $n
-            local.get $t1
-            i32.add
-            local.set $n
-    ;; 18 |     for f in line.split(","):
+          block
+            local.get $f.1
+            local.set $t1
             br 0
           end
+          local.get $n
+          local.get $t1
+          i32.add
+          local.set $n
+    ;; 18 |     for f in line.split(","):
           br 0
         end
+        br 0
       end
+    end
     ;; 17 |     let mut n = 0
+    local.get $line.0
+    if
       local.get $line.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $line.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $line.0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 20 |     n
-      local.get $n
-    ;; 17 |     let mut n = 0
-      local.set $line.0
     end
+    ;; 20 |     n
+    local.get $n
+    ;; 17 |     let mut n = 0
+    local.set $line.0
     local.get $line.0
   )
   (func $build (param $parts i32) (result i32 i32) (local $sb i32) (local $t0 i32) (local $p.0 i32) (local $p.1 i32) (local $t1 i32)
     ;; 10 |     sb := StringBuilder::new()
     block
-      block
-        block
-          call $"impl[T < ?Copy] UniqList[T].new[u8]"
-          local.set $p.0
-          local.set $t0
-          local.set $sb
-          i32.const 36
-          i32.const 3
-          call $rt:new/class-3
-          local.tee $p.1
-          local.get $sb
-          i32.store $heap
-          local.get $p.1
-          local.get $t0
-          i32.store $heap offset=4
-          local.get $p.1
-          local.get $p.0
-          i32.store $heap offset=8
-          local.get $p.1
-          i32.const 1
-          i32.store $heap offset=12
-          local.get $p.1
-          i32.const 1
-          i32.store $heap offset=16
-          local.get $p.1
-          i32.const 1
-          i32.store $heap offset=20
-          local.get $p.1
-          i32.const 1
-          i32.store $heap offset=24
-          local.get $p.1
-          i32.const 1
-          i32.store $heap offset=28
-          local.get $p.1
-          i32.const 1
-          i32.store $heap offset=32
-          local.get $p.1
-          local.set $sb
-          br 0
-        end
-      end
-    ;; 11 |     for p in parts:
-      local.get $parts
-      i32.load $heap
-      call $rt:coll_copy
-      local.tee $parts
-      i32.load $heap offset=4
+      call $"impl[T < ?Copy] UniqList[T].new[u8]"
+      local.set $p.0
       local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $parts
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $p.0
-          i32.load $heap offset=16
-          local.get $p.0
-          i32.load $heap offset=20
-          local.set $p.1
-          local.set $p.0
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          block
-            block
-              br 0
-              unreachable
-            end
-    ;; 12 |         sb.push(p)
-            local.get $sb
-            local.get $p.0
-            local.get $p.1
-            call $"impl StringBuilder.push"
-    ;; 13 |         sb.push(",")
-            local.get $sb
-            i32.const 65 ;; &","
-            i32.const 1
-            call $"impl StringBuilder.push"
+      local.set $sb
+      i32.const 36
+      i32.const 3
+      call $rt:new/class-3
+      local.tee $p.1
+      local.get $sb
+      i32.store $heap
+      local.get $p.1
+      local.get $t0
+      i32.store $heap offset=4
+      local.get $p.1
+      local.get $p.0
+      i32.store $heap offset=8
+      local.get $p.1
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $p.1
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $p.1
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $p.1
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $p.1
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $p.1
+      i32.const 1
+      i32.store $heap offset=32
+      local.get $p.1
+      local.set $sb
+      br 0
+    end
     ;; 11 |     for p in parts:
+    local.get $parts
+    i32.load $heap
+    call $rt:coll_copy
+    local.tee $parts
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $parts
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $p.0
+        i32.load $heap offset=16
+        local.get $p.0
+        i32.load $heap offset=20
+        local.set $p.1
+        local.set $p.0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
+          block
             br 0
+            unreachable
           end
+    ;; 12 |         sb.push(p)
+          local.get $sb
+          local.get $p.0
+          local.get $p.1
+          call $"impl StringBuilder.push"
+    ;; 13 |         sb.push(",")
+          local.get $sb
+          i32.const 65 ;; &","
+          i32.const 1
+          call $"impl StringBuilder.push"
+    ;; 11 |     for p in parts:
           br 0
         end
+        br 0
       end
-    ;; 10 |     sb := StringBuilder::new()
-      local.get $parts
-      if
-        local.get $parts
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $parts
-          call $rt:release_ref
-        end
-      end
-    ;; 14 |     sb.build()
-      local.get $sb
-      call $"impl StringBuilder.build"
-      local.get $sb
-    ;; 10 |     sb := StringBuilder::new()
-      local.tee $parts
-      if
-        local.get $parts
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $parts
-          call $rt:release_ref
-        end
-      end
-      local.set $sb
-      local.set $parts
     end
+    ;; 10 |     sb := StringBuilder::new()
+    local.get $parts
+    if
+      local.get $parts
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $parts
+        call $rt:release_ref
+      end
+    end
+    ;; 14 |     sb.build()
+    local.get $sb
+    call $"impl StringBuilder.build"
+    local.get $sb
+    ;; 10 |     sb := StringBuilder::new()
+    local.tee $parts
+    if
+      local.get $parts
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $parts
+        call $rt:release_ref
+      end
+    end
+    local.set $sb
+    local.set $parts
     local.get $parts
     local.get $sb
   )

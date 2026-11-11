@@ -6,46 +6,44 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $returned (result i64) (local $t0 i64) (local $r i32)
     ;; 15 |     tally := box(Tally { n: 0 })
-    block
+    i32.const 8
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $r
+    i64.const 0
+    i64.store $heap
+    local.get $r
+    ;; 16 |     r := pass_on(tally)
+    call $pass_on
+    ;; 15 |     tally := box(Tally { n: 0 })
+    local.get $r
+    if
+      local.get $r
       i32.const 8
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $r
-      i64.const 0
-      i64.store $heap
-      local.get $r
-    ;; 16 |     r := pass_on(tally)
-      call $pass_on
-    ;; 15 |     tally := box(Tally { n: 0 })
-      local.get $r
+      i32.sub
+      i32.load $heap
       if
         local.get $r
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $r
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 16 |     r := pass_on(tally)
-      local.tee $r
-    ;; 17 |     r.n
-      i64.load $heap
-    ;; 15 |     tally := box(Tally { n: 0 })
-      local.get $r
-      if
-        local.get $r
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $r
-          call $rt:release_ref
-        end
-      end
-      local.set $t0
     end
+    ;; 16 |     r := pass_on(tally)
+    local.tee $r
+    ;; 17 |     r.n
+    i64.load $heap
+    ;; 15 |     tally := box(Tally { n: 0 })
+    local.get $r
+    if
+      local.get $r
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $r
+        call $rt:release_ref
+      end
+    end
+    local.set $t0
     local.get $t0
   )
 )

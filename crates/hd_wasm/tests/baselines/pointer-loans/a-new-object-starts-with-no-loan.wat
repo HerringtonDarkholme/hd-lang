@@ -5,29 +5,25 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $cell (result i32) (local $t0 i32)
     ;; 12 |     box(Cell { value: "a" })
-    block
-      i32.const 8
-      i32.const 1
-      call $rt:new/class-1'1
-      local.tee $t0
-      i32.const 16 ;; &"a"
-      i32.store $heap
-      local.get $t0
-      i32.const 1
-      i32.store $heap offset=4
-    end
+    i32.const 8
+    i32.const 1
+    call $rt:new/class-1'1
+    local.tee $t0
+    i32.const 16 ;; &"a"
+    i32.store $heap
+    local.get $t0
+    i32.const 1
+    i32.store $heap offset=4
     local.get $t0
   )
   (func $node (result i32) (local $t0 i32)
     ;; 15 |     box(Node { next: .None })
-    block
-      i32.const 4
-      i32.const -2147483645
-      call $rt:new/class-1'2
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-    end
+    i32.const 4
+    i32.const -2147483645
+    call $rt:new/class-1'2
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
     local.get $t0
   )
 )

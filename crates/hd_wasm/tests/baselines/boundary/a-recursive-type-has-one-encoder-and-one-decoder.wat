@@ -12,33 +12,31 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |     _ := $.use(Vault).keep(Token.Node([Token.Leaf(+1)]))
-    block
-      i32.const 1
-      call $rt:list_buf
-      local.tee $t0
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=16
-      local.get $t0
-      i32.const 1
-      i32.store $heap offset=20
-      i32.const 1
-      local.get $t0
-      local.set $t1
-      local.set $t0
-      local.get $provider0
-      local.get $t0
-      local.get $t1
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-      call $rt:release
-      local.get $t0
-      local.get $t1
-      call $rt:release
-    end
+    i32.const 1
+    call $rt:list_buf
+    local.tee $t0
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 0
+    i32.store $heap offset=16
+    local.get $t0
+    i32.const 1
+    i32.store $heap offset=20
+    i32.const 1
+    local.get $t0
+    local.set $t1
+    local.set $t0
+    local.get $provider0
+    local.get $t0
+    local.get $t1
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32) (result i32 i32)
+    call $rt:release
+    local.get $t0
+    local.get $t1
+    call $rt:release
   )
   (func $rt:hd:Vault/keep (param $t3 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; (no span)

@@ -37,37 +37,29 @@
     global.set $locals
     block
       block
-        block
-          block
-            block
-              i64.const -3750763034362895579
-              local.set $t1
-              br 0
-            end
-          end
-          local.get $t0
-          i64.const 0
-          i64.store $heap
-          local.get $t0
-          i32.const 8
-          i32.add
-          local.tee $t2
-          local.get $t1
-          i64.store $heap
-          local.get $key
-          local.get $t2
-          call $"impl Hash for usize.hash[std.hash.DefaultHasher]"
-          local.get $t2
-          i64.load $heap
-          local.set $t1
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
+        i64.const -3750763034362895579
+        local.set $t1
+        br 0
       end
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t2
+      local.get $t1
+      i64.store $heap
+      local.get $key
+      local.get $t2
+      call $"impl Hash for usize.hash[std.hash.DefaultHasher]"
+      local.get $t2
+      i64.load $heap
+      local.set $t1
+      block
+        br 0
+      end
+      br 0
     end
     local.get $t1
     local.get $t0

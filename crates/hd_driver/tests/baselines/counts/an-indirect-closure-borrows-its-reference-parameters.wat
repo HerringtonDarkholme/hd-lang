@@ -4,58 +4,50 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $apply (param $by.0 i32) (param $by.1 i32) (param $left i32) (param $right i32) (result i32)
     ;; 9 |     by(left, right)
-    block
-      local.get $by.1
-      local.get $left
-      local.get $right
-      i32.const 0
-      local.get $by.0
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-      local.set $by.0
-    end
+    local.get $by.1
+    local.get $left
+    local.get $right
+    i32.const 0
+    local.get $by.0
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+    local.set $by.0
     local.get $by.0
   )
   (func $difference (param $reverse i32) (param $left i32) (param $right i32) (result i32)
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
-    block
-      local.get $reverse
-      if (result i32)
-        i32.const 0
-      else
-        i32.const 1
-      end
-    ;; 13 |     apply(by, left, right)
+    local.get $reverse
+    if (result i32)
       i32.const 0
-      local.get $left
-      local.get $right
-      call $apply
-    ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
-      local.set $reverse
+    else
+      i32.const 1
     end
+    ;; 13 |     apply(by, left, right)
+    i32.const 0
+    local.get $left
+    local.get $right
+    call $apply
+    ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
+    local.set $reverse
     local.get $reverse
   )
   (func $difference#2 (param $env i32) (param $a i32) (param $b i32) (param $ctx i32) (result i32)
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
-    block
-      local.get $a
-      i32.load $heap
-      local.get $b
-      i32.load $heap
-      i32.sub
-      local.set $env
-    end
+    local.get $a
+    i32.load $heap
+    local.get $b
+    i32.load $heap
+    i32.sub
+    local.set $env
     local.get $env
   )
   (func $difference#1 (param $env i32) (param $a i32) (param $b i32) (param $ctx i32) (result i32)
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
-    block
-      local.get $b
-      i32.load $heap
-      local.get $a
-      i32.load $heap
-      i32.sub
-      local.set $env
-    end
+    local.get $b
+    i32.load $heap
+    local.get $a
+    i32.load $heap
+    i32.sub
+    local.set $env
     local.get $env
   )
 )

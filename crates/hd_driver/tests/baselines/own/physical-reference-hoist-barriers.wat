@@ -6,258 +6,248 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Probes.writing_call" (param $items i32) (param $alias i32) (param $source i32) (local $i i32) (local $t0 i32) (local $t1 i32)
-    ;; 29 |         let i: usize = 0
-    block
     ;; 30 |         while i < 2:
-      block
-        loop
-          local.get $i
-          i32.const 2
-          i32.lt_u
-          i32.eqz
-          br_if 1
+    block
+      loop
+        local.get $i
+        i32.const 2
+        i32.lt_u
+        i32.eqz
+        br_if 1
     ;; 31 |             Probes::replace(alias, source)
-          local.get $alias
-          local.get $source
-          call $rt:coll_copy
-          call $"impl Probes.replace"
-    ;; 32 |             items[0] += 1
-          local.get $items
-          i32.load $heap
-          local.set $t0
-          i32.const 0
-          local.get $t0
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          i32.load $heap offset=16
-          i32.const 1
-          i32.add
-          local.set $t0
-    ;; 30 |         while i < 2:
-          local.get $items
-          local.get $items
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
-    ;; 32 |             items[0] += 1
-          local.get $items
-          i32.load $heap
-          local.set $t1
-          i32.const 0
-          local.get $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          local.get $t0
-          i32.store $heap offset=16
-    ;; 33 |             i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 30 |         while i < 2:
-          br 0
-        end
-      end
-    ;; 29 |         let i: usize = 0
-      local.get $source
-      if
+        local.get $alias
         local.get $source
-        i32.const 8
-        i32.sub
+        call $rt:coll_copy
+        call $"impl Probes.replace"
+    ;; 32 |             items[0] += 1
+        local.get $items
         i32.load $heap
-        if
-          local.get $source
-          call $rt:release_ref
-        end
-      end
-    end
-  )
-  (func $"impl Probes.alias_write" (param $items i32) (param $alias i32) (param $source i32) (local $i i32) (local $t0 i32) (local $t1 i32)
-    ;; 37 |         let i: usize = 0
-    block
-    ;; 38 |         while i < 2:
-      block
-        loop
-          local.get $i
-          i32.const 2
-          i32.lt_u
-          i32.eqz
-          br_if 1
-    ;; 39 |             *alias = source
-          local.get $source
-          call $rt:coll_copy
-          local.set $t0
-          local.get $alias
-          i32.load $heap
-          local.get $alias
-          local.get $t0
-          i32.store $heap
-          local.tee $t0
-          if
-            local.get $t0
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $t0
-              call $rt:release_ref
-            end
-          end
-    ;; 40 |             items[0] += 1
-          local.get $items
-          i32.load $heap
-          local.set $t0
-          i32.const 0
-          local.get $t0
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          i32.load $heap offset=16
-          i32.const 1
-          i32.add
-          local.set $t0
-    ;; 38 |         while i < 2:
-          local.get $items
-          local.get $items
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
-    ;; 40 |             items[0] += 1
-          local.get $items
-          i32.load $heap
-          local.set $t1
-          i32.const 0
-          local.get $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          local.get $t0
-          i32.store $heap offset=16
-    ;; 41 |             i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 38 |         while i < 2:
-          br 0
-        end
-      end
-    ;; 37 |         let i: usize = 0
-      local.get $source
-      local.tee $t0
-      if
+        local.set $t0
+        i32.const 0
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
+        i32.load $heap offset=4
+        i32.ge_u
         if
-          local.get $t0
-          call $rt:release_ref
+          call $rt:panic
+          unreachable
         end
-      end
-    end
-  )
-  (func $"impl Probes.clean" (param $items i32) (param $n i32) (local $i i32) (local $t0 i32) (local $t1 i32)
-    ;; 17 |         let i: usize = 0
-    block
-    ;; 18 |         while i < n:
-      local.get $i
-      local.get $n
-      i32.lt_u
-      if
+        local.get $t0
+        i32.load $heap offset=16
+        i32.const 1
+        i32.add
+        local.set $t0
+    ;; 30 |         while i < 2:
         local.get $items
         local.get $items
         i32.load $heap
         call $rt:list_unique
         i32.store $heap
+    ;; 32 |             items[0] += 1
+        local.get $items
+        i32.load $heap
+        local.set $t1
+        i32.const 0
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        local.get $t0
+        i32.store $heap offset=16
+    ;; 33 |             i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 30 |         while i < 2:
+        br 0
       end
+    end
+    ;; 29 |         let i: usize = 0
+    local.get $source
+    if
+      local.get $source
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $source
+        call $rt:release_ref
+      end
+    end
+  )
+  (func $"impl Probes.alias_write" (param $items i32) (param $alias i32) (param $source i32) (local $i i32) (local $t0 i32) (local $t1 i32)
+    ;; 38 |         while i < 2:
+    block
+      loop
+        local.get $i
+        i32.const 2
+        i32.lt_u
+        i32.eqz
+        br_if 1
+    ;; 39 |             *alias = source
+        local.get $source
+        call $rt:coll_copy
+        local.set $t0
+        local.get $alias
+        i32.load $heap
+        local.get $alias
+        local.get $t0
+        i32.store $heap
+        local.tee $t0
+        if
+          local.get $t0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t0
+            call $rt:release_ref
+          end
+        end
+    ;; 40 |             items[0] += 1
+        local.get $items
+        i32.load $heap
+        local.set $t0
+        i32.const 0
+        local.get $t0
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t0
+        i32.load $heap offset=16
+        i32.const 1
+        i32.add
+        local.set $t0
+    ;; 38 |         while i < 2:
+        local.get $items
+        local.get $items
+        i32.load $heap
+        call $rt:list_unique
+        i32.store $heap
+    ;; 40 |             items[0] += 1
+        local.get $items
+        i32.load $heap
+        local.set $t1
+        i32.const 0
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        local.get $t0
+        i32.store $heap offset=16
+    ;; 41 |             i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 38 |         while i < 2:
+        br 0
+      end
+    end
+    ;; 37 |         let i: usize = 0
+    local.get $source
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+  )
+  (func $"impl Probes.clean" (param $items i32) (param $n i32) (local $i i32) (local $t0 i32) (local $t1 i32)
+    ;; 18 |         while i < n:
+    local.get $i
+    local.get $n
+    i32.lt_u
+    if
+      local.get $items
       local.get $items
       i32.load $heap
-      local.tee $items
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $i
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
+      call $rt:list_unique
+      i32.store $heap
+    end
+    local.get $items
+    i32.load $heap
+    local.tee $items
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $i
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
     ;; 19 |             items[0] += Probes::step(i)
-          i32.const 0
-          local.get $t0
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $items
-          i32.load $heap offset=16
-          local.get $i
-          call $"impl Probes.step"
-          i32.add
-          local.set $t1
-          i32.const 0
-          local.get $t0
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $items
-          local.get $t1
-          i32.store $heap offset=16
-    ;; 20 |             items[1] += 1
-          i32.const 1
-          local.get $t0
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $items
-          i32.load $heap offset=20
-          i32.const 1
-          i32.add
-          local.set $t1
-          i32.const 1
-          local.get $t0
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $items
-          local.get $t1
-          i32.store $heap offset=20
-    ;; 21 |             i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 18 |         while i < n:
-          br 0
+        i32.const 0
+        local.get $t0
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $items
+        i32.load $heap offset=16
+        local.get $i
+        call $"impl Probes.step"
+        i32.add
+        local.set $t1
+        i32.const 0
+        local.get $t0
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $items
+        local.get $t1
+        i32.store $heap offset=16
+    ;; 20 |             items[1] += 1
+        i32.const 1
+        local.get $t0
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $items
+        i32.load $heap offset=20
+        i32.const 1
+        i32.add
+        local.set $t1
+        i32.const 1
+        local.get $t0
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $items
+        local.get $t1
+        i32.store $heap offset=20
+    ;; 21 |             i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 18 |         while i < n:
+        br 0
       end
-    ;; 17 |         let i: usize = 0
     end
   )
   (func $"impl Probes.step" (param $n i32) (result i32)
@@ -267,123 +257,118 @@
     i32.add
   )
   (func $"impl Probes.header_copy" (param $items i32) (result i32) (local $i i32) (local $total i32) (local $snapshot i32) (local $t0 i32) (local $t1 i32)
-    ;; 45 |         let i: usize = 0
+    ;; 47 |         while i < 2:
     block
-    ;; 47 |         while i < 2:
-      block
-        loop
-          local.get $i
-          i32.const 2
-          i32.lt_u
-          i32.eqz
-          br_if 1
+      loop
+        local.get $i
+        i32.const 2
+        i32.lt_u
+        i32.eqz
+        br_if 1
     ;; 48 |             snapshot := *items
-          local.get $items
-          i32.load $heap
-          call $rt:coll_copy
-          local.set $snapshot
+        local.get $items
+        i32.load $heap
+        call $rt:coll_copy
+        local.set $snapshot
     ;; 49 |             items[0] += 1
-          local.get $items
-          i32.load $heap
-          local.set $t0
-          i32.const 0
-          local.get $t0
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          i32.load $heap offset=16
-          i32.const 1
-          i32.add
-          local.set $t0
+        local.get $items
+        i32.load $heap
+        local.set $t0
+        i32.const 0
+        local.get $t0
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t0
+        i32.load $heap offset=16
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 47 |         while i < 2:
-          local.get $items
-          local.get $items
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
+        local.get $items
+        local.get $items
+        i32.load $heap
+        call $rt:list_unique
+        i32.store $heap
     ;; 49 |             items[0] += 1
-          local.get $items
-          i32.load $heap
-          local.set $t1
-          i32.const 0
-          local.get $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          local.get $t0
-          i32.store $heap offset=16
+        local.get $items
+        i32.load $heap
+        local.set $t1
+        i32.const 0
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        local.get $t0
+        i32.store $heap offset=16
     ;; 50 |             total += snapshot[0]
-          i32.const 0
-          local.get $snapshot
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $snapshot
-          i32.load $heap offset=16
-          local.set $t0
+        i32.const 0
+        local.get $snapshot
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $snapshot
+        i32.load $heap offset=16
+        local.set $t0
     ;; 47 |         while i < 2:
+        local.get $snapshot
+        local.tee $snapshot
+        if
           local.get $snapshot
-          local.tee $snapshot
+          i32.const 8
+          i32.sub
+          i32.load $heap
           if
             local.get $snapshot
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $snapshot
-              call $rt:release_ref
-            end
+            call $rt:release_ref
           end
-    ;; 50 |             total += snapshot[0]
-          local.get $total
-          local.get $t0
-          i32.add
-          local.set $total
-    ;; 51 |             i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 47 |         while i < 2:
-          br 0
         end
+    ;; 50 |             total += snapshot[0]
+        local.get $total
+        local.get $t0
+        i32.add
+        local.set $total
+    ;; 51 |             i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 47 |         while i < 2:
+        br 0
       end
-    ;; 52 |         total
-      local.get $total
-    ;; 45 |         let i: usize = 0
-      local.set $items
     end
+    ;; 52 |         total
+    local.get $total
+    ;; 45 |         let i: usize = 0
+    local.set $items
     local.get $items
   )
   (func $"impl Probes.replace" (param $target i32) (param $source i32)
     ;; 25 |         *target = source
-    block
+    local.get $target
+    i32.load $heap
+    local.get $target
+    local.get $source
+    i32.store $heap
+    local.tee $target
+    if
       local.get $target
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $target
-      local.get $source
-      i32.store $heap
-      local.tee $target
       if
         local.get $target
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $target
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
   )

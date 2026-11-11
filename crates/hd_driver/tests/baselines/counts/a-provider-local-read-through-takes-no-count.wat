@@ -9,197 +9,184 @@
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
     ;; 28 |     first := box(Count { n: 0 })
-    block
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $first
-      i32.const 0
-      i32.store $heap
-      local.get $first
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $first
+    i32.const 0
+    i32.store $heap
+    local.get $first
     ;; 29 |     second := box(Count { n: 0 })
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $second
-      i32.const 0
-      i32.store $heap
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $second
+    i32.const 0
+    i32.store $heap
     ;; 30 |     $.with(Sink = first):
-      local.tee $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
-      end
-      local.get $t0
-      local.set $t2
-      i32.const 164 ;; &vtable[func41]
-      local.set $t3
-      block
-    ;; 31 |         line("ab")
-        i32.const 16 ;; &"ab"
-        i32.const 2
-        local.get $t2
-        local.get $t3
-        call $line
-    ;; 32 |         swapped("c", second)
-        local.get $second
-        local.tee $t1
-        if
-          local.get $t1
-          call $retain
-        end
-        i32.const 18 ;; &"c"
-        i32.const 1
-        local.get $second
-        i32.const 164 ;; &vtable[func41]
-        local.get $t2
-        local.get $t3
-        call $swapped
-    ;; 30 |     $.with(Sink = first):
-        local.get $second
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-    ;; 28 |     first := box(Count { n: 0 })
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-    ;; 33 |     first.n + second.n
-      local.get $first
+    local.tee $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $second
-      i32.load $heap
-      i32.add
-    ;; 28 |     first := box(Count { n: 0 })
-      local.get $second
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
+        call $rt:retain_known
       end
-      local.get $first
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.set $first
     end
+    local.get $t0
+    local.set $t2
+    i32.const 164 ;; &vtable[func41]
+    local.set $t3
+    ;; 31 |         line("ab")
+    i32.const 16 ;; &"ab"
+    i32.const 2
+    local.get $t2
+    local.get $t3
+    call $line
+    ;; 32 |         swapped("c", second)
+    local.get $second
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    i32.const 18 ;; &"c"
+    i32.const 1
+    local.get $second
+    i32.const 164 ;; &vtable[func41]
+    local.get $t2
+    local.get $t3
+    call $swapped
+    ;; 30 |     $.with(Sink = first):
+    local.get $second
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
+    ;; 28 |     first := box(Count { n: 0 })
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
+    ;; 33 |     first.n + second.n
+    local.get $first
+    i32.load $heap
+    local.get $second
+    i32.load $heap
+    i32.add
+    ;; 28 |     first := box(Count { n: 0 })
+    local.get $second
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
+    end
+    local.get $first
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
+    end
+    local.set $first
     local.get $first
   )
   (func $"impl Sink for Count.put" (param $self i32) (param $text.0 i32) (param $text.1 i32)
     ;; 14 |         self.n = self.n + text.len()
+    local.get $self
+    i32.load $heap
+    local.set $text.0
     block
-      local.get $self
-      i32.load $heap
-      local.set $text.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $self
-      local.get $text.0
-      local.get $text.1
-      i32.add
-      i32.store $heap
+      br 0
     end
+    local.get $self
+    local.get $text.0
+    local.get $text.1
+    i32.add
+    i32.store $heap
   )
   (func $swapped (param $text.0 i32) (param $text.1 i32) (param $other.0 i32) (param $other.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 22 |     let mut sink: &mut dyn Sink = $.use(Sink)
-    block
-      local.get $provider0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $provider0
+    local.get $provider0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    local.get $provider0
     ;; 23 |     sink.put(text)
-      local.get $text.0
-      local.get $text.1
+    local.get $text.0
+    local.get $text.1
     ;; 22 |     let mut sink: &mut dyn Sink = $.use(Sink)
-      local.get $provider0.vtable
+    local.get $provider0.vtable
     ;; 23 |     sink.put(text)
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32)
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
     ;; 24 |     sink = other
-      local.get $other.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
+    local.get $other.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     ;; 22 |     let mut sink: &mut dyn Sink = $.use(Sink)
-      local.get $provider0
+    local.get $provider0
     ;; 24 |     sink = other
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-      local.get $other.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'1
+    end
+    local.get $other.0
     ;; 25 |     sink.put("!")
-      i32.const 68 ;; &"!"
-      i32.const 1
+    i32.const 68 ;; &"!"
+    i32.const 1
     ;; 24 |     sink = other
-      local.get $other.1
+    local.get $other.1
     ;; 25 |     sink.put("!")
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32)
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
     ;; 24 |     sink = other
-      local.get $other.0
+    local.get $other.0
     ;; 22 |     let mut sink: &mut dyn Sink = $.use(Sink)
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'1
     end
   )
   (func $line (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32)
     ;; 17 |     let sink: &mut dyn Sink = $.use(Sink)
-    block
-      local.get $provider0
+    local.get $provider0
     ;; 18 |     sink.put(text)
-      local.get $text.0
-      local.get $text.1
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32)
+    local.get $text.0
+    local.get $text.1
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
     ;; 19 |     sink.put("!")
-      local.get $provider0
-      i32.const 68 ;; &"!"
-      i32.const 1
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32)
-    ;; 17 |     let sink: &mut dyn Sink = $.use(Sink)
-    end
+    local.get $provider0
+    i32.const 68 ;; &"!"
+    i32.const 1
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
   )
 )

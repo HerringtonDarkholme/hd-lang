@@ -11,15 +11,13 @@
     end
     i32.const 1
     global.set $"impl Fast for Tree.regular#evaluating"
-    block
-      call $"impl Fast for Leaf.regular"
-      if (result i32)
-        call $"impl Fast for Tree.regular"
-      else
-        i32.const 0
-      end
-      local.set $t0
+    call $"impl Fast for Leaf.regular"
+    if (result i32)
+      call $"impl Fast for Tree.regular"
+    else
+      i32.const 0
     end
+    local.set $t0
     local.get $t0
     i32.const 0
     global.set $"impl Fast for Tree.regular#evaluating"

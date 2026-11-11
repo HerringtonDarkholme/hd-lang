@@ -8,132 +8,112 @@
   (func $join2 (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32)
     ;; 8 |     first.len() * 3 + second.len()
     block
-      block
-        block
-          local.get $first.1
-          local.set $first.0
-          br 0
-        end
-      end
-      local.get $first.0
-      i32.const 3
-      i32.mul
-      local.set $first.0
-      block
-        block
-          local.get $second.1
-          local.set $first.1
-          br 0
-        end
-      end
-      local.get $first.0
       local.get $first.1
-      i32.add
       local.set $first.0
+      br 0
     end
+    local.get $first.0
+    i32.const 3
+    i32.mul
+    local.set $first.0
+    block
+      local.get $second.1
+      local.set $first.1
+      br 0
+    end
+    local.get $first.0
+    local.get $first.1
+    i32.add
+    local.set $first.0
     local.get $first.0
   )
   (func $named (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 14 |     join2(second=a, first=b)
+    local.get $a.0
+    local.set $a.0
     block
-      local.get $a.0
-      local.set $a.0
-      block
-        block
-          local.get $b.0
-          local.get $b.1
-          call $"impl string.len"
-          i32.const 3
-          i32.mul
-          local.get $a.0
-          local.get $a.1
-          call $"impl string.len"
-          i32.add
-          local.set $a.1
-          br 0
-        end
-      end
-      local.get $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref'1
-      end
       local.get $b.0
-      local.tee $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref'1
-      end
+      local.get $b.1
+      call $"impl string.len"
+      i32.const 3
+      i32.mul
+      local.get $a.0
       local.get $a.1
-      local.set $a.0
+      call $"impl string.len"
+      i32.add
+      local.set $a.1
+      br 0
     end
+    local.get $a.0
+    if
+      local.get $a.0
+      call $rt:release_ref'1
+    end
+    local.get $b.0
+    local.tee $a.0
+    if
+      local.get $a.0
+      call $rt:release_ref'1
+    end
+    local.get $a.1
+    local.set $a.0
     local.get $a.0
   )
   (func $count (param $values i32) (result i32)
     ;; 11 |     values.len()
-    block
-      local.get $values
-      i32.load $heap offset=4
-      local.set $values
-    end
+    local.get $values
+    i32.load $heap offset=4
+    local.set $values
     local.get $values
   )
   (func $spread_list (param $xs i32) (result i32)
     ;; 23 |     count(xs...)
     block
-      block
-        block
-          local.get $xs
-          i32.load $heap offset=4
-          local.set $xs
-          br 0
-        end
-      end
+      local.get $xs
+      i32.load $heap offset=4
+      local.set $xs
+      br 0
     end
     local.get $xs
   )
   (func $collect (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 26 |     count(a, b)
+    i32.const 2
+    call $rt:list_buf
+    local.tee $t0
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t0
+    local.tee $t1
+    local.get $a.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $a.1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $b.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $b.1
+    i32.store $heap offset=20
     block
-      i32.const 2
-      call $rt:list_buf
-      local.tee $t0
-      i32.const 2
-      i32.store $heap offset=4
       local.get $t0
-      local.tee $t1
-      local.get $a.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $a.1
-      i32.store $heap offset=20
-      local.get $t1
+      i32.load $heap offset=4
+      local.set $a.0
+      br 0
+    end
+    local.get $t0
+    if
+      local.get $t0
       i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $b.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $b.1
-      i32.store $heap offset=20
-      block
-        block
-          local.get $t0
-          i32.load $heap offset=4
-          local.set $a.0
-          br 0
-        end
-      end
-      local.get $t0
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
     end
     local.get $a.0
@@ -141,69 +121,61 @@
   (func $spread_tuple (param $pair.0.0 i32) (param $pair.0.1 i32) (param $pair.1.0 i32) (param $pair.1.1 i32) (result i32)
     ;; 20 |     join2(pair...)
     block
-      block
-        block
-          local.get $pair.0.0
-          local.get $pair.0.1
-          call $"impl string.len"
-          i32.const 3
-          i32.mul
-          local.get $pair.1.0
-          local.get $pair.1.1
-          call $"impl string.len"
-          i32.add
-          local.set $pair.0.1
-          br 0
-        end
-      end
-      local.get $pair.1.0
-      if
-        local.get $pair.1.0
-        call $rt:release_ref'1
-      end
       local.get $pair.0.0
-      local.tee $pair.1.0
-      if
-        local.get $pair.1.0
-        call $rt:release_ref'1
-      end
       local.get $pair.0.1
-      local.set $pair.0.0
+      call $"impl string.len"
+      i32.const 3
+      i32.mul
+      local.get $pair.1.0
+      local.get $pair.1.1
+      call $"impl string.len"
+      i32.add
+      local.set $pair.0.1
+      br 0
     end
+    local.get $pair.1.0
+    if
+      local.get $pair.1.0
+      call $rt:release_ref'1
+    end
+    local.get $pair.0.0
+    local.tee $pair.1.0
+    if
+      local.get $pair.1.0
+      call $rt:release_ref'1
+    end
+    local.get $pair.0.1
+    local.set $pair.0.0
     local.get $pair.0.0
   )
   (func $positional (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 17 |     join2(b, a)
     block
-      block
-        block
-          local.get $b.0
-          local.get $b.1
-          call $"impl string.len"
-          i32.const 3
-          i32.mul
-          local.get $a.0
-          local.get $a.1
-          call $"impl string.len"
-          i32.add
-          local.set $a.1
-          br 0
-        end
-      end
-      local.get $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref'1
-      end
       local.get $b.0
-      local.tee $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref'1
-      end
+      local.get $b.1
+      call $"impl string.len"
+      i32.const 3
+      i32.mul
+      local.get $a.0
       local.get $a.1
-      local.set $a.0
+      call $"impl string.len"
+      i32.add
+      local.set $a.1
+      br 0
     end
+    local.get $a.0
+    if
+      local.get $a.0
+      call $rt:release_ref'1
+    end
+    local.get $b.0
+    local.tee $a.0
+    if
+      local.get $a.0
+      call $rt:release_ref'1
+    end
+    local.get $a.1
+    local.set $a.0
     local.get $a.0
   )
 )

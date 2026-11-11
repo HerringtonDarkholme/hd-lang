@@ -6,30 +6,28 @@
         ;; ...
     ;; 12 |         s = s + a(i, j)
         block
-          block
-            local.get $i
-            local.get $j
-            i32.add
-            local.get $i
-            local.get $j
-            i32.add
-            i32.const 1
-            i32.add
-            i32.mul
-            i32.const 1
-            i32.shr_u
-            local.get $i
-            i32.add
-            i32.const 1
-            i32.add
-            f64.convert_i32_u
-            local.set $t0
-            f64.const 0x1p+0
-            local.get $t0
-            f64.div
-            local.set $t0
-            br 0
-          end
+          local.get $i
+          local.get $j
+          i32.add
+          local.get $i
+          local.get $j
+          i32.add
+          i32.const 1
+          i32.add
+          i32.mul
+          i32.const 1
+          i32.shr_u
+          local.get $i
+          i32.add
+          i32.const 1
+          i32.add
+          f64.convert_i32_u
+          local.set $t0
+          f64.const 0x1p+0
+          local.get $t0
+          f64.div
+          local.set $t0
+          br 0
         end
         local.get $s
         local.get $t0

@@ -15,117 +15,107 @@
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
-    block
-      i32.const 16
-      i32.const 0
-      call $rt:new/class-2
-      local.tee $counters
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $counters
-      i64.const 0
-      i64.store $heap
-      local.get $counters
+    i32.const 16
+    i32.const 0
+    call $rt:new/class-2
+    local.tee $counters
+    i32.const 0
+    i32.store $heap offset=8
+    local.get $counters
+    i64.const 0
+    i64.store $heap
+    local.get $counters
     ;; 31 |     $.with(Meter=counters):
-      local.tee $t0
-      local.tee $t1
+    local.tee $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      local.get $t0
-      local.set $t1
-      i32.const 292 ;; &vtable[func69]
-      local.set $t2
-      block
-    ;; 32 |         count(n)
-        local.get $n
-        local.get $t1
-        local.get $t2
-        call $count
-    ;; 31 |     $.with(Meter=counters):
-      end
-    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-    ;; 33 |     counters.total
-      local.get $counters
-      i64.load $heap
-    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
-      local.get $counters
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.set $n
     end
+    local.get $t0
+    local.set $t1
+    i32.const 292 ;; &vtable[func69]
+    local.set $t2
+    ;; 32 |         count(n)
+    local.get $n
+    local.get $t1
+    local.get $t2
+    call $count
+    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
+    ;; 33 |     counters.total
+    local.get $counters
+    i64.load $heap
+    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
+    local.get $counters
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
+    end
+    local.set $n
     local.get $n
   )
   (func $count (param $n i64) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $i i64)
     ;; 21 |     for i in 0..n:
     block
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i64.lt_s
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.set $i
-          local.get $t0
-          i64.const 1
-          i64.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $n
+        i64.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.set $i
+        local.get $t0
+        i64.const 1
+        i64.add
+        local.set $t0
     ;; 22 |         $.use(Meter).record(i)
-          local.get $provider0
-          local.get $i
-          local.get $provider0.vtable
-          i32.load $heap
-          call_indirect $table0 (param i32 i64)
+        local.get $provider0
+        local.get $i
+        local.get $provider0.vtable
+        i32.load $heap
+        call_indirect $table0 (param i32 i64)
     ;; 21 |     for i in 0..n:
-          br 0
-        end
+        br 0
       end
     end
   )
   (func $"impl Meter for Counters.record" (param $self i32) (param $value i64)
     ;; 17 |         self.calls += 1
-    block
-      local.get $self
-      local.get $self
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
+    local.get $self
+    local.get $self
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
     ;; 18 |         self.total += value
-      local.get $self
-      local.get $self
-      i64.load $heap
-      local.get $value
-      i64.add
-      i64.store $heap
-    ;; 17 |         self.calls += 1
-    end
+    local.get $self
+    local.get $self
+    i64.load $heap
+    local.get $value
+    i64.add
+    i64.store $heap
   )
   (func $count_later'1 (param $frame i32) (param $n i64) (param $wait i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t6 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t8 i32) (local $t0 i32)
     ;; 25 |     for i in 0..n:

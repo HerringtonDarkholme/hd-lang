@@ -8,100 +8,92 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $is_user (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 18 |     value.runtime_type() == TypeId::of::[User]()
+    local.get $value.0
+    local.get $value.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32)
+    call $rt:type_id
+    local.set $value.0
+    local.set $value.1
     block
-      local.get $value.0
       local.get $value.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32)
-      call $rt:type_id
+      local.get $value.0
+      i32.eq
       local.set $value.0
-      local.set $value.1
-      block
-        block
-          local.get $value.1
-          local.get $value.0
-          i32.eq
-          local.set $value.0
-          br 0
-        end
-      end
+      br 0
     end
     local.get $value.0
   )
   (func $user_name (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $user i32)
     ;; 13 |     match value.downcast_ref::[User]():
-    block
+    local.get $value.0
+    local.get $value.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32)
+    call $rt:type_info
+    i32.eq
+    if
       local.get $value.0
-      local.get $value.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32)
-      call $rt:type_info
-      i32.eq
-      if
-        local.get $value.0
-        local.set $user
-      else
-      end
+      local.set $user
+    else
+    end
+    block
       block
         block
-          block
-    ;; 14 |         .Some(user) => user.name
-            local.get $user
-            if
-              br 1
-            else
-    ;; 15 |         .None => "not a user"
-              local.get $user
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 14 |         .Some(user) => user.name
-            end
-    ;; 13 |     match value.downcast_ref::[User]():
-            unreachable
-          end
     ;; 14 |         .Some(user) => user.name
           local.get $user
-          i32.load $heap
-          local.get $user
-          i32.load $heap offset=4
-          local.set $value.1
-          local.tee $value.0
-          local.tee $user
           if
+            br 1
+          else
+    ;; 15 |         .None => "not a user"
             local.get $user
-            call $retain
+            i32.eqz
+            br_if 2
+            unreachable
+    ;; 14 |         .Some(user) => user.name
           end
     ;; 13 |     match value.downcast_ref::[User]():
-          br 1
+          unreachable
         end
-        i32.const 104 ;; &"not a user"
-        i32.const 10
+    ;; 14 |         .Some(user) => user.name
+        local.get $user
+        i32.load $heap
+        local.get $user
+        i32.load $heap offset=4
         local.set $value.1
-        local.set $value.0
-        br 0
+        local.tee $value.0
+        local.tee $user
+        if
+          local.get $user
+          call $retain
+        end
+    ;; 13 |     match value.downcast_ref::[User]():
+        br 1
       end
+      i32.const 104 ;; &"not a user"
+      i32.const 10
+      local.set $value.1
+      local.set $value.0
+      br 0
     end
     local.get $value.0
     local.get $value.1
   )
   (func $erase (param $u.name.0 i32) (param $u.name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 21 |     box(u)
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $u.name.0
-      i32.store $heap
-      local.get $t0
-      local.get $u.name.1
-      i32.store $heap offset=4
-      local.get $t0
-      i32.const 256 ;; &vtable[func39]
-      local.set $u.name.1
-      local.set $u.name.0
-    end
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $u.name.0
+    i32.store $heap
+    local.get $t0
+    local.get $u.name.1
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 256 ;; &vtable[func39]
+    local.set $u.name.1
+    local.set $u.name.0
     local.get $u.name.0
     local.get $u.name.1
   )

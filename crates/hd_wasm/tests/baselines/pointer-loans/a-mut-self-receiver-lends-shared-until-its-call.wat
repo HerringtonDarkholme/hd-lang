@@ -9,173 +9,168 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Counter.add" (param $self i32) (param $k i32) (param $other i32) (local $t0 i64)
     ;; 12 |         self.n += k
-    block
-      local.get $self
-      i32.load $heap
-      i64.extend_i32_s
-      local.get $k
-      i64.extend_i32_s
-      i64.add
-      local.tee $t0
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t0
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $self
-      local.get $t0
-      i32.wrap_i64
-      i32.store $heap
-    ;; 13 |         other.n += 1
-      local.get $other
-      i32.const 4
-      i32.sub
-      i32.load $heap
-      i32.const 2097152
-      i32.and
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $other
-      i32.load $heap
-      local.tee $self
-      i32.const 2147483646
-      i32.gt_s
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $self
-      i32.const 1
-      i32.add
-      local.set $self
-      local.get $other
-      i32.const 4
-      i32.sub
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      if
-        call $rt:panic'3
-        unreachable
-      end
-      local.get $other
-      local.get $self
-      i32.store $heap
-    ;; 12 |         self.n += k
+    local.get $self
+    i32.load $heap
+    i64.extend_i32_s
+    local.get $k
+    i64.extend_i32_s
+    i64.add
+    local.tee $t0
+    i64.const 2147483647
+    i64.gt_s
+    local.get $t0
+    i64.const -2147483648
+    i64.lt_s
+    i32.or
+    if
+      call $rt:panic'1
+      unreachable
     end
+    local.get $self
+    local.get $t0
+    i32.wrap_i64
+    i32.store $heap
+    ;; 13 |         other.n += 1
+    local.get $other
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $other
+    i32.load $heap
+    local.tee $self
+    i32.const 2147483646
+    i32.gt_s
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $self
+    i32.const 1
+    i32.add
+    local.set $self
+    local.get $other
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'3
+      unreachable
+    end
+    local.get $other
+    local.get $self
+    i32.store $heap
   )
   (func $bump (param $p i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |     p.add(p.n, other)
-    block
-      local.get $p
-      i32.const 4
-      i32.sub
-      i32.load $heap
-      i32.const 2097152
-      i32.and
-      local.get $t0
-      i32.const 2097152
-      i32.and
-      i32.ne
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $p
-      i32.load $heap
-      local.set $t1
-      local.get $p
-      i32.const 4
-      i32.sub
-      local.tee $t2
-      i32.load $heap
-      i32.const 2097152
-      i32.and
-      local.get $t0
-      i32.const 2097152
-      i32.and
-      i32.ne
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t2
-      i32.load $heap
-      local.tee $t3
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_share
-      else
-        local.get $t2
-        local.get $t3
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-      local.get $t0
-      i32.const 65536
-      i32.add
-      local.set $t0
-      local.get $t2
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      local.get $t0
-      i32.ne
-      if
-        call $rt:panic'4
-        unreachable
-      end
-      local.get $t2
-      i32.load $heap
-      local.tee $t3
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_unshare
-      else
-        local.get $t2
-        local.get $t3
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      local.get $t0
-      i32.const 65536
-      i32.sub
-      local.get $t2
-      local.get $t2
-      i32.load $heap
-      i32.const 2097152
-      i32.add
-      i32.store $heap
-      i32.const 2097152
-      i32.add
-      local.get $p
-      local.get $t1
-      local.get $other
-      call $"impl Counter.add"
-      local.get $t2
-      local.get $t2
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      drop
+    local.get $p
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $t0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'2
+      unreachable
     end
+    local.get $p
+    i32.load $heap
+    local.set $t1
+    local.get $p
+    i32.const 4
+    i32.sub
+    local.tee $t2
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $t0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t2
+    i32.load $heap
+    local.tee $t3
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t2
+      call $rt:loan_share
+    else
+      local.get $t2
+      local.get $t3
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $t0
+    i32.const 65536
+    i32.add
+    local.set $t0
+    local.get $t2
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    local.get $t0
+    i32.ne
+    if
+      call $rt:panic'4
+      unreachable
+    end
+    local.get $t2
+    i32.load $heap
+    local.tee $t3
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t2
+      call $rt:loan_unshare
+    else
+      local.get $t2
+      local.get $t3
+      i32.const 65536
+      i32.sub
+      i32.store $heap
+    end
+    local.get $t0
+    i32.const 65536
+    i32.sub
+    local.get $t2
+    local.get $t2
+    i32.load $heap
+    i32.const 2097152
+    i32.add
+    i32.store $heap
+    i32.const 2097152
+    i32.add
+    local.get $p
+    local.get $t1
+    local.get $other
+    call $"impl Counter.add"
+    local.get $t2
+    local.get $t2
+    i32.load $heap
+    i32.const 2097152
+    i32.sub
+    i32.store $heap
+    drop
   )
 )

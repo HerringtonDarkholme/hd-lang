@@ -6,28 +6,26 @@
       block
         block
           block
-            block
-              local.get $s
-              br_table 0 1 2
-            end
-            i32.const 65
-            i32.const 2
-            local.set $t0
-            local.set $s
-            br 2
+            local.get $s
+            br_table 0 1 2
           end
-          i32.const 67
-          i32.const 9
+          i32.const 65
+          i32.const 2
           local.set $t0
           local.set $s
-          br 1
+          br 2
         end
-        i32.const 76
-        i32.const 4
+        i32.const 67
+        i32.const 9
         local.set $t0
         local.set $s
-        br 0
+        br 1
       end
+      i32.const 76
+      i32.const 4
+      local.set $t0
+      local.set $s
+      br 0
     end
     local.get $s
     local.get $t0
@@ -38,35 +36,31 @@
       block
         block
           block
-            block
-              local.get $s
-              br_table 0 1 2
-            end
-            i32.const 65
-            i32.const 2
-            local.set $t0
-            drop
-            br 2
+            local.get $s
+            br_table 0 1 2
           end
-          i32.const 67
-          i32.const 9
+          i32.const 65
+          i32.const 2
           local.set $t0
           drop
-          br 1
+          br 2
         end
-        i32.const 76
-        i32.const 4
+        i32.const 67
+        i32.const 9
         local.set $t0
         drop
-        br 0
+        br 1
       end
-      block
-        block
-          local.get $t0
-          local.set $s
-          br 0
-        end
-      end
+      i32.const 76
+      i32.const 4
+      local.set $t0
+      drop
+      br 0
+    end
+    block
+      local.get $t0
+      local.set $s
+      br 0
     end
     local.get $s
   )

@@ -15,21 +15,19 @@
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 15 |     _ := $.use(Vault).keep(Token { owner: "ada", id: +7 })
-    block
+    local.get $provider0
+    i32.const 65 ;; &"ada"
+    i32.const 3
+    i32.const 7
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32)
+    drop
+    drop
+    local.tee $provider0
+    if
       local.get $provider0
-      i32.const 65 ;; &"ada"
-      i32.const 3
-      i32.const 7
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32)
-      drop
-      drop
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
+      call $rt:release_ref
     end
   )
   (func $rt:hd:Vault/keep (param $t4 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32 i32) (local $t0 i32)

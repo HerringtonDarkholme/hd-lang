@@ -3,26 +3,23 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $bound (param $k i64) (result i64) (local $tally i32) (local $t0 i32)
     ;; ...
-    block
     ;; 17 |     let mut tally = Tally { n: 0, name: "tally" }
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $tally
-      i64.const 0
-      i64.store $heap offset=8
-      local.get $tally
-      i32.const 16 ;; &"tally"
-      i32.store $heap
-      local.get $tally
-      i32.const 5
-      i32.store $heap offset=4
-      local.get $tally
-      ;; ...
-    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $tally
+    i64.const 0
+    i64.store $heap offset=8
+    local.get $tally
+    i32.const 16 ;; &"tally"
+    i32.store $heap
+    local.get $tally
+    i32.const 5
+    i32.store $heap offset=4
+    local.get $tally
     ;; ...
   )
 )

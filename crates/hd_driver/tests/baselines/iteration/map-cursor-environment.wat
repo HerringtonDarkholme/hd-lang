@@ -6,28 +6,24 @@
   (func $cursor (param $values i32) (result i32 i32 i32) (local $t0 i32)
     ;; 8 |     values.iter()
     block
-      block
-        block
-          i32.const 8
-          i32.const 2
-          call $rt:new/class-1
-          local.tee $t0
-          local.get $values
-          i32.store $heap
-          local.get $t0
-          local.get $values
-          i32.load $heap offset=4
-          i32.store $heap offset=4
-          local.get $t0
-          local.get $t0
-          i32.load $heap
-          call $rt:coll_copy
-          i32.store $heap
-          i32.const 2
-          local.set $values
-          br 0
-        end
-      end
+      i32.const 8
+      i32.const 2
+      call $rt:new/class-1
+      local.tee $t0
+      local.get $values
+      i32.store $heap
+      local.get $t0
+      local.get $values
+      i32.load $heap offset=4
+      i32.store $heap offset=4
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      call $rt:coll_copy
+      i32.store $heap
+      i32.const 2
+      local.set $values
+      br 0
     end
     local.get $values
     local.get $t0

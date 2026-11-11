@@ -6,46 +6,42 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $direct (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 9 |     value.to_string()
-    block
-      local.get $value.0
-      local.get $value.1
-      i32.load $heap offset=4
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $value.1
-      local.set $value.0
-    end
+    local.get $value.0
+    local.get $value.1
+    i32.load $heap offset=4
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $value.1
+    local.set $value.0
     local.get $value.0
     local.get $value.1
   )
   (func $loaded (param $value i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 6 |     value.to_string()
-    block
-      local.get $value
-      i32.load $heap
-      local.tee $t0
-      local.get $value
-      i32.load $heap offset=4
-      local.set $value
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $t0
-      local.get $value
-      i32.load $heap offset=4
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.set $t0
-      local.set $value
+    local.get $value
+    i32.load $heap
+    local.tee $t0
+    local.get $value
+    i32.load $heap offset=4
+    local.set $value
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
+    local.get $t0
+    local.get $value
+    i32.load $heap offset=4
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.set $t0
+    local.set $value
     local.get $value
     local.get $t0
   )

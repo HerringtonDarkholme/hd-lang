@@ -2,39 +2,37 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $xs i32) (result f64) (local $sum f64) (local $t1 i32) (local $t0 i32) (local $i i32)
+    ;; ...
+    ;; 10 |     for i in 0..n:
+    local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
-      ;; ...
-    ;; 10 |     for i in 0..n:
-      local.set $t0
-      local.get $xs
-      i32.load $heap
-      local.set $xs
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $i
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
     ;; 11 |         sum = sum + xs[i]
-          local.get $sum
-          local.get $xs
-          local.get $i
-          i32.const 8
-          i32.mul
-          i32.add
-          f64.load $heap offset=16
-          f64.add
-          local.set $sum
+        local.get $sum
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        f64.load $heap offset=16
+        f64.add
+        local.set $sum
     ;; 10 |     for i in 0..n:
-          br 0
-        end
+        br 0
       end
     end
     ;; ...

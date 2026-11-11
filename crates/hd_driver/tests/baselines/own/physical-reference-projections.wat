@@ -13,12 +13,10 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Probes.same" (param $a i32) (param $b i32) (result i32)
     ;; 25 |         a is b
-    block
-      local.get $a
-      local.get $b
-      i32.eq
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    i32.eq
+    local.set $a
     local.get $a
   )
   (func $"impl Probes.variant" (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
@@ -26,36 +24,34 @@
     block
       block
         block
-          block
     ;; 40 |             .Empty => 0
-            local.get $value
-            i32.load $heap
-            local.tee $t0
-            i32.eqz
-            br_if 0
+          local.get $value
+          i32.load $heap
+          local.tee $t0
+          i32.eqz
+          br_if 0
     ;; 41 |             .Text(text) =>
-            local.get $t0
-            if
-              br 2
-            else
-              unreachable
-            end
-    ;; 39 |         match value:
+          local.get $t0
+          if
+            br 2
+          else
             unreachable
           end
-          br 1
-        end
-    ;; 42 |                 borrowed := &text.label
-        local.get $value
-    ;; 43 |                 borrowed.len()
-        call $"impl string.len"
     ;; 39 |         match value:
-        local.set $t1
-        br 0
+          unreachable
+        end
+        br 1
       end
-      local.get $t1
-      local.set $value
+    ;; 42 |                 borrowed := &text.label
+      local.get $value
+    ;; 43 |                 borrowed.len()
+      call $"impl string.len"
+    ;; 39 |         match value:
+      local.set $t1
+      br 0
     end
+    local.get $t1
+    local.set $value
     local.get $value
   )
   (func $"impl Probes.captured_copy#1" (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
@@ -68,32 +64,28 @@
       local.get $t0
       call $retain
     end
-    block
     ;; 54 |             borrowed := &value
-      local.get $env
+    local.get $env
     ;; 55 |             borrowed.len()
-      call $"impl string.len"
+    call $"impl string.len"
     ;; 53 |         fn() -> usize:
-      local.get $ctx
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-      local.set $env
+    local.get $ctx
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'1
     end
+    local.set $env
     local.get $env
   )
   (func $"impl Probes.reborrow" (param $value i32) (result i32)
     ;; 29 |         borrowed := &*value
-    block
-      local.get $value
+    local.get $value
     ;; 30 |         Probes::same(borrowed, value)
-      local.get $value
-      call $"impl Probes.same"
+    local.get $value
+    call $"impl Probes.same"
     ;; 29 |         borrowed := &*value
-      local.set $value
-    end
+    local.set $value
     local.get $value
   )
   (func $"impl Probes.captured_copy" (param $t0 i32) (param $t1 i32) (result i32 i32) (local $value i32) (local $t2 i32)
@@ -107,40 +99,38 @@
     local.get $value
     local.get $t1
     i32.store $heap offset=4
-    block
-      i32.const 5
+    i32.const 5
+    local.get $value
+    i32.load $heap
+    local.set $t0
+    local.get $value
+    i32.load $heap offset=4
+    local.set $t1
+    i32.const 8
+    i32.const 5
+    call $rt:new/class-1
+    local.tee $t2
+    local.get $t0
+    i32.store $heap
+    local.get $t2
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $t2
+    call $rt:retain_fields
+    local.get $value
+    if
       local.get $value
-      i32.load $heap
-      local.set $t0
-      local.get $value
-      i32.load $heap offset=4
-      local.set $t1
       i32.const 8
-      i32.const 5
-      call $rt:new/class-1
-      local.tee $t2
-      local.get $t0
-      i32.store $heap
-      local.get $t2
-      local.get $t1
-      i32.store $heap offset=4
-      local.get $t2
-      call $rt:retain_fields
-      local.get $value
+      i32.sub
+      i32.load $heap
       if
         local.get $value
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $value
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
-      local.get $t2
-      local.set $t1
-      local.set $t0
     end
+    local.get $t2
+    local.set $t1
+    local.set $t0
     local.get $t0
     local.get $t1
   )
@@ -175,61 +165,59 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $value.1
-      i32.const 1
-      i32.add
-      local.tee $t1
-      call $rt:str
-      local.tee $t2
-      local.tee $t3
-      local.get $value.0
-      local.get $value.1
-      call $rt:memory_copy/0/0
-      local.get $t3
-      local.get $value.1
-      i32.add
-      i32.const 149 ;; &"!"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $value.0
-      local.get $t2
-      i32.store $heap
-      local.get $value.0
-      local.get $t1
-      i32.store $heap offset=4
-      local.get $value.0
-      local.tee $value.1
+    local.get $value.1
+    i32.const 1
+    i32.add
+    local.tee $t1
+    call $rt:str
+    local.tee $t2
+    local.tee $t3
+    local.get $value.0
+    local.get $value.1
+    call $rt:memory_copy/0/0
+    local.get $t3
+    local.get $value.1
+    i32.add
+    i32.const 149 ;; &"!"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $value.0
+    local.get $t2
+    i32.store $heap
+    local.get $value.0
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $value.0
+    local.tee $value.1
     ;; 49 |         borrowed.len() + copy.len()
-      local.get $value.1
-      call $"impl string.len"
-      local.set $value.1
-      call $"impl string.len"
-      local.set $t1
+    local.get $value.1
+    call $"impl string.len"
+    local.set $value.1
+    call $"impl string.len"
+    local.set $t1
     ;; 47 |         borrowed := &(value + "!")
+    local.get $value.0
+    if
       local.get $value.0
+      i32.load $heap
+      local.tee $value.0
       if
         local.get $value.0
-        i32.load $heap
-        local.tee $value.0
-        if
-          local.get $value.0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-    ;; 49 |         borrowed.len() + copy.len()
-      local.get $value.1
-      local.get $t1
-      i32.add
-    ;; 47 |         borrowed := &(value + "!")
-      local.set $value.0
     end
+    ;; 49 |         borrowed.len() + copy.len()
+    local.get $value.1
+    local.get $t1
+    i32.add
+    ;; 47 |         borrowed := &(value + "!")
+    local.set $value.0
     local.get $value.0
     local.get $t0
     i32.const 16
@@ -238,13 +226,11 @@
   )
   (func $"impl Probes.pointer" (param $value i32) (result i32)
     ;; 34 |         borrowed := &value.label
-    block
-      local.get $value
+    local.get $value
     ;; 35 |         borrowed.len()
-      call $"impl string.len"
+    call $"impl string.len"
     ;; 34 |         borrowed := &value.label
-      local.set $value
-    end
+    local.set $value
     local.get $value
   )
 )

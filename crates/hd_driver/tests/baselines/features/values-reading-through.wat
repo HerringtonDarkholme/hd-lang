@@ -4,62 +4,55 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $reset (param $r i32) (param $s.0 i32) (param $s.1 i32)
     ;; 16 |     *r = User { name: s, n: 0 }
-    block
-      local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.get $r
-      i32.load $heap offset=8
-      local.get $r
-      local.get $s.0
-      i32.store $heap
-      local.get $r
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $r
-      i32.const 0
-      i32.store $heap offset=8
-      call $rt:release
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.get $r
+    i32.load $heap offset=8
+    local.get $r
+    local.get $s.0
+    i32.store $heap
+    local.get $r
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $r
+    i32.const 0
+    i32.store $heap offset=8
+    call $rt:release
     ;; 17 |     r.n += 1
-      local.get $r
-      local.get $r
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-    ;; 16 |     *r = User { name: s, n: 0 }
-    end
+    local.get $r
+    local.get $r
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
   )
   (func $read_copy (param $r i32) (result i32) (local $copy.name.0 i32) (local $copy.name.1 i32)
     ;; 12 |     copy := *r
-    block
-      local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.set $copy.name.1
-      drop
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.set $copy.name.1
+    drop
     ;; 13 |     r.name.len() + copy.name.len()
-      local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.set $r
-      drop
-      block
-        block
-          local.get $copy.name.1
-          local.set $copy.name.0
-          br 0
-        end
-      end
-      local.get $r
-      local.get $copy.name.0
-      i32.add
-    ;; 12 |     copy := *r
-      local.set $r
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.set $r
+    drop
+    block
+      local.get $copy.name.1
+      local.set $copy.name.0
+      br 0
     end
+    local.get $r
+    local.get $copy.name.0
+    i32.add
+    ;; 12 |     copy := *r
+    local.set $r
     local.get $r
   )
 )

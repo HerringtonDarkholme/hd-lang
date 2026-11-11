@@ -3,15 +3,11 @@
   (func $entry (param $n i32) (result i32 i32) (local $t0 i32)
     ;; 56 |     pick::[List[Outer]](n)
     block
-      block
-        block
-          i32.const 65 ;; &"fast"
-          i32.const 4
-          local.set $t0
-          local.set $n
-          br 0
-        end
-      end
+      i32.const 65 ;; &"fast"
+      i32.const 4
+      local.set $t0
+      local.set $n
+      br 0
     end
     local.get $n
     local.get $t0

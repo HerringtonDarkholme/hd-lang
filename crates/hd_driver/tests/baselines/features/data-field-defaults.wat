@@ -2,29 +2,23 @@
 (module
   (func $make (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     Config { name: name }
+    local.get $name.0
+    local.get $name.1
+    local.set $t0
+    local.set $t1
+    i32.const 3
+    local.set $name.0
     block
-      local.get $name.0
-      local.get $name.1
-      local.set $t0
-      local.set $t1
-      i32.const 3
-      local.set $name.0
-      block
-        block
-          i32.const 65 ;; &"default"
-          i32.const 7
-          local.set $t2
-          local.set $name.1
-          br 0
-        end
-      end
-      block
-        block
-          i32.const 80 ;; &empty-buffer
-          local.set $t3
-          br 0
-        end
-      end
+      i32.const 65 ;; &"default"
+      i32.const 7
+      local.set $t2
+      local.set $name.1
+      br 0
+    end
+    block
+      i32.const 80 ;; &empty-buffer
+      local.set $t3
+      br 0
     end
     local.get $name.0
     local.get $name.1
@@ -35,24 +29,20 @@
   )
   (func $shorthand (param $name.0 i32) (param $name.1 i32) (param $tags i32) (result i32 i32 i32 i32 i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 17 |     Config { name, tags }
+    local.get $name.0
+    local.get $name.1
+    local.set $t0
+    local.set $t1
+    local.get $tags
+    local.set $t2
+    i32.const 3
+    local.set $name.0
     block
-      local.get $name.0
-      local.get $name.1
-      local.set $t0
-      local.set $t1
-      local.get $tags
-      local.set $t2
-      i32.const 3
-      local.set $name.0
-      block
-        block
-          i32.const 65 ;; &"default"
-          i32.const 7
-          local.set $tags
-          local.set $name.1
-          br 0
-        end
-      end
+      i32.const 65 ;; &"default"
+      i32.const 7
+      local.set $tags
+      local.set $name.1
+      br 0
     end
     local.get $name.0
     local.get $name.1

@@ -47,77 +47,75 @@
       local.set $t5
     else
     end
-    block
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1
+    local.tee $sink
+    i32.const 16 ;; &"heap-exhausted"
+    i32.store $heap
+    local.get $sink
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $sink
+    ;; 16 |     sink.set("helper")
+    i32.eqz
+    if
       i32.const 8
       i32.const 2
       call $rt:new/class-1
       local.tee $sink
-      i32.const 16 ;; &"heap-exhausted"
+      local.get $t2
       i32.store $heap
       local.get $sink
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $sink
-    ;; 16 |     sink.set("helper")
-      i32.eqz
-      if
-        i32.const 8
-        i32.const 2
-        call $rt:new/class-1
-        local.tee $sink
-        local.get $t2
-        i32.store $heap
-        local.get $sink
-        local.get $t3
-        i32.store $heap offset=4
-      end
-      local.get $sink
-      i32.const 65 ;; &"helper"
-      i32.const 6
-      call $"impl Sink.set"
-    ;; 17 |     sink.text
-      local.get $sink
-      i32.eqz
-      if
-        i32.const 8
-        i32.const 2
-        call $rt:new/class-1
-        local.tee $sink
-        local.get $t4
-        i32.store $heap
-        local.get $sink
-        local.get $t5
-        i32.store $heap offset=4
-      end
-      local.get $sink
-      i32.load $heap
-      local.get $sink
-      i32.load $heap offset=4
-      local.set $t2
-      local.tee $t3
-      local.tee $t4
-      if
-        local.get $t4
-        call $retain
-      end
-    ;; 15 |     let mut sink = Sink { text: "" }
-      local.get $sink
-      local.tee $t4
-      if
-        local.get $t4
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t4
-          call $rt:release_ref'1
-        end
-      end
       local.get $t3
-      local.set $sink
+      i32.store $heap offset=4
     end
+    local.get $sink
+    i32.const 65 ;; &"helper"
+    i32.const 6
+    call $"impl Sink.set"
+    ;; 17 |     sink.text
+    local.get $sink
+    i32.eqz
+    if
+      i32.const 8
+      i32.const 2
+      call $rt:new/class-1
+      local.tee $sink
+      local.get $t4
+      i32.store $heap
+      local.get $sink
+      local.get $t5
+      i32.store $heap offset=4
+    end
+    local.get $sink
+    i32.load $heap
+    local.get $sink
+    i32.load $heap offset=4
+    local.set $t2
+    local.tee $t3
+    local.tee $t4
+    if
+      local.get $t4
+      call $retain
+    end
+    ;; 15 |     let mut sink = Sink { text: "" }
+    local.get $sink
+    local.tee $t4
+    if
+      local.get $t4
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t4
+        call $rt:release_ref'1
+      end
+    end
+    local.get $t3
+    local.set $sink
     local.get $sink
     local.get $t2
     local.get $frame

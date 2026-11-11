@@ -6,65 +6,55 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $write_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32)
     ;; 17 |     let mut s = r
-    block
-      local.get $r.name.0
+    local.get $r.name.0
     ;; 18 |     s.name = n
-      local.tee $r.name.0
-      if
-        local.get $r.name.0
-        call $rt:release_ref
-      end
-    ;; 17 |     let mut s = r
+    local.tee $r.name.0
+    if
+      local.get $r.name.0
+      call $rt:release_ref
     end
+    ;; 17 |     let mut s = r
     local.get $n.0
     local.get $n.1
     local.get $r.tags
   )
   (func $write_through (param $r i32) (param $n.0 i32) (param $n.1 i32)
     ;; 22 |     r.name = n
-    block
-      local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.get $r
-      local.get $n.0
-      i32.store $heap
-      local.get $r
-      local.get $n.1
-      i32.store $heap offset=4
-      call $rt:release'1
-    end
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.get $r
+    local.get $n.0
+    i32.store $heap
+    local.get $r
+    local.get $n.1
+    i32.store $heap offset=4
+    call $rt:release'1
   )
   (func $take_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (result i32 i32)
     ;; 14 |     r.name
-    block
-      local.get $r.name.0
-      i32.const 0
-      i32.const 0
-      local.get $r.tags
-      call $rt:release'2
-      local.set $r.name.0
-    end
+    local.get $r.name.0
+    i32.const 0
+    i32.const 0
+    local.get $r.tags
+    call $rt:release'2
+    local.set $r.name.0
     local.get $r.name.0
     local.get $r.name.1
   )
   (func $read_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (result i32)
     ;; 11 |     r.name.len() + r.tags.len()
     block
-      block
-        block
-          local.get $r.name.1
-          local.set $r.name.0
-          br 0
-        end
-      end
-      local.get $r.name.0
-      local.get $r.tags
-      i32.load $heap offset=4
-      i32.add
+      local.get $r.name.1
       local.set $r.name.0
+      br 0
     end
+    local.get $r.name.0
+    local.get $r.tags
+    i32.load $heap offset=4
+    i32.add
+    local.set $r.name.0
     local.get $r.name.0
   )
 )

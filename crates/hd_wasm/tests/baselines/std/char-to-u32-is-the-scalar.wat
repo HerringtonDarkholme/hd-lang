@@ -3,9 +3,7 @@
   (func $scalar (param $c i32) (result i32)
     ;; 5 |     c.to_u32()
     block
-      block
-        br 0
-      end
+      br 0
     end
     local.get $c
   )

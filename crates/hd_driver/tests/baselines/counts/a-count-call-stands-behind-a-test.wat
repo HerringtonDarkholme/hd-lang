@@ -10,164 +10,148 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $copied (param $xs i32) (result i32) (local $t0 i32)
     ;; 22 |     ys := (xs, xs)
-    block
-      local.get $xs
-      call $rt:coll_copy
-      local.set $t0
-      local.get $xs
+    local.get $xs
+    call $rt:coll_copy
+    local.set $t0
+    local.get $xs
     ;; 23 |     ys._0.len() + ys._1.len()
-      i32.load $heap offset=4
+    i32.load $heap offset=4
     ;; 22 |     ys := (xs, xs)
+    local.get $t0
+    local.get $xs
+    ;; 23 |     ys._0.len() + ys._1.len()
+    i32.const 0
+    ;; 22 |     ys := (xs, xs)
+    call $rt:release
+    ;; 23 |     ys._0.len() + ys._1.len()
+    i32.load $heap offset=4
+    ;; 22 |     ys := (xs, xs)
+    local.get $t0
+    if
       local.get $t0
-      local.get $xs
-    ;; 23 |     ys._0.len() + ys._1.len()
-      i32.const 0
-    ;; 22 |     ys := (xs, xs)
-      call $rt:release
-    ;; 23 |     ys._0.len() + ys._1.len()
-      i32.load $heap offset=4
-    ;; 22 |     ys := (xs, xs)
-      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-    ;; 23 |     ys._0.len() + ys._1.len()
-      i32.add
-    ;; 22 |     ys := (xs, xs)
-      local.set $xs
     end
+    ;; 23 |     ys._0.len() + ys._1.len()
+    i32.add
+    ;; 22 |     ys := (xs, xs)
+    local.set $xs
     local.get $xs
   )
   (func $known (param $xs i32) (result i32)
     ;; 11 |     xs
-    block
-    end
     local.get $xs
   )
   (func $ring (param $r i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 29 |     let mut held = r
-    block
-      local.get $r
-      local.tee $t0
+    local.get $r
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      local.get $r
-    ;; 30 |     held = box(Ring { next: .Some(r) })
-      local.get $r
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
-      end
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t1
-      local.get $r
-      i32.store $heap
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t1
-    ;; 29 |     let mut held = r
-      local.set $r
     end
+    local.get $r
+    ;; 30 |     held = box(Ring { next: .Some(r) })
+    local.get $r
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:retain_known
+      end
+    end
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t1
+    local.get $r
+    i32.store $heap
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
+    end
+    local.get $t1
+    ;; 29 |     let mut held = r
+    local.set $r
     local.get $r
   )
   (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |     ys := known(xs)
     block
-      block
-        block
-          br 0
-        end
-      end
-    ;; 18 |     t := other(s)
-      block
-        block
-          br 0
-        end
-      end
-    ;; 19 |     ys.len() + t.len()
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $t0
-      local.get $xs
-    ;; 17 |     ys := known(xs)
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-    ;; 19 |     ys.len() + t.len()
-      block
-        block
-          local.get $s.1
-          local.set $xs
-          br 0
-        end
-      end
-    ;; 17 |     ys := known(xs)
-      local.get $s.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-    ;; 19 |     ys.len() + t.len()
-      local.get $t0
-      local.get $xs
-      i32.add
-    ;; 17 |     ys := known(xs)
-      local.set $xs
+      br 0
     end
+    ;; 18 |     t := other(s)
+    block
+      br 0
+    end
+    ;; 19 |     ys.len() + t.len()
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    local.get $xs
+    ;; 17 |     ys := known(xs)
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+    end
+    ;; 19 |     ys.len() + t.len()
+    block
+      local.get $s.1
+      local.set $xs
+      br 0
+    end
+    ;; 17 |     ys := known(xs)
+    local.get $s.0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
+    ;; 19 |     ys.len() + t.len()
+    local.get $t0
+    local.get $xs
+    i32.add
+    ;; 17 |     ys := known(xs)
+    local.set $xs
     local.get $xs
   )
   (func $other (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 14 |     s
-    block
-    end
     local.get $s.0
     local.get $s.1
   )

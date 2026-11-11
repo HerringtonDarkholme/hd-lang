@@ -2,20 +2,16 @@
 (module
   (func $"impl Probes.keep" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 12 |         value
-    block
-    end
     local.get $value.0
     local.get $value.1
   )
   (func $"impl Probes.literal" (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 15 |         Probes::keep("first")
-    block
-      i32.const 65 ;; &"first"
-      i32.const 5
-      call $"impl Probes.keep"
-      local.set $t0
-      local.set $t1
-    end
+    i32.const 65 ;; &"first"
+    i32.const 5
+    call $"impl Probes.keep"
+    local.set $t0
+    local.set $t1
     local.get $t1
     local.get $t0
   )

@@ -6,114 +6,107 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32)
-    ;; 7 |     let i: usize = 0
+    ;; 9 |     while i < xs.len():
     block
-    ;; 9 |     while i < xs.len():
-      block
-        loop
-          local.get $i
-          local.get $xs
-          i32.load $heap offset=4
-          i32.lt_u
-          i32.eqz
-          br_if 1
+      loop
+        local.get $i
+        local.get $xs
+        i32.load $heap offset=4
+        i32.lt_u
+        i32.eqz
+        br_if 1
     ;; 10 |         n += xs[i].len()
-          local.get $i
-          local.get $xs
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $xs
-          local.get $i
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t0
-          i32.load $heap offset=16
-          local.get $t0
-          i32.load $heap offset=20
-          local.set $t0
-          drop
-          block
-            block
-              br 0
-            end
-          end
-          local.get $n
-          local.get $t0
-          i32.add
-          local.set $n
-    ;; 11 |         i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 9 |     while i < xs.len():
+        local.get $i
+        local.get $xs
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $t0
+        i32.load $heap offset=16
+        local.get $t0
+        i32.load $heap offset=20
+        local.set $t0
+        drop
+        block
           br 0
         end
+        local.get $n
+        local.get $t0
+        i32.add
+        local.set $n
+    ;; 11 |         i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 9 |     while i < xs.len():
+        br 0
       end
-    ;; 12 |     n
-      local.get $n
-    ;; 7 |     let i: usize = 0
-      local.set $xs
     end
+    ;; 12 |     n
+    local.get $n
+    ;; 7 |     let i: usize = 0
+    local.set $xs
     local.get $xs
   )
   (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32) (local $t0 i32)
     ;; 15 |     let out = s
-    block
-      local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $s.0
-      local.get $s.1
-      local.set $out.1
-      local.set $out.0
-    ;; 17 |     while i < k:
-      block
-        loop
-          local.get $i
-          local.get $k
-          i32.lt_u
-          i32.eqz
-          br_if 1
-    ;; 18 |         out += s
-          local.get $out.0
-          local.get $out.1
-          local.get $s.0
-          local.get $s.1
-          call $rt:str_append
-          local.set $out.1
-          local.set $out.0
-    ;; 19 |         i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 17 |     while i < k:
-          br 0
-        end
-      end
-    ;; 15 |     let out = s
-      local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-    ;; 20 |     out
-      local.get $out.0
-      local.get $out.1
-    ;; 15 |     let out = s
-      local.set $s.1
-      local.set $s.0
+    local.get $s.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
+    local.get $s.0
+    local.get $s.1
+    local.set $out.1
+    local.set $out.0
+    ;; 17 |     while i < k:
+    block
+      loop
+        local.get $i
+        local.get $k
+        i32.lt_u
+        i32.eqz
+        br_if 1
+    ;; 18 |         out += s
+        local.get $out.0
+        local.get $out.1
+        local.get $s.0
+        local.get $s.1
+        call $rt:str_append
+        local.set $out.1
+        local.set $out.0
+    ;; 19 |         i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 17 |     while i < k:
+        br 0
+      end
+    end
+    ;; 15 |     let out = s
+    local.get $s.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    ;; 20 |     out
+    local.get $out.0
+    local.get $out.1
+    ;; 15 |     let out = s
+    local.set $s.1
+    local.set $s.0
     local.get $s.0
     local.get $s.1
   )

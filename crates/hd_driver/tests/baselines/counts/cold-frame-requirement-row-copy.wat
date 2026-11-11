@@ -38,13 +38,11 @@
       local.set $t1
     else
     end
-    block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32)
-      local.set $provider0
-    end
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32)
+    local.set $provider0
     local.get $provider0
     local.get $frame
     if

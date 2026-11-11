@@ -2,23 +2,20 @@
 (module
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (func $build (param $n i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32)
+    ;; ...
     block
-      ;; ...
-      block
-        loop
-          ;; ...
+      loop
+        ;; ...
     ;; 10 |         out = out + "abcdefgh"
-          local.get $out.0
-          local.get $out.1
-          i32.const 310 ;; &"abcdefgh"
-          i32.const 8
-          call $rt:str_append
-          local.set $out.1
-          local.set $out.0
-          ;; ...
-        end
+        local.get $out.0
+        local.get $out.1
+        i32.const 310 ;; &"abcdefgh"
+        i32.const 8
+        call $rt:str_append
+        local.set $out.1
+        local.set $out.0
+        ;; ...
       end
-      ;; ...
     end
     ;; ...
   )

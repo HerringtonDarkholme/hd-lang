@@ -6,88 +6,80 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |         (self.transform)(x)
-    block
-      local.get $self
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.set $self
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.set $self
-      local.get $t0
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      local.get $t0
-      local.get $x
-      i32.const 0
-      local.get $self
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      local.set $self
     end
+    local.get $t0
+    local.get $x
+    i32.const 0
+    local.get $self
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    local.set $self
     local.get $self
   )
   (func $"impl Mapper.apply'2" (param $self.transform.0 i32) (param $self.transform.1 i32) (param $x i32) (result i32)
     ;; 18 |         (self.transform)(x)
-    block
-      local.get $self.transform.1
-      local.get $x
-      i32.const 0
-      local.get $self.transform.0
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $self.transform.0
-    end
+    local.get $self.transform.1
+    local.get $x
+    i32.const 0
+    local.get $self.transform.0
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.set $self.transform.0
     local.get $self.transform.0
   )
   (func $run (param $m.transform.0 i32) (param $m.transform.1 i32) (param $x i32) (result i32)
     ;; 21 |     m.apply(x)
-    block
-      local.get $m.transform.0
+    local.get $m.transform.0
+    local.get $m.transform.1
+    local.get $x
+    call $"impl Mapper.apply'2"
+    local.get $m.transform.1
+    if
       local.get $m.transform.1
-      local.get $x
-      call $"impl Mapper.apply'2"
-      local.get $m.transform.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $m.transform.1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $m.transform.1
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.set $m.transform.0
     end
+    local.set $m.transform.0
     local.get $m.transform.0
   )
   (func $run_counted (param $m i32) (param $x i32) (result i32)
     ;; 24 |     m.apply(x)
-    block
-      local.get $m
-      local.get $x
-      call $"impl Mapper.apply'1"
-      local.set $m
-    end
+    local.get $m
+    local.get $x
+    call $"impl Mapper.apply'1"
+    local.set $m
     local.get $m
   )
 )

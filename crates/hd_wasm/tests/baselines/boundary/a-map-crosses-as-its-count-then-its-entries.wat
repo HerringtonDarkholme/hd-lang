@@ -19,55 +19,53 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 13 |     _ := $.use(Vault).keep({"a": +1})
-    block
-      i32.const 4
-      call $rt:map_table
-      local.tee $t0
-      i32.const 65 ;; &"a"
-      local.tee $t1
-      i32.const 1
-      local.tee $t2
-      call $rt:map_hash
-      local.tee $t3
-      local.get $t1
-      local.get $t2
-      call $rt:map_find
-      local.set $t4
-      local.get $t0
-      local.get $t3
-      local.get $t4
-      local.get $t1
-      local.get $t2
-      i32.const 1
-      call $rt:map_put
-      local.set $t0
+    i32.const 4
+    call $rt:map_table
+    local.tee $t0
+    i32.const 65 ;; &"a"
+    local.tee $t1
+    i32.const 1
+    local.tee $t2
+    call $rt:map_hash
+    local.tee $t3
+    local.get $t1
+    local.get $t2
+    call $rt:map_find
+    local.set $t4
+    local.get $t0
+    local.get $t3
+    local.get $t4
+    local.get $t1
+    local.get $t2
+    i32.const 1
+    call $rt:map_put
+    local.set $t0
+    local.get $provider0
+    local.get $t0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $provider0
+    if
       local.get $provider0
-      local.get $t0
-      local.get $provider0.vtable
+      i32.const 8
+      i32.sub
       i32.load $heap
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $provider0
       if
         local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $provider0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $t0
-      local.tee $provider0
+    end
+    local.get $t0
+    local.tee $provider0
+    if
+      local.get $provider0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $provider0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
   )

@@ -13,78 +13,74 @@
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $"impl Sink for Total.emit" (param $self i32) (param $value i64)
     ;; 26 |         self.sum += value
-    block
-      local.get $self
-      local.get $self
-      i64.load $heap
-      local.get $value
-      i64.add
-      i64.store $heap
-    end
+    local.get $self
+    local.get $self
+    i64.load $heap
+    local.get $value
+    i64.add
+    i64.store $heap
   )
   (func $save (param $node i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $e i32)
     ;; 35 |     for e in &node.children:
+    local.get $node
+    i32.load $heap offset=8
+    call $rt:coll_copy
+    local.tee $node
+    i32.load $heap offset=4
+    local.set $t0
     block
-      local.get $node
-      i32.load $heap offset=8
-      call $rt:coll_copy
-      local.tee $node
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          local.tee $e
-          local.get $node
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        local.tee $e
+        local.get $node
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $node
+        local.get $e
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $e
+        block
+          block
+            br 0
             unreachable
           end
-          local.get $node
-          local.get $e
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $e
-          block
-            block
-              br 0
-              unreachable
-            end
     ;; 36 |         keep(*e, k)
-            local.get $e
-            i32.load $heap
-            local.get $k
-            call $keep
+          local.get $e
+          i32.load $heap
+          local.get $k
+          call $keep
     ;; 35 |     for e in &node.children:
-            br 0
-          end
           br 0
         end
+        br 0
       end
+    end
+    local.get $node
+    if
       local.get $node
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $node
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $node
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
     end
   )
@@ -119,81 +115,79 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i64.const 0
-      i64.store $heap
-      local.get $t1
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 0
+    i64.store $heap
+    local.get $t1
     ;; 40 |     walk(root, &mut total)
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $root
-      local.get $t1
-      i32.const 288 ;; &vtable[func47]
-      call $walk
-    ;; 39 |     let mut total = Total { sum: 0 }
-      local.get $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'2
-      end
-    ;; 41 |     let mut keeper = Keeper { saved: [] }
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $t2
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-    ;; 42 |     save(root, &mut keeper)
-      local.get $root
-    ;; 41 |     let mut keeper = Keeper { saved: [] }
+    local.tee $t2
+    if
       local.get $t2
-      local.tee $root
+      call $retain
+    end
+    local.get $root
+    local.get $t1
+    i32.const 288 ;; &vtable[func47]
+    call $walk
+    ;; 39 |     let mut total = Total { sum: 0 }
+    local.get $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'2
+    end
+    ;; 41 |     let mut keeper = Keeper { saved: [] }
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $t2
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
     ;; 42 |     save(root, &mut keeper)
-      call $save
+    local.get $root
+    ;; 41 |     let mut keeper = Keeper { saved: [] }
+    local.get $t2
+    local.tee $root
+    ;; 42 |     save(root, &mut keeper)
+    call $save
     ;; 39 |     let mut total = Total { sum: 0 }
-      local.get $t1
+    local.get $t1
     ;; 43 |     total.sum + i64(keeper.saved.len())
-      i64.load $heap
-      local.get $root
-      i32.load $heap
-      local.tee $t1
-      local.get $root
-      i32.const 0
-      i32.store $heap
-      i32.load $heap offset=4
+    i64.load $heap
+    local.get $root
+    i32.load $heap
+    local.tee $t1
+    local.get $root
+    i32.const 0
+    i32.store $heap
+    i32.load $heap offset=4
     ;; 39 |     let mut total = Total { sum: 0 }
-      local.get $t1
-      local.tee $t2
+    local.get $t1
+    local.tee $t2
+    if
+      local.get $t2
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t2
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-    ;; 43 |     total.sum + i64(keeper.saved.len())
-      i64.extend_i32_u
-      i64.add
-    ;; 39 |     let mut total = Total { sum: 0 }
-      local.set $t3
     end
+    ;; 43 |     total.sum + i64(keeper.saved.len())
+    i64.extend_i32_u
+    i64.add
+    ;; 39 |     let mut total = Total { sum: 0 }
+    local.set $t3
     local.get $t3
     local.get $t0
     i32.const 32
@@ -202,128 +196,124 @@
   )
   (func $walk (param $node i32) (param $sink.0 i32) (param $sink.1 i32) (local $t0 i32) (local $t1 i32) (local $child i32)
     ;; 17 |     sink.emit(node.value)
-    block
-      local.get $sink.0
-      local.get $node
-      i64.load $heap
-      local.get $sink.1
-      i32.load $heap
-      call_indirect $table0 (param i32 i64)
+    local.get $sink.0
+    local.get $node
+    i64.load $heap
+    local.get $sink.1
+    i32.load $heap
+    call_indirect $table0 (param i32 i64)
     ;; 18 |     for child in &node.children:
-      local.get $node
-      i32.load $heap offset=8
-      call $rt:coll_copy
-      local.tee $node
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          local.tee $child
-          local.get $node
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
+    local.get $node
+    i32.load $heap offset=8
+    call $rt:coll_copy
+    local.tee $node
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        local.tee $child
+        local.get $node
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $node
+        local.get $child
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $child
+        block
+          block
+            br 0
             unreachable
           end
-          local.get $node
-          local.get $child
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $child
-          block
-            block
-              br 0
-              unreachable
-            end
     ;; 19 |         walk(*child, sink)
-            local.get $child
-            i32.load $heap
-            local.get $sink.0
-            local.get $sink.1
-            call $walk
+          local.get $child
+          i32.load $heap
+          local.get $sink.0
+          local.get $sink.1
+          call $walk
     ;; 18 |     for child in &node.children:
-            br 0
-          end
           br 0
         end
+        br 0
       end
+    end
     ;; 17 |     sink.emit(node.value)
+    local.get $node
+    if
       local.get $node
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $node
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $node
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
     end
   )
   (func $keep (param $n i32) (param $k i32) (local $t0 i32) (local $t1 i32)
     ;; 32 |     k.saved.push(n)
-    block
-      local.get $n
-      local.tee $t0
+    local.get $n
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      local.get $k
-      i32.load $heap
-      call $rt:list_unique
+    end
+    local.get $k
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $k
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 2
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $k
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 2
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $k
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.mul
-      i32.add
-      local.get $n
-      i32.store $heap offset=16
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 4
+    i32.mul
+    i32.add
+    local.get $n
+    i32.store $heap offset=16
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
 )

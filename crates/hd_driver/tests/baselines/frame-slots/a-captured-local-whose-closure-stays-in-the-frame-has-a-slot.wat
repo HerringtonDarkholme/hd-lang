@@ -3,19 +3,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $shared (result i64) (local $tally i32) (local $t0 i32)
     ;; ...
-    block
     ;; 14 |     let mut tally = Tally { n: 0 }
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $tally
-      i64.const 0
-      i64.store $heap
-      ;; ...
-    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $tally
+    i64.const 0
+    i64.store $heap
     ;; ...
   )
 )

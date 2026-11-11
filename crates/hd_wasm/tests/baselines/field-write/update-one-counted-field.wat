@@ -4,18 +4,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $name_next (param $state i32) (param $key.0 i32) (param $key.1 i32)
     ;; 15 |     state.pending = key
-    block
-      local.get $state
-      i32.load $heap
-      local.get $state
-      i32.load $heap offset=4
-      local.get $state
-      local.get $key.0
-      i32.store $heap
-      local.get $state
-      local.get $key.1
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $state
+    i32.load $heap
+    local.get $state
+    i32.load $heap offset=4
+    local.get $state
+    local.get $key.0
+    i32.store $heap
+    local.get $state
+    local.get $key.1
+    i32.store $heap offset=4
+    call $rt:release
   )
 )

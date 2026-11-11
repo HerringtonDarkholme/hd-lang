@@ -7,9 +7,45 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Neg for Tag.neg" (param $self.text.0 i32) (param $self.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |         Tag { text: "-" + self.text }
+    i32.const 1
+    local.get $self.text.1
+    i32.add
+    local.tee $t0
+    call $rt:str
+    local.tee $t1
+    local.tee $t2
+    i32.const 65 ;; &"-"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t2
+    i32.const 1
+    i32.add
+    local.get $self.text.0
+    local.get $self.text.1
+    call $rt:memory_copy/0/0
+    local.get $t1
+    local.get $t0
+    local.set $self.text.1
+    local.set $self.text.0
+    local.get $self.text.0
+    local.get $self.text.1
+  )
+  (func $sum_strings (param $xs i32) (result i32 i32) (local $t0 i32)
+    ;; 35 |     sum(xs, "")
+    local.get $xs
+    i32.const 16 ;; &"heap-exhausted"
+    i32.const 0
+    call $"sum[string]"
+    local.set $t0
+    local.set $xs
+    local.get $xs
+    local.get $t0
+  )
+  (func $neg_tag (param $a.text.0 i32) (param $a.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 26 |     -a
     block
       i32.const 1
-      local.get $self.text.1
+      local.get $a.text.1
       i32.add
       local.tee $t0
       call $rt:str
@@ -21,67 +57,54 @@
       local.get $t2
       i32.const 1
       i32.add
-      local.get $self.text.0
-      local.get $self.text.1
+      local.get $a.text.0
+      local.get $a.text.1
       call $rt:memory_copy/0/0
       local.get $t1
       local.get $t0
-      local.set $self.text.1
-      local.set $self.text.0
-    end
-    local.get $self.text.0
-    local.get $self.text.1
-  )
-  (func $sum_strings (param $xs i32) (result i32 i32) (local $t0 i32)
-    ;; 35 |     sum(xs, "")
-    block
-      local.get $xs
-      i32.const 16 ;; &"heap-exhausted"
-      i32.const 0
-      call $"sum[string]"
-      local.set $t0
-      local.set $xs
-    end
-    local.get $xs
-    local.get $t0
-  )
-  (func $neg_tag (param $a.text.0 i32) (param $a.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 26 |     -a
-    block
-      block
-        block
-          i32.const 1
-          local.get $a.text.1
-          i32.add
-          local.tee $t0
-          call $rt:str
-          local.tee $t1
-          local.tee $t2
-          i32.const 65 ;; &"-"
-          i32.load8_u $heap
-          i32.store8 $heap
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.get $a.text.0
-          local.get $a.text.1
-          call $rt:memory_copy/0/0
-          local.get $t1
-          local.get $t0
-          local.set $a.text.1
-          local.set $a.text.0
-          br 0
-        end
-      end
+      local.set $a.text.1
+      local.set $a.text.0
+      br 0
     end
     local.get $a.text.0
     local.get $a.text.1
   )
   (func $"impl Add for Tag.add" (param $self.text.0 i32) (param $self.text.1 i32) (param $rhs.text.0 i32) (param $rhs.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 15 |         Tag { text: self.text + rhs.text }
+    local.get $self.text.1
+    local.get $rhs.text.1
+    i32.add
+    local.tee $t0
+    i32.eqz
+    if (result i32)
+      i32.const 16
+    else
+      local.get $t0
+      call $rt:str
+    end
+    local.tee $t1
+    local.tee $t2
+    local.get $self.text.0
+    local.get $self.text.1
+    call $rt:memory_copy/0/0
+    local.get $t2
+    local.get $self.text.1
+    i32.add
+    local.get $rhs.text.0
+    local.get $rhs.text.1
+    call $rt:memory_copy/0/0
+    local.get $t1
+    local.get $t0
+    local.set $self.text.1
+    local.set $self.text.0
+    local.get $self.text.0
+    local.get $self.text.1
+  )
+  (func $add_tags (param $a.text.0 i32) (param $a.text.1 i32) (param $b.text.0 i32) (param $b.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 23 |     a + b
     block
-      local.get $self.text.1
-      local.get $rhs.text.1
+      local.get $a.text.1
+      local.get $b.text.1
       i32.add
       local.tee $t0
       i32.eqz
@@ -93,205 +116,153 @@
       end
       local.tee $t1
       local.tee $t2
-      local.get $self.text.0
-      local.get $self.text.1
+      local.get $a.text.0
+      local.get $a.text.1
       call $rt:memory_copy/0/0
       local.get $t2
-      local.get $self.text.1
+      local.get $a.text.1
       i32.add
-      local.get $rhs.text.0
-      local.get $rhs.text.1
+      local.get $b.text.0
+      local.get $b.text.1
       call $rt:memory_copy/0/0
       local.get $t1
       local.get $t0
-      local.set $self.text.1
-      local.set $self.text.0
-    end
-    local.get $self.text.0
-    local.get $self.text.1
-  )
-  (func $add_tags (param $a.text.0 i32) (param $a.text.1 i32) (param $b.text.0 i32) (param $b.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 23 |     a + b
-    block
-      block
-        block
-          local.get $a.text.1
-          local.get $b.text.1
-          i32.add
-          local.tee $t0
-          i32.eqz
-          if (result i32)
-            i32.const 16
-          else
-            local.get $t0
-            call $rt:str
-          end
-          local.tee $t1
-          local.tee $t2
-          local.get $a.text.0
-          local.get $a.text.1
-          call $rt:memory_copy/0/0
-          local.get $t2
-          local.get $a.text.1
-          i32.add
-          local.get $b.text.0
-          local.get $b.text.1
-          call $rt:memory_copy/0/0
-          local.get $t1
-          local.get $t0
-          local.set $a.text.1
-          local.set $a.text.0
-          br 0
-        end
-      end
+      local.set $a.text.1
+      local.set $a.text.0
+      br 0
     end
     local.get $a.text.0
     local.get $a.text.1
   )
   (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.0 i32) (local $item.1 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t4 i32)
-    ;; 29 |     let total = zero
-    block
     ;; 30 |     for item in items:
-      local.get $items
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $items
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $item.0
-          i32.load $heap offset=16
-          local.get $item.0
-          i32.load $heap offset=20
-          local.set $item.1
-          local.set $item.0
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+    local.get $items
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $items
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $item.0
+        i32.load $heap offset=16
+        local.get $item.0
+        i32.load $heap offset=20
+        local.set $item.1
+        local.set $item.0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
           block
-            block
-              br 0
-              unreachable
-            end
+            br 0
+            unreachable
+          end
     ;; 31 |         total = total + item
-            block
-              block
-                local.get $zero.0
-                local.get $zero.1
-                local.set $t2
-                local.set $zero.1
-                block
-                  block
-                    local.get $t2
-                    local.set $t3
-                    br 0
-                  end
-                end
-                local.get $item.0
-                local.tee $t4
-                if
-                  local.get $t4
-                  call $retain
-                end
-                block
-                  block
-                    local.get $item.1
-                    local.set $t5
-                    br 0
-                  end
-                end
-                local.get $t3
-                local.get $t5
-                i32.add
-                local.set $t5
-                block
-                  block
-                    local.get $t5
-                    i32.const 16
-                    local.set $t6
-                    if
-                      local.get $t5
-                      call $rt:str
-                      local.set $t6
-                    end
-                    local.get $t6
-                    local.get $t5
-                    local.set $t6
-                    local.set $t5
-                    br 0
-                  end
-                end
-                block
-                  block
-                    local.get $t5
-                    local.get $zero.1
-                    local.get $t2
-                    call $rt:memory_copy/0/0
-                    br 0
-                  end
-                end
-                block
-                  block
-                    local.get $t5
-                    local.get $t3
-                    i32.add
-                    local.get $item.0
-                    local.get $item.1
-                    call $rt:memory_copy/0/0
-                    br 0
-                  end
-                end
-                local.get $item.0
-                local.tee $t4
-                if
-                  local.get $t4
-                  call $rt:release_ref
-                end
-                local.get $t5
-                local.get $t6
-                local.set $item.0
-                local.set $zero.1
-                br 0
-                local.get $t5
-                local.tee $t4
-                if
-                  local.get $t4
-                  call $rt:release_ref
-                end
-              end
-            end
+          block
             local.get $zero.0
+            local.get $zero.1
+            local.set $t2
+            local.set $zero.1
+            block
+              local.get $t2
+              local.set $t3
+              br 0
+            end
+            local.get $item.0
+            local.tee $t4
+            if
+              local.get $t4
+              call $retain
+            end
+            block
+              local.get $item.1
+              local.set $t5
+              br 0
+            end
+            local.get $t3
+            local.get $t5
+            i32.add
+            local.set $t5
+            block
+              local.get $t5
+              i32.const 16
+              local.set $t6
+              if
+                local.get $t5
+                call $rt:str
+                local.set $t6
+              end
+              local.get $t6
+              local.get $t5
+              local.set $t6
+              local.set $t5
+              br 0
+            end
+            block
+              local.get $t5
+              local.get $zero.1
+              local.get $t2
+              call $rt:memory_copy/0/0
+              br 0
+            end
+            block
+              local.get $t5
+              local.get $t3
+              i32.add
+              local.get $item.0
+              local.get $item.1
+              call $rt:memory_copy/0/0
+              br 0
+            end
+            local.get $item.0
             local.tee $t4
             if
               local.get $t4
               call $rt:release_ref
             end
-            local.get $zero.1
-            local.get $item.0
+            local.get $t5
+            local.get $t6
+            local.set $item.0
             local.set $zero.1
-            local.set $zero.0
-    ;; 30 |     for item in items:
             br 0
+            local.get $t5
+            local.tee $t4
+            if
+              local.get $t4
+              call $rt:release_ref
+            end
           end
+          local.get $zero.0
+          local.tee $t4
+          if
+            local.get $t4
+            call $rt:release_ref
+          end
+          local.get $zero.1
+          local.get $item.0
+          local.set $zero.1
+          local.set $zero.0
+    ;; 30 |     for item in items:
           br 0
         end
+        br 0
       end
-    ;; 32 |     total
-      local.get $zero.0
-      local.get $zero.1
-    ;; 29 |     let total = zero
-      local.set $zero.0
-      local.set $items
     end
+    ;; 32 |     total
+    local.get $zero.0
+    local.get $zero.1
+    ;; 29 |     let total = zero
+    local.set $zero.0
+    local.set $items
     local.get $items
     local.get $zero.0
   )

@@ -13,35 +13,33 @@
     block
       block
         block
-          block
     ;; 54 |         .Deleted => +0
-            local.get $slot
-            i32.load $heap
-            local.tee $t0
-            i32.eqz
-            br_if 0
+          local.get $slot
+          i32.load $heap
+          local.tee $t0
+          i32.eqz
+          br_if 0
     ;; 55 |         .Occupied(_, v) => v
-            local.get $t0
-            i32.const 1
-            i32.eq
-            if
-              local.get $slot
-              i32.load $heap offset=8
-              local.set $v
-              br 2
-            else
-              unreachable
-            end
-    ;; 53 |     match slot:
+          local.get $t0
+          i32.const 1
+          i32.eq
+          if
+            local.get $slot
+            i32.load $heap offset=8
+            local.set $v
+            br 2
+          else
             unreachable
           end
-          br 1
+    ;; 53 |     match slot:
+          unreachable
         end
-        br 0
+        br 1
       end
-      local.get $v
-      local.set $slot
+      br 0
     end
+    local.get $v
+    local.set $slot
     local.get $slot
   )
   (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
@@ -75,95 +73,89 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $slot
-      i32.const 1
-      i32.store $heap
-      local.get $slot
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $slot
-      i32.const 3
-      i32.store $heap offset=8
-      local.get $slot
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $slot
+    i32.const 1
+    i32.store $heap
+    local.get $slot
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $slot
+    i32.const 3
+    i32.store $heap offset=8
+    local.get $slot
     ;; 59 |     scalar_value(&slot) + scalar_value(&slot)
+    local.set $t1
+    block
+      block
+        block
+          block
+            local.get $t1
+            i32.load $heap
+            local.tee $t2
+            i32.eqz
+            br_if 0
+            local.get $t2
+            i32.const 1
+            i32.eq
+            if
+              local.get $t1
+              i32.load $heap offset=8
+              local.set $t3
+              br 2
+            else
+              unreachable
+            end
+            unreachable
+          end
+          br 1
+        end
+        br 0
+      end
+      local.get $t3
       local.set $t1
-      block
-        block
-          block
-            block
-              block
-                local.get $t1
-                i32.load $heap
-                local.tee $t2
-                i32.eqz
-                br_if 0
-                local.get $t2
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t1
-                  i32.load $heap offset=8
-                  local.set $t3
-                  br 2
-                else
-                  unreachable
-                end
-                unreachable
-              end
-              br 1
-            end
-            br 0
-          end
-          local.get $t3
-          local.set $t1
-          br 0
-        end
-      end
-      block
-        block
-          block
-            block
-              block
-                local.get $slot
-                i32.load $heap
-                local.tee $t3
-                i32.eqz
-                br_if 0
-                local.get $t3
-                i32.const 1
-                i32.eq
-                if
-                  local.get $slot
-                  i32.load $heap offset=8
-                  local.set $t4
-                  br 2
-                else
-                  unreachable
-                end
-                unreachable
-              end
-              br 1
-            end
-            br 0
-          end
-          local.get $t4
-          local.set $slot
-          br 0
-        end
-      end
-      local.get $t1
-      local.get $slot
-      i32.add
-    ;; 58 |     slot := Slot.Occupied(1, +3)
-      local.set $slot
+      br 0
     end
+    block
+      block
+        block
+          block
+            local.get $slot
+            i32.load $heap
+            local.tee $t3
+            i32.eqz
+            br_if 0
+            local.get $t3
+            i32.const 1
+            i32.eq
+            if
+              local.get $slot
+              i32.load $heap offset=8
+              local.set $t4
+              br 2
+            else
+              unreachable
+            end
+            unreachable
+          end
+          br 1
+        end
+        br 0
+      end
+      local.get $t4
+      local.set $slot
+      br 0
+    end
+    local.get $t1
+    local.get $slot
+    i32.add
+    ;; 58 |     slot := Slot.Occupied(1, +3)
+    local.set $slot
     local.get $slot
     local.get $t0
     i32.const 24
@@ -171,177 +163,159 @@
     global.set $locals
   )
   (func $copied_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 f64) (local $t3 f64)
-    ;; 25 |     let total = 0.0
-    block
     ;; 26 |     for i in 0..xs.len():
-      local.get $xs
-      i32.load $heap
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $i
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
     ;; 27 |         total += xs.get(i).unwrap_or(0.0)
-          local.get $xs
-          local.get $i
-          call $"impl[T] List[T].get[f64]"
-          local.set $t2
-          local.set $i
+        local.get $xs
+        local.get $i
+        call $"impl[T] List[T].get[f64]"
+        local.set $t2
+        local.set $i
+        block
           block
             block
               block
-                block
-                  block
-                    local.get $i
-                    i32.const 1
-                    i32.eq
-                    if
-                      br 1
-                    else
-                      local.get $i
-                      i32.eqz
-                      br_if 2
-                      unreachable
-                    end
-                    unreachable
-                  end
+                local.get $i
+                i32.const 1
+                i32.eq
+                if
                   br 1
+                else
+                  local.get $i
+                  i32.eqz
+                  br_if 2
+                  unreachable
                 end
-                local.get $t3
-                local.set $t2
-                br 0
+                unreachable
               end
-              br 0
+              br 1
             end
+            local.get $t3
+            local.set $t2
+            br 0
           end
-          local.get $total
-          local.get $t2
-          f64.add
-          local.set $total
-    ;; 26 |     for i in 0..xs.len():
           br 0
         end
+        local.get $total
+        local.get $t2
+        f64.add
+        local.set $total
+    ;; 26 |     for i in 0..xs.len():
+        br 0
       end
-    ;; 25 |     let total = 0.0
     end
+    ;; 25 |     let total = 0.0
     local.get $total
   )
   (func $loan_explicit_user (param $value i32) (result i32)
     ;; 43 |     explicit_loan(value)
-    block
-      local.get $value
-      call $explicit_loan
-      local.set $value
-    end
+    local.get $value
+    call $explicit_loan
+    local.set $value
     local.get $value
   )
   (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 f64)
-    ;; 18 |     let total = 0.0
-    block
     ;; 19 |     for i in 0..xs.len():
-      block
+    block
+      local.get $xs
+      i32.load $heap offset=8
+      local.set $t0
+      br 0
+    end
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 20 |         total += xs.get(i).unwrap_or(0.0)
+        local.set $t2
         block
+          local.get $t2
           local.get $xs
           i32.load $heap offset=8
-          local.set $t0
-          br 0
-        end
-      end
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-    ;; 20 |         total += xs.get(i).unwrap_or(0.0)
-          local.set $t2
-          block
+          i32.ge_u
+          if (result i32)
+            i32.const 0
+            f64.const 0x0p+0
+            local.set $t3
+          else
+            local.get $xs
+            local.set $t4
             block
+              local.get $t4
+              i32.load $heap
               local.get $t2
-              local.get $xs
-              i32.load $heap offset=8
-              i32.ge_u
-              if (result i32)
-                i32.const 0
-                f64.const 0x0p+0
-                local.set $t3
-              else
-                local.get $xs
-                local.set $t4
-                block
-                  block
-                    local.get $t4
-                    i32.load $heap
-                    local.get $t2
-                    i32.const 8
-                    i32.mul
-                    i32.add
-                    local.set $t2
-                    br 0
-                  end
-                end
-                i32.const 1
-                local.get $t2
-                f64.load $heap
-                local.set $t3
-              end
+              i32.const 8
+              i32.mul
+              i32.add
               local.set $t2
               br 0
             end
+            i32.const 1
+            local.get $t2
+            f64.load $heap
+            local.set $t3
           end
+          local.set $t2
+          br 0
+        end
+        block
           block
             block
               block
-                block
-                  block
-                    local.get $t2
-                    i32.const 1
-                    i32.eq
-                    if
-                      br 1
-                    else
-                      local.get $t2
-                      i32.eqz
-                      br_if 2
-                      unreachable
-                    end
-                    unreachable
-                  end
+                local.get $t2
+                i32.const 1
+                i32.eq
+                if
                   br 1
+                else
+                  local.get $t2
+                  i32.eqz
+                  br_if 2
+                  unreachable
                 end
-                local.get $t5
-                local.set $t3
-                br 0
+                unreachable
               end
-              br 0
+              br 1
             end
+            local.get $t5
+            local.set $t3
+            br 0
           end
-          local.get $total
-          local.get $t3
-          f64.add
-          local.set $total
-    ;; 19 |     for i in 0..xs.len():
           br 0
         end
+        local.get $total
+        local.get $t3
+        f64.add
+        local.set $total
+    ;; 19 |     for i in 0..xs.len():
+        br 0
       end
-    ;; 18 |     let total = 0.0
     end
+    ;; 18 |     let total = 0.0
     local.get $total
   )
   (func $explicit_loan (param $value i32) (result i32)
@@ -419,151 +393,68 @@
     local.get $value.1
   )
   (func $user_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 f64)
-    ;; 12 |     let total = 0.0
-    block
     ;; 13 |     for i in 0..xs.len():
-      block
+    block
+      local.get $xs
+      i32.load $heap offset=8
+      local.set $t0
+      br 0
+    end
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 14 |         total += pick(xs.get(i), 0.0)
+        local.set $t2
         block
+          local.get $t2
           local.get $xs
           i32.load $heap offset=8
-          local.set $t0
-          br 0
-        end
-      end
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-    ;; 14 |         total += pick(xs.get(i), 0.0)
-          local.set $t2
-          block
+          i32.ge_u
+          if (result i32)
+            i32.const 0
+            f64.const 0x0p+0
+            local.set $t3
+          else
+            local.get $xs
+            local.set $t4
             block
+              local.get $t4
+              i32.load $heap
               local.get $t2
-              local.get $xs
-              i32.load $heap offset=8
-              i32.ge_u
-              if (result i32)
-                i32.const 0
-                f64.const 0x0p+0
-                local.set $t3
-              else
-                local.get $xs
-                local.set $t4
-                block
-                  block
-                    local.get $t4
-                    i32.load $heap
-                    local.get $t2
-                    i32.const 8
-                    i32.mul
-                    i32.add
-                    local.set $t2
-                    br 0
-                  end
-                end
-                i32.const 1
-                local.get $t2
-                f64.load $heap
-                local.set $t3
-              end
+              i32.const 8
+              i32.mul
+              i32.add
               local.set $t2
               br 0
             end
+            i32.const 1
+            local.get $t2
+            f64.load $heap
+            local.set $t3
           end
-          block
-            block
-              block
-                block
-                  block
-                    local.get $t2
-                    i32.const 1
-                    i32.eq
-                    if
-                      br 1
-                    else
-                      local.get $t2
-                      i32.eqz
-                      br_if 2
-                      unreachable
-                    end
-                    unreachable
-                  end
-                  br 1
-                end
-                local.get $t5
-                local.set $t3
-                br 0
-              end
-              br 0
-            end
-          end
-          local.get $total
-          local.get $t3
-          f64.add
-          local.set $total
-    ;; 13 |     for i in 0..xs.len():
+          local.set $t2
           br 0
         end
-      end
-    ;; 12 |     let total = 0.0
-    end
-    local.get $total
-  )
-  (func $map_value (param $values i32) (param $key i32) (result f64) (local $t0 f64) (local $t1 f64)
-    ;; 31 |     values.get(key).unwrap_or(0.0)
-    block
-      local.get $values
-      i32.load $heap
-      local.tee $values
-      local.get $key
-      call $rt:map_hash
-      local.get $key
-      call $rt:map_find
-      local.tee $key
-      i32.const 0
-      i32.ge_s
-      if (result i32)
-        i32.const 1
-        local.get $values
-        local.get $values
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $key
-        i32.const 16
-        i32.mul
-        i32.add
-        f64.load $heap
-        local.set $t0
-      else
-        i32.const 0
-      end
-      local.set $values
-      block
         block
           block
             block
               block
-                local.get $values
+                local.get $t2
                 i32.const 1
                 i32.eq
                 if
-                  local.get $t0
-                  local.set $t1
                   br 1
                 else
-                  local.get $values
+                  local.get $t2
                   i32.eqz
                   br_if 2
                   unreachable
@@ -572,25 +463,91 @@
               end
               br 1
             end
+            local.get $t5
+            local.set $t3
             br 0
           end
-          local.get $t1
-          local.set $t0
           br 0
         end
+        local.get $total
+        local.get $t3
+        f64.add
+        local.set $total
+    ;; 13 |     for i in 0..xs.len():
+        br 0
       end
+    end
+    ;; 12 |     let total = 0.0
+    local.get $total
+  )
+  (func $map_value (param $values i32) (param $key i32) (result f64) (local $t0 f64) (local $t1 f64)
+    ;; 31 |     values.get(key).unwrap_or(0.0)
+    local.get $values
+    i32.load $heap
+    local.tee $values
+    local.get $key
+    call $rt:map_hash
+    local.get $key
+    call $rt:map_find
+    local.tee $key
+    i32.const 0
+    i32.ge_s
+    if (result i32)
+      i32.const 1
+      local.get $values
+      local.get $values
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $key
+      i32.const 16
+      i32.mul
+      i32.add
+      f64.load $heap
+      local.set $t0
+    else
+      i32.const 0
+    end
+    local.set $values
+    block
+      block
+        block
+          block
+            local.get $values
+            i32.const 1
+            i32.eq
+            if
+              local.get $t0
+              local.set $t1
+              br 1
+            else
+              local.get $values
+              i32.eqz
+              br_if 2
+              unreachable
+            end
+            unreachable
+          end
+          br 1
+        end
+        br 0
+      end
+      local.get $t1
+      local.set $t0
+      br 0
     end
     local.get $t0
   )
   (func $loan_value (param $value i32) (result i32)
     ;; 35 |     value.expect("value")
-    block
-      local.get $value
-      i32.const 65 ;; &"value"
-      i32.const 5
-      call $"impl[T < ?Copy] T?.expect[&string]"
-      local.set $value
-    end
+    local.get $value
+    i32.const 65 ;; &"value"
+    i32.const 5
+    call $"impl[T < ?Copy] T?.expect[&string]"
+    local.set $value
     local.get $value
   )
 )

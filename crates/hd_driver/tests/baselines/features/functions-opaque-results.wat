@@ -9,18 +9,14 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $names (param $xs i32) (result i32 i32)
     ;; 7 |     xs.iter()
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       local.get $xs
-      i32.load $heap
+      call $rt:coll_copy
       local.set $xs
-      block
-        block
-          local.get $xs
-          call $rt:coll_copy
-          local.set $xs
-          br 0
-        end
-      end
+      br 0
     end
     local.get $xs
     i32.const 0
@@ -56,87 +52,83 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
     ;; 11 |     for x in names(&xs):
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $xs
-      i32.store $heap
-      local.get $t1
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t1
-      local.tee $xs
-      local.set $t1
-      block
-        loop
-          local.get $t1
-          call $"impl[T] Iterator[T] for ListIter[T].next[string]"
-          local.set $x.1
-          local.set $t2
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $xs
+    i32.store $heap
+    local.get $t1
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $t1
+    local.tee $xs
+    local.set $t1
+    block
+      loop
+        local.get $t1
+        call $"impl[T] Iterator[T] for ListIter[T].next[string]"
+        local.set $x.1
+        local.set $t2
+        block
           block
             block
-              block
-                local.get $t2
-                i32.eqz
-                br_if 1
-                br 0
-                unreachable
-              end
-    ;; 12 |         n += x.len()
-              block
-                block
-                  local.get $x.1
-                  local.set $t3
-                  br 0
-                end
-              end
-              local.get $n
-              local.get $t3
-              i32.add
-              local.set $n
-    ;; 11 |     for x in names(&xs):
-              br 1
+              local.get $t2
+              i32.eqz
+              br_if 1
+              br 0
+              unreachable
             end
-            local.get $t2
-            local.get $x.1
-            call $rt:release
-            br 2
-            br 0
+    ;; 12 |         n += x.len()
+            block
+              local.get $x.1
+              local.set $t3
+              br 0
+            end
+            local.get $n
+            local.get $t3
+            i32.add
+            local.set $n
+    ;; 11 |     for x in names(&xs):
+            br 1
           end
           local.get $t2
           local.get $x.1
           call $rt:release
+          br 2
           br 0
         end
+        local.get $t2
+        local.get $x.1
+        call $rt:release
+        br 0
       end
+    end
     ;; 10 |     let n: usize = 0
+    local.get $xs
+    if
       local.get $xs
+      i32.load $heap
+      local.tee $xs
       if
         local.get $xs
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $xs
         if
           local.get $xs
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $xs
-            call $rt:release_ref
-          end
+          call $rt:release_ref
         end
       end
-    ;; 13 |     n
-      local.get $n
-    ;; 10 |     let n: usize = 0
-      local.set $xs
     end
+    ;; 13 |     n
+    local.get $n
+    ;; 10 |     let n: usize = 0
+    local.set $xs
     local.get $xs
     local.get $t0
     i32.const 16

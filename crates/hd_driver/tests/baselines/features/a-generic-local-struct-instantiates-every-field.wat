@@ -41,102 +41,92 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
     ;; 14 |     number := make(+7)
-      i32.const 0
-      i32.const 7
-      i32.const 0
-      i32.const 4
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $t1
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t2
-      local.get $t1
-      i32.store $heap
-      local.get $t2
+    i32.const 0
+    i32.const 7
+    i32.const 0
+    i32.const 4
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.set $t1
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t2
+    local.get $t1
+    i32.store $heap
+    local.get $t2
     ;; 15 |     println("${number.item}")
-      i32.load $heap
-      i64.extend_i32_s
-      local.tee $t3
-      local.set $t4
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t3
+    local.set $t4
+    block
       block
-        block
-          block
-            block
-              local.get $t4
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t1
-              local.get $t4
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t5
-              else
-              end
-              local.get $t1
-              i64.extend_i32_u
-              local.get $t5
-              i64.extend_i32_u
-              i64.add
-              local.tee $t4
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t4
-              i32.wrap_i64
-              local.set $t1
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t1
-          local.tee $t2
-          i32.const 16
+        local.get $t4
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t1
+        local.get $t4
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
           local.set $t5
-          if
-            local.get $t2
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t2
-          local.set $t5
-          local.set $t2
-          br 0
+        else
         end
-      end
-      block
-        block
-          local.get $t3
-          local.get $t2
-          local.get $t1
-          call $write_signed_sized
-          br 0
+        local.get $t1
+        i64.extend_i32_u
+        local.get $t5
+        i64.extend_i32_u
+        i64.add
+        local.tee $t4
+        i64.const 4294967295
+        i64.gt_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $t4
+        i32.wrap_i64
+        local.set $t1
+        br 0
       end
-    ;; 11 |     fn make[N](value: N) -> Box[N]:
-      local.get $t2
-      local.get $t5
-    ;; 15 |     println("${number.item}")
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 11 |     fn make[N](value: N) -> Box[N]:
+      br 0
     end
+    block
+      local.get $t1
+      local.tee $t2
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t2
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t2
+      local.set $t5
+      local.set $t2
+      br 0
+    end
+    block
+      local.get $t3
+      local.get $t2
+      local.get $t1
+      call $write_signed_sized
+      br 0
+    end
+    ;; 11 |     fn make[N](value: N) -> Box[N]:
+    local.get $t2
+    local.get $t5
+    ;; 15 |     println("${number.item}")
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 11 |     fn make[N](value: N) -> Box[N]:
     local.get $t0
     i32.const 16
     i32.add
@@ -144,8 +134,6 @@
   )
   (func $"main#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32)
     ;; 11 |     fn make[N](value: N) -> Box[N]:
-    block
-    end
     local.get $value
   )
 )

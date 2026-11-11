@@ -6,64 +6,60 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $store (param $target i32) (param $replacement.label.0 i32) (param $replacement.label.1 i32) (param $replacement.tags i32) (param $replacement.id i64) (param $replacement.weight f64)
     ;; 13 |     *target = replacement
-    block
-      local.get $target
-      i32.load $heap
-      local.get $target
-      i32.load $heap offset=4
-      local.get $target
-      i32.load $heap offset=24
-      local.get $target
-      i64.load $heap offset=8
-      local.get $target
-      f64.load $heap offset=16
-      local.get $target
-      local.get $replacement.label.0
-      i32.store $heap
-      local.get $target
-      local.get $replacement.label.1
-      i32.store $heap offset=4
-      local.get $target
-      local.get $replacement.tags
-      i32.store $heap offset=24
-      local.get $target
-      local.get $replacement.id
-      i64.store $heap offset=8
-      local.get $target
-      local.get $replacement.weight
-      f64.store $heap offset=16
-      call $rt:release
-    end
+    local.get $target
+    i32.load $heap
+    local.get $target
+    i32.load $heap offset=4
+    local.get $target
+    i32.load $heap offset=24
+    local.get $target
+    i64.load $heap offset=8
+    local.get $target
+    f64.load $heap offset=16
+    local.get $target
+    local.get $replacement.label.0
+    i32.store $heap
+    local.get $target
+    local.get $replacement.label.1
+    i32.store $heap offset=4
+    local.get $target
+    local.get $replacement.tags
+    i32.store $heap offset=24
+    local.get $target
+    local.get $replacement.id
+    i64.store $heap offset=8
+    local.get $target
+    local.get $replacement.weight
+    f64.store $heap offset=16
+    call $rt:release
   )
   (func $copy (param $source i32) (result i32 i32 i32 i64 f64) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 f64)
     ;; 10 |     *source
-    block
-      local.get $source
-      i32.load $heap
-      local.tee $t0
-      local.get $source
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $source
-      i32.load $heap offset=24
-      local.get $source
-      i64.load $heap offset=8
-      local.set $t2
-      local.get $source
-      f64.load $heap offset=16
-      local.set $t3
-      call $rt:coll_copy
-      local.tee $source
-      local.get $t2
-      local.get $t3
-      call $rt:retain
-      local.get $t0
-      local.get $t1
-      local.get $source
-      local.set $t1
-      local.set $t0
-      local.set $source
-    end
+    local.get $source
+    i32.load $heap
+    local.tee $t0
+    local.get $source
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $source
+    i32.load $heap offset=24
+    local.get $source
+    i64.load $heap offset=8
+    local.set $t2
+    local.get $source
+    f64.load $heap offset=16
+    local.set $t3
+    call $rt:coll_copy
+    local.tee $source
+    local.get $t2
+    local.get $t3
+    call $rt:retain
+    local.get $t0
+    local.get $t1
+    local.get $source
+    local.set $t1
+    local.set $t0
+    local.set $source
     local.get $source
     local.get $t0
     local.get $t1

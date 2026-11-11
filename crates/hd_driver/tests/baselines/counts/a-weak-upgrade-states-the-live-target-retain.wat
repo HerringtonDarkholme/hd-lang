@@ -4,22 +4,20 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $writable (param $value i32) (result i32) (local $t0 i32)
     ;; 23 |     upgrade_mut(value)
-    block
+    local.get $value
+    i32.load $heap
+    local.tee $value
+    if
       local.get $value
-      i32.load $heap
-      local.tee $value
+      local.tee $t0
       if
-        local.get $value
-        local.tee $t0
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
         if
           local.get $t0
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t0
-            call $rt:retain_known
-          end
+          call $rt:retain_known
         end
       end
     end
@@ -27,22 +25,20 @@
   )
   (func $readonly (param $value i32) (result i32) (local $t0 i32)
     ;; 20 |     upgrade(value)
-    block
+    local.get $value
+    i32.load $heap
+    local.tee $value
+    if
       local.get $value
-      i32.load $heap
-      local.tee $value
+      local.tee $t0
       if
-        local.get $value
-        local.tee $t0
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
         if
           local.get $t0
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t0
-            call $rt:retain_known
-          end
+          call $rt:retain_known
         end
       end
     end

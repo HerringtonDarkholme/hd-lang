@@ -7,76 +7,66 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $ask (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 18 |     $.use(Namer).name().len()
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0.vtable
+    local.set $provider0
     block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0.vtable
-      local.set $provider0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.get $provider0.vtable
-      local.set $provider0
+      br 0
     end
+    local.get $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.get $provider0.vtable
+    local.set $provider0
     local.get $provider0
   )
   (func $install (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 21 |     f := box(Fixed { n: s })
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $s.0
-      i32.store $heap
-      local.get $t0
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t0
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $s.0
+    i32.store $heap
+    local.get $t0
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t0
     ;; 22 |     $.with(Namer=f):
-      local.set $s.0
-      i32.const 160 ;; &vtable[func37]
-      local.set $s.1
-      block
+    local.set $s.0
+    i32.const 160 ;; &vtable[func37]
+    local.set $s.1
     ;; 23 |         ask()
-        local.get $s.0
-        local.get $s.1
-        call $ask
+    local.get $s.0
+    local.get $s.1
+    call $ask
     ;; 22 |     $.with(Namer=f):
-        local.set $s.0
-      end
+    local.set $s.0
     ;; 21 |     f := box(Fixed { n: s })
+    local.get $t0
+    if
       local.get $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
+      call $rt:release_ref
     end
     local.get $s.0
   )
   (func $"impl Namer for Fixed.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |         self.n
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0

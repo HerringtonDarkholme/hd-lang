@@ -7,13 +7,11 @@
     i32.const 4
     local.set $t1
     block
-      block
-        local.get $t0
-        local.get $t1
-        i32.eq
-        local.set $t0
-        br 0
-      end
+      local.get $t0
+      local.get $t1
+      i32.eq
+      local.set $t0
+      br 0
     end
     local.get $t0
   )
