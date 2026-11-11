@@ -11,89 +11,45 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $sql (param $t.raw_parts i32) (param $t.values i32) (result i32 i32)
     ;; 22 |     Query { text: t.raw_parts, params: t.values }
     local.get $t.raw_parts
     local.get $t.values
   )
-  (func $suffixed (result i32 i32) (local $t1 i32) (local $t4 i32) (local $t0 i32) (local $t2 i64) (local $t3 i32)
+  (func $suffixed (result i32 i32) (local $t1 i32) (local $t3 i32) (local $t0 i64) (local $t2 i32)
     ;; 29 |     12lbl
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $locals
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $t1
     i64.const 12
-    i64.store $heap
+    local.set $t0
     block
-      local.get $t1
-      i64.load $heap
-      local.tee $t2
+      local.get $t0
       call $"impl StringBuilder.signed_width"
       local.set $t1
       i32.const 1
       local.get $t1
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t3
-      local.tee $t4
-      local.get $t3
+      local.set $t2
+      local.tee $t3
+      local.get $t2
       i32.const 0
       i32.const 65 ;; &"#"
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t4
       local.get $t3
-      i32.const 1
       local.get $t2
+      i32.const 1
+      local.get $t0
       local.get $t1
       call $"impl StringBuilder.value_signed"
-      local.get $t4
       local.get $t3
-      local.set $t4
+      local.get $t2
+      local.set $t3
       local.set $t1
       br 0
     end
     local.get $t1
-    local.get $t4
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $locals
+    local.get $t3
   )
   (func $tag (param $t.raw_parts i32) (param $t.values i32) (result i32)
     ;; 26 |     t.raw_parts.len() + t.values.len()
@@ -190,119 +146,75 @@
     local.get $t0
     local.get $t1
   )
-  (func $lbl (param $t1 i64) (result i32 i32) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t2 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $lbl (param $n i64) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 18 |     Label { text: "#${n}" }
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $locals
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $n
-    local.get $t1
-    i64.store $heap
     local.get $n
-    i64.load $heap
-    local.tee $t1
-    local.set $t2
+    local.set $t0
     block
       block
-        local.get $t2
+        local.get $t0
         call $signed_magnitude
         call $unsigned_width
-        local.set $n
-        local.get $t2
+        local.set $t1
+        local.get $t0
         i64.const 0
         i64.lt_s
         if
           i32.const 1
-          local.set $t3
+          local.set $t2
         else
         end
-        local.get $n
-        local.get $t3
+        local.get $t1
+        local.get $t2
         i32.add
-        local.set $n
+        local.set $t1
         br 0
       end
       br 0
     end
     i32.const 1
-    local.tee $t3
-    local.get $n
+    local.tee $t2
+    local.get $t1
     i32.add
-    local.set $t4
+    local.set $t3
     block
-      local.get $t4
+      local.get $t3
       i32.const 16
-      local.set $t5
-      if
-        local.get $t4
-        call $rt:str
-        local.set $t5
-      end
-      local.get $t5
-      local.get $t4
-      local.set $t5
       local.set $t4
+      if
+        local.get $t3
+        call $rt:str
+        local.set $t4
+      end
+      local.get $t4
+      local.get $t3
+      local.set $t4
+      local.set $t3
       br 0
     end
     i32.const 65 ;; &"#"
-    local.set $t6
+    local.set $t5
     block
-      local.get $t4
-      local.get $t6
+      local.get $t3
+      local.get $t5
       i32.load8_u $heap
       i32.store8 $heap
       br 0
     end
     block
-      local.get $t1
-      local.get $t4
-      local.get $t3
-      i32.add
       local.get $n
+      local.get $t3
+      local.get $t2
+      i32.add
+      local.get $t1
       call $write_signed_sized
       br 0
     end
-    local.get $t4
-    local.get $t5
-    local.set $t3
-    local.set $n
-    local.get $n
     local.get $t3
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $locals
+    local.get $t4
+    local.set $t2
+    local.set $t1
+    local.get $t1
+    local.get $t2
   )
 )

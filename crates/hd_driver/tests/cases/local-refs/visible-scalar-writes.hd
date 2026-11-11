@@ -1,0 +1,35 @@
+# @dump: own wat
+# @build: v8 release
+# expected: visible scalar reference aliases become direct field accesses;
+# no shadow-stack frame is needed. Observed addresses keep their storage.
+use std.annotation.{cold, inline}
+
+struct State:
+    word: i32
+    salt: i32
+
+@inline(.Always)
+fn mix(state: &mut State, value: i32) -> void:
+    state.word = state.word * 3 + value
+    state.salt += value
+
+fn visible(value: i32) -> i32:
+    let mut state = State { word: +5, salt: +7 }
+    reference := &mut state
+    alias := reference
+    mix(alias, value)
+    state.word + state.salt
+
+@cold
+fn observe(state: &State) -> i32:
+    state.word
+
+fn observed(value: i32) -> i32:
+    let mut state = State { word: value, salt: +7 }
+    observe(&state)
+
+fn identity(value: i32) -> bool:
+    let mut state = State { word: value, salt: +7 }
+    first := &state
+    second := &state
+    first is second

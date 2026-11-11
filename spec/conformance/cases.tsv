@@ -4873,6 +4873,7 @@ runtime/panic/inlined-reference-parameter-holds-a-shared-variable-panics.hd	runt
 runtime/panic/small-mut-parameter-in-a-loop-holds-its-call-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/valid/reference-identity-same-place.hd	runtime	accept	lang/13-values-and-references.md#r-ref.identity.same-place
 runtime/valid/reference-identity-fields.hd	runtime	accept	lang/13-values-and-references.md#r-ref.identity.places
+runtime/valid/visible-local-reference-writes-preserve-values-and-addresses.hd	runtime	accept	lang/13-values-and-references.md#r-ref.local.argument
 runtime/valid/reference-optional.hd	runtime	accept	lang/13-values-and-references.md#r-ref.identity.optional
 typing/invalid/reference-equality.hd	type	reject:reference-equality	lang/13-values-and-references.md#r-ref.identity.no-equality
 typing/invalid/reference-inequality.hd	type	reject:reference-equality	lang/13-values-and-references.md#r-ref.identity.no-equality

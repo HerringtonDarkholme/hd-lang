@@ -57,10 +57,8 @@ impl[T] HasFacts for T by Structure:
 >   local $0 self: Record [param read captured] place
 >   local $1 reader: Reader[Record] [read assigned captured captured-assigned] place
 >   local $2 self: &Record value
->     uses $2: %5 -> %7 lend last
->   local $3 p: &mut Reader[Record] value
->     uses $3: %6 -> %9 consume, %32 consume last
->   %0 = Retain %72 Entry local $0 #0 : ()
+>     uses $2: %4 -> %5 lend last
+>   %0 = Retain %60 Entry local $0 #0 : ()
 > app/main/impl[T] HasFacts for T by Structure.has_facts
 >   local $0 self: T [param read captured] place
 >   local $1 reader: Reader[T] [read assigned captured captured-assigned] place
@@ -68,21 +66,17 @@ impl[T] HasFacts for T by Structure:
         let mut reader = Reader::[T] { found: false }
 >   %1 = NewStruct [0:bool] : Reader[Record]
 >   %2 = Store [$1] %1 : ()
->   %72 = Block %70 : bool
+>   %60 = Block %59 : bool
 >   %1 = NewStruct [0:bool] : Reader[T]
 >   %2 = Store [$1] %1 : ()
 >   %11 = Block %9 : bool
         _ := Structure::walk(&self, &mut reader)
 >   %3 = Ref local frame [$0] : &Record
->   %4 = Ref mut local frame [$1] : &mut Reader[Record]
->   %5 = Store [$2] %3 : ()
->   %6 = Store [$3] %4 : ()
->   %64 = Break L4 %63 : never
->   %66 = Scope %65 [] : Result[(), never]
->   %67 = LoanEnd [$3] : ()
->   %68 = LoanEnd [$2] : ()
->   %69 = Drop [$0] : ()
->   %4 finds [$1] full
+>   %4 = Store [$2] %3 : ()
+>   %54 = Break L4 %53 : never
+>   %56 = Scope %55 [] : Result[(), never]
+>   %57 = LoanEnd [$2] : ()
+>   %58 = Drop [$0] : ()
 >   %3 = Ref local frame [$0] : &T
 >   %4 = Ref mut local frame [$1] : &mut Reader[T]
 >   %5 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%3, %4) : Result[(), never]
@@ -91,11 +85,9 @@ impl[T] HasFacts for T by Structure:
 >   %8 = Drop [$0] : ()
 >   %4 finds [$1] full
         reader.found
->   %70 = Read copy [$1 .found] : bool
->   %71 = Drop [$1] : ()
->   %70 finds [$1] full
+>   %59 = Read copy [$1 .found] : bool
 >   exit sub 0 drops [$0]
->   storage sub 0: $0 slot, $1 slot
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 >   %9 = Read copy [$1 .found] : bool
 >   %10 = Drop [$1] : ()

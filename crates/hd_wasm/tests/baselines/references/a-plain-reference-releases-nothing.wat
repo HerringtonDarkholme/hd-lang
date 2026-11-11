@@ -2,65 +2,14 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $slot (result i32) (local $t1 i32) (local $t0 i32)
-    ;; 17 |     let mut n = +1
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $locals
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $t1
-    i32.const 1
-    i32.store $heap
-    local.get $t1
+  (func $slot (result i32) (local $t0 i32)
     ;; 19 |     *r = +2
     i32.const 2
-    i32.store $heap
     ;; 17 |     let mut n = +1
-    local.get $t1
-    ;; 20 |     n
-    i32.load $heap
-    ;; 17 |     let mut n = +1
-    local.set $t1
-    local.get $t1
+    local.set $t0
     local.get $t0
-    i32.const 16
-    i32.add
-    global.set $locals
   )
   (func $set (param $xs i32) (param $i i32) (param $v i32)
     ;; 8 |     match xs.get_mut(i):

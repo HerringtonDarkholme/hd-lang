@@ -11,82 +11,78 @@ use std.annotation.{InlineHint, cold, inline}
 fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
->   local $0 at: usize [param read captured] place
+>   local $0 at: usize [param read captured] value
+>     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
->     uses $1: %39 -> %44 lend last
+>     uses $1: %36 -> %41 lend last
 >   local $2 offset: usize [read] value
->     uses $2: %40 -> %46 lend last
+>     uses $2: %37 -> %43 lend last
 >   local $3 value: u64 [read] value
->     uses $3: %41 -> %43 lend last
+>     uses $3: %38 -> %40 lend last
 >   local $4 width: usize [read] value
->     uses $4: %42 -> %48 lend last
+>     uses $4: %39 -> %45 lend last
 >   local $5 result: string [read] value
->     uses $5: %20 -> %23 lend last
+>     uses $5: %17 -> %20 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %21 -> %26 lend last
+>     uses $6: %18 -> %23 lend last
 >   local $7 text: string [read] value
->     uses $7: %22 -> %28 lend, %31 lend last
+>     uses $7: %19 -> %25 lend, %28 lend last
 >   local $8 size: usize [read] value
->     uses $8: %13 -> %14 lend last
+>     uses $8: %10 -> %11 lend last
 >   local $9 value: u64 [read] value
->     uses $9: %5 -> %6 lend last
->   %0 = Ref local frame [$0] : &usize
->   %1 = Read copy [*%0] : usize
->   %2 = LoanEnd [%0] : ()
->   %3 = Prim Conv [%1] : u64
->   %4 = Drop [$0] : ()
->   %5 = Store [$9] %3 : ()
->   %6 = Read copy [$9] : u64
->   %7 = Call std/rt.bytes/unsigned_width[] (%6) : usize
->   %8 = Break L3 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Prim Add [0:usize 19:usize] : usize
->   %12 = Prim Add [%11 %10] : usize
->   %13 = Store [$8] %12 : ()
->   %14 = Read copy [$8] : usize
->   %15 = Call std/rt.memory/new_string[] (%14) : string
->   %16 = Break L2 %15 : never
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Read borrow [%18] : string
->   %20 = Store [$5] %19 : ()
->   %21 = Store [$6] 0:usize : ()
->   %22 = Store [$7] "unexpected byte at " : ()
->   %23 = Read borrow [$5] : string
->   %24 = Call std/rt.memory/string_bytes[] (%23) : Ptr[u8]
->   %25 = Read copy [%24 .address] : usize
->   %26 = Read copy [$6] : usize
->   %27 = Prim Add [%25 %26] : usize
+>     uses $9: %2 -> %3 lend last
+>   %0 = Read copy [$0] : usize
+>   %1 = Prim Conv [%0] : u64
+>   %2 = Store [$9] %1 : ()
+>   %3 = Read copy [$9] : u64
+>   %4 = Call std/rt.bytes/unsigned_width[] (%3) : usize
+>   %5 = Break L3 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Prim Add [0:usize 19:usize] : usize
+>   %9 = Prim Add [%8 %7] : usize
+>   %10 = Store [$8] %9 : ()
+>   %11 = Read copy [$8] : usize
+>   %12 = Call std/rt.memory/new_string[] (%11) : string
+>   %13 = Break L2 %12 : never
+>   %14 = Block - : string
+>   %15 = Scope %14 [] : string
+>   %16 = Read borrow [%15] : string
+>   %17 = Store [$5] %16 : ()
+>   %18 = Store [$6] 0:usize : ()
+>   %19 = Store [$7] "unexpected byte at " : ()
+>   %20 = Read borrow [$5] : string
+>   %21 = Call std/rt.memory/string_bytes[] (%20) : Ptr[u8]
+>   %22 = Read copy [%21 .address] : usize
+>   %23 = Read copy [$6] : usize
+>   %24 = Prim Add [%22 %23] : usize
+>   %25 = Read borrow [$7] : string
+>   %26 = Call std/rt.memory/string_bytes[] (%25) : Ptr[u8]
+>   %27 = Read copy [%26 .address] : usize
 >   %28 = Read borrow [$7] : string
->   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
->   %30 = Read copy [%29 .address] : usize
->   %31 = Read borrow [$7] : string
->   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
->   %33 = Call std/rt.memory/copy[] (%27, %30, %32) : ()
->   %34 = Break L1 - : never
->   %35 = Block - : ()
->   %36 = Scope %35 [] : ()
->   %37 = Read borrow [%18] : string
->   %38 = Drop [$7] : ()
->   %39 = Store [$1] %37 : ()
->   %40 = Store [$2] %11 : ()
->   %41 = Store [$3] %3 : ()
->   %42 = Store [$4] %10 : ()
->   %43 = Read copy [$3] : u64
->   %44 = Read borrow [$1] : string
->   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
->   %46 = Read copy [$2] : usize
->   %47 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%45, %46) : Ptr[u8]
->   %48 = Read copy [$4] : usize
->   %49 = Call std/rt.bytes/write_unsigned_sized[] (%43, %47, %48) : ()
->   %50 = Break L0 - : never
->   %51 = Block - : ()
->   %52 = Scope %51 [] : ()
->   %53 = Read move [%18] : string
->   %54 = Block %53 : string
->   exit sub 0 drops [$0]
->   storage sub 0: $0 slot
+>   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %30 = Call std/rt.memory/copy[] (%24, %27, %29) : ()
+>   %31 = Break L1 - : never
+>   %32 = Block - : ()
+>   %33 = Scope %32 [] : ()
+>   %34 = Read borrow [%15] : string
+>   %35 = Drop [$7] : ()
+>   %36 = Store [$1] %34 : ()
+>   %37 = Store [$2] %8 : ()
+>   %38 = Store [$3] %1 : ()
+>   %39 = Store [$4] %7 : ()
+>   %40 = Read copy [$3] : u64
+>   %41 = Read borrow [$1] : string
+>   %42 = Call std/rt.memory/string_bytes[] (%41) : Ptr[u8]
+>   %43 = Read copy [$2] : usize
+>   %44 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%42, %43) : Ptr[u8]
+>   %45 = Read copy [$4] : usize
+>   %46 = Call std/rt.bytes/write_unsigned_sized[] (%40, %44, %45) : ()
+>   %47 = Break L0 - : never
+>   %48 = Block - : ()
+>   %49 = Scope %48 [] : ()
+>   %50 = Read move [%15] : string
+>   %51 = Block %50 : string
 >   summary kept [] writes
 
 @inline(.Never)
