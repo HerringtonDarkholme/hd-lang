@@ -137,7 +137,7 @@ pub fn main() -> void $ Console:
 >   %0 = NewList - [] : List[i64]
 >   %1 = NewStruct [%0 0:usize] : Trail
 >   %2 = Store [$0] %1 : ()
->   %185 = Block - : ()
+>   %186 = Block - : ()
     for i in 0..4:
 >   %3 = NewStruct [0:usize 4:usize 0:bool] : Range[usize]
 >   %4 = Read copy [%3 .start] : usize
@@ -328,8 +328,9 @@ pub fn main() -> void $ Console:
 >   %180 = Break L1 - : never
 >   %181 = Block - : ()
 >   %182 = Scope %181 [] : ()
->   %183 = Read move [%99] : string
->   %184 = Call std/console/println[string] (%183) : ()
+>   %183 = Call std/console/println[string] (%99) : ()
+>   %184 = Retain %183 Operation operand 0 #0 : ()
+>   %185 = Drop [%99] : ()
 >   %36 finds [$0] full
 >   %68 finds [$5] full
 >   storage sub 0: $0 slot, $5 slot

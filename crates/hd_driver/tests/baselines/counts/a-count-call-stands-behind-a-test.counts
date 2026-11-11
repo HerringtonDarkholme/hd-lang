@@ -8,9 +8,14 @@
 # back. `other` holds a string, an address only the page table can place: its
 # calls test null alone. `ring` is cycle-capable, so its release also tests the
 # collector, since a gray object's count can reach 0. No count operation changes.
+# `known` and `other` stay calls, so `dropped` owns what they hand back.
+use std.annotation.inline
+
+@inline(.Never)
 pub fn known(xs: List[string]) -> List[string]:
     xs
 
+@inline(.Never)
 pub fn other(s: string) -> string:
     s
 

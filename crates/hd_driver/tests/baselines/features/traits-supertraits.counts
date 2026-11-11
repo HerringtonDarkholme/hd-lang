@@ -39,11 +39,10 @@ fn widen(d: &dyn Dog) -> usize:
 
 fn loud[T < Dog](d: T) -> usize:
     d.name().len() + d.bark().len()
-> app/main/loud
->   release string (last use)
 
 fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
 > app/main/use_pup
 >   retain app.main.Dog (stored)
 >   release &app.main.Dog (by design)
+>   release app.main.Pup [name.0] (last use)

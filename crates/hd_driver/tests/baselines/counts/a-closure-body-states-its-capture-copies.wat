@@ -5,8 +5,9 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
@@ -167,6 +168,8 @@
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32 i32)
+    local.set $t1
+    local.tee $shared
     ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
@@ -179,13 +182,21 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 23 |     println(keep(original)())
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 22 |     original := word(7)
+    local.get $shared
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
     ;; 24 |     println(keep(+7)())
     i32.const 7
     i32.const 6
@@ -208,7 +219,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 24 |     println(keep(+7)())
@@ -244,7 +255,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 25 |     println(lend(original)())
@@ -303,7 +314,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 27 |     println(keep(shared)().text)
@@ -330,7 +341,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 27 |     println(keep(shared)().text)
@@ -339,6 +350,13 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 22 |     original := word(7)
+    local.get $t1
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
     ;; 28 |     items := [original]
     local.get $original.0
     local.tee $t0
@@ -381,7 +399,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 29 |     println(keep(items)().len())
@@ -398,7 +416,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 29 |     println(keep(items)().len())
@@ -437,7 +455,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 30 |     println(items[0])
@@ -446,6 +464,13 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 22 |     original := word(7)
+    local.get $t1
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
     ;; 31 |     println(shared.text)
     local.get $shared
     i32.load $heap
@@ -464,6 +489,12 @@
     local.get $provider0.vtable
     call $"println[string]"
     ;; 22 |     original := word(7)
+    local.get $items
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
     local.get $shared
     local.tee $t0
     if
@@ -475,7 +506,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 32 |     println(original)
@@ -484,6 +515,13 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    local.get $original.0
+    ;; 22 |     original := word(7)
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
   )
   (func $lend#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 19 |     fn() -> usize: value.len()

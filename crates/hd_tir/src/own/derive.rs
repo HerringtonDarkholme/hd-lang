@@ -197,6 +197,9 @@ pub(crate) struct Tables {
     root_uses: Vec<(u32, u32)>,
     // The counted reads that may keep a count.
     takers: Vec<u32>,
+    // Per label: its wrapper `Scope` ([`wrappers`]), or `NONE`.
+    wrapper: Vec<u32>,
+    scope_of: Vec<u32>,
     back: Flow,
     ops: Vec<super::Operand>,
     stack: Vec<u32>,
@@ -527,6 +530,7 @@ impl Tables {
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     let mut ops = std::mem::take(&mut t.ops);
+    wrappers(b, t);
     for i in 0..n {
         let [a, w] = b.data[i];
         let tag = b.tags[i];
@@ -585,6 +589,17 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 Role::Consume if b.same_value_coercion(i) && t.v[v].alias == NONE => {
                     t.v[v].alias = u32_of(i);
                     false
+                }
+                Role::Consume
+                    if tag == Tag::Break && b.tags[v] == Tag::Read && t.v[v].alias == NONE =>
+                {
+                    let s = t.wrapper[b.data[i][0] as usize];
+                    if s == NONE {
+                        true
+                    } else {
+                        t.v[v].alias = s;
+                        false
+                    }
                 }
                 Role::Consume
                     if tag == Tag::Store && op.at == Loc::Data(1) && t.v[v].stored == NONE =>
@@ -673,6 +688,32 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 t.v[v as usize].keeps = true;
             }
         }
+    }
+}
+
+/// Each label's wrapper `Scope` in `t.wrapper`, `NONE` for none: a
+/// [`Body::wrapper_value`] whose block its last member's `Break` is the
+/// one way out of, as an inlined call's copy is. That `Scope`'s value is
+/// the `Break`'s operand, so a read there is used where the `Scope` is.
+fn wrappers(b: &Body, t: &mut Tables) {
+    let labels = b.label_inst.len();
+    fill(&mut t.wrapper, labels, 0);
+    fill(&mut t.scope_of, b.len(), NONE);
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Break
+            && let Some(c) = t.wrapper.get_mut(b.data[i][0] as usize)
+        {
+            *c += 1;
+        } else if b.wrapper_value(i).is_some() {
+            t.scope_of[b.data[i][0] as usize] = u32_of(i);
+        }
+    }
+    for l in 0..labels {
+        let blk = b.label_inst[l] as usize;
+        t.wrapper[l] = match t.scope_of.get(blk) {
+            Some(&s) if t.wrapper[l] == 1 => s,
+            _ => NONE,
+        };
     }
 }
 

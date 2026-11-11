@@ -28,10 +28,10 @@
   )
   (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32) (local $t0 i32)
     ;; 32 |     d.name().len() + d.bark().len()
-    local.get $d.name.0
-    if
-      local.get $d.name.0
-      call $rt:release_ref
+    block
+      local.get $d.name.1
+      local.set $d.name.0
+      br 0
     end
     block
       i32.const 65 ;; &"woof"
@@ -42,11 +42,11 @@
     end
     block
       local.get $t0
-      local.set $d.name.0
+      local.set $d.name.1
       br 0
     end
-    local.get $d.name.1
     local.get $d.name.0
+    local.get $d.name.1
     i32.add
     local.set $d.name.0
     local.get $d.name.0
@@ -95,31 +95,39 @@
     local.get $t2
     i32.store $heap offset=4
     local.get $p
-    local.tee $t1
+    local.tee $t2
     if
-      local.get $t1
+      local.get $t2
       call $retain
     end
     local.get $p
     i32.const 168 ;; &vtable[func24]
     call $widen
     local.get $p
-    local.tee $t1
+    local.tee $t2
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref
     end
     local.get $p
     i32.load $heap
     local.get $p
     i32.load $heap offset=4
+    local.set $t1
     local.get $p
     i32.const 0
     i32.store $heap
     local.get $p
     i32.const 0
     i32.store $heap offset=4
+    local.tee $t2
+    local.get $t1
     call $"loud[Pup]"
+    local.get $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
     i32.add
     local.set $t1
     local.get $t1

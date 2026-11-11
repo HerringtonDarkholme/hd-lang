@@ -62,18 +62,10 @@
   (func $explicit (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     ;; 27 |     s.Logger.describe().len()
     block
+      local.get $s.Logger.name.1
+      local.set $s.Logger.name.0
       br 0
     end
-    block
-      br 0
-    end
-    local.get $s.Logger.name.0
-    if
-      local.get $s.Logger.name.0
-      call $rt:release_ref
-    end
-    local.get $s.Logger.name.1
-    local.set $s.Logger.name.0
     local.get $s.Logger.name.0
   )
 )

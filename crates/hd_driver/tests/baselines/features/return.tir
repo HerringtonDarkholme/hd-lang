@@ -2,8 +2,11 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: return (#1364).
-# expected: `use_rets` only reads the results, so it takes no count
-# beyond what a callee must hand back as its own result.
+# `use_rets` only reads the results and takes no count (#1365): an
+# inlined copy that returns what it only read hands that borrow on.
+# expected: `ret_param` borrows `s`; out of line it still keeps it and
+# returns it (`kept [$0] returns $0`), so a caller of an uninlined copy
+# counts the argument.
 struct Rec:
     name: string
 

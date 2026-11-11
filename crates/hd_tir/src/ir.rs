@@ -1135,13 +1135,47 @@ impl Body {
     }
 
     /// Whether value `v` is a [`Body::same_value_coercion`] of a `borrow`
-    /// read: a borrow too, which holds no count.
+    /// read, or a [`Body::wrapper_value`] that is one: a borrow too, which
+    /// holds no count.
     #[must_use]
     pub fn is_borrowed_coercion(&self, v: u32) -> bool {
-        Ref(v).as_inst().is_some()
-            && (v as usize) < self.len()
-            && self.same_value_coercion(v as usize)
-            && self.is_borrow(self.data[v as usize][0])
+        self.borrowed_alias(v).is_some()
+    }
+
+    /// The `borrow` read a [`Body::is_borrowed_coercion`] `v` keeps.
+    #[must_use]
+    pub fn borrowed_alias(&self, v: u32) -> Option<u32> {
+        if Ref(v).as_inst().is_none() || v as usize >= self.len() {
+            return None;
+        }
+        let x = if self.same_value_coercion(v as usize) {
+            self.data[v as usize][0]
+        } else {
+            self.wrapper_value(v as usize)?
+        };
+        self.is_borrow(x).then_some(x)
+    }
+
+    /// The value a wrapper `Scope` `s` takes from its block's last
+    /// member, a `Break` to the block, when the block has no tail and the
+    /// `Scope` no cleanup: an inlined call's copy (`crate::inline`). Only
+    /// a block with that one `Break` is a wrapper, which the ownership
+    /// passes check where they rely on it (`own::derive`) and invariant
+    /// 23 checks for each one a borrow goes through.
+    #[must_use]
+    pub fn wrapper_value(&self, s: usize) -> Option<u32> {
+        if self.tags.get(s) != Some(&Tag::Scope) || !self.record(self.data[s][1]).is_empty() {
+            return None;
+        }
+        let blk = self.data[s][0] as usize;
+        if self.tags.get(blk) != Some(&Tag::Block) || self.data[blk][1] != NONE {
+            return None;
+        }
+        let x = *self.record(self.data[blk][0]).last()? as usize;
+        (self.tags.get(x) == Some(&Tag::Break)
+            && self.label_inst.get(self.data[x][0] as usize) == Some(&u32_of(blk))
+            && self.data[x][1] != NONE)
+            .then_some(self.data[x][1])
     }
 
     /// The `borrow` read whose value `v` is, itself or through a
@@ -1152,10 +1186,8 @@ impl Body {
     pub fn loan_read(&self, v: u32) -> Option<u32> {
         if self.is_borrow(v) {
             Some(v)
-        } else if self.is_borrowed_coercion(v) {
-            Some(self.data[v as usize][0])
         } else {
-            None
+            self.borrowed_alias(v)
         }
     }
 

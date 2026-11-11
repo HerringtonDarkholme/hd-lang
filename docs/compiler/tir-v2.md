@@ -211,7 +211,10 @@ place). After the passes, every owned value has exactly one consumer or
 one `Drop`. A coercion that keeps its operand's values (`Weaken`,
 `Variance`, `RowSubsume`, `SuspendFnToCtor`, `Identity`,
 `ProviderAsRef`) is its operand under another type: it takes the
-operand's count, and a coercion of a `borrow` read is a borrow too.
+operand's count, and a coercion of a `borrow` read is a borrow too. So is
+a wrapper `Scope` whose block has no tail and no cleanup and is left only
+by its last member, a `Break` of a `borrow` read: an inlined call's copy
+that returns a value it only read (#1365).
 
 ### Ownership statements
 
@@ -843,7 +846,8 @@ on the place's count. A read borrows when all of these hold over its
 1. **Every use lends.** No consumer needs a count of its own (an owned
    argument, a store, a return). A borrowed value has no count to give.
    A coercion that keeps the value's values passes the read on: the
-   coercion's uses must lend, and the span runs to its last use.
+   coercion's uses must lend, and the span runs to its last use. So does
+   the one `Break` out of a wrapper block, for the wrapper `Scope`.
 2. **Nothing writes an overlapping place.** No `Store`, `Drop`, `move`
    read, `IsUnique` or mutable `Ref` of a place that overlaps the read's
    place stands in the span.

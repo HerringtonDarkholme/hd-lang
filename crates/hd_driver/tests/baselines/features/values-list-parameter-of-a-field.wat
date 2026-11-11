@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
@@ -10,6 +10,7 @@
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -30,7 +31,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i64) (local $t6 i32) (local $t7 i64) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t5 i64) (local $t6 i64) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t4 i32) (local $t10 i32) (local $t11 i32)
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     global.get $locals
     global.get $locals_base
@@ -139,15 +140,15 @@
     if
       local.get $trail
       i32.load $heap
-      local.tee $i
+      local.tee $t4
       if
-        local.get $i
+        local.get $t4
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $i
-          call $rt:release_ref
+          local.get $t4
+          call $rt:release_ref'1
         end
       end
     end
@@ -170,36 +171,36 @@
     i64.load $heap offset=16
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t1
-    local.tee $i
+    local.tee $t4
     if
-      local.get $i
+      local.get $t4
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $i
-        call $rt:release_ref
+        local.get $t4
+        call $rt:release_ref'1
       end
     end
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-    local.tee $t4
-    local.set $t5
+    local.tee $t5
+    local.set $t6
     block
       block
-        local.get $t5
+        local.get $t6
         call $signed_magnitude
         call $unsigned_width
         local.set $t1
-        local.get $t5
+        local.get $t6
         i64.const 0
         i64.lt_s
         if
           i32.const 1
-          local.set $t6
+          local.set $t7
         else
         end
         local.get $t1
-        local.get $t6
+        local.get $t7
         i32.add
         local.set $t1
         br 0
@@ -219,43 +220,43 @@
     end
     local.get $i
     i64.load $heap offset=16
-    local.set $t5
+    local.set $t6
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t2
     if
       local.get $t2
       i32.load $heap
-      local.tee $i
+      local.tee $t4
       if
-        local.get $i
+        local.get $t4
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $i
-          call $rt:release_ref
+          local.get $t4
+          call $rt:release_ref'1
         end
       end
     end
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-    local.get $t5
-    local.set $t7
+    local.get $t6
+    local.set $t8
     block
       block
-        local.get $t7
+        local.get $t8
         call $signed_magnitude
         call $unsigned_width
         local.set $t2
-        local.get $t7
+        local.get $t8
         i64.const 0
         i64.lt_s
         if
           i32.const 1
-          local.set $t8
+          local.set $t9
         else
         end
         local.get $t2
-        local.get $t8
+        local.get $t9
         i32.add
         local.set $t2
         br 0
@@ -268,33 +269,33 @@
     local.tee $i
     local.get $t1
     i32.add
-    local.tee $t6
+    local.tee $t7
     i32.const 1
     i32.add
-    local.tee $t8
+    local.tee $t9
     local.get $t2
     i32.add
-    local.set $t9
+    local.set $t4
     block
-      local.get $t9
+      local.get $t4
       i32.const 16
       local.set $t10
       if
-        local.get $t9
+        local.get $t4
         call $rt:str
         local.set $t10
       end
       local.get $t10
-      local.get $t9
+      local.get $t4
       local.set $t10
-      local.set $t9
+      local.set $t4
       br 0
     end
     local.get $trail
     local.set $t11
     block
       local.get $t3
-      local.get $t9
+      local.get $t4
       local.get $t11
       call $write_unsigned_sized
       br 0
@@ -302,7 +303,7 @@
     i32.const 152 ;; &" "
     local.set $t11
     block
-      local.get $t9
+      local.get $t4
       local.get $trail
       i32.add
       local.get $t11
@@ -311,8 +312,8 @@
       br 0
     end
     block
+      local.get $t5
       local.get $t4
-      local.get $t9
       local.get $i
       i32.add
       local.get $t1
@@ -322,8 +323,8 @@
     i32.const 152 ;; &" "
     local.set $trail
     block
-      local.get $t9
-      local.get $t6
+      local.get $t4
+      local.get $t7
       i32.add
       local.get $trail
       i32.load8_u $heap
@@ -331,22 +332,25 @@
       br 0
     end
     block
-      local.get $t5
+      local.get $t6
+      local.get $t4
       local.get $t9
-      local.get $t8
       i32.add
       local.get $t2
       call $write_signed_sized
       br 0
     end
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
-    local.get $t9
+    local.get $t4
     local.get $t10
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
+    local.get $t4
+    if
+      local.get $t4
+      call $rt:release_ref'2
+    end
     local.get $t0
     i32.const 32
     i32.add

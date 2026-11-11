@@ -4,24 +4,23 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $ret_field (param $r.name.0 i32) (param $r.name.1 i32) (result i32 i32)
-    ;; 13 |     r.name
+    ;; 16 |     r.name
     local.get $r.name.0
     local.get $r.name.1
   )
   (func $ret_param (param $s.0 i32) (param $s.1 i32) (result i32 i32)
-    ;; 10 |     s
+    ;; 13 |     s
     local.get $s.0
     local.get $s.1
   )
   (func $ret_new (param $t1 i64) (result i32 i32) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t2 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; 16 |     "n=${n}"
+    ;; 19 |     "n=${n}"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -136,11 +135,11 @@
     global.set $locals
   )
   (func $ret_ref_field (param $r i32) (result i32)
-    ;; 19 |     &r.name
+    ;; 22 |     &r.name
     local.get $r
   )
-  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t4 i32) (local $t3 i32)
-    ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
+  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t3 i32)
+    ;; 25 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -186,58 +185,26 @@
     i32.load $heap
     local.get $r
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $t2
-    local.tee $t3
-    if
-      local.get $t3
-      call $retain
-    end
+    local.set $t2
+    drop
     block
       local.get $t2
-      local.get $t1
-      local.set $t2
       local.set $t1
       br 0
-    end
-    block
-      br 0
-    end
-    local.get $t1
-    local.tee $t3
-    if
-      local.get $t3
-      call $rt:release_ref
     end
     local.get $r
     i32.load $heap
     local.get $r
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $t4
-    local.tee $t3
-    if
+    local.set $t3
+    drop
+    block
       local.get $t3
-      call $retain
-    end
-    block
-      local.get $t4
-      local.get $t1
-      local.set $t4
-      local.set $t1
-      br 0
-    end
-    block
+      local.set $t2
       br 0
     end
     local.get $t1
-    local.tee $t3
-    if
-      local.get $t3
-      call $rt:release_ref
-    end
     local.get $t2
-    local.get $t4
     i32.add
     local.set $t1
     block
@@ -252,9 +219,9 @@
     if
       local.get $r
       i32.load $heap
-      local.tee $t3
+      local.tee $r
       if
-        local.get $t3
+        local.get $r
         call $rt:release_ref
       end
     end

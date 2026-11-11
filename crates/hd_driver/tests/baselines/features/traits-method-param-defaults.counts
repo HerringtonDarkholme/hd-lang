@@ -23,5 +23,3 @@ fn joined(j: Joiner) -> usize:
 
 fn generic_method(j: Joiner, s: string) -> usize:
     j.tagged(s).len()
-> app/main/generic_method
->   release string (last use)

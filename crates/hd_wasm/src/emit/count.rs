@@ -117,9 +117,14 @@ impl Em<'_, '_, '_> {
                 Tag::Read if self.b.is_borrow(x) => {
                     self.loans.insert(x);
                 }
-                // A coercion of a borrow keeps its value, with no count.
+                // A coercion of a borrow keeps its value, with no count;
+                // so does a wrapper block a borrow breaks out of.
                 Tag::Coerce if self.b.is_borrowed_coercion(x) => {
                     self.loans.insert(x);
+                }
+                Tag::Scope if self.b.is_borrowed_coercion(x) => {
+                    self.loans.insert(x);
+                    self.loans.insert(a);
                 }
                 // A borrowed read or lent field reference stores its loan.
                 Tag::Store if let Some(w) = self.b.loan_read(w) => {

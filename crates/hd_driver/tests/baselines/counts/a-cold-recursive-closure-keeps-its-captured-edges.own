@@ -79,16 +79,16 @@ pub fn main!() -> void $ Console:
 >   local $0 read: fn!(usize) -> string [:= read assigned] value
 >     uses $0: %5 -> %6 lend last
 >   local $1 text: fn!() -> string [:= read assigned] value
->     uses $1: %15 -> %18 lend last
+>     uses $1: %17 -> %20 lend last
 >   local $2 number: fn!() -> i32 [:= read assigned] value
->     uses $2: %17 -> %26 lend last
->   %0 = Retain %34 Cold row #0 : ()
->   %1 = Retain %34 Materialize row #0 : ()
->   %2 = Release %34 FrameDrop row #2 : ()
->   %3 = Release %34 FrameDrop child #2 : ()
+>     uses $2: %19 -> %30 lend last
+>   %0 = Retain %38 Cold row #0 : ()
+>   %1 = Retain %38 Materialize row #0 : ()
+>   %2 = Release %38 FrameDrop row #2 : ()
+>   %3 = Release %38 FrameDrop child #2 : ()
 >   %4 = Call app/main/make[] ("kept") : fn!(usize) -> string
 >   %5 = Store [$0] %4 : ()
->   %34 = Block - : ()
+>   %38 = Block - : ()
     println(read!(3))
 >   %6 = Read move [$0] : fn!(usize) -> string
 >   %7 = CallValue %6 [3:usize] : Suspend[string]
@@ -98,35 +98,39 @@ pub fn main!() -> void $ Console:
 >   %11 = Drop [%7] : ()
 >   %12 = Drop [%6] : ()
 >   %13 = Call std/console/println[string] (%8) : ()
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = Drop [%8] : ()
     text := generic("text")
->   %14 = Call app/main/generic[string] ("text") : fn!() -> string
->   %15 = Store [$1] %14 : ()
+>   %16 = Call app/main/generic[string] ("text") : fn!() -> string
+>   %17 = Store [$1] %16 : ()
     number := generic(+7)
->   %16 = Call app/main/generic[i32] (7:i32) : fn!() -> i32
->   %17 = Store [$2] %16 : ()
+>   %18 = Call app/main/generic[i32] (7:i32) : fn!() -> i32
+>   %19 = Store [$2] %18 : ()
     println(text!())
->   %18 = Read move [$1] : fn!() -> string
->   %19 = CallValue %18 [] : Suspend[string]
->   %20 = AwaitValue %19 : string
->   %21 = Release %20 Operation child #2 : ()
->   %22 = Retain %20 Operation child #0 : ()
->   %23 = Drop [%19] : ()
->   %24 = Drop [%18] : ()
->   %25 = Call std/console/println[string] (%20) : ()
+>   %20 = Read move [$1] : fn!() -> string
+>   %21 = CallValue %20 [] : Suspend[string]
+>   %22 = AwaitValue %21 : string
+>   %23 = Release %22 Operation child #2 : ()
+>   %24 = Retain %22 Operation child #0 : ()
+>   %25 = Drop [%21] : ()
+>   %26 = Drop [%20] : ()
+>   %27 = Call std/console/println[string] (%22) : ()
+>   %28 = Retain %27 Operation operand 0 #0 : ()
+>   %29 = Drop [%22] : ()
     println(number!())
->   %26 = Read move [$2] : fn!() -> i32
->   %27 = CallValue %26 [] : Suspend[i32]
->   %28 = AwaitValue %27 : i32
->   %29 = Release %28 Operation child #2 : ()
->   %30 = Retain %28 Operation child #0 : ()
->   %31 = Drop [%27] : ()
->   %32 = Drop [%26] : ()
->   %33 = Call std/console/println[i32] (%28) : ()
+>   %30 = Read move [$2] : fn!() -> i32
+>   %31 = CallValue %30 [] : Suspend[i32]
+>   %32 = AwaitValue %31 : i32
+>   %33 = Release %32 Operation child #2 : ()
+>   %34 = Retain %32 Operation child #0 : ()
+>   %35 = Drop [%31] : ()
+>   %36 = Drop [%30] : ()
+>   %37 = Call std/console/println[i32] (%32) : ()
 >   exit sub 0 drops [$2]
 >   summary none
 >   unwind %8 drops [%6 %7]
->   unwind %20 drops [%18 %19]
->   unwind %28 drops [%26 %27]
->   live %8 [%6 %7 %18 %19 %26 %27 $2]
->   live %20 [%6 %7 %18 %19 %26 %27 $2]
->   live %28 [%6 %7 %18 %19 %26 %27 $2]
+>   unwind %22 drops [%20 %21]
+>   unwind %32 drops [%30 %31]
+>   live %8 [%6 %7 %20 %21 %30 %31 $2]
+>   live %22 [%6 %7 %20 %21 %30 %31 $2]
+>   live %32 [%6 %7 %20 %21 %30 %31 $2]

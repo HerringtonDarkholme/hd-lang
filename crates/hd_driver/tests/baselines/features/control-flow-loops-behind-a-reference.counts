@@ -43,6 +43,7 @@ pub fn main() -> void $ Console:
     let mut p = Parser { index: [], pending: [], held: 0 }
 > app/main/main
 >   release app.main.Parser [index, pending] (last use)
+>   release string (last use)
     for i in 0..4:
 >   unique List[usize] (may be shared)
         p.pending.push(i)

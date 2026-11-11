@@ -23,8 +23,6 @@ fn use_generic(s: string, xs: List[string]) -> usize:
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 > app/main/use_generic
 >   retain string (stored)
->   release string (last use)
->   retain string (stored)
 >   release List[string] (last use)
 >   retain string (stored)
 >   release string? (last use)
