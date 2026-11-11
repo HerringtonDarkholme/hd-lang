@@ -189,7 +189,8 @@ impl ModuleScope {
             match b.kind {
                 BindingKind::Module => b.value += base,
                 BindingKind::Ambiguous => b.value = row,
-                _ => {}
+                // The value is a definition, or nothing: no offset.
+                BindingKind::Item | BindingKind::Prelude | BindingKind::Poison => {}
             }
             let at = row as usize;
             self.binding[at] = b;

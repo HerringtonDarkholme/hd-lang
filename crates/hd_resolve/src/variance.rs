@@ -125,6 +125,15 @@ pub fn walk(
                 go(a, 0, seen);
             }
         }
-        _ => {}
+        // No parameter of `owner` inside. A row argument's keys are not
+        // walked yet, unlike a context's.
+        TyData::Param(_)
+        | TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Row(_) => {}
     }
 }

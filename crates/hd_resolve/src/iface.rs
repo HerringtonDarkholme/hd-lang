@@ -936,7 +936,12 @@ impl IfaceIndex {
         else {
             return;
         };
-        let _writer = self.writer.lock().expect("interface index");
+        // A writer that panicked left whole rows only, so the lock's data
+        // stays usable.
+        let _writer = self
+            .writer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         while self.rows.len() <= last {
             self.rows.push(AtomicU64::new(Self::MISSING));
         }

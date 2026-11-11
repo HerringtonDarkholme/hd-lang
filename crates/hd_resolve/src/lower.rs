@@ -1794,7 +1794,20 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
                 slot_paths(pool, a, f);
             }
         }
-        _ => {}
+        // No path to a reference slot goes through these.
+        TyData::Ref { counted: true, .. }
+        | TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Fn { .. }
+        | TyData::Opaque { .. }
+        | TyData::Param(_)
+        | TyData::Const(_)
+        | TyData::Assoc { .. }
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Row(_)
+        | TyData::Context(_) => {}
     }
 }
 
