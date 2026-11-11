@@ -447,7 +447,19 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
         }
         // An environment clause answers a parameter before this row.
         TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
-        _ => {}
+        // No part to check: a value with no reference inside, a goal
+        // already in error, or one the solver stalls on before this row.
+        TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Union(_)
+        | TyData::Fn { .. }
+        | TyData::TraitValue { .. }
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Row(_)
+        | TyData::Context(_) => {}
     }
     subs.retain(|&t| {
         pool.has_ref(t) || pool.has_param(t) || pool.has_infer(t) || pool.has_assoc(t)

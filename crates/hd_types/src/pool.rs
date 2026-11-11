@@ -877,7 +877,8 @@ impl InternPool {
         if let Some(i) = cached {
             return i;
         }
-        let shard = &self.shards[usize::try_from(h >> 58).expect("shard")].0;
+        // The hash's top six bits pick one of the 64 shards.
+        let shard = &self.shards[usize::from(h.to_be_bytes()[0] >> 2)].0;
         let mut idx = shard
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);

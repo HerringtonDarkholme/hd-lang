@@ -9,7 +9,6 @@ sloppy-catchall-empty	hd_opt	4
 sloppy-catchall-empty	hd_resolve	16
 sloppy-catchall-empty	hd_syntax	10
 sloppy-catchall-empty	hd_tir	51
-sloppy-catchall-empty	hd_types	4
 sloppy-catchall-empty	hd_wasm	33
 sloppy-expect	hd_check	74
 sloppy-expect	hd_driver	20
@@ -18,7 +17,7 @@ sloppy-expect	hd_opt	19
 sloppy-expect	hd_resolve	16
 sloppy-expect	hd_syntax	69
 sloppy-expect	hd_tir	65
-sloppy-expect	hd_types	46
+sloppy-expect	hd_types	35
 sloppy-expect	hd_wasm	271
 sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2

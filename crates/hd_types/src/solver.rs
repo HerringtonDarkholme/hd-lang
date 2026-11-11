@@ -11,7 +11,7 @@ use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use hd_base::{
     AppendVec, DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult,
@@ -290,7 +290,7 @@ impl ImplUniverses {
         list.sort_stable_by_key(|(f, _)| f.raw());
         list.dedup_by_key(|(f, _)| *f);
         let key: Vec<FolderId> = list.iter().map(|(f, _)| *f).collect();
-        let mut m = self.by_list.lock().expect("universes");
+        let mut m = self.by_list.lock().unwrap_or_else(PoisonError::into_inner);
         let next = ImplUniverseId(u32::try_from(m.len()).expect("universes"));
         m.entry(key)
             .or_insert_with(|| (next, Arc::new(UniverseImpls::new(&list))))
@@ -458,6 +458,9 @@ fn member_goal(
         args,
     }
 }
+
+/// [`tuple_goals`] or [`union_goals`].
+type MemberGoals = fn(Types<'_>, DefId, &[MemberStep], Ty, u16) -> Vec<(u16, TraitRef)>;
 
 /// The member goals of a tuple template's plan at the tuple `tuple`, each
 /// with its step index, numbered from `first` in the order the steps and
@@ -909,13 +912,17 @@ impl GlobalMemo {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
         k.hash(&mut h);
-        &self.shards[usize::try_from(h.finish() % 16).expect("shard")]
+        &self.shards[usize::from(h.finish().to_le_bytes()[0] & 0x0F)]
     }
 
     /// The entry published for `k`.
     #[must_use]
     pub fn lookup(&self, k: &MemoKey) -> Option<u32> {
-        self.shard(k).lock().expect("memo").get(k).copied()
+        self.shard(k)
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(k)
+            .copied()
     }
 
     #[must_use]
@@ -939,7 +946,10 @@ impl GlobalMemo {
     /// check it.
     pub fn publish(&self, rec: MemoRecord, mut e: MemoEntry, universe: ImplUniverseId) -> u32 {
         let key = rec.global_key(universe);
-        let mut shard = self.shard(&key).lock().expect("memo");
+        let mut shard = self
+            .shard(&key)
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if let Some(&i) = shard.get(&key) {
             debug_assert!(
                 {
@@ -973,7 +983,7 @@ impl GlobalMemo {
             env.clause_mut.clone(),
             env.clause_origin.clone(),
         );
-        let mut m = self.envs.lock().expect("envs");
+        let mut m = self.envs.lock().unwrap_or_else(PoisonError::into_inner);
         let next = EnvKey(u32::try_from(m.len() + 1).expect("envs"));
         *m.entry(clauses).or_insert(next)
     }
@@ -1160,19 +1170,19 @@ pub fn canonicalize(
     mut_: bool,
 ) -> (CanonGoal, CanonVars) {
     let mut vars = CanonVars::default();
-    let mut number = |t: Ty| {
+    let mut number = |t: Ty| -> Result<Ty, std::convert::Infallible> {
         let TyData::Infer(v) = pool.get(t) else {
-            return Some(t);
+            return Ok(t);
         };
         let i = vars.map.iter().position(|w| *w == v).unwrap_or_else(|| {
             vars.map.push(v);
             vars.kinds.push(VarKind::General);
             vars.map.len() - 1
         });
-        Some(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))))
+        Ok(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))))
     };
-    let self_ty = fold_vars(pool, tref.self_ty, false, &mut number).expect("numbering");
-    let args = fold_list(pool, tref.args, false, &mut number).expect("numbering");
+    let Ok(self_ty) = fold_vars(pool, tref.self_ty, false, &mut number);
+    let Ok(args) = fold_list(pool, tref.args, false, &mut number);
     let goal = CanonGoal {
         kind,
         mut_,
@@ -1188,19 +1198,19 @@ pub fn canonicalize(
 /// Rebuilds `t` with every inference variable (`canon` false) or every
 /// placeholder (`canon` true) replaced by `f`, in a fixed pre-order walk
 /// over every type form; `None` when `f` refuses one.
-fn fold_vars(
+fn fold_vars<E>(
     pool: Types<'_>,
     t: Ty,
     canon: bool,
-    f: &mut dyn FnMut(Ty) -> Option<Ty>,
-) -> Option<Ty> {
+    f: &mut dyn FnMut(Ty) -> Result<Ty, E>,
+) -> Result<Ty, E> {
     let has = if canon {
         pool.has_canon(t)
     } else {
         pool.has_infer(t)
     };
     if !has {
-        return Some(t);
+        return Ok(t);
     }
     let d = match pool.get(t) {
         TyData::Infer(_) | TyData::Canon(_) => return f(t),
@@ -1262,8 +1272,8 @@ fn fold_vars(
             args: fold_list(pool, args, canon, f)?,
             bindings: bindings
                 .into_iter()
-                .map(|(k, b)| Some((k, fold_vars(pool, b, canon, f)?)))
-                .collect::<Option<Vec<_>>>()?,
+                .map(|(k, b)| Ok((k, fold_vars(pool, b, canon, f)?)))
+                .collect::<Result<Vec<_>, E>>()?,
         },
         TyData::Assoc {
             assoc,
@@ -1280,15 +1290,15 @@ fn fold_vars(
         TyData::Context(r) => TyData::Context(fold_row(pool, r, canon, f)?),
         other => other,
     };
-    Some(pool.intern_ty(&d))
+    Ok(pool.intern_ty(&d))
 }
 
-fn fold_list(
+fn fold_list<E>(
     pool: Types<'_>,
     l: TyList,
     canon: bool,
-    f: &mut dyn FnMut(Ty) -> Option<Ty>,
-) -> Option<TyList> {
+    f: &mut dyn FnMut(Ty) -> Result<Ty, E>,
+) -> Result<TyList, E> {
     let items = pool.list_items(l);
     let has = |t: &Ty| {
         if canon {
@@ -1298,21 +1308,21 @@ fn fold_list(
         }
     };
     if !items.iter().any(has) {
-        return Some(l);
+        return Ok(l);
     }
     let mut out = Vec::with_capacity(items.len());
     for t in items {
         out.push(fold_vars(pool, *t, canon, f)?);
     }
-    Some(pool.list(&out))
+    Ok(pool.list(&out))
 }
 
-fn fold_row(
+fn fold_row<E>(
     pool: Types<'_>,
     r: crate::pool::RowId,
     canon: bool,
-    f: &mut dyn FnMut(Ty) -> Option<Ty>,
-) -> Option<crate::pool::RowId> {
+    f: &mut dyn FnMut(Ty) -> Result<Ty, E>,
+) -> Result<crate::pool::RowId, E> {
     let mut d = pool.row_data(r);
     let has = |t: &Ty| {
         if canon {
@@ -1322,12 +1332,12 @@ fn fold_row(
         }
     };
     if !d.keys.iter().any(has) {
-        return Some(r);
+        return Ok(r);
     }
     for k in &mut d.keys {
         *k = fold_vars(pool, *k, canon, f)?;
     }
-    Some(pool.row(&d))
+    Ok(pool.row(&d))
 }
 
 /// An answer's types over the goal's placeholders (§7.1 "Remapping");
@@ -1341,21 +1351,23 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
             .and_then(|i| u8::try_from(i).ok())
     };
     let mut place = |t: Ty| match pool.get(t) {
-        TyData::Infer(v) => Some(pool.intern_ty(&TyData::Canon(index(v)?))),
-        _ => Some(t),
+        TyData::Infer(v) => index(v)
+            .map(|i| pool.intern_ty(&TyData::Canon(i)))
+            .ok_or(()),
+        _ => Ok(t),
     };
     Some(match a {
         Answer::Holds { evidence, learned } => CanonAnswer::Holds {
             evidence: match evidence {
                 Evidence::Impl { row, args } => Evidence::Impl {
                     row: *row,
-                    args: fold_list(pool, *args, false, &mut place)?,
+                    args: fold_list(pool, *args, false, &mut place).ok()?,
                 },
                 other => other.clone(),
             },
             learned: learned
                 .iter()
-                .map(|(v, t)| Some((index(*v)?, fold_vars(pool, *t, false, &mut place)?)))
+                .map(|(v, t)| Some((index(*v)?, fold_vars(pool, *t, false, &mut place).ok()?)))
                 .collect::<Option<_>>()?,
         },
         Answer::Candidates(cands) => CanonAnswer::Candidates(
@@ -1363,8 +1375,8 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
                 .iter()
                 .map(|c| {
                     Some(Candidate {
-                        impl_args: fold_list(pool, c.impl_args, false, &mut place)?,
-                        args: fold_list(pool, c.args, false, &mut place)?,
+                        impl_args: fold_list(pool, c.impl_args, false, &mut place).ok()?,
+                        args: fold_list(pool, c.args, false, &mut place).ok()?,
                         ..c.clone()
                     })
                 })
@@ -1395,14 +1407,17 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
 fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer {
     let var = |i: u8| vars.map[usize::from(i)];
     // A placeholder the goal did not number (`hd_mono`'s open row) stays.
-    let mut back = |t: Ty| match pool.get(t) {
-        TyData::Canon(i) if usize::from(i) < vars.map.len() => {
-            Some(pool.intern_ty(&TyData::Infer(var(i))))
-        }
-        _ => Some(t),
+    let mut back = |t: Ty| -> Result<Ty, std::convert::Infallible> {
+        Ok(match pool.get(t) {
+            TyData::Canon(i) if usize::from(i) < vars.map.len() => {
+                pool.intern_ty(&TyData::Infer(var(i)))
+            }
+            _ => t,
+        })
     };
-    let list = |l: TyList, f: &mut dyn FnMut(Ty) -> Option<Ty>| {
-        fold_list(pool, l, true, f).expect("placeholders")
+    let list = |l: TyList, f: &mut dyn FnMut(Ty) -> Result<Ty, std::convert::Infallible>| {
+        let Ok(l) = fold_list(pool, l, true, f);
+        l
     };
     match a {
         CanonAnswer::Holds { evidence, learned } => Answer::Holds {
@@ -1416,7 +1431,7 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
             learned: learned
                 .iter()
                 .map(|(i, t)| {
-                    let t = fold_vars(pool, *t, true, &mut back).expect("placeholders");
+                    let Ok(t) = fold_vars(pool, *t, true, &mut back);
                     (var(*i), t)
                 })
                 .collect(),
@@ -1741,22 +1756,22 @@ pub fn row_goals(
     args: &[Ty],
 ) -> Vec<(u16, TraitRef)> {
     let mut goals = plan_goals(pool, t, row, args);
-    if matches!(
-        t.origin[row],
-        ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
-    ) && let Some(&target) = args.first()
+    // A template's member goals: one per element or union member.
+    let members: Option<MemberGoals> = match t.origin[row] {
+        ImplOrigin::TupleTemplate => Some(tuple_goals),
+        ImplOrigin::UnionTemplate => Some(union_goals),
+        ImplOrigin::Written
+        | ImplOrigin::Derived { .. }
+        | ImplOrigin::Delegated { .. }
+        | ImplOrigin::Error
+        | ImplOrigin::NumericFamily => None,
+    };
+    if let Some(members) = members
+        && let Some(&target) = args.first()
         && let Some(steps) = impls.tuple_plan(t.def[row])
     {
         let first = u16::try_from(t.plan[row].len()).unwrap_or(u16::MAX);
-        match t.origin[row] {
-            ImplOrigin::TupleTemplate => {
-                goals.extend(tuple_goals(pool, t.def[row], &steps, target, first));
-            }
-            ImplOrigin::UnionTemplate => {
-                goals.extend(union_goals(pool, t.def[row], &steps, target, first));
-            }
-            _ => {}
-        }
+        goals.extend(members(pool, t.def[row], &steps, target, first));
     }
     goals
 }
@@ -2604,7 +2619,18 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
             }
             collect_vars(pool, result, out);
         }
-        _ => {}
+        // A stall names the variables of the goal's own structure; one
+        // inside a projection, an opaque type or a row waits with it.
+        TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Opaque { .. }
+        | TyData::Param(_)
+        | TyData::Const(_)
+        | TyData::Assoc { .. }
+        | TyData::Canon(_)
+        | TyData::Row(_)
+        | TyData::Context(_) => {}
     }
 }
 
@@ -2759,7 +2785,19 @@ impl Search<'_, '_> {
                     "Instantiations of a parameter or a trait value (the checker reads its clauses)",
                 ));
             }
-            _ => {}
+            // Impl heads match the rest below.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Adt { .. }
+            | TyData::Tuple { .. }
+            | TyData::Union(_)
+            | TyData::Fn { .. }
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Ref { .. }
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
         let mut reads = Reads::default();
         let mut out = Vec::new();

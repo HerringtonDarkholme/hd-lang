@@ -96,8 +96,9 @@ impl InferTable {
     }
 
     pub fn rollback(&mut self, s: Snapshot) {
-        while self.trail.len() > s.0 {
-            match self.trail.pop().expect("trail") {
+        let from = s.0.min(self.trail.len());
+        for u in self.trail.drain(from..).rev() {
+            match u {
                 Undo::Bind(v) => self.binding[v as usize] = None,
                 Undo::Parent(v, old) => self.parent[v as usize] = old,
                 Undo::Rank(v, old) => self.rank[v as usize] = old,
