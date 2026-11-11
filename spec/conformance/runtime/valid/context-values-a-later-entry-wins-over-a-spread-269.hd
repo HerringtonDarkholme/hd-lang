@@ -3,6 +3,8 @@
 # expect-stdout: base
 # expect-stdout: explicit
 # expect-stdout: over,log:base
+# expect-stdout: base
+# expect-stdout: last
 pub trait Tag:
     fn name(self) -> string
 
@@ -37,3 +39,9 @@ pub fn main() -> void $ Console:
         println(current())
     $.with(base..., over...):
         println(both())
+    shadowed := $.context(Tag=Named { label: "discarded" }, base...)
+    $.with(shadowed...):
+        println(current())
+    replaced := $.context(Tag=Named { label: "first" }, Tag=Named { label: "last" })
+    $.with(replaced...):
+        println(current())

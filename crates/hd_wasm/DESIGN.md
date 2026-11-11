@@ -1755,8 +1755,12 @@ whose row changes and `$.Context` values on the linear backend
 - **Context values.** `$.Context[$ R]` is one counted address of a
   context whose entries are in key order (`req.context.order`).
   `ContextNew` builds it from the last pair that binds each key, a trait
-  value or an entry of a spread context. A spread in `$.with` reads each
-  entry into provider locals, borrowed from the value.
+  value or an entry of a spread context. A selected direct provider
+  transfers its operand's count when ownership gives it one consumer.
+  Borrowed sources and spread entries take copies. A shadowed direct
+  operand releases the count it transferred to the constructor, using
+  its stated operand packet. A spread in `$.with` reads each entry into
+  provider locals, borrowed from the value.
 - **Dynamic calls.** A vtable slot of a method whose row lists a key or
   names a row parameter of its trait, or that has row parameters, takes
   one context last: the caller cannot know the implementation's row,
