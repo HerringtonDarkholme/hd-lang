@@ -203,9 +203,8 @@ fn body_func<'a>(
             None,
         )
     };
-    // A plain function takes its parameters by the conventions of
-    // `layout::Pass` (§23.25); a suspending one's cold constructor counts
-    // each argument into its frame, so the callee takes a count of each.
+    // Plain functions use `layout::Pass` (§23.25). Cold and fresh
+    // suspending entries use the selected cold argument convention.
     let by_type = !suspending && (sub != 0 || !input.env.suspends(item));
     for &l in &plocals {
         let ty = em.sub(b.local_ty[l]);
@@ -399,6 +398,11 @@ fn body_func<'a>(
     } else {
         hd_base::HashSet::default()
     };
+    let transferred = if suspending && closure.is_none() {
+        em.cold_transferred_locals(&plocals)
+    } else {
+        hd_base::HashSet::default()
+    };
     if em.counting {
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
@@ -427,11 +431,11 @@ fn body_func<'a>(
                         Pass::Borrowed => {}
                     }
                 }
-                if unsuspended && lent_here.contains(l) {
+                if unsuspended && lent_here.contains(l) && !transferred.contains(l) {
                     em.borrowed.insert(*l);
                     continue;
                 }
-                if !crate::layout::holds_drop(em.pool(), em.env(), t) {
+                if !transferred.contains(l) && !crate::layout::holds_drop(em.pool(), em.env(), t) {
                     let copy = em.stated_count(
                         Tag::Retain,
                         CountAt::Entry,
@@ -840,15 +844,19 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     let item = input.collected.table.item[id.idx()];
     // Collection resolves every adapter's one target (`scan_adapter`).
     match input.collected.calls[id.idx()][&0].clone() {
-        Target::Call(ct) if ct.kind == TargetKind::Instance => forward(
-            input,
-            m,
-            item,
-            (ct.item, ct.args),
-            ct.ret,
-            Sym::Inst(ct.key),
-            input.env.lends(ct.item, ct.args),
-        ),
+        Target::Call(ct)
+            if ct.kind == TargetKind::Instance && !input.env.cold_transfer_adapter(ct.item) =>
+        {
+            forward(
+                input,
+                m,
+                item,
+                (ct.item, ct.args),
+                ct.ret,
+                Sym::Inst(ct.key),
+                input.env.lends(ct.item, ct.args),
+            )
+        }
         target => {
             let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
@@ -2606,10 +2614,82 @@ impl Em<'_, '_, '_> {
         r
     }
 
+    fn cold_transferred_locals(&self, locals: &[usize]) -> hd_base::HashSet<usize> {
+        self.env()
+            .params(self.item)
+            .unwrap_or_default()
+            .into_iter()
+            .zip(locals.iter().copied())
+            .filter_map(|(t, l)| self.env().cold_transfers(self.item, t).then_some(l))
+            .collect()
+    }
+
+    /// The direct cold call and its fused fresh start have one ABI.
+    /// A resumed child ignores its parameter operands.
+    fn push_cold_args(
+        &mut self,
+        i: u32,
+        args: &[u32],
+        item: DefId,
+        child: Option<u32>,
+    ) -> StageResult<()> {
+        let params = self.env().params(item).unwrap_or_default();
+        if params.len() != args.len() {
+            // ruled out: direct check_args fills every declared parameter,
+            // including defaults and the separate fields of a tuple spread.
+            // Unknown tuple arity uses CallValue and its borrowed ABI.
+            assert!(!params.iter().any(|&t| self.env().cold_transfers(item, t)));
+            return self.push_args(i, args, None, 0, self.f.reason);
+        }
+        for (operand, (&r, ty)) in (0_u32..).zip(args.iter().zip(params)) {
+            if self.env().cold_transfers(item, ty) {
+                if self.take(r) || Ref(r).as_inst().is_none() || !self.tracked(self.ty_of(r)) {
+                    self.push(r)?;
+                } else {
+                    // ruled out: ownership states a copy for every counted
+                    // cold operand that cannot move at this call.
+                    let reason = self.operation_count(i, Tag::Retain, CountPart::Operand(operand));
+                    assert!(reason.is_some(), "a cold operand copy must be stated");
+                    self.because(reason.as_slice()[0], |em| em.push_cold_copy(r, child))?;
+                }
+            } else if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(r)) {
+                let src = self.consumed(r)?;
+                self.push_src(&src)?;
+            } else {
+                self.push(r)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn push_cold_copy(&mut self, r: u32, child: Option<u32>) -> StageResult<()> {
+        let Some(child) = child else {
+            let copy = self.retain_ref(r)?;
+            return self.push_src(&copy);
+        };
+        let locals: Vec<_> = self
+            .vals(self.ty_of(r))?
+            .into_iter()
+            .map(|v| self.f.local(v))
+            .collect();
+        self.f.get(child);
+        self.f.op(Instruction::I32Eqz);
+        self.f.op(Instruction::If(BlockType::Empty));
+        let copy = self.retain_ref(r)?;
+        self.push_src(&copy)?;
+        for &l in locals.iter().rev() {
+            self.f.set(l);
+        }
+        self.f.op(Instruction::End);
+        for l in locals {
+            self.f.get(l);
+        }
+        Ok(())
+    }
+
     /// The parameter types of plain callee `item` at `args`, instance
-    /// `key`, by which it takes its arguments (`layout::Pass`); `None` for
-    /// a suspending callee, whose cold constructor takes a count of each
-    /// argument itself, so they are all lent to it.
+    /// `key`, by which it takes its arguments (`layout::Pass`).
+    /// Suspending calls use their separate cold convention.
     pub(super) fn param_tys(
         &self,
         key: hd_base::Hash128,
@@ -2638,7 +2718,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// Pushes a call's arguments `args` for a callee with parameters of
-    /// types `params` (`None`: all lent). Each argument the callee owns
+    /// types `params` (`None`: the borrowed cold convention, with
+    /// existing Drop transfers). Each argument the callee owns
     /// moves in at its only use ([`Em::take`]) or takes a count of its own;
     /// a borrowed one is lent. Arguments spread from a tuple do not line up
     /// with the parameters one to one: each owned parameter's values then
@@ -2756,24 +2837,25 @@ impl Em<'_, '_, '_> {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
-                    if self.env().suspends(ct.item)
+                    let suspends = self.env().suspends(ct.item);
+                    if suspends
                         && let Some(on) =
                             crate::drive::block_on_of(self.b, &self.topo, self.calls, i)
                     {
                         return self.call_known_drive(i, &ct, &args, on);
                     }
-                    let params = self.param_tys(ct.key, ct.item, ct.args);
-                    let lends = self.env().lends(ct.item, ct.args)
-                        | promote::promoted_params(self.input, self.m, ct.key);
-                    self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
+                    if suspends {
+                        self.push_cold_args(i, &args, ct.item, None)?;
+                    } else {
+                        let params = self.param_tys(ct.key, ct.item, ct.args);
+                        let lends = self.env().lends(ct.item, ct.args)
+                            | promote::promoted_params(self.input, self.m, ct.key);
+                        self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
+                    }
                     let c = self.push_call_providers(i, ct.item, ct.args);
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
-                    let ret = if self.env().suspends(ct.item) {
-                        self.ty(i)
-                    } else {
-                        ct.ret
-                    };
+                    let ret = if suspends { self.ty(i) } else { ct.ret };
                     self.call_results(i, ret)?;
                     self.release_call_ctx(i, c);
                     Ok(())
@@ -2894,7 +2976,7 @@ impl Em<'_, '_, '_> {
         self.f.at = at;
         self.f.origin_at = origin;
         self.f.i32(0);
-        self.push_args(i, args, None, 0, self.f.reason)?;
+        self.push_cold_args(i, args, target.item, None)?;
         let context = self.push_call_providers(i, target.item, target.args);
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);

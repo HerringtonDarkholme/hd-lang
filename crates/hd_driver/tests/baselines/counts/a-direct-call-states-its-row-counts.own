@@ -57,38 +57,37 @@ fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 fn cold(callback: fn() -> i32 $ Tag) -> Suspend[i32] $ Tag:
 > app/main/cold
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %5 Entry local $0 #0 : ()
     later(callback)
->   %1 = Read borrow [$0] : fn() -> i32
+>   %1 = Read move [$0] : fn() -> i32
 >   %2 = Call app/main/later[$ Tag] (%1) : Suspend[i32]
 >   %2 keeps %1
 >   %3 = Retain %2 Operation row #0 : ()
 >   %4 = Release %2 Operation row #2 : ()
 >   %5 = Block %2 : Suspend[i32]
->   summary kept [] borrows [$0] writes
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 > app/main/awaited
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %6 lend last
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
+>     uses $0: entry -> %6 consume last
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
     later!(callback)
->   %2 = Retain %12 Cold row #0 : ()
->   %3 = Retain %12 Materialize row #0 : ()
->   %4 = Release %12 FrameDrop row #2 : ()
->   %5 = Release %12 FrameDrop child #2 : ()
+>   %2 = Retain %11 Cold row #0 : ()
+>   %3 = Retain %11 Materialize row #0 : ()
+>   %4 = Release %11 FrameDrop row #2 : ()
+>   %5 = Release %11 FrameDrop child #2 : ()
 >   %6 = Read move [$0] : fn() -> i32
 >   %7 = Await app/main/later[$ Tag] (%6) : i32
 >   %8 = Retain %7 Operation row #0 : ()
 >   %9 = Release %7 Operation row #2 : ()
 >   %10 = Release %7 Operation child #2 : ()
->   %11 = Drop [%6] : ()
->   %12 = Block %7 : i32
+>   %11 = Block %7 : i32
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %7 drops [%6]
 >   live %7 [%6 $0]
 
 fn empty(callback: fn() -> i32) -> i32:

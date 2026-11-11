@@ -271,3 +271,54 @@ fn a_test_run_keeps_the_test_profile() {
     assert_eq!(release.counters.hit("link"), 1);
     assert_eq!(release.wasm, checked.wasm);
 }
+
+/// req.suspend.cold: exercise the owned direct and fused entry, borrowed
+/// function-value bridge, a caller-used argument on resume, and cancellation.
+#[test]
+fn stable_cold_arguments_transfer_across_call_routes() {
+    use hd_driver::OptLevel;
+
+    let sources = one_file(include_str!("stable_cold_arguments.hd"));
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    for (name, build_profile, level, checked) in [
+        ("dev", BuildProfile::Checked, OptLevel::Dev, false),
+        ("checked", BuildProfile::Checked, OptLevel::Dev, true),
+        (
+            "optimized",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            false,
+        ),
+        (
+            "optimized-checked",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            true,
+        ),
+    ] {
+        let out = build_packages(
+            &host,
+            "app",
+            &Packages {
+                build_profile,
+                level,
+                checked,
+                verify_own: true,
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(out.diags.is_empty(), "{name}: {}", out.render());
+        let run = run_wasm(name, &out.wasm.expect("the program links"));
+        assert!(stdout(name, &run).is_empty());
+    }
+}

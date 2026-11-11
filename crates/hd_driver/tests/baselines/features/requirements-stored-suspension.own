@@ -68,46 +68,45 @@ fn tagged!() -> usize $ Tag:
 fn later!(key: string) -> usize:
 > app/main/later
 >   local $0 key: string [param read] value
->     uses $0: entry -> %3 lend last
+>     uses $0: entry -> %3 consume last
 >   local $1 pending: Suspend[string] [read assigned] value
->     uses $1: %6 -> %7 lend last
+>     uses $1: %5 -> %6 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %17 Cold local $0 #0 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %16 Cold local $0 #0 : ()
+>   %1 = Retain %16 Entry local $0 #0 : ()
     let mut pending = fetch(key)
->   %2 = Release %17 FrameDrop child #2 : ()
+>   %2 = Release %16 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : Suspend[string]
->   %5 = Drop [%3] : ()
->   %6 = Store [$1] %4 : ()
->   %17 = Block %14 : usize
+>   %5 = Store [$1] %4 : ()
+>   %16 = Block %13 : usize
     pending!().len()
->   %7 = Read move [$1] : Suspend[string]
->   %8 = AwaitValue %7 : string
->   %9 = Release %8 Operation child #2 : ()
->   %10 = Retain %8 Operation child #0 : ()
->   %11 = Drop [%7] : ()
->   %12 = Store [$2] %8 : ()
->   %13 = Ref local [$2] : &string
->   %14 = Call std/text/impl string.len[] (%13) : usize
->   %15 = LoanEnd [%13] : ()
->   %16 = Drop [$2] : ()
->   %13 finds [$2] full
+>   %6 = Read move [$1] : Suspend[string]
+>   %7 = AwaitValue %6 : string
+>   %8 = Release %7 Operation child #2 : ()
+>   %9 = Retain %7 Operation child #0 : ()
+>   %10 = Drop [%6] : ()
+>   %11 = Store [$2] %7 : ()
+>   %12 = Ref local [$2] : &string
+>   %13 = Call std/text/impl string.len[] (%12) : usize
+>   %14 = LoanEnd [%12] : ()
+>   %15 = Drop [$2] : ()
+>   %12 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary none
->   unwind %8 drops [%7]
->   live %8 [%7 $0]
+>   unwind %7 drops [%6]
+>   live %7 [%6 $0]
 
 fn blocking(key: string) -> usize:
 > app/main/blocking
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %1 consume last
 >   local $1 v: string [read assigned] value
 >     uses $1: %13 -> %5 lend last
->   %0 = Release %22 Exit local $0 #2 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
     match block_on(fetch(key)):
->   %1 = Read borrow [$0] : string
+>   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Call std/task/block_on[string] (%2) : BlockOn[string]
 >   %4 = Drop [%2] : ()
@@ -129,19 +128,21 @@ fn blocking(key: string) -> usize:
 >   %18 = SwitchTag %3 [#0 %15 %17] : never
         _ => 0
 >   %11 = Block 0:usize : usize
->   summary kept [] borrows [$0] writes
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn discard(key: string) -> usize:
 > app/main/discard
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %4 Exit local $0 #2 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %4 Entry local $0 #0 : ()
     _ := fetch(key)
->   %1 = Read borrow [$0] : string
+>   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Drop [%2] : ()
 >   %4 = Block 0:usize : usize
->   summary kept [] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]
     0
 
 fn bound!(s: string) -> usize:

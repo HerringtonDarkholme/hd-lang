@@ -12098,6 +12098,10 @@ impl ProgramEnv for Env<'_> {
         self.sig(def)
             .map(|s| s.params.iter().map(|p| self.low(p.1)).collect())
     }
+    fn cold_transfers(&self, def: DefId, ty: Ty) -> bool {
+        self.cold_transfers_declared(def, ty)
+    }
+
     fn suspends(&self, def: DefId) -> bool {
         match self.sig(def) {
             Some(s) => s.suspends,

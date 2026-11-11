@@ -25,12 +25,12 @@ fn fetch!(key: string) -> string:
 fn direct(key: string) -> usize:
 > app/main/direct
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %1 consume last
 >   local $1 value: string [read assigned] value
 >     uses $1: %13 -> %5 lend last
->   %0 = Release %22 Exit local $0 #2 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
     match block_on(fetch(key)):
->   %1 = Read borrow [$0] : string
+>   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Call std/task/block_on[string] (%2) : BlockOn[string]
 >   %4 = Drop [%2] : ()
@@ -52,17 +52,18 @@ fn direct(key: string) -> usize:
 >   %18 = SwitchTag %3 [#0 %15 %17] : never
         _ => 0
 >   %11 = Block 0:usize : usize
->   summary kept [] borrows [$0] writes
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn stored(key: string) -> usize:
 > app/main/stored
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %1 consume last
 >   local $2 value: string [read assigned] value
 >     uses $2: %13 -> %5 lend last
->   %0 = Release %22 Exit local $0 #2 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
     let pending: Suspend[string] = fetch(key)
->   %1 = Read borrow [$0] : string
+>   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %22 = Block %20 : usize
     match block_on(pending):
@@ -85,21 +86,22 @@ fn stored(key: string) -> usize:
 >   %18 = SwitchTag %3 [#0 %15 %17] : never
         _ => 0
 >   %11 = Block 0:usize : usize
->   summary kept [] borrows [$0] writes
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn deferred(key: string, log: &mut List[string]) -> usize:
 > app/main/deferred
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %1 consume last
 >   local $1 log: &mut List[string] [param read] value
 >     uses $1: entry -> %5 lend last
 >   local $2 pending: Suspend[string] [read assigned] value
 >     uses $2: %3 -> %7 lend last
 >   local $3 value: string [read assigned] value
 >     uses $3: %18 -> %10 lend last
->   %0 = Release %27 Exit local $0 #2 : ()
+>   %0 = Retain %27 Entry local $0 #0 : ()
     let pending: Suspend[string] = fetch(key)
->   %1 = Read borrow [$0] : string
+>   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Store [$2] %2 : ()
 >   %27 = Block %25 : usize
@@ -128,4 +130,5 @@ fn deferred(key: string, log: &mut List[string]) -> usize:
 >   %23 = SwitchTag %8 [#0 %20 %22] : never
         _ => 0
 >   %16 = Block 0:usize : usize
->   summary kept [] borrows [$0] writes
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes

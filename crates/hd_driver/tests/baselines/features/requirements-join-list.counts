@@ -13,27 +13,21 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (by design)
-> app/main/fetch
->   retain string (stored)
+>   release string (cancelled)
 
 fn all!(keys: List[string]) -> usize:
     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
 > app/main/all
->   copy List[string] (stored)
+>   retain string (stored)
 >   release List[string] (last use)
->   release List[Suspend[string]] (last use)
 >   release List[string] (last use)
 >   release List[string] (last use)
 > app/main/all
 >   release List[string] (cancelled)
 >   release counted reference (last use)
-> app/main/all
->   copy List[string] (stored)
     results := join!(tasks...)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release List[Suspend[string]] (cancelled)
     let mut n = 0
     for r in &results:
         n += r.len()

@@ -539,6 +539,22 @@
           call $sized'1
           local.set $t55
           local.set $t54
+          i32.const 0
+          local.set $t45
+          i32.const 0
+          local.set $t46
+          i32.const 0
+          local.set $t47
+          i32.const 0
+          local.set $t48
+          i32.const 0
+          local.set $t49
+          i32.const 0
+          local.set $t50
+          i32.const 0
+          local.set $t51
+          i32.const 0
+          local.set $t52
           local.get $t55
           if
             local.get $t55

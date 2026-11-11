@@ -22,20 +22,22 @@ fn fetch!(key: string) -> string:
 fn construct(key: string) -> usize:
 > app/main/construct
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 lend, %4 lend last
->   %0 = Release %9 Exit local $0 #2 : ()
+>     uses $0: entry -> %1 consume, %4 lend last
+>   %0 = Retain %10 Entry local $0 #0 : ()
     _ := fetch(key)
->   %1 = Read borrow [$0] : string
+>   %1 = Read copy [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Drop [%2] : ()
->   %9 = Block %8 : usize
+>   %10 = Block %8 : usize
     key.len()
 >   %4 = Read borrow [$0] : string
 >   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
->   summary kept [] borrows [$0]
+>   %9 = Drop [$0] : ()
+>   exit sub 0 drops [$0]
+>   summary kept [$0]
 
 fn run_twice!(body: fn!() -> string) -> usize:
 > app/main/run_twice
@@ -85,86 +87,80 @@ fn run_twice!(body: fn!() -> string) -> usize:
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   local $0 key: string [param read captured] value
->     uses $0: entry -> %9 lend, %14 consume last
->   %0 = Retain %19 Cold local $0 #0 : ()
->   %1 = Retain %19 Entry local $0 #0 : ()
+>     uses $0: entry -> %9 consume, %13 consume last
+>   %0 = Retain %17 Cold local $0 #0 : ()
+>   %1 = Retain %17 Entry local $0 #0 : ()
     run_twice!():
->   %7 = Release %19 FrameDrop child #2 : ()
->   %16 = Await app/main/run_twice[] (%14) : usize
->   %17 = Release %16 Operation child #2 : ()
->   %18 = Drop [%14] : ()
->   %19 = Block %16 : usize
+>   %7 = Release %17 FrameDrop child #2 : ()
+>   %15 = Await app/main/run_twice[] (%13) : usize
+>   %16 = Release %15 Operation child #2 : ()
+>   %17 = Block %15 : usize
         fetch!(key)
->   %2 = Retain %13 Cold row #0 : ()
->   %3 = Retain %13 Materialize row #0 : ()
->   %4 = Release %13 FrameDrop row #2 : ()
->   %5 = Retain %13 Cold captures #0 : ()
->   %6 = Retain %13 Entry captures #0 : ()
->   %8 = Release %13 FrameDrop child #2 : ()
+>   %2 = Retain %12 Cold row #0 : ()
+>   %3 = Retain %12 Materialize row #0 : ()
+>   %4 = Release %12 FrameDrop row #2 : ()
+>   %5 = Retain %12 Cold captures #0 : ()
+>   %6 = Retain %12 Entry captures #0 : ()
+>   %8 = Release %12 FrameDrop child #2 : ()
 >   %9 = Read move [$0] : string
 >   %10 = Await app/main/fetch[] (%9) : string
 >   %11 = Release %10 Operation child #2 : ()
->   %12 = Drop [%9] : ()
->   %13 = Block %10 : string
->   %14 = Closure #1 : fn!() -> string
->   %15 = Retain %14 Operation captures #0 : ()
+>   %12 = Block %10 : string
+>   %13 = Closure #1 : fn!() -> string
+>   %14 = Retain %13 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary none
->   unwind %10 drops [%9]
->   unwind %16 drops [%14]
 >   live %10 [%9 $0]
->   live %16 [%14 $0]
+>   live %15 [%13 $0]
 
 fn stored!(key: string) -> usize:
 > app/main/stored
 >   local $0 key: string [param read] value
->     uses $0: entry -> %17 lend last
+>     uses $0: entry -> %16 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %9 lend last
+>     uses $1: entry -> %9 consume last
 >   local $2 loader: fn!(string) -> string [:= read assigned] value
->     uses $2: %15 -> %16 lend last
+>     uses $2: %14 -> %15 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %30 Cold local $0 #0 : ()
->   %1 = Retain %30 Entry local $0 #0 : ()
+>   %0 = Retain %29 Cold local $0 #0 : ()
+>   %1 = Retain %29 Entry local $0 #0 : ()
     loader := fn!(k: string) -> string: fetch!(k)
->   %2 = Retain %13 Cold local $1 #0 : ()
->   %3 = Retain %13 Entry local $1 #0 : ()
->   %4 = Retain %13 Cold row #0 : ()
->   %5 = Retain %13 Materialize row #0 : ()
->   %6 = Release %13 FrameDrop row #2 : ()
->   %7 = Release %30 FrameDrop child #2 : ()
->   %8 = Release %13 FrameDrop child #2 : ()
+>   %2 = Retain %12 Cold local $1 #0 : ()
+>   %3 = Retain %12 Entry local $1 #0 : ()
+>   %4 = Retain %12 Cold row #0 : ()
+>   %5 = Retain %12 Materialize row #0 : ()
+>   %6 = Release %12 FrameDrop row #2 : ()
+>   %7 = Release %29 FrameDrop child #2 : ()
+>   %8 = Release %12 FrameDrop child #2 : ()
 >   %9 = Read move [$1] : string
 >   %10 = Await app/main/fetch[] (%9) : string
 >   %11 = Release %10 Operation child #2 : ()
->   %12 = Drop [%9] : ()
->   %13 = Block %10 : string
->   %14 = Closure #1 : fn!(string) -> string
->   %15 = Store [$2] %14 : ()
->   %30 = Block %27 : usize
+>   %12 = Block %10 : string
+>   %13 = Closure #1 : fn!(string) -> string
+>   %14 = Store [$2] %13 : ()
+>   %29 = Block %26 : usize
     loader!(key).len()
->   %16 = Read move [$2] : fn!(string) -> string
->   %17 = Read move [$0] : string
->   %18 = CallValue %16 [%17] : Suspend[string]
->   %19 = AwaitValue %18 : string
->   %20 = Release %19 Operation child #2 : ()
->   %21 = Retain %19 Operation child #0 : ()
->   %22 = Drop [%18] : ()
->   %23 = Drop [%17] : ()
->   %24 = Drop [%16] : ()
->   %25 = Store [$3] %19 : ()
->   %26 = Ref local [$3] : &string
->   %27 = Call std/text/impl string.len[] (%26) : usize
->   %28 = LoanEnd [%26] : ()
->   %29 = Drop [$3] : ()
->   %26 finds [$3] full
+>   %15 = Read move [$2] : fn!(string) -> string
+>   %16 = Read move [$0] : string
+>   %17 = CallValue %15 [%16] : Suspend[string]
+>   %18 = AwaitValue %17 : string
+>   %19 = Release %18 Operation child #2 : ()
+>   %20 = Retain %18 Operation child #0 : ()
+>   %21 = Drop [%17] : ()
+>   %22 = Drop [%16] : ()
+>   %23 = Drop [%15] : ()
+>   %24 = Store [$3] %18 : ()
+>   %25 = Ref local [$3] : &string
+>   %26 = Call std/text/impl string.len[] (%25) : usize
+>   %27 = LoanEnd [%25] : ()
+>   %28 = Drop [$3] : ()
+>   %25 finds [$3] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $3 cell
 >   storage sub 1: $3 cell
 >   summary none
->   unwind %10 drops [%9]
->   unwind %19 drops [%16 %17 %18]
+>   unwind %18 drops [%15 %16 %17]
 >   live %10 [%9 $1]
->   live %19 [%16 %17 %18 $0]
+>   live %18 [%15 %16 %17 $0]

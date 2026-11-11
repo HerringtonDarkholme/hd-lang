@@ -23,41 +23,39 @@ fn label!(s: string) -> string:
 fn one!(s: string) -> usize:
 > app/main/one
 >   local $0 s: string [param read] value
->     uses $0: entry -> %3 lend last
+>     uses $0: entry -> %3 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
     label!(s).len()
->   %2 = Release %12 FrameDrop child #2 : ()
+>   %2 = Release %11 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Await app/main/label[] (%3) : string
 >   %5 = Release %4 Operation child #2 : ()
->   %6 = Drop [%3] : ()
->   %7 = Store [$1] %4 : ()
->   %8 = Ref local [$1] : &string
->   %9 = Call std/text/impl string.len[] (%8) : usize
->   %10 = LoanEnd [%8] : ()
->   %11 = Drop [$1] : ()
->   %12 = Block %9 : usize
->   %8 finds [$1] full
+>   %6 = Store [$1] %4 : ()
+>   %7 = Ref local [$1] : &string
+>   %8 = Call std/text/impl string.len[] (%7) : usize
+>   %9 = LoanEnd [%7] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %8 : usize
+>   %7 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary none
->   unwind %4 drops [%3]
 >   live %4 [%3 $0]
 
 fn both!(a: string, b: string) -> usize:
 > app/main/both
 >   local $0 a: string [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %4 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %6 lend last
+>     uses $1: entry -> %6 consume last
 >   local $2 x: string [read assigned captured] place
 >   local $3 y: string [read assigned captured] place
->   %0 = Retain %32 Cold local $0 #0 : ()
->   %1 = Retain %32 Entry local $0 #0 : ()
->   %2 = Retain %32 Cold local $1 #0 : ()
->   %3 = Retain %32 Entry local $1 #0 : ()
+>   %0 = Retain %30 Cold local $0 #0 : ()
+>   %1 = Retain %30 Entry local $0 #0 : ()
+>   %2 = Retain %30 Cold local $1 #0 : ()
+>   %3 = Retain %30 Entry local $1 #0 : ()
     let (x, y) = join!(label(a), label(b))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/label[] (%4) : Suspend[string]
@@ -67,67 +65,61 @@ fn both!(a: string, b: string) -> usize:
 >   %9 = Release %8 Operation results #2 : ()
 >   %10 = Release %8 Operation waker #2 : ()
 >   %11 = Drop [%7] : ()
->   %12 = Drop [%6] : ()
->   %13 = Drop [%5] : ()
->   %14 = Drop [%4] : ()
->   %15 = Block - : ()
->   %16 = Read move [%8 .0] : string
->   %17 = Read move [%8 .1] : string
->   %18 = Store [$2] %16 : ()
->   %19 = Store [$3] %17 : ()
->   %21 = Block - : never
->   %22 = Match %8 [%21 %15] : ()
->   %32 = Block %31 : usize
+>   %12 = Drop [%5] : ()
+>   %13 = Block - : ()
+>   %14 = Read move [%8 .0] : string
+>   %15 = Read move [%8 .1] : string
+>   %16 = Store [$2] %14 : ()
+>   %17 = Store [$3] %15 : ()
+>   %19 = Block - : never
+>   %20 = Match %8 [%19 %13] : ()
+>   %30 = Block %29 : usize
     x.len() + y.len()
->   %23 = Ref local [$2] : &string
->   %24 = Call std/text/impl string.len[] (%23) : usize
->   %25 = LoanEnd [%23] : ()
->   %26 = Drop [$2] : ()
->   %27 = Ref local [$3] : &string
->   %28 = Call std/text/impl string.len[] (%27) : usize
->   %29 = LoanEnd [%27] : ()
->   %30 = Drop [$3] : ()
->   %31 = Prim Add [%24 %28] : usize
->   %23 finds [$2] full
->   %27 finds [$3] full
+>   %21 = Ref local [$2] : &string
+>   %22 = Call std/text/impl string.len[] (%21) : usize
+>   %23 = LoanEnd [%21] : ()
+>   %24 = Drop [$2] : ()
+>   %25 = Ref local [$3] : &string
+>   %26 = Call std/text/impl string.len[] (%25) : usize
+>   %27 = LoanEnd [%25] : ()
+>   %28 = Drop [$3] : ()
+>   %29 = Prim Add [%22 %26] : usize
+>   %21 finds [$2] full
+>   %25 finds [$3] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell, $3 cell
 >   summary none
->   unwind %8 drops [%4 %5 %6 %7]
->   live %8 [%4 %5 %6 %7 $0 $1]
+>   unwind %8 drops [%5 %7]
+>   live %8 [%5 %7 $0 $1]
 
 fn either!(a: string, b: string) -> usize:
 > app/main/either
 >   local $0 a: string [param read] value
->     uses $0: entry -> %5 lend last
+>     uses $0: entry -> %5 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %8 lend last
+>     uses $1: entry -> %7 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %20 Cold local $0 #0 : ()
->   %1 = Retain %20 Entry local $0 #0 : ()
->   %2 = Retain %20 Cold local $1 #0 : ()
->   %3 = Retain %20 Entry local $1 #0 : ()
+>   %0 = Retain %17 Cold local $0 #0 : ()
+>   %1 = Retain %17 Entry local $0 #0 : ()
+>   %2 = Retain %17 Cold local $1 #0 : ()
+>   %3 = Retain %17 Entry local $1 #0 : ()
     race!(label(a), label(b)).len()
->   %4 = Release %20 FrameDrop child #2 : ()
+>   %4 = Release %17 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
 >   %6 = Call app/main/label[] (%5) : Suspend[string]
->   %7 = Drop [%5] : ()
->   %8 = Read move [$1] : string
->   %9 = Call app/main/label[] (%8) : Suspend[string]
->   %10 = Drop [%8] : ()
->   %11 = NewList - [%6 %9] : List[Suspend[string]]
->   %12 = Await std/task/race[string] (%11) : string
->   %13 = Release %12 Operation child #2 : ()
->   %14 = Drop [%11] : ()
->   %15 = Store [$2] %12 : ()
->   %16 = Ref local [$2] : &string
->   %17 = Call std/text/impl string.len[] (%16) : usize
->   %18 = LoanEnd [%16] : ()
->   %19 = Drop [$2] : ()
->   %20 = Block %17 : usize
->   %16 finds [$2] full
+>   %7 = Read move [$1] : string
+>   %8 = Call app/main/label[] (%7) : Suspend[string]
+>   %9 = NewList - [%6 %8] : List[Suspend[string]]
+>   %10 = Await std/task/race[string] (%9) : string
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Store [$2] %10 : ()
+>   %13 = Ref local [$2] : &string
+>   %14 = Call std/text/impl string.len[] (%13) : usize
+>   %15 = LoanEnd [%13] : ()
+>   %16 = Drop [$2] : ()
+>   %17 = Block %14 : usize
+>   %13 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary none
->   unwind %12 drops [%11]
->   live %12 [%11 $0 $1]
+>   live %10 [%9 $0 $1]
