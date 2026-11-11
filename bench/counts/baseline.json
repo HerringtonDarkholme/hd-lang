@@ -200,8 +200,7 @@
       "released": "3400100",
       "uniques": "12240015",
       "total": "18020117",
-      "noOpsAndSkipped": "22610160",
-      "reason": "#1443 step b deleted TyData::Mut. hd_structure's generated records were marked `mut`, which made hd_mono skip counting their lists (holds_coll is false on Mut) and so hid the sharing instead of proving it safe. As plain structs, a generated record used twice retains its lists once through rt:coll_copy in its type's once-initializer: +10 no-op/skipped calls here, release +0.1% across 79 programs (3,085,547 -> 3,088,805 B), accepted and priced on #1443. #1511 removes the copy with a static-record rule."
+      "noOpsAndSkipped": "22610155"
     },
     {
       "program": "bench/study/mandelbrot.hd",
