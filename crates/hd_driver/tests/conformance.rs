@@ -64,7 +64,7 @@ use hd_cache::MemoryStore;
 use hd_diag::Severity;
 use hd_driver::{
     Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
-    PipelineReport, ScenarioHold, build_packages,
+    PipelineReport, Reuse, ScenarioHold, build_packages,
 };
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -114,6 +114,9 @@ struct Fixture {
     /// The package its sources are: `fixture`, or `std` for the hd tests
     /// of std's runtime modules ([`STD_RT_TESTS`]).
     package: &'static str,
+    /// The folder interfaces its first build decoded, which its later
+    /// builds take instead of decoding them again.
+    reuse: Reuse,
 }
 
 fn formatted_sources(sources: &MemorySources) -> MemorySources {
@@ -152,6 +155,7 @@ fn formatted_fixture(fixture: &Fixture) -> Fixture {
             .collect(),
         checked: fixture.checked,
         package: fixture.package,
+        reuse: Reuse::default(),
     }
 }
 
@@ -323,6 +327,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         deps,
         checked: checked_runtime(),
         package: "fixture",
+        reuse: Reuse::default(),
     })
 }
 
@@ -534,6 +539,7 @@ fn build_for(
         verify_own: true,
         // A std fixture's file is a leaf of std, so its builds share the rest.
         std_leaf: (fixture.package == "std").then_some(fixture.primary.as_str()),
+        reuse: Some(&fixture.reuse),
         ..Packages::default()
     };
     let out = build_packages(&host, fixture.package, &packages, goal);
@@ -2106,6 +2112,7 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             deps: Vec::new(),
             checked,
             package: "std",
+            reuse: Reuse::default(),
         };
         let goal = Goal::Tests {
             module: Some(hd_project::module_path("std", path)),
@@ -2144,6 +2151,7 @@ fn unit_fixture(text: &str) -> Fixture {
         deps: Vec::new(),
         checked: checked_runtime(),
         package: "fixture",
+        reuse: Reuse::default(),
     }
 }
 

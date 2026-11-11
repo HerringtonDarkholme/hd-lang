@@ -101,6 +101,7 @@ mod recursive_value_fix;
 mod reference_equality_fix;
 mod release_profile_run;
 mod resume_dispatch;
+mod reuse_ifaces;
 mod row_aliases;
 mod row_invariant_nested;
 mod row_one_body;

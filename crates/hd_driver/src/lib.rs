@@ -1658,6 +1658,14 @@ struct Run<'a> {
     instruction_origins: OnceLock<Vec<FunctionOrigins>>,
     /// The session this run links one more module of ([`Packages::session`]).
     session: Option<&'a Session>,
+    /// The interfaces an earlier build left in [`Packages::reuse`], which
+    /// this run takes where their keys still hold.
+    reused: Option<&'a Reused>,
+    /// What this run leaves in an empty [`Packages::reuse`], by `reads_key`.
+    reusing: Option<Mutex<HashMap<Hash128, ReusedIface>>>,
+    /// The item records the reused interfaces had decoded before this run
+    /// took them, which its counters leave out.
+    reused_records: Mutex<(usize, usize)>,
     /// What this run's module adds to that session ([`Output::session_added`]).
     session_added: OnceLock<Session>,
     /// The entries of each REPL input this run builds, by number, as it
@@ -2058,6 +2066,9 @@ pub struct Packages<'a> {
     /// Cached source/check entries and the linking ABI of earlier REPL
     /// inputs: the build links as one more module of that session.
     pub session: Option<&'a Session>,
+    /// The folder interfaces an earlier build of the caller decoded or
+    /// built ([`Reuse`]); an empty one is filled by this build.
+    pub reuse: Option<&'a Reuse>,
     /// For a `Goal::ReplInput { input }` with a session: build every input
     /// from this number to `input` as one module, for a rebuild that holds
     /// many inputs in one instance (`docs/future-work/live-execution.md`
@@ -2102,6 +2113,44 @@ pub struct Session {
     /// Private linking ABI for initialized REPL modules; absent in what a
     /// build adds without linking.
     linked: Option<hd_wasm::Session>,
+}
+
+/// The folder interfaces one build leaves for the caller's later builds
+/// over the same store, such as the check and program builds of one
+/// conformance case (#1423). The first build given an empty `Reuse` fills
+/// it with its interners and each interface it read or built. A later
+/// build adopts those interners and takes a folder's interface whenever
+/// its `iface` key and the deep hashes of the folders it names are
+/// unchanged, so it neither reads nor decodes the entry again. Later
+/// builds only read it.
+///
+/// Cost: one map insert per folder in the filling build. A reading build
+/// pays a key and a map probe per folder, in place of the entry read, its
+/// checksum and the decode. Its counters count no `iface` or `reads`
+/// lookup for a reused folder.
+#[derive(Default)]
+pub struct Reuse(OnceLock<Reused>);
+
+/// What [`Reuse`] holds: the filling build's interners, which the reused
+/// interfaces' items name, and the interfaces by their folder's `reads_key`.
+struct Reused {
+    pool: Arc<InternPool>,
+    paths: Arc<PathTable>,
+    syms: Arc<ShardedInterner>,
+    known: Arc<hd_resolve::KnownItems>,
+    ifaces: HashMap<Hash128, ReusedIface>,
+}
+
+/// One reused interface, with what decides whether a later build may take
+/// it: the reads its key was computed over, the key, and the deep hash of
+/// each folder it names. Its header findings re-emit against the reading
+/// build's files, as on a cache hit.
+struct ReusedIface {
+    reads: Vec<(String, bool)>,
+    key: Hash128,
+    iface: Arc<FolderIface>,
+    diags: IfaceDiags,
+    mentions: Vec<(String, Hash128)>,
 }
 
 /// A validated cache payload that retains the store's backing allocation.
@@ -2354,8 +2403,26 @@ fn build_packages_inner(
         packages.target,
         packages.level,
     ));
-    let paths = PathTable::new();
-    let known = hd_resolve::KnownItems::new(&paths);
+    // A build that reads a filled `Reuse` names its items through the
+    // filling build's interners.
+    let reused = packages.reuse.and_then(|r| r.0.get());
+    let (pool, paths, syms, known) = if let Some(r) = reused {
+        (
+            Arc::clone(&r.pool),
+            Arc::clone(&r.paths),
+            Arc::clone(&r.syms),
+            Arc::clone(&r.known),
+        )
+    } else {
+        let paths = PathTable::new();
+        let known = hd_resolve::KnownItems::new(&paths);
+        (
+            Arc::new(InternPool::new()),
+            Arc::new(paths),
+            Arc::new(ShardedInterner::default()),
+            Arc::new(known),
+        )
+    };
     let module_nodes = table
         .modules
         .iter()
@@ -2417,10 +2484,10 @@ fn build_packages_inner(
         single_file: packages.single_file,
         goal: goal.clone(),
         texts,
-        pool: Arc::new(InternPool::new()),
-        paths: Arc::new(paths),
-        known: Arc::new(known),
-        syms: Arc::new(ShardedInterner::default()),
+        pool,
+        paths,
+        known,
+        syms,
         universes: ImplUniverses::default(),
         memo: GlobalMemo::default(),
         owners: OnceLock::new(),
@@ -2497,6 +2564,10 @@ fn build_packages_inner(
         map_instructions: packages.instruction_origins,
         instruction_origins: OnceLock::new(),
         session: packages.session,
+        reused,
+        reusing: (packages.reuse.is_some() && reused.is_none())
+            .then(|| Mutex::new(HashMap::default())),
+        reused_records: Mutex::new((0, 0)),
         session_added: OnceLock::new(),
         input_entries: Mutex::default(),
         kept: OnceLock::new(),
@@ -2600,6 +2671,15 @@ fn build_packages_inner(
             );
         }
     }
+    if let (Some(reuse), Some(left)) = (packages.reuse, &run.reusing) {
+        let _ = reuse.0.set(Reused {
+            pool: Arc::clone(&run.pool),
+            paths: Arc::clone(&run.paths),
+            syms: Arc::clone(&run.syms),
+            known: Arc::clone(&run.known),
+            ifaces: std::mem::take(&mut *lock(left)),
+        });
+    }
     check_host_declarations(
         &run.table,
         &run.texts,
@@ -2639,6 +2719,10 @@ fn build_packages_inner(
         .filter_map(|i| i.get().cloned().flatten())
         .map(|i| i.items.decoded_other())
         .sum();
+    // A reused interface's records an earlier build decoded are its.
+    let (records, other) = *lock(&run.reused_records);
+    counters.iface_records -= records;
+    counters.iface_other_records -= other;
     counters.sort();
     let report = lock(&run.report).clone();
     let mut diags = std::mem::take(&mut *lock(&run.diags));
@@ -4122,6 +4206,9 @@ impl Run<'_> {
             .modules
             .iter()
             .any(|m| self.repl_number(m.idx()).is_some());
+        if !input && self.take_reused(fi, own) {
+            return;
+        }
         let stored = if input {
             None
         } else {
@@ -4140,11 +4227,17 @@ impl Run<'_> {
         };
         let last = stored.as_deref().and_then(decode_reads);
         let names = self.names();
-        if (input || last.is_some())
-            && let Some(sections) =
-                self.lookup(EntryKind::Iface, key_of(last.as_deref().unwrap_or(&[])))
+        let last_key = (input || last.is_some()).then(|| key_of(last.as_deref().unwrap_or(&[])));
+        if let Some(key) = last_key
+            && let Some(sections) = self.lookup(EntryKind::Iface, key)
             && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
+            if let (Some(reads), Some(diags)) = (
+                last.as_ref().filter(|_| !input),
+                sections.get(1).and_then(|d| decode_iface_diags(d)),
+            ) {
+                self.leave_reused(fi, own, reads.clone(), key, diags, &mentions);
+            }
             let m = folder.modules[0].idx();
             self.keep_input(
                 m,
@@ -4300,6 +4393,77 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::FolderIface);
         self.iface_index.insert(folder.id, &iface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
+        if !input {
+            self.leave_reused(fi, own, reads, key, idiags, &mentions);
+        }
+    }
+
+    /// Sets folder `fi`'s interface from what an earlier build left in
+    /// [`Packages::reuse`] under its `reads_key` `own`, when the reads its
+    /// key was computed over answer the same in this run and each folder
+    /// it names has the same deep hash. Whether it did.
+    fn take_reused(&self, fi: usize, own: Hash128) -> bool {
+        let Some(kept) = self.reused.and_then(|r| r.ifaces.get(&own)) else {
+            return false;
+        };
+        let folder = &self.table.folders[fi];
+        let answers = self.read_answers(folder.id, &kept.reads);
+        let rows: Vec<(&str, Hash128)> = answers.iter().map(|(m, h)| (m.as_str(), *h)).collect();
+        if iface_key(own, &rows) != kept.key {
+            return false;
+        }
+        let same_deep = |(path, deep): &(String, Hash128)| {
+            self.table
+                .folders
+                .iter()
+                .find(|f| f.path == *path)
+                .and_then(|f| self.iface_of(f.id))
+                .is_some_and(|i| i.deep_hash == *deep)
+        };
+        if !kept.mentions.iter().all(same_deep) {
+            return false;
+        }
+        let iface = &kept.iface;
+        {
+            let mut seen = lock(&self.reused_records);
+            seen.0 += iface.items.decoded();
+            seen.1 += iface.items.decoded_other();
+        }
+        self.emit_iface_diags(fi, &kept.diags);
+        self.note_iface(&folder.path, iface, false);
+        lock(&self.report).ok(Stage::FolderIface);
+        self.iface_index.insert(folder.id, iface);
+        let _ = self.iface[fi].set(Some(Arc::clone(iface)));
+        true
+    }
+
+    /// Leaves folder `fi`'s interface, as this run read or built it, for
+    /// the later builds of an empty [`Packages::reuse`] this run fills.
+    fn leave_reused(
+        &self,
+        fi: usize,
+        own: Hash128,
+        reads: Vec<(String, bool)>,
+        key: Hash128,
+        diags: IfaceDiags,
+        mentions: &[(String, Hash128)],
+    ) {
+        let Some(left) = &self.reusing else {
+            return;
+        };
+        let Some(iface) = self.iface_of(self.table.folders[fi].id) else {
+            return;
+        };
+        lock(left).insert(
+            own,
+            ReusedIface {
+                reads,
+                key,
+                iface,
+                diags,
+                mentions: mentions.to_vec(),
+            },
+        );
     }
 
     /// `diags`, reported in folder `fi`'s files, with each span as a

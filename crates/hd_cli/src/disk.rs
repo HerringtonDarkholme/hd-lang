@@ -409,6 +409,7 @@ impl Program {
             doc_scopes: false,
             check_roots: None,
             session: None,
+            reuse: None,
             inputs_from: None,
             failed_inputs: &[],
             body_fuel: None,
