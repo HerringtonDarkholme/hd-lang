@@ -536,13 +536,16 @@ impl Doc {
     }
 
     /// Moves a diagnostic of the program to the source file and the `##`
-    /// line it came from (`cli.test.doc.location`). Its column and its
-    /// fixes name the program's text, so they go.
+    /// lines it came from (`cli.test.doc.location`): its start and end lines
+    /// map alike. Its columns and its fixes name the program's text, so
+    /// they go.
     pub(crate) fn relocate(&self, d: &mut report::Diag) {
         if d.file.as_deref() == Some(self.path.as_str()) {
             d.file = Some(self.file.clone());
             d.line = d.line.map(|l| self.line(l));
+            d.end_line = d.end_line.map(|l| self.line(l));
             d.column = None;
+            d.end_column = None;
             d.fixes.clear();
         }
     }

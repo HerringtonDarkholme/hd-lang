@@ -308,7 +308,7 @@ fn stored_report(
         &t.program.packages(),
         &Goal::Analyze,
     )?;
-    let mut client = hd_base::StableHasher::new("cli-check-report-v1");
+    let mut client = hd_base::StableHasher::new("cli-check-report-v2");
     client.u8(u8::from(tests));
     client.str(t.only.as_deref().unwrap_or(""));
     client.str(&format!("{lint:?}"));
@@ -701,6 +701,52 @@ mod stored_report_tests {
         let path = root.join(path);
         std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
         std::fs::write(path, text).expect("write");
+    }
+
+    /// `cli.test.doc.location` (#1710): `hd check --tests` reports a doc
+    /// test's diagnostic in its source file, end included: the end line maps
+    /// through the `##` lines as the start does, and no column names the
+    /// doc program's text. A warm run replays the same position.
+    #[test]
+    fn a_doc_test_diagnostic_ends_in_its_source_file() {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "check-doc-end",
+        );
+        let root = dir.join("p");
+        write(&root, "hd.toml", "[package]\nname = \"shop\"\n");
+        write(
+            &root,
+            "src/m.hd",
+            "pub fn one() -> i32: 1\n\n## ```hd\n## use pkg.m.{nothing}\n## pass\n## ```\npub fn zero() -> i32: 0\n",
+        );
+        settle();
+        let o = Options {
+            tests: true,
+            ..Options::default()
+        };
+        let store = Counted::default();
+        for run_name in ["cold", "warm"] {
+            let (diags, _) = run(&root, &store, &o, None);
+            let found: Vec<_> = diags
+                .iter()
+                .filter(|d| d.message.contains("nothing"))
+                .map(|d| {
+                    (
+                        d.file.as_deref(),
+                        d.line,
+                        d.column,
+                        d.end_line,
+                        d.end_column,
+                    )
+                })
+                .collect();
+            assert_eq!(
+                found,
+                [(Some("src/m.hd"), Some(4), None, Some(4), None)],
+                "{run_name}: {diags:?}"
+            );
+        }
     }
 
     /// Cost Model (#1510): a warm `hd check` or `hd lint`, whole or of a
