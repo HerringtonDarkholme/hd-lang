@@ -298,29 +298,20 @@ fn total(price: i64, items: List[string]) -> i64:
 3. r[types.literal.local.class] Unsuffixed literals with no expected type that meet one another, directly or through a type not yet known, form one **literal class**.
 4. r[types.literal.local.default] A literal class's **default type** is `i32` for integers when a member is a signed literal, and `usize` otherwise. For floating-point literals it is `f64`.
 5. r[types.literal.local.class.meet] When a literal class meets a type in one of the forms below, every literal of the class takes that type.
-6. r[types.literal.local.class.open] A literal class stays open across the statements of its function or closure body. One that meets no type by the end of that body takes its default type there. A top-level statement is a body of its own.
+6. r[types.literal.local.class.open] A literal class that meets no type by the end of its statement takes its default type.
 7. r[types.literal.local.class.once] A literal class's type is decided once, when it meets a type or takes its default. A statement that fails to check is an error and is not checked again with other widths.
-8. r[types.literal.local.statement] A binding of an open class keeps the class. A later statement that meets a type decides the binding's type and every literal of its class.
-9. r[types.literal.local.method] A method call whose receiver is an open class settles the class at the call, to its default type. A requirement key that names an open class settles it the same way, where the key is required. A later statement does not change it.
-10. r[types.literal.local.obligation] A trait bound of a call whose argument is an open class is checked once the class's type is decided: where it meets a type, or at the end of the body.
-11. r[types.literal.local.block] A block of two or more statements inside an expression is not part of it. A branch, arm, or closure body that is one expression is part of it.
+8. r[types.literal.local.statement] Nothing crosses a statement. A binding takes the type of its initializer, and no later statement changes it.
+9. r[types.literal.local.block] A block of two or more statements inside an expression is not part of it. A branch, arm, or closure body that is one expression is part of it.
 
 ```text
 fn take(n: i32) -> i32:
     n
 
 fn run(items: List[string]) -> i32:
-    let i = 0               # open: the comparison makes it a usize
+    let i = 0               # a usize: a later use does not change it
     if i < items.len():
         return 0
     take(i)                 # error: type-mismatch
-
-fn later() -> i64:
-    let a = 123             # open: the next line makes it an i64
-    let b: i64 = a
-    let c = -5
-    let d = c.abs()         # a method call settles c to i32 here
-    b + i64(d)
 ```
 
 Two literal classes in one statement take their widths apart:
@@ -350,11 +341,11 @@ The expression forms in which literals meet typed parts:
 | r[types.literal.local.form.interpolation] Interpolations | an expression inside `${...}` | `"${price + 1}"` | the expression's own typed parts |
 | r[types.literal.local.form.expected] Expected types | a default argument, a returned value, an assigned value, or a typed field | `fn pay(amount: i64 = 5)` | the expected type |
 
-12. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
-13. r[types.literal.local.form.function-return.statements] The return paths of a non-public function whose result type is omitted join the same way, across the statements of its body.
-14. r[types.literal.local.form.join-open] A literal class that reaches such a join stays open until the join, and takes its default type there when the join meets no type.
-15. r[types.literal.local.erased.reference-values] A literal addressed and converted to a trait value reference has its class's default type. So `let x: &dyn Any = &42` refers to a `usize`.
-16. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
+10. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
+11. r[types.literal.local.form.function-return.statements] The return paths of a non-public function whose result type is omitted join the same way, across the statements of its body.
+12. r[types.literal.local.form.join-open] A literal class that reaches such a join stays open until the join, and takes its default type there when the join meets no type.
+13. r[types.literal.local.erased.reference-values] A literal addressed and converted to a trait value reference has its class's default type. So `let x: &dyn Any = &42` refers to a `usize`.
+14. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
 
 ```text
 use std.ops.Add
@@ -377,7 +368,7 @@ fn charge(price: Money) -> Money:
     price.add(5)                 # error: type-mismatch
 ```
 
-17. r[types.literal.local.hint] When a binding whose type is a literal's default type meets another type, the diagnostic should point at that literal and suggest the fix there.
+15. r[types.literal.local.hint] When a binding whose type is a literal's default type meets another type, the diagnostic should point at that literal and suggest the fix there.
 
 > **Note.** The suggested fix is a sign for `i32`, as `let total = +0`
 > or `{"tea": +3}`, and an annotation for another width, as
@@ -1002,7 +993,7 @@ See also: [Inspectable Types](09-traits.md#inspectable-types).
 
 1. r[types.assign.no-subtyping] No inheritance or structural record subtyping exists.
 2. r[types.assign.binding-type] Assignment never changes the declared or inferred type of a binding.
-3. r[types.assign.let-declared] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. A literal initializer's width is the type its class settles to, by [`types.literal.local.statement`](#r-types.literal.local.statement).
+3. r[types.assign.let-declared] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. A literal initializer's width is fixed there, by [`types.literal.local.statement`](#r-types.literal.local.statement).
 
 ```hd
 fn demo() -> i32:

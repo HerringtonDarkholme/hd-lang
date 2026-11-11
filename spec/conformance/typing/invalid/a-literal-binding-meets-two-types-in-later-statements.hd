@@ -1,8 +1,0 @@
-# test: a literal class that meets two types in later statements is a mismatch at the second
-# Spec 04 Local Literal Types: types.literal.local.statement, types.literal.local.class.once.
-
-fn run() -> u8:
-    x := 5
-    let a: i64 = x
-    let b: u8 = x # diagnostic: type-mismatch
-    b

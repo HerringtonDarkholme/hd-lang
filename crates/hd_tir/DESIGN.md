@@ -58,10 +58,9 @@ take the least common type and the row union. A callee already in
 progress closes a cycle: `recursive-function-needs-result-type`,
 reported once at the cycle's first function in source order; the call is
 poison. `ModuleFinish` writes the inferred results into the module's
-items. A top-level statement is a literal-class body of its own, so a
-top-level binding's class closes at the end of its statement
-(`types.literal.local.class.open`). A body that a top-level
-statement reaches therefore sees the binding's type.
+items. A top-level binding's literal class closes at the end of its
+statement (`types.literal.local.statement`), so a body that a top-level
+statement reaches sees the binding's type.
 
 **M3: inferred rows.** A row is final before the module's items are
 written: codegen picks a call's providers from the callee's signature
