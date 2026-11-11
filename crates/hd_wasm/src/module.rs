@@ -629,7 +629,7 @@ impl Func {
     }
 
     pub fn source_origin(&self, origin: Option<u32>) -> Option<u32> {
-        origin.map(|o| self.count_origin(o).map_or(o, |n| n.origin))
+        origin.and_then(|o| self.count_origin(o).map_or(Some(o), |n| n.origin))
     }
 
     pub(crate) fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
@@ -647,23 +647,58 @@ impl Func {
         subject: &str,
         reason: Option<hd_tir::own::Reason>,
     ) {
-        if self.origins.is_none() || start == self.body.len() {
+        self.note_count_site(start, Some(source_len), action, subject, reason);
+    }
+
+    /// Annotates generated runtime count code. Its named ownership cause
+    /// travels through existing remappers with an absent TIR source origin.
+    pub fn note_runtime_count(
+        &mut self,
+        start: usize,
+        action: crate::views::CountAction,
+        subject: &str,
+        reason: hd_tir::own::Reason,
+    ) {
+        self.note_count_site(start, None, action, subject, Some(reason));
+    }
+
+    fn note_count_site(
+        &mut self,
+        start: usize,
+        source_len: Option<u32>,
+        action: crate::views::CountAction,
+        subject: &str,
+        reason: Option<hd_tir::own::Reason>,
+    ) {
+        if source_len.is_some() && self.origins.is_none() || start == self.body.len() {
             return;
         }
-        let base = *self.count_origin_base.get_or_insert(source_len);
-        assert_eq!(base, source_len);
+        let len = self.body.len();
+        self.origins.get_or_insert_with(|| vec![None; len]);
+        let base = *self
+            .count_origin_base
+            .get_or_insert(source_len.unwrap_or(0));
+        if let Some(source_len) = source_len {
+            assert_eq!(base, source_len);
+        }
         let site = self.count_sites;
         self.count_sites += 1;
         let mut tokens = BTreeMap::new();
         for k in start..self.body.len() {
-            let Some(original) = self.source_origin(self.origins.as_ref().expect("mapped")[k])
-            else {
-                continue;
+            let original = if source_len.is_some() {
+                // ruled out: the origins vector is initialized above in both modes.
+                let Some(original) = self.source_origin(self.origins.as_ref().expect("mapped")[k])
+                else {
+                    continue;
+                };
+                assert!(
+                    original < base,
+                    "real source instruction precedes metadata tokens"
+                );
+                Some(original)
+            } else {
+                None
             };
-            assert!(
-                original < base,
-                "real source instruction precedes metadata tokens"
-            );
             let token = *tokens.entry(original).or_insert_with(|| {
                 let token = base
                     .checked_add(u32::try_from(self.count_origins.len()).expect("origin notes"))

@@ -920,11 +920,13 @@ pub fn host_slot(
             }
         }
     };
+    let (area, counts) = args_area(input, &types, m)?;
     Ok(Helper::HostCold {
         module,
         method,
         args,
-        area: args_area(input, &types)?,
+        area,
+        counts: Box::new(counts),
         res,
     })
 }
@@ -1193,20 +1195,25 @@ fn tags_only(body: &Body, root: u32) -> bool {
 
 /// A host leaf frame's arguments as one record of `types`, which the
 /// frame keeps with a count of its own of each (`Helper::CopyElems`).
-fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
+fn args_area(
+    input: &Input<'_>,
+    types: &[Ty],
+    method: DefId,
+) -> StageResult<(Elem, crate::rt::HostCounts)> {
     let (pool, env) = (input.pool, input.env);
     let (mem, parts) = layout::payload_mem(pool, env, types)?;
     let mut colls = Vec::new();
+    let mut borrowed_colls = Vec::new();
     for (t, p) in types.iter().zip(&parts) {
         let first = u32::try_from(p.first).expect("values");
-        colls.extend(
-            layout::coll_leaves(pool, env, *t)
-                .into_iter()
-                .map(|k| first + k),
-        );
+        let local = layout::coll_leaves(pool, env, *t);
+        colls.extend(local.iter().map(|k| first + k));
+        if !env.cold_transfers(method, *t) {
+            borrowed_colls.extend(local.iter().map(|k| first + k));
+        }
     }
     let counts = input.runtime.is_some();
-    Ok(Elem {
+    let area = Elem {
         size: mem.size,
         leaves: mem.leaves,
         walk: if counts {
@@ -1219,7 +1226,29 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
         // The leaf frame that keeps a host call's arguments takes part as
         // they say: only an open value holds the frame.
         cyclic: counts && crate::cycle::holding(pool, env, types),
-    })
+    };
+    let mut borrowed = None;
+    let mut owned = None;
+    if counts {
+        borrowed = layout::fields_walk_by(pool, env, types, &|ty| {
+            (!env.cold_transfers(method, ty))
+                .then(|| layout::count_walk(pool, env, ty))
+                .flatten()
+        });
+        owned = layout::fields_walk_by(pool, env, types, &|ty| {
+            env.cold_transfers(method, ty)
+                .then(|| layout::count_walk(pool, env, ty))
+                .flatten()
+        });
+    }
+    Ok((
+        area,
+        crate::rt::HostCounts {
+            borrowed,
+            borrowed_colls: if counts { borrowed_colls } else { Vec::new() },
+            owned,
+        },
+    ))
 }
 
 /// Where a host handle's methods come from.

@@ -65,6 +65,10 @@
             call_indirect $table0 (param i32 i32 i32) (result i32 i32)
             local.set $t7
             local.tee $t5
+            i32.const 0
+            local.set $t4
+            i32.const 0
+            local.set $t3
             i32.eqz
           end
           i32.eqz
@@ -300,12 +304,6 @@
           end
         end
         local.get $t1
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
-        local.get $t4
         local.tee $t2
         if
           local.get $t2

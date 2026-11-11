@@ -1,0 +1,18 @@
+# @dump: counts own wat
+# @build: v8 release
+# expected: cold closure parameters receive transferred string and List owners.
+fn fetch!(key: string) -> string:
+    key + "?"
+
+fn stored!(key: string, keys: List[string]) -> usize:
+    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    loader!(key, keys)
+
+fn cancel(key: string, keys: List[string]) -> void:
+    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    _ := loader(key, keys)
+
+fn live!(key: string, keys: List[string]) -> usize:
+    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    size := loader!(key, keys)
+    size + key.len() + keys.len()

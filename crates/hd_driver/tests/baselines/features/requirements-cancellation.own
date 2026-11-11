@@ -26,40 +26,38 @@ fn stop!(key: string) -> bool:
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %3 consume last
 >   local $1 job: Suspend[string] [read assigned] value
->     uses $1: %5 -> %6 lend last
+>     uses $1: %5 -> %6 consume last
 >   local $2 end: CleanupEnd [:= read assigned] value
->     uses $2: %10 -> %11 lend last
->   %0 = Retain %25 Cold local $0 #0 : ()
->   %1 = Retain %25 Entry local $0 #0 : ()
+>     uses $2: %9 -> %10 lend last
+>   %0 = Retain %24 Cold local $0 #0 : ()
+>   %1 = Retain %24 Entry local $0 #0 : ()
     let mut job = fetch(key)
->   %2 = Release %25 FrameDrop child #2 : ()
+>   %2 = Release %24 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %5 = Store [$1] %4 : ()
->   %25 = Block %24 : bool
+>   %24 = Block %23 : bool
     end := job.cancel!()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = Await std/task/impl[T] Suspend[T].cancel[string] (%6) : CleanupEnd
 >   %8 = Release %7 Operation child #2 : ()
->   %9 = Drop [%6] : ()
->   %10 = Store [$2] %7 : ()
+>   %9 = Store [$2] %7 : ()
     match end:
->   %11 = Read copy [$2] : CleanupEnd
->   %23 = Block - : never
->   %24 = Match %11 [%23 %12 %13] : bool
+>   %10 = Read copy [$2] : CleanupEnd
+>   %22 = Block - : never
+>   %23 = Match %10 [%22 %11 %12] : bool
         .Finished => true
->   %12 = Block 1:bool : bool
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %11 [#0 %15 %21] : never
+>   %11 = Block 1:bool : bool
+>   %14 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %10 [#0 %14 %20] : never
         .Abandoned => false
->   %13 = Block 0:bool : bool
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %11 [#1 %17 %19] : never
+>   %12 = Block 0:bool : bool
+>   %16 = Block - : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %10 [#1 %16 %18] : never
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %7 drops [%6]
 >   live %7 [%6 $0]
 
 fn drop_now(key: string) -> void:
