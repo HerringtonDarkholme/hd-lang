@@ -2296,6 +2296,118 @@ pub fn build_packages_with_analysis(
     build_packages_inner(host, package, packages, goal, analysis)
 }
 
+/// The packages a run lists: the root, its dependencies and std, last.
+fn package_ins<'a>(
+    host: &Host<'a>,
+    package: &'a str,
+    packages: &'a Packages<'_>,
+    std: &'a MemorySources,
+) -> Vec<PackageIn<'a>> {
+    let std_in = PackageIn {
+        name: "std",
+        identity: "std",
+        sources: std,
+        scope: Scope::All,
+        requires: Vec::new(),
+        entries: Vec::new(),
+        dev_requires: Vec::new(),
+    };
+    if package == "std" {
+        return vec![std_in];
+    }
+    std::iter::once(PackageIn {
+        name: package,
+        identity: package,
+        sources: host.sources,
+        scope: Scope::All,
+        requires: packages.requires.clone(),
+        entries: packages.entries.clone(),
+        dev_requires: packages.dev_requires.clone(),
+    })
+    .chain(packages.deps.iter().map(|d| PackageIn {
+        name: &d.name,
+        identity: &d.identity,
+        sources: d.sources,
+        scope: Scope::Library,
+        requires: d.requires.clone(),
+        entries: Vec::new(),
+        dev_requires: Vec::new(),
+    }))
+    .chain(std::iter::once(std_in))
+    .collect()
+}
+
+/// The key of what a caller derives from a run of `goal` alone, such as
+/// the CLI's whole `hd check` report or `hd build`'s artifact (#1510): the
+/// run's inputs as its package-result key ([`package_result`]) holds them,
+/// or `None` when the run could not take one. It lists the packages and
+/// hashes each path and stamp; it reads no source and makes no lookup.
+#[must_use]
+pub fn result_key(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+) -> Option<ResultKey> {
+    if package == "std" {
+        return None;
+    }
+    let e = embedded_std();
+    let ins = package_ins(host, package, packages, &e.sources);
+    let table = ModuleTable::discover_all(&ins);
+    let toolchain = toolchain_key(
+        COMPILER,
+        TARGET,
+        &format!("a1=bounded;std={:032x}", e.hash.0),
+    );
+    let key = package_result::key(
+        true, goal, package, packages, host, None, &ins, &table, toolchain,
+    )?;
+    Some(ResultKey { toolchain, key })
+}
+
+/// See [`result_key`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResultKey {
+    toolchain: Hash128,
+    key: Hash128,
+}
+
+impl ResultKey {
+    fn entry(self, client: Hash128) -> Hash128 {
+        hd_cache::depfiles_key(
+            self.toolchain,
+            &format!("client:{:032x}:{:032x}", self.key.0, client.0),
+        )
+    }
+
+    /// The bytes a caller stored under this key and `client`, the hash of
+    /// its own further inputs. One lookup.
+    #[must_use]
+    pub fn read(self, store: &dyn CacheStore, client: Hash128) -> Option<Vec<u8>> {
+        let at = self.entry(client);
+        let bytes = store.get(EntryKind::Depfiles, &at)?;
+        let (h, sections) = hd_cache::decode_entry(&bytes).ok()?;
+        (h.key == at && h.toolchain == self.toolchain && h.layout == LAYOUT)
+            .then(|| sections.first().map(|s| s.1.to_vec()))
+            .flatten()
+    }
+
+    /// Stores `bytes` under this key and `client`.
+    pub fn write(self, store: &dyn CacheStore, client: Hash128, bytes: &[u8]) {
+        let at = self.entry(client);
+        let entry = hd_cache::encode_entry(
+            EntryKind::Depfiles,
+            LAYOUT,
+            at,
+            self.toolchain,
+            0,
+            &[(0, 0, bytes)],
+        );
+        store.put(EntryKind::Depfiles, &at, &entry);
+    }
+}
+
 fn build_packages_inner(
     host: &Host<'_>,
     package: &str,
@@ -2312,39 +2424,7 @@ fn build_packages_inner(
         root_std = with_entry(host.sources);
         &root_std
     };
-    let std_in = PackageIn {
-        name: "std",
-        identity: "std",
-        sources: std,
-        scope: Scope::All,
-        requires: Vec::new(),
-        entries: Vec::new(),
-        dev_requires: Vec::new(),
-    };
-    let ins: Vec<PackageIn<'_>> = if package == "std" {
-        vec![std_in]
-    } else {
-        std::iter::once(PackageIn {
-            name: package,
-            identity: package,
-            sources: host.sources,
-            scope: Scope::All,
-            requires: packages.requires.clone(),
-            entries: packages.entries.clone(),
-            dev_requires: packages.dev_requires.clone(),
-        })
-        .chain(packages.deps.iter().map(|d| PackageIn {
-            name: &d.name,
-            identity: &d.identity,
-            sources: d.sources,
-            scope: Scope::Library,
-            requires: d.requires.clone(),
-            entries: Vec::new(),
-            dev_requires: Vec::new(),
-        }))
-        .chain(std::iter::once(std_in))
-        .collect()
-    };
+    let ins = package_ins(host, package, packages, std);
     let mut table = ModuleTable::discover_all(&ins);
     // Texts are read on first use: a warm run takes an unchanged file's
     // skim from its set's last-run record and reads no text it does not
@@ -2366,6 +2446,7 @@ fn build_packages_inner(
     // stored package result: no record decode and no per-module lookup
     // (#1510).
     let result_key = package_result::key(
+        false,
         goal,
         package,
         packages,

@@ -207,6 +207,18 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
         },
     };
     let (tests, left_out) = scope(&mut t, o);
+    // A warm run whose inputs are unchanged replays the report a run over
+    // them stored (#1510), before the doc tests' skims or any build.
+    let stored = stored_report(&t, tests, lint, store);
+    if let Some(mut shown) =
+        stored.and_then(|(key, client)| hd_driver::diagnostics::decode(&key.read(store, client)?))
+    {
+        report::relocate(&mut shown, |f| t.program.sources.display(f));
+        let mut diags = t.program.problems;
+        diags.extend(left_out);
+        diags.extend(shown);
+        return (diags, 0);
+    }
     // `cli.check.tests.doc`: the doc tests too, but for compile-fail ones.
     let docs: Vec<crate::test_cmd::Doc> = if tests && t.program.as_written.is_none() {
         crate::test_cmd::doc_tests(
@@ -255,11 +267,57 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
         checked.sort_stable();
         checked.dedup();
     }
+    if let Some((key, client)) = stored
+        && shown.iter().all(|d| d.code.is_some() || !d.is_error())
+    {
+        key.write(store, client, &hd_driver::diagnostics::encode(&shown));
+    }
     report::relocate(&mut shown, |f| t.program.sources.display(f));
     let mut diags = t.program.problems;
     diags.extend(left_out);
     diags.extend(shown);
     (diags, checked.len())
+}
+
+/// The key of `t`'s stored report (#1510): the package-result key of a
+/// check over its sources, and the hash of what the report reads besides
+/// them: the scope, the FILE, the lint policy and the manifest's text
+/// (`caps::required` reads its capability tables). A report is a function
+/// of these alone: the doc tests come from the sources, and every other
+/// input is the run's. `None` when the run could not take a stored result.
+fn stored_report(
+    t: &Target,
+    tests: bool,
+    lint: Option<hd_lint::Policy>,
+    store: &dyn CacheStore,
+) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
+    if t.program.as_written.is_some() {
+        return None;
+    }
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &t.program.sources,
+        store,
+        clock: &clock,
+        executor: executor(),
+    };
+    let key = hd_driver::result_key(
+        &host,
+        &t.program.package,
+        &t.program.packages(),
+        &Goal::Analyze,
+    )?;
+    let mut client = hd_base::StableHasher::new("cli-check-report-v1");
+    client.u8(u8::from(tests));
+    client.str(t.only.as_deref().unwrap_or(""));
+    client.str(&format!("{lint:?}"));
+    client.str(&t.program.entry);
+    match t.program.sources.read("hd.toml") {
+        Some(text) => client.hash(hd_base::hash128(&text)),
+        None => client.u8(0),
+    }
+    Some((key, client.finish()))
 }
 
 /// One role's run over `t`'s sources: its diagnostics, with the doc tests'
@@ -589,4 +647,190 @@ fn text_report(diags: &[Diag], o: &Options) -> String {
         "check result: {result}. errors: {errors}; warnings: {warnings}"
     );
     text
+}
+
+#[cfg(all(test, unix))]
+mod stored_report_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hd_base::Hash128;
+    use hd_cache::{EntryKind, MemoryStore};
+    use hd_testkit::Scratch;
+
+    /// A store that counts its lookups.
+    #[derive(Default)]
+    struct Counted {
+        store: MemoryStore,
+        gets: AtomicUsize,
+    }
+
+    impl CacheStore for Counted {
+        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+            self.gets.fetch_add(1, Ordering::Relaxed);
+            self.store.get(kind, key)
+        }
+        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+            self.store.put(kind, key, bytes);
+        }
+        fn touch(&self, kind: EntryKind, key: &Hash128) {
+            self.store.touch(kind, key);
+        }
+    }
+
+    /// `check_one` of the package at `root`, listed now: its report and
+    /// the cache lookups it made.
+    fn run(root: &Path, store: &Counted, o: &Options, only: Option<&str>) -> (Vec<Diag>, usize) {
+        let t = Target {
+            program: disk::load_package(root, "main").expect("package"),
+            only: only.map(str::to_owned),
+            member: None,
+        };
+        store.gets.store(0, Ordering::Relaxed);
+        let (diags, _) = check_one(t, o, store);
+        (diags, store.gets.load(Ordering::Relaxed))
+    }
+
+    /// Waits until every file written so far has a stamp.
+    fn settle() {
+        std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
+    }
+
+    fn write(root: &Path, path: &str, text: &str) {
+        let path = root.join(path);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+
+    /// Cost Model (#1510): a warm `hd check` or `hd lint`, whole or of a
+    /// FILE, with or without `--tests`, replays the stored report with one
+    /// cache lookup: no doc-test skim, no source-allow parse, no rendered
+    /// docs, no build. Its report equals the run that stored it, warnings,
+    /// lint findings, doc-test errors and capability rows included. An
+    /// edit, an added file, a removed file and a manifest edit each miss.
+    #[test]
+    fn a_warm_report_replays_with_one_lookup_and_each_change_misses() {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "check-stored-report",
+        );
+        let root = dir.join("p");
+        write(
+            &root,
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        );
+        write(
+            &root,
+            "src/main.hd",
+            "use pkg.f1.m.{value}\n\npub fn main() -> void $ Console:\n    println(\"{value()}\")\n",
+        );
+        // f0's doc test fails to check; f1 holds a lint finding.
+        write(
+            &root,
+            "src/f0/m.hd",
+            "## ```hd\n## use pkg.f0.m.{nothing}\n## pass\n## ```\npub fn zero() -> i32: 0\n",
+        );
+        write(
+            &root,
+            "src/f1/m.hd",
+            "pub fn value() -> i32:\n    unread := +1\n    1\n",
+        );
+        for i in 2..12 {
+            write(
+                &root,
+                &format!("src/f{i}/m.hd"),
+                &format!("pub fn v() -> i32: {i}\n"),
+            );
+        }
+        settle();
+        let lint = Some(hd_lint::Policy::default());
+        let runs = [
+            Options::default(),
+            Options {
+                tests: true,
+                ..Options::default()
+            },
+            Options {
+                lint,
+                ..Options::default()
+            },
+            Options {
+                lint,
+                tests: true,
+                ..Options::default()
+            },
+        ];
+        let store = Counted::default();
+        let mut reports = Vec::new();
+        for o in &runs {
+            for only in [None, Some("src/f1/m.hd")] {
+                let (cold, _) = run(&root, &store, o, only);
+                let (warm, gets) = run(&root, &store, o, only);
+                assert_eq!(
+                    warm,
+                    cold,
+                    "tests {}, lint {}, {only:?}",
+                    o.tests,
+                    o.lint.is_some()
+                );
+                assert_eq!(
+                    gets,
+                    1,
+                    "tests {}, lint {}, {only:?}",
+                    o.tests,
+                    o.lint.is_some()
+                );
+                reports.push(cold);
+            }
+        }
+        let codes = |d: &[Diag]| {
+            d.iter()
+                .filter_map(|d| d.code)
+                .map(Code::as_str)
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            codes(&reports[5]).contains(&"unused-local-binding"),
+            "{:?}",
+            reports[5]
+        );
+        assert!(
+            reports[2].iter().any(|d| d.message.contains("nothing")),
+            "{:?}",
+            reports[2]
+        );
+        let lint = &runs[2];
+        let changes: [(&str, &dyn Fn()); 4] = [
+            ("an edit", &|| {
+                write(&root, "src/f1/m.hd", "pub fn value() -> i32:\n    1\n");
+            }),
+            ("an added file", &|| {
+                write(&root, "src/g/x.hd", "pub fn x() -> i32: y\n");
+            }),
+            // `main` uses the removed module.
+            ("a removed file", &|| {
+                std::fs::remove_file(root.join("src/f1/m.hd")).expect("remove");
+            }),
+            ("a manifest edit", &|| {
+                write(&root, "hd.toml", "[package]\nname = \"shop\"\n");
+            }),
+        ];
+        let mut last = run(&root, &store, lint, None).0;
+        for (change, apply) in changes {
+            apply();
+            settle();
+            let (report, gets) = run(&root, &store, lint, None);
+            assert!(gets > 1, "{change} misses");
+            assert_ne!(report, last, "{change}");
+            let (again, gets) = run(&root, &store, lint, None);
+            assert_eq!((&again, gets), (&report, 1), "after {change}");
+            last = report;
+        }
+        assert!(
+            last.iter().any(|d| d.message.contains("Console")),
+            "the manifest no longer lists `Console`: {last:?}"
+        );
+    }
 }

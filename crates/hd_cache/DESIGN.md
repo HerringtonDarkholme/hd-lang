@@ -29,7 +29,7 @@ says.
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
-| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) | the first run of a toolchain; a run that changed the set's files | every later run (§5.5) |
+| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file); per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that missed its result | every later run (§5.5) |
 | `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
 | `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
@@ -287,8 +287,8 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   profile's traits) only; not judged, since dependency folders already
   enter keys through their deep hashes.
 
-Planned, not built: a `fast_key` naming a whole-package result, so a
-warm run with no edit reads one entry.
+A warm `hd check` or `hd lint` with no edit reads one entry: its
+stored package result or the CLI's stored report (§5.5, #1510).
 
 #### 5.3.1 Early Cutoff By Recorded Reads
 
@@ -796,7 +796,11 @@ A warm run reads no source file it does not check, and hashes none
   edges of the files they reach; a later run with the same key replays
   them and returns at once, with no record decode and no per-module
   lookup. A run with an internal error stores nothing: it may come
-  from a damaged entry, not the sources.
+  from a damaged entry, not the sources. A caller stores what it
+  derives from such a run under the same key and a hash of its own
+  further inputs (`hd_driver::result_key`): the CLI stores a whole
+  `hd check` or `hd lint` report there, lint source allows, rendered
+  doc links and doc tests included.
 - **Fingerprints** of `hd test --affected` hold content hashes, never
   stamps: a source file's from the build's skims
   (`Output::source_hashes`), any other package file's from

@@ -274,8 +274,132 @@ pub fn quote(s: &str) -> String {
     out
 }
 
+/// `diags` as bytes that [`decode`] reads back equal, for a caller that
+/// stores a report under a [`crate::ResultKey`].
+#[must_use]
+pub fn encode(diags: &[Diag]) -> Vec<u8> {
+    use hd_base::wire::Writer;
+    let opt = |w: &mut Writer, v: Option<usize>| match v {
+        None => w.u8(0),
+        Some(v) => {
+            w.u8(1);
+            w.u64(v as u64);
+        }
+    };
+    let mut w = Writer::default();
+    w.len_of(diags);
+    for d in diags {
+        w.str(d.code.map_or("", Code::as_str));
+        w.u8(u8::from(d.severity == Severity::Warning));
+        w.str(&d.message);
+        match &d.file {
+            None => w.u8(0),
+            Some(f) => {
+                w.u8(1);
+                w.str(f);
+            }
+        }
+        for v in [d.line, d.column, d.end_line, d.end_column] {
+            opt(&mut w, v);
+        }
+        w.len_of(&d.fixes);
+        for f in &d.fixes {
+            w.str(&f.message);
+            w.u8(u8::from(f.exact));
+            w.len_of(&f.edits);
+            for e in &f.edits {
+                w.str(&e.file);
+                w.u32(e.start);
+                w.u32(e.end);
+                w.str(&e.text);
+            }
+        }
+    }
+    w.bytes
+}
+
+/// The diagnostics [`encode`] wrote, or `None` for damaged bytes.
+#[must_use]
+pub fn decode(bytes: &[u8]) -> Option<Vec<Diag>> {
+    use hd_base::wire::Reader;
+    let opt = |r: &mut Reader<'_>| match r.u8() {
+        0 => None,
+        _ => usize::try_from(r.u64()).ok(),
+    };
+    let mut r = Reader::new(bytes);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let code = match r.str() {
+            "" => None,
+            name => Some(Code::from_name(name)?),
+        };
+        let severity = if r.u8() == 0 {
+            Severity::Error
+        } else {
+            Severity::Warning
+        };
+        let message = r.str().to_owned();
+        let file = (r.u8() != 0).then(|| r.str().to_owned());
+        let (line, column, end_line, end_column) =
+            (opt(&mut r), opt(&mut r), opt(&mut r), opt(&mut r));
+        let fixes = (0..r.count())
+            .map(|_| Fix {
+                message: r.str().to_owned(),
+                exact: r.u8() != 0,
+                edits: (0..r.count())
+                    .map(|_| Edit {
+                        file: r.str().to_owned(),
+                        start: r.u32(),
+                        end: r.u32(),
+                        text: r.str().to_owned(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        out.push(Diag {
+            code,
+            severity,
+            message,
+            file,
+            line,
+            column,
+            end_line,
+            end_column,
+            fixes,
+        });
+    }
+    (r.ok() && r.at_end()).then_some(out)
+}
+
 #[cfg(test)]
 mod tests {
+    use super::{Code, Edit, Fix, Severity};
+
+    #[test]
+    fn encoded_diagnostics_decode_equal() {
+        let mut warned = Diag::new(Some(Code::UnknownName), Severity::Warning, "w");
+        warned.file = Some("src/a.hd".to_owned());
+        (
+            warned.line,
+            warned.column,
+            warned.end_line,
+            warned.end_column,
+        ) = (Some(1), Some(2), Some(3), Some(4));
+        warned.fixes.push(Fix {
+            message: "fix".to_owned(),
+            exact: true,
+            edits: vec![Edit {
+                file: "src/a.hd".to_owned(),
+                start: 1,
+                end: 2,
+                text: "é".to_owned(),
+            }],
+        });
+        let diags = vec![warned, Diag::error(None, "no code")];
+        assert_eq!(super::decode(&super::encode(&diags)), Some(diags));
+        assert_eq!(super::decode(&[1, 0, 0]), None);
+    }
+
     use hd_base::{DefId, NodeIdx, NotImplemented, Stage};
     use hd_diag::DiagBuf;
     use hd_tir::ir::{BodyKind, TirBuilder, TirSink, VerifyError};

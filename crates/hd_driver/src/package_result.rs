@@ -40,9 +40,12 @@ pub(crate) struct Stored {
 /// The key of a run's package result, or `None` when the run may not use
 /// one: any goal but `hd check`'s (with or without `--tests`), a request
 /// for more than diagnostics, entry rows and `use` edges, or a file listed
-/// without a stamp.
+/// without a stamp. A `caller` key (`crate::result_key`) also takes a
+/// program's goal: the caller stores what it derives from the build, such
+/// as `hd build`'s artifact.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn key(
+    caller: bool,
     goal: &Goal,
     package: &str,
     packages: &Packages<'_>,
@@ -52,8 +55,13 @@ pub(crate) fn key(
     table: &ModuleTable,
     toolchain: Hash128,
 ) -> Option<Hash128> {
-    let plain = matches!(goal, Goal::Analyze | Goal::CheckTests)
-        && package != "std"
+    let goal_tag = match goal {
+        Goal::Analyze => 0,
+        Goal::CheckTests => 1,
+        Goal::Program { .. } if caller => 2,
+        _ => return None,
+    };
+    let plain = package != "std"
         && host.render_tir.is_empty()
         // The sets host declarations are read from must be the packages'
         // own, whose files the key holds.
@@ -80,7 +88,11 @@ pub(crate) fn key(
     k.hash(toolchain);
     k.u16(super::LAYOUT);
     k.str(package);
-    k.u8(u8::from(matches!(goal, Goal::CheckTests)));
+    k.u8(u8::from(caller));
+    k.u8(goal_tag);
+    if let Goal::Program { entry } = goal {
+        k.str(entry);
+    }
     // The consumer is compiled into the toolchain; what it asks for
     // decides which findings a run collects.
     k.u8(crate::analysis::result_tag(analysis));

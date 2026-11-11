@@ -128,7 +128,7 @@ impl SourceSet for DiskSources {
 /// stamp to be trusted: longer than the coarsest file-system timestamp
 /// (2 s, FAT) and the kernel's coarse-clock lag.
 #[cfg(unix)]
-const SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+pub(crate) const SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// A file's change stamp (`SourceEntry::stamp`, `crates/hd_cache/DESIGN.md`
 /// §5.5): its size, modification and change times, inode and device. Any

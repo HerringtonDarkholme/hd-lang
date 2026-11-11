@@ -37,10 +37,15 @@ Touched: `iface`, `parse`, `check` and `graph` entries. Dependency
 bodies are never parsed: interfaces come from syntax alone.
 
 A warm run reads only the source files whose stamps changed, through
-each source set's last-run record (crates/hd_cache/DESIGN.md §5.5).
-Planned, not built: the `fast_key` lookup of a stored package result,
-keys taken from a last-run record without opening entries, and early
-cutoff (§5.3.1); publishing on an I/O thread after output (§5.4).
+each source set's last-run record (crates/hd_cache/DESIGN.md §5.5). A
+warm run with no change replays its stored report instead (#1510): the
+key is `hd_driver::result_key` over the target's listed paths and
+stamps, with the scope, the FILE, the lint policy and the manifest's
+text; one lookup, no doc-test skim, source-allow parse, rendered docs
+or build. A report holding an internal or command-line error is not
+stored. Planned, not built: keys taken from a last-run record without
+opening entries, and early cutoff (§5.3.1); publishing on an I/O
+thread after output (§5.4).
 
 ### 7.2 `hd check FILE`
 
