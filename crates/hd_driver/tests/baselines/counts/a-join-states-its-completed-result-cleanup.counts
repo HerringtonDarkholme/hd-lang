@@ -46,8 +46,6 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 fn text!(a: string, b: string) -> (string, string):
     generic!(a, b)
 > app/main/text
->   retain string (stored)
->   retain string (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (cancelled)
@@ -62,9 +60,6 @@ fn text!(a: string, b: string) -> (string, string):
 >   release string (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
-> app/main/text
->   retain string (stored)
->   retain string (stored)
 
 fn scalar!(a: i32, b: i32) -> (i32, i32):
     join!(ready(a), ready(b))
@@ -79,8 +74,6 @@ fn scalar!(a: i32, b: i32) -> (i32, i32):
 fn sequential!(a: string, b: string) -> (string, string):
     pair := join!(ready(a), ready(b))
 > app/main/sequential
->   retain string (stored)
->   retain string (stored)
 >   release counted reference (last use)
 >   release string (last use)
 >   release string (last use)
@@ -106,9 +99,6 @@ fn sequential!(a: string, b: string) -> (string, string):
 > app/main/sequential
 >   release string (cancelled)
 >   release string (cancelled)
-> app/main/sequential
->   retain string (stored)
->   retain string (stored)
     join!(ready(pair._0), ready(pair._1))
 >   release counted reference (last use)
 >   release string (last use)

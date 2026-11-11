@@ -607,13 +607,17 @@ impl Em<'_, '_, '_> {
             self.shield_enter(k, ch, &tmp, nc);
         }
         self.f.get(ch);
-        self.push_args(i, args, None, 0, self.f.reason)?;
+        self.push_cold_args(i, args, item, Some(ch))?;
         let c = self.push_call_providers(i, item, targs);
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
+        // The child's fresh entry owns these arguments even if it waits
+        // or cancels. Pending and cancellation can skip the normal
+        // instruction epilogue and save or unwind the caller's locals.
+        self.settle(i);
         self.release_call_ctx(i, c);
         if shielded {
             self.shield_leave(i, nc, Some(ch));
@@ -1500,8 +1504,13 @@ pub(super) fn finish(
     let fr = em.f.local(Val::I32);
     em.f.helper(Helper::Frame(key));
     em.f.set(fr);
-    // Each argument's count, a collection's its copy, before the frame
-    // keeps it.
+    // Borrowed arguments take a count or collection copy before the
+    // frame keeps them. Transferred arguments arrive with theirs.
+    let transferred = if closure.is_none() {
+        em.cold_transferred_locals(plocals)
+    } else {
+        hd_base::HashSet::default()
+    };
     if em.counting {
         for &l in plocals {
             let ls = arrived(&em, l);
@@ -1510,7 +1519,8 @@ pub(super) fn finish(
                 Tag::Retain,
                 CountAt::Cold,
                 CountPart::Local(u32::try_from(l).expect("local")),
-            ) && !crate::layout::holds_drop(em.pool(), em.env(), t)
+            ) && !transferred.contains(&l)
+                && !crate::layout::holds_drop(em.pool(), em.env(), t)
             {
                 em.because(reason, |em| em.retain_locals(&ls, t))?;
             }

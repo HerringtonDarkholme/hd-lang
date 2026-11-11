@@ -176,18 +176,6 @@
       i32.load $heap offset=8
       local.set $t6
     else
-      local.get $wait
-      local.tee $t7
-      if
-        local.get $t7
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t7
-          call $rt:retain_known
-        end
-      end
     end
     block
       local.get $t6
@@ -726,25 +714,14 @@
       end
     end
   )
-  (func $count_later'2 (param $t2 i64) (param $t1 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
+  (func $count_later'2 (param $t1 i64) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
     ;; 25 |     for i in 0..n:
     call $rt:frame
     local.tee $t0
     local.get $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:retain_known
-      end
-    end
-    local.get $t2
     i64.store $heap offset=24
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.store $heap offset=32
     local.get $t0
     local.get $t3
@@ -753,9 +730,8 @@
     local.get $t4
     i32.store $heap offset=40
     local.get $t3
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t3
       call $retain
     end
     local.get $t0

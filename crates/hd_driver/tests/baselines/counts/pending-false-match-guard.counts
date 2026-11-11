@@ -7,7 +7,6 @@ app/main/main
   retain counted reference (stored)
   release counted reference (last use)
   release string (cancelled)
-  release string (cancelled)
   release string (last use)
   release string (last use)
   release string (last use)

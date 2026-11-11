@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: a cold-copy declaration creates no empty fresh-only branch before the loop.
+# expected: the owned parameter enters the loop without a fresh-entry copy.
 trait Wait:
     fn wait!(&mut self) -> void
 

@@ -100,6 +100,18 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
+    /// Whether a representation-stable parameter uses the owned cold ABI.
+    fn cold_transfers(&self, _def: DefId, _ty: Ty) -> bool {
+        false
+    }
+    /// Whether a function-reference adapter needs to bridge a lent
+    /// function-value call to its target's owned cold convention.
+    fn cold_transfer_adapter(&self, def: DefId) -> bool {
+        self.suspends(def)
+            && self
+                .params(def)
+                .is_some_and(|ts| ts.into_iter().any(|t| self.cold_transfers(def, t)))
+    }
     /// Whether the function is a method with an `&self` or `&mut self`
     /// receiver, as whether that receiver is mutable.
     fn local_ref_receiver(&self, def: DefId) -> Option<bool>;
@@ -3122,7 +3134,8 @@ impl Cx<'_> {
         // A target emission lowers at each call is called from a body of
         // one `Call` (§13.11), which goes through the ownership passes as
         // every other body does.
-        if !matches!(&t, Target::Call(c) if c.kind == TargetKind::Instance) {
+        if !matches!(&t, Target::Call(c) if c.kind == TargetKind::Instance && !env.cold_transfer_adapter(c.item))
+        {
             let body = adapter_call_body(pool, env, item, args, &t)?;
             let body = env.own_generated(body)?;
             self.out.instance_bodies.insert(id, Arc::new(body));

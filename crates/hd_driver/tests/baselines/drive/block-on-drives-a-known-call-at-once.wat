@@ -8,7 +8,6 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
@@ -202,22 +201,24 @@
   (func $fetch.drop (param $t0 i32)
     ;; 11 |     key + "?"
     local.get $t0
-    i32.load $heap offset=24
-    local.tee $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
     if
       local.get $t0
-      call $rt:release_ref'1
+      i32.load $heap offset=24
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 11 |     key + "?"
     call $rt:frame
     local.tee $t0
-    local.get $t1
-    if
-      local.get $t1
-      call $retain
-    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0

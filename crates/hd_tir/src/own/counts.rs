@@ -47,7 +47,7 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(capture_entry::counts(b, cx));
     out.extend(context::counts(b));
     out.extend(call_row::counts(b, cx));
-    out.extend(call_args::counts(b, cx));
+    out.extend(call_args::counts(b, cx, topo));
     out.extend(append_copy::counts(b, cx));
     out.extend(cell_move::counts(b, topo));
     out.extend(parameter_copy::counts(b, cx));
