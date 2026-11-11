@@ -14,7 +14,6 @@ fn trailing(s: string) -> usize:
     measure("t"):
 > app/main/trailing
 >   release string (last use)
->   release fn() -> string (last use)
         s + "!"
 
 fn twice(body: fn() -> usize) -> usize:
@@ -22,6 +21,4 @@ fn twice(body: fn() -> usize) -> usize:
 
 fn no_args(s: string) -> usize:
     twice:
-> app/main/no_args
->   release fn() -> usize (last use)
         s.len()

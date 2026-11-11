@@ -590,6 +590,9 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
             _ => {}
         }
     }
+    for &(_, capture) in &b.inlined_shared {
+        t.celled[b.cap_local[capture as usize].idx()] = true;
+    }
     t.acc.sort_stable();
     t.entries.sort_stable();
     t.entries.dedup();

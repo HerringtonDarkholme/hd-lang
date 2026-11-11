@@ -1687,7 +1687,7 @@ pub(super) fn finish(
     // parameter, into the frame, with a count of each.
     if let Some(ci) = closure {
         let copy = em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Captures);
-        if let Some(l) = super::closure::self_local(em.b, ci) {
+        if let Some(l) = super::closure::self_local(&em.recursive_bindings, ci) {
             // The executing closure's value is not an environment field.
             // Save it directly in the fresh frame, with the same ownership
             // as a capture loaded from that environment.
@@ -1710,7 +1710,7 @@ pub(super) fn finish(
                 em.because(reason, |em| em.ref_retain(0));
             }
         }
-        let caps = super::closure::captures(em.b, ci);
+        let caps = super::closure::captures(em.b, ci, &em.recursive_bindings);
         if !caps.is_empty() {
             let (m, parts, _) = em.env_layout(ci, &caps)?;
             for ((l, _), p) in caps.iter().zip(&parts) {

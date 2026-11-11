@@ -207,6 +207,21 @@ fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
         }
         end = first + len;
     }
+    let mut previous = None;
+    for &[at, source] in &b.inlined_origins {
+        let frame = b.inlined.partition_point(|f| f[0] <= at).checked_sub(1);
+        if previous.is_some_and(|old| old >= at)
+            || frame.is_none_or(|k| at >= b.inlined[k][0] + b.inlined[k][1])
+            || source & INLINED != 0
+        {
+            err(
+                errs,
+                NONE,
+                format!("invalid sparse inlined origin {at} -> {source}"),
+            );
+        }
+        previous = Some(at);
+    }
     let mut stores = vec![0u32; b.local_ty.len()];
     for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Store) {
         let w = b.data[i][0];

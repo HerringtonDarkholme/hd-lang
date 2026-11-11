@@ -6,97 +6,81 @@ fn captured(text: string, suffix: string) -> string:
 > app/main/captured
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %2 consume last
->   local $1 suffix: string [param read captured] value
->     uses $1: entry -> %6 lend, %15 consume last
+>   local $1 suffix: string [param read] value
+>     uses $1: entry -> %4 consume last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   local $3 append: fn() -> () [:= read assigned] value
->     uses $3: %17 -> %18 lend last
->   %0 = Retain %23 Entry local $0 #0 : ()
->   %1 = Retain %23 Entry local $1 #0 : ()
+>   local $3 suffix: string [read assigned] place
+>   %0 = Release %21 Exit local $1 #2 : ()
+>   %1 = Retain %21 Entry local $0 #0 : ()
     let current = text
 >   %2 = Read move [$0] : string
 >   %3 = Store [$2] %2 : ()
->   %23 = Block %21 : string
+>   %21 = Block %19 : string
     append := fn() -> void: current += suffix
->   %4 = Retain %14 Entry captures #0 : ()
->   %5 = Read copy [$2] : string
->   %6 = Read move [$1] : string
->   %7 = Intrinsic StrConcat [%5 %6] : string
->   %8 = Release %7 Operation operand 0 #2 : ()
->   %9 = Drop [%6] : ()
->   %10 = Drop [%5] : ()
->   %11 = Store [$2] %7 : ()
->   %12 = Release %11 Operation #3 : ()
->   %13 = Drop [$2] : ()
->   %14 = Block - : ()
->   %15 = Closure #1 : fn() -> ()
->   %16 = Retain %15 Operation captures #0 : ()
->   %17 = Store [$3] %15 : ()
->   %15 finds [$2] full
+>   %4 = Read borrow [$1] : string
+>   %5 = Store [$3] %4 : ()
     append()
->   %18 = Read move [$3] : fn() -> ()
->   %19 = CallValue %18 [] : ()
->   %20 = Drop [%18] : ()
+>   %6 = Read copy [$2] : string
+>   %7 = Read borrow [$3] : string
+>   %8 = Intrinsic StrConcat [%6 %7] : string
+>   %9 = Release %8 Operation operand 0 #2 : ()
+>   %10 = Drop [%6] : ()
+>   %11 = Store [$2] %8 : ()
+>   %12 = Read borrow [$3] : string
+>   %13 = Read borrow [$2] : string
+>   %14 = Block - : ()
+>   %15 = Release %11 Operation #3 : ()
+>   %16 = Break L0 - : never
+>   %17 = Block - : ()
+>   %18 = Scope %17 [%14] : ()
+>   %6 finds [$2] full
+>   %11 finds [$2] full
     current
->   %21 = Read copy [$2] : string
->   %22 = Drop [$2] : ()
->   %21 finds [$2] full
->   exit sub 0 drops [$0 $1 $2]
->   exit sub 1 drops [$1 $2]
+>   %19 = Read copy [$2] : string
+>   %20 = Drop [$2] : ()
+>   %19 finds [$2] full
+>   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 slot
->   storage sub 1: $2 cell
->   summary kept [$0 $1] writes
+>   summary kept [$0] borrows [$1]
 
 fn dynamic(text: string, suffix: string) -> string:
 > app/main/dynamic
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 suffix: string [param read] value
->     uses $1: entry -> %20 consume last
+>     uses $1: entry -> %5 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   local $3 suffix: string [param read] value
->     uses $3: entry -> %7 lend last
->   local $4 append: fn(string) -> () [:= read assigned] value
->     uses $4: %18 -> %19 lend last
->   %0 = Retain %25 Entry local $0 #0 : ()
->   %1 = Retain %25 Entry local $1 #0 : ()
+>   %0 = Release %18 Exit local $1 #2 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
     let current = text
 >   %2 = Read move [$0] : string
 >   %3 = Store [$2] %2 : ()
->   %25 = Block %23 : string
+>   %18 = Block %16 : string
     append := fn(suffix: string) -> void: current += suffix
->   %4 = Retain %15 Entry captures #0 : ()
->   %5 = Retain %15 Entry local $3 #0 : ()
->   %6 = Read copy [$2] : string
->   %7 = Read move [$3] : string
->   %8 = Intrinsic StrConcat [%6 %7] : string
->   %9 = Release %8 Operation operand 0 #2 : ()
->   %10 = Drop [%7] : ()
->   %11 = Drop [%6] : ()
->   %12 = Store [$2] %8 : ()
->   %13 = Release %12 Operation #3 : ()
->   %14 = Drop [$2] : ()
->   %15 = Block - : ()
->   %16 = Closure #1 : fn(string) -> ()
->   %17 = Retain %16 Operation captures #0 : ()
->   %18 = Store [$4] %16 : ()
->   %16 finds [$2] full
     append(suffix)
->   %19 = Read move [$4] : fn(string) -> ()
->   %20 = Read move [$1] : string
->   %21 = CallValue %19 [%20] : ()
->   %22 = Drop [%19] : ()
+>   %4 = Read copy [$2] : string
+>   %5 = Read borrow [$1] : string
+>   %6 = Intrinsic StrConcat [%4 %5] : string
+>   %7 = Release %6 Operation operand 0 #2 : ()
+>   %8 = Drop [%4] : ()
+>   %9 = Store [$2] %6 : ()
+>   %10 = Read borrow [$2] : string
+>   %11 = Block - : ()
+>   %12 = Release %9 Operation #3 : ()
+>   %13 = Break L0 - : never
+>   %14 = Block - : ()
+>   %15 = Scope %14 [%11] : ()
+>   %4 finds [$2] full
+>   %9 finds [$2] full
     current
->   %23 = Read copy [$2] : string
->   %24 = Drop [$2] : ()
->   %23 finds [$2] full
->   exit sub 0 drops [$0 $1 $2]
->   exit sub 1 drops [$2 $3]
+>   %16 = Read copy [$2] : string
+>   %17 = Drop [$2] : ()
+>   %16 finds [$2] full
+>   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 slot
->   storage sub 1: $2 cell
->   summary kept [$0 $1] writes
+>   summary kept [$0] borrows [$1]
 
 fn borrowed(text: &mut string, suffix: string) -> void:
 > app/main/borrowed

@@ -1,0 +1,17 @@
+# #1383: eliminating a literal closure must preserve its shared-root loan.
+# ref.excl.alias.shared-variable; ref.dep.call; fn.capture.cell.
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn borrow_then_change() -> string:
+    let mut ps = [box(P { name: "a" })]
+    change := fn() -> void: ps[0] = box(P { name: "b" }) # panic: borrow-conflict
+    d := name_of(ps[0])
+    change()
+    *d
+
+pub fn main() -> void $ Console:
+    println(borrow_then_change())

@@ -1,0 +1,17 @@
+# test: an inlined copy capture retains its creator's own-loan context
+# expect-stdout: ok
+# Accepted POINTER_LOANS.md E.2; ref.excl.alias.conflict.
+struct Cell:
+    value: string
+    other: string
+
+fn run_plain(f: fn() -> void) -> void:
+    f()
+
+pub fn main() -> void $ Console:
+    p := box(Cell { value: "a", other: "o" })
+    r := &p.other
+    run_plain(fn() -> void: p.value = "b")
+    if *r != "o" || p.value != "b":
+        panic("the writes disagree")
+    println("ok")

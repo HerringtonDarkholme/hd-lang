@@ -347,7 +347,7 @@ fn body_func<'a>(
             em.f.op(Instruction::End);
         } else {
             em.entry_cells.extend(
-                closure::captures(b, ci)
+                closure::captures(b, ci, &em.recursive_bindings)
                     .into_iter()
                     .filter_map(|(l, shared)| shared.then_some(l)),
             );
@@ -1097,6 +1097,7 @@ struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
     b: &'a Body,
+    recursive_bindings: hd_tir::own::RecursiveBindings,
     /// This final body's instruction types at the instance's arguments.
     inst_ty: Vec<Ty>,
     item: DefId,
@@ -1366,6 +1367,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             input,
             m,
             b,
+            recursive_bindings: hd_tir::own::RecursiveBindings::new(b),
             inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
             origin_root: b.anchor(b.sub_root[0]),

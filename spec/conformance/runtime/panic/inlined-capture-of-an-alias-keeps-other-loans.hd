@@ -1,0 +1,15 @@
+# test: capturing an explicit pointer alias does not inherit another binding's loans
+# Spec ref.excl.alias.conflict: the loan holds the entire object.
+struct Cell:
+    value: string
+    other: string
+
+fn run_plain(f: fn() -> void) -> void:
+    f()
+
+pub fn main() -> void $ Console:
+    p := box(Cell { value: "a", other: "o" })
+    alias := p
+    r := &p.other
+    run_plain(fn() -> void: alias.value = "b") # panic: borrow-conflict
+    println(*r)

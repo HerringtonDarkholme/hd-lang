@@ -7,32 +7,24 @@ fn total(left: &i32, right: &i32) -> i32:
     by := fn(a: &i32, b: &i32): *a + *b
 > app/main/total
 >   local $0 left: &i32 [param read] value
->     uses $0: entry -> %12 lend last
+>     uses $0: entry -> %0 consume last
 >   local $1 right: &i32 [param read] value
->     uses $1: entry -> %13 lend last
->   local $2 a: &i32 [param read] value
->     uses $2: entry -> %2 lend last
->   local $3 b: &i32 [param read] value
->     uses $3: entry -> %3 lend last
->   local $4 by: fn(&i32, &i32) -> i32 [:= read assigned] value
->     uses $4: %10 -> %11 lend last
->   %0 = Retain %8 Entry local $2 #0 : ()
->   %1 = Retain %8 Entry local $3 #0 : ()
->   %2 = Read copy [*$2] : i32
->   %3 = Read copy [*$3] : i32
->   %4 = Prim Add [%2 %3] : i32
->   %5 = Drop [$2] : ()
->   %6 = Drop [$3] : ()
->   %7 = Coerce %4 [Identity -] : i32
->   %8 = Block %7 : i32
->   %9 = Closure #1 : fn(&i32, &i32) -> i32
->   %10 = Store [$4] %9 : ()
->   %16 = Block %14 : i32
+>     uses $1: entry -> %1 consume last
+>   local $2 a: &i32 [read] value
+>     uses $2: %2 -> %4 lend last
+>   local $3 b: &i32 [read] value
+>     uses $3: %3 -> %5 lend last
+>   %11 = Block %10 : i32
     by(left, right)
->   %11 = Read move [$4] : fn(&i32, &i32) -> i32
->   %12 = Read borrow [$0] : &i32
->   %13 = Read borrow [$1] : &i32
->   %14 = CallValue %11 [%12 %13] : i32
->   %15 = Drop [%11] : ()
->   exit sub 1 drops [$2 $3]
->   summary kept [] writes
+>   %0 = Read borrow [$0] : &i32
+>   %1 = Read borrow [$1] : &i32
+>   %2 = Store [$2] %0 : ()
+>   %3 = Store [$3] %1 : ()
+>   %4 = Read copy [*$2] : i32
+>   %5 = Read copy [*$3] : i32
+>   %6 = Prim Add [%4 %5] : i32
+>   %7 = Coerce %6 [Identity -] : i32
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : i32
+>   %10 = Scope %9 [] : i32
+>   summary kept []

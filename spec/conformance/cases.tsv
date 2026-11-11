@@ -105,6 +105,7 @@ runtime/valid/net-free-helpers.hd	runtime	accept	std/net.md#free-helpers
 runtime/valid/println-two-write-providers.hd	runtime	accept	lang/10-modules.md#r-module.console.println-two-writes-sync
 runtime/valid/recursive-closure-pending-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
 runtime/valid/recursive-closure-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
+runtime/valid/inlined-nested-recursion-keeps-self-and-cells.hd	runtime	accept	lang/07-functions.md#r-fn.recursion.closure.ordinary-binding
 runtime/valid/nested-waker-cancellation-reuse.hd	runtime	accept	lang/11-requirements-and-suspension.md#standard-combinators
 runtime/valid/a-cancelled-join-cleans-its-completed-text-result.hd	runtime	accept	lang/11-requirements-and-suspension.md#standard-combinators
 runtime/valid/row-aliases-a-row-alias-in-a-header-expands-to-its-keys-7.hd	runtime	accept	lang/11-requirements-and-suspension.md#row-aliases
@@ -5549,6 +5550,10 @@ runtime/valid/weak-reference-identity-lifecycle.hd	runtime	accept	std/weak.md#we
 runtime/valid/weak-reference-lifetime.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/a-weakened-cold-call-releases-its-counted-reference-argument.hd	runtime	accept	std/weak.md#r-std-weak.release.target
 runtime/valid/function-reference-variance-wide-inputs.hd	runtime	accept	std/weak.md#r-std-weak.release.target
+runtime/panic/nonescaping-closure-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
+runtime/valid/inlined-copy-capture-keeps-creator-own-loans.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/panic/inlined-capture-of-an-alias-keeps-other-loans.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/valid/nonescaping-closures-preserve-capture-lifetimes.hd	runtime	accept	std/weak.md#r-std-weak.release.target
 runtime/valid/weak-reference-module-initializer.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/weak-reference-suspension.hd	runtime	accept	std/weak.md#upgrading
 runtime/valid/weak-reference-whole-object.hd	runtime	accept	std/weak.md#weak-types-and-construction

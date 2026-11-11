@@ -28,5 +28,3 @@ fn apply(f: fn() -> usize) -> usize:
 
 fn local(xs: &List[string]) -> usize:
     apply(fn() -> usize: xs.len())
-> app/main/local
->   release fn() -> usize (last use)
