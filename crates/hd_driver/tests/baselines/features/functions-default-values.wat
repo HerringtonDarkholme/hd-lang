@@ -285,7 +285,7 @@
     local.set $t0
     local.set $t1
     local.get $s.1
-    local.get $t0
+    i32.const 1
     i32.add
     local.tee $t2
     i32.eqz

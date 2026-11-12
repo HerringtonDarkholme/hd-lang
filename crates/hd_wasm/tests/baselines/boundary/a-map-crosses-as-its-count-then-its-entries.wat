@@ -18,31 +18,29 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "buf" (memory $buf 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 13 |     _ := $.use(Vault).keep({"a": +1})
     i32.const 4
     call $rt:map_seed
     call $rt:map_table
     local.set $t0
     i32.const 65 ;; &"a"
-    local.tee $t1
     i32.const 1
-    local.tee $t2
     local.get $t0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t3
+    local.set $t1
     local.get $t0
-    local.get $t3
     local.get $t1
-    local.get $t2
+    i32.const 65 ;; &"a"
+    i32.const 1
     call $rt:map_find
-    local.set $t4
+    local.set $t2
     local.get $t0
-    local.get $t3
-    local.get $t4
     local.get $t1
     local.get $t2
+    i32.const 65 ;; &"a"
+    i32.const 1
     i32.const 1
     call $rt:map_put
     local.set $t0

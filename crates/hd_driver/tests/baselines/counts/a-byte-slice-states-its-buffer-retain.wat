@@ -66,8 +66,6 @@
     ;; 11 |     _ := bytes_slice(text, 0, 0)
     i32.const 0
     i32.const 0
-    i32.gt_u
-    i32.const 0
     local.get $text.1
     i32.gt_u
     i32.or

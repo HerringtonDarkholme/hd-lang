@@ -62,11 +62,9 @@
       return
     end
     i32.const 104 ;; &"not a user"
-    i32.const 10
-    local.set $value.1
     local.set $value.0
     local.get $value.0
-    local.get $value.1
+    i32.const 10
   )
   (func $erase (param $u.name.0 i32) (param $u.name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 21 |     box(u)

@@ -1534,7 +1534,7 @@
         local.set $t6
         i32.const 0
         local.set $keys
-        local.get $t2
+        i32.const 0
         local.get $t3
         local.get $t5
         local.get $t6

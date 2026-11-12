@@ -75,6 +75,13 @@
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
 
+mod constant;
+
+/// Propagate literal local values after instruction scheduling exposes them.
+pub fn fold_local_constants(f: &mut crate::module::Func) -> bool {
+    constant::run(f)
+}
+
 use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 

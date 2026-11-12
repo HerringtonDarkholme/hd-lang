@@ -70,7 +70,7 @@
     local.get $t5
     local.get $t4
   )
-  (func $direct (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i64) (local $t5 i32) (local $t4 i32)
+  (func $direct (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32)
     ;; 24 |     tag(clean(raw), 2)
     block
       i32.const 1
@@ -109,13 +109,11 @@
         call $rt:release_ref
       end
     end
-    i64.const 2
-    local.set $t3
     block
       local.get $t2
       local.get $t1
       call $"impl StringBuilder.text_width"
-      local.get $t3
+      i64.const 2
       call $"impl StringBuilder.signed_width"
       local.set $raw.0
       local.tee $raw.1
@@ -125,31 +123,31 @@
       local.get $raw.0
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t4
-      local.tee $t5
-      local.get $t4
+      local.set $t3
+      local.tee $t4
+      local.get $t3
       i32.const 0
       local.get $t2
       local.get $t1
       call $"impl StringBuilder.value_text"
-      local.get $t5
       local.get $t4
+      local.get $t3
       local.get $raw.1
       i32.const 65 ;; &":"
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t5
       local.get $t4
-      local.get $t0
       local.get $t3
+      local.get $t0
+      i64.const 2
       local.get $raw.0
       call $"impl StringBuilder.value_signed"
-      local.get $t5
       local.get $t4
+      local.get $t3
       local.set $raw.1
       local.set $raw.0
       br 0
-      local.get $t5
+      local.get $t4
       local.tee $t0
       if
         local.get $t0
@@ -169,7 +167,7 @@
     ;; 27 |     raw |> _.len()
     local.get $raw.1
   )
-  (func $chain (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i64) (local $t5 i32) (local $t4 i32)
+  (func $chain (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32)
     ;; 21 |     raw |> clean |> tag(_, 2)
     block
       i32.const 1
@@ -208,13 +206,11 @@
         call $rt:release_ref
       end
     end
-    i64.const 2
-    local.set $t3
     block
       local.get $t2
       local.get $t1
       call $"impl StringBuilder.text_width"
-      local.get $t3
+      i64.const 2
       call $"impl StringBuilder.signed_width"
       local.set $raw.0
       local.tee $raw.1
@@ -224,31 +220,31 @@
       local.get $raw.0
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t4
-      local.tee $t5
-      local.get $t4
+      local.set $t3
+      local.tee $t4
+      local.get $t3
       i32.const 0
       local.get $t2
       local.get $t1
       call $"impl StringBuilder.value_text"
-      local.get $t5
       local.get $t4
+      local.get $t3
       local.get $raw.1
       i32.const 65 ;; &":"
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t5
       local.get $t4
-      local.get $t0
       local.get $t3
+      local.get $t0
+      i64.const 2
       local.get $raw.0
       call $"impl StringBuilder.value_signed"
-      local.get $t5
       local.get $t4
+      local.get $t3
       local.set $raw.1
       local.set $raw.0
       br 0
-      local.get $t5
+      local.get $t4
       local.tee $t0
       if
         local.get $t0
@@ -267,7 +263,8 @@
   (func $clean (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 12 |     "[${raw}]"
     i32.const 1
-    local.tee $t0
+    local.set $t0
+    i32.const 1
     local.get $raw.1
     i32.add
     local.tee $t1

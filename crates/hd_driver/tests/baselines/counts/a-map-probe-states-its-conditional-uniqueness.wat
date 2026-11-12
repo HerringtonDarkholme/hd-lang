@@ -20,7 +20,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $saved i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $saved i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 19 |     let mut items = { "a": +1 }
     global.get $locals
     global.get $locals_base
@@ -56,24 +56,22 @@
     call $rt:map_table'1
     local.set $items
     i32.const 65 ;; &"a"
-    local.tee $saved
     i32.const 1
-    local.tee $t1
     local.get $items
     i64.load $heap offset=24
     call $rt:map_hash'1
-    local.set $t2
+    local.set $saved
     local.get $items
-    local.get $t2
     local.get $saved
-    local.get $t1
+    i32.const 65 ;; &"a"
+    i32.const 1
     call $rt:map_find'1
-    local.set $t3
+    local.set $t1
     local.get $items
-    local.get $t2
-    local.get $t3
     local.get $saved
     local.get $t1
+    i32.const 65 ;; &"a"
+    i32.const 1
     i32.const 1
     call $rt:map_put'1
     local.set $items
@@ -291,20 +289,19 @@
     call $rt:map_table'2
     local.set $items
     i32.const 1
-    local.tee $saved
     local.get $items
     i64.load $heap offset=24
     call $rt:map_hash'2
+    local.set $saved
+    local.get $items
+    local.get $saved
+    i32.const 1
+    call $rt:map_find'2
     local.set $t1
     local.get $items
-    local.get $t1
     local.get $saved
-    call $rt:map_find'2
-    local.set $t2
-    local.get $items
     local.get $t1
-    local.get $t2
-    local.get $saved
+    i32.const 1
     i32.const 3
     call $rt:map_put'2
     local.set $items

@@ -2,8 +2,6 @@
 (module
   (func $check (result i32)
     ;; 12 |     same(+3, +4)
-    i32.const 3
-    i32.const 4
-    i32.eq
+    i32.const 0
   )
 )

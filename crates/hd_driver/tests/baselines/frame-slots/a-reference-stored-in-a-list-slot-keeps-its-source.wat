@@ -176,16 +176,9 @@
     local.get $t2
     i32.wrap_i64
     local.set $k
-    i32.const 0
-    i32.const -2
-    i32.gt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
     i32.const 1
-    local.tee $t3
-    i64.extend_i32_u
+    local.set $t3
+    i64.const 1
     local.get $k
     i64.extend_i32_u
     i64.add
@@ -208,8 +201,7 @@
     end
     local.get $junk.0
     i64.extend_i32_u
-    i32.const 0
-    i64.extend_i32_u
+    i64.const 0
     i64.add
     local.tee $t2
     i64.const 4294967295

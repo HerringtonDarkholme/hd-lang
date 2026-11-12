@@ -38,21 +38,18 @@
         i64.const 256
         i64.mul
         local.get $t0
-        i32.const 32
-        i64.extend_i32_u
+        i64.const 32
         i64.shr_u
         i64.const 435
         i64.mul
         i64.add
         local.get $t1
-        i32.const 32
-        i64.extend_i32_u
+        i64.const 32
         i64.shr_u
         i64.add
         i64.const 4294967295
         i64.and
-        i32.const 32
-        i64.extend_i32_u
+        i64.const 32
         i64.shl
         local.get $t1
         i64.const 4294967295
@@ -61,8 +58,7 @@
         i64.store $heap
     ;; 18 |         bits = bits >> 8
         local.get $bits
-        i32.const 8
-        i64.extend_i32_u
+        i64.const 8
         i64.shr_u
         local.set $bits
     ;; 19 |         index = index + 1
@@ -95,22 +91,19 @@
     i64.const 256
     i64.mul
     local.get $value
-    i32.const 32
-    i64.extend_i32_u
+    i64.const 32
     i64.shr_u
     i64.const 435
     i64.mul
     i64.add
     local.get $b
-    i32.const 32
-    i64.extend_i32_u
+    i64.const 32
     i64.shr_u
     i64.add
     ;; 11 |     ((c & 4294967295) << 32) | (b & 4294967295)
     i64.const 4294967295
     i64.and
-    i32.const 32
-    i64.extend_i32_u
+    i64.const 32
     i64.shl
     local.get $b
     i64.const 4294967295
@@ -153,21 +146,18 @@
         i64.const 256
         i64.mul
         local.get $state
-        i32.const 32
-        i64.extend_i32_u
+        i64.const 32
         i64.shr_u
         i64.const 435
         i64.mul
         i64.add
         local.get $t2
-        i32.const 32
-        i64.extend_i32_u
+        i64.const 32
         i64.shr_u
         i64.add
         i64.const 4294967295
         i64.and
-        i32.const 32
-        i64.extend_i32_u
+        i64.const 32
         i64.shl
         local.get $t2
         i64.const 4294967295
@@ -175,8 +165,7 @@
         i64.or
         local.set $state
         local.get $t0
-        i32.const 8
-        i64.extend_i32_u
+        i64.const 8
         i64.shr_u
         local.set $t0
         local.get $t1

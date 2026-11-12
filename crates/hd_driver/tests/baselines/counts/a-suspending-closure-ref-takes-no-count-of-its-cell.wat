@@ -586,7 +586,7 @@
     ;; 18 |     run!()
         local.set $t2
         local.set $t1
-        local.get $t2
+        i32.const 0
         i32.const 0
         call $local#1'2
         local.set $t3

@@ -9,31 +9,29 @@
   (import "fixture" "read" (func $read (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $probe (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 24 |     read(&source_record(59).items["key"])
     i32.const 4
     call $rt:map_seed
     call $rt:map_table
     local.set $t0
     i32.const 65 ;; &"key"
-    local.tee $t1
     i32.const 3
-    local.tee $t2
     local.get $t0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t3
+    local.set $t1
     local.get $t0
-    local.get $t3
     local.get $t1
-    local.get $t2
+    i32.const 65 ;; &"key"
+    i32.const 3
     call $rt:map_find
-    local.set $t4
+    local.set $t2
     local.get $t0
-    local.get $t3
-    local.get $t4
     local.get $t1
     local.get $t2
+    i32.const 65 ;; &"key"
+    i32.const 3
     i32.const 59
     call $rt:map_put
     local.tee $t0

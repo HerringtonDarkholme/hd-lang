@@ -12,13 +12,14 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $init.init (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 6 | greeting := "hello ${1}"
-    i32.const 1
-    i64.extend_i32_u
-    local.tee $t0
+    i64.const 1
+    local.set $t0
+    i64.const 1
     call $unsigned_width
     local.set $t1
     i32.const 6
-    local.tee $t2
+    local.set $t2
+    i32.const 6
     local.get $t1
     i32.add
     local.tee $t3
@@ -51,14 +52,13 @@
     local.get $t1
     call $write_unsigned_sized
     i32.const 24 ;; &greeting
-    local.tee $t1
     i32.load $heap
-    local.get $t1
+    i32.const 24 ;; &greeting
     ;; (no span)
     local.get $t4
     ;; 6 | greeting := "hello ${1}"
     i32.store $heap
-    local.get $t1
+    i32.const 24 ;; &greeting
     local.get $t3
     i32.store $heap offset=4
     local.tee $t2
@@ -67,13 +67,14 @@
       call $rt:release_ref'1
     end
     ;; 8 | names := ["a${1}", "b"]
-    i32.const 1
-    i64.extend_i32_u
-    local.tee $t0
+    i64.const 1
+    local.set $t0
+    i64.const 1
     call $unsigned_width
     local.set $t1
     i32.const 1
-    local.tee $t2
+    local.set $t2
+    i32.const 1
     local.get $t1
     i32.add
     local.tee $t3

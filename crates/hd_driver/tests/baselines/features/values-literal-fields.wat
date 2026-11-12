@@ -248,17 +248,15 @@
     local.get $t7
     i32.add
     local.set $t1
-    i32.const 128
-    local.set $t2
     i32.const 0
-    local.get $t2
+    i32.const 128
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t2
+    i32.const 128
     i64.load $heap offset=16
     local.tee $t6
     local.tee $t8

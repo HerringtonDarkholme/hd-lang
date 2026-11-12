@@ -210,7 +210,7 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $all'1 (param $frame i32) (param $keys i32) (result i32 i32) (local $results i32) (local $t7 i32) (local $n i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $k.0 i32) (local $t4 i32) (local $k.1 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t0 i32)
+  (func $all'1 (param $frame i32) (param $keys i32) (result i32 i32) (local $results i32) (local $t7 i32) (local $n i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $k.0 i32) (local $k.1 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t0 i32)
     ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     local.get $frame
     if
@@ -266,10 +266,12 @@
         local.tee $t2
         i32.load $heap offset=4
         local.tee $t3
-        local.tee $k.0
+        i32.const 80 ;; &empty-buffer
+        local.set $k.0
+        local.tee $k.1
         if
-          local.get $t1
           local.get $k.0
+          local.get $k.1
           call $rt:list_reserve
           local.set $t1
         end

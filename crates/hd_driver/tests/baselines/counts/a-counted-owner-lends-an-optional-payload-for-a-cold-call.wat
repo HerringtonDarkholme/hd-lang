@@ -30,8 +30,6 @@
       return
     end
     i32.const -1
-    local.set $value
-    local.get $value
   )
   (func $call (result i32) (local $owner i32)
     ;; 14 |     let owner: *i32 = box(+7)

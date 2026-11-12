@@ -1,0 +1,79 @@
+# test: local constant folding preserves fixed-width arithmetic, branches and effects
+# expect: test
+use std.testing.{assert, assert_equal}
+
+fn check_values() -> void:
+    let one32: i32 = 1
+    let one64: i64 = 1
+    assert_equal(one32 << 0, 1)
+    assert_equal(one32 << 31, -2147483648)
+    assert_equal(one64 << 0, 1)
+    assert_equal(one64 << 63, -9223372036854775808)
+    let negative: i32 = -16
+    assert_equal(negative >> 3, -2)
+    assert_equal(u32(negative) >> 3, 536870910)
+    let high32: i32 = 2147483647
+    let high64: i64 = 9223372036854775807
+    assert_equal(high32.wrapping_add(1), -2147483648)
+    assert_equal(high32.wrapping_mul(2), -2)
+    assert_equal(high64.wrapping_add(1), -9223372036854775808)
+    assert_equal(high64.wrapping_mul(2), -2)
+    let signed32: i32 = -1
+    let signed64: i64 = -1
+    assert(signed32 < 1)
+    assert(u32(signed32) > 1)
+    assert(signed64 < 1)
+    assert(u64(signed64) > 1)
+    let dividend32: i32 = -17
+    let dividend64: i64 = -17
+    assert_equal(dividend32 / 5, -3)
+    assert_equal(dividend32 % 5, -2)
+    assert_equal(dividend64 / 5, -3)
+    assert_equal(dividend64 % 5, -2)
+    assert_equal(u32(signed32) / 7, 613566756)
+    assert_equal(u32(signed32) % 7, 3)
+    assert_equal(u64(signed64) / 7, 2635249153387078802)
+    assert_equal(u64(signed64) % 7, 1)
+    let wide: i64 = 4294967297
+    assert_equal(i32(wide), 1)
+    assert_equal(i64(signed32), -1)
+    assert_equal(i64(u32(signed32)), 4294967295)
+    let mut total: i32 = 0
+    for n in 0..4:
+        if 3 < 5:
+            total = total + i32(n)
+        else:
+            panic("unselected loop arm ran")
+    assert_equal(total, 6)
+    log := box::[List[i32]]([])
+    if 8 > 3:
+        log.push(7)
+    else:
+        log.push(99)
+    assert_equal(*log, [7])
+
+# Test profiles reject oversized shifts; release masks them. The manual
+# release entry below exercises those same operations with runtime assertions.
+fn shift32(count: u32) -> i32:
+    +7 << count
+
+fn shift64(count: u32) -> i64:
+    let value: i64 = 7
+    value << count
+
+pub fn main() -> void:
+    check_values()
+    assert_equal(shift32(32), 7)
+    assert_equal(shift32(33), 14)
+    assert_equal(shift64(64), 7)
+    assert_equal(shift64(65), 14)
+
+tests:
+    it("constant arithmetic and selected effects keep their values"):
+        check_values()
+
+    it("oversized i32 shifts retain the test-profile guard", expect_panic="invalid-shift"):
+        _ := shift32(32)
+
+    it("oversized i64 shifts retain the test-profile guard", expect_panic="invalid-shift"):
+        _ := shift64(64)

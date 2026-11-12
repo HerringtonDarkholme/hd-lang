@@ -90,7 +90,8 @@
     i32.add
     local.set $n
     i32.const 1
-    local.tee $t2
+    local.set $t2
+    i32.const 1
     local.get $n
     i32.add
     local.tee $t3
@@ -143,7 +144,8 @@
     i32.add
     local.set $n
     i32.const 1
-    local.tee $t2
+    local.set $t2
+    i32.const 1
     local.get $n
     i32.add
     local.tee $t3

@@ -27,20 +27,19 @@
     ;; 40 |         seen[Key { id: +1 }] = +2
     local.set $seen
     i32.const 1
-    local.tee $step
     local.get $seen
     i64.load $heap offset=24
     call $rt:map_hash
+    local.set $step
+    local.get $seen
+    local.get $step
+    i32.const 1
+    call $rt:map_find
     local.set $bump.1
     local.get $seen
-    local.get $bump.1
     local.get $step
-    call $rt:map_find
-    local.set $t0
-    local.get $seen
     local.get $bump.1
-    local.get $t0
-    local.get $step
+    i32.const 1
     i32.const 2
     call $rt:map_put
     local.tee $seen

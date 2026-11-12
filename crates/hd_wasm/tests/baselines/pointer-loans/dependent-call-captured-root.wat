@@ -139,10 +139,6 @@
     i32.load $heap
     i32.const 2097152
     i32.and
-    i32.const 0
-    i32.const 2097152
-    i32.and
-    i32.ne
     if
       call $rt:panic'3
       unreachable

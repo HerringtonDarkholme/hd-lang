@@ -284,8 +284,7 @@
     end
     local.get $t7
     i64.extend_i32_u
-    i32.const 0
-    i64.extend_i32_u
+    i64.const 0
     i64.add
     local.tee $t3
     i64.const 4294967295

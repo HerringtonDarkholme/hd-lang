@@ -30,8 +30,7 @@
     ;; 15 |         i += STEP
         local.get $i
         i64.extend_i32_u
-        i32.const 3
-        i64.extend_i32_u
+        i64.const 3
         i64.add
         local.tee $t0
         i64.const 4294967295

@@ -91,7 +91,7 @@
     ;; 32 |     previous := items[i]
     local.get $t1
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $shared i32) (local $o i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $shared i32) (local $o i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     global.get $locals
     global.get $locals_base
@@ -135,24 +135,22 @@
     call $rt:map_table
     local.set $shared
     i32.const 65 ;; &"a"
-    local.tee $o
     i32.const 1
-    local.tee $t1
     local.get $shared
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t2
+    local.set $o
     local.get $shared
-    local.get $t2
     local.get $o
-    local.get $t1
+    i32.const 65 ;; &"a"
+    i32.const 1
     call $rt:map_find
-    local.set $t3
+    local.set $t1
     local.get $shared
-    local.get $t2
-    local.get $t3
     local.get $o
     local.get $t1
+    i32.const 65 ;; &"a"
+    i32.const 1
     i64.const 1
     call $rt:map_put
     local.set $shared
@@ -224,24 +222,22 @@
     call $rt:map_table
     local.set $t1
     i32.const 65 ;; &"a"
-    local.tee $t2
     i32.const 1
-    local.tee $t3
     local.get $t1
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t4
+    local.set $t2
     local.get $t1
-    local.get $t4
     local.get $t2
-    local.get $t3
+    i32.const 65 ;; &"a"
+    i32.const 1
     call $rt:map_find
-    local.set $t5
+    local.set $t3
     local.get $t1
-    local.get $t4
-    local.get $t5
     local.get $t2
     local.get $t3
+    i32.const 65 ;; &"a"
+    i32.const 1
     i64.const 1
     call $rt:map_put
     local.set $t1

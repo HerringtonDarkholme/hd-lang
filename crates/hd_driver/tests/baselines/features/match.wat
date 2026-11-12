@@ -135,8 +135,6 @@
       return
     end
     i32.const 16 ;; &"heap-exhausted"
-    local.set $s.0
-    local.get $s.0
     i32.const 0
   )
 )

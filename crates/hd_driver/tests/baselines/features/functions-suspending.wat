@@ -2338,7 +2338,7 @@
         local.set $key.0
         i32.const 0
         local.set $key.1
-        local.get $t2
+        i32.const 0
         local.get $t3
         local.get $t7
         i32.const 0

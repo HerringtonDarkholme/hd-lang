@@ -27,15 +27,10 @@
     i32.const 2097152
     i32.add
     i32.store $heap
-    i32.const 1
-    i32.const 1
-    i32.eq
-    if
-      local.get $t1
-      i32.const 2097152
-      i32.add
-      local.set $t1
-    end
+    local.get $t1
+    i32.const 2097152
+    i32.add
+    local.set $t1
     ;; 12 |     p.other = "b"
     local.get $p
     i32.const 4

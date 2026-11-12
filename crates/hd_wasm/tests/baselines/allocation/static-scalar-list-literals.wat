@@ -47,19 +47,17 @@
       end
     end
   )
-  (func $top (result f64) (local $t0 i32)
+  (func $top (result f64)
     ;; 7 |     top_values[1]
-    i32.const 80
-    local.set $t0
     i32.const 1
-    local.get $t0
+    i32.const 80
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t0
+    i32.const 80
     f64.load $heap offset=24
   )
 )

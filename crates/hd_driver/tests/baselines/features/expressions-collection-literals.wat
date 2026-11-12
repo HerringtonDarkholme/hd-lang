@@ -180,24 +180,22 @@
     call $rt:map_put
     local.set $k.0
     i32.const 65 ;; &"fixed"
-    local.tee $k.1
     i32.const 5
-    local.tee $t0
     local.get $k.0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t1
+    local.set $k.1
     local.get $k.0
-    local.get $t1
     local.get $k.1
-    local.get $t0
+    i32.const 65 ;; &"fixed"
+    i32.const 5
     call $rt:map_find
-    local.set $t2
+    local.set $t0
     local.get $k.0
-    local.get $t1
-    local.get $t2
     local.get $k.1
     local.get $t0
+    i32.const 65 ;; &"fixed"
+    i32.const 5
     local.get $v.0
     local.get $v.1
     call $rt:map_put

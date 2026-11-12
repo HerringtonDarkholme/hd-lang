@@ -12,7 +12,7 @@
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $make (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $make (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 11 |     box(Nested { lists: [[+1]], maps: { "outer": { "inner": +1 } } })
     i32.const 1
     call $rt:list_buf'1
@@ -35,24 +35,22 @@
     call $rt:map_table'1
     local.set $t0
     i32.const 65 ;; &"inner"
-    local.tee $t2
     i32.const 5
-    local.tee $t3
     local.get $t0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t4
+    local.set $t2
     local.get $t0
-    local.get $t4
     local.get $t2
-    local.get $t3
+    i32.const 65 ;; &"inner"
+    i32.const 5
     call $rt:map_find'1
-    local.set $t5
+    local.set $t3
     local.get $t0
-    local.get $t4
-    local.get $t5
     local.get $t2
     local.get $t3
+    i32.const 65 ;; &"inner"
+    i32.const 5
     i32.const 1
     call $rt:map_put'1
     local.set $t0
@@ -61,24 +59,22 @@
     call $rt:map_table'2
     local.set $t2
     i32.const 70 ;; &"outer"
-    local.tee $t3
     i32.const 5
-    local.tee $t4
     local.get $t2
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t5
+    local.set $t3
     local.get $t2
-    local.get $t5
     local.get $t3
-    local.get $t4
+    i32.const 70 ;; &"outer"
+    i32.const 5
     call $rt:map_find'2
-    local.set $t6
+    local.set $t4
     local.get $t2
-    local.get $t5
-    local.get $t6
     local.get $t3
     local.get $t4
+    i32.const 70 ;; &"outer"
+    i32.const 5
     local.get $t0
     call $rt:map_put'2
     local.set $t0

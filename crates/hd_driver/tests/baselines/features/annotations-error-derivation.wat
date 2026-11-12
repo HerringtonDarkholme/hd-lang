@@ -55,7 +55,8 @@
       end
     ;; 27 |     @error("cannot read $path")
       i32.const 12
-      local.tee $self
+      local.set $self
+      i32.const 12
       local.get $t0
       i32.add
       local.tee $t2
@@ -175,7 +176,8 @@
     i32.add
     local.set $self
     i32.const 17
-    local.tee $t2
+    local.set $t2
+    i32.const 17
     local.get $self
     i32.add
     local.tee $t3
@@ -439,7 +441,8 @@
       end
     ;; 21 |     @error("not found: $path")
       i32.const 11
-      local.tee $t1
+      local.set $t1
+      i32.const 11
       local.get $t0
       i32.add
       local.tee $t2

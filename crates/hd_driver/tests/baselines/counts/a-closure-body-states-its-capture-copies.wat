@@ -44,7 +44,8 @@
     i32.add
     local.set $i
     i32.const 4
-    local.tee $t2
+    local.set $t2
+    i32.const 4
     local.get $i
     i32.add
     local.tee $t3

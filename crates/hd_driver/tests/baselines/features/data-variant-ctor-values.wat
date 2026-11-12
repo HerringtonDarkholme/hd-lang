@@ -4,17 +4,19 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $e.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 15 |     [for e in errors => SyncError.Fs(e)]
     i32.const 24 ;; &empty-buffer
     local.set $t0
     local.get $errors
     i32.load $heap offset=4
     local.tee $t1
-    local.tee $e.0
+    i32.const 24 ;; &empty-buffer
+    local.set $e.0
+    local.tee $e.1
     if
-      local.get $t0
       local.get $e.0
+      local.get $e.1
       call $rt:list_reserve
       local.set $t0
     end
@@ -94,17 +96,19 @@
     end
     local.get $t0
   )
-  (func $wrap_with (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $wrap_with (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $e.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 18 |     [for e in errors => wrap(e)]
     i32.const 24 ;; &empty-buffer
     local.set $t0
     local.get $errors
     i32.load $heap offset=4
     local.tee $t1
-    local.tee $e.0
+    i32.const 24 ;; &empty-buffer
+    local.set $e.0
+    local.tee $e.1
     if
-      local.get $t0
       local.get $e.0
+      local.get $e.1
       call $rt:list_reserve
       local.set $t0
     end
@@ -200,22 +204,24 @@
     local.get $errors
     i32.load $heap offset=4
     local.tee $t1
-    local.tee $t2
+    i32.const 24 ;; &empty-buffer
+    local.set $t2
+    local.tee $t3
     if
-      local.get $t0
       local.get $t2
+      local.get $t3
       call $rt:list_reserve
       local.set $t0
     end
     block
       loop
-        local.get $t3
+        local.get $t4
         local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
         local.get $errors
-        local.get $t3
+        local.get $t4
         i32.const 8
         i32.mul
         i32.add
@@ -223,12 +229,12 @@
         i32.load $heap offset=16
         local.get $t2
         i32.load $heap offset=20
-        local.set $t4
+        local.set $t3
         local.set $t2
-        local.get $t3
+        local.get $t4
         i32.const 1
         i32.add
-        local.set $t3
+        local.set $t4
         block
           br 0
           unreachable
@@ -241,9 +247,9 @@
         end
         i32.const 0
         local.get $t2
-        local.get $t4
+        local.get $t3
         local.set $t5
-        local.set $t4
+        local.set $t3
         local.set $t2
         local.get $t0
         local.tee $t6
@@ -268,7 +274,7 @@
         local.get $t2
         i32.store $heap offset=16
         local.get $t8
-        local.get $t4
+        local.get $t3
         i32.store $heap offset=20
         local.get $t8
         local.get $t5
