@@ -281,19 +281,18 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
 
 /// The key of `t`'s stored report (#1510): the package-result key of a
 /// check over its sources, and the hash of what the report reads besides
-/// them: the scope, the FILE, the lint policy and the manifest's text
-/// (`caps::required` reads its capability tables). A report is a function
-/// of these alone: the doc tests come from the sources, and every other
-/// input is the run's. `None` when the run could not take a stored result.
+/// them: the scope, the FILE, a single file as the command line wrote it
+/// (`cli.json.diagnostic.file` names its diagnostics so), the lint policy
+/// and a package's manifest text (`caps::required` reads its capability
+/// tables). A report is a function of these alone: the doc tests come from
+/// the sources, and every other input is the run's. `None` when the run
+/// could not take a stored result.
 fn stored_report(
     t: &Target,
     tests: bool,
     lint: Option<hd_lint::Policy>,
     store: &dyn CacheStore,
 ) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
-    if t.program.as_written.is_some() {
-        return None;
-    }
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
@@ -308,12 +307,19 @@ fn stored_report(
         &t.program.packages(),
         &Goal::Analyze,
     )?;
-    let mut client = hd_base::StableHasher::new("cli-check-report-v2");
+    let mut client = hd_base::StableHasher::new("cli-check-report-v3");
     client.u8(u8::from(tests));
     client.str(t.only.as_deref().unwrap_or(""));
+    match &t.program.as_written {
+        Some(file) => {
+            client.u8(1);
+            client.str(file);
+        }
+        None => client.u8(0),
+    }
     client.str(&format!("{lint:?}"));
     client.str(&t.program.entry);
-    match t.program.sources.read("hd.toml") {
+    match crate::manifest_text(&t.program) {
         Some(text) => client.hash(hd_base::hash128(&text)),
         None => client.u8(0),
     }
@@ -878,5 +884,60 @@ mod stored_report_tests {
             last.iter().any(|d| d.message.contains("Console")),
             "the manifest no longer lists `Console`: {last:?}"
         );
+    }
+
+    /// Cost Model (#1510): a warm `hd check FILE` or `hd lint FILE` of a
+    /// single-file program replays its report with one lookup, though the
+    /// file reaches std modules. The report names the file as the command
+    /// line wrote it, so another spelling of it stores its own; a settled
+    /// edit misses.
+    #[test]
+    fn a_warm_single_file_report_replays_with_one_lookup() {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "check-stored-single-file",
+        );
+        let file = dir.join("alone.hd");
+        let text = |n: i32| format!("pub fn main() -> void:\n    unread := +{n}\n");
+        std::fs::write(&file, text(1)).expect("file");
+        settle();
+        let store = Counted::default();
+        let run = |path: &Path, o: &Options| {
+            let t = Target {
+                program: disk::load_file(path).expect("file"),
+                only: None,
+                member: None,
+            };
+            store.gets.store(0, Ordering::Relaxed);
+            let (diags, _) = check_one(t, o, &store);
+            (diags, store.gets.load(Ordering::Relaxed))
+        };
+        let lint = Options {
+            lint: Some(hd_lint::Policy::default()),
+            ..Options::default()
+        };
+        for o in [&Options::default(), &lint] {
+            let (cold, gets) = run(&file, o);
+            assert!(gets > 3, "cold, {gets} lookups");
+            let (warm, gets) = run(&file, o);
+            assert_eq!((&warm, gets), (&cold, 1), "lint {}", o.lint.is_some());
+        }
+        let (named, _) = run(&file, &lint);
+        assert!(
+            named
+                .iter()
+                .any(|d| d.code == Some(Code::UnusedLocalBinding)),
+            "{named:?}"
+        );
+        let spelled = dir.join(".").join("alone.hd");
+        let (other, gets) = run(&spelled, &lint);
+        assert!(gets > 1, "another spelling stores its own report");
+        let (again, gets) = run(&spelled, &lint);
+        assert_eq!((&again, gets), (&other, 1));
+        std::fs::write(&file, text(2)).expect("edit");
+        settle();
+        let (_, gets) = run(&file, &lint);
+        assert!(gets > 1, "an edit misses");
+        assert_eq!(run(&file, &lint).1, 1, "warm after the edit");
     }
 }

@@ -609,18 +609,18 @@ fn compile_standalone_in(
 
 /// The key of `program`'s stored artifact (#1510), `client_tag` naming
 /// which: `hd build`'s module or `hd run`'s. It holds the inputs of the
-/// program build, and what the CLI reads besides them, the manifest's text
-/// (`caps::required`). The artifact is a function of these: the positions
-/// `hd build` writes into it come from the same sources.
+/// program build, and what the CLI reads besides them, a package's
+/// manifest text (`caps::required`, which a single-file program skips).
+/// The artifact is a function of these: the positions `hd build` writes
+/// into it come from the same sources. A single file (`hd FILE`) and
+/// standard input take it too: the file has a stamp and the input's is
+/// its text's hash.
 fn stored_artifact(
     program: &disk::Program,
     (profile, pipeline): (BuildProfile, Pipeline),
     store: &dyn hd_cache::CacheStore,
     client_tag: &str,
 ) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
-    if program.as_written.is_some() {
-        return None;
-    }
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
@@ -640,11 +640,21 @@ fn stored_artifact(
     };
     let key = hd_driver::result_key(&host, &program.package, &packages, &goal)?;
     let mut client = hd_base::StableHasher::new(client_tag);
-    match hd_project::SourceSet::read(&program.sources, "hd.toml") {
+    match manifest_text(program) {
         Some(text) => client.hash(hd_base::hash128(&text)),
         None => client.u8(0),
     }
     Some((key, client.finish()))
+}
+
+/// The manifest text a stored result's client key holds: a package's,
+/// which `caps::required` reads; `None` for a single-file program, which
+/// reads none.
+pub(crate) fn manifest_text(program: &disk::Program) -> Option<std::sync::Arc<[u8]>> {
+    if program.single_file {
+        return None;
+    }
+    hd_project::SourceSet::read(&program.sources, "hd.toml")
 }
 
 /// Compiles a program to Wasm bytes in `profile` through `pipeline`,
@@ -1711,6 +1721,69 @@ mod stored_artifact_tests {
                 "{n}"
             );
         }
+    }
+
+    /// Cost Model (#1510): a warm `hd FILE` with nothing changed takes the
+    /// stored module with one lookup, as a package's run does, though the
+    /// file reaches std modules; its panic names the cold run's lines,
+    /// under the file's stem. A settled edit builds again.
+    #[test]
+    fn a_warm_single_file_run_takes_the_stored_module_and_its_panic_names_its_lines() {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "run-stored-single-file",
+        );
+        let file = dir.join("pick.hd");
+        let text = |comment: &str| {
+            format!(
+                "{comment}fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n\n\
+                 pub fn main() -> void:\n    let _ = pick([1, 2], 5)\n"
+            )
+        };
+        std::fs::write(&file, text("")).expect("file");
+        settle();
+        let store = Counted::default();
+        let program = disk::load_file(&file).expect("file");
+        let (cold, gets) = compiled(&program, &store);
+        assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
+        let (warm, gets) = compiled(&program, &store);
+        assert_eq!(gets, 1, "warm");
+        assert!(warm.frames.is_none() && warm.stored.is_some());
+        assert_eq!(warm.wasm, cold.wasm);
+        let trap = trap_of(&warm.wasm);
+        let lines = warm.frame_lines(&trap, &store);
+        assert_eq!(lines, cold.frame_lines(&trap, &store));
+        assert_eq!(lines, ["pick.hd:2 pick.pick", "pick.hd:5 pick.main"]);
+        std::fs::write(&file, text("# Picks.\n")).expect("edit");
+        settle();
+        let program = disk::load_file(&file).expect("file");
+        let (edited, gets) = compiled(&program, &store);
+        assert!(edited.stored.is_none() && gets > 1, "an edit builds again");
+        let (warm, gets) = compiled(&program, &store);
+        assert_eq!(gets, 1, "warm after the edit");
+        assert_eq!(
+            warm.frame_lines(&trap_of(&warm.wasm), &store),
+            ["pick.hd:3 pick.pick", "pick.hd:6 pick.main"]
+        );
+    }
+
+    /// Cost Model (#1510): standard input is keyed by its text, which needs
+    /// no settling: the same text again takes the stored module with one
+    /// lookup, and another text builds its own.
+    #[test]
+    fn a_warm_stdin_run_is_keyed_by_its_text() {
+        let main = |n: i32| format!("pub fn main() -> void:\n    let _ = [{n}]\n");
+        let store = Counted::default();
+        let one = disk::load_stdin(&main(1)).expect("stdin");
+        let (cold, gets) = compiled(&one, &store);
+        assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
+        let again = disk::load_stdin(&main(1)).expect("stdin");
+        let (warm, gets) = compiled(&again, &store);
+        assert_eq!((gets, warm.wasm == cold.wasm), (1, true), "warm");
+        let two = disk::load_stdin(&main(2)).expect("stdin");
+        let (other, gets) = compiled(&two, &store);
+        assert!(other.stored.is_none() && gets > 1, "another text builds");
+        assert_ne!(other.wasm, cold.wasm);
     }
 
     /// Cost Model (#1510): a warm `hd build` with nothing changed writes

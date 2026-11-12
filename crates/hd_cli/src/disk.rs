@@ -31,7 +31,8 @@ pub struct DiskSources {
     /// Files no disk holds, such as the program of a doc test, by path.
     synthetic: Vec<(String, Arc<[u8]>)>,
     /// The set's name across runs (`SourceSet::identity`): a hash of the
-    /// package directory's real path; `None` for a single file or stdin.
+    /// package directory's real path, of a single file's, or standard
+    /// input's one name; `None` for a REPL session or a broken manifest.
     identity: Option<Hash128>,
     /// Whether `retain` left files out (`SourceSet::partial`).
     partial: bool,
@@ -912,19 +913,29 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         .into_owned();
     let package = package_name(root)?;
     let as_written = Some(target.to_string_lossy().into_owned());
-    let size = std::fs::metadata(target).map_or(0, |m| m.len());
+    // Taken before the file's metadata, as `sources_of` takes it before
+    // the listing: a write after it is never trusted as settled (`stamp`).
+    let now = std::time::SystemTime::now();
+    let meta = std::fs::metadata(target).ok();
     let files = vec![SourceEntry {
         path: name.clone(),
-        size,
-        stamp: None,
+        size: meta.as_ref().map_or(0, std::fs::Metadata::len),
+        stamp: meta.as_ref().and_then(|m| stamp(m, now)),
     }];
+    // The set's name across runs is the file's real path, in a domain of
+    // its own: a package whose directory holds the file is another set.
+    let identity = std::fs::canonicalize(target).ok().map(|real| {
+        let mut h = hd_base::StableHasher::new("disk-file");
+        h.str(&real.to_string_lossy());
+        h.finish()
+    });
     Ok(Program {
         sources: DiskSources {
             root: root.to_path_buf(),
             files,
             src: None,
             synthetic: Vec::new(),
-            identity: None,
+            identity,
             partial: false,
         },
         package,
@@ -953,12 +964,16 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
 pub fn load_stdin(text: &str) -> Result<Program, String> {
     let root = std::env::current_dir().unwrap_or(PathBuf::from("."));
     let package = package_name(&root)?;
+    // One name for every standard input: its one file's stamp is its
+    // text's hash (`add_synthetic`), so its last-run record and stored
+    // results are keyed by the text, and a new text replaces the record
+    // instead of adding one.
     let mut sources = DiskSources {
         root,
         files: Vec::new(),
         src: None,
         synthetic: Vec::new(),
-        identity: None,
+        identity: Some(hd_base::StableHasher::new("disk-stdin").finish()),
         partial: false,
     };
     sources.add_synthetic("main.hd", text);

@@ -70,7 +70,6 @@ pub(crate) fn key(
                 .is_some_and(|id| ins.iter().any(|p| p.sources.identity() == Some(id)))
         })
         && !packages.instruction_origins
-        && !packages.single_file
         // `Output::scopes` is not stored: only `hd lint`'s broken-link pass
         // reads it, and the CLI stores that command's whole result.
         && !packages.doc_scopes
@@ -107,6 +106,8 @@ pub(crate) fn key(
         }
     }
     k.u8(u8::from(packages.entry_capabilities));
+    // A single-file program's declarations print under its file's stem.
+    k.u8(u8::from(packages.single_file));
     k.str(packages.std_leaf.unwrap_or(""));
     k.str(&format!(
         "{:?} {:?} {:?} {:?}",

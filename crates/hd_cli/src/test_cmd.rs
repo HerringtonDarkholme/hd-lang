@@ -602,11 +602,11 @@ fn test_one(
     // package or under no root is tested as a single-file program, which
     // may use only std and whose declarations print under the file's stem
     // (`trait.typeid.name.single-file`), in its frames too.
-    let program = match file.filter(|_| alone) {
+    let load = || match file.filter(|_| alone) {
         Some(f) => disk::load_file(&root.join(f)),
         None => disk::load_package(root, "main"),
     };
-    let mut program = program.map_err(|e| rep.fail(&e))?;
+    let mut program = load().map_err(|e| rep.fail(&e))?;
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
@@ -685,7 +685,7 @@ fn test_one(
     // A stored build's frames come from building it again, on the first
     // panic that asks; a program whose module differs names none.
     let rebuild = || -> Vec<Option<Frames>> {
-        let Ok(mut again) = disk::load_package(root, "main") else {
+        let Ok(mut again) = load() else {
             return Vec::new();
         };
         let mut stamps = affected::Stamps::at(root, again.single_file);
@@ -843,17 +843,14 @@ impl LazyFrames<'_> {
 /// The key of a package's stored test build (#1510): the inputs of a test
 /// role check over its sources, and what the build reads besides them,
 /// the FILE, member and filter, the engine and pipeline, and the
-/// manifest's text (executables, `caps::required`). `None` for a
-/// single-file program, whose file has no stamp.
+/// manifest's text (executables, `caps::required`), which a single-file
+/// program has none of.
 fn stored_build(
     program: &disk::Program,
     (file, member, alone): (Option<&str>, Option<&str>, bool),
     o: &Options,
     store: &dyn hd_cache::CacheStore,
 ) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
-    if program.as_written.is_some() || program.single_file {
-        return None;
-    }
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
@@ -881,7 +878,7 @@ fn stored_build(
     }
     client.u8(u8::from(alone));
     client.str(&format!("{:?} {:?}", o.engine, pipeline));
-    match program.sources.read("hd.toml") {
+    match crate::manifest_text(program) {
         Some(text) => client.hash(hd_base::hash128(&text)),
         None => client.u8(0),
     }
@@ -2079,6 +2076,41 @@ mod stored_build_tests {
             assert_eq!(encode_prepared(&warm), Some(bytes), "{n}");
             assert!(warm.built.iter().all(|b| b.frames.is_none()));
         }
+    }
+
+    /// Cost Model (#1510): a warm `hd test FILE` of a single-file program
+    /// takes its build half with one lookup too, though the file reaches
+    /// std modules.
+    #[test]
+    fn a_warm_single_file_test_build_is_one_lookup() {
+        let o = parse(&[]).expect("options");
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "test-stored-single-file",
+        );
+        std::fs::write(
+            dir.join("alone.hd"),
+            "fn v() -> i32: 1\n\ntests:\n    it(\"v is 1\"):\n        assert(v() == 1, \"v\")\n",
+        )
+        .expect("file");
+        std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
+        let store = Counted::default();
+        let load = || disk::load_file(&dir.join("alone.hd")).expect("file");
+        let at = (Some("alone.hd"), None, true);
+        let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
+        assert!(key.read(&store, client).is_none(), "cold");
+        let mut stamps = affected::Stamps::at(&dir, true);
+        let prep = prepare(&mut load(), (&dir, at.0, None), &o, &store, &mut stamps);
+        assert!(store.gets.load(Ordering::Relaxed) > 3, "the build looks up");
+        assert_eq!(prep.selected.len(), 1);
+        let bytes = encode_prepared(&prep).expect("encodes");
+        key.write(&store, client, &bytes);
+        store.gets.store(0, Ordering::Relaxed);
+        let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
+        let warm =
+            decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
+        assert_eq!(store.gets.load(Ordering::Relaxed), 1, "warm");
+        assert_eq!(encode_prepared(&warm), Some(bytes));
     }
 }
 

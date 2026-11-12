@@ -287,9 +287,10 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   profile's traits) only; not judged, since dependency folders already
   enter keys through their deep hashes.
 
-A warm `hd check`, `hd lint` or `hd build` with no edit reads one
-entry: its stored package result, or the CLI's stored report or
-artifact (§5.5, #1510).
+A warm `hd check`, `hd lint`, `hd build`, `hd run`, `hd FILE` or
+`hd test`'s build with no edit reads one entry: its stored package
+result, or the CLI's stored report, artifact or build half (§5.5,
+#1510).
 
 #### 5.3.1 Early Cutoff By Recorded Reads
 
@@ -753,7 +754,9 @@ A warm run reads no source file it does not check, and hashes none
   (`MemorySources`) stamps a file with its content hash when it is
   added, once per edit, not per run.
 - **The last-run record.** Per source set with an identity
-  (`SourceSet::identity`: the disk set's real directory path,
+  (`SourceSet::identity`: the disk set's real directory path, a
+  single-file program's real file path, one name for every standard
+  input, whose file is stamped with its text's hash,
   `MemorySources::named`), one `depfiles` entry keyed by
   `depfiles_key(toolchain, "src:" + identity)` holds, per stamped file,
   its path, stamp and `FileSkim`: the hashes the keys read (source, API
@@ -806,7 +809,10 @@ A warm run reads no source file it does not check, and hashes none
   its module the same way, without positions: a panic's frames need each
   module's `check` entry, so a stored module's panic builds the program
   again, per module, and names its frames only when that build's module
-  is the stored one. A run that does not panic resolves nothing.
+  is the stored one. A run that does not panic resolves nothing. A
+  single-file program (`hd FILE`, `hd check FILE`, `hd test FILE`) and
+  standard input take the same paths: the key holds the single-file
+  flag, and a report holds the FILE as the command line wrote it.
   `hd test` stores only its build half: each test program's module, its
   selected cases, the source parts of its `--affected` fingerprint and
   the build's warnings. Its outcomes are never stored, since they depend
