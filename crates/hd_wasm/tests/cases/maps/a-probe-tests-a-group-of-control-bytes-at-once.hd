@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: map_find map_put
+# The index is Swiss groups (#1711): `map_find` loads a group's 8 control
+# bytes as one `i64`, finds those equal to the hash's low 7 bits with
+# Go's `matchH2` test, and loads the entry hash and key of each match
+# only; a group with an empty byte ends a miss with that slot.
+# `map_put` stores the control byte and the entry number into it.
+fn put(m: &mut Map[u32, u32], k: u32, v: u32) -> void:
+    m[k] = v

@@ -40,7 +40,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 12
+      i32.const 14
       i32.mul
       i32.add
       i32.const 32
@@ -75,7 +75,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 8
+      i32.const 10
       i32.mul
       i32.add
       i32.const 32
@@ -128,7 +128,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 12
+      i32.const 14
       i32.mul
       i32.add
       i32.const 32
@@ -168,7 +168,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 8
+      i32.const 10
       i32.mul
       i32.add
       i32.const 32
@@ -229,7 +229,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 12
+      i32.const 14
       i32.mul
       i32.add
       i32.const 32
@@ -244,7 +244,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 8
+      i32.const 10
       i32.mul
       i32.add
       i32.const 32
@@ -305,7 +305,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 12
+      i32.const 14
       i32.mul
       i32.add
       i32.const 32
@@ -345,7 +345,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 8
+      i32.const 10
       i32.mul
       i32.add
       i32.const 32
@@ -399,7 +399,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 12
+      i32.const 14
       i32.mul
       i32.add
       i32.const 32
@@ -434,7 +434,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 8
+      i32.const 10
       i32.mul
       i32.add
       i32.const 32

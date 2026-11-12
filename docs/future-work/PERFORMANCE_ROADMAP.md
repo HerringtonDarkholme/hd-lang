@@ -319,8 +319,8 @@ which is why the closures bench is 781 ms there against 292 ms on V8.
 
 ### 3.6 Map and hash
 
-**Today.** `Map` is an insertion-ordered table with linear probing, the
-right design. Since #353 and #511 every bucket hash is keyed by the
+**Today.** `Map` is an insertion-ordered table under an index of Swiss
+groups (#1711), the right design. Since #353 and #511 every bucket hash is keyed by the
 run's seed, which stopped hash flooding and cost 25% to 35% on short
 string-key lookups. A composite key hashes through `Hash` impls specialized
 to their concrete hasher (#1231), but integers are still mixed byte by byte.

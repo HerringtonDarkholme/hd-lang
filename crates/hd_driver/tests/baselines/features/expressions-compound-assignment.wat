@@ -153,7 +153,7 @@
     local.get $t0
     local.get $t0
     i32.load $heap offset=12
-    i32.const 12
+    i32.const 14
     i32.mul
     i32.add
     i32.const 32
@@ -176,7 +176,7 @@
     local.get $k.1
     local.get $k.1
     i32.load $heap offset=12
-    i32.const 12
+    i32.const 14
     i32.mul
     i32.add
     i32.const 32

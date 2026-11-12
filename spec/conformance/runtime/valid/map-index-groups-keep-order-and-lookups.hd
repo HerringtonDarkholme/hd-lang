@@ -1,4 +1,4 @@
-# test: hash bits in the index leave iteration order and lookups unchanged across seeds, growth and removal
+# test: Swiss index groups leave iteration order and lookups unchanged across seeds, growth and removal
 # expect: test
 # Spec std/hash: std-hash.map.order-independent; lang/04-type-system: types.map.order.deterministic.
 use std.collections.UniqMap

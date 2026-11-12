@@ -1,8 +1,0 @@
-# @dump: wat
-# @build: v8 release
-# @helpers: map_find map_put
-# An index slot holds its entry's hash bits above the index mask (#1711):
-# `map_find` tests `(slot ^ hash) <= mask` and loads the entry's hash and
-# key only when they match; `map_put` stores `hash & ~mask | entry + 1`.
-fn put(m: &mut Map[u32, u32], k: u32, v: u32) -> void:
-    m[k] = v

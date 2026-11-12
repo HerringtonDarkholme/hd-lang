@@ -36,6 +36,7 @@ use std.rt.memory.{
     fill,
     load_u8,
     load_u32,
+    load_u64,
     new_string,
     size_of,
     store_u8,
@@ -1003,7 +1004,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                         )
         # The probe index and slots must fit one buffer, including its header.
         slot_bytes := u64(size_of::[UniqMapSlot[K, V]]())
-        index_bytes := u64(room) * 8
+        index_bytes := u64(room) * 10
         slots := u64(room) + (index_bytes + slot_bytes - 1) / slot_bytes
         if slots * slot_bytes > 0xfffe0000:
             panic_with("heap-exhausted", "uniq map capacity does not fit the heap")
@@ -1014,11 +1015,17 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
 
     fn allocate_seeded(capacity: usize, seed: u64) -> UniqMap[K, V]:
         slot_bytes := size_of::[UniqMapSlot[K, V]]()
-        index_bytes := capacity * 2 * 4
-        index_slots := (index_bytes + slot_bytes - 1) / slot_bytes
+        index_slots := (capacity / 4 * 40 + slot_bytes - 1) / slot_bytes
         slots := Buffer::[UniqMapSlot[K, V]].new(capacity + index_slots)
-        fill(slots.at(capacity).address, 0, index_bytes)
-        UniqMap::[K, V] { slots: slots, entry_capacity: capacity, size: 0, used: 0, seed: seed }
+        let mut map = UniqMap::[K, V] {
+            slots: slots,
+            entry_capacity: capacity,
+            size: 0,
+            used: 0,
+            seed: seed,
+        }
+        map.clear_index()
+        map
 
     ## Returns the number of entries in the map.
     ## See [std-collections.uniq-map.len](../../spec/std/collections.md#r-std-collections.uniq-map.len).
@@ -1120,67 +1127,83 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn keys['a](&'a self) -> UniqMapKeys[K, V, 'a]:
         UniqMapKeys { entries: self.iter() }
 
-    # The index follows the entries: twice their capacity of u32 slots,
-    # each 0 when empty, else its entry's hash bits above `index_mask`
-    # over that entry's number plus one, which is at most the capacity.
-    # A probe passes a slot whose hash bits differ without loading its
-    # entry (#1711); a map of capacity 2^k keeps 31 - k such bits.
+    # The index follows the entries (#1711): a quarter of their capacity
+    # in Swiss groups of 40 bytes, so twice the capacity in slots, and a
+    # probe always meets an empty one. A group is an 8-byte control word,
+    # each byte 0x80 when its slot is empty, else the low 7 bits of its
+    # entry's hash, then the 8 slots' u32 entry numbers. The hash's other
+    # bits pick the first group. A probe tests the whole control word
+    # against the hash's 7 bits at once (Go's `matchH2`,
+    # `internal/runtime/maps/group.go`) and loads only matching entries;
+    # a group with an empty slot ends it.
     fn index_base(&self) -> usize:
         self.slots.at(self.entry_capacity).address
 
-    fn index_mask(&self) -> usize:
-        self.entry_capacity * 2 - 1
+    # Marks every index slot empty.
+    fn clear_index(&mut self) -> void:
+        fill(self.index_base(), 128, self.entry_capacity / 4 * 40)
+
+    fn group_mask(&self) -> usize:
+        self.entry_capacity / 4 - 1
 
     # The index of `key`, borrowing every probed slot rather than moving it.
     fn find_index(&self, key: K) -> usize?:
         if self.entry_capacity == 0:
             return .None
-        mask := self.index_mask()
+        gmask := self.group_mask()
         base := self.index_base()
         hash := usize(hash_key(key, self.seed))
-        let index = hash & mask
+        pattern := u64(hash & 127) * 0x0101010101010101
+        let g = (hash >> 7) & gmask
         while true:
-            slot := usize(load_u32(base + index * 4))
-            if slot == 0:
-                return .None
-            if (slot ^ hash) <= mask:
-                entry := (slot & mask) - 1
+            at := base + g * 40
+            ctrl := load_u64(at)
+            v := ctrl ^ pattern
+            let m = v.wrapping_sub(0x0101010101010101) & ~v & 0x8080808080808080
+            while m != 0:
+                entry := usize(load_u32(at + 8 + (usize(m.trailing_zeros()) >> 3) * 4))
                 match self.slots.at(entry).as_ref():
                     .Deleted => pass
                     .Occupied(found_hash, found, _) =>
                         if found_hash == hash && found == key:
                             return .Some(entry)
-            index = (index + 1) & mask
+                m = m & (m - 1)
+            if ctrl & 0x8080808080808080 != 0:
+                return .None
+            g = (g + 1) & gmask
 
-    # Adds one occupied entry to this freshly allocated table's compact index.
+    # Adds one occupied entry to this freshly allocated table's index.
     fn index_entry(&mut self, hash: usize, entry: usize) -> void:
-        mask := self.index_mask()
+        gmask := self.group_mask()
         base := self.index_base()
-        let index = hash & mask
-        while load_u32(base + index * 4) != 0:
-            index = (index + 1) & mask
-        store_u32(base + index * 4, u32((hash & ~mask) | (entry + 1)))
+        let g = (hash >> 7) & gmask
+        while true:
+            at := base + g * 40
+            empties := load_u64(at) & 0x8080808080808080
+            if empties != 0:
+                j := usize(empties.trailing_zeros()) >> 3
+                store_u8(at + j, u8(hash & 127))
+                store_u32(at + 8 + j * 4, u32(entry))
+                return
+            g = (g + 1) & gmask
 
     ## Moves `value` into the entry for `key`; returns the replaced value, or `.None` for a new key.
     ## See [std-collections.uniq-map.insert](../../spec/std/collections.md#r-std-collections.uniq-map.insert).
     pub fn insert(&mut self, key: K, value: V) -> V?:
         if self.used == self.entry_capacity:
             self.grow()
-        mask := self.index_mask()
+        gmask := self.group_mask()
         base := self.index_base()
         hash := usize(hash_key(key, self.seed))
-        let index = hash & mask
+        pattern := u64(hash & 127) * 0x0101010101010101
+        let g = (hash >> 7) & gmask
         while true:
-            slot := usize(load_u32(base + index * 4))
-            if slot == 0:
-                entry := self.used
-                self.slots.at(entry).write(.Occupied(hash, key, value))
-                self.used = entry + 1
-                store_u32(base + index * 4, u32((hash & ~mask) | (entry + 1)))
-                self.size += 1
-                return .None
-            if (slot ^ hash) <= mask:
-                entry := (slot & mask) - 1
+            at := base + g * 40
+            ctrl := load_u64(at)
+            v := ctrl ^ pattern
+            let m = v.wrapping_sub(0x0101010101010101) & ~v & 0x8080808080808080
+            while m != 0:
+                entry := usize(load_u32(at + 8 + (usize(m.trailing_zeros()) >> 3) * 4))
                 match self.slots.at(entry).as_ref():
                     .Deleted => pass
                     .Occupied(found_hash, found, _) =>
@@ -1191,7 +1214,18 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                                     place.write(.Occupied(matched_hash, matched, value))
                                     return .Some(old)
                                 .Deleted => panic("uniq map matched a deleted entry")
-            index = (index + 1) & mask
+                m = m & (m - 1)
+            empties := ctrl & 0x8080808080808080
+            if empties != 0:
+                j := usize(empties.trailing_zeros()) >> 3
+                entry := self.used
+                self.slots.at(entry).write(.Occupied(hash, key, value))
+                self.used = entry + 1
+                store_u8(at + j, u8(hash & 127))
+                store_u32(at + 8 + j * 4, u32(entry))
+                self.size += 1
+                return .None
+            g = (g + 1) & gmask
 
     fn grow(&mut self) -> void:
         old_capacity := self.entry_capacity
@@ -1332,11 +1366,7 @@ impl[K < Eq & Hash, V < ?Copy, 'a] Drop for UniqMapDrain[K, V, 'a]:
                 while self.at < self.end:
                     _ := items.slots.at(self.at).read()
                     self.at += 1
-                fill(
-                    items.slots.at(items.entry_capacity).address,
-                    0,
-                    items.entry_capacity * 2 * size_of::[usize](),
-                )
+                items.clear_index()
                 self.items = .None
             .None => pass
 

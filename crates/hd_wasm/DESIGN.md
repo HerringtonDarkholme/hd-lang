@@ -936,16 +936,22 @@ Each operation implements collection value semantics (§15.2;
 
 - **The table.** A map is the address of one counted block: the live and written entry counts, the owner word (at a list
   buffer's offset), the capacity, the rebuild count, alignment padding,
-  the 64-bit seed, then an index of entry numbers plus one (0 empty) twice the
-  capacity long, each entry's hash (-1 once removed), and the entries
-  in the order they were added, each a `(K, V)` record laid out as a
-  tuple. Probing is linear from the hash's low bits; the index is at
-  most half full, so a probe always meets an empty slot. Above the index
-  mask, a slot holds its entry's hash bits (#1711): the entry number
-  plus one is at most the capacity, so it fits under the mask, and a
-  probe passes a slot whose upper bits differ without loading the
-  entry's hash. The tag costs no memory; a map of capacity 2^k keeps
-  30 - k tag bits, at least 7 below 2^23 entries.
+  the 64-bit seed, then the index, each entry's hash (-1 once removed),
+  and the entries in the order they were added, each a `(K, V)` record
+  laid out as a tuple. The index is Swiss groups (#1711), a quarter of
+  the capacity of them and at least one: a group is 8 control bytes,
+  `0x80` for an empty slot or else the low 7 bits of its entry's hash,
+  then the 8 slots' `u32` entry numbers, 40 bytes. The index has twice
+  the capacity in slots, so it is at most half full and a probe always
+  meets an empty slot. A probe starts at the group the hash's upper bits
+  pick and goes group by group: one `i64` load and Go's `matchH2` test
+  (`internal/runtime/maps/group.go`) find the bytes equal to the hash's
+  low 7 bits, and only those entries' hashes and keys are loaded; a
+  group with an empty slot ends a miss, and a new key takes the first
+  empty slot of that group. At the index's load, a miss reads about 1.05
+  groups. The index costs 10 bytes per unit of capacity, 2 more than the
+  linear-probing slots it replaced; iteration still walks the dense
+  entries, so the order is unchanged.
 - **Keys.** A key hashes and compares through the operations collection
   chose: an integer, `bool` or `char` through `std.hash.hash_integer`
   over its bits zero-extended and `i32.eq` or `i64.eq`, a string through
@@ -956,8 +962,11 @@ Each operation implements collection value semantics (§15.2;
   (`std-hash.map.foldhash-fast`). `map_hash_seed` mixes the host's
   recorded `hd:rt.hash_seed` with a per-run counter; construction and
   emptying take a fresh seed, while growth and copy-on-write keep it.
-  The stored fingerprint clears bit 31 to reserve -1 for tombstones;
-  map capacities stay below 2^29, so this encoding changes no bucket bit.
+  The stored fingerprint clears bit 31 to reserve -1 for tombstones. A
+  probe takes the control byte from the hash's low 7 bits and the first
+  group from the 24 above them, so a map of more than 2^26 entries (over
+  a gigabyte) starts its probes in the first 2^24 groups only, and they
+  grow longer; a smaller map can start in every group.
 - **Literals and puts.** A literal makes a table with room for its
   entries and puts each in source order (`expr.map.order`). A put of an
   equal key replaces the value in the entry's place

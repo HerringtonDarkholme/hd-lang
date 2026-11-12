@@ -1353,7 +1353,7 @@ as values exist.
 A map is the `$Map_K_V` layout (`live`, `used`, `grown`, `seed`, `index`,
 `hashes`, `keys`, `values`; crates/hd_wasm/DESIGN.md §15.2), with runtime helpers in
 `hd_wasm/src/map.rs`: entries in insertion order, a removed entry marked
-by hash -1, and a linear-probing index.
+by hash -1, and an index of Swiss groups over them (crates/hd_wasm/DESIGN.md §23.7).
 
 **Iterator state.** `MapIter` builds a `Closure` struct `{code, map,
 pos, end, len, grown}`, mirroring `ListIter`'s `{code, list, index}`

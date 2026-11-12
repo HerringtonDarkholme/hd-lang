@@ -439,7 +439,7 @@
       local.get $values
       local.get $values
       i32.load $heap offset=12
-      i32.const 12
+      i32.const 14
       i32.mul
       i32.add
       i32.const 32
