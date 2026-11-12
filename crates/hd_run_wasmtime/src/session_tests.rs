@@ -973,7 +973,19 @@ fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
     let show = "println(\"${m.len()} ${m.get(\"tea\").unwrap_or(+0)} ${m.get(\"cake\").unwrap_or(+0)}\")\n";
     with_session(|session, io| {
         let mut repl = repl(session);
-        let codes: Vec<Outcome> = inputs.iter().map(|input| repl.input(input)).collect();
+        let mut codes = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            codes.push(repl.input(input));
+            let seed_calls = journal_shape(repl.session)
+                .iter()
+                .filter(|row| row.as_str() == "call hd:rt hash_seed")
+                .count();
+            assert_eq!(
+                seed_calls,
+                usize::from(index != 0),
+                "map-free input needs none; map inputs reuse the recorded host seed"
+            );
+        }
         assert_eq!(
             codes,
             [
@@ -992,9 +1004,74 @@ fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
         let rebuilt = repl.rebuild();
         assert!(rebuilt.dropped.is_empty(), "{rebuilt:?}");
         assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(
+            journal_shape(repl.session)
+                .iter()
+                .filter(|row| row.as_str() == "call hd:rt hash_seed")
+                .count(),
+            1,
+            "rebuild replays the one seed request"
+        );
         assert_eq!(text(&io.out), "");
         assert_eq!(repl.input(show), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "2 1 2\n");
+    });
+}
+
+/// A generic declaration does not instantiate its map body. Linking its
+/// first later call must not move that entry's seed request into an earlier
+/// input when the complete session is rebuilt and replayed.
+#[test]
+fn a_later_generic_map_call_keeps_its_seed_request_in_the_calling_input() {
+    let declaration = "fn later[T](value: T) -> usize:\n    let mut values: Map[usize, T] = {}\n    values[0] = value\n    values.len()\n";
+    let call = "println(later::[i32](+7))\n";
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        assert_eq!(
+            repl.input(declaration),
+            Outcome::Exit(0),
+            "{}",
+            text(&io.err)
+        );
+        assert!(
+            journal_shape(repl.session)
+                .iter()
+                .all(|row| row != "call hd:rt hash_seed"),
+            "a declaration is map-free"
+        );
+        assert_eq!(repl.input(call), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), "1\n");
+        let shape = journal_shape(repl.session);
+        assert_eq!(
+            shape
+                .iter()
+                .filter(|row| row.as_str() == "call hd:rt hash_seed")
+                .count(),
+            1
+        );
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert!(rebuilt.dropped.is_empty(), "{rebuilt:?}");
+        assert_eq!(
+            repl.session.host_calls(),
+            calls,
+            "replay asks the host for no seed"
+        );
+        assert_eq!(
+            journal_shape(repl.session),
+            shape,
+            "replay preserves the seed's input"
+        );
+        assert_eq!(text(&io.out), "");
+        assert_eq!(repl.input(call), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), "1\n");
+        assert_eq!(
+            journal_shape(repl.session)
+                .iter()
+                .filter(|row| row.as_str() == "call hd:rt hash_seed")
+                .count(),
+            1
+        );
     });
 }
 
