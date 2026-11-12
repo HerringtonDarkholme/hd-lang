@@ -26,7 +26,7 @@ use std.path.Path
 # (spec/std/testing.md#runner-capabilities). `hd test` binds both host
 # capabilities for the body that the compiler gives an `it_each`, `it_prop`,
 # or `it_prop_with` test case or a `timeout` option, never for the test
-# body itself (src/test-runner.ts).
+# body itself (crates/hd_run_wasmtime/src/test_engine/runner.rs).
 ## The host capability of the test runner: it reports the run and answers the checks of a test case.
 ## See [std-testing.runner.declares-ref.reference-values](../../spec/std/testing.md#r-std-testing.runner.declares-ref.reference-values).
 pub trait TestRunner:
@@ -704,7 +704,7 @@ fn run_case![R, $ Q](body: fn!() -> R $ Q) -> R $ Q:
 
 # A test case's `timeout` option, which its test function evaluates first
 # (spec/std/testing.md#r-std-testing.option.timeout-at-run). The runner
-# fails a body that runs longer (src/test-runner.ts).
+# fails a body that runs longer (crates/hd_run_wasmtime/src/test_engine/runner.rs).
 fn case_timeout(limit: Duration) -> void $ TestRunner:
     $.use(TestRunner).report_timeout(limit.as_milliseconds())
 

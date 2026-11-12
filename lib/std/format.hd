@@ -121,7 +121,7 @@ impl DebugWriter:
         DebugMap { out: self, count: 0, shown: shown }
 
     # The layout below is the builders', and the printers that the checker
-    # generates for `dbg` call it directly (checker/debug-print.ts).
+    # generates for `dbg` call it directly (crates/hd_structure/src/dbg.rs).
 
     # Opens a part one level deeper. Under `dbg`'s limits a part deeper than
     # 10 levels writes `…` instead and stays closed, so this returns false
@@ -772,7 +772,7 @@ pub fn debug[T < Debug](value: T) -> string:
 # is intrinsic. The body that the emitter gives it prints nothing, which is
 # what a fetched dependency runs (r-module.dbg.dependency). In the user's own
 # code the checker swaps in the printing body, the functions below, which
-# need each argument's static type and source text (checker/debug-print.ts).
+# need each argument's static type and source text (crates/hd_check/src/dbg.rs).
 @intrinsic("dbg")
 ## Prints each value's debug text with its source position, for troubleshooting; the compiler supplies its body.
 ## See [module.dbg.signature](../../spec/lang/10-modules.md#r-module.dbg.signature).
