@@ -966,14 +966,17 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// The hoisted `IsUnique`s waiting for loop `l` (`hoisted`), run once
-    /// before it under its entry test, so an empty loop copies nothing
-    /// (`docs/compiler/tir-v2.md`, "Hoisting"): the statements before the
-    /// test, which the pass found pure, run once more, then the test. With
-    /// no loop (`None`), no test, or in a suspending body, they run
-    /// unguarded, which costs only a copy an empty loop did not need.
+    /// The hoisted `IsUnique`s and `make_unique` calls waiting for loop
+    /// `l` (`hoisted`), run once before it under its entry test, so an
+    /// empty loop copies nothing (`docs/compiler/tir-v2.md`, "Hoisting"):
+    /// the statements before the test, which the pass found pure, run once
+    /// more, then the test. With no loop (`None`), no test, or in a
+    /// suspending body, they run unguarded, which costs only a copy an
+    /// empty loop did not need; the passes hoist no `make_unique` over a
+    /// loop with a test in a body that suspends.
     pub(super) fn hoisted_uniques(&mut self, l: Option<u32>) -> StageResult<()> {
         let uniques = std::mem::take(&mut self.hoisted);
+        self.hoisted_reads.clear();
         if uniques.is_empty() {
             return Ok(());
         }
@@ -995,6 +998,11 @@ impl Em<'_, '_, '_> {
         }
         let was = self.f.reason;
         for i in uniques {
+            if self.b.tags[i as usize] != Tag::IsUnique {
+                self.f.reason = was;
+                self.inst_now(i)?;
+                continue;
+            }
             self.f.reason = hd_tir::own::reason(self.b, i as usize);
             self.unique_at(i)?;
         }

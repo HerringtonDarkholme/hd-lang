@@ -477,8 +477,8 @@ struct Hoist {
 /// The statements that run on every entered iteration of `Loop` `l`
 /// (`docs/compiler/tir-v2.md`, "Hoisting", rule 1): those of its
 /// iteration block behind a pure entry-test prefix, at any depth through
-/// scopes, unconditional match arms and the iteration blocks of inner
-/// loops.
+/// scopes and unconditional match arms. An inner loop's statements are
+/// left out: it may run no iteration.
 fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut Vec<u32>) {
     out.clear();
     let mut blocks = match entry_test(b, topo, l) {
@@ -498,8 +498,9 @@ fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut 
     while let Some(blk) = blocks.pop() {
         for &x in b.record(b.data[blk as usize][0]) {
             match b.tags[x as usize] {
-                Tag::Loop => blocks
-                    .push(entry_test(b, topo, x).map_or(b.data[x as usize][0], |e| e.iteration)),
+                // An inner loop may run no iteration; its own hoist puts the
+                // call before it.
+                Tag::Loop => {}
                 Tag::Scope => blocks.push(b.data[x as usize][0]),
                 Tag::Match => {
                     if let Some(arm) = unconditional_arm(b, x as usize) {
@@ -521,6 +522,9 @@ fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut 
 /// is an item, which the copy before the loop names again. Once the call
 /// before the loop leaves `p`'s box unique, nothing in the loop can share
 /// it, so every test of `p` there is true: the passes mark them `UNIQUE`.
+/// The backend runs the call under the loop's entry test, so an empty loop
+/// copies nothing; it can't repeat the test in a body that suspends, so
+/// there only a loop with no test, which always runs an iteration, hoists.
 ///
 /// Cost: per loop with a `make_unique` on every iteration, one scan of the
 /// loop per tested place, and one of the body for the uses of the
@@ -549,7 +553,13 @@ fn loop_hoists(
     loops.sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
     let mut every = Vec::new();
     let mut hoisted = vec![false; b.len()];
+    // The backend runs a hoisted call under its loop's entry test, which a
+    // suspending body's emission can't repeat ([`hoist_before`]).
+    let suspends = b.tags.iter().any(|&tag| is_suspension(tag));
     for (lo, l) in loops {
+        if suspends && entry_test(b, topo, l).is_some() {
+            continue;
+        }
         every_iteration(b, topo, cx, l, &mut every);
         for &x in &every {
             let x = x as usize;

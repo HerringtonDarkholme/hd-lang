@@ -1378,9 +1378,12 @@ struct Em<'i, 'a, 'm> {
     topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
     /// The hoisted `IsUnique`s met before the loop that follows them
-    /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
+    /// (`docs/compiler/tir-v2.md`, "Hoisting"), and the instructions of a
+    /// hoisted `make_unique` call ([`Em::waits`]), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
     hoisted: Vec<u32>,
+    /// The values the waiting `make_unique` instructions read.
+    hoisted_reads: Vec<u32>,
     /// The `Read` right after a plain `IsUnique` of its place, and the
     /// local holding the buffer the check left ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
@@ -1540,6 +1543,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             part_only: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
+            hoisted_reads: Vec::new(),
             hoisted: Vec::new(),
             walked: None,
             driven: HashMap::default(),
@@ -2200,13 +2204,57 @@ impl Em<'_, '_, '_> {
     /// Emits instruction `i`; the operands whose counts it took are zeroed
     /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
-        // A hoisted `IsUnique` waits for its loop; anything else first
-        // runs any that wait, unguarded (a body a default argument's
-        // specialization folded may have lost the loop's test).
+        // A hoisted `IsUnique` or `make_unique` waits for its loop;
+        // anything else first runs any that wait, unguarded (a body a
+        // default argument's specialization folded may have lost the
+        // loop's test).
+        if self.waits(i) {
+            return Ok(());
+        }
         if !self.hoisted.is_empty() && !matches!(self.b.tags[i as usize], Tag::Loop | Tag::IsUnique)
         {
             self.hoisted_uniques(None)?;
         }
+        self.inst_now(i)
+    }
+
+    /// Whether instruction `i` waits for the loop that follows, and if so
+    /// queues it: a hoisted `make_unique` call, whose `Ref` argument is
+    /// `ref_word::HOISTED` (`own::unique_test`), and, while one waits,
+    /// each instruction that reads a waiting value or a value a waiting
+    /// instruction reads (the call, its result's count and drop, the
+    /// loan's end, the copy item's drop). They run in order under the
+    /// loop's entry test, so an empty loop copies nothing
+    /// (`module.rt.make-unique.copy`).
+    fn waits(&mut self, i: u32) -> bool {
+        let b = self.b;
+        let at = i as usize;
+        let hoisted = |r: u32| {
+            Ref(r).as_inst().is_some_and(|r| {
+                let r = r.0 as usize;
+                b.tags[r] == Tag::Ref && b.data[r][1] & hd_tir::ir::ref_word::HOISTED != 0
+            })
+        };
+        // The `Ref` emits where its call reads it.
+        let lends =
+            b.tags[at] == Tag::Call && b.record(b.data[at][1]).first().is_some_and(|&r| hoisted(r));
+        if !lends && self.hoisted_reads.is_empty() {
+            return false;
+        }
+        let mut ops = Vec::new();
+        hd_tir::own::operands(b, at, &mut ops);
+        let reads = |v: u32| self.hoisted.contains(&v) || self.hoisted_reads.contains(&v);
+        if !lends && !ops.iter().any(|op| reads(op.value)) {
+            return false;
+        }
+        self.hoisted.push(i);
+        self.hoisted_reads.push(i);
+        self.hoisted_reads.extend(ops.iter().map(|op| op.value));
+        true
+    }
+
+    /// Emits instruction `i` where it stands ([`Em::inst`]).
+    fn inst_now(&mut self, i: u32) -> StageResult<()> {
         // An instruction with a source position anchors the calls it
         // writes, for a panic's frames (`crates/hd_wasm/DESIGN.md` §15.9);
         // the enclosing anchor holds again after it.

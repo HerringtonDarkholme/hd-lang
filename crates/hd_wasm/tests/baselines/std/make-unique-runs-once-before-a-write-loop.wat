@@ -4,23 +4,28 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $write_all (param $xs i32) (param $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
-    ;; 26 |     for i in 0..n:
-    local.get $xs
+    ;; 27 |     for i in 0..n:
     i32.const 1
     local.set $t0
-    i32.load $heap
-    i32.const 8
-    i32.sub
-    i32.load $heap
-    i32.const 1
-    i32.eq
-    i32.eqz
+    i32.const 0
+    local.get $n
+    i32.lt_u
     if
       local.get $xs
-      local.get $t0
-      i32.const 0
-      call $"make_unique[std.collections.UniqList[i64]]"
-      drop
+      i32.load $heap
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      i32.const 1
+      i32.eq
+      i32.eqz
+      if
+        local.get $xs
+        local.get $t0
+        i32.const 0
+        call $"make_unique[std.collections.UniqList[i64]]"
+        drop
+      end
     end
     block
       loop
@@ -34,7 +39,7 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 27 |         xs.set(i, 5)
+    ;; 28 |         xs.set(i, 5)
         local.get $xs
         i32.load $heap
         local.set $t0
@@ -61,7 +66,7 @@
         i32.add
         local.get $t3
         i64.store $heap
-    ;; 26 |     for i in 0..n:
+    ;; 27 |     for i in 0..n:
         br 0
       end
     end

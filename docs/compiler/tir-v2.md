@@ -1027,11 +1027,13 @@ lends one only as a place's root, suspends nowhere and, for a place
 behind a parameter, calls nothing that may write, runs the call once
 before the loop instead: the pass puts `Ref mut local hoisted [p]`, the
 copy's item and the call before the loop, and marks every test of `p` in
-the loop `UNIQUE`, so the loop loads no count. The copy before the loop
-runs even when the loop runs no iteration, which costs one copy of a
-shared box. Cost: per loop with such a call, one scan of the loop per
-tested place, and one of the body for the uses of the references the
-loop takes.
+the loop `UNIQUE`, so the loop loads no count. The backend holds those
+instructions back to the loop, as it does a hoisted `IsUnique`, and runs
+them under the loop's entry test, so an empty loop copies nothing. A body
+that suspends can't repeat the test, so there only a loop with no entry
+test hoists the call. Cost: per loop with such a call, one scan of the
+loop per tested place, and one of the body for the uses of the
+references the loop takes.
 
 ### Why this order
 

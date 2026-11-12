@@ -203,6 +203,16 @@ fn add_grid(h: &mut CountHolder, n: i64) -> void:
             j += 1
         i += 1
 
+# `rows` rounds of an inner loop that writes `cols` times.
+fn add_rows(h: &mut CountHolder, rows: i64, cols: i64) -> void:
+    let mut i: i64 = 0
+    while i < rows:
+        let mut j: i64 = 0
+        while j < cols:
+            make_unique(&mut h.store, copy_count).n += 1
+            j += 1
+        i += 1
+
 # A match whose one arm always runs.
 fn add_matched(h: &mut CountHolder, n: i64) -> void:
     let mut i: i64 = 0
@@ -501,6 +511,27 @@ tests:
         assert(h.store.n == 12 && keep.n == 6, "the shared box keeps its value")
         add_made(&mut h, 0)
         assert(h.store.n == 12, "an empty loop writes nothing")
+
+    it("an empty make_unique loop over a shared box copies nothing"):
+        let mut h = CountHolder { store: box(Count { n: 3 }) }
+        keep := h.store
+        before := allocated()
+        add_made(&mut h, 0)
+        assert(allocated() == before, "the loop runs no iteration, so nothing is copied")
+        shared := match unique_mut(&mut h.store):
+            .Some(_) => false
+            .None => true
+        assert(shared && keep.n == 3, "the box stays shared")
+
+    it("an outer loop whose inner write loop is empty copies nothing"):
+        let mut h = CountHolder { store: box(Count { n: 3 }) }
+        keep := h.store
+        before := allocated()
+        add_rows(&mut h, 4, 0)
+        assert(allocated() == before, "no inner iteration ran, so nothing is copied")
+        add_rows(&mut h, 2, 3)
+        assert(allocated() - before <= 1, "one copy, then the copy is written in place")
+        assert(h.store.n == 9 && keep.n == 3, "the shared box keeps its value")
 
     it("two writes of a parameter's box test its count once"):
         let mut h = CountHolder { store: box(Count { n: 0 }) }

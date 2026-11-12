@@ -1,8 +1,9 @@
 # @dump: wat
 # @build: v8 release std
 # `make_unique` (module.rt.make-unique): a write loop that leaves the box's
-# place alone tests the count once, before the loop, and nothing inside
-# it; only a shared box calls the copy.
+# place alone tests the count once, before the loop and under its entry
+# test, and nothing inside it; only a shared box calls the copy, and an
+# empty loop copies nothing.
 use std.rt.memory.make_unique
 use std.collections.UniqList
 use std.annotation.inline
