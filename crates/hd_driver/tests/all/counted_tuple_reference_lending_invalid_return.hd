@@ -1,0 +1,9 @@
+# Private control: whole-tuple conversion cannot erase a counted-field origin.
+struct Packet:
+    owner: *i32
+
+fn unrelated(value: Packet, fallback: &i32) -> &i32:
+    owner := value.owner
+    source := (fallback, owner)
+    let converted: (&i32, &i32) = source
+    converted._1 # diagnostic: local-reference-escapes

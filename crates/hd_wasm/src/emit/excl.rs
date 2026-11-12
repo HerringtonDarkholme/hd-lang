@@ -428,13 +428,16 @@ fn value_binds_at(
     // An inlined call's `Scope` keeps the call's rows, which stand in for
     // its result when its body shows no reference (a pointer's `as_mut`).
     let held = || -> Vec<(usize, Bind, Option<Loan>)> {
-        if let Some(&(_, a)) = b.held_args.iter().find(|r| r.0 as usize == c)
-            && let Some(loan) = arg_loan(pool, env, b, sub, a)
-        {
-            return ref_slots(pool, env, sub(b.ty[c]))
-                .into_iter()
-                .map(|(slot, _)| (slot, Bind::Call(a), Some(loan.clone())))
-                .collect();
+        if let Some(&(_, a)) = b.held_args.iter().find(|r| r.0 as usize == c) {
+            let loan = arg_loan(pool, env, b, sub, a);
+            // Runtime holders retain all crossed objects, including element
+            // and variant paths that the field-only promotion model omits.
+            if every_ref || loan.is_some() {
+                return ref_slots(pool, env, sub(b.ty[c]))
+                    .into_iter()
+                    .map(|(slot, _)| (slot, Bind::Call(a), loan.clone()))
+                    .collect();
+            }
         }
         Vec::new()
     };

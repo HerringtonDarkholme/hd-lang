@@ -15,11 +15,12 @@ fn make(node: *Node) -> Weak[Node]?:
 > app/main/make
 >   local $0 node: *Node [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     weak(node)
->   %1 = Read borrow [$0] : *Node
+>   %1 = Ref local [*$0] : &Node
 >   %2 = Call std/weak/weak[Node] (%1) : Weak[Node]?
->   %3 = Block %2 : Weak[Node]?
+>   %3 = LoanEnd [%1] : ()
+>   %4 = Block %2 : Weak[Node]?
 >   summary kept [] borrows [$0] writes
 
 fn name_len(w: Weak[Node]) -> usize:

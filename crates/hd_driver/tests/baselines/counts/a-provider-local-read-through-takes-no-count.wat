@@ -2,11 +2,13 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 28 |     first := box(Count { n: 0 })
     i32.const 4
     i32.const 0
@@ -36,35 +38,84 @@
       end
     end
     local.get $t0
-    i32.const 164 ;; &vtable[func40]
     local.tee $t1
+    i32.const 344 ;; &vtable[func42]
+    local.tee $t2
     ;; 31 |         line("ab")
-    local.set $t2
-    local.tee $t3
+    local.set $t3
+    local.tee $t4
     i32.const 16 ;; &"ab"
     i32.const 2
-    local.get $t2
+    local.get $t3
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32)
-    local.get $t3
+    local.get $t4
     i32.const 18 ;; &"!"
     i32.const 1
-    local.get $t2
+    local.get $t3
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32)
     ;; 32 |         swapped("c", second)
+    local.get $second
+    i32.const 4
+    i32.sub
+    local.tee $t4
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    local.get $t5
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t4
+    i32.const 1
+    local.set $t3
+    local.get $t4
+    i32.load $heap
+    i32.const 2097152
+    i32.add
+    i32.store $heap
+    local.get $t3
+    i32.const 1
+    i32.eq
+    if
+      local.get $t5
+      i32.const 2097152
+      i32.add
+      local.set $t5
+    end
     i32.const 19 ;; &"c"
     i32.const 1
     local.get $second
-    i32.const 164 ;; &vtable[func40]
-    ;; 30 |     $.with(Sink = first):
-    local.get $t0
-    ;; 32 |         swapped("c", second)
+    i32.const 344 ;; &vtable[func42]
     local.get $t1
+    local.get $t2
     call $swapped
     ;; 30 |     $.with(Sink = first):
-    local.get $t0
+    local.get $t4
+    if
+      local.get $t4
+      local.get $t4
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      local.get $t3
+      i32.const 1
+      i32.eq
+      if
+        local.get $t5
+        i32.const 2097152
+        i32.sub
+        local.set $t5
+      end
+      i32.const 0
+      local.set $t4
+    end
     ;; 28 |     first := box(Count { n: 0 })
+    local.get $t0
     local.tee $t1
     if
       local.get $t1
@@ -72,7 +123,31 @@
     end
     ;; 33 |     first.n + second.n
     local.get $first
+    i32.const 4
+    i32.sub
     i32.load $heap
+    i32.const 2097152
+    i32.and
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $first
+    i32.load $heap
+    local.get $second
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $t5
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'2
+      unreachable
+    end
     local.get $second
     i32.load $heap
     i32.add
@@ -101,6 +176,17 @@
         call $rt:release_ref'2
       end
     end
+    local.set $first
+    local.get $t4
+    if
+      local.get $t4
+      local.get $t4
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+    end
+    local.get $first
   )
   (func $"impl Sink for Count.put" (param $self i32) (param $text.0 i32) (param $text.1 i32)
     ;; 14 |         self.n = self.n + text.len()

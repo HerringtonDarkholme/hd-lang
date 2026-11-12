@@ -1,0 +1,19 @@
+# test: an implicitly lent local reference protects its counted field parent
+# Rule: ref.excl.alias.conflict.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+struct H:
+    p: *P
+
+fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
+    let value: &P = h.p
+    alias.p = next # panic: borrow-conflict
+    value.name
+
+pub fn main() -> void:
+    h := box(H { p: box(P { name: "old" }) })
+    result := replace(h, h, box(P { name: "new" }))
+    assert_equal(result, "old")

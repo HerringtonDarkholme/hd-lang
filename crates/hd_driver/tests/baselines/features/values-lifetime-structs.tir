@@ -18,8 +18,10 @@ fn parser['a](src: &'a string) -> Parser[string, 'a]:
 > app/main/parser
 >   local $0 src: &string [param read]
 >   %0 = Read [$0] : &string
->   %1 = NewStruct [%0 0:usize] : Parser[string]
->   %2 = Block %1 : Parser[string]
+>   %1 = Coerce %0 [Weaken -] : &string
+>   %2 = NewStruct [%1 0:usize] : Parser[string]
+>   %3 = Coerce %2 [Weaken -] : Parser[string]
+>   %4 = Block %3 : Parser[string]
 
 fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
     match t:
@@ -68,7 +70,8 @@ fn token(text: string, other: string) -> usize:
 >   local $1 other: string [param read captured]
 >   %0 = Ref local [$0] : &string
 >   %1 = NewVariant #0 [%0] : Token[string]
->   %2 = Ref local [$1] : &string
->   %3 = Call app/main/word[] (%1, %2) : &string
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = Block %4 : usize
+>   %2 = Coerce %1 [Weaken -] : Token[string]
+>   %3 = Ref local [$1] : &string
+>   %4 = Call app/main/word[] (%2, %3) : &string
+>   %5 = Call std/text/impl string.len[] (%4) : usize
+>   %6 = Block %5 : usize

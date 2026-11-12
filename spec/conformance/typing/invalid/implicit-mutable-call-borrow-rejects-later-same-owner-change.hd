@@ -1,0 +1,6 @@
+# test: an implicit mutable borrow excludes a later argument's same-place write
+fn size(items: &mut List[i32], removed: i32?) -> usize:
+    items.len()
+
+fn caller(items: *mut List[i32]) -> usize:
+    size(items, items.pop()) # diagnostic: conflicting-access

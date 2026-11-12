@@ -1,0 +1,21 @@
+# test: a counted-field argument lends before a later argument writes through an alias
+# Rule: ref.excl.alias.call-loan.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+struct H:
+    p: *P
+
+fn read(p: &P, ignored: i32) -> void:
+    assert_equal(p.name, "old")
+
+fn replace(h: *mut H) -> i32:
+    h.p = box(P { name: "new" }) # panic: borrow-conflict
+    +0
+
+pub fn main() -> void:
+    h := box(H { p: box(P { name: "old" }) })
+    alias := h
+    read(h.p, replace(alias))

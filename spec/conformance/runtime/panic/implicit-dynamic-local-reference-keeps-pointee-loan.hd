@@ -1,0 +1,34 @@
+# test: an implicitly lent dynamic result protects its pointee
+# Rule: ref.excl.alias.conflict.
+use std.annotation.cold
+use std.testing.assert_equal
+
+trait Read:
+    fn get(&self) -> i32
+
+struct P:
+    n: i32
+
+impl Read for P:
+    fn get(&self) -> i32:
+        self.n
+
+struct H:
+    p: *mut P
+
+@cold
+fn keep(value: &dyn Read) -> (&dyn Read)?:
+    .Some(value)
+
+@cold
+fn probe(h: *mut H, alias: *mut P) -> void:
+    held := keep(h.p)
+    alias.n = +9 # panic: borrow-conflict
+    match held:
+        .Some(value) => assert_equal(value.get(), +7, reason="the held reference remains usable")
+        .None => panic("keep returned None")
+
+pub fn main() -> void:
+    p := box(P { n: +7 })
+    h := box(H { p: p })
+    probe(h, p)

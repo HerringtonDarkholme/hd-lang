@@ -1,0 +1,15 @@
+# test: an implicitly lent mutable reference prevents an aliased pointee read
+# Rule: ref.excl.alias.conflict.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+fn change(owner: *mut P, alias: *mut P) -> void:
+    let value: &mut P = owner
+    assert_equal(alias.name, "old") # panic: borrow-conflict
+    value.name = "new"
+
+pub fn main() -> void:
+    owner := box(P { name: "old" })
+    change(owner, owner)

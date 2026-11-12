@@ -1,0 +1,17 @@
+# test: a dependent result from a captured list element keeps its cell loan
+# Rule: ref.excl.alias.conflict.
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn borrow_then_change() -> string:
+    let mut ps = [box(P { name: "a" })]
+    change := fn() -> void: ps[0] = box(P { name: "b" }) # panic: borrow-conflict
+    d := name_of(ps[0])
+    change()
+    *d
+
+pub fn main() -> void:
+    _ := borrow_then_change()

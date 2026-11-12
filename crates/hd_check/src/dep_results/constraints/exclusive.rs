@@ -289,15 +289,36 @@ fn mut_result(s: &Inputs<'_>, i: u32) -> Option<usize> {
 pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
     let at = s.b.syn[i as usize];
     at != NodeIdx::NONE
-        && matches!(
+        && s.b.tags[i as usize] == Tag::Ref
+        && (matches!(
             s.cx.src.parse.tree.node(at).kind(),
             SyntaxKind::RefExpr
                 | SyntaxKind::BindingPattern
                 | SyntaxKind::NamedPattern
                 | SyntaxKind::DataPatternField
-        )
-        && s.b.tags[i as usize] == Tag::Ref
+        ) || counted_kind_ref(s, i))
         && loan_path(s, i).is_some()
+}
+
+/// The existing Ref representation of an implicit counted-to-local lend:
+/// the pointee address of an already evaluated counted reference. Its
+/// source expression is not necessarily spelled as an explicit `RefExpr`.
+fn counted_kind_ref(s: &Inputs<'_>, i: u32) -> bool {
+    let b = s.b;
+    let place = b.view(b.data[i as usize][0]);
+    let hd_tir::ir::Root::Value(source) = place.root else {
+        return false;
+    };
+    let Some(source) = Ref(source).as_inst() else {
+        return false;
+    };
+    let mut steps = place.steps(b);
+    steps.next() == Some(Proj::Deref)
+        && steps.next().is_none()
+        && b.ty
+            .get(source.0 as usize)
+            .is_some_and(|&ty| super::local_ref(s.pool, ty).is_some_and(|(counted, _)| counted))
+        && super::local_ref(s.pool, b.ty[i as usize]).is_some_and(|(counted, _)| !counted)
 }
 
 /// Whether instruction `i` reborrows a `&mut`, a site loan like the

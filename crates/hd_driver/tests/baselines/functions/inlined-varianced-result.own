@@ -18,7 +18,8 @@ fn view() -> fn(*i32) -> i32:
     read
 > app/main/view
 >   %0 = ItemRef #0 [..] : fn(&i32) -> i32
->   %1 = Block %0 : fn(*i32) -> i32
+>   %1 = Coerce %0 [Weaken -] : fn(*i32) -> i32
+>   %2 = Block %1 : fn(*i32) -> i32
 >   summary kept []
 
 fn early_view(first: bool) -> fn(*i32) -> i32:
@@ -27,14 +28,16 @@ fn early_view(first: bool) -> fn(*i32) -> i32:
 >   local $0 first: bool [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [$0] : bool
->   %4 = If %0 [%3 -] : ()
->   %6 = Block %5 : fn(*i32) -> i32
+>   %5 = If %0 [%4 -] : ()
+>   %8 = Block %7 : fn(*i32) -> i32
         return read
 >   %1 = ItemRef #0 [..] : fn(&i32) -> i32
->   %2 = Return %1 : never
->   %3 = Block - : never
+>   %2 = Coerce %1 [Weaken -] : fn(*i32) -> i32
+>   %3 = Return %2 : never
+>   %4 = Block - : never
     read
->   %5 = ItemRef #10 [..] : fn(&i32) -> i32
+>   %6 = ItemRef #14 [..] : fn(&i32) -> i32
+>   %7 = Coerce %6 [Weaken -] : fn(*i32) -> i32
 >   summary kept []
 
 @cold
@@ -42,7 +45,8 @@ fn control() -> fn(*i32) -> i32:
     read
 > app/main/control
 >   %0 = ItemRef #0 [..] : fn(&i32) -> i32
->   %1 = Block %0 : fn(*i32) -> i32
+>   %1 = Coerce %0 [Weaken -] : fn(*i32) -> i32
+>   %2 = Block %1 : fn(*i32) -> i32
 >   summary kept []
 
 fn use_view(value: *i32) -> i32:
@@ -52,7 +56,7 @@ fn use_view(value: *i32) -> i32:
 >   %0 = Release %14 Exit local $0 #2 : ()
     view()(value) + control()(value)
 >   %1 = ItemRef #31 [..] : fn(&i32) -> i32
->   %2 = Coerce %1 [Variance -] : fn(*i32) -> i32
+>   %2 = Coerce %1 [Weaken -] : fn(*i32) -> i32
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : fn(*i32) -> i32
 >   %5 = Scope %4 [] : fn(*i32) -> i32
@@ -81,12 +85,12 @@ fn use_early_view(first: bool, value: *i32) -> i32:
 >   %2 = Store [$2] %1 : ()
 >   %3 = Read copy [$2] : bool
 >   %4 = ItemRef #16 [..] : fn(&i32) -> i32
->   %5 = Coerce %4 [Variance -] : fn(*i32) -> i32
+>   %5 = Coerce %4 [Weaken -] : fn(*i32) -> i32
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : never
 >   %8 = If %3 [%7 -] : ()
->   %9 = ItemRef #26 [..] : fn(&i32) -> i32
->   %10 = Coerce %9 [Variance -] : fn(*i32) -> i32
+>   %9 = ItemRef #30 [..] : fn(&i32) -> i32
+>   %10 = Coerce %9 [Weaken -] : fn(*i32) -> i32
 >   %11 = Break L0 %10 : never
 >   %12 = Block - : fn(*i32) -> i32
 >   %13 = Scope %12 [] : fn(*i32) -> i32

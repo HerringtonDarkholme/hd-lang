@@ -137,9 +137,10 @@ fn local_view(value: &Point) -> View[&Point]:
 >     uses $0: entry -> %0 consume last
 >   %0 = Read copy [$0] : &Point
 >   %1 = NewStruct [%0] : View[&Point]
->   %2 = Call app/main/loan[] (%1) : View[&Point]
->   %3 = Drop [%1] : ()
->   %4 = Block %2 : View[&Point]
+>   %2 = Coerce %1 [Weaken -] : View[&Point]
+>   %3 = Call app/main/loan[] (%2) : View[&Point]
+>   %4 = Drop [%2] : ()
+>   %5 = Block %3 : View[&Point]
 >   summary kept [$0]
 
 fn generic(value: *mut Point) -> fn() -> *mut Point:

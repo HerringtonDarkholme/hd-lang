@@ -5,5 +5,5 @@
 fn size(items: &mut List[i32], removed: i32?) -> usize:
     items.len()
 
-fn caller(items: *mut List[i32]) -> usize:
-    size(items, items.pop())
+fn caller(items: *mut List[i32], alias: *mut List[i32]) -> usize:
+    size(items, alias.pop())

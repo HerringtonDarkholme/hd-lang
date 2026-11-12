@@ -755,8 +755,19 @@ impl Ck<'_, '_> {
                 Some(r)
             }
             (true, false) if !optional => {
-                let (inner, mutable) = self.ref_of(g)?;
+                let (inner, source_mutable) = self.ref_of(g)?;
+                let (_, wanted_mutable) = self.ref_of(w)?;
+                // Borrow with its final permission. An intermediate &mut
+                // before a requested shared view would create an exclusive
+                // site that the conversion never asked for.
+                let mutable = source_mutable && wanted_mutable;
                 let lent = self.ref_ty(inner, mutable, false);
+                let place = crate::refs::Place {
+                    root: crate::refs::Root::Deref(r, g),
+                    path: Vec::new(),
+                    ty: inner,
+                };
+                let r = self.make_ref(&place, mutable, lent, n);
                 Some(self.coerce(r, lent, target, n, what, position))
             }
             _ => None,
