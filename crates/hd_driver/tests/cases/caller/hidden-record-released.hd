@@ -1,0 +1,13 @@
+# @dump: own
+# expected: a `@track_caller` body releases its owned parameters at exit, the hidden
+# call-site record included, as the plain body releases its one; the caller releases nothing.
+@track_caller
+fn take(text: string) -> void:
+    _ := text.len()
+
+fn plain(text: string) -> void:
+    _ := text.len()
+
+pub fn main() -> void:
+    take("a${1}")
+    plain("b${1}")

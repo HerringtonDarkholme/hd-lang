@@ -1,0 +1,20 @@
+# test: a @track_caller call frees the temporaries it is passed, through a chain and a function value
+# Spec lang/07 Call-Site Locations: fn.caller.hidden, fn.caller.chain, fn.caller.value.
+# expect-stdout: 2
+# expect-stdout: 3
+# expect-stdout: 2
+# expect-stdout: 2
+@track_caller
+fn take(text: string) -> void $ Console:
+    println(text.len())
+
+@track_caller
+fn outer(text: string) -> void $ Console:
+    take("a$text")
+    take(text)
+
+pub fn main() -> void $ Console:
+    take("a${1}")
+    outer("b${2}")
+    let f: fn(string) -> void $ Console = take
+    f("c${3}")

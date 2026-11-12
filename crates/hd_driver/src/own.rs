@@ -346,7 +346,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn parameter_count(&self, item: DefId) -> Option<usize> {
-        self.sig(item).map(|sig| sig.params.len())
+        self.sig(item).map(|sig| self.arity(item, sig))
     }
 
     fn holds_drop(&self, ty: Ty) -> Tri {
@@ -614,11 +614,11 @@ impl OwnCx for Env<'_> {
         }
         let Some(sig) = self
             .sig(def)
-            .filter(|s| !s.suspends && s.params.len() == n && k < n)
+            .filter(|s| !s.suspends && self.arity(def, s) == n && k < n)
         else {
             return false;
         };
-        let ty = hd_mono::subst(&self.run.pool, self, def, args, self.low(sig.params[k].1));
+        let ty = hd_mono::subst(&self.run.pool, self, def, args, self.param_ty(sig, k));
         ty != Ty::POISON && self.value_parameter(ty) == Pass::Owned
     }
 
@@ -731,10 +731,10 @@ impl OwnCx for Env<'_> {
         let Some(sig) = self.sig(item) else {
             return Pass::Owned;
         };
-        if sig.suspends || sig.params.len() != n {
+        if sig.suspends || self.arity(item, sig) != n {
             return Pass::Owned;
         }
-        self.value_parameter(self.low(sig.params[k].1))
+        self.value_parameter(self.param_ty(sig, k))
     }
 
     fn suspending(&self, item: DefId) -> bool {
@@ -749,11 +749,11 @@ impl OwnCx for Env<'_> {
     }
 
     fn local_ref_param(&self, item: DefId, k: usize, n: usize) -> bool {
-        let Some(sig) = self.sig(item).filter(|s| s.params.len() == n) else {
+        let Some(sig) = self.sig(item).filter(|s| self.arity(item, s) == n) else {
             return false;
         };
         let pool = &self.run.pool;
-        let t = sig.params[k].1;
+        let t = self.param_ty(sig, k);
         matches!(pool.get(t), TyData::Ref { counted: false, .. })
     }
 
@@ -1038,6 +1038,27 @@ fn holds_ref(pool: &hd_types::InternPool, ptr: DefId, t: Ty, depth: u32) -> bool
 }
 
 impl Env<'_> {
+    /// How many value parameters a body of `def` has: its signature's, and
+    /// the hidden call-site record of a `@track_caller` function
+    /// (`fn.caller.hidden`), which each call passes after the written
+    /// arguments. Cost: one item lookup.
+    fn arity(&self, def: DefId, sig: &hd_resolve::FnSig) -> usize {
+        let hidden = self
+            .p
+            .items
+            .get(def)
+            .and_then(hd_resolve::Item::fn_attrs)
+            .is_some_and(|a| a.track_caller);
+        sig.params.len() + usize::from(hidden)
+    }
+
+    /// The declared type of value parameter `k` of a body with signature
+    /// `sig`, as the backend reads it: past the written ones, the hidden
+    /// call-site record, a `string`.
+    fn param_ty(&self, sig: &hd_resolve::FnSig, k: usize) -> Ty {
+        sig.params.get(k).map_or(Ty::STRING, |&(_, t)| self.low(t))
+    }
+
     /// Whether `t` names a type parameter, an associated type or an opaque
     /// type, which an instance decides.
     fn is_open(&self, t: Ty) -> bool {
@@ -1058,11 +1079,11 @@ impl Env<'_> {
         // `@intrinsic` function, which the backend lowers in place and
         // which counts whatever it keeps itself (`Em::intrinsic`), unless
         // it takes over its argument ([`OWNING_INTRINSICS`]).
-        if sig.params.len() != n {
+        if self.arity(def, sig) != n {
             return Pass::Lent;
         }
         if sig.suspends {
-            let ty = self.low(sig.params[k].1);
+            let ty = self.param_ty(sig, k);
             if !self.cold_moves(ty) && !self.cold_transfers_declared(def, ty) {
                 return Pass::Lent;
             }
@@ -1075,7 +1096,7 @@ impl Env<'_> {
         // The declared type decides, unsubstituted: substituting would read
         // the callee's generics, which a default body's owner keeps in its
         // body, and the passes read no other body.
-        self.value_parameter(self.low(sig.params[k].1))
+        self.value_parameter(self.param_ty(sig, k))
     }
 
     /// What a reference type `t` refers to, or `t` itself.
@@ -1141,10 +1162,10 @@ impl Env<'_> {
             return None;
         }
         let sig = self.sig(def)?;
-        if sig.suspends || sig.params.len() != n {
+        if sig.suspends || self.arity(def, sig) != n {
             return None;
         }
-        let t = hd_mono::subst(&self.run.pool, self, def, targs, self.low(sig.params[k].1));
+        let t = hd_mono::subst(&self.run.pool, self, def, targs, self.param_ty(sig, k));
         (t != Ty::POISON && !self.is_open(t)).then(|| self.value_parameter(t))
     }
 
