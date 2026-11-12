@@ -1,0 +1,16 @@
+# test: a converted local payload cannot return a cold frame borrowing a by-value parameter
+# Rule: ref.dep.return.
+use std.annotation.cold
+
+@cold
+fn read!(value: (&i32)?) -> i32:
+    match value:
+        .Some(item) => *item
+        .None => -1
+
+@cold
+fn start(owner: *i32) -> Suspend[i32]:
+    let call: fn((&i32)?) -> Suspend[i32] = read
+    let value: &i32 = owner
+    pending := call(.Some(value))
+    pending # diagnostic: local-reference-escapes

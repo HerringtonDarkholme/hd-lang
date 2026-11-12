@@ -32,11 +32,7 @@ fn stop!(job: Suspend[string], log: &mut List[string]) -> string:
 
 # `job` turns out cancelled when `join!` polls it again, so `join!` and
 # `both` are cancelled, and the dispose of `channel` cannot finish.
-fn both!(
-    job: Suspend[string],
-    ack: Suspend[void],
-    log: *mut List[string],
-) -> string $ Clock:
+fn both!(job: Suspend[string], ack: Suspend[void], log: *mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("both defer"))
     using! channel = &mut Channel { log: log, ack: ack }
     let (worked, stopped) = join!(job, stop(job, log))
@@ -45,7 +41,8 @@ fn both!(
 fn drive(log: *mut List[string]) -> string $ Clock:
     let ack: Suspend[void] = sleep(s(60))
     ack.abandon()
-    let job: Suspend[string] = work(log)
+    work_log := log
+    let job: Suspend[string] = work(work_log)
     match block_on(both(job, ack, log)):
         .Completed(value) => value
         .Cancelled => "cancelled"

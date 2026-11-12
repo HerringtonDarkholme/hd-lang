@@ -18,7 +18,8 @@ fn same() -> bool $ Counter:
 pub fn main() -> void $ Console:
     tally := box(Tally { n: 0 })
     other := box(Tally { n: 0 })
-    let mine: &mut dyn Counter = tally
+    mine_owner := tally
+    let mine: &mut dyn Counter = mine_owner
     let theirs: &mut dyn Counter = other
     $.with(Counter=tally):
         println("${same()} ${$.use(Counter) is mine}")

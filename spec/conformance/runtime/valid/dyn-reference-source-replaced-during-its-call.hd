@@ -21,15 +21,14 @@ fn through(note: &dyn Note, step: fn() -> void) -> string:
 
 fn replaced_receiver() -> string:
     let mut p = make("first")
-    replace := fn() -> void:
-        p = make("other")
+    replace := fn() -> void: p = make("other")
     p.text(replace)
 
 fn replaced_behind_reference() -> string:
     let mut p = make("second")
-    replace := fn() -> void:
-        p = make("other")
-    through(p, replace)
+    replace := fn() -> void: p = make("other")
+    receiver := p
+    through(receiver, replace)
 
 pub fn main() -> void $ Console:
     println("${replaced_receiver()} first")

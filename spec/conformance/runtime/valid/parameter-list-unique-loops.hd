@@ -10,7 +10,8 @@ fn add(values: &mut List[i32], rounds: usize) -> void:
 fn copy_into(values: &List[i32], log: &mut List[List[i32]]) -> void:
     log.push(*values)
 
-fn interleaved(values: &mut List[i32], snapshot: fn() -> void) -> void:
+# A reentrant snapshot reads a counted alias, outside a whole-call exclusive loan.
+fn interleaved(values: *mut List[i32], snapshot: fn() -> void) -> void:
     for n in 0..3:
         values[0] = i32(n)
         snapshot()
@@ -29,6 +30,7 @@ tests:
     it("a callback can create a new buffer owner between writes"):
         values := box::[List[i32]]([+0])
         log := box::[List[List[i32]]]([])
-        interleaved(values, fn() -> void: copy_into(values, log))
+        snapshots := values
+        interleaved(values, fn() -> void: copy_into(snapshots, log))
         assert_equal(*log, [[+0], [+1], [+2]], reason="each callback snapshot keeps its own value")
         assert_equal(*values, [+99], reason="the final write changes only the source")

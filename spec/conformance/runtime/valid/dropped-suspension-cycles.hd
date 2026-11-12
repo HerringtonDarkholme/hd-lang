@@ -49,6 +49,7 @@ pub fn main!() -> void $ Console + Tick:
         assert_equal(closure_ring(n), "closure $n", reason="the frame keeps the capture")
         n += 1
     ring := box(Ring { name: "live", task: .None })
-    let job: Suspend[string] = nested(ring)
+    frame_ring := ring
+    let job: Suspend[string] = nested(frame_ring)
     ring.task = .Some(job)
     assert_equal(job!(), "new live", reason="the resumed frame owns its current locals")

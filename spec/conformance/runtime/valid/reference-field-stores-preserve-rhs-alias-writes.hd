@@ -38,7 +38,8 @@ fn changed_nested(other: &mut Nested) -> i32:
     other.pair.b = +9
     +42
 
-fn nested_assign(value: &mut Nested, other: &mut Nested) -> void:
+# Counted aliases permit RHS writes; only the RHS helper takes a short local loan.
+fn nested_assign(value: *mut Nested, other: *mut Nested) -> void:
     value.pair.a = changed_nested(other)
 
 fn assign_items(value: &mut Nested, items: List[string]) -> void:
@@ -56,7 +57,8 @@ tests:
 
     it("a nested field store through a pointer"):
         value := box(Nested { pair: Pair { a: +1, b: +2 }, text: "kept", items: ["old"] })
-        nested_assign(value, value)
+        other := value
+        nested_assign(value, other)
         assert_equal(value.pair.a, +42, reason="the projected field view forwards its store")
         assert_equal(value.pair.b, +9, reason="the view keeps the RHS alias write")
         assert_equal(value.text, "kept", reason="the unrelated string stays alive")

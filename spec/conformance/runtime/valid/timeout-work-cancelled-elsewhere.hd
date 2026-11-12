@@ -41,13 +41,14 @@ fn run!(
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let job: Suspend[string] = target(log)
+    target_log := log
+    let job: Suspend[string] = target(target_log)
     let timed: Suspend[Result[string, TimedOut]] = apply(
         timeout(s(60)),
         work=fn!() -> Result[string, TimedOut]: .Ok(job!())
-        ,
     )
-    let runner: Suspend[void] = run(log, timed, stop_later(job, log))
+    stopper_log := log
+    let runner: Suspend[void] = run(log, timed, stop_later(job, stopper_log))
     runner!()
     println(log.join(", "))
     match runner.cancel!():
