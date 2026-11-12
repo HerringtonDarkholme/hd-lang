@@ -7,7 +7,7 @@
 # checked runtime counts allocations, so the runner also builds this file
 # checked in every mode (`STD_RT_CHECKED_TOO`); without it `allocated()`
 # stays 0, and the cases that compare it check nothing.
-use std.rt.memory.pages
+use std.rt.memory.{pages, unique_mut}
 use std.rt.checked.{allocated, released, retained, live}
 use std.annotation.inline
 
@@ -131,6 +131,29 @@ fn closure_view_round(round: i32) -> usize:
     copy := generic_closure_copy(&point)
     field := closure_field(fn(value): &value.value, &copy)
     field.len()
+
+struct Count:
+    n: i64
+
+struct CountHolder:
+    store: *Count
+
+# Writes `v` through `r` when its box is unshared.
+fn write_unique(r: &mut *Count, v: i64) -> bool:
+    match unique_mut(r):
+        .Some(c) =>
+            c.n = v
+            true
+        .None => false
+
+# Adds `0..n` to the holder's count, copying a shared box once first.
+fn add_upto(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        match unique_mut(&mut h.store):
+            .Some(c) => c.n += i
+            .None => h.store = box(Count { n: h.store.n + i })
+        i += 1
 
 tests:
     use std.testing.{assert, it}
@@ -300,3 +323,21 @@ tests:
             round += 1
         assert(total > 60000, "every copy and dependent field result stays valid")
         assert(live() == before, "every copied value and fresh view is released once")
+
+    it("unique_mut lends an unshared box and refuses a shared one"):
+        let mut p: *Count = box(Count { n: 1 })
+        assert(write_unique(&mut p, 5), "an unshared box is lent")
+        assert(p.n == 5, "the write reached the box")
+        let q = p
+        assert(!write_unique(&mut p, 7), "a shared box is refused")
+        assert(p.n == 5 && q.n == 5, "the shared box is unchanged")
+
+    it("a copy-on-write loop copies a shared box once"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        add_upto(&mut h, 4)
+        assert(h.store.n == 6, "an unshared box is written in place")
+        keep := h.store
+        before := allocated()
+        add_upto(&mut h, 4)
+        assert(allocated() - before <= 1, "one copy at most, then the copy is written in place")
+        assert(h.store.n == 12 && keep.n == 6, "the shared box keeps its value")

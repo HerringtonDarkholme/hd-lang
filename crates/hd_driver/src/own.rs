@@ -247,6 +247,7 @@ const PURE_INTRINSICS: &[&str] = &[
     "ptr_mut",
     "downcast_ref",
     "downcast_mut",
+    "unique_mut",
     "type_id_of",
     "bytes_len",
     "bytes_at",
@@ -497,6 +498,10 @@ impl OwnCx for Env<'_> {
 
     fn is_map_probe(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_probe"))
+    }
+
+    fn is_unique_test(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("unique_mut"))
     }
 
     fn counted(&self, ty: Ty) -> bool {

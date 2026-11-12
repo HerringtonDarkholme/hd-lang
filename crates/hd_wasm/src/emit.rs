@@ -20,7 +20,7 @@ use hd_mono::layout::{CanonMemo, canon};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::count::{At as CountAt, Info as CountInfo, Part as CountPart};
 use hd_tir::ir::{
-    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
+    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags, ref_word,
 };
 use hd_tir::own::Reason;
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -1292,6 +1292,9 @@ struct Em<'i, 'a, 'm> {
     /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
+    /// A sticky `unique_mut` test's flag local per tested place record
+    /// (`ref_word::STICKY`): set once a test finds the object unique.
+    unique_flags: Vec<(Vec<u32>, u32)>,
     cached_buffers: Vec<(u32, u32)>,
     /// Exact range-index reads proven in bounds in this body's loops.
     proven_list_indices: Vec<u32>,
@@ -1508,6 +1511,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             frame_refs: Vec::new(),
             init_key: None,
             list_caches: Vec::new(),
+            unique_flags: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),
             headers: guards::HeaderFacts::default(),
@@ -3135,6 +3139,7 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key) if matches!(key.as_str(), "ptr_ref" | "ptr_mut") => {
                     self.ptr_ref(i, &args)
                 }
+                TargetKind::Intrinsic(key) if key == "unique_mut" => self.unique_mut(i, args[0]),
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
                 }
@@ -4015,6 +4020,96 @@ impl Em<'_, '_, '_> {
         // `as_ref(self)` and `as_mut(self)`.
         self.comp(args[0], 0)?;
         self.store(i)
+    }
+
+    /// `unique_mut(r)` (`module.rt.unique`): the object the `*T` at `r`
+    /// refers to, lent for writing when its count word is 1 and no weak
+    /// side entry names it, else `.None`. A counted reference is the
+    /// address of a whole object's payload (`ref.box.object`), so its
+    /// header is 8 bytes below with no page-table lookup (§23.4): one
+    /// load and one compare, of the count word alone, or of the count
+    /// and descriptor words as one `i64` where weak references are linked.
+    /// A static object's zero count reads as shared. Cost: constant per
+    /// call; `own::unique_test` drops the load for a fresh box.
+    fn unique_mut(&mut self, i: u32, r: u32) -> StageResult<()> {
+        // The `*T`'s words at `r`, as many as the `(&mut T)?` has (a
+        // reference's niche is its null address): the object's address,
+        // then a trait value's vtable.
+        let words = self.vals(self.ty(i))?.len();
+        let ls: Vec<u32> = (0..words).map(|_| self.f.local(Val::I32)).collect();
+        for (k, &l) in ls.iter().enumerate() {
+            self.comp(r, 0)?;
+            self.f.op(I::I32Load(mem(HEAP, 4 * k as u64, 2)));
+            self.f.set(l);
+        }
+        // The passes' marks count only box copies as second owners; a
+        // weak reference's upgrade makes one too, so a module that links
+        // weak references runs every test.
+        let weak = self.m.uses_weak || self.m.open_world;
+        let word = if self.b.tags.get(r as usize) == Some(&Tag::Ref) && !weak {
+            self.b.data[r as usize][1]
+        } else {
+            0
+        };
+        let same = self.f.local(Val::I32);
+        // A sticky test shares one flag with every test of its place.
+        let flag = (word & ref_word::STICKY != 0).then(|| {
+            let key = self.b.record(self.b.data[r as usize][0]).to_vec();
+            if let Some(&(_, l)) = self.unique_flags.iter().find(|(k, _)| *k == key) {
+                return l;
+            }
+            let l = self.f.local(Val::I32);
+            self.unique_flags.push((key, l));
+            l
+        });
+        if word & ref_word::UNIQUE != 0 {
+            self.f.u32(1);
+        } else {
+            if let Some(flag) = flag {
+                self.f.get(flag);
+                self.f
+                    .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+                self.f.u32(1);
+                self.f.op(I::Else);
+            }
+            self.f.get(ls[0]);
+            self.f.u32(8);
+            self.f.op(I::I32Sub);
+            if weak {
+                self.f.op(I::I64Load(mem(HEAP, 0, 3)));
+                self.f.op(I::I64Const(
+                    (u64::from(u32::MAX) | (u64::from(crate::module::WEAK) << 32)).cast_signed(),
+                ));
+                self.f.op(I::I64And);
+                self.f.op(I::I64Const(1));
+                self.f.op(I::I64Eq);
+            } else {
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+                self.f.u32(1);
+                self.f.op(I::I32Eq);
+            }
+            if let Some(flag) = flag {
+                self.f.op(I::LocalTee(flag));
+                self.f.op(I::End);
+            }
+        }
+        self.f.set(same);
+        if let [address] = ls[..] {
+            // A thin `(&mut T)?` is its address, null for `.None`.
+            self.f.get(address);
+            self.f.u32(0);
+            self.f.get(same);
+            self.f.op(I::Select);
+            return self.store(i);
+        }
+        self.f.get(same);
+        self.f.op(I::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        self.new_variant(i, 1, &[value::Src::Locals(ls)])?;
+        self.f.op(I::Else);
+        self.new_variant(i, 0, &[])?;
+        self.close();
+        Ok(())
     }
 
     /// A `Read` or a `Store` of the place `[ptr %p]`, the `T` at the

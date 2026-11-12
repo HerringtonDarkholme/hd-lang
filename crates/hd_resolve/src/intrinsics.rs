@@ -198,6 +198,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("task_wait_frame", &[s(0, &[COUNTED_MUT], SUSPEND)]),
     ("task_wait_signal", &[s(0, &[COUNTED_MUT], VOID)]),
     ("type_id_of", &[s(1, &[], Named("TypeId"))]),
+    ("unique_mut", &[s(1, &[REF_MUT], Opt)]),
     ("utf8_valid_len", &[s(0, &[LIST], USIZE)]),
     ("weak_new", &[s(1, &[REF], Opt)]),
     ("weak_new_mut", &[s(1, &[REF_MUT], Opt)]),

@@ -771,6 +771,11 @@ pub mod ref_word {
     /// its last access takes the local's count of its cell, and leaves the
     /// local empty. The checker never sets it (invariant 22).
     pub const TAKES: u32 = 2;
+    /// Set by the ownership passes (`own::hoist::unique_tests`): the
+    /// `&mut` argument of a `unique_mut` test whose place holds a fresh
+    /// box, which nothing else can hold, so the test is true with no load.
+    /// The checker never sets it (invariant 22).
+    pub const UNIQUE: u32 = 4;
     /// Set by the checker: the `Ref` makes a local reference, `&T` or
     /// `&mut T`, or the address a `&self` or `&mut self` receiver takes,
     /// which never outlives its use
@@ -796,6 +801,12 @@ pub mod ref_word {
     /// local's object (`Part::Lent`). The checker never sets it
     /// (invariant 22).
     pub const LENT: u32 = 64;
+    /// Set by the ownership passes (`own::hoist::unique_tests`): the
+    /// `&mut` argument of a `unique_mut` test whose place nothing in the
+    /// body can share once a test found it unique, and every store to
+    /// which is a fresh box, so the backend runs the test until one finds
+    /// it unique and not after. The checker never sets it (invariant 22).
+    pub const STICKY: u32 = 128;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2190,6 +2201,9 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::PINS != 0 => "a pinning `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
+            Tag::Ref if w & (ref_word::UNIQUE | ref_word::STICKY) != 0 => {
+                "a uniqueness-test `Ref` before the passes".to_owned()
+            }
             _ => continue,
         };
         errs.push(VerifyError {

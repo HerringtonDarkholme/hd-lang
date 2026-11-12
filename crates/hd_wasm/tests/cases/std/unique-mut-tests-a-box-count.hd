@@ -1,0 +1,48 @@
+# @dump: wat
+# @build: v8 release std
+# `unique_mut` (module.rt.unique): one count load and one compare; no
+# load for a box the body made; behind `&mut self`, the count is read
+# only until a test finds the box unique, so a loop reads it once.
+use std.rt.memory.unique_mut
+use std.annotation.inline
+
+struct Cell:
+    n: i64
+
+struct Holder:
+    store: *Cell
+
+impl Holder:
+    @inline
+    fn set(&mut self, v: i64) -> void:
+        match unique_mut(&mut self.store):
+            .Some(c) => c.n = v
+            .None => self.store = box(Cell { n: v })
+
+fn test_once(r: &mut *Cell) -> bool:
+    match unique_mut(r):
+        .Some(c) =>
+            c.n += 1
+            true
+        .None => false
+
+fn fresh_box(v: i64) -> i64:
+    let mut p: *Cell = box(Cell { n: 0 })
+    match unique_mut(&mut p):
+        .Some(c) => c.n = v
+        .None => p = box(Cell { n: v })
+    p.n
+
+fn copied_box(v: i64) -> i64:
+    let mut p: *Cell = box(Cell { n: 0 })
+    let q = p
+    match unique_mut(&mut p):
+        .Some(c) => c.n = v
+        .None => p = box(Cell { n: v })
+    p.n + q.n
+
+fn set_all(h: &mut Holder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        h.set(i)
+        i += 1
