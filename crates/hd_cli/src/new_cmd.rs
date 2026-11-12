@@ -217,6 +217,10 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
             "`{name}` is no package name: it holds letters, digits, `_` and `-`, and starts with a letter or `_`"
         ));
     }
+    if name == "std" {
+        // `cli.name.std.new`, before any write.
+        return fail("no package is named `std`, the standard library's name; choose another name");
+    }
     let files = files(kind, &name, o.pages);
     // `cli.new.existing`: one existing file stops it before any write.
     if let Some((path, _)) = files.iter().find(|(p, _)| dir.join(p).exists()) {

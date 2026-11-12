@@ -17,6 +17,8 @@ pub struct Manifest {
     /// (`cli.mode.package.nearest`).
     pub declares_package: bool,
     pub name: String,
+    /// The 1-based line of `[package] name`.
+    pub name_line: u32,
     /// `[package] hd`, the minimum toolchain version
     /// (`cli.manifest.toolchain-keys`), and its 1-based line.
     pub hd: Option<(String, u32)>,
@@ -396,6 +398,7 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
                 only(&mut unknowns, "package", p, &["name", "hd"]);
                 if let Some(toml::Value::String(n)) = p.get("name") {
                     n.clone_into(&mut m.name);
+                    m.name_line = at("package.name");
                 }
                 if let Some(toml::Value::String(v)) = p.get("hd") {
                     m.hd = Some((v.clone(), at("package.hd")));
@@ -785,13 +788,18 @@ fn identity(r: &Requirement) -> Option<String> {
     Some(format!("{path}@{}", compatibility_line(&version)))
 }
 
+/// Why a manifest may not name its package `std` (`cli.name.std`).
+pub const STD_NAME: &str =
+    "no package is named `std`, the standard library's name; rename the package";
+
 /// The rules a manifest alone breaks, in line order: each requirement's
 /// form, key-name collisions and keys that share a package
 /// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
 /// (`module.toolchain.graph-minimum`), each `[capabilities]` and
 /// `[dev-capabilities]` key and value (`cli.cap.table.keys.with-package-host`,
-/// `cli.cap.value.unscoped`), an `[[executable]]` table without a string
-/// `name` and `module` (`cli.manifest.known-key`), and a warning for each
+/// `cli.cap.value.unscoped`), a package named `std` (`cli.name.std`), an
+/// `[[executable]]` table without a string `name` and `module`
+/// (`cli.manifest.known-key`), and a warning for each
 /// unknown table or key (`cli.manifest.unknown-key.error`).
 #[must_use]
 pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
@@ -923,6 +931,16 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
             });
         }
     }
+    // `cli.name.std.manifest`: the driver and the module table read a package
+    // named `std` as the standard library itself.
+    if m.name == "std" {
+        out.push(Problem {
+            code: Some(Code::InvalidManifest),
+            severity: Severity::Error,
+            line: Some(m.name_line),
+            message: STD_NAME.to_owned(),
+        });
+    }
     for e in &m.executables {
         if e.name.is_none() || e.module.is_none() {
             out.push(Problem {
@@ -990,6 +1008,16 @@ mod tests {
         )
         .expect("manifest");
         assert!(problems(&ok, "0.1.0").is_empty());
+    }
+
+    #[test]
+    fn a_package_named_std_is_invalid_at_its_name() {
+        let m = parse_manifest("# app\n[package]\n\nname = \"std\"\n").expect("manifest");
+        let got: Vec<_> = problems(&m, "0.1.0")
+            .into_iter()
+            .map(|p| (p.code, p.line))
+            .collect();
+        assert_eq!(got, [(Some(Code::InvalidManifest), Some(4))]);
     }
 
     #[test]

@@ -1,0 +1,9 @@
+use std.annotation.inline
+
+@inline
+fn f() -> i32:
+    1
+
+pub fn main() -> void:
+    let x = f()
+    assert(x == 1)

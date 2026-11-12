@@ -1528,12 +1528,25 @@ cd libs/ui && hd test -p shared    # from inside member ui, the tests of shared
 
 1. r[cli.name.hyphen] A package's name and an executable's name may contain `-`, as Cargo's do.
 2. r[cli.name.task] A task's name is its file name, so it is an identifier and contains no `-`.
+3. r[cli.name.std] No package is named `std`, the standard library's name.
+4. r[cli.name.std.manifest] An `hd.toml` whose `[package]` table names the package `std` is an error at the line of its `name` key, for every command that reads it. Error: `invalid-manifest`.
+5. r[cli.name.std.new] `hd new` with a package directory named `std` is an error, and it writes nothing.
 
 ```sh
 hd new my-app       # a package's name may contain -
 hd run my-tool      # an executable's name too
 hd run gen          # a task's name is its file name: tasks/gen.hd
+hd new std          # error: no package is named std
 ```
+
+```toml
+[package]
+name = "std"        # error: invalid-manifest
+```
+
+> **Why.** The name `std` is the standard library's identity, so a package
+> with that name would stand for std itself. Cargo refuses `cargo new std`
+> for the same reason.
 
 > **Note.** Where source needs an identifier for such a name, each `-`
 > becomes `_`, as the dependency key `my-app` is `dep.my_app`

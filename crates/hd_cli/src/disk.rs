@@ -832,6 +832,23 @@ pub fn package_name(root: &Path) -> Result<String, String> {
     }
 }
 
+/// The package name of a single-file program in `dir`, and the problem
+/// of a manifest there that names `std` (`cli.name.std.manifest`), at its
+/// path below `written`, the directory as the command line wrote it. The
+/// name `std` would make the file std itself, so the program takes the
+/// prefixed name a directory named `std` takes (`default_name`), and the
+/// problem stops the command before any check.
+fn single_file_package(dir: &Path, written: &Path) -> Result<(String, Vec<Diag>), String> {
+    let package = package_name(dir)?;
+    if package != "std" {
+        return Ok((package, Vec::new()));
+    }
+    let line = manifest_of(dir)?.map(|m| m.name_line as usize);
+    let file = written.join("hd.toml").to_string_lossy().replace('\\', "/");
+    let d = Diag::error(Some(Code::InvalidManifest), hd_project::STD_NAME).at(&file, line);
+    Ok(("pstd".to_owned(), vec![d]))
+}
+
 /// The sources and the package name of a root directory. A package with a
 /// source root has the files under it, its test root and `tasks`
 /// (`module.manifest.source-root`, `cli.task.file`), so a path dependency
@@ -915,7 +932,10 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         .ok_or("not a file")?
         .to_string_lossy()
         .into_owned();
-    let package = package_name(root)?;
+    // The manifest's path as written, as the file's is
+    // (`cli.json.diagnostic.file`).
+    let written = target.parent().unwrap_or(Path::new(""));
+    let (package, problems) = single_file_package(root, written)?;
     let as_written = Some(target.to_string_lossy().into_owned());
     // Taken before the file's metadata, as `sources_of` takes it before
     // the listing: a write after it is never trusted as settled (`stamp`).
@@ -948,7 +968,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         dev_requires: Vec::new(),
         deps: Vec::new(),
         host_packages: Vec::new(),
-        problems: Vec::new(),
+        problems,
         single_file: true,
         as_written,
         capabilities: match package_root(root) {
@@ -967,7 +987,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
 /// above it is: no package sources, requirements, or capabilities.
 pub fn load_stdin(text: &str) -> Result<Program, String> {
     let root = std::env::current_dir().unwrap_or(PathBuf::from("."));
-    let package = package_name(&root)?;
+    let (package, problems) = single_file_package(&root, Path::new(""))?;
     // One name for every standard input: its one file's stamp is its
     // text's hash (`add_synthetic`), so its last-run record and stored
     // results are keyed by the text, and a new text replaces the record
@@ -989,7 +1009,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         dev_requires: Vec::new(),
         deps: Vec::new(),
         host_packages: Vec::new(),
-        problems: Vec::new(),
+        problems,
         single_file: true,
         as_written: None,
         capabilities: Vec::new(),

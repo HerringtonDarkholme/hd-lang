@@ -1,0 +1,5 @@
+# No package is named std: hd new refuses the name and writes nothing.
+run: hd new --app --vcs none std
+exit: 101
+stderr: error: no package is named `std`, the standard library's name; choose another name
+no-file: std

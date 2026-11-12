@@ -32,6 +32,7 @@ json-run	cli.json.commands,cli.json.run,cli.json.run.program,cli.json.summary.re
 new-app	cli.new.capabilities,cli.new.kind,cli.new.app,cli.new.app.test,cli.new.here.dir,cli.new.no-executable-table,cli.new.test-name,cli.new.vcs-none,cli.exe.default-main,cli.exe.entry-program,cli.exe.entry-no-use,cli.exe.default-name,cli.run.cwd.executable,cli.new.dev-capabilities
 new-lib	cli.new.kind,cli.new.lib,cli.new.lib.test,cli.new.here.dir,cli.new.test-name,cli.new.vcs-none,cli.build.library-only.cache
 new-path	cli.new.app,cli.new.lib,cli.new.test-name,cli.name.hyphen
+new-std	cli.name.std,cli.name.std.new,cli.exit.hd-failure
 new-vcs	cli.new.vcs,cli.new.vcs-none,cli.new.vcs.ignore
 new-existing	cli.new.lib,cli.new.existing,cli.exit.hd-failure
 new-no-kind	cli.new.app,cli.new.kind.no-terminal,cli.exit.hd-failure
@@ -218,6 +219,7 @@ test-handle-leak	cli.test.leak,cli.test.leak.message,cli.test.leak.closed,cli.te
 manifest-invalid-capabilities	cli.manifest.invalid,cli.manifest.invalid.cases,cli.cap.table.keys.with-package-host,cli.cap.value.unscoped,cli.json.diagnostic.fields,cli.exit.hd-failure
 manifest-invalid-tables	cli.manifest.invalid,cli.manifest.invalid.cases,cli.exe.table,cli.json.diagnostic.fields,cli.exit.hd-failure
 manifest-invalid-syntax	cli.manifest.invalid.syntax,cli.manifest.invalid,cli.json.diagnostic.fields,cli.exit.hd-failure
+name-std-manifest	cli.name.std,cli.name.std.manifest,cli.json.diagnostic.fields,cli.json.diagnostic.file,cli.file.run,cli.exit.hd-failure
 repl-value	cli.repl.script,cli.repl.script.lines,cli.repl.script.echo,cli.repl.value,cli.repl.value.stream,cli.repl.input-types
 repl-value-stream	cli.repl.script.output,cli.repl.value.stream,cli.dbg.repl
 repl-checkpoint	cli.repl.checkpoint.continue,cli.repl.checkpoint.initialized,cli.repl.checkpoint.effects,cli.repl.checkpoint.history

@@ -20,7 +20,7 @@ use hd_diag::Code;
 pub use doctest::{DocTest, doc_tests};
 pub use manifest::{
     CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, HostProvider, LintNames,
-    LintTable, Manifest, ManifestError, Problem, Requirement, Version, Workspace,
+    LintTable, Manifest, ManifestError, Problem, Requirement, STD_NAME, Version, Workspace,
     capability_insertion, capability_insertion_for, compatibility_line, grant_problem, host_path,
     is_capability_selector, key_problem, parse_manifest, problems, requirement_problem,
 };
