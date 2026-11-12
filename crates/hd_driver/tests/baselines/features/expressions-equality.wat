@@ -280,14 +280,6 @@
         br 1
       end
     end
-    local.get $o
-    if
-      local.get $o
-      i32.load $heap
-      local.get $o
-      i32.load $heap offset=4
-      call $rt:release
-    end
     local.get $t3
     local.get $t0
     i32.const 16

@@ -99,6 +99,8 @@ struct Effect {
 #[derive(Clone, Copy)]
 struct Value {
     uses: u32,
+    /// Every use only reads through this value or ends its loan.
+    read_through: bool,
     user: u32,
     stored: u32,
     alias: u32,
@@ -128,7 +130,7 @@ struct Local {
     kept: u32,
     reached: bool,
     /// Every address is immutable and dies with one direct call.
-    shared_calls_only: bool,
+    shared_lends_only: bool,
     escapes: bool,
     changed: bool,
     captured: bool,
@@ -231,6 +233,7 @@ impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
         let value = Value {
             uses: 0,
+            read_through: true,
             user: NONE,
             stored: NONE,
             alias: NONE,
@@ -248,7 +251,7 @@ impl Tables {
             excl: NONE,
             kept: 0,
             reached: false,
-            shared_calls_only: true,
+            shared_lends_only: true,
             escapes: false,
             changed: false,
             captured: false,
@@ -531,6 +534,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     let recursive = super::RecursiveBindings::new(b);
     let mut ops = std::mem::take(&mut t.ops);
+    let mut through = super::promote::ReadThroughUses::default();
     for &(_, capture) in &b.inlined_shared {
         let local = &mut t.l[b.cap_local[capture as usize].idx()];
         local.captured = true;
@@ -591,6 +595,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 continue;
             }
             let v = op.value as usize;
+            t.v[v].read_through &= through.permits(b, i, op.value);
             t.v[v].uses += 1;
             t.v[v].user = u32_of(i);
             let keeps = match op.role {
@@ -653,8 +658,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
         {
-            t.l[l.idx()].shared_calls_only &= b.data[i][1] & ref_word::MUT == 0 && call != NONE;
-            if b.data[i][1] & ref_word::FRAME == 0 && call == NONE {
+            let lends = call != NONE || t.v[i].read_through;
+            t.l[l.idx()].shared_lends_only &= b.data[i][1] & ref_word::MUT == 0 && lends;
+            if b.data[i][1] & ref_word::FRAME == 0 && !lends {
                 t.l[l.idx()].escapes = true;
             }
         }
@@ -1145,7 +1151,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             let lent = lendable
                 && f.stores == 0
                 && !f.captured
-                && (!f.reached || (f.shared_calls_only && no_external_write))
+                && (!f.reached || (f.shared_lends_only && no_external_write))
                 && !f.changed
                 && cx.counted(b.local_ty[l as usize])
                 && (f.kept == 0 && !suspends || cx.received(b.item, at, n) == Pass::Lent);
@@ -1436,18 +1442,20 @@ fn local_lending_calls_with(
 pub(crate) struct ReferenceUses {
     pub escaping: Vec<bool>,
     pub calls: Vec<u32>,
+    pub read_through: Vec<bool>,
 }
 
 pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
     let n = b.len();
     let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
     let mut read_through = vec![true; n];
+    let mut through = super::promote::ReadThroughUses::default();
     let mut ops = Vec::new();
     for i in 0..n {
         operands(b, i, &mut ops);
         for op in &ops {
             let value = op.value as usize;
-            read_through[value] &= super::promote::read_through_use(b, i, op.value);
+            read_through[value] &= through.permits(b, i, op.value);
             if op.role != Role::Dropped {
                 counts[value] += 1;
                 last[value] = u32_of(i);
@@ -1474,6 +1482,7 @@ pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
     ReferenceUses {
         escaping: out,
         calls,
+        read_through,
     }
 }
 
@@ -1629,7 +1638,7 @@ mod lending_tests {
     fn addressed_parameters_only_lend_to_readonly_nonretaining_calls() -> Result<(), String> {
         // A mutable address, an address shared by two calls, a result holding
         // the address, or a possibly writing call must retain the snapshot.
-        for control in 0..5 {
+        for control in 0..7 {
             let n = NodeIdx::from_raw(1);
             let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
             let block = b.open_block();
@@ -1642,11 +1651,21 @@ mod lending_tests {
             let flags = ref_word::LOCAL | if control == 1 { ref_word::MUT } else { 0 };
             let r = b.emit(Tag::Ref, place, flags, LOCAL_REF, n);
             let result = if control == 3 { LOCAL_REF } else { Ty::VOID };
-            call(&mut b, 8, &[r], result);
+            if control >= 5 {
+                let through = b.place(
+                    &format!("[*%{}]", r.0)
+                        .parse()
+                        .map_err(|e| format!("{e:?}"))?,
+                );
+                let value = b.emit(Tag::Read, through, ReadMode::Use as u32, Ty::STRING, n);
+                call(&mut b, 8, &[value], Ty::VOID);
+            } else {
+                call(&mut b, 8, &[r], result);
+            }
             if control == 2 {
                 call(&mut b, 8, &[r], Ty::VOID);
             }
-            if control == 4 {
+            if control == 4 || control == 6 {
                 call(&mut b, 9, &[], Ty::VOID);
             }
             let root = b.close_block(block, None, Ty::VOID, n);
@@ -1658,10 +1677,14 @@ mod lending_tests {
             )
             .map_err(|e| format!("{e:?}"))?;
             let errors = crate::ir::verify_owned(&body, &ReadOnly);
-            assert!(errors.is_empty(), "control {control}: {errors:?}");
+            assert!(
+                errors.is_empty(),
+                "control {control}: {errors:?}\n{}",
+                crate::ir::print(&body)
+            );
             assert_eq!(
                 body.exit_drops.is_empty(),
-                control == 0,
+                control == 0 || control == 5,
                 "control {control}"
             );
         }

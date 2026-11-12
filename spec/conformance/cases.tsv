@@ -6679,6 +6679,7 @@ runtime/panic/implicit-dynamic-call-borrow-blocks-source-slot-replacement.hd	run
 typing/invalid/implicit-local-cold-payload-cannot-escape-owned-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.return
 typing/invalid/implicit-lend-closure-write.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/implicit-lend-cancellation-actors.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
+runtime/valid/readonly-optional-tag-lends-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.place
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

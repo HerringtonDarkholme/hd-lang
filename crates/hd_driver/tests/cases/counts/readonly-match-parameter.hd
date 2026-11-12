@@ -1,0 +1,10 @@
+# @dump: own counts wat
+# @build: v8 release
+# A tag-only read through an implicit shared loan does not own its parameter.
+fn absent(value: string?) -> bool:
+    value == .None
+
+fn present(value: string?) -> bool:
+    match &value:
+        .Some(_) => true
+        .None => false

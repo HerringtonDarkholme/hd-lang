@@ -78,37 +78,53 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
 /// it, and its one other use is a `Match`'s scrutinee, as `match self:` in
 /// a `&self` method reads its arms' tags and payloads through it.
 fn only_deref(b: &Body, v: usize) -> bool {
+    let Ok(value) = u32::try_from(v) else {
+        return false;
+    };
     let mut ops = Vec::new();
+    let mut uses = ReadThroughUses::default();
     (0..b.len()).all(|j| {
         super::operands(b, j, &mut ops);
-        !ops.iter().any(|o| o.value as usize == v)
-            || read_through_use(b, j, u32::try_from(v).expect("insts"))
+        !ops.iter().any(|o| o.value as usize == v) || uses.permits(b, j, value)
     })
 }
 
-/// One use allowed by the read-through-value proof. The escape scan
-/// applies this while indexing operands, rather than rescanning the
-/// whole body separately for each reference value.
-pub(super) fn read_through_use(b: &Body, at: usize, value: u32) -> bool {
-    let tag = b.tags[at];
-    if matches!(
-        tag,
-        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
-    ) {
-        let place = b.view(b.data[at][0]);
-        if place.root == Root::Value(value) {
-            let mut steps = place.steps(b);
-            return match tag {
-                Tag::Read => {
-                    steps.next() == Some(Proj::Deref)
-                        && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
-                }
-                Tag::Drop | Tag::LoanEnd => place.whole(),
-                _ => false,
-            };
-        }
+/// A read-through-use index shared by parameter promotion, lending and its
+/// verifier. Each distinct projection record is scanned once, even when many
+/// instructions reuse it: expected O(instructions + distinct projection words).
+#[derive(Default)]
+pub(super) struct ReadThroughUses {
+    places: hd_base::HashMap<u32, bool>,
+}
+
+impl ReadThroughUses {
+    pub(super) fn permits(&mut self, b: &Body, at: usize, value: u32) -> bool {
+        self.permits_with(b, at, value, &mut || {})
     }
-    tag == Tag::Match && b.data[at][0] == value
+
+    fn permits_with(&mut self, b: &Body, at: usize, value: u32, visit: &mut impl FnMut()) -> bool {
+        visit();
+        let tag = b.tags[at];
+        if matches!(
+            tag,
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
+        ) {
+            let word = b.data[at][0];
+            let place = b.view(word);
+            if place.root == Root::Value(value) {
+                return match tag {
+                    Tag::Read => *self.places.entry(word).or_insert_with(|| {
+                        let mut steps = place.steps(b).inspect(|_| visit());
+                        steps.next() == Some(Proj::Deref)
+                            && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                    }),
+                    Tag::Drop | Tag::LoanEnd => place.whole(),
+                    _ => false,
+                };
+            }
+        }
+        tag == Tag::Match && b.data[at][0] == value
+    }
 }
 
 /// Body `b` with each parameter in `mask` ([`read_only_params`]) taking
@@ -406,4 +422,48 @@ pub fn inline_args(
             })
         })
         .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
+#[cfg(test)]
+mod projection_work_tests {
+    use super::*;
+    use crate::ir::{BodyKind, Place, PlaceRoot, TirBuilder, TirSink, local_flags, ref_word};
+    use hd_base::{DefId, NodeIdx, Symbol};
+
+    #[test]
+    fn shared_projection_width_and_depth_are_indexed_once() -> Result<(), String> {
+        for (width, depth) in [(1_000, 20), (10_000, 20), (1_000, 1_000)] {
+            let n = NodeIdx::from_raw(1);
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let block = b.open_block();
+            let local = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+            let local_place = b.place(&Place::local(local));
+            let reference = b.emit(Tag::Ref, local_place, ref_word::LOCAL, Ty::I32, n);
+            let mut proj = vec![Proj::Deref];
+            proj.extend(std::iter::repeat_n(Proj::Field(0), depth));
+            let projected = b.place(&Place {
+                root: PlaceRoot::Value(reference),
+                proj,
+            });
+            let mut reads = Vec::new();
+            for _ in 0..width {
+                reads.push(b.emit(
+                    Tag::Read,
+                    projected,
+                    crate::ir::ReadMode::Use as u32,
+                    Ty::STRING,
+                    n,
+                ));
+            }
+            let root = b.close_block(block, None, Ty::VOID, n);
+            let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            let mut index = ReadThroughUses::default();
+            let mut visits = 0;
+            for r in reads {
+                assert!(index.permits_with(&body, r.0 as usize, reference.0, &mut || visits += 1));
+            }
+            assert_eq!(visits, width + depth + 1);
+        }
+        Ok(())
+    }
 }
