@@ -4,8 +4,9 @@
 # A `@track_caller` function gets one hidden argument, a `string` constant
 # that is the call site's record (fn.caller.record). Its fields are separated
 # by U+001F: the root-package bit, the line, the column and the file, then
-# five fields for each argument when the record holds argument texts: the
-# start line and column, the end line and column, and the source text. The
+# six fields for each argument when the record holds argument texts: the
+# start line and column, the end line and column, the name of a named
+# argument or nothing, and the source text. The
 # record is static data; only an accessor reads it, at run time.
 
 ## Where a call begins in source: the file as diagnostics name it, and the
@@ -37,12 +38,15 @@ impl Location:
     pub fn in_root_package(self) -> bool:
         self.root
 
-## One argument of a call: its source text, and where it starts and ends.
+## One argument of a call: its source text, where it starts and ends, and
+## its name when it is a named argument.
 ## See [fn.caller.accessor.args](../../spec/lang/07-functions.md#r-fn.caller.accessor.args).
 pub struct CallArg:
     pub text: string
     pub start: Location
     pub end: Location
+    ## See [fn.caller.accessor.args.name](../../spec/lang/07-functions.md#r-fn.caller.accessor.args.name).
+    pub name: string?
 
 # A decimal field of a record, which the compiler writes.
 fn site_number(text: string) -> u32:
@@ -68,7 +72,7 @@ fn site_args(record: string) -> List[CallArg]:
     root := fields[0] == "1"
     let mut args: List[CallArg] = []
     let at: usize = 4
-    while at + 5 <= fields.len():
+    while at + 6 <= fields.len():
         start := Location {
             file: file,
             line: site_number(fields[at]),
@@ -81,6 +85,9 @@ fn site_args(record: string) -> List[CallArg]:
             column: site_number(fields[at + 3]),
             root: root,
         }
-        args.push(CallArg { text: fields[at + 4], start: start, end: end })
-        at = at + 5
+        let name: string? = .None
+        if fields[at + 4] != "":
+            name = .Some(fields[at + 4])
+        args.push(CallArg { text: fields[at + 5], start: start, end: end, name: name })
+        at = at + 6
     args

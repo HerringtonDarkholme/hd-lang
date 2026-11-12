@@ -293,7 +293,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// not inherit this permission for their returns.
     pub auto_closing_function: bool,
     /// The call nodes of the open trailing-block calls, whose arguments'
-    /// texts are unknown to a call-site record (`fn.caller.accessor.args.known`).
+    /// texts are unknown to a call-site record (`fn.caller.accessor.args.complete`).
     pub trailing_heads: Vec<hd_base::NodeIdx>,
     /// Set while a `@track_caller` function value's body is built: its call
     /// binds the place that creates the value (`fn.caller.value`).

@@ -190,8 +190,13 @@ pub fn doc_tests(file: &str, text: &str) -> Vec<DocTest> {
     out
 }
 
+/// How far a doc test's program indents each line of its `it` body: a
+/// column there is this much past the column of the block's code
+/// (`cli.test.doc.update-prefix`).
+pub const BODY_INDENT: u32 = 4;
+
 /// The synthetic program of one doc test: its leading `use` lines, then
-/// the rest as the trailing body of `it(NAME)`.
+/// the rest as the trailing body of `it(NAME)`, indented by [`BODY_INDENT`].
 fn program(name: &str, body: &[(String, u32)]) -> DocTest {
     let split = body
         .iter()
@@ -218,7 +223,9 @@ fn program(name: &str, body: &[(String, u32)]) -> DocTest {
         lines.push(it_line);
     }
     for (l, at) in rest {
-        text.push_str("    ");
+        for _ in 0..BODY_INDENT {
+            text.push(' ');
+        }
         text.push_str(l);
         text.push('\n');
         lines.push(*at);

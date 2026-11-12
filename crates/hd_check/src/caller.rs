@@ -8,9 +8,9 @@
 //! read `$site` through ordinary `std.debug` decoders.
 //!
 //! The record's fields are separated by U+001F: the root-package bit, the
-//! line, the column and the file, then five fields per argument (start line
-//! and column, end line and column, text) when the callee reads the
-//! argument texts (`fn.caller.record.args`). A string constant is one
+//! line, the column and the file, then six fields per argument (start line
+//! and column, end line and column, the name of a named argument or empty,
+//! text) when the callee reads the argument texts (`fn.caller.record.args`). A string constant is one
 //! pointer to static data, so a call pays one argument and no allocation;
 //! only an accessor decodes the record. The driver clears the root-package
 //! bit in fetched and std code (`crate::caller` users in `hd_driver`).
@@ -52,9 +52,10 @@ impl Ck<'_, '_> {
         (line, column)
     }
 
-    /// The positional arguments of call `n`, when it passes only
-    /// positional ones (`fn.caller.accessor.args.known`).
-    fn site_args<'t>(&self, n: NodeRef<'t>) -> Vec<NodeRef<'t>> {
+    /// The arguments of call `n` in source order, each with its name when
+    /// it is a named one, when it has no spread and no trailing block
+    /// (`fn.caller.accessor.args.complete`).
+    fn site_args<'t>(&self, n: NodeRef<'t>) -> Vec<(Option<&str>, NodeRef<'t>)> {
         if n.kind() != SyntaxKind::CallExpr || self.trailing_heads.contains(&n.index()) {
             return Vec::new();
         }
@@ -68,12 +69,12 @@ impl Ck<'_, '_> {
             .filter(|c| matches!(c.kind(), SyntaxKind::Argument | SyntaxKind::NamedArgument));
         for c in args {
             match c.children().next() {
-                Some(e)
-                    if c.kind() == SyntaxKind::Argument && e.kind() != SyntaxKind::SpreadExpr =>
-                {
-                    out.push(e);
+                Some(e) if c.kind() == SyntaxKind::NamedArgument => {
+                    let name = self.cx.src.first_ident(c).map(|t| self.cx.src.text(t));
+                    out.push((name, e));
                 }
-                // A named argument, a spread or an empty argument: texts unknown.
+                Some(e) if e.kind() != SyntaxKind::SpreadExpr => out.push((None, e)),
+                // A spread or an empty argument: texts unknown.
                 Some(_) | None => return Vec::new(),
             }
         }
@@ -88,7 +89,7 @@ impl Ck<'_, '_> {
         let s = SEPARATOR;
         let mut out = format!("1{s}{line}{s}{column}{s}{}", self.cx.file_name);
         if args {
-            for e in self.site_args(n) {
+            for (name, e) in self.site_args(n) {
                 let span = self.cx.src.span(e);
                 let (sl, sc) = self.line_column(span.lo);
                 let (el, ec) = self.line_column(span.hi);
@@ -99,7 +100,8 @@ impl Ck<'_, '_> {
                     .get(span.lo as usize..span.hi as usize)
                     .unwrap_or("")
                     .replace(s, "");
-                let _ = write!(out, "{s}{sl}{s}{sc}{s}{el}{s}{ec}{s}{text}");
+                let name = name.unwrap_or("");
+                let _ = write!(out, "{s}{sl}{s}{sc}{s}{el}{s}{ec}{s}{name}{s}{text}");
             }
         }
         out

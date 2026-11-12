@@ -16,6 +16,10 @@ use std::time::Instant;
 use hd_check::tests::PANIC_CATEGORIES;
 use hd_driver::{Executor, Goal, Host, TestCase};
 
+use hd_project::BODY_INDENT;
+
+use crate::snapshot_update::Site;
+
 use hd_project::SourceSet as _;
 use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,
@@ -369,34 +373,25 @@ impl Frames {
 }
 
 impl Frames {
-    /// The listed file and 1-based line of the call that a failed
-    /// `std.testing.snapshot` frame stands in: the frame after it that is
-    /// in a package file (`cli.test.snapshot.update`). For a doc test's
-    /// own frame, that is the `##` line of its source file
-    /// (`cli.test.doc.update-prefix`). `None` for a call from the standard
-    /// library.
-    fn snapshot_site(&self, wasm: &[u8], raw: &[(u32, u32)]) -> Option<(String, u32)> {
-        let table = self
-            .table
-            .get_or_init(|| hd_run::frames::LineTable::parse(wasm).ok())
-            .as_ref()?;
-        let anchors = table.anchor(raw);
-        let at = anchors
-            .iter()
-            .position(|a| self.positions.name(&a.item) == "std.testing.snapshot")?;
-        let (file, line) = anchors[at + 1..]
-            .iter()
-            .find_map(|a| self.positions.line(&a.item, a.inst))?;
-        match &self.doc {
-            Some((path, source, lines)) if path == file => {
-                let line = line
-                    .checked_sub(1)
-                    .and_then(|i| lines.get(i as usize))
-                    .copied()?;
-                Some((source.clone(), line))
-            }
-            _ => (!file.starts_with("<std>")).then(|| (file.to_owned(), line)),
+    /// Where a failed `std.testing.snapshot` call's site is in a package
+    /// file (`cli.test.snapshot.update`): a doc test's program span moved
+    /// to its block's `##` lines (`cli.test.doc.update-prefix`), whose
+    /// prefix the update then skips; any other site as it is.
+    fn snapshot_site(&self, mut site: Site) -> Option<Site> {
+        if let Some((path, source, lines)) = &self.doc
+            && *path == site.file
+        {
+            let back = |(line, column): (u32, u32)| {
+                let line = *lines.get(line.checked_sub(1)? as usize)?;
+                Some((line, column.checked_sub(BODY_INDENT)?))
+            };
+            site.line = back((site.line, BODY_INDENT))?.0;
+            site.start = back(site.start)?;
+            site.end = back(site.end)?;
+            site.file.clone_from(source);
+            site.doc = true;
         }
+        Some(site)
     }
 }
 
@@ -1678,13 +1673,15 @@ fn run(
                         // pass.
                         let mut lost = None;
                         for r in &c.snapshots {
-                            let site = prog
-                                .wasm
-                                .as_ref()
-                                .and_then(|wasm| frames_of()?.snapshot_site(wasm, &r.frames));
-                            let literal = crate::snapshot_update::debug_literal(&r.text);
-                            match site {
-                                Some((file, line)) => updates.record(&file, line, &literal),
+                            let Ok((site, text)) = Site::parse(&r.text) else {
+                                error.get_or_insert_with(|| {
+                                    "internal: a snapshot update without its site".to_owned()
+                                });
+                                continue;
+                            };
+                            let literal = crate::snapshot_update::debug_literal(text);
+                            match site.and_then(|s| frames_of()?.snapshot_site(s)) {
+                                Some(site) => updates.record(site, &literal),
                                 None => {
                                     lost.get_or_insert(literal);
                                 }

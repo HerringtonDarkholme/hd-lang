@@ -17,7 +17,7 @@ use std::sync::Arc;
 use hd_base::{FileId, FolderId, Hash128, ModuleId, Span};
 use hd_diag::Code;
 
-pub use doctest::{DocTest, doc_tests};
+pub use doctest::{BODY_INDENT, DocTest, doc_tests};
 pub use manifest::{
     CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, HostProvider, LintNames,
     LintTable, Manifest, ManifestError, Problem, Requirement, STD_NAME, Version, Workspace,

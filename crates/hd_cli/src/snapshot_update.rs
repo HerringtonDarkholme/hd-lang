@@ -2,6 +2,12 @@
 //! a failing `snapshot(text, expect="...")` call has its `expect` literal
 //! rewritten in the source file to the text the call saw. A call in a doc
 //! test (`cli.test.doc.update-prefix`) is rewritten inside its `##` lines.
+//!
+//! The call says where its `expect` is: `std.testing.snapshot` is a
+//! `@track_caller` function that takes the span from
+//! `Location::caller_args()` (`module.testing.snapshot.site`) and gives it
+//! to the host with the text ([`Site::parse`]). So an update reads no
+//! source to find the call; it reads the file it rewrites.
 
 use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
@@ -36,18 +42,79 @@ pub(crate) fn debug_literal(text: &str) -> String {
     out
 }
 
+/// What an update rewrites at a failing `snapshot` call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Kind {
+    /// The `expect` argument's span, which must be a string literal.
+    Expect,
+    /// No `expect`: `, expect=` and the literal go at the span's end, the
+    /// end of the last argument (`cli.test.snapshot.update.omitted`).
+    Add,
+}
+
+/// Where an update rewrites a failing `snapshot` call: the file as the
+/// run names it, the line where the call begins, which messages name, and
+/// the 1-based line and column, in characters, of the span's start and
+/// end. A doc test's span is in its block's code, the
+/// `##` lines with their prefix cut (`doc`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Site {
+    pub(crate) kind: Kind,
+    pub(crate) file: String,
+    pub(crate) line: u32,
+    pub(crate) start: (u32, u32),
+    pub(crate) end: (u32, u32),
+    pub(crate) doc: bool,
+}
+
+impl Site {
+    /// The site and the text that `std.testing.snapshot_site` wrote,
+    /// fields separated by U+001F: the kind, the file, the call's line,
+    /// the start line and column, the end line and column, then the text. `Ok(None)` with the
+    /// text for a call the update cannot rewrite, one from outside the
+    /// user's own code; `Err` for a record no std writes.
+    pub(crate) fn parse(record: &str) -> Result<(Option<Site>, &str), ()> {
+        let mut f = record.splitn(8, '\u{1f}');
+        let mut field = || f.next().ok_or(());
+        let kind = field()?;
+        let file = field()?;
+        let mut number = || field()?.parse::<u32>().map_err(|_| ());
+        let line = number()?;
+        let start = (number()?, number()?);
+        let end = (number()?, number()?);
+        let text = field()?;
+        let kind = match kind {
+            "expect" => Kind::Expect,
+            "add" => Kind::Add,
+            "" => return Ok((None, text)),
+            _ => return Err(()),
+        };
+        let site = Site {
+            kind,
+            file: file.to_owned(),
+            line,
+            start,
+            end,
+            doc: false,
+        };
+        Ok((Some(site), text))
+    }
+}
+
 /// What the failing runs want at one call site: the literal, or `None`
 /// when they want different texts, and how many runs recorded it.
 struct Want {
+    site: Site,
     literal: Option<String>,
     runs: usize,
 }
 
 /// The rewrites of one `hd test --update` run: each call site, by its
-/// file and its line, with the literal the failing runs want there.
+/// file and where its span starts, with the literal the failing runs want
+/// there.
 #[derive(Default)]
 pub(crate) struct Updates {
-    sites: BTreeMap<(String, u32), Want>,
+    sites: BTreeMap<(String, u32, u32), Want>,
 }
 
 /// What [`Updates::apply`] did: a note for each literal written, and each
@@ -61,16 +128,14 @@ pub(crate) struct Applied {
 }
 
 impl Updates {
-    /// Notes that a run of the call at `file:line` failed and saw
-    /// `literal`.
-    pub(crate) fn record(&mut self, file: &str, line: u32, literal: &str) {
-        let want = self
-            .sites
-            .entry((file.to_owned(), line))
-            .or_insert_with(|| Want {
-                literal: Some(literal.to_owned()),
-                runs: 0,
-            });
+    /// Notes that a run of the call at `site` failed and saw `literal`.
+    pub(crate) fn record(&mut self, site: Site, literal: &str) {
+        let key = (site.file.clone(), site.start.0, site.start.1);
+        let want = self.sites.entry(key).or_insert_with(|| Want {
+            site,
+            literal: Some(literal.to_owned()),
+            runs: 0,
+        });
         want.runs += 1;
         if want.literal.as_deref() != Some(literal) {
             want.literal = None;
@@ -79,25 +144,28 @@ impl Updates {
 
     /// Rewrites the files. `read` gives a file's text as the run compiled
     /// it, and `path` where the file is on disk; a file that changed on
-    /// disk since the run is left as it is.
+    /// disk since the run is left as it is. Each file is read and written
+    /// once, whatever its count of sites.
     pub(crate) fn apply(
         self,
         read: impl Fn(&str) -> Option<String>,
         path: impl Fn(&str) -> PathBuf,
     ) -> Applied {
         let mut done = Applied::default();
-        let mut by_file: BTreeMap<&str, Vec<(u32, &Want)>> = BTreeMap::new();
-        for ((file, line), want) in &self.sites {
-            by_file.entry(file).or_default().push((*line, want));
+        let mut by_file: BTreeMap<&str, Vec<&Want>> = BTreeMap::new();
+        for ((file, ..), want) in &self.sites {
+            by_file.entry(file).or_default().push(want);
         }
         for (file, sites) in by_file {
             let text = read(file);
+            let starts = text.as_deref().map(line_starts).unwrap_or_default();
             // The edit of each site: (start, end, new text, line, runs).
             let mut edits: Vec<(usize, usize, String, u32, usize)> = Vec::new();
-            for (line, want) in sites {
+            for want in sites {
+                let line = want.site.line;
                 let edit = match (&want.literal, &text) {
                     (None, _) => Err("failing cases want different texts"),
-                    (Some(l), Some(t)) => locate(t, line, l),
+                    (Some(l), Some(t)) => locate(t, &starts, &want.site, l),
                     (Some(_), None) => Err("its file was not found"),
                 };
                 match edit {
@@ -111,8 +179,8 @@ impl Updates {
                 continue;
             };
             edits.sort_stable_by_key(|e| std::cmp::Reverse(e.0));
-            // Two sites never share a span, but a call that two lines both
-            // name would; the later edit is dropped.
+            // Two sites never share a span, but nested calls' spans may
+            // overlap; the later edit is dropped.
             edits.dedup_by(|b, a| b.1 > a.0);
             if edits.is_empty() {
                 continue;
@@ -160,172 +228,106 @@ fn write(path: &std::path::Path, before: &str, text: &str) -> Result<(), String>
 /// or why there is none.
 type Edit = Result<(usize, usize, String), &'static str>;
 
-/// No `snapshot` call covers the line (`cli.test.snapshot.update.unfixable`).
+/// The span is not in the file as the run compiled it
+/// (`cli.test.snapshot.update.unfixable`).
 const NOT_FOUND: &str = "its call was not found";
 
 /// The call's `expect` is no single string literal
 /// (`cli.test.snapshot.update.non-literal`).
 const NOT_LITERAL: &str = "its `expect` is not a string literal";
 
-/// The edit that sets the `expect` of the `snapshot` call that covers
-/// 1-based `line` to `literal`.
-fn locate(text: &str, line: u32, literal: &str) -> Edit {
-    // A line that no compiled code has is a `##` line: a doc test's call.
-    let at_line = (line as usize)
-        .checked_sub(1)
-        .and_then(|l| text.lines().nth(l))
-        .ok_or(NOT_FOUND)?;
-    if at_line.trim_start().starts_with("##") {
-        return locate_doc(text, line, literal);
-    }
-    locate_code(text, line, literal)
+/// The byte offset where each line of `text` starts.
+fn line_starts(text: &str) -> Vec<usize> {
+    std::iter::once(0)
+        .chain(text.match_indices('\n').map(|(i, _)| i + 1))
+        .collect()
 }
 
-/// [`locate`] for a call in the `##` block that covers `line`: the block's
-/// lines with their `##` prefix cut are the code, and the edit maps back
-/// to the file. A literal that spans lines is replaced with its `##`
-/// prefixes inside the span.
-fn locate_doc(text: &str, line: u32, literal: &str) -> Edit {
-    let lines: Vec<&str> = text.split('\n').collect();
-    let indent_of = |l: &str| l.len() - l.trim_start().len();
-    let is_doc = |i: usize| lines[i].trim_start().starts_with("##");
-    let at = line as usize - 1;
-    let indent = indent_of(lines[at]);
-    let (mut first, mut last) = (at, at);
-    while first > 0 && is_doc(first - 1) && indent_of(lines[first - 1]) == indent {
-        first -= 1;
-    }
-    while last + 1 < lines.len() && is_doc(last + 1) && indent_of(lines[last + 1]) == indent {
-        last += 1;
-    }
-    // The code text keeps every line number: lines outside the block are
-    // empty. `starts` holds, per line, its offset in `text` and the length
-    // of the prefix that was cut.
-    let mut code = String::new();
-    let mut starts: Vec<(usize, usize)> = Vec::new();
-    let mut offset = 0;
-    for (i, l) in lines.iter().enumerate() {
-        let cut = if (first..=last).contains(&i) {
-            let rest = &l[indent + 2..];
-            indent + 2 + usize::from(rest.starts_with(' '))
-        } else {
-            l.len()
-        };
-        starts.push((offset, cut));
-        code.push_str(&l[cut..]);
-        code.push('\n');
-        offset += l.len() + 1;
-    }
-    let (lo, hi, new) = locate_code(&code, line, literal)?;
-    // Code offsets to text offsets: by the line each falls in.
-    let back = |pos: usize| {
-        let row = code[..pos].matches('\n').count();
-        let col = pos - code[..pos].rfind('\n').map_or(0, |n| n + 1);
-        starts[row].0 + starts[row].1 + col
-    };
-    Ok((back(lo), back(hi), new))
-}
-
-fn locate_code(text: &str, line: u32, literal: &str) -> Edit {
-    let lexed = hd_syntax::lex(text.as_bytes());
-    let t = &lexed.tokens;
-    let line_of = |at: u32| 1 + text[..at as usize].matches('\n').count();
-    // The covering call that starts last, which is the innermost.
-    let mut best: Option<(usize, usize)> = None;
-    for i in 0..t.len().saturating_sub(1) {
-        let named = t.kind[i] == T::Ident
-            && &text[t.start[i] as usize..t.end[i] as usize] == "snapshot"
-            && t.kind[i + 1] == T::LParen
-            && (i == 0 || t.kind[i - 1] != T::Dot);
-        if !named {
-            continue;
-        }
-        let Some(close) = matching(t, i + 1) else {
-            continue;
-        };
-        let (first, last) = (line_of(t.start[i]), line_of(t.end[close] - 1));
-        if first <= line as usize && (line as usize) <= last {
-            best = Some((i, close));
-        }
-    }
-    let (call, close) = best.ok_or(NOT_FOUND)?;
-    // The arguments: token ranges split at the commas of depth one.
-    let mut args: Vec<(usize, usize)> = Vec::new();
-    let (mut depth, mut from) = (0usize, call + 2);
-    for k in call + 2..close {
-        match t.kind[k] {
-            T::LParen | T::LBracket | T::LBrace => depth += 1,
-            T::RParen | T::RBracket | T::RBrace => depth = depth.saturating_sub(1),
-            T::Comma if depth == 0 => {
-                args.push((from, k));
-                from = k + 1;
-            }
-            _ => {}
-        }
-    }
-    if from < close {
-        args.push((from, close));
-    }
-    let is_named =
-        |(lo, hi): (usize, usize)| hi > lo + 1 && t.kind[lo] == T::Ident && t.kind[lo + 1] == T::Eq;
-    let name_of = |lo: usize| &text[t.start[lo] as usize..t.end[lo] as usize];
-    let mut value: Option<(usize, usize)> = None;
-    let mut positional = 0;
-    for &(lo, hi) in &args {
-        if is_named((lo, hi)) {
-            if name_of(lo) == "expect" {
-                value = Some((lo + 2, hi));
-            }
-        } else {
-            if positional == 1 && value.is_none() {
-                value = Some((lo, hi));
-            }
-            positional += 1;
-        }
-    }
-    if let Some((lo, hi)) = value {
-        // A literal is one string token; anything else is left alone.
-        (hi == lo + 1 && t.kind[lo] == T::String)
-            .then(|| (t.start[lo] as usize, t.end[lo] as usize, literal.to_owned()))
-            .ok_or(NOT_LITERAL)
-    } else {
-        // No `expect`: its empty default is filled on the first update.
-        let last = close
-            .checked_sub(1)
-            .filter(|l| *l > call + 1)
-            .ok_or(NOT_FOUND)?;
-        let at = t.end[last] as usize;
-        Ok((at, at, format!(", expect={literal}")))
+/// The length of a doc line's prefix: its indentation, `##`, and one
+/// space after it, as a doc test's code cuts it (`hd_project::doctest`).
+fn doc_prefix(line: &str) -> usize {
+    let rest = line.trim_start();
+    let cut = line.len() - rest.len();
+    match rest.strip_prefix("##") {
+        Some(code) => cut + 2 + usize::from(code.starts_with(' ')),
+        None => 0,
     }
 }
 
-/// The `)` that closes the `(` at token `open`.
-fn matching(t: &hd_syntax::TokenBuf, open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    for k in open..t.len() {
-        match t.kind[k] {
-            T::LParen | T::LBracket | T::LBrace => depth += 1,
-            T::RParen | T::RBracket | T::RBrace => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return (t.kind[k] == T::RParen).then_some(k);
+/// The byte offset in `text` of 1-based `line` and `column`, a column in
+/// characters after the line's doc prefix when `doc`.
+fn offset(text: &str, starts: &[usize], (line, column): (u32, u32), doc: bool) -> Option<usize> {
+    let lo = *starts.get((line as usize).checked_sub(1)?)?;
+    let hi = starts.get(line as usize).map_or(text.len(), |e| e - 1);
+    let row = text.get(lo..hi)?;
+    let cut = if doc { doc_prefix(row) } else { 0 };
+    let code = &row[cut..];
+    let column = (column as usize).checked_sub(1)?;
+    let at = code
+        .char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(code.len()))
+        .nth(column)?;
+    Some(lo + cut + at)
+}
+
+/// The edit that sets the `expect` of the call at `site` to `literal`.
+fn locate(text: &str, starts: &[usize], site: &Site, literal: &str) -> Edit {
+    let lo = offset(text, starts, site.start, site.doc).ok_or(NOT_FOUND)?;
+    let hi = offset(text, starts, site.end, site.doc).ok_or(NOT_FOUND)?;
+    if lo > hi {
+        return Err(NOT_FOUND);
+    }
+    match site.kind {
+        Kind::Add => Ok((hi, hi, format!(", expect={literal}"))),
+        Kind::Expect => {
+            // The span's code: a doc test's later lines without their prefix.
+            let mut code = String::new();
+            for (k, row) in text[lo..hi].split('\n').enumerate() {
+                let cut = if site.doc && k > 0 {
+                    doc_prefix(row)
+                } else {
+                    0
+                };
+                if k > 0 {
+                    code.push('\n');
                 }
+                code.push_str(&row[cut..]);
             }
-            _ => {}
+            is_literal(&code)
+                .then(|| (lo, hi, literal.to_owned()))
+                .ok_or(NOT_LITERAL)
         }
     }
-    None
+}
+
+/// Whether `code` is one string literal and nothing else.
+fn is_literal(code: &str) -> bool {
+    let lexed = hd_syntax::lex(code.as_bytes());
+    let t = &lexed.tokens;
+    lexed.diagnostics.is_empty() && t.len() == 1 && t.kind[0] == T::String
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn rewrite(text: &str, line: u32, literal: &str) -> Option<String> {
-        let (lo, hi, new) = locate(text, line, literal).ok()?;
+    fn site(kind: Kind, start: (u32, u32), end: (u32, u32), doc: bool) -> Site {
+        Site {
+            kind,
+            file: "f.hd".into(),
+            line: start.0,
+            start,
+            end,
+            doc,
+        }
+    }
+
+    fn rewrite(text: &str, site: &Site, literal: &str) -> Result<String, &'static str> {
+        let (lo, hi, new) = locate(text, &line_starts(text), site, literal)?;
         let mut out = text.to_owned();
         out.replace_range(lo..hi, &new);
-        Some(out)
+        Ok(out)
     }
 
     #[test]
@@ -336,58 +338,93 @@ mod tests {
         );
     }
 
+    /// The record `std.testing.snapshot_site` writes; the text keeps any
+    /// separator it holds.
+    #[test]
+    fn a_site_record_is_read_back() {
+        let (s, text) =
+            Site::parse("expect\u{1f}src/a.hd\u{1f}3\u{1f}3\u{1f}20\u{1f}4\u{1f}7\u{1f}a\u{1f}b")
+                .expect("record");
+        assert_eq!(
+            s,
+            Some(site(Kind::Expect, (3, 20), (4, 7), false)).map(|mut s| {
+                s.file = "src/a.hd".into();
+                s
+            })
+        );
+        assert_eq!(text, "a\u{1f}b");
+        let (s, text) = Site::parse("\u{1f}<std>/x.hd\u{1f}1\u{1f}1\u{1f}1\u{1f}1\u{1f}1\u{1f}t")
+            .expect("record");
+        assert_eq!((s, text), (None, "t"));
+        assert_eq!(
+            Site::parse("other\u{1f}f\u{1f}1\u{1f}1\u{1f}1\u{1f}1\u{1f}1\u{1f}t"),
+            Err(())
+        );
+        assert_eq!(Site::parse("expect\u{1f}f\u{1f}x"), Err(()));
+    }
+
     /// `cli.test.snapshot.update.non-literal`: a computed `expect` is
-    /// named as such, apart from a call that is not there.
+    /// named as such, apart from a span that is not there.
     #[test]
     fn a_computed_expect_is_not_rewritten() {
         let computed = "    snapshot(f(), expect=g())\n";
-        assert_eq!(locate(computed, 1, "\"new\""), Err(NOT_LITERAL));
+        let s = site(Kind::Expect, (1, 26), (1, 29), false);
+        assert_eq!(rewrite(computed, &s, "\"new\""), Err(NOT_LITERAL));
         let second = "    snapshot(f(), \"a\" + b)\n";
-        assert_eq!(locate(second, 1, "\"new\""), Err(NOT_LITERAL));
-        assert_eq!(locate("    other(f())\n", 1, "\"new\""), Err(NOT_FOUND));
-        assert_eq!(locate("x\n", 7, "\"new\""), Err(NOT_FOUND));
+        let s = site(Kind::Expect, (1, 19), (1, 26), false);
+        assert_eq!(rewrite(second, &s, "\"new\""), Err(NOT_LITERAL));
+        let s = site(Kind::Expect, (7, 1), (7, 2), false);
+        assert_eq!(rewrite("x\n", &s, "\"new\""), Err(NOT_FOUND));
+        let s = site(Kind::Expect, (1, 9), (1, 2), false);
+        assert_eq!(rewrite("x\n", &s, "\"new\""), Err(NOT_FOUND));
     }
 
     #[test]
     fn a_literal_is_replaced_on_one_line_or_across_lines() {
         let one = "    snapshot(f(), expect=\"old\")\n";
+        let s = site(Kind::Expect, (1, 26), (1, 31), false);
         assert_eq!(
-            rewrite(one, 1, "\"new\"").as_deref(),
-            Some("    snapshot(f(), expect=\"new\")\n")
+            rewrite(one, &s, "\"new\"").as_deref(),
+            Ok("    snapshot(f(), expect=\"new\")\n")
         );
         let many = "snapshot(g(\n    1), \n  expect=\"\"\"\n  a\n  \"\"\")\n";
+        let s = site(Kind::Expect, (3, 10), (5, 6), false);
         assert_eq!(
-            rewrite(many, 1, "\"x\\n\"").as_deref(),
-            Some("snapshot(g(\n    1), \n  expect=\"x\\n\")\n")
+            rewrite(many, &s, "\"x\\n\"").as_deref(),
+            Ok("snapshot(g(\n    1), \n  expect=\"x\\n\")\n")
+        );
+        // Columns count characters, not bytes.
+        let wide = "é(\"é\", expect=\"old\")\n";
+        let s = site(Kind::Expect, (1, 15), (1, 20), false);
+        assert_eq!(
+            rewrite(wide, &s, "\"v\"").as_deref(),
+            Ok("é(\"é\", expect=\"v\")\n")
         );
     }
 
     #[test]
     fn a_doc_test_literal_is_replaced_inside_its_comment_lines() {
         let text = "## Doc.\n##\n## ```hd\n## snapshot(f(),\n##     expect=\"\"\"\n##     a\n##     \"\"\")\n## ```\nfn f(): 1\n    ## snapshot(g())\n";
+        let s = site(Kind::Expect, (5, 12), (7, 8), true);
         assert_eq!(
-            rewrite(text, 4, "\"new\"").as_deref(),
-            Some(
+            rewrite(text, &s, "\"new\"").as_deref(),
+            Ok(
                 "## Doc.\n##\n## ```hd\n## snapshot(f(),\n##     expect=\"new\")\n## ```\nfn f(): 1\n    ## snapshot(g())\n"
             )
         );
+        let s = site(Kind::Add, (10, 10), (10, 13), true);
         assert_eq!(
-            rewrite(text, 10, "\"x\"").as_deref(),
-            Some(&*text.replace("snapshot(g())", "snapshot(g(), expect=\"x\")"))
+            rewrite(text, &s, "\"x\"").as_deref(),
+            Ok(&*text.replace("snapshot(g())", "snapshot(g(), expect=\"x\")"))
         );
     }
 
     #[test]
     fn a_missing_expect_is_added() {
+        let s = site(Kind::Add, (1, 10), (1, 13), false);
         assert_eq!(
-            rewrite("snapshot(f())\n", 1, "\"v\"").as_deref(),
-            Some("snapshot(f(), expect=\"v\")\n")
+            rewrite("snapshot(f())\n", &s, "\"v\"").as_deref(),
+            Ok("snapshot(f(), expect=\"v\")\n")
         );
-    }
-
-    #[test]
-    fn a_computed_expect_is_left_alone() {
-        assert_eq!(rewrite("snapshot(f(), expect=g())\n", 1, "\"v\""), None);
-        assert_eq!(rewrite("x.snapshot(f(), expect=\"a\")\n", 1, "\"v\""), None);
     }
 }

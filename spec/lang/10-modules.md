@@ -1632,10 +1632,12 @@ See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blo
 written in the source:
 
 ```text
+@track_caller
 pub fn snapshot(text: string, expect: string = "") -> void
 ```
 
 1. r[module.testing.snapshot.expect] `expect` is an ordinary `string` argument. Any `string` expression is valid there, a computed one included.
+2. r[module.testing.snapshot.site] `snapshot` is a [`@track_caller`](07-functions.md#call-site-locations) function. An update run takes the place of `expect` from [`Location::caller_args()`](07-functions.md#r-fn.caller.accessor.args): the argument named `expect`, or the second positional argument. A call with neither gets `expect=` after its last argument.
 
 ```text
 fn greeting(name: string) -> string: "hello, " + name
