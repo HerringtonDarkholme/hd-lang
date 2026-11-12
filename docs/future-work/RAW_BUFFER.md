@@ -1,7 +1,9 @@
 # Raw Buffers: Lists Own Their Elements
 
 Accepted 2026-11-03; domain: runtime, ownership pass, `std.rt`,
-`std.collections`; being built under #1205.
+`std.collections`. The raw-buffer, drop-hook and verifier phases are
+implemented. Moving the counted copy-on-write layers into hd remains
+tracked by #1219 and #1220; #1205's performance gate is complete.
 
 ## The Proposal
 
@@ -115,31 +117,31 @@ list value itself, as Rust's `Vec`.
 
 ## Cost
 
-| Component | Change |
-| --- | --- |
-| Removed | `BufferBuf`/`BufferDrop` glue, the `OWNED` mark, the 16-byte buffer header, page-table counts of item references, #1280, #1290 |
-| Added | `std.rt.Drop` and its glue call; the verifier (one pass over reads); `UniqList`'s length field; the test matrix |
-| Compile time | one linear pass per body |
-| Runtime | no buffer count operations; one fewer allocation header per list |
-| Wasm size | smaller: no buffer glue |
-| Web compiler gzip | within noise of today's 1.89 MB, under the 2 MB cap |
+| Component         | Change                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Removed           | `BufferBuf`/`BufferDrop` glue, the `OWNED` mark, the 16-byte buffer header, page-table counts of item references, #1280, #1290 |
+| Added             | `std.rt.Drop` and its glue call; the verifier (one pass over reads); `UniqList`'s length field; the test matrix                |
+| Compile time      | one linear pass per body                                                                                                       |
+| Runtime           | no buffer count operations; one fewer allocation header per list                                                               |
+| Wasm size         | smaller: no buffer glue                                                                                                        |
+| Web compiler gzip | within noise of today's 1.89 MB, under the 2 MB cap                                                                            |
 
 ## Appendix A. Stress Test
 
-| Case | What happens |
-| --- | --- |
-| `UniqList[string]` built, popped, dropped | `drop` reads out the remaining strings, each released once, then frees the room |
-| a struct holding a `UniqList` passed by value | the struct is `!Copy` through its field, so the pass moves it; a copy is a verifier error |
-| `match o:` with `o: &mut Option[UniqList[string]]` (#1288) | the scrutinee is a borrow; today it is `Read copy`, which the verifier rejects |
-| a move while `get_ref` is live (#1283) | a checker error, `conflicting-access`; no silent copy |
-| `eat(p.a)` then `p.b.len()`, with `p.a` non-copyable | today `Read copy [$0 .a]`: move liveness is per local, not per field (found by #1283). The verifier rejects it, so phase 2 needs per-field liveness and a backend move of a part out of a cell |
-| an erased generic method lends `&mut UniqList[T]` to a thunk (#1281) | the view moves the value out and back; no copy |
-| a cycle through `UniqList[*Node]` | the holder's glue calls `drop` in trace mode, which hands each `*Node` to `visit`; the room is freed after `later` |
-| `UniqListIntoIter` dropped half consumed | unyielded values are dropped, then the room is freed |
-| a panic inside an element's glue during `drop` | as today: a panic ends the program, so no partial state is observed |
-| `UniqMap` over a buffer of slots | the same `Drop`: it drops the occupied slots, then frees the room |
-| `UniqList.push` grows the buffer | `grow` moves the bytes, and the old room is freed once; the buffer is moved or borrowed, never copied |
-| user code implements `std.rt.Drop` | `std-only-use`: a runtime module |
+| Case                                                                 | What happens                                                                                                                                                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UniqList[string]` built, popped, dropped                            | `drop` reads out the remaining strings, each released once, then frees the room                                                                                                                |
+| a struct holding a `UniqList` passed by value                        | the struct is `!Copy` through its field, so the pass moves it; a copy is a verifier error                                                                                                      |
+| `match o:` with `o: &mut Option[UniqList[string]]` (#1288)           | the scrutinee is a borrow; today it is `Read copy`, which the verifier rejects                                                                                                                 |
+| a move while `get_ref` is live (#1283)                               | a checker error, `conflicting-access`; no silent copy                                                                                                                                          |
+| `eat(p.a)` then `p.b.len()`, with `p.a` non-copyable                 | today `Read copy [$0 .a]`: move liveness is per local, not per field (found by #1283). The verifier rejects it, so phase 2 needs per-field liveness and a backend move of a part out of a cell |
+| an erased generic method lends `&mut UniqList[T]` to a thunk (#1281) | the view moves the value out and back; no copy                                                                                                                                                 |
+| a cycle through `UniqList[*Node]`                                    | the holder's glue calls `drop` in trace mode, which hands each `*Node` to `visit`; the room is freed after `later`                                                                             |
+| `UniqListIntoIter` dropped half consumed                             | unyielded values are dropped, then the room is freed                                                                                                                                           |
+| a panic inside an element's glue during `drop`                       | as today: a panic ends the program, so no partial state is observed                                                                                                                            |
+| `UniqMap` over a buffer of slots                                     | the same `Drop`: it drops the occupied slots, then frees the room                                                                                                                              |
+| `UniqList.push` grows the buffer                                     | `grow` moves the bytes, and the old room is freed once; the buffer is moved or borrowed, never copied                                                                                          |
+| user code implements `std.rt.Drop`                                   | `std-only-use`: a runtime module                                                                                                                                                               |
 
 ## Appendix B. Prior Art
 
@@ -176,13 +178,13 @@ collector for acyclic data, so the list must drop them.
 
 ## Appendix C. Alternatives Considered
 
-| Alternative | Why not |
-| --- | --- |
-| keep a counted `Buffer` and fix copies as lanes find them | the count hides each copy; the lanes since #1252 show it never ends |
-| today's `Buffer`, counted, with a length and element drops | it is `List`'s storage under another name, and its count is what `UniqList` exists to avoid |
-| a copyable `Buffer` freed by an explicit `free` | an owner of memory that copies invites a double free; the verifier could not tell which copy frees |
-| a `Drop` trait for user code | resources already have `Disposable` and `using`; automatic user drops are a language feature this does not need |
-| a checked-build runtime trap only (#1252) | it fires only on paths a test reaches; the verifier covers every body |
+| Alternative                                                | Why not                                                                                                         |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| keep a counted `Buffer` and fix copies as lanes find them  | the count hides each copy; the lanes since #1252 show it never ends                                             |
+| today's `Buffer`, counted, with a length and element drops | it is `List`'s storage under another name, and its count is what `UniqList` exists to avoid                     |
+| a copyable `Buffer` freed by an explicit `free`            | an owner of memory that copies invites a double free; the verifier could not tell which copy frees              |
+| a `Drop` trait for user code                               | resources already have `Disposable` and `using`; automatic user drops are a language feature this does not need |
+| a checked-build runtime trap only (#1252)                  | it fires only on paths a test reaches; the verifier covers every body                                           |
 
 ## Appendix D. Today In hd
 
