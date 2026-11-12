@@ -1,0 +1,9 @@
+# test: a program whose only allocations happen inside std calls runs the allocator's init before them, and its small and large blocks hold their bytes
+# Spec 10 Module Initialization: module.init.binding.
+# expect-stdout: ababab
+# expect-stdout: 70000
+pub fn main() -> void $ Console:
+    small := "ab".repeat(3)
+    println(small)
+    large := "x".repeat(70000)
+    println(large.len())

@@ -1229,9 +1229,14 @@ pub struct Module {
     /// The instances of `std.rt.cycle`, whose module init an acyclic
     /// program does not run.
     pub cycle_insts: BTreeSet<Hash128>,
-    /// Every `std.rt.*` init, which weak descriptor registration must follow
-    /// before user/module initializers can construct weak values.
+    /// Every `std.rt.*` instance. Weak descriptor registration runs after
+    /// the inits among them and before user/module initializers, which can
+    /// construct weak values.
     pub runtime_insts: BTreeSet<Hash128>,
+    /// The runtime inits whose calls do nothing once
+    /// [`crate::opt::constants`] took their constant stores: `hd.init`
+    /// leaves them out (#1423).
+    pub quiet_inits: BTreeSet<Hash128>,
     /// The instances of `@cold` functions: [`Module::finish`] lowers each
     /// direct call of one as [`Func::cold_helper`] lowers a helper's
     /// (`annot.inline.cold`).
@@ -1317,6 +1322,7 @@ impl Module {
             acyclic: Default::default(),
             cycle_insts: BTreeSet::default(),
             runtime_insts: BTreeSet::default(),
+            quiet_inits: BTreeSet::default(),
             cold_insts: BTreeSet::default(),
             inline_counts: Default::default(),
             fixed_allocations: Default::default(),
@@ -1656,6 +1662,46 @@ impl Module {
         Ok(())
     }
 
+    /// Builds `hd.init` again without the runtime inits whose calls do
+    /// nothing, such as the allocator's in a program that never allocates:
+    /// its bindings' only writes were its constant stores, which
+    /// [`crate::opt::constants`] took (#1423). The final reach drops them.
+    /// A program whose runtime inits all still do something keeps its
+    /// `hd.init` as it was. A program's own inits keep their calls, even
+    /// an empty one.
+    fn skip_quiet_inits(&mut self) {
+        let mut rebuild = Vec::new();
+        // `hd.init` and each test module's `hd.init.N` are exports.
+        for &(_, id) in &self.exports {
+            let inits = match &*self.symbols.get(id) {
+                Sym::Helper(Helper::EntryInit { inits }) => inits.clone(),
+                _ => continue,
+            };
+            let mut quiet = false;
+            for (key, _) in inits.iter().filter(|(k, _)| self.runtime_insts.contains(k)) {
+                let init = self.symbols.intern(Sym::Inst(*key));
+                if self
+                    .funcs
+                    .get(init.idx())
+                    .and_then(Option::as_ref)
+                    .is_some_and(crate::opt::does_nothing)
+                {
+                    self.quiet_inits.insert(*key);
+                    quiet = true;
+                }
+            }
+            if quiet {
+                rebuild.push((id, Helper::EntryInit { inits }));
+            }
+        }
+        for (id, h) in rebuild {
+            let mut f = crate::rt::helper(&h, self);
+            f.resolve_statics(None);
+            f.rebuild_callees();
+            self.funcs[id.idx()] = Some(f);
+        }
+    }
+
     fn finish_link(
         mut self,
         session: bool,
@@ -1832,6 +1878,9 @@ impl Module {
             &self.init_insts
         };
         crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
+        if !session && !self.open_world {
+            self.skip_quiet_inits();
+        }
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::fold_constant_branches(f);
             crate::opt::locals(f, &arity);

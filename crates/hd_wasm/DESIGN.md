@@ -25,6 +25,9 @@ value edges contribute inline scalar leaves.
 ### 15.4 Globals And Module Initialization
 
 `hd.init` runs initializers in dependency order; `hd.poll` drives the root.
+A runtime module's init is left out when its call does nothing: link reads
+a binding that only the init writes, with a constant, as that constant, so
+an init whose bindings no reached code writes ends empty (#1423).
 Tests export numbered entry points. REPL histories export `hd.init.N` and
 `hd.poll.N` for each input. Each module owns its two memories, a third for the shadow stack when
 a signature is wide (§23.29), and its globals.
@@ -364,8 +367,10 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
 - **No zeroing.** Every object is initialized by its constructor before
   anything reads it, and only the collector scans, and only initialized
   objects.
-- **Reachable code only.** A program that never allocates links none of
-  the allocator, so hello pays nothing for it (REFCOUNT_RUNTIME.md §10.1).
+- **Reachable code only.** A program links only the allocator functions
+  its code reaches (REFCOUNT_RUNTIME.md §10.1). When none of them writes
+  the allocator's bindings, its init does nothing, and `hd.init` leaves
+  it out (§15.4).
 
 ### 23.7 Strings And Collection Buffers
 

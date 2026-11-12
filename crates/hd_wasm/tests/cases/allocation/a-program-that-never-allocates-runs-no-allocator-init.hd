@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: program
+# @helpers: entry_init std/rt.alloc/init.init
+# A program whose reached code writes none of the allocator's bindings:
+# the constant fold takes its init's stores, so `hd.init` calls nothing
+# and the allocator's init is not linked (#1423).
+pub fn main() -> void:
+    return

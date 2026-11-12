@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: program
+# @helpers: entry_init std/rt.alloc/init.init
+# A program whose only allocation is inside a std call: the allocator's
+# functions write its bindings, so `hd.init` runs its init first, as a
+# forbidden context (#1423).
+pub fn main() -> void $ Console:
+    println("ab".repeat(3))

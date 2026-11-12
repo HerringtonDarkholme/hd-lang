@@ -178,6 +178,40 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
     }
 }
 
+/// Whether `ins` only reads and writes locals, tests an `i32` or
+/// branches forward: code made of these has no effect outside its frame.
+fn local_only(ins: &Ins) -> bool {
+    use wasm_encoder::BlockType;
+    matches!(
+        ins,
+        Ins::Op(
+            I::LocalGet(_)
+                | I::LocalSet(_)
+                | I::LocalTee(_)
+                | I::Drop
+                | I::If(BlockType::Empty)
+                | I::Block(BlockType::Empty)
+                | I::Else
+                | I::End
+                | I::Br(_)
+                | I::BrIf(_)
+                | I::Return
+                | I::I32Const(_)
+                | I::I32Eqz
+                | I::I32Eq
+                | I::I32Ne,
+        ) | Ins::Anchor(_)
+    )
+}
+
+/// Whether a call of `f` does nothing: it takes and gives no values, and
+/// its body has no effect outside its frame ([`local_only`]). An init whose
+/// constant stores [`constants`] took is one.
+#[must_use]
+pub fn does_nothing(f: &Func) -> bool {
+    f.raw.is_none() && f.params.is_empty() && f.results.is_empty() && f.body.iter().all(local_only)
+}
+
 /// A binding's one write when an init stores a constant: the function,
 /// the store and its scalar producer's indices, and the constant.
 type Write = (SymId, usize, usize, Ins);
@@ -3352,7 +3386,6 @@ fn fixed_locals(
 /// trap or any other call keeps its calls. Gives, per function, whether
 /// any of its calls went.
 pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<bool> {
-    use wasm_encoder::BlockType;
     let mut free: Vec<Option<usize>> = vec![None; funcs.len()];
     loop {
         let mut grew = false;
@@ -3369,26 +3402,8 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
                 continue;
             }
             let quiet = f.body.iter().all(|ins| match ins {
-                Ins::Op(
-                    I::LocalGet(_)
-                    | I::LocalSet(_)
-                    | I::LocalTee(_)
-                    | I::Drop
-                    | I::If(BlockType::Empty)
-                    | I::Block(BlockType::Empty)
-                    | I::Else
-                    | I::End
-                    | I::Br(_)
-                    | I::BrIf(_)
-                    | I::Return
-                    | I::I32Const(_)
-                    | I::I32Eqz
-                    | I::I32Eq
-                    | I::I32Ne,
-                )
-                | Ins::Anchor(_) => true,
                 Ins::Call(id) => free.get(id.idx()).is_some_and(Option::is_some),
-                _ => false,
+                ins => local_only(ins),
             });
             if quiet {
                 free[k] = Some(f.params.len());

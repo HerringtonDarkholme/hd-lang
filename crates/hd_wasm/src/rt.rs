@@ -1650,6 +1650,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::EntryInit { inits } => {
             let mut f = m.func("rt:entry_init", vec![], vec![]);
+            let inits: Vec<(Hash128, bool)> = inits
+                .iter()
+                .filter(|(k, _)| !m.quiet_inits.contains(k))
+                .copied()
+                .collect();
             if m.uses_weak || m.open_world {
                 for (k, forbid) in inits.iter().filter(|(k, _)| m.runtime_insts.contains(k)) {
                     if !(m.acyclic && m.cycle_insts.contains(k)) {
@@ -1663,7 +1668,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                     call_init(&mut f, *k, *forbid);
                 }
             } else {
-                for (k, forbid) in inits {
+                for (k, forbid) in &inits {
                     // A program that links no collector needs no collector state.
                     if !(m.acyclic && m.cycle_insts.contains(k)) {
                         call_init(&mut f, *k, *forbid);

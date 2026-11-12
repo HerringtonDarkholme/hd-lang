@@ -3,6 +3,7 @@
 //! `conformance.rs` stays a separate target (CI runs it on its own).
 
 mod all_wakes;
+mod allocator_init;
 mod assoc_call_qualified;
 mod assoc_types;
 mod assoc_validation;
