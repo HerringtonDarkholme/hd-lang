@@ -1,76 +1,50 @@
 # Daily goal metrics
 
-Finished: 2026-11-11T19:45:40.378Z. Commit: ba0df983dc24538ff4b9404e927b66aef7d370cb.
-Machine: ubuntu-latest, 4 CPUs (AMD EPYC 7763 64-Core Processor).
+Finished: 2026-11-12T04:58:35.757Z. Commit: 0091fc1d93ab9449177fb944d3e661c77800b725.
+Machine: ubuntu-latest, 4 CPUs (INTEL(R) XEON(R) PLATINUM 8573C).
 Compiler: target/release/hd.
 
-101 passed, 30 failed, 2 n/a.
+102 passed, 29 failed, 2 n/a.
 
 Timing movements of 10% or less are flagged as noise, not regressions.
 
 ## Changed since the previous run
 
-- edit-latency: p50 check after an edit: pass 41 ms → pass 48 ms
-- edit-latency: p95 check after an edit: pass 44 ms → pass 53 ms
-- cold-check: median cold check, 10k lines: pass 178 ms → pass 226 ms
-- test-latency: median edit-then-test: fail 347 ms → pass 261 ms
-- pathological: overlapping-from: time at 4x: pass 53 ms → pass 75 ms
-- pathological: deep-blocks: time at 4x: pass 39 ms → pass 30 ms
-- pathological: deep-parens: time at 4x: pass 23 ms → pass 28 ms
-- pathological: method-chain: time at 4x: pass 24 ms → pass 32 ms
-- pathological: wide-list-literal: time at 4x: pass 44 ms → pass 52 ms
-- pathological: large-enum-match: time at 4x: pass 30 ms → pass 38 ms
-- pathological: deep-generic: time at 4x: pass 24 ms → pass 31 ms
-- pathological: question-chain: time at 4x: pass 28 ms → pass 36 ms
-- pathological: big-file: time at 4x: pass 158 ms → pass 205 ms
-- fmt: hd fmt, 10k lines: pass 24 ms → pass 33 ms
-- check-cost: checked run time / unchecked run time: fail 2.07x → fail 1.83x
-- dev-speed: geomean dev / optimized: fail - → pass 1.07x
-- dev-speed: worst case dev / optimized: fail - → pass 1.25x
-- resources: warm check, 10k lines: CPU time: pass 30 ms → pass 40 ms
-- long-session: RSS growth, REPL inputs 100 to 1000: fail 94.6 MB → fail 81.8 MB
-- startup: hd help (no version command): wall time: pass 3.1 ms → pass 3.7 ms
-- startup: hd check empty.hd: wall time: pass 14 ms → pass 16 ms
-- concurrency: p95 latency at N = 16 vs N = 1: fail 28.04x → fail 8.70x
-- proptest-perf: property cases per second: fail 41k/s → fail 26k/s
-- proptest-perf: time to shrink a known failure: pass 86 ms → pass 127 ms
-- unit-test-perf: 1,000 unit tests, warm: fail 1266 ms → fail 1090 ms
-- unit-test-perf: overhead per unit test: pass 0.7 ms → pass 0.9 ms
-- integration-test-perf: setup per integration test program: fail 362 ms → fail 173 ms
-- integration-test-perf: total time growth in programs: pass 0.995 → fail 1.005
-- integration-test-perf: cost per doc test: fail 258 ms → fail 155 ms
-- runtime: geomean hd / Node: pass 0.63x → pass 1.31x
-- runtime: fib: hd / Node: pass 0.05x → pass 0.81x
-- runtime: sum: hd / Node: pass 2.15x → pass 1.73x
-- runtime: string-build: hd / Node: pass 0.31x → pass 0.87x
-- runtime: map: hd / Node: fail 4.15x → pass 2.34x
-- runtime: sort: hd / Node: pass 0.76x → pass 1.34x
-- allocations: list loop, bytes per iteration: pass 0.02 B/iter → pass 0.00 B/iter
-- allocations: map loop, bytes per iteration: pass 0.02 B/iter → pass 0.00 B/iter
-- size-startup-heap: tiny program, start to first output: fail 131 ms → fail 56 ms
-- size-startup-heap: peak heap, string-build: hd / Node: pass 0.21x → pass 0.36x
-- host-call-overhead: Console println, per call: fail 6.9 µs → fail 8.9 µs
-- host-call-overhead: Fs read_text!, per call: fail 18 µs → fail 27 µs
-- host-call-overhead: serde boundary (list_dir!), per call: fail 33 µs → fail 47 µs
-- suspension-overhead: await of a ready value, per await: pass 1.6 ns → pass 10 ns
-- suspension-overhead: all! of two ready tasks, throughput: pass 15.9M/s → pass 9.1M/s
-- suspension-overhead: race! of two ready tasks, throughput: pass 12.8M/s → pass 7.3M/s
-- serde-throughput: JSON encode, hd / Node MB/s: fail 0.24x → fail 0.19x
-- serde-throughput: JSON decode, hd / Node MB/s: fail 0.30x → fail 0.23x
-- text-throughput: string build, hd / Node MB/s: pass 4.21x → pass 2.94x
-- text-throughput: split, hd / Node MB/s: pass 2.16x → pass 1.76x
-- dead-code: Wasm bytes per 1,000 lines: fail 10956 B → pass 6906 B
-- long-run-memory: RSS growth after warm-up, 1 min: pass 0.0 MB → pass -0.2 MB
-- conformance: pass rate, known failures excluded: fail 100.0% → pass 100.0%
+- pathological: overlapping-from: time at 4x: pass 75 ms → pass 64 ms
+- pathological: deep-blocks: time at 4x: pass 30 ms → pass 24 ms
+- pathological: deep-parens: time at 4x: pass 28 ms → pass 25 ms
+- pathological: wide-list-literal: time at 4x: pass 52 ms → pass 58 ms
+- pathological: big-file: time at 4x: pass 205 ms → pass 184 ms
+- check-cost: checked run time / unchecked run time: fail 1.83x → fail 1.62x
+- dev-speed: geomean dev / optimized: pass 1.07x → pass 1.45x
+- dev-speed: worst case dev / optimized: pass 1.25x → pass 4.27x
+- long-session: RSS growth, REPL inputs 100 to 1000: fail 81.8 MB → fail 104.5 MB
+- startup: hd help (no version command): wall time: pass 3.7 ms → pass 3.2 ms
+- startup: hd check empty.hd: wall time: pass 16 ms → pass 18 ms
+- proptest-perf: property cases per second: fail 26k/s → fail 36k/s
+- integration-test-perf: total time growth in programs: fail 1.005 → pass 0.989
+- runtime: fib: hd / Node: pass 0.81x → pass 0.65x
+- runtime: sum: hd / Node: pass 1.73x → pass 2.05x
+- runtime: sort: hd / Node: pass 1.34x → pass 1.06x
+- host-call-overhead: Console println, per call: fail 8.9 µs → fail 7.2 µs
+- host-call-overhead: Fs read_text!, per call: fail 27 µs → fail 15 µs
+- host-call-overhead: serde boundary (list_dir!), per call: fail 47 µs → fail 28 µs
+- suspension-overhead: await of a ready value, per await: pass 10 ns → pass 13 ns
+- suspension-overhead: all! of two ready tasks, throughput: pass 9.1M/s → pass 12.8M/s
+- suspension-overhead: race! of two ready tasks, throughput: pass 7.3M/s → pass 11.1M/s
+- text-throughput: string build, hd / Node MB/s: pass 2.94x → pass 4.40x
+- text-throughput: split, hd / Node MB/s: pass 1.76x → pass 2.36x
+- text-throughput: regex find_all, hd / Node MB/s: fail 0.09x → fail 0.13x
+- long-run-memory: RSS growth after warm-up, 1 min: pass -0.2 MB → pass 0.5 MB
 
 ## Pillar 1
 
 | Metric | Target | Value | Goal | Status | Note |
 | --- | --- | --- | --- | --- | --- |
-| edit-latency | p50 check after an edit | 48 ms | ≤ 50 ms | PASS |  |
-| edit-latency | p95 check after an edit | 53 ms | ≤ 200 ms | PASS |  |
-| cold-check | median cold check, 10k lines | 226 ms | ≤ 1000 ms | PASS |  |
-| test-latency | median edit-then-test | 261 ms | ≤ 300 ms | PASS |  |
+| edit-latency | p50 check after an edit | 47 ms | ≤ 50 ms | PASS | Timing change ≤10%: noise. |
+| edit-latency | p95 check after an edit | 50 ms | ≤ 200 ms | PASS | Timing change ≤10%: noise. |
+| cold-check | median cold check, 10k lines | 221 ms | ≤ 1000 ms | PASS | Timing change ≤10%: noise. |
+| test-latency | median edit-then-test | 243 ms | ≤ 300 ms | PASS | Timing change ≤10%: noise. |
 | mistakes | programs with exactly one diagnostic | 98.6% | ≥ 95.0% | PASS | 68 of 69 |
 | mistakes | one diagnostic with the expected code | 98.6% | ≥ 95.0% | PASS | 68 of 69; first misses: some-on-result |
 | mistakes | fix-it makes hd check pass | 33.3% | ≥ 80.0% | FAIL | 23 of 69 resolved; 23 offered a fix-it |
@@ -80,36 +54,36 @@ Timing movements of 10% or less are flagged as noise, not regressions.
 | answer-size | one failing test, JSON object | 139 B | ≤ 400 B | PASS |  |
 | answer-size | one diagnostic, JSON object | 170 B | ≤ 600 B | PASS |  |
 | determinism | inputs with byte-identical output | 8 of 8 | all identical | PASS |  |
-| pathological | overlapping-from: time at 4x | 75 ms | ≤ 2000 ms | PASS |  |
-| pathological | overlapping-from: peak RSS at 4x | 25.9 MB | ≤ 200.0 MB | PASS |  |
-| pathological | overlapping-from: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 51 → 75 ms, start-up 27 ms |
-| pathological | deep-blocks: time at 4x | 30 ms | ≤ 2000 ms | PASS |  |
-| pathological | deep-blocks: peak RSS at 4x | 20.2 MB | ≤ 200.0 MB | PASS |  |
-| pathological | deep-blocks: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 34 → 30 ms, start-up 27 ms |
-| pathological | deep-parens: time at 4x | 28 ms | ≤ 2000 ms | PASS |  |
+| pathological | overlapping-from: time at 4x | 64 ms | ≤ 2000 ms | PASS |  |
+| pathological | overlapping-from: peak RSS at 4x | 25.6 MB | ≤ 200.0 MB | PASS |  |
+| pathological | overlapping-from: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 50 → 64 ms, start-up 29 ms |
+| pathological | deep-blocks: time at 4x | 24 ms | ≤ 2000 ms | PASS |  |
+| pathological | deep-blocks: peak RSS at 4x | 20.5 MB | ≤ 200.0 MB | PASS |  |
+| pathological | deep-blocks: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 23 → 24 ms, start-up 29 ms |
+| pathological | deep-parens: time at 4x | 25 ms | ≤ 2000 ms | PASS |  |
 | pathological | deep-parens: peak RSS at 4x | 20.3 MB | ≤ 200.0 MB | PASS |  |
-| pathological | deep-parens: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 26 → 28 ms, start-up 27 ms |
-| pathological | method-chain: time at 4x | 32 ms | ≤ 2000 ms | PASS |  |
-| pathological | method-chain: peak RSS at 4x | 22.4 MB | ≤ 200.0 MB | PASS |  |
-| pathological | method-chain: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 30 → 32 ms, start-up 27 ms |
+| pathological | deep-parens: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 31 → 25 ms, start-up 29 ms |
+| pathological | method-chain: time at 4x | 30 ms | ≤ 2000 ms | PASS | Timing change ≤10%: noise. |
+| pathological | method-chain: peak RSS at 4x | 22.6 MB | ≤ 200.0 MB | PASS |  |
+| pathological | method-chain: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 27 → 30 ms, start-up 29 ms |
 | pathological | iterator-chain: time at 4x | - | ≤ 2000 ms | FAIL | 2x: hd check failed: error: iterator_chain.hd:2:5: trait-resolution-depth: `map` needs a proof that its receiver implements Iterator, and that proof needs more than 64 nested bounds &#124; check result: FAILED. errors: 1; warnings: 0 |
 | pathological | iterator-chain: peak RSS at 4x | - | ≤ 200.0 MB | FAIL | 2x: hd check failed: error: iterator_chain.hd:2:5: trait-resolution-depth: `map` needs a proof that its receiver implements Iterator, and that proof needs more than 64 nested bounds &#124; check result: FAILED. errors: 1; warnings: 0 |
 | pathological | iterator-chain: growth exponent | - | ≤ 1.3 | FAIL | 2x: hd check failed: error: iterator_chain.hd:2:5: trait-resolution-depth: `map` needs a proof that its receiver implements Iterator, and that proof needs more than 64 nested bounds &#124; check result: FAILED. errors: 1; warnings: 0 |
-| pathological | wide-list-literal: time at 4x | 52 ms | ≤ 2000 ms | PASS |  |
-| pathological | wide-list-literal: peak RSS at 4x | 24.9 MB | ≤ 200.0 MB | PASS |  |
-| pathological | wide-list-literal: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 42 → 52 ms, start-up 27 ms |
+| pathological | wide-list-literal: time at 4x | 58 ms | ≤ 2000 ms | PASS |  |
+| pathological | wide-list-literal: peak RSS at 4x | 24.5 MB | ≤ 200.0 MB | PASS |  |
+| pathological | wide-list-literal: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 35 → 58 ms, start-up 29 ms |
 | pathological | large-enum-match: time at 4x | 38 ms | ≤ 2000 ms | PASS |  |
-| pathological | large-enum-match: peak RSS at 4x | 23.6 MB | ≤ 200.0 MB | PASS |  |
-| pathological | large-enum-match: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 40 → 38 ms, start-up 27 ms |
-| pathological | deep-generic: time at 4x | 31 ms | ≤ 2000 ms | PASS |  |
-| pathological | deep-generic: peak RSS at 4x | 21.0 MB | ≤ 200.0 MB | PASS |  |
-| pathological | deep-generic: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 29 → 31 ms, start-up 27 ms |
-| pathological | question-chain: time at 4x | 36 ms | ≤ 2000 ms | PASS |  |
-| pathological | question-chain: peak RSS at 4x | 23.6 MB | ≤ 200.0 MB | PASS |  |
-| pathological | question-chain: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 35 → 36 ms, start-up 27 ms |
-| pathological | big-file: time at 4x | 205 ms | ≤ 2000 ms | PASS |  |
-| pathological | big-file: peak RSS at 4x | 52.8 MB | ≤ 200.0 MB | PASS |  |
-| pathological | big-file: growth exponent | 1.09 | ≤ 1.30 | PASS | 2x→4x; 111 → 205 ms, start-up 27 ms |
+| pathological | large-enum-match: peak RSS at 4x | 23.7 MB | ≤ 200.0 MB | PASS |  |
+| pathological | large-enum-match: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 31 → 38 ms, start-up 29 ms |
+| pathological | deep-generic: time at 4x | 34 ms | ≤ 2000 ms | PASS | Timing change ≤10%: noise. |
+| pathological | deep-generic: peak RSS at 4x | 21.4 MB | ≤ 200.0 MB | PASS |  |
+| pathological | deep-generic: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 25 → 34 ms, start-up 29 ms |
+| pathological | question-chain: time at 4x | 33 ms | ≤ 2000 ms | PASS | Timing change ≤10%: noise. |
+| pathological | question-chain: peak RSS at 4x | 23.9 MB | ≤ 200.0 MB | PASS |  |
+| pathological | question-chain: growth exponent | noise | ≤ 1.3 | PASS | 2x→4x; 38 → 33 ms, start-up 29 ms |
+| pathological | big-file: time at 4x | 184 ms | ≤ 2000 ms | PASS |  |
+| pathological | big-file: peak RSS at 4x | 54.0 MB | ≤ 200.0 MB | PASS |  |
+| pathological | big-file: growth exponent | 1.17 | ≤ 1.30 | PASS | 2x→4x; 98 → 184 ms, start-up 29 ms |
 | recheck-precision | modules rechecked, private body edit | 1 | ≤ 1 | PASS |  |
 | recheck-precision | modules rechecked, public signature edit | 9 | ≤ 3 | FAIL | m004 and its dependents |
 | errors-per-run | semantic: 10 mistakes reported once | 10 of 10 | all, once | PASS | 0 reported twice or more; 0 on other lines |
@@ -118,53 +92,53 @@ Timing movements of 10% or less are flagged as noise, not regressions.
 | fixit-safety | fix-its that add no error | 100.0% | ≥ 100.0% | PASS | 23 of 23 safe |
 | lookup-latency | p95 hd callers | - | ≤ 100 ms | N/A | not supported by this hd: no hd callers |
 | lookup-latency | p95 hd needs | - | ≤ 100 ms | N/A | not supported by this hd: no hd needs |
-| fmt | hd fmt, 10k lines | 33 ms | ≤ 200 ms | PASS |  |
+| fmt | hd fmt, 10k lines | 30 ms | ≤ 200 ms | PASS | Timing change ≤10%: noise. |
 | fmt | second hd fmt changes nothing | no change | idempotent | PASS |  |
-| check-cost | checked run time / unchecked run time | 1.83x | ≤ 1.30x | FAIL | checked 817 ms, unchecked 446 ms |
-| dev-speed | geomean dev / optimized | 1.07x | ≤ 4.00x | PASS | fib 1.03x, sum 1.25x, string-build 0.88x, map 1.01x, sort 1.19x |
-| dev-speed | worst case dev / optimized | 1.25x | ≤ 10.00x | PASS | sum |
+| check-cost | checked run time / unchecked run time | 1.62x | ≤ 1.30x | FAIL | checked 722 ms, unchecked 446 ms |
+| dev-speed | geomean dev / optimized | 1.45x | ≤ 4.00x | PASS | fib 1.03x, sum 4.27x, string-build 1.13x, map 1.08x, sort 1.18x |
+| dev-speed | worst case dev / optimized | 4.27x | ≤ 10.00x | PASS | sum |
 
 ## Pillar 2
 
 | Metric | Target | Value | Goal | Status | Note |
 | --- | --- | --- | --- | --- | --- |
 | resources | warm check, 10k lines: CPU time | 40 ms | ≤ 200 ms | PASS |  |
-| resources | warm check, 10k lines: peak RSS | 25.6 MB | ≤ 50.0 MB | PASS |  |
-| resources | check, small, cold | 0.19 CPU-s, 34.9 MB | completes ≤ 30 s | PASS | wall 124 ms |
-| resources | check, small, warm | 0.02 CPU-s, 18.3 MB | completes ≤ 30 s | PASS | wall 21 ms |
-| resources | test, small, cold | 2.09 CPU-s, 89.3 MB | completes ≤ 30 s | PASS | wall 861 ms |
-| resources | test, small, warm | 1.07 CPU-s, 70.6 MB | completes ≤ 30 s | PASS | wall 447 ms |
-| resources | build, small, cold | 0.98 CPU-s, 83.7 MB | completes ≤ 30 s | PASS | wall 376 ms |
-| resources | build, small, warm | 0.03 CPU-s, 31.5 MB | completes ≤ 30 s | PASS | wall 35 ms |
-| resources | check, 10k, cold | 0.54 CPU-s, 57.2 MB | completes ≤ 30 s | PASS | wall 242 ms |
-| resources | check, 10k, warm | 0.04 CPU-s, 25.6 MB | completes ≤ 30 s | PASS | wall 46 ms |
-| resources | test, 10k, cold | 3.01 CPU-s, 120.6 MB | completes ≤ 30 s | PASS | wall 1291 ms |
-| resources | test, 10k, warm | 1.34 CPU-s, 78.2 MB | completes ≤ 30 s | PASS | wall 524 ms |
-| resources | build, 10k, cold | 1.33 CPU-s, 102.4 MB | completes ≤ 30 s | PASS | wall 455 ms |
-| resources | build, 10k, warm | 0.05 CPU-s, 34.1 MB | completes ≤ 30 s | PASS | wall 54 ms |
-| resources | check, 50k, cold | 2.08 CPU-s, 161.1 MB | completes ≤ 150 s | PASS | wall 769 ms |
-| resources | check, 50k, warm | 0.17 CPU-s, 56.5 MB | completes ≤ 150 s | PASS | wall 148 ms |
-| resources | test, 50k, cold | 8.15 CPU-s, 274.6 MB | completes ≤ 150 s | PASS | wall 4003 ms |
-| resources | test, 50k, warm | 3.45 CPU-s, 111.6 MB | completes ≤ 150 s | PASS | wall 1267 ms |
-| resources | build, 50k, cold | 2.88 CPU-s, 206.1 MB | completes ≤ 150 s | PASS | wall 1106 ms |
-| resources | build, 50k, warm | 0.18 CPU-s, 64.5 MB | completes ≤ 150 s | PASS | wall 157 ms |
-| long-session | RSS growth, REPL inputs 100 to 1000 | 81.8 MB | ≤ 22.0 MB | FAIL | RSS 98.2 MB at input 100, 180.0 MB at input 1000; build per input 99 ms at 50, 933 ms at 1000; 4 KiB pages |
-| startup | hd help (no version command): wall time | 3.7 ms | ≤ 20 ms | PASS |  |
+| resources | warm check, 10k lines: peak RSS | 25.3 MB | ≤ 50.0 MB | PASS |  |
+| resources | check, small, cold | 0.18 CPU-s, 34.8 MB | completes ≤ 30 s | PASS | wall 117 ms |
+| resources | check, small, warm | 0.00 CPU-s, 18.3 MB | completes ≤ 30 s | PASS | wall 19 ms |
+| resources | test, small, cold | 1.93 CPU-s, 90.6 MB | completes ≤ 30 s | PASS | wall 866 ms |
+| resources | test, small, warm | 0.97 CPU-s, 70.4 MB | completes ≤ 30 s | PASS | wall 464 ms |
+| resources | build, small, cold | 0.90 CPU-s, 81.1 MB | completes ≤ 30 s | PASS | wall 350 ms |
+| resources | build, small, warm | 0.03 CPU-s, 30.9 MB | completes ≤ 30 s | PASS | wall 32 ms |
+| resources | check, 10k, cold | 0.51 CPU-s, 57.5 MB | completes ≤ 30 s | PASS | wall 224 ms |
+| resources | check, 10k, warm | 0.04 CPU-s, 25.3 MB | completes ≤ 30 s | PASS | wall 42 ms |
+| resources | test, 10k, cold | 2.79 CPU-s, 126.2 MB | completes ≤ 30 s | PASS | wall 1193 ms |
+| resources | test, 10k, warm | 1.24 CPU-s, 77.9 MB | completes ≤ 30 s | PASS | wall 503 ms |
+| resources | build, 10k, cold | 1.27 CPU-s, 102.4 MB | completes ≤ 30 s | PASS | wall 433 ms |
+| resources | build, 10k, warm | 0.05 CPU-s, 34.3 MB | completes ≤ 30 s | PASS | wall 52 ms |
+| resources | check, 50k, cold | 2.03 CPU-s, 160.6 MB | completes ≤ 150 s | PASS | wall 731 ms |
+| resources | check, 50k, warm | 0.15 CPU-s, 55.7 MB | completes ≤ 150 s | PASS | wall 134 ms |
+| resources | test, 50k, cold | 7.64 CPU-s, 278.1 MB | completes ≤ 150 s | PASS | wall 3691 ms |
+| resources | test, 50k, warm | 3.34 CPU-s, 122.6 MB | completes ≤ 150 s | PASS | wall 1227 ms |
+| resources | build, 50k, cold | 2.84 CPU-s, 205.9 MB | completes ≤ 150 s | PASS | wall 921 ms |
+| resources | build, 50k, warm | 0.16 CPU-s, 64.5 MB | completes ≤ 150 s | PASS | wall 144 ms |
+| long-session | RSS growth, REPL inputs 100 to 1000 | 104.5 MB | ≤ 22.0 MB | FAIL | RSS 90.4 MB at input 100, 195.0 MB at input 1000; build per input 91 ms at 50, 902 ms at 1000; 4 KiB pages |
+| startup | hd help (no version command): wall time | 3.2 ms | ≤ 20 ms | PASS |  |
 | startup | hd help (no version command): CPU time | 0.0 ms | ≤ 20 ms | PASS |  |
-| startup | hd help (no version command): peak RSS | 4.0 MB | ≤ 10.0 MB | PASS |  |
-| startup | hd check empty.hd: wall time | 16 ms | ≤ 20 ms | PASS |  |
+| startup | hd help (no version command): peak RSS | 3.9 MB | ≤ 10.0 MB | PASS |  |
+| startup | hd check empty.hd: wall time | 18 ms | ≤ 20 ms | PASS |  |
 | startup | hd check empty.hd: CPU time | 0.0 ms | ≤ 20 ms | PASS |  |
 | startup | hd check empty.hd: peak RSS | 16.7 MB | ≤ 10.0 MB | FAIL |  |
-| concurrency | p95 latency at N = 4 vs N = 1 | 2.22x | ≤ 1.50x | FAIL | p95 122 ms at N = 1; 4 cores; total CPU 990 ms |
-| concurrency | p95 latency at N = 16 vs N = 1 | 8.70x | ≤ 6.00x | FAIL | p95 122 ms at N = 1; 4 cores; total CPU 4190 ms |
-| concurrency | total CPU growth exponent, N = 1 to 16 | 1.12 | &lt; 1.00 (sublinear) | FAIL | 190 ms at N = 1, 4190 ms at N = 16 |
-| disk | artifacts plus toolchain per worktree | 19.7 MB | ≤ 10.0 MB | FAIL | artifacts 7635 B in 10 files; toolchain 19.7 MB; toolchain files: /home/runner/work/hd-lang/hd-lang/target/release/hd; HD_CACHE 10.8 MB, shared per user, not counted |
-| parallel-speedup | speedup, 50k lines, 4 threads vs 1 | 1.89x | ≥ 2.40x | FAIL | by --jobs |
+| concurrency | p95 latency at N = 4 vs N = 1 | 2.18x | ≤ 1.50x | FAIL | p95 125 ms at N = 1; 4 cores; total CPU 980 ms |
+| concurrency | p95 latency at N = 16 vs N = 1 | 8.58x | ≤ 6.00x | FAIL | p95 125 ms at N = 1; 4 cores; total CPU 4030 ms |
+| concurrency | total CPU growth exponent, N = 1 to 16 | 1.10 | &lt; 1.00 (sublinear) | FAIL | 190 ms at N = 1, 4030 ms at N = 16 |
+| disk | artifacts plus toolchain per worktree | 19.9 MB | ≤ 10.0 MB | FAIL | artifacts 7635 B in 10 files; toolchain 19.9 MB; toolchain files: /home/runner/work/hd-lang/hd-lang/target/release/hd; HD_CACHE 10.8 MB, shared per user, not counted |
+| parallel-speedup | speedup, 50k lines, 4 threads vs 1 | 1.95x | ≥ 2.40x | FAIL | by --jobs |
 | cache-contention | dependency cache, 8 concurrent fetches: no corruption | intact | no corruption | PASS |  |
 | cache-contention | dependency cache, 8 concurrent fetches: fetched once | 16 | ≤ 2, one check's connections | FAIL | connections to the remote |
 | cache-contention | compilation cache, 8 concurrent checks: no corruption | intact | no corruption | PASS |  |
 | cache-contention | compilation cache, 8 concurrent checks: written once | 9 files | the files of one check's cache | FAIL | one check alone: 7 files |
-| cache-growth | cache size after 100 edits, cap 5 MB | 4.5 MB | ≤ 5.0 MB | PASS | cap set by HD_CACHE_MAX_SIZE |
+| cache-growth | cache size after 100 edits, cap 5 MB | 4.4 MB | ≤ 5.0 MB | PASS | cap set by HD_CACHE_MAX_SIZE |
 | io-per-check | source files read, warm check after one edit | 79 | ≤ 1 | FAIL | 80 stat'ed; 79 source files; edited src/m039.hd |
 | fetch-dedup | connections to the remote, 4 worktrees | 2 | = the first worktree's | PASS | the first worktree's: 2 |
 
@@ -172,52 +146,53 @@ Timing movements of 10% or less are flagged as noise, not regressions.
 
 | Metric | Target | Value | Goal | Status | Note |
 | --- | --- | --- | --- | --- | --- |
-| proptest-perf | property cases per second | 26k/s | ≥ 100k/s | FAIL | 6000 extra cases took 234 ms; hd test, median of 3 |
-| proptest-perf | time to shrink a known failure | 127 ms | ≤ 1000 ms | PASS | shrink=500 minus shrink=0, median of 3 |
-| unit-test-perf | 1,000 unit tests, warm | 1090 ms | ≤ 1000 ms | FAIL | the run reports 1000 of 1000 passed |
-| unit-test-perf | overhead per unit test | 0.9 ms | ≤ 1.0 ms | PASS | 100 tests: 286 ms |
-| integration-test-perf | setup per integration test program | 173 ms | ≤ 20 ms | FAIL | 10 programs: 1895 ms for 21 tests, 90 ms per test |
-| integration-test-perf | total time growth in programs | 1.005 | exponent &lt; 1 (sublinear) | FAIL | beyond the 0-program run: 342 ms at 2, 1724 ms at 10 programs |
-| integration-test-perf | cost per doc test | 155 ms | ≤ 20 ms | FAIL | 10 doc tests: 1732 ms; the run reports 11 of 11 passed |
-| runtime | geomean hd / Node | 1.31x | ≤ 1.50x | PASS | 5 cases |
-| runtime | fib: hd / Node | 0.81x | ≤ 3.00x | PASS | hd 8.1 ms (p10 4.2, p90 10), Node 10 ms, Python 98 ms; release build, run as hd FILE.wasm |
-| runtime | sum: hd / Node | 1.73x | ≤ 3.00x | PASS | hd 16 ms (p10 11, p90 29), Node 9.3 ms, Python 286 ms; release build, run as hd FILE.wasm |
-| runtime | string-build: hd / Node | 0.87x | ≤ 3.00x | PASS | hd 9.3 ms (p10 7.7, p90 12), Node 11 ms, Python 15 ms; release build, run as hd FILE.wasm |
-| runtime | map: hd / Node | 2.34x | ≤ 3.00x | PASS | hd 25 ms (p10 20, p90 33), Node 11 ms, Python 17 ms; release build, run as hd FILE.wasm |
-| runtime | sort: hd / Node | 1.34x | ≤ 3.00x | PASS | hd 33 ms (p10 24, p90 37), Node 24 ms, Python 19 ms; release build, run as hd FILE.wasm |
+| proptest-perf | property cases per second | 36k/s | ≥ 100k/s | FAIL | 6000 extra cases took 166 ms; hd test, median of 3 |
+| proptest-perf | time to shrink a known failure | 117 ms | ≤ 1000 ms | PASS | shrink=500 minus shrink=0, median of 3 Timing change ≤10%: noise. |
+| unit-test-perf | 1,000 unit tests, warm | 1088 ms | ≤ 1000 ms | FAIL | the run reports 1000 of 1000 passed Timing change ≤10%: noise. |
+| unit-test-perf | overhead per unit test | 0.9 ms | ≤ 1.0 ms | PASS | 100 tests: 258 ms |
+| integration-test-perf | setup per integration test program | 157 ms | ≤ 20 ms | FAIL | 10 programs: 1722 ms for 21 tests, 82 ms per test Timing change ≤10%: noise. |
+| integration-test-perf | total time growth in programs | 0.989 | exponent &lt; 1 (sublinear) | PASS | beyond the 0-program run: 321 ms at 2, 1578 ms at 10 programs |
+| integration-test-perf | cost per doc test | 140 ms | ≤ 20 ms | FAIL | 10 doc tests: 1540 ms; the run reports 11 of 11 passed Timing change ≤10%: noise. |
+| runtime | geomean hd / Node | 1.22x | ≤ 1.50x | PASS | 5 cases |
+| runtime | fib: hd / Node | 0.65x | ≤ 3.00x | PASS | hd 5.3 ms (p10 4.1, p90 10), Node 8.0 ms, Python 76 ms; release build, run as hd FILE.wasm |
+| runtime | sum: hd / Node | 2.05x | ≤ 3.00x | PASS | hd 13 ms (p10 10, p90 25), Node 6.5 ms, Python 253 ms; release build, run as hd FILE.wasm |
+| runtime | string-build: hd / Node | 0.90x | ≤ 3.00x | PASS | hd 8.7 ms (p10 8.0, p90 9.6), Node 9.7 ms, Python 12 ms; release build, run as hd FILE.wasm |
+| runtime | map: hd / Node | 2.14x | ≤ 3.00x | PASS | hd 23 ms (p10 16, p90 27), Node 11 ms, Python 16 ms; release build, run as hd FILE.wasm |
+| runtime | sort: hd / Node | 1.06x | ≤ 3.00x | PASS | hd 24 ms (p10 15, p90 26), Node 22 ms, Python 16 ms; release build, run as hd FILE.wasm |
 | allocations | counted loop, bytes per iteration | 0.00 B/iter | 0 allocations (&lt; 1 B/iter) | PASS | release build, run as hd FILE.wasm |
 | allocations | list loop, bytes per iteration | 0.00 B/iter | 0 allocations (&lt; 1 B/iter) | PASS | release build, run as hd FILE.wasm |
 | allocations | map loop, bytes per iteration | 0.00 B/iter | 0 allocations (&lt; 1 B/iter) | PASS | release build, run as hd FILE.wasm |
 | allocations | iterator chain, bytes per iteration | 0.00 B/iter | ≤ 1 allocation (≤ 32 B/iter) | PASS | release build, run as hd FILE.wasm |
-| size-startup-heap | tiny program, release Wasm size | 1597 B | ≤ 2048 B | PASS | benchmarks: fib 5081 B, sum 4875 B, string-build 7952 B, map 6272 B, sort 12822 B |
-| size-startup-heap | tiny program, start to first output | 56 ms | ≤ 5.0 ms | FAIL | release build, run as hd FILE.wasm |
-| size-startup-heap | peak heap, map: hd / Node | 0.96x | ≤ 2.00x | PASS | hd +13.6 MB, Node +14.2 MB over an empty program |
-| size-startup-heap | peak heap, string-build: hd / Node | 0.36x | ≤ 2.00x | PASS | hd +8.0 MB, Node +22.0 MB over an empty program |
-| host-call-overhead | Console println, per call | 8.9 µs | ≤ 1.0 µs | FAIL | 100000 calls; release build, run as hd FILE.wasm |
-| host-call-overhead | Fs read_text!, per call | 27 µs | ≤ 10 µs | FAIL | 10000 calls; release build, run as hd FILE.wasm |
-| host-call-overhead | serde boundary (list_dir!), per call | 47 µs | ≤ 5.0 µs | FAIL | 10000 calls; release build, run as hd FILE.wasm |
-| suspension-overhead | await of a ready value, per await | 10 ns | ≤ 100 ns | PASS | 10 ns per iteration; release build, run as hd FILE.wasm |
-| suspension-overhead | all! of two ready tasks, throughput | 9.1M/s | ≥ 1.0M/s | PASS | 219 ns per iteration; release build, run as hd FILE.wasm |
-| suspension-overhead | race! of two ready tasks, throughput | 7.3M/s | ≥ 1.0M/s | PASS | 275 ns per iteration; release build, run as hd FILE.wasm |
-| serde-throughput | JSON encode, hd / Node MB/s | 0.19x | ≥ 0.50x | FAIL | hd 51 MB/s (45488 B document), Node 269 MB/s; release build, run as hd FILE.wasm |
-| serde-throughput | JSON decode, hd / Node MB/s | 0.23x | ≥ 0.50x | FAIL | hd 34 MB/s (45488 B document), Node 145 MB/s; release build, run as hd FILE.wasm |
-| text-throughput | string build, hd / Node MB/s | 2.94x | ≥ 0.50x | PASS | hd 297 MB/s, Node 101 MB/s; 100000 words, 1088890 bytes per text; hd StringBuilder, Node Array.join; release build, run as hd FILE.wasm |
-| text-throughput | split, hd / Node MB/s | 1.76x | ≥ 0.50x | PASS | hd 422 MB/s, Node 240 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm |
-| text-throughput | regex find_all, hd / Node MB/s | 0.09x | ≥ 0.50x | FAIL | hd 6.7 MB/s, Node 72 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm |
+| size-startup-heap | tiny program, release Wasm size | 1597 B | ≤ 2048 B | PASS | benchmarks: fib 5081 B, sum 4875 B, string-build 7952 B, map 6323 B, sort 12822 B |
+| size-startup-heap | tiny program, start to first output | 54 ms | ≤ 5.0 ms | FAIL | release build, run as hd FILE.wasm Timing change ≤10%: noise. |
+| size-startup-heap | peak heap, map: hd / Node | 0.95x | ≤ 2.00x | PASS | hd +13.6 MB, Node +14.3 MB over an empty program |
+| size-startup-heap | peak heap, string-build: hd / Node | 0.39x | ≤ 2.00x | PASS | hd +8.1 MB, Node +20.9 MB over an empty program |
+| host-call-overhead | Console println, per call | 7.2 µs | ≤ 1.0 µs | FAIL | 100000 calls; release build, run as hd FILE.wasm |
+| host-call-overhead | Fs read_text!, per call | 15 µs | ≤ 10 µs | FAIL | 10000 calls; release build, run as hd FILE.wasm |
+| host-call-overhead | serde boundary (list_dir!), per call | 28 µs | ≤ 5.0 µs | FAIL | 10000 calls; release build, run as hd FILE.wasm |
+| suspension-overhead | await of a ready value, per await | 13 ns | ≤ 100 ns | PASS | 13 ns per iteration; release build, run as hd FILE.wasm |
+| suspension-overhead | all! of two ready tasks, throughput | 12.8M/s | ≥ 1.0M/s | PASS | 156 ns per iteration; release build, run as hd FILE.wasm |
+| suspension-overhead | race! of two ready tasks, throughput | 11.1M/s | ≥ 1.0M/s | PASS | 181 ns per iteration; release build, run as hd FILE.wasm |
+| serde-throughput | JSON encode, hd / Node MB/s | 0.20x | ≥ 0.50x | FAIL | hd 67 MB/s (45488 B document), Node 334 MB/s; release build, run as hd FILE.wasm |
+| serde-throughput | JSON decode, hd / Node MB/s | 0.22x | ≥ 0.50x | FAIL | hd 38 MB/s (45488 B document), Node 170 MB/s; release build, run as hd FILE.wasm |
+| text-throughput | string build, hd / Node MB/s | 4.40x | ≥ 0.50x | PASS | hd 463 MB/s, Node 105 MB/s; 100000 words, 1088890 bytes per text; hd StringBuilder, Node Array.join; release build, run as hd FILE.wasm |
+| text-throughput | split, hd / Node MB/s | 2.36x | ≥ 0.50x | PASS | hd 599 MB/s, Node 254 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm |
+| text-throughput | regex find_all, hd / Node MB/s | 0.13x | ≥ 0.50x | FAIL | hd 9.8 MB/s, Node 74 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm |
 | dead-code | Wasm bytes per 1,000 lines | 6906 B | ≤ 10240 B | PASS | 12823 B at 1075 lines, 74987 B at 10076 lines; release build, run as hd FILE.wasm |
 | dead-code | no unused std in the program | none | none | PASS | 925 B either way; checked sizes, and import and export names |
-| long-run-memory | RSS growth after warm-up, 1 min | -0.2 MB | ≤ 10.0 MB | PASS | 16966000 requests; RSS 69.8 MB after warm-up, 72.5 MB at the end; release build, run as hd FILE.wasm |
+| long-run-memory | RSS growth after warm-up, 1 min | 0.5 MB | ≤ 10.0 MB | PASS | 20644000 requests; RSS 71.7 MB after warm-up, 72.2 MB at the end; release build, run as hd FILE.wasm |
 
 ## Correctness gate
 
 | Metric | Target | Value | Goal | Status | Note |
 | --- | --- | --- | --- | --- | --- |
-| conformance | pass rate, known failures excluded | 100.0% | ≥ 100.0% | PASS | 7398 of 7398 unlisted cases passed |
+| conformance | pass rate, known failures excluded | 100.0% | ≥ 100.0% | PASS | 7405 of 7405 unlisted cases passed |
 | conformance | listed known failures | 0 | ≤ 0 | PASS | KNOWN_FAILURES.tsv |
 | incremental-soundness | incremental equals clean, after each edit | 100.0% | ≥ 100.0% | PASS | 20 of 20 runs matched over 16 edits |
 
 ## Recent runs
 
+- [2026-11-12T04](daily/2026-11-12T04.json)
 - [2026-11-11T19](daily/2026-11-11T19.json)
 - [2026-11-11T03](daily/2026-11-11T03.json)
 - [2026-11-10T19](daily/2026-11-10T19.json)
@@ -245,4 +220,3 @@ Timing movements of 10% or less are flagged as noise, not regressions.
 - [2026-10-30T18](daily/2026-10-30T18.json)
 - [2026-10-30T03](daily/2026-10-30T03.json)
 - [2026-10-29T18](daily/2026-10-29T18.json)
-- [2026-10-29T03](daily/2026-10-29T03.json)
