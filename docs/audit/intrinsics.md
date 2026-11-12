@@ -8,8 +8,9 @@ type a meaning of its own is listed once, in seven kinds, with a verdict:
   host boundary, the suspension runtime, or type information only the
   compiler has. hd cannot express it, and should not.
 - **hd later**: hd can already express it, but the hd version is slower
-  because of how hd memory code compiles (#180, #514, #1205). Replace it
-  once the optimizer tickets from #1205's WAT diff land.
+  because of how hd memory code compiles (#180, #514). #1205's gate is
+  met: `UniqMap` runs its benchmark within 1.06x of `Map` since #1711.
+  Replace it through #1219 (`List`) and #1220 (`Map`).
 - **hd now**: hd can express it today at no known cost. Replace it.
 - **review**: the compiler knows a std name it may not need; find out why
   before choosing.
