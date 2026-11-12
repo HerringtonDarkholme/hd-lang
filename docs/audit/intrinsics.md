@@ -158,7 +158,11 @@ own imports (`hd:rt` `block`, `abort`, `stderr`, `stdout`, `panic`,
 
 The work is tracked in #1206 and its sub-issues, in dependency order.
 The #1205 WAT diff named the original memory-code costs (#1227 to #1232);
-its benchmark gate is now met. #1219 still waits on the ownership
-prerequisite recorded on that issue, and #1220 follows it. String-kernel
+its benchmark gate is now met. #1219 started on 2026-11-12, after its
+ownership prerequisite (#1364) closed. Its counted copy-on-write layer
+tests whether a `*T` is the only reference before a write. No hd code
+can read a counted reference's count or address today, so the `List` and
+`Map` rows of kinds 1 to 5 are not yet "hd can already express it".
+#1220 follows #1219. String-kernel
 pricing remains separate (#514). Review rows report findings on their
 issue, and the owner decides each one.
