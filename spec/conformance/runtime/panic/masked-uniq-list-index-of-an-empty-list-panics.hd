@@ -1,0 +1,12 @@
+# test: a UniqList index masked by its wrapped length minus one panics when the list is empty and nothing tested its length
+# Spec std/collections UniqList: std-collections.uniq-list.index-places.
+use std.collections.UniqList
+
+fn ring(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        sum += xs[(head + i) & xs.len().wrapping_sub(1)] # panic: index-out-of-bounds
+    sum
+
+pub fn main() -> void:
+    _ := ring(&UniqList::[i32].new(), 0, 4)

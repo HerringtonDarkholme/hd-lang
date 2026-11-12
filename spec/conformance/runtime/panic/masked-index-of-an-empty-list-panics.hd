@@ -1,0 +1,13 @@
+# test: an index masked by an empty list's wrapped length minus one stays out of bounds and panics although another list's length was tested
+# Spec 05 Indexing: expr.index.list.range, expr.index.list.panic.
+fn ring(xs: &List[i32], ys: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if ys.len() > 0:
+        for i in 0..n:
+            sum += xs[(head + i) & xs.len().wrapping_sub(1)] # panic: index-out-of-bounds
+    sum
+
+pub fn main() -> void:
+    let empty: List[i32] = []
+    ys := [+1]
+    _ := ring(&empty, &ys, 0, 4)

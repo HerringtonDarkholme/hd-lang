@@ -28,7 +28,16 @@
 //!      `v = v - 1` after that test, and the value it was set to is below
 //!      the length by these facts;
 //!    - a guard of the same key and length that runs first panicked
-//!      otherwise.
+//!      otherwise;
+//!    - `x` is `y & (len - 1)`, in either order, where the `&` runs only
+//!      once a test showed `len > 0`. Unsigned, `y & m <= m`, and with
+//!      `len > 0` the subtraction does not wrap. A test shows it when it
+//!      is a comparison that puts `len` above a value (`a < len`,
+//!      `len > a`, a failed `a >= len`) or above zero (`len != 0`,
+//!      `len >= 1`), and the `&` is in the arm that the outcome takes, or
+//!      after the test where the other arm never falls through: a
+//!      ring buffer's `if xs.len() > 0`, an early `if xs.len() == 0:
+//!      return`, a loop's `i < xs.len()`, or an earlier index guard.
 //! 4. **Header reads.** A copy read of an unchanged header field that an
 //!    earlier read of the same field always runs before takes that read's
 //!    value, kept in a local: a loop's `len` and buffer address load once,
@@ -41,11 +50,13 @@
 //!
 //! Cost per body: one pass over the instructions for the stores, breaks
 //! and the header check, and one walk up from each break for `clear`;
+//! one pass over the `If`s for the tests that show a field above zero;
 //! each value's source is memoized, so resolving is
 //! linear in instructions times a depth bound of [`DEPTH`]; each guard
 //! looks up the facts of one local, and a falling fact recurses at most
 //! [`DEPTH`] times; a read or guard is compared with at most [`READS`]
-//! earlier ones of its field. Dominance walks the block path, which is
+//! earlier ones of its field, and a masked key with at most [`READS`]
+//! tests of its length. Dominance walks the block path, which is
 //! the nesting depth. No fixpoint.
 
 use hd_base::HashMap;
@@ -62,6 +73,17 @@ const DEPTH: u32 = 16;
 /// The most earlier reads or guards of one field a read or guard is
 /// compared with.
 const READS: usize = 8;
+
+/// Each comparison with its negation: one comes out false as the other
+/// does true.
+const NEGATION: [(PrimOp, PrimOp); 6] = [
+    (PrimOp::Lt, PrimOp::Ge),
+    (PrimOp::Le, PrimOp::Gt),
+    (PrimOp::Gt, PrimOp::Le),
+    (PrimOp::Ge, PrimOp::Lt),
+    (PrimOp::Eq, PrimOp::Ne),
+    (PrimOp::Ne, PrimOp::Eq),
+];
 
 /// What the unchanged headers of a body's reference parameters prove.
 #[derive(Default)]
@@ -151,6 +173,9 @@ struct Proof<'e, 'x, 'a, 'm> {
     clear: Vec<bool>,
     rising: HashMap<usize, Vec<Rising>>,
     falling: HashMap<usize, Falling>,
+    /// Tests that show a header field above zero, each with the outcome
+    /// that shows it, at most [`READS`] per field.
+    positive: HashMap<Key, Vec<(u32, bool)>>,
 }
 
 impl Em<'_, '_, '_> {
@@ -175,6 +200,7 @@ impl Em<'_, '_, '_> {
             clear: Vec::new(),
             rising: HashMap::default(),
             falling: HashMap::default(),
+            positive: HashMap::default(),
         };
         if !p.collect() {
             return facts;
@@ -212,6 +238,119 @@ impl Em<'_, '_, '_> {
             }
         }
         facts
+    }
+
+    /// The operand that `Prim` condition `c` shows above zero when it
+    /// comes out `outcome`, on `usize`: `a < n` puts `n` above `a`, so
+    /// above zero, and `n != 0` and `n >= 1` do directly; a failed
+    /// comparison is its negation, as is `!c`.
+    pub(super) fn positive_operand(&self, c: u32, outcome: bool) -> Option<u32> {
+        let b = self.b;
+        if Ref(c).as_inst().is_none() || b.tags[c as usize] != Tag::Prim {
+            return None;
+        }
+        let op = PrimOp::from_u32(b.data[c as usize][0])?;
+        let [x, y] = *b.record(b.data[c as usize][1]) else {
+            // `!c` comes out the other way: of the one-operand operations
+            // only `!` gives a `bool`.
+            let &[inner] = b.record(b.data[c as usize][1]).first_chunk::<1>()?;
+            return (op == PrimOp::Not).then(|| self.positive_operand(inner, !outcome))?;
+        };
+        if self.ty_of(x) != Ty::prim(hd_types::Prim::Usize) {
+            return None;
+        }
+        // On `usize` operands every `bool` operation is a comparison.
+        let op = if outcome {
+            op
+        } else {
+            NEGATION.iter().find(|(o, _)| *o == op)?.1
+        };
+        let at_least_one = |r: u32| self.const_u32(r).is_some_and(|k| k >= 1);
+        match op {
+            PrimOp::Lt => Some(y),
+            PrimOp::Gt => Some(x),
+            PrimOp::Le if at_least_one(x) => Some(y),
+            PrimOp::Ge if at_least_one(y) => Some(x),
+            PrimOp::Ne if self.const_u32(y) == Some(0) => Some(x),
+            PrimOp::Ne if self.const_u32(x) == Some(0) => Some(y),
+            PrimOp::Eq if at_least_one(y) => Some(x),
+            PrimOp::Eq if at_least_one(x) => Some(y),
+            _ => None,
+        }
+    }
+
+    /// How arm `arm` of `If` `x` ends when it never ends normally: its
+    /// last statement returns, panics, traps, or breaks or continues to a
+    /// label past `x`, and no break inside it ends at the arm or at `x`.
+    /// `Some(true)` when nothing in it leaves for a label outside it, so
+    /// the run ends there; `Some(false)` when it may go on past the block
+    /// that holds `x`. `None` when it may fall through.
+    pub(super) fn arm_exit(&self, arm: u32, x: u32) -> Option<bool> {
+        let b = self.b;
+        let last = *(b.tags[arm as usize] == Tag::Block)
+            .then(|| b.record(b.data[arm as usize][0]))?
+            .iter()
+            .rev()
+            .find(|&&s| b.tags[s as usize] != Tag::Block)?;
+        let first = self.topo.first[arm as usize];
+        let target = |i: u32| b.label_inst[b.data[i as usize][0] as usize];
+        let ends = match b.tags[last as usize] {
+            Tag::Return | Tag::Unreachable => true,
+            Tag::Break | Tag::Continue if target(last) != arm && target(last) != x => false,
+            Tag::Call if self.calls_panic(last) => true,
+            _ => return None,
+        };
+        let (mut inside, mut past) = (true, true);
+        for i in first..arm {
+            if matches!(b.tags[i as usize], Tag::Break | Tag::Continue) {
+                let t = target(i);
+                past &= t != arm && t != x;
+                inside &= (first..arm).contains(&t);
+            }
+        }
+        past.then_some(ends && inside)
+    }
+
+    /// The `x` of instruction `v` when it is `x - 1`, or
+    /// `x.wrapping_sub(1)`, which is the same subtraction in a release
+    /// build.
+    pub(super) fn minus_one_of(&self, v: u32) -> Option<u32> {
+        let b = self.b;
+        let i = Ref(v).as_inst()?.0 as usize;
+        let [r, one] = match b.tags[i] {
+            Tag::Prim if b.data[i][0] == PrimOp::Sub as u32 => {
+                // ruled out: the checker emits PrimOp::Sub with two operands;
+                // cloning and substitution preserve the primitive operand record.
+                super::required(
+                    b.record(b.data[i][1]).try_into().ok(),
+                    "subtraction has two operands",
+                )
+            }
+            Tag::Call
+                if matches!(
+                    self.calls.get(&v),
+                    Some(Target::Call(call)) if matches!(
+                        &call.kind,
+                        TargetKind::Intrinsic(key) if key == "int_wrapping_sub"
+                    )
+                ) =>
+            {
+                // A call's record ends with three words past its arguments.
+                *b.record(b.data[i][1]).first_chunk::<2>()?
+            }
+            _ => return None,
+        };
+        (self.const_u32(one) == Some(1)).then_some(r)
+    }
+
+    /// Whether instruction `s` calls the panic intrinsic.
+    fn calls_panic(&self, s: u32) -> bool {
+        self.b.tags[s as usize] == Tag::Call
+            && matches!(
+                self.calls.get(&s),
+                Some(Target::Call(call))
+                    if matches!(&call.kind, TargetKind::Intrinsic(key) if key == "panic")
+            )
     }
 }
 
@@ -276,6 +415,8 @@ impl Proof<'_, '_, '_, '_> {
         for (i, x) in (0..b.len()).zip(0u32..) {
             if b.tags[i] == Tag::Loop {
                 self.loop_facts(x);
+            } else if b.tags[i] == Tag::If {
+                self.positive_test(x);
             }
         }
         true
@@ -356,8 +497,8 @@ impl Proof<'_, '_, '_, '_> {
         })
     }
 
-    /// Whether call `x` is a pointer intrinsic, which writes nothing, or
-    /// the panic, which never returns.
+    /// Whether call `x` is a pointer intrinsic or wrapping arithmetic,
+    /// which write nothing, or the panic, which never returns.
     fn pure_call(&self, x: u32) -> bool {
         matches!(
             self.em.calls.get(&x),
@@ -365,7 +506,14 @@ impl Proof<'_, '_, '_, '_> {
                 &call.kind,
                 TargetKind::Intrinsic(key) if matches!(
                     key.as_str(),
-                    "ptr_offset" | "ptr_ref" | "ptr_mut" | "ptr_size_of" | "panic"
+                    "ptr_offset"
+                        | "ptr_ref"
+                        | "ptr_mut"
+                        | "ptr_size_of"
+                        | "int_wrapping_add"
+                        | "int_wrapping_sub"
+                        | "int_wrapping_mul"
+                        | "panic"
                 )
             )
         )
@@ -621,25 +769,12 @@ impl Proof<'_, '_, '_, '_> {
         super::shape::read_local(self.em.b, read) == Some(v) && self.em.after_test(test, read)
     }
 
-    /// The `x` of a value `x - 1`.
+    /// The `x` of a value `x - 1` ([`Em::minus_one_of`]).
     fn minus_one(&mut self, value: u32) -> Option<u32> {
-        let b = self.em.b;
         let Key::Val(x) = self.key(value, 0) else {
             return None;
         };
-        if Ref(x).as_inst().is_none()
-            || b.tags[x as usize] != Tag::Prim
-            || b.data[x as usize][0] != PrimOp::Sub as u32
-        {
-            return None;
-        }
-        // ruled out: the checker emits PrimOp::Sub with two operands;
-        // cloning and substitution preserve the primitive operand record.
-        let [r, one] = super::required(
-            b.record(b.data[x as usize][1]).try_into().ok(),
-            "subtraction has two operands",
-        );
-        (self.em.const_u32(one) == Some(1)).then_some(r)
+        self.em.minus_one_of(x)
     }
 
     /// The key and length of guard `x`: an `If` with no else arm whose
@@ -670,15 +805,87 @@ impl Proof<'_, '_, '_, '_> {
     fn panics(&self, x: u32) -> bool {
         let b = self.em.b;
         let arm = b.record(b.data[x as usize][1])[0];
-        b.record(b.data[arm as usize][0]).iter().any(|&s| {
-            b.tags[s as usize] == Tag::Unreachable
-                || (b.tags[s as usize] == Tag::Call
-                    && matches!(
-                        self.em.calls.get(&s),
-                        Some(Target::Call(call))
-                            if matches!(&call.kind, TargetKind::Intrinsic(key) if key == "panic")
-                    ))
+        b.record(b.data[arm as usize][0])
+            .iter()
+            .any(|&s| b.tags[s as usize] == Tag::Unreachable || self.em.calls_panic(s))
+    }
+
+    /// Records `If` `x` in [`Proof::positive`] when an outcome of its
+    /// condition shows a header field above zero.
+    fn positive_test(&mut self, x: u32) {
+        let cond = self.em.b.data[x as usize][0];
+        for outcome in [true, false] {
+            if let Some(field) = self.positive_field(cond, outcome)
+                && let key @ Key::Field(..) = self.key(field, 0)
+            {
+                let tests = self.positive.entry(key).or_default();
+                if tests.len() < READS {
+                    tests.push((x, outcome));
+                }
+            }
+        }
+    }
+
+    /// The operand that condition `cond` shows above zero when it comes
+    /// out `outcome` ([`Em::positive_operand`]), through the values it
+    /// stands for.
+    fn positive_field(&mut self, cond: u32, outcome: bool) -> Option<u32> {
+        let Key::Val(c) = self.key(cond, 0) else {
+            return None;
+        };
+        self.em.positive_operand(c, outcome)
+    }
+
+    /// Whether `at` runs only once a test showed header field `len` above
+    /// zero: inside the arm its outcome takes, or after the test when the
+    /// other arm never falls through ([`Em::arm_exit`]).
+    fn positive_at(&self, len: Key, at: u32) -> bool {
+        let em = self.em;
+        let b = em.b;
+        let path = em.block_path(at).unwrap_or_default();
+        let tests = self.positive.get(&len).map_or(&[][..], Vec::as_slice);
+        tests.iter().any(|&(x, outcome)| {
+            let arms = b.record(b.data[x as usize][1]);
+            let arm = |k: usize| arms.get(k).copied().filter(|&a| a != NONE);
+            let (taken, other) = if outcome {
+                (arm(0), arm(1))
+            } else {
+                (arm(1), arm(0))
+            };
+            // An arm that may go on past the test's block skips only what
+            // the test dominates; one that ends the run, everything after.
+            taken.is_some_and(|t| path.iter().any(|&(k, _)| k == t))
+                || other.and_then(|o| em.arm_exit(o, x)).is_some_and(|ends| {
+                    if ends {
+                        self.runs_before(x, at)
+                    } else {
+                        em.dominates(x, at)
+                    }
+                })
         })
+    }
+
+    /// Whether value `index` is `y & (len - 1)`, in either order, computed
+    /// where a test showed `len` above zero.
+    fn masked(&mut self, index: u32, len: Key) -> bool {
+        let b = self.em.b;
+        let Key::Val(x) = self.key(index, 0) else {
+            return false;
+        };
+        if Ref(x).as_inst().is_none()
+            || b.tags[x as usize] != Tag::Prim
+            || b.data[x as usize][0] != PrimOp::BitAnd as u32
+        {
+            return false;
+        }
+        // ruled out: the checker emits PrimOp::BitAnd with two operands;
+        // cloning and substitution preserve the primitive operand record.
+        let [y, z] = super::required(
+            b.record(b.data[x as usize][1]).try_into().ok(),
+            "bitwise and has two operands",
+        );
+        let mut mask_of_len = |m: u32| self.minus_one(m).is_some_and(|n| self.key(n, 0) == len);
+        (mask_of_len(y) || mask_of_len(z)) && self.positive_at(len, x)
     }
 
     /// Whether value `index` is below header field `len` wherever it is
@@ -686,6 +893,9 @@ impl Proof<'_, '_, '_, '_> {
     fn below(&mut self, index: u32, len: Key, depth: u32) -> bool {
         if depth > DEPTH {
             return false;
+        }
+        if self.masked(index, len) {
+            return true;
         }
         let em = self.em;
         if let Some((v, read)) = self.read_of(index) {

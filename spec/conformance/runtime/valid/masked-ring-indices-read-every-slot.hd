@@ -1,0 +1,64 @@
+# test: ring-buffer indices masked by the length minus one read the right slots of a List and a UniqList after each kind of length test
+# Spec std/collections UniqList: std-collections.uniq-list.index-places; with 05 Indexing: expr.index.list.range.
+# expect-stdout: 49 49 0
+# expect-stdout: 49 49 0
+# expect-stdout: 180 36
+# expect-stdout: 49 0
+use std.collections.UniqList
+
+fn list_arm(xs: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if xs.len() > 0:
+        for i in 0..n:
+            sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn list_early(xs: &List[i32], head: usize, n: usize) -> i32:
+    if xs.len() == 0:
+        return 0
+    mask := xs.len() - 1
+    let sum = +0
+    for i in 0..n:
+        sum += xs[mask & (head + i)]
+    sum
+
+fn uniq_arm(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if 0 != xs.len():
+        for i in 0..n:
+            sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn uniq_after_guard(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        sum += xs[head] * xs[(xs.len() - 1) & (head + i)]
+    sum
+
+fn uniq_after_break(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        if xs.len() == 0:
+            break
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn uniq_loop_test(xs: &UniqList[i32], head: usize) -> i32:
+    let sum = +0
+    for i in 0..xs.len():
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+pub fn main() -> void $ Console:
+    list := [+1, 2, 3, 4, 5, 6, 7, 8]
+    let mut uniq = UniqList::[i32].new()
+    for value in list:
+        uniq.push(value)
+    let empty: List[i32] = []
+    # head 5, ten reads: 6 7 8 1 2 3 4 5 6 7
+    println("${list_arm(&list, 5, 10)} ${list_early(&list, 5, 10)} ${list_arm(&empty, 5, 10)}")
+    let none = UniqList::[i32].new()
+    println("${uniq_arm(&uniq, 5, 10)} ${list_early(&list, 13, 10)} ${uniq_arm(&none, 5, 10)}")
+    # xs[3] = 4 times the ten reads at head 3: 4 5 6 7 8 1 2 3 4 5
+    println("${uniq_after_guard(&uniq, 3, 10)} ${uniq_loop_test(&uniq, 5)}")
+    println("${uniq_after_break(&uniq, 5, 10)} ${uniq_after_break(&none, 5, 10)}")

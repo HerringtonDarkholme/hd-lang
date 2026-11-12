@@ -1,0 +1,66 @@
+# @dump: wat
+# @build: v8 release
+# A ring buffer's index `y & (len - 1)` is below the length once a test
+# showed the length above zero (#1713): no bounds check in any loop here.
+# The tests: a `List`'s `len > 0` arm and an early `len == 0` return; a
+# `UniqList`'s `0 != len` arm, an earlier index guard, the loop's own
+# `i < len` and a `len == 0` that breaks out of the loop, with the mask's operands in both orders and the mask from
+# `wrapping_sub`, the same subtraction in release.
+use std.collections.UniqList
+
+fn list_arm(xs: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if xs.len() > 0:
+        for i in 0..n:
+            sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn list_early(xs: &List[i32], head: usize, n: usize) -> i32:
+    if xs.len() == 0:
+        return 0
+    mask := xs.len() - 1
+    let sum = +0
+    for i in 0..n:
+        sum += xs[mask & (head + i)]
+    sum
+
+fn uniq_arm(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if 0 != xs.len():
+        for i in 0..n:
+            sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn uniq_after_guard(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        sum += xs[head] * xs[(xs.len() - 1) & (head + i)]
+    sum
+
+fn uniq_loop_test(xs: &UniqList[i32], head: usize) -> i32:
+    let sum = +0
+    for i in 0..xs.len():
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn uniq_wrapping(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if xs.len() >= 1:
+        for i in 0..n:
+            sum += xs[(head + i) & xs.len().wrapping_sub(1)]
+    sum
+
+fn list_wrapping(xs: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if !(xs.len() <= 0):
+        for i in 0..n:
+            sum += xs[(head + i) & xs.len().wrapping_sub(1)]
+    sum
+
+fn uniq_after_break(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        if xs.len() == 0:
+            break
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum

@@ -2469,7 +2469,24 @@ guard whose key the loop facts bound (a rising counter, a falling index
 or `v - 1`, or a guard of the same key that ran first) is not emitted,
 and a header read that an earlier read of the same field runs before
 takes that read's value. The kernel of #1689 keeps no guard and no header
-load in its inner loop.
+load in its inner loop. Calls of the wrapping arithmetic intrinsics write
+nothing either.
+
+A masked index is the third shape, for `List` and for the guard pass,
+in release builds only (#1713): `xs[y & (n - 1)]`, the `&`'s operands in
+either order and `n - 1` possibly `n.wrapping_sub(1)`, where `n` is the
+length of `xs` and the `&` runs only once a test showed a length of `xs`
+above zero. Unsigned, `y & m <= m`, and with the length above zero the
+subtraction does not wrap. A test shows it when it is a `usize`
+comparison that puts the length above a value (`a < n`, `n > a`, a
+failed `a >= n`, possibly negated) or above zero (`n != 0`, `n >= 1`),
+and the `&` is in the arm that outcome takes, or after the test where
+the other arm never falls through: a ring buffer's `if xs.len() > 0`, an
+early `if xs.len() == 0: return`, a loop's `i < xs.len()`, or an earlier
+index guard. For `List`, the within-body proof shows `xs` keeps its
+length from both the mask's and the test's length reads to the access;
+for the guard pass, the header is unchanged. With no such test a length
+of zero wraps `n - 1` to all ones and the check stays.
 
 ### 23.38 Locals In The Frame
 

@@ -1,0 +1,64 @@
+# @dump: wat
+# @build: v8 release
+# A masked index keeps its bounds check where nothing shows the masked
+# length above zero (#1713): with no test, a test of another list, a
+# mask of another list's length, a list the loop changes after its test,
+# an inlined call's early return on an empty list, which goes on to the
+# caller, or an empty-length test whose arm falls through to the access.
+# An unmasked index beside a masked one keeps its check too. With a length of zero,
+# `len - 1` wraps in release and the mask keeps every bit.
+use std.collections.UniqList
+
+fn list_untested(xs: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        sum += xs[(head + i) & (xs.len() - 1)] + xs[head]
+    sum
+
+fn uniq_untested(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn list_other_test(xs: &List[i32], ys: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if ys.len() > 0:
+        for i in 0..n:
+            sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn uniq_other_mask(xs: &UniqList[i32], ys: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if xs.len() > 0 && ys.len() > 0:
+        for i in 0..n:
+            sum += xs[(head + i) & (ys.len() - 1)]
+    sum
+
+fn list_changed(xs: &mut List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if xs.len() > 0:
+        mask := xs.len() - 1
+        for i in 0..n:
+            _ := xs.pop()
+            sum += xs[(head + i) & mask]
+    sum
+
+fn count_or_zero(xs: &UniqList[i32]) -> i32:
+    if xs.len() == 0:
+        return 0
+    1
+
+fn uniq_after_inlined_return(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = count_or_zero(xs)
+    for i in 0..n:
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn uniq_after_plain_if(xs: &UniqList[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    for i in 0..n:
+        if xs.len() == 0:
+            sum += 1
+        sum += xs[(head + i) & (xs.len() - 1)]
+    sum

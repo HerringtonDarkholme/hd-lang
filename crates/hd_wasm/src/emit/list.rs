@@ -545,6 +545,143 @@ impl Em<'_, '_, '_> {
             })
     }
 
+    /// Masked indices (#1713): an access `xs[y & (n - 1)]` in a loop's
+    /// body, the `&`'s operands in either order, where `n` is `xs.len()`
+    /// and the `&` runs only once a test showed a length of `xs` above
+    /// zero ([`Em::positive_operand`]): in the arm the test's outcome
+    /// takes, or after it where the other arm never falls through.
+    /// Unsigned, `y & m <= m`, and with the length above zero `n - 1`
+    /// does not wrap. `xs` keeps its length from each of the two length
+    /// reads to the access ([`Em::list_loop_safe`] over
+    /// [`Em::between`]). Each access is asked by its innermost loop
+    /// only, and only a loop whose own statements hold a `&`. Cost: the
+    /// body's local stores once per such loop, as [`Em::range_indices`]
+    /// reads them; a walk of the enclosing blocks of each masked access,
+    /// and one alias pass per list that has one.
+    fn masked_indices(&self, loop_inst: u32, body: &[u32]) -> Vec<u32> {
+        let own = |x: u32| self.topo.loop_of[x as usize] == loop_inst;
+        if !body.iter().any(|&x| {
+            own(x)
+                && self.b.tags[x as usize] == Tag::Prim
+                && self.b.data[x as usize][0] == PrimOp::BitAnd as u32
+        }) {
+            return Vec::new();
+        }
+        let mut sets = None;
+        let mut aliases: Vec<(ListRoot, Vec<bool>)> = Vec::new();
+        let mut proven = Vec::new();
+        for &x in body {
+            if !own(x) {
+                continue;
+            }
+            let Some((root, index)) = self.elem_access(x as usize) else {
+                continue;
+            };
+            let sets = sets.get_or_insert_with(|| self.local_sets());
+            let Some((n, and)) = self.masked_len(root, index, sets) else {
+                continue;
+            };
+            let Some(t) = self.positive_len(root, and, sets) else {
+                continue;
+            };
+            let at = aliases
+                .iter()
+                .position(|(r, _)| *r == root)
+                .unwrap_or_else(|| {
+                    aliases.push((root, self.list_aliases(root)));
+                    aliases.len() - 1
+                });
+            let keeps = |d: u32| {
+                self.dominates(d, x)
+                    && self
+                        .between(d, x)
+                        .is_some_and(|run| self.list_loop_safe(root, &run, &aliases[at].1))
+            };
+            if keeps(n) && keeps(t) {
+                proven.push(x);
+            }
+        }
+        proven
+    }
+
+    /// The `xs.len()` read of list `root` that value `r` stands for.
+    fn len_of(&self, root: ListRoot, r: u32, sets: &[Vec<(u32, u32)>]) -> Option<u32> {
+        let n = self.range_source(r, sets);
+        let i = Ref(n).as_inst()?.0 as usize;
+        let [op, rec] = self.b.data[i];
+        (self.b.tags[i] == Tag::Intrinsic
+            && op == IntrinsicOp::ListLen as u32
+            && self
+                .b
+                .record(rec)
+                .first()
+                .is_some_and(|&list| self.list_root(list) == Some(root)))
+        .then_some(n)
+    }
+
+    /// The length read `n` and the `&` of index `index` when it is
+    /// `y & (n - 1)` in either order, `n` a length of list `root`.
+    fn masked_len(
+        &self,
+        root: ListRoot,
+        index: u32,
+        sets: &[Vec<(u32, u32)>],
+    ) -> Option<(u32, u32)> {
+        let and = self.range_source(index, sets);
+        let i = Ref(and).as_inst()?.0 as usize;
+        if self.b.tags[i] != Tag::Prim || self.b.data[i][0] != PrimOp::BitAnd as u32 {
+            return None;
+        }
+        let mask = |m: u32| {
+            let n = self.minus_one_of(self.range_source(m, sets))?;
+            self.len_of(root, n, sets)
+        };
+        // ruled out: the checker emits PrimOp::BitAnd with two operands;
+        // cloning and substitution preserve the primitive operand record.
+        let [y, z] = super::required(
+            self.b.record(self.b.data[i][1]).try_into().ok(),
+            "bitwise and has two operands",
+        );
+        Some((mask(y).or_else(|| mask(z))?, and))
+    }
+
+    /// A length read of list `root` that a test showed above zero before
+    /// `at` runs: a test whose arm holds `at`, or an earlier statement of
+    /// a block around `at` whose other arm never falls through.
+    fn positive_len(&self, root: ListRoot, at: u32, sets: &[Vec<(u32, u32)>]) -> Option<u32> {
+        let shown = |test: u32, outcome: bool| {
+            let c = self.range_source(self.b.data[test as usize][0], sets);
+            self.positive_operand(c, outcome)
+                .and_then(|n| self.len_of(root, n, sets))
+        };
+        let path = self.block_path(at)?;
+        for &(blk, pos) in &path {
+            let owner = self.topo.owner[blk as usize];
+            if owner != NONE && self.b.tags[owner as usize] == Tag::If {
+                let arms = self.b.record(self.b.data[owner as usize][1]);
+                if let Some(n) = shown(owner, arms.first() == Some(&blk)) {
+                    return Some(n);
+                }
+            }
+            for &s in &self.b.record(self.b.data[blk as usize][0])[..pos] {
+                if self.b.tags[s as usize] != Tag::If {
+                    continue;
+                }
+                let arms = self.b.record(self.b.data[s as usize][1]);
+                for (k, outcome) in [(1, true), (0, false)] {
+                    if let Some(&other) = arms.get(k)
+                        && other != NONE
+                        && self.arm_exit(other, s).is_some()
+                        && let Some(n) = shown(s, outcome)
+                    {
+                        return Some(n);
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Falling indices: in loop `loop_inst`, whose `test` goes on while
     /// `v > 0` (or `v != 0`), a `usize` local `v` that the loop changes
     /// only by one `v = v - 1` after the test, and that is set once
@@ -716,7 +853,11 @@ impl Em<'_, '_, '_> {
                     match &call.kind {
                         // The float operations are `Builtin` methods; no
                         // intrinsic key names one (`hd_resolve::intrinsics`).
-                        hd_mono::TargetKind::Intrinsic(_) => false,
+                        // Wrapping integer arithmetic reads only its operands.
+                        hd_mono::TargetKind::Intrinsic(key) => matches!(
+                            key.as_str(),
+                            "int_wrapping_add" | "int_wrapping_sub" | "int_wrapping_mul"
+                        ),
                         hd_mono::TargetKind::Builtin { self_ty, .. } => {
                             matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
                                 && matches!(
@@ -951,6 +1092,11 @@ impl Em<'_, '_, '_> {
             let proven = self.range_indices(loop_inst, test, &body);
             self.proven_list_indices.extend(proven);
             let proven = self.falling_indices(loop_inst, test, &body);
+            self.proven_list_indices.extend(proven);
+        }
+        // Release only, as the guard pass is (owner, 2026-11-11).
+        if self.input.optimized {
+            let proven = self.masked_indices(loop_inst, &body);
             self.proven_list_indices.extend(proven);
         }
         self.own_list_caches(loop_inst)

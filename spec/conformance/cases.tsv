@@ -6005,6 +6005,9 @@ runtime/panic/uniq-list-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/
 runtime/panic/uniq-list-append-source-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/uniq-list-index-in-counted-loops.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
 runtime/panic/uniq-list-index-past-loop-counter.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.uniq-list.index-places
+runtime/valid/masked-ring-indices-read-every-slot.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
+runtime/panic/masked-index-of-an-empty-list-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.list.range
+runtime/panic/masked-uniq-list-index-of-an-empty-list-panics.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.uniq-list.index-places
 runtime/panic/uniq-map-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-retain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
