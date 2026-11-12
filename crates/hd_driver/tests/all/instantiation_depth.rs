@@ -7,7 +7,7 @@
 //! pool's shared types, never their trees, so a type that doubles per call
 //! stops as fast as one that grows a level.
 
-use std::time::{Duration, Instant};
+use std::fmt::Write as _;
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -147,21 +147,69 @@ pub fn main() -> void:
     _ := deeper(Pair { a: +1, b: +2 }, +3)
 ";
 
+/// A chain of `levels` generic calls, each passing a pair of its own
+/// argument: the last instance's argument has 2^levels leaves, but the
+/// chain has only `levels + 1` distinct types.
+fn doubling_chain(levels: usize) -> String {
+    let mut s = String::from("struct Pair[A, B]:\n    a: A\n    b: B\n\n");
+    for i in 0..levels {
+        let _ = writeln!(
+            s,
+            "fn d{i}[T](value: T) -> i32:\n    d{}(Pair {{ a: value, b: value }})\n",
+            i + 1
+        );
+    }
+    let _ = writeln!(
+        s,
+        "fn d{levels}[T](value: T) -> i32:\n    0\n\npub fn main() -> void:\n    _ := d0(+1)"
+    );
+    s
+}
+
+/// The type nodes collection walks to build `text` with `store`.
+fn type_steps(store: &MemoryStore, text: &str) -> (Output, u64) {
+    hd_mono::work::count_type_steps(|| {
+        run_in(
+            store,
+            Executor::Serial(SerialOrder::Priority),
+            text,
+            &whole_program(),
+        )
+    })
+}
+
 #[test]
 fn a_doubling_type_stops_without_exponential_work() {
-    let start = Instant::now();
-    let program = run(DOUBLING, &whole_program());
-    let took = start.elapsed();
+    // Each level adds one type and one instance. Collection's memo walks
+    // each type once; hashes that keep a memo per call walk a level's
+    // distinct types again, so the steps may grow quadratically: about
+    // twice as many from 6 to 10 levels as from 2 to 6. A walk of each
+    // type's tree doubles per level: 16 times as many.
+    let store = MemoryStore::default();
+    let steps = |levels| {
+        let (out, steps) = type_steps(&store, &doubling_chain(levels));
+        assert!(out.wasm.is_some(), "{}", out.render());
+        steps
+    };
+    // A first build checks std into the store, so the measured ones
+    // differ only in their chains.
+    steps(0);
+    let (base, small, large) = (steps(2), steps(6), steps(10));
+    eprintln!("type steps: 2 levels {base}, 6 levels {small}, 10 levels {large}");
+    assert!(small > base, "no type steps counted for the chain");
+    assert!(
+        large - small <= 4 * (small - base),
+        "2 levels: {base}, 6 levels: {small}, 10 levels: {large}"
+    );
+    // Without the depth limit the doubling cycle reaches 2^33 leaves; the
+    // limit stops it after 33 levels.
+    let (program, _) = type_steps(&store, DOUBLING);
     assert_eq!(
         codes(&program),
         ["instantiation-too-deep"],
         "{}",
         program.render()
     );
-    // The bound catches exponential work (the chain reaches 2^33 leaves
-    // without the depth limit), not speed: tests run in the dev profile,
-    // where this takes 1-2 s.
-    assert!(took < Duration::from_secs(10), "took {took:?}");
     let text = program.render();
     assert!(text.contains("33 deep, past the limit of 32"), "{text}");
     // The chain's first instances in full, the last one's 2^33-leaf

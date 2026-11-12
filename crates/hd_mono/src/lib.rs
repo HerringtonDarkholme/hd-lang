@@ -12,6 +12,7 @@ pub mod layout;
 pub mod opaque;
 pub mod plan;
 pub mod rows;
+pub mod work;
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
@@ -1081,6 +1082,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
     if !seen.insert(t) {
         return;
     }
+    crate::work::type_step();
     let list = |l: TyList, out: &mut Vec<DefId>, seen: &mut HashSet<Ty>| {
         for &x in pool.list_items(l) {
             items_in(pool, x, out, seen);

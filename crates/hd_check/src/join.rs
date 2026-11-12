@@ -424,6 +424,7 @@ impl Ck<'_, '_> {
     /// does not join. True when the value joined and takes a conversion
     /// when the site closes.
     fn join_type(&mut self, got: Ty, var: Ty, n: NodeRef<'_>, what: &str) -> bool {
+        crate::work::join_work(1);
         let pool = self.pool();
         let g = self.infer.resolve(pool, got);
         // `types.lct.never.dropped`: a `never` value does not take part.
@@ -592,8 +593,9 @@ impl Ck<'_, '_> {
 
     fn joined_types(&self, var: Ty) -> Vec<Ty> {
         let pool = self.pool();
-        self.joins
-            .values(var)
+        let values = self.joins.values(var);
+        crate::work::join_work(values.len());
+        values
             .iter()
             .map(|v| self.infer.resolve(pool, v.ty))
             .collect()

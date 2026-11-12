@@ -432,6 +432,7 @@ pub fn canon(
     if let Some(&d) = memo.0.get(&t) {
         return d;
     }
+    crate::work::type_step();
     let mut h = StableHasher::new("canon");
     match pool.get(t) {
         TyData::Prim(p) => {
@@ -1339,16 +1340,18 @@ mod tests {
         let ph = |d: DefId| Hash128(u128::from(d.raw()));
         let mut memo = CanonMemo::default();
         let deep = doubled(&p, 64);
-        let start = std::time::Instant::now();
-        let k = instance_key(
-            &p,
-            &ph,
-            &mut memo,
-            DefId::from_raw(1),
-            Sub::Body(0),
-            &[KeyArg::Canon(deep)],
-        );
-        assert!(start.elapsed() < std::time::Duration::from_secs(1));
+        let (k, steps) = crate::work::count_type_steps(|| {
+            instance_key(
+                &p,
+                &ph,
+                &mut memo,
+                DefId::from_raw(1),
+                Sub::Body(0),
+                &[KeyArg::Canon(deep)],
+            )
+        });
+        // One digest per distinct type.
+        assert_eq!(steps, 65);
         assert_eq!(memo.0.len(), 65);
         assert_ne!(k, Hash128(0));
     }

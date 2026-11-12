@@ -33,21 +33,27 @@ fn codes_of(main: &str) -> Vec<Code> {
         .collect()
 }
 
-/// A value that leaves a site's type unchanged costs a constant, so a
-/// 20000-element list literal checks in linear time. The bound is generous
-/// for the dev profile: it catches a quadratic join, not a slow machine.
-#[test]
-fn a_long_list_literal_joins_in_linear_time() {
-    let elems: Vec<String> = (0..20_000).map(|i| format!("+{i}")).collect();
+/// The least-common-type work of checking a list literal of `n`
+/// integer literals.
+fn list_join_work(n: usize) -> u64 {
+    let elems: Vec<String> = (0..n).map(|i| format!("+{i}")).collect();
     let main = format!(
         "fn f() -> usize:\n    xs := [{}]\n    xs.len()\n",
         elems.join(", ")
     );
-    let start = std::time::Instant::now();
-    assert_eq!(codes_of(&main), vec![]);
-    let took = start.elapsed();
-    assert!(
-        took < std::time::Duration::from_secs(5),
-        "20000 elements took {took:?}"
-    );
+    let (codes, work) = hd_check::work::count_join_work(|| codes_of(&main));
+    assert_eq!(codes, vec![], "{n} elements");
+    work
+}
+
+/// A value that leaves a site's type unchanged costs a constant, so a
+/// list literal joins in linear work. Comparing every value with the
+/// earlier ones again costs n^2 / 2: 100 times as much for 10 times the
+/// elements.
+#[test]
+fn a_long_list_literal_joins_in_linear_time() {
+    let (small, large) = (list_join_work(500), list_join_work(5000));
+    assert!(small >= 500, "one unit per joined value: {small}");
+    eprintln!("join work: 500 elements {small}, 5000 elements {large}");
+    assert!(large <= 12 * small, "500 elements: {small}, 5000: {large}");
 }

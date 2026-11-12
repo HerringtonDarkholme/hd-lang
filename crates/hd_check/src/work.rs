@@ -138,3 +138,44 @@ pub(crate) fn env_clause() {
         }
     });
 }
+
+thread_local! {
+    static JOINS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the least-common-type work `run` does on this thread: one per
+/// value a site joins, and one per earlier value of the site that a join
+/// compares again (`crate::join`). Use the driver's serial executor to
+/// measure a whole build.
+pub fn count_join_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = JOINS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = JOINS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of least-common-type work.
+pub(crate) fn join_work(n: usize) {
+    JOINS.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{count_join_work, join_work};
+
+    #[test]
+    fn join_work_counts_only_inside_a_measurement_and_restores_the_outer_one() {
+        join_work(5);
+        let ((), outer) = count_join_work(|| {
+            join_work(1);
+            let ((), inner) = count_join_work(|| join_work(2));
+            assert_eq!(inner, 2);
+            join_work(3);
+        });
+        assert_eq!(outer, 4);
+    }
+}
