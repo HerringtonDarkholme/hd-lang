@@ -1714,14 +1714,15 @@ pub trait Drop < ?Copy:
 1. r[module.rt.drop.decl] `std.rt` declares the public trait `Drop < ?Copy` with the one method `fn drop(&mut self) -> void`.
 2. r[module.rt.drop.glue] The release glue of a type with a `Drop` implementation calls that implementation on a mutable reference to the value, then releases the value's fields through their own release glue, in field order.
 3. r[module.rt.drop.trace] When the cycle collector traces release glue, the glue calls `drop` in every pass, before tracing the fields, and the releases it makes visit their targets as every other release from the glue does. So a value's `drop` changes nothing while the collector marks or scans; `std.rt.cycle.marking()` is true exactly then.
-4. r[module.rt.drop.snapshot] A std `Drop` hook must not write a place that its caller may read later through a by-value snapshot.
+4. r[module.rt.drop.caller-read] A std `Drop` hook must not write a place that its caller can still read through a by-value snapshot or live ordinary reference.
 
 > **Why.** Implicit cleanup is not an ordinary source-level call at its use
-> site. A hidden write could otherwise invalidate a caller's borrowed snapshot.
+> site. A hidden write could otherwise invalidate a caller's snapshot or violate
+> a live ordinary reference's protected access.
 > A drain may restore the collection it holds through `&mut`: its exclusive
-> borrow excludes a live snapshot read of that collection. A hook may release
+> borrow excludes a live snapshot or ordinary-reference read of that collection. A hook may release
 > its own storage. Test hooks may update module globals when no caller holds
-> a snapshot of those globals; their counter/log tests remain valid.
+> a snapshot or live reference to those globals; their counter/log tests remain valid.
 >
 > Std's syntactic review screen flags direct writes or calls through mutable
 > counted/raw pointer fields and direct raw-address writes. It does not infer

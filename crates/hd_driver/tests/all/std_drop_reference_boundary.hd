@@ -1,0 +1,34 @@
+# ruled out: this std-only fixture deliberately violates module.rt.drop.caller-read.
+# A global write by an implicit Drop hook must not bypass a caller's live
+# ordinary reference. User code cannot declare Drop. Real std hooks release
+# their own storage or write an exclusively borrowed collection. Global-writing
+# test hooks are valid only when no caller holds a snapshot or reference there.
+# The poisoned observation documents the boundary; it is not accepted behavior.
+use std.annotation.cold
+use std.core.Copy
+use std.rt.Drop
+
+let counter = +0
+
+struct Token:
+    pass
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        counter += 1
+
+@cold
+fn destroy(value: Token) -> void:
+    pass
+
+@cold
+fn observed(value: &i32) -> i32:
+    destroy(Token {})
+    *value
+
+pub fn main() -> void:
+    result := observed(&counter)
+    if result != 0:
+        panic("violated Drop live-reference invariant: observed $result")
