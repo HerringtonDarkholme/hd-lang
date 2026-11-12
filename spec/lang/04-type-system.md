@@ -2699,9 +2699,6 @@ fn shown(first: bool) -> string:
         other := User { name: "b" }
         l = label(&other)
     "${l}"  # error: local-reference-outlives-local
-
-fn kept(u: &User) -> void:
-    b := box(label(u))  # error: local-reference-escapes
 ```
 
 > **Why.** This is Rust's rule that `impl Trait` captures the lifetimes in
