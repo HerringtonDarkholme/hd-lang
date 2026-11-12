@@ -47,7 +47,7 @@ pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<(u32, u32)> {
         let locals = locals(b, sub);
         out.extend(locals.into_iter().filter_map(|l| {
             let ty = b.local_ty[l as usize];
-            (cx.counted(ty) && cx.holds_drop(ty) != Tri::Yes)
+            (cx.counted(ty) && (sub != 0 || cx.holds_drop(ty) != Tri::Yes))
                 .then_some((b.sub_root[sub as usize], l))
         }));
     }
@@ -254,12 +254,11 @@ mod tests {
             drop: Tri::Yes,
             ..facts
         };
-        assert!(parameters(&b, &transferred).is_empty());
-        assert!(
-            verify_owned(&b, &transferred)
-                .iter()
-                .any(|e| e.what.contains("without its count fact"))
-        );
+        // A closure's native owner transfers independently of its borrowed
+        // reference counts. Its count boundary remains declared; concrete
+        // lowering selects the borrowed mask without copying native ownership.
+        assert_eq!(parameters(&b, &transferred), parameters(&b, &facts));
+        assert!(verify_owned(&b, &transferred).is_empty());
     }
 
     #[test]

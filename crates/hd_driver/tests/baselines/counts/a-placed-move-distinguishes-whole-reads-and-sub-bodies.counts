@@ -34,7 +34,8 @@ fn projected(value: Item) -> string:
 
 fn nested() -> (fn(string) -> string):
     fn(value: string) -> string:
+> std/rt_tests.stage_case/nested
+>   retain string (stored)
         _ := same(&value, &value)
         value
-> std/rt_tests.stage_case/nested
 >   release counted reference (last use)

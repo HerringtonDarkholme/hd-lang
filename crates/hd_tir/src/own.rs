@@ -296,6 +296,13 @@ pub trait OwnCx {
     /// [`OwnCx::pass`] for a `CallValue` of a value of function type
     /// `fn_ty`.
     fn pass_value(&self, fn_ty: Ty, k: usize, n: usize) -> Pass;
+    /// Count ownership lent by a function-value argument independently of
+    /// moving its noncopy components. Generic inputs may choose this
+    /// conservatively; concrete lowering applies the actual count mask.
+    fn function_lends_counts(&self, _fn_ty: Ty, _k: usize, _n: usize) -> bool {
+        false
+    }
+
     /// Whether a `Call` of `callee` may keep its argument `k` of `n` past
     /// the call: stored, captured or returned by the callee. Not
     /// [`OwnCx::pass`]: a suspending or intrinsic callee is passed its
@@ -729,6 +736,33 @@ pub(crate) fn keeps_arg(b: &Body, cx: &dyn OwnCx, i: usize, k: u32) -> bool {
     }
     let n = b.extra.get(w as usize).copied().unwrap_or(0) as usize;
     Callee::from_words(b.record(a)).is_none_or(|c| cx.keeps(&c, k as usize, n.saturating_sub(3)))
+}
+
+pub(crate) fn argument_lends_counts(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand) -> bool {
+    let Role::Arg(k) = op.role else {
+        return false;
+    };
+    if b.tags[i] != Tag::CallValue {
+        return false;
+    }
+    let callee = Ref(b.data[i][0]);
+    let ty = match callee.as_inst() {
+        Some(value) => b.ty[value.0 as usize],
+        None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
+    };
+    cx.function_lends_counts(ty, k as usize, b.record(b.data[i][1]).len())
+}
+
+/// Consuming native components need not end the carrier's borrowed count
+/// ownership. Its remaining counts follow the normal dependency-driven Drop.
+pub(crate) fn consumes_counts(
+    b: &Body,
+    cx: &dyn OwnCx,
+    i: usize,
+    op: &Operand,
+    owner: u32,
+) -> bool {
+    consumes(b, cx, i, op, owner) && !argument_lends_counts(b, cx, i, op)
 }
 
 pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: u32) -> bool {

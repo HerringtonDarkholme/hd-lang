@@ -7,7 +7,7 @@
 
 #[cfg(any(test, target_arch = "wasm32"))]
 use super::values::{Level, after, statement_chain};
-use super::{Operand, OwnCx, Role, consumes, operands};
+use super::{Operand, OwnCx, Role, consumes_counts as consumes, operands};
 use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, u32_of, unique_word};
 
 #[cfg(not(target_arch = "wasm32"))]

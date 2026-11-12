@@ -17,9 +17,9 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %19 -> %15 consume last
->   %0 = Release %30 Exit local $0 #2 : ()
->   %1 = Release %30 Exit local $1 #2 : ()
+>     uses $6: %20 -> %15 lend last
+>   %0 = Release %31 Exit local $0 #2 : ()
+>   %1 = Release %31 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -33,23 +33,24 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %11 = Read copy [$4] : usize
 >   %12 = Prim Add [%11 1:usize] : usize
 >   %13 = Store [$4] %12 : ()
->   %17 = Block - : ()
->   %18 = Read borrow [%10] : string
->   %19 = Store [$6] %18 : ()
->   %20 = Release %19 Operation #3 : ()
->   %22 = Block - : never
->   %23 = Match %10 [%22 %17] : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %8 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
->   %30 = Block - : ()
+>   %18 = Block - : ()
+>   %19 = Read borrow [%10] : string
+>   %20 = Store [$6] %19 : ()
+>   %21 = Release %20 Operation #3 : ()
+>   %23 = Block - : never
+>   %24 = Match %10 [%23 %18] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %8 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = Block - : ()
         f(x)
 >   %14 = Read borrow [$1] : fn(string) -> ()
 >   %15 = Read copy [$6] : string
 >   %16 = CallValue %14 [%15] : ()
+>   %17 = Drop [%15] : ()
 >   summary kept [] borrows [$0 $1] writes
 
 @inline(.Never)
@@ -80,11 +81,11 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >     uses $10: %9 -> %12 lend
 >   local $11 x: string [read assigned] value
 >     uses $11: %35 -> %20 lend last
->   %0 = Release %76 Exit local $0 #2 : ()
->   %1 = Release %76 Exit local $1 #2 : ()
+>   %0 = Release %77 Exit local $0 #2 : ()
+>   %1 = Release %77 Exit local $1 #2 : ()
     let n: usize = 0
 >   %2 = Store [$2] 0:usize : ()
->   %76 = Block %74 : usize
+>   %77 = Block %75 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %3 = Retain %6 Entry local $3 #0 : ()
 >   %4 = Drop [$3] : ()
@@ -165,11 +166,12 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %72 = Retain %71 Operation captures #0 : ()
 >   %73 = CallValue %63 [%71] : ()
 >   %73 keeps %71
+>   %74 = Drop [%71] : ()
 >   %71 finds [$2] full
     n
->   %74 = Read copy [$2] : usize
->   %75 = Drop [$2] : ()
->   %74 finds [$2] full
+>   %75 = Read copy [$2] : usize
+>   %76 = Drop [$2] : ()
+>   %75 finds [$2] full
 >   exit sub 0 drops [$2]
 >   exit sub 1 drops [$3]
 >   exit sub 2 drops [$2]

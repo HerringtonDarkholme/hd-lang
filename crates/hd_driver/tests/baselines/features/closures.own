@@ -73,16 +73,15 @@ fn call_value(f: fn(string) -> usize, s: string) -> usize:
 >   local $0 f: fn(string) -> usize [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %3 lend last
 >   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     f(s)
 >   %2 = Read borrow [$0] : fn(string) -> usize
->   %3 = Read move [$1] : string
+>   %3 = Read borrow [$1] : string
 >   %4 = CallValue %2 [%3] : usize
 >   %5 = Block %4 : usize
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0] writes
+>   summary kept [] borrows [$0 $1] writes
 
 fn shared(s: string) -> string:
 > app/main/shared

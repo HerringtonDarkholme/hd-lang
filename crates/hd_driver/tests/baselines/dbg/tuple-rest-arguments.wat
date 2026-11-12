@@ -2,6 +2,9 @@
 (module
   (import "fixture" "dbg_printer[string]" (func $"dbg_printer[string]" (result i32 i32)))
   (import "fixture" "dbg_bare_rest[string]" (func $"dbg_bare_rest[string]" (param i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $direct (param $values i32) (local $t1 i32) (local $t0 i32)
     ;; 4 |     dbg(values...)
@@ -24,5 +27,19 @@
     i32.const 5
     ;; 8 |     show(values)
     call_indirect $table0 (param i32 i32 i32)
+    ;; 7 |     let show: fn((List[string]...,)) -> void = dbg
+    local.get $values
+    if
+      local.get $values
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $values
+        call $rt:release_ref
+      end
+    end
   )
 )

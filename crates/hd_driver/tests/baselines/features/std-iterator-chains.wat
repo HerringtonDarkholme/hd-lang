@@ -4,7 +4,6 @@
   (import "fixture" "impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]" (func $"impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $loud (param $xs i32) (result i32)
     ;; 12 |     xs.iter()
@@ -46,21 +45,11 @@
     i32.const 97 ;; &"!"
     i32.load8_u $heap
     i32.store8 $heap
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
     local.get $ctx
     local.get $env
   )
   (func $lens#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
     local.get $s.1
   )
   (func $loud#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)

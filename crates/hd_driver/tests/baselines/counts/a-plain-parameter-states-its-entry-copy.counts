@@ -2,8 +2,9 @@
 # @dump: own counts wat
 # @build: v8 release program
 # expected: an explicit parameter states its conditional entry copy.
-# Counted pointer and string parameters arrive owned; local references borrow.
-# A caller with a still-live counted argument supplies the required copy.
+# Plain counted pointer and string inputs arrive owned; local references borrow.
+# Function-value Copy inputs borrow and an owning closure copies at entry.
+# A plain-call caller with a still-live counted input supplies its copy.
 # Capture loading is separate from the creator's argument transfer.
 use std.annotation.cold
 use std.collections.UniqList
@@ -30,6 +31,8 @@ fn keep[T < 'static](value: T) -> fn() -> T:
 @cold
 fn make() -> fn(string) -> string:
     fn(value: string) -> string: value
+> app/main/make
+>   retain string (stored)
 
 @cold
 fn read(value: &string) -> usize:
@@ -59,7 +62,6 @@ pub fn main() -> void $ Console:
 >   retain string (stored)
     call := make()
     println(call(original))
->   retain string (stored)
     println(read(&original))
     shared := box(Named { text: original })
 >   retain string (stored)

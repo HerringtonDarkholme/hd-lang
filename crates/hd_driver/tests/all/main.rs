@@ -42,6 +42,8 @@ mod forbidden_context_run;
 mod function_reference_builtin_methods;
 mod function_reference_lowered;
 mod function_references;
+mod function_value_loan_work;
+mod function_value_native_drop;
 mod generic_inference_join;
 mod generic_local_fn_run;
 mod generics_determinism;
