@@ -1,0 +1,39 @@
+# @dump: own counts wat
+# @build: v8 release
+# #1376: the common function-value ABI lends Copy arguments. Unknown calls
+# still write and may keep frame identities; owning targets take their own
+# counts through adapters or closure entry. Noncopy values still transfer.
+use std.collections.UniqList
+
+struct Handler:
+    callback: fn(string) -> usize
+
+fn apply(callback: fn(string) -> usize, value: string) -> usize:
+    callback(value)
+
+fn stored(handler: Handler, value: string) -> usize:
+    (handler.callback)(value)
+
+fn returning(callback: fn(string) -> string, value: string) -> string:
+    callback(value)
+
+fn retaining(value: string) -> fn() -> string:
+    fn() -> string: value
+
+fn reader(value: string) -> usize:
+    value.len()
+
+fn reader_value() -> (fn(string) -> usize):
+    reader
+
+fn retaining_value() -> (fn(string) -> (fn() -> string)):
+    retaining
+
+fn duplicate(callback: fn(string, string) -> string, value: string) -> string:
+    callback(value, value)
+
+fn moving(
+    callback: fn(UniqList[usize]) -> UniqList[usize],
+    value: UniqList[usize],
+) -> UniqList[usize]:
+    callback(value)

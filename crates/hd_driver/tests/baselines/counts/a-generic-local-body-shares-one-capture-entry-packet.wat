@@ -355,6 +355,12 @@
       local.get $t0
       call $retain
     end
+    local.get $value.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     ;; 8 |         (captured, value)
     local.get $ctx
     local.get $env

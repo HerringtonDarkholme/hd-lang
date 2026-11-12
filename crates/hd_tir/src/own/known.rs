@@ -64,8 +64,8 @@ use super::flow::{BitArena, Flow, Forward, Suites, forward};
 use super::parts::{Slots, takes};
 use super::splice;
 use super::{
-    Loc, Operand, OwnCx, Role, consumes, fill, lending_coercion, lending_read, operands,
-    owned_value, suite_touches, tracked,
+    Loc, Operand, OwnCx, Role, consumes_counts as consumes, fill, lending_coercion, lending_read,
+    operands, owned_value, suite_touches, tracked,
 };
 use hd_base::SliceSort as _;
 use std::ops::Range;

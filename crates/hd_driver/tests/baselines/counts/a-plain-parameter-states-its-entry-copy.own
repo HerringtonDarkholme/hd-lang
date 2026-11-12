@@ -2,8 +2,9 @@
 # @dump: own counts wat
 # @build: v8 release program
 # expected: an explicit parameter states its conditional entry copy.
-# Counted pointer and string parameters arrive owned; local references borrow.
-# A caller with a still-live counted argument supplies the required copy.
+# Plain counted pointer and string inputs arrive owned; local references borrow.
+# Function-value Copy inputs borrow and an owning closure copies at entry.
+# A plain-call caller with a still-live counted input supplies its copy.
 # Capture loading is separate from the creator's argument transfer.
 use std.annotation.cold
 use std.collections.UniqList
@@ -219,7 +220,7 @@ pub fn main() -> void $ Console:
 >   %13 = Store [$1] %12 : ()
     println(call(original))
 >   %14 = Read move [$1] : fn(string) -> string
->   %15 = Read copy [$0] : string
+>   %15 = Read borrow [$0] : string
 >   %16 = CallValue %14 [%15] : string
 >   %17 = Drop [%14] : ()
 >   %18 = Call std/console/println[string] (%16) : ()

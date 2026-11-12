@@ -117,21 +117,21 @@ fn closure_bang!(key: string) -> usize:
 fn stored!(key: string) -> usize:
 > app/main/stored
 >   local $0 key: string [param read] value
->     uses $0: entry -> %16 consume last
+>     uses $0: entry -> %16 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %9 consume last
 >   local $2 loader: fn!(string) -> string [:= read assigned] value
 >     uses $2: %14 -> %15 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %28 Cold local $0 #0 : ()
->   %1 = Retain %28 Entry local $0 #0 : ()
+>   %0 = Retain %29 Cold local $0 #0 : ()
+>   %1 = Retain %29 Entry local $0 #0 : ()
     loader := fn!(k: string) -> string: fetch!(k)
 >   %2 = Retain %12 Cold local $1 #0 : ()
 >   %3 = Retain %12 Entry local $1 #0 : ()
 >   %4 = Retain %12 Cold row #0 : ()
 >   %5 = Retain %12 Materialize row #0 : ()
 >   %6 = Release %12 FrameDrop row #2 : ()
->   %7 = Release %28 FrameDrop child #2 : ()
+>   %7 = Release %29 FrameDrop child #2 : ()
 >   %8 = Release %12 FrameDrop child #2 : ()
 >   %9 = Read move [$1] : string
 >   %10 = Await app/main/fetch[] (%9) : string
@@ -139,7 +139,7 @@ fn stored!(key: string) -> usize:
 >   %12 = Block %10 : string
 >   %13 = Closure #1 : fn!(string) -> string
 >   %14 = Store [$2] %13 : ()
->   %28 = Block %25 : usize
+>   %29 = Block %26 : usize
     loader!(key).len()
 >   %15 = Read move [$2] : fn!(string) -> string
 >   %16 = Read move [$0] : string
@@ -148,18 +148,19 @@ fn stored!(key: string) -> usize:
 >   %19 = Release %18 Operation child #2 : ()
 >   %20 = Retain %18 Operation child #0 : ()
 >   %21 = Drop [%17] : ()
->   %22 = Drop [%15] : ()
->   %23 = Store [$3] %18 : ()
->   %24 = Ref local [$3] : &string
->   %25 = Call std/text/impl string.len[] (%24) : usize
->   %26 = LoanEnd [%24] : ()
->   %27 = Drop [$3] : ()
->   %24 finds [$3] full
+>   %22 = Drop [%16] : ()
+>   %23 = Drop [%15] : ()
+>   %24 = Store [$3] %18 : ()
+>   %25 = Ref local [$3] : &string
+>   %26 = Call std/text/impl string.len[] (%25) : usize
+>   %27 = LoanEnd [%25] : ()
+>   %28 = Drop [$3] : ()
+>   %25 finds [$3] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $3 cell
 >   storage sub 1: $3 cell
 >   summary none
->   unwind %18 drops [%15 %17]
+>   unwind %18 drops [%15 %16 %17]
 >   live %10 [%9 $1]
->   live %18 [%15 %17 $0]
+>   live %18 [%15 %16 %17 $0]

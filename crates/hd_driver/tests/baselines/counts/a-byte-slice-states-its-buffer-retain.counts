@@ -18,4 +18,6 @@ fn discard_empty(text: string) -> void:
 
 fn through_function(text: string) -> string:
     slice_fn := bytes_slice
+> std/rt_tests.stage_case/through_function
+>   release string (last use)
     slice_fn(text, 0, 1)

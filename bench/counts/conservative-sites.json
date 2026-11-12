@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 460,
-      "explanation": "#1379 adds readonly-comparison.hd to the benchmark corpus. Its six existing conservative source-call sites account for the corpus increase; the comparison fix reduces operand counts and does not add sites to the previous 32 programs."
+      "sites": 472,
+      "explanation": "Added bench/study/function-value-inputs.hd: 12 static source-call sites (8 runtime cleanup, 4 std allocator/cycle free), no application or hot CallValue-input sites; existing 33 programs remain 460 with unchanged conservative site identities."
     },
     {
       "reason": "conservative: unique",

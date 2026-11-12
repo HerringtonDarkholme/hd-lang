@@ -60,6 +60,10 @@ impl ParameterUses {
         });
         if let Some(local) = facts.local {
             if tag == Tag::Read {
+                // A projected read can transfer one counted field to a result
+                // or owning callee. Index it just like a whole read so the
+                // consumer check cannot mistake an empty read list for a loan.
+                self.reads.entry(local).or_default().push(index);
                 self.framed.insert(local);
             } else {
                 self.always.insert(local);
@@ -163,7 +167,7 @@ mod tests {
         emit(&mut body, Tag::Read, moved, ReadMode::Move as u32);
         let (facts, _) = census(&body);
         assert_eq!(facts.reads(0), [first]);
-        assert!(facts.reads(5).is_empty());
+        assert_eq!(facts.reads(5).len(), 1);
         assert!(facts.reads(100).is_empty());
         assert!(facts.moved(first_word));
         assert!(!facts.moved(1));
@@ -171,6 +175,21 @@ mod tests {
             assert_eq!(facts.rejects(local, false), (1..=4).contains(&local));
             assert_eq!(facts.rejects(local, true), (1..=5).contains(&local));
         }
+        Ok(())
+    }
+
+    #[test]
+    fn projected_moves_and_borrows_keep_their_consumer_query() -> Result<(), TryFromIntError> {
+        let mut body = body(1);
+        let word = record(&mut body, place::ROOT_LOCAL, 0, &[place::PROJ_FIELD])?;
+        let borrowed = emit(&mut body, Tag::Read, word, ReadMode::Borrow as u32);
+        let moved = emit(&mut body, Tag::Read, word, ReadMode::Move as u32);
+        let (facts, _) = census(&body);
+        assert_eq!(facts.reads(0), [borrowed, moved]);
+        // The consumer decides whether each read can lend. Framed locals
+        // still reject projections independently of that decision.
+        assert!(!facts.rejects(0, false));
+        assert!(facts.rejects(0, true));
         Ok(())
     }
 
@@ -221,7 +240,10 @@ mod tests {
             let (facts, visits) = census(&body);
             assert_eq!(visits, body.len() + width * (depth + 1));
             for local in 0..width {
-                assert_eq!(facts.reads(local), [local * 21]);
+                assert_eq!(
+                    facts.reads(local),
+                    (local * 21..(local + 1) * 21).collect::<Vec<_>>()
+                );
                 assert!(!facts.rejects(local, false));
                 assert!(facts.rejects(local, true));
             }

@@ -71,7 +71,8 @@ use hd_types::Ty;
 
 use super::reason::LAST_USE;
 use super::{
-    Loc, Operand, OwnCx, OwnScratch, Role, consumes, fill, operands, splice, suite_touches, tracked,
+    Loc, Operand, OwnCx, OwnScratch, Role, consumes_counts as consumes, fill, operands, splice,
+    suite_touches, tracked,
 };
 use crate::ir::{
     Body, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology, local_flags, place,

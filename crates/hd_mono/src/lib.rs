@@ -104,9 +104,17 @@ pub trait ProgramEnv: LayoutEnv {
     fn cold_transfers(&self, _def: DefId, _ty: Ty) -> bool {
         false
     }
-    /// Whether a function-value cold parameter receives its owner.
-    fn cold_value_transfers(&self, _ty: Ty) -> bool {
+    /// Concrete Copy classification for the function-value input convention.
+    /// Unknown environments conservatively keep value ownership transferring.
+    fn function_value_copies(&self, _ty: Ty) -> bool {
         false
+    }
+    /// Whether a function-value parameter receives its owner. Copy values
+    /// and reference-variance inputs are lent; the concrete adapter or closure
+    /// entry takes any count its body needs. Environments without Copy facts
+    /// transfer other values conservatively.
+    fn function_value_transfers(&self, _ty: Ty) -> bool {
+        true
     }
     /// Whether a function reference uses an owned call-body adapter for
     /// its target's selected cold convention.
@@ -115,6 +123,11 @@ pub trait ProgramEnv: LayoutEnv {
             && self
                 .params(def)
                 .is_some_and(|ts| ts.into_iter().any(|t| self.cold_transfers(def, t)))
+    }
+    /// A selected convention needs a normal owned call body to perform
+    /// ownership cleanup that a raw argument-count bridge cannot express.
+    fn transfer_adapter(&self, def: DefId, _args: TyList) -> bool {
+        self.cold_transfer_adapter(def)
     }
     /// Whether the function is a method with an `&self` or `&mut self`
     /// receiver, as whether that receiver is mutable.
@@ -3155,7 +3168,7 @@ impl Cx<'_> {
         // A target emission lowers at each call is called from a body of
         // one `Call` (§13.11), which goes through the ownership passes as
         // every other body does.
-        if !matches!(&t, Target::Call(c) if c.kind == TargetKind::Instance && !env.cold_transfer_adapter(c.item))
+        if !matches!(&t, Target::Call(c) if c.kind == TargetKind::Instance && !env.transfer_adapter(c.item, c.args))
         {
             let body = adapter_call_body(pool, env, item, args, &t)?;
             let body = env.own_generated(body)?;

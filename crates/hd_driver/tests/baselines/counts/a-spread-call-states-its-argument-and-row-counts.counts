@@ -14,9 +14,8 @@ fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) 
     call(f, values)
 > app/main/spread
 >   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
+>   release (string, List[i32]) [0.0, 1] (last use)
 
 fn scalars(f: fn(i32, usize) -> i32, values: (i32, usize)) -> i32:
     call(f, values)

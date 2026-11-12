@@ -10,26 +10,37 @@ use crate::ir::{
 };
 
 pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
-    b.tags
-        .iter()
-        .enumerate()
-        .filter_map(|(i, &tag)| {
-            if tag != Tag::CallValue {
-                return None;
-            }
-            let callee = Ref(b.data[i][0]);
-            let ty = match callee.as_inst() {
-                Some(v) => b.ty[v.0 as usize],
-                None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
-            };
-            cx.function_spreads_arguments(ty, b.record(b.data[i][1]).len())
-                .then_some((
-                    Tag::Retain,
-                    u32_of(i),
-                    Info::new(At::Operation, Part::Arguments, 0),
-                ))
-        })
-        .collect()
+    let mut out = Vec::new();
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag != Tag::CallValue {
+            continue;
+        }
+        let callee = Ref(b.data[i][0]);
+        let ty = match callee.as_inst() {
+            Some(v) => b.ty[v.0 as usize],
+            None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
+        };
+        let n = b.record(b.data[i][1]).len();
+        if cx.function_spreads_arguments(ty, n) {
+            out.push((
+                Tag::Retain,
+                u32_of(i),
+                Info::new(At::Operation, Part::Arguments, 0),
+            ));
+        }
+        if (0..n).any(|k| {
+            cx.pass_value(ty, k, n) == super::Pass::Owned && cx.function_lends_counts(ty, k, n)
+        }) {
+            // An owning argument can retain a carrier of borrowed reference
+            // counts after its native components transfer to the callback.
+            out.push((
+                Tag::Release,
+                u32_of(i),
+                Info::new(At::Operation, Part::Arguments, 2),
+            ));
+        }
+    }
+    out
 }
 
 #[cfg(test)]
