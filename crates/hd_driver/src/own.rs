@@ -6,9 +6,13 @@
 //! and settings and stored (`Run::owned_std_key`). Checked and debug
 //! builds, and any build that asks
 //! (`Packages::verify_own`), verify the result
-//! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' questions
-//! from signatures and layouts, never from another body, and remembers
-//! each answer for the run.
+//! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' own
+//! questions from signatures and layouts, and remembers each answer for
+//! the run. Three steps read other bodies, so a body's owned form depends
+//! on its callees' bodies too: the folds and the inliner that run before
+//! the passes ([`Env::fold_and_inline`]) copy callees' checked bodies,
+//! argument promotion ([`Env::promoted_copy`]) reads a callee's owned
+//! body, and a default body's result type is its checked body's root.
 
 use hd_base::SliceSort as _;
 use std::cell::RefCell;
