@@ -9242,25 +9242,13 @@ impl Run<'_> {
     /// ([`Bodies`]).
     fn body_of<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p (Body, Hash128)> {
         let b = self.lazy_body(p, def)?;
-        let mut out = self.decode(b);
-        if out.is_none() {
-            p.bodies
-                .bad
-                .store(true, std::sync::atomic::Ordering::Relaxed);
-        }
         // Every body the program reaches is the ownership passes' output
         // (`docs/compiler/tir-v2.md`, "Where and when the passes run"):
-        // once per body, after decoding.
-        if let Some((raw, hash)) = out {
-            // Release: the callees first (`own::Run::owned_bottom_up`).
-            if b.owned.get().is_none() {
-                self.owned_bottom_up(p, (def, TyList::EMPTY));
-            }
-            out = b
-                .owned
-                .get_or_init(|| self.own_body(p, raw.clone(), *hash))
-                .as_ref();
-        }
+        // once per body, after decoding, or a std body's from the store.
+        let out = match b.owned.get() {
+            Some(owned) => owned.as_ref(),
+            None => self.own_lazy(p, def, b),
+        };
         if !self.host.render_tir.is_empty()
             && let Some((body, _)) = out
             && b.rendered.set(()).is_ok()
@@ -9268,6 +9256,43 @@ impl Run<'_> {
             self.render_own(p, def, body);
         }
         out
+    }
+
+    /// Body `b` of item `def` after the ownership passes, the first time a
+    /// build asks: an earlier build's when the store holds a std body's
+    /// ([`Run::owned_std_key`]), so this one neither decodes it nor runs
+    /// the passes; else decoded and owned here, and a std body's stored.
+    fn own_lazy<'p>(
+        &self,
+        p: &'p ProgramTables,
+        def: DefId,
+        b: &'p LazyBody,
+    ) -> Option<&'p (Body, Hash128)> {
+        let key = self.owned_std_key(def, b);
+        if let Some(key) = key
+            && let Some(stored) = self.stored_owned(key)
+        {
+            #[cfg(test)]
+            own::owned_cache_tests::verify_stored(self, p, &stored.0);
+            return b.owned.get_or_init(|| Some(stored)).as_ref();
+        }
+        let Some((raw, hash)) = self.decode(b) else {
+            p.bodies
+                .bad
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            return None;
+        };
+        // Release: the callees first (`own::Run::owned_bottom_up`).
+        self.owned_bottom_up(p, (def, TyList::EMPTY));
+        b.owned
+            .get_or_init(|| {
+                let owned = self.own_body(p, raw.clone(), *hash);
+                if let (Some(key), Some(owned)) = (key, &owned) {
+                    self.store_owned(key, owned);
+                }
+                owned
+            })
+            .as_ref()
     }
 
     /// The `own` fixture view's text of body `def` when `Host::render_tir`

@@ -660,7 +660,10 @@ insertion, late operand reads reorder a few pure reads
 
 The passes run on each body collection decodes, once per body per run,
 in the driver's `decode`, where `strip_closure_forms` runs today. All
-instances of a generic body share the result.
+instances of a generic body share the result. A std body's owned form
+in a dev build is the same in every program, so the driver stores it
+and later builds decode it instead of running the passes again
+(`Run::owned_std_key`, #1423).
 
 - **Why after decoding, not in `ModuleFinish`.** At decode the program's
   layout facts are at hand (whether a type has counted leaves), and the

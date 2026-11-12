@@ -2,7 +2,9 @@
 //! "Where and when the passes run", "What the passes read"): every body
 //! the program reaches goes through `hd_tir::own` once, after decoding
 //! (`Run::body_of`) or after collection generates it (a supplied or a
-//! `dbg` body), and checked and debug builds, and any build that asks
+//! `dbg` body); a std body in a dev build is owned once per toolchain
+//! and settings and stored (`Run::owned_std_key`). Checked and debug
+//! builds, and any build that asks
 //! (`Packages::verify_own`), verify the result
 //! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' questions
 //! from signatures and layouts, never from another body, and remembers
@@ -2491,6 +2493,82 @@ impl Run<'_> {
         }
     }
 
+    /// The store key of std body `b`'s owned form (#1423), item `def`'s,
+    /// or `None` where a build may not share it. One owned form serves
+    /// every program, because each input of the passes is either in the
+    /// key or the same in every program:
+    /// - **Keyed**: the checked body (its TIR hash), std's declarations
+    ///   and bodies the inliner copies (`toolchain` holds std's hash), the
+    ///   pipeline (`const_fold`, `arg_promote` and every pass and knob),
+    ///   the build profile, `checked` (`checked_room_calls`, the glue
+    ///   items, the runtime) and whether the passes' output is verified.
+    /// - **Program-wide queries, the same for a std body.** A std body
+    ///   names only std's items and types built from std's constructors
+    ///   and type parameters. So the `Env` queries the passes make are
+    ///   about std declarations, layouts and impls, except where they scan
+    ///   the program: impl selection, associated-type normalization and
+    ///   `has_drop`. Implementation ownership (`trait.own.rule`,
+    ///   `trait.own.orphan`) lets a package implement a trait only when it
+    ///   owns the trait or the outer constructor of the target or of a
+    ///   trait argument, and never a bare-parameter target through an
+    ///   argument (`trait.own.bare-parameter`). Every one of those is
+    ///   std's here, so no user impl can match, and selection at an open
+    ///   type answers nothing (`Env::select_impl`).
+    /// - **Left out**: a release build, whose passes read the callees'
+    ///   summaries; a build whose root package is std, whose std is not
+    ///   the toolchain's and may hold test impls; an entry root
+    ///   (`OwnCx::entry_root`, the program's `main` or test cases). std is
+    ///   never a fetched package (`Run::fetched`) or a host package.
+    pub(super) fn owned_std_key(&self, def: DefId, b: &LazyBody) -> Option<Hash128> {
+        let (m, entry, at) = b.wire.as_ref()?;
+        let std = self.table.packages.len() - 1;
+        let entry_root = self
+            .entry_roots
+            .get()
+            .is_some_and(|roots| roots.contains(&def));
+        if self.summaries.is_some()
+            || self.package == "std"
+            || usize::from(self.table.modules[*m].package) != std
+            || entry_root
+        {
+            return None;
+        }
+        let mut k = StableHasher::new("owned-std-body-v1");
+        k.hash(self.toolchain);
+        k.hash(self.pipeline);
+        k.u8(self.build_profile as u8);
+        k.u8(u8::from(self.checked()));
+        k.u8(u8::from(self.verifies_own()));
+        k.hash(hd_tir::wire::tir_hash(entry.get(at.clone())?));
+        Some(k.finish())
+    }
+
+    /// The owned body and its hash stored under `key`
+    /// ([`Run::owned_std_key`]), decoded into this run's tables.
+    pub(super) fn stored_owned(&self, key: Hash128) -> Option<(Body, Hash128)> {
+        let sections = self.lookup(hd_cache::EntryKind::Owned, key)?;
+        let [hash, wire] = &sections[..] else {
+            return None;
+        };
+        let hash = Hash128(u128::from_le_bytes((**hash).try_into().ok()?));
+        let body = hd_tir::wire::read_body(wire, &self.pool, &self.paths, &self.syms)?;
+        Some((body, hash))
+    }
+
+    /// Stores owned body `owned` and its hash under `key`.
+    pub(super) fn store_owned(&self, key: Hash128, (body, hash): &(Body, Hash128)) {
+        // Ruled out: a refusal. The wire form maps every tag the passes
+        // write, and `every_std_body_owned_form_round_trips` encodes each
+        // std body's owned form.
+        if let Ok(wire) = hd_tir::wire::write_body(body, &self.pool, &self.paths, &self.syms) {
+            self.put(
+                hd_cache::EntryKind::Owned,
+                key,
+                &[&hash.0.to_le_bytes(), &wire],
+            );
+        }
+    }
+
     /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "Data flow"): owns
     /// the instances `root` reaches through the callee scan, the callees'
     /// strongly connected components first, so every summary a body's
@@ -2594,5 +2672,131 @@ impl Run<'_> {
             };
             hd_opt::inline::bottom_up(root, &done, &mut callees, &mut own);
         });
+    }
+}
+
+#[cfg(test)]
+pub(super) mod owned_cache_tests {
+    use std::cell::Cell;
+
+    use hd_base::{BuildProfile, Hash128};
+    use hd_cache::{CacheStore, EntryKind, MemoryStore};
+    use hd_intern::{PathTable, ShardedInterner};
+    use hd_project::MemorySources;
+    use hd_tir::ir::Body;
+    use hd_types::InternPool;
+
+    use super::{ProgramTables, Run};
+    use crate::{Executor, Goal, Host, NoClock, Packages, build_packages};
+
+    thread_local! {
+        /// While set, how many stored bodies a build verified.
+        static VERIFIED: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+
+    /// Verifies a std body a build took from the store
+    /// (`Run::own_lazy`), while [`every_std_body_owned_form_round_trips`]
+    /// asks.
+    pub(crate) fn verify_stored(run: &Run<'_>, p: &ProgramTables, body: &Body) {
+        let Some(n) = VERIFIED.get() else {
+            return;
+        };
+        let errs = run.with_env(p, |env| hd_tir::ir::verify_owned(body, env));
+        if let Some(e) = errs.first() {
+            panic!(
+                "stored `{}` fails invariant {} at %{}: {}",
+                run.names().path(body.item),
+                e.invariant,
+                e.inst,
+                e.what
+            );
+        }
+        VERIFIED.set(Some(n + 1));
+    }
+
+    /// Programs over much of std: JSON and serde, maps, sorting, strings,
+    /// closures, tasks and trait values.
+    const PROGRAMS: [&str; 5] = [
+        include_str!("../../../bench/study/json.hd"),
+        include_str!("../../../bench/runtime/progs/map-count.hd"),
+        include_str!("../../../bench/runtime/progs/task-pipeline.hd"),
+        include_str!("../../../bench/runtime/progs/string-builder.hd"),
+        include_str!("../../../bench/runtime/progs/plugins.hd"),
+    ];
+
+    fn build(store: &MemoryStore, text: &str, profile: BuildProfile) -> crate::Output {
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", text);
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store,
+            clock: &NoClock,
+            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+        };
+        let packages = Packages {
+            build_profile: profile,
+            ..Packages::default()
+        };
+        let out = build_packages(
+            &host,
+            "app",
+            &packages,
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        out
+    }
+
+    /// Every std body these programs own is stored once per profile, its
+    /// wire form decodes into another run's tables and encodes back to the
+    /// same bytes, and a later build takes each from the store, whose
+    /// owned verifier accepts it.
+    #[test]
+    fn every_std_body_owned_form_round_trips() {
+        let store = MemoryStore::default();
+        for profile in [BuildProfile::Checked, BuildProfile::Release] {
+            for text in PROGRAMS {
+                build(&store, text, profile);
+            }
+        }
+        let owned: Vec<Hash128> = store
+            .drain_new()
+            .into_iter()
+            .filter_map(|(kind, key)| (kind == EntryKind::Owned).then_some(key))
+            .collect();
+        assert!(owned.len() > 400, "{} owned std bodies", owned.len());
+        // A store with only the owned bodies: the builds below check, collect
+        // and link again, and take every std body from it.
+        let warm = MemoryStore::default();
+        for key in &owned {
+            let entry = store.get(EntryKind::Owned, key).expect("stored");
+            let (_, sections) = hd_cache::decode_entry(&entry).expect("an entry");
+            let wire = sections[1].1;
+            let (pool, paths, syms) = (
+                InternPool::new(),
+                PathTable::new(),
+                ShardedInterner::default(),
+            );
+            // Other IDs than the writer's run.
+            paths.item("zzz", "a", "b");
+            let body = hd_tir::wire::read_body(wire, &pool, &paths, &syms).expect("decodes");
+            let again = hd_tir::wire::write_body(&body, &pool, &paths, &syms).expect("encodes");
+            assert_eq!(wire, &again[..], "{key:?}");
+            warm.put(EntryKind::Owned, key, &entry);
+        }
+        VERIFIED.set(Some(0));
+        let mut hits = 0;
+        for profile in [BuildProfile::Checked, BuildProfile::Release] {
+            for text in PROGRAMS {
+                let out = build(&warm, text, profile);
+                assert_eq!(out.counters.misses.get("owned"), None);
+                hits += out.counters.hits.get("owned").copied().unwrap_or(0);
+            }
+        }
+        assert_eq!(VERIFIED.take(), Some(hits));
+        assert!(hits >= owned.len());
     }
 }
