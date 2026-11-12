@@ -1,0 +1,24 @@
+# expect-stdout: 3 6
+# A length read into a local before a push keeps its value in a loop
+# after the push, though the loop itself writes nothing.
+use std.collections.UniqList
+
+fn saved_length(xs: &mut UniqList[i64], k: usize) -> usize:
+    n := xs.len()
+    xs.push(1)
+    let s: usize = 0
+    for _ in 0..k:
+        s = s + n
+    s
+
+fn fresh_length(xs: &mut UniqList[i64], k: usize) -> usize:
+    xs.push(1)
+    let s: usize = 0
+    for _ in 0..k:
+        s = s + xs.len()
+    s
+
+pub fn main() -> void $ Console:
+    let mut xs = UniqList::[i64].new()
+    xs.push(5)
+    println("${saved_length(&mut xs, 3)} ${fresh_length(&mut xs, 2)}")

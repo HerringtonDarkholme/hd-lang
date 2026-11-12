@@ -14,8 +14,9 @@
         i32.lt_u
         i32.eqz
         br_if 1
-    ;; 23 |         raw.offset(i).write(i)
+    ;; 22 |         raw := *reference
         local.get $holder
+    ;; 23 |         raw.offset(i).write(i)
         local.get $i
         i32.const 4
         i32.mul

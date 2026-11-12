@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# `n` holds the length from before the push. The loop writes nothing,
+# but it adds the local `n`, not the header's length loaded at its start.
+use std.collections.UniqList
+
+fn saved_length(xs: &mut UniqList[i64], k: usize) -> usize:
+    n := xs.len()
+    xs.push(1)
+    let s: usize = 0
+    # subject
+    for _ in 0..k:
+        s = s + n
+    s

@@ -353,9 +353,13 @@ impl Em<'_, '_, '_> {
                     // runs first.
                     facts.same_reads.insert(x, j);
                     facts.leaders.insert(j);
-                } else if let Some(l) = p.hoist_loop(root, x) {
+                } else if b.local_read(i).is_none()
+                    && let Some(l) = p.hoist_loop(root, x)
+                {
                     // A read in a loop that no write in it reaches: read
-                    // once before the outermost such loop.
+                    // once before the outermost such loop. A read of a
+                    // local stands for the field as it was when stored,
+                    // maybe before the loop and a write that came between.
                     let group = facts.hoists.entry(l).or_default();
                     let k = *hoists.entry((l, key)).or_insert_with(|| {
                         group.push(Hoist {
