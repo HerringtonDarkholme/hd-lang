@@ -314,84 +314,153 @@ pub fn static_values(
 }
 
 /// Cleans up `f`'s locals by the rules of the module documentation.
+///
+/// The rules run in rounds until none applies; the liveness rules run
+/// whenever the others settle. Each rule reads only the function, so a
+/// rule that found nothing to do finds nothing again until some rule
+/// edits the function: [`Settled`] skips it until then. A round after the
+/// last edit then runs only the rules that have not seen the final body,
+/// not every rule again.
 pub fn locals(f: &mut Func, arity: &Arity) {
     let np = u32::try_from(f.params.len()).expect("params");
+    let mut settled = Settled::new();
     loop {
-        let (reads, _) = counts(f);
-        let mut out: Vec<Ins> = Vec::with_capacity(f.body.len());
-        let mut origins = Remap::new(f.origins.as_deref());
-        let mut changed = false;
-        let mut k = 0;
-        while k < f.body.len() {
-            let next = f.body.get(k + 1);
-            match (&f.body[k], next) {
-                (Ins::Op(I::LocalSet(t)), Some(Ins::Op(I::LocalGet(u)))) if t == u => {
-                    let t = *t as usize;
-                    changed = true;
-                    k += 2;
-                    // The value stays on the stack when this get is `t`'s
-                    // only read, whatever else writes `t`. Removing a pair
-                    // can expose another (`set b; set a; get a; get b`), so
-                    // a nest of them unwinds here, not one pass per layer.
-                    if *u >= np && reads[t] == 1 {
-                        while let (Some(Ins::Op(I::LocalSet(a))), Some(Ins::Op(I::LocalGet(b)))) =
-                            (out.last(), f.body.get(k))
-                        {
-                            if a != b || *b < np || reads[*a as usize] != 1 {
-                                break;
-                            }
-                            out.pop();
-                            origins.pop();
-                            k += 1;
-                        }
-                    } else {
-                        out.push(Ins::Op(I::LocalTee(*u)));
-                        origins.merged(k - 2..k, 1);
-                    }
-                }
-                (Ins::Op(I::LocalSet(t)), _) if reads[*t as usize] == 0 => {
-                    changed = true;
-                    if let Some(Ins::Op(
-                        I::LocalGet(_)
-                        | I::I32Const(_)
-                        | I::I64Const(_)
-                        | I::F32Const(_)
-                        | I::F64Const(_),
-                    )) = out.last()
-                    {
-                        out.pop();
-                        origins.pop();
-                    } else {
-                        out.push(Ins::Op(I::Drop));
-                        origins.copy(k..k + 1);
-                    }
-                    k += 1;
-                }
-                (Ins::Op(I::LocalTee(t)), _) if reads[*t as usize] == 0 => {
-                    changed = true;
-                    k += 1;
-                }
-                (other, _) => {
-                    out.push(*other);
-                    origins.copy(k..k + 1);
-                    k += 1;
-                }
-            }
-        }
-        f.body = out;
-        origins.finish(f);
-        changed |= forward(f, np);
-        changed |= shapes(f, np);
-        changed |= exits(f);
-        changed |= fold(f);
-        changed |= drops(f);
-        changed |= schedule(f, np, arity);
-        // The liveness rules run whenever the others settle.
-        if !changed && !zero_releases(f) && !live_rules(f, arity) {
+        let mut changed = settled.run(f, Rule::Pairs, |f| pairs(f, np));
+        changed |= settled.run(f, Rule::Forward, |f| forward(f, np));
+        changed |= settled.run(f, Rule::Shapes, |f| shapes(f, np));
+        changed |= settled.run(f, Rule::Exits, exits);
+        changed |= settled.run(f, Rule::Fold, fold);
+        changed |= settled.run(f, Rule::Drops, drops);
+        changed |= settled.run(f, Rule::Schedule, |f| schedule(f, np, arity));
+        if !changed
+            && !settled.run(f, Rule::Zero, zero_releases)
+            && !settled.run(f, Rule::Live, |f| live_rules(f, arity))
+        {
             break;
         }
     }
     renumber(f);
+}
+
+/// The rule groups of [`locals`], each one call of its pass.
+#[derive(Clone, Copy)]
+enum Rule {
+    Pairs,
+    Forward,
+    Shapes,
+    Exits,
+    Fold,
+    Drops,
+    Schedule,
+    Zero,
+    Live,
+}
+
+/// Which of [`locals`]' rules have seen the function as it is now.
+struct Settled {
+    /// How many times a rule has edited the function.
+    edits: usize,
+    /// `clean[rule]`: the edit count at which that rule last found
+    /// nothing to do, or `usize::MAX`.
+    clean: [usize; 9],
+}
+
+impl Settled {
+    fn new() -> Self {
+        Self {
+            edits: 0,
+            clean: [usize::MAX; 9],
+        }
+    }
+
+    /// Runs `rule`'s pass unless it has found nothing in this very
+    /// function before, and gives whether it edited the function. A pass
+    /// that repeats itself until it finds nothing ([`shapes`],
+    /// [`live_rules`]) has seen its own result, so it is settled after an
+    /// edit too.
+    fn run(&mut self, f: &mut Func, rule: Rule, pass: impl FnOnce(&mut Func) -> bool) -> bool {
+        let k = rule as usize;
+        if self.clean[k] == self.edits {
+            return false;
+        }
+        let changed = pass(f);
+        if changed {
+            self.edits += 1;
+        }
+        if !changed || matches!(rule, Rule::Shapes | Rule::Live) {
+            self.clean[k] = self.edits;
+        }
+        changed
+    }
+}
+
+/// Rules 1 to 3: a `local.set` and a `local.get` of one local that follow
+/// each other, and writes of a local no instruction reads.
+fn pairs(f: &mut Func, np: u32) -> bool {
+    let (reads, _) = counts(f);
+    let mut out: Vec<Ins> = Vec::with_capacity(f.body.len());
+    let mut origins = Remap::new(f.origins.as_deref());
+    let mut changed = false;
+    let mut k = 0;
+    while k < f.body.len() {
+        let next = f.body.get(k + 1);
+        match (&f.body[k], next) {
+            (Ins::Op(I::LocalSet(t)), Some(Ins::Op(I::LocalGet(u)))) if t == u => {
+                let t = *t as usize;
+                changed = true;
+                k += 2;
+                // The value stays on the stack when this get is `t`'s
+                // only read, whatever else writes `t`. Removing a pair
+                // can expose another (`set b; set a; get a; get b`), so
+                // a nest of them unwinds here, not one pass per layer.
+                if *u >= np && reads[t] == 1 {
+                    while let (Some(Ins::Op(I::LocalSet(a))), Some(Ins::Op(I::LocalGet(b)))) =
+                        (out.last(), f.body.get(k))
+                    {
+                        if a != b || *b < np || reads[*a as usize] != 1 {
+                            break;
+                        }
+                        out.pop();
+                        origins.pop();
+                        k += 1;
+                    }
+                } else {
+                    out.push(Ins::Op(I::LocalTee(*u)));
+                    origins.merged(k - 2..k, 1);
+                }
+            }
+            (Ins::Op(I::LocalSet(t)), _) if reads[*t as usize] == 0 => {
+                changed = true;
+                if let Some(Ins::Op(
+                    I::LocalGet(_)
+                    | I::I32Const(_)
+                    | I::I64Const(_)
+                    | I::F32Const(_)
+                    | I::F64Const(_),
+                )) = out.last()
+                {
+                    out.pop();
+                    origins.pop();
+                } else {
+                    out.push(Ins::Op(I::Drop));
+                    origins.copy(k..k + 1);
+                }
+                k += 1;
+            }
+            (Ins::Op(I::LocalTee(t)), _) if reads[*t as usize] == 0 => {
+                changed = true;
+                k += 1;
+            }
+            (other, _) => {
+                out.push(*other);
+                origins.copy(k..k + 1);
+                k += 1;
+            }
+        }
+    }
+    f.body = out;
+    origins.finish(f);
+    changed
 }
 
 /// Local zero facts at structured control-flow edges. Branches meet by
@@ -862,29 +931,74 @@ impl Live {
         Some(me)
     }
 
-    /// Runs the backward pass to its fixed point, each block's set in any order.
+    /// Runs the backward pass to its fixed point, each block's set in any
+    /// order. Blocks go last to first, so in a body that only branches
+    /// forward each block's successors are final when it is visited, and
+    /// one pass settles. A backedge can grow its target's set after the
+    /// target's predecessors were visited; then only those predecessors go
+    /// again, from a worklist, not every block of the body once more.
     fn settle(&mut self, f: &Func) {
+        self.settle_with(f, || {});
+    }
+
+    /// [`Self::settle`], calling `visit` at each block it visits.
+    fn settle_with(&mut self, f: &Func, mut visit: impl FnMut()) {
+        let len = f.body.len();
+        let blocks = self.starts.len();
+        let preds = (!self.forward).then(|| self.predecessors(len));
         let mut live = LiveSet::new(self.locals);
-        loop {
-            let mut changed = false;
-            for p in (0..self.starts.len()).rev() {
-                self.out(p, f.body.len(), &mut live);
-                for ins in f.body[self.starts[p]..self.end(p, f.body.len())]
-                    .iter()
-                    .rev()
-                {
-                    Self::step(ins, &mut live);
-                }
-                // Sets only grow from empty here, so a new size is a change.
-                if self.into[p].len() != live.members.len() {
-                    self.into[p].clone_from(&live.members);
-                    changed = true;
-                }
+        // Popped last first; `queued[p]`: `p` is in `pending`.
+        let mut pending: Vec<usize> = (0..blocks).collect();
+        let mut queued = vec![true; blocks];
+        while let Some(p) = pending.pop() {
+            visit();
+            queued[p] = false;
+            self.out(p, len, &mut live);
+            for ins in f.body[self.starts[p]..self.end(p, len)].iter().rev() {
+                Self::step(ins, &mut live);
             }
-            if self.forward || !changed {
-                return;
+            // Sets only grow from empty here, so a new size is a change.
+            if self.into[p].len() == live.members.len() {
+                continue;
+            }
+            self.into[p].clone_from(&live.members);
+            if let Some((first, list)) = &preds {
+                for &q in &list[first[p]..first[p + 1]] {
+                    if !queued[q] {
+                        queued[q] = true;
+                        pending.push(q);
+                    }
+                }
             }
         }
+    }
+
+    /// Each block's predecessors: those of block `p` are
+    /// `list[first[p]..first[p + 1]]`.
+    fn predecessors(&self, len: usize) -> (Vec<usize>, Vec<usize>) {
+        let blocks = self.starts.len();
+        let mut first = vec![0usize; blocks + 1];
+        let each = |visit: &mut dyn FnMut(usize, usize)| {
+            for p in 0..blocks {
+                let end = self.end(p, len);
+                self.edges[end - 1].each(end, |to| {
+                    if let Some(&q) = self.point_at.get(to) {
+                        visit(p, q);
+                    }
+                });
+            }
+        };
+        each(&mut |_, q| first[q + 1] += 1);
+        for p in 0..blocks {
+            first[p + 1] += first[p];
+        }
+        let mut list = vec![0usize; first[blocks]];
+        let mut next = first.clone();
+        each(&mut |p, q| {
+            list[next[q]] = p;
+            next[q] += 1;
+        });
+        (first, list)
     }
 
     /// A body's basic blocks, with nothing live into any of them yet.
@@ -5091,6 +5205,76 @@ mod origin_tests {
         assert!(matches!(f.body[5], Ins::Op(I::Return)), "{:?}", f.body);
         assert!(matches!(f.body[9], Ins::Op(I::Br(0))), "{:?}", f.body);
         assert_eq!(spans(&f)[5], 17);
+    }
+
+    #[test]
+    fn a_rule_that_found_nothing_runs_again_only_after_an_edit() {
+        let mut f = Func::default();
+        let mut settled = Settled::new();
+        let runs = std::cell::Cell::new([0; 3]);
+        let pass = |k: usize, edits: bool| {
+            let mut now = runs.get();
+            now[k] += 1;
+            runs.set(now);
+            edits
+        };
+        assert!(!settled.run(&mut f, Rule::Pairs, |_| pass(0, false)));
+        assert!(!settled.run(&mut f, Rule::Pairs, |_| pass(0, false)));
+        assert_eq!(runs.get()[0], 1, "nothing changed since it found nothing");
+        assert!(settled.run(&mut f, Rule::Forward, |_| pass(1, true)));
+        assert!(!settled.run(&mut f, Rule::Pairs, |_| pass(0, false)));
+        assert_eq!(runs.get()[0], 2, "another rule edited the function");
+        // A rule that repeats itself to its own fixed point has seen its
+        // result; a single sweep has not.
+        assert!(settled.run(&mut f, Rule::Live, |_| pass(2, true)));
+        assert!(!settled.run(&mut f, Rule::Live, |_| pass(2, false)));
+        assert_eq!(runs.get()[2], 1);
+        assert!(settled.run(&mut f, Rule::Forward, |_| pass(1, true)));
+        assert!(!settled.run(&mut f, Rule::Forward, |_| pass(1, false)));
+        assert_eq!(runs.get()[1], 3);
+    }
+
+    #[test]
+    fn liveness_revisits_only_the_blocks_a_backedge_reaches() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        // A long run of forward blocks, then a loop that reads local 1
+        // before it writes it, so the read reaches the loop's head again
+        // over the backedge.
+        for prefix in [16usize, 256, 1024] {
+            let mut body = Vec::new();
+            for _ in 0..prefix {
+                body.extend([
+                    op(I::Block(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::BrIf(0)),
+                    op(I::End),
+                ]);
+            }
+            body.extend([
+                op(I::Loop(BlockType::Empty)),
+                op(I::LocalGet(1)),
+                op(I::Drop),
+                op(I::LocalGet(0)),
+                op(I::LocalSet(1)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(0)),
+                op(I::End),
+            ]);
+            let f = tracked(&symbols, 1, 1, body);
+            let mut live = Live::blocks(&f).expect("blocks");
+            assert!(!live.forward);
+            let blocks = live.starts.len();
+            let mut visits = 0;
+            live.settle_with(&f, || visits += 1);
+            // The backedge sends only the loop's blocks and the one
+            // before it round again, not every block once more.
+            assert!(visits <= blocks + 4, "{visits} visits of {blocks} blocks");
+            // Local 1 is live into every block before the loop: its
+            // first read is of the zero it starts with.
+            assert!(live.into[..blocks - 2].iter().all(|row| row.contains(&1)));
+            assert!(live.entry().contains(&0));
+        }
     }
 
     #[test]
