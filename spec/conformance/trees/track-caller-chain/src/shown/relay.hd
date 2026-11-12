@@ -1,5 +1,9 @@
 use pkg.shown.texts
 
+# What `relay` was given, which the folder declares beside its functions.
+pub struct Relayed:
+    value: i32
+
 @track_caller
 pub fn relay(x: i32) -> void $ Console:
     texts.show_args(x, x)

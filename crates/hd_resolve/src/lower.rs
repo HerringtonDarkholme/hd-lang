@@ -6274,16 +6274,18 @@ impl Lower<'_, '_, '_> {
                     kind: BindingKind::Module,
                     value,
                 }) => {
-                    let Some(mut module) = self.scope.modules.get(value as usize).cloned() else {
-                        continue;
-                    };
+                    // ruled out: a module binding indexes its scope's modules;
+                    // an empty path would export nothing.
+                    let mut module = self
+                        .scope
+                        .modules
+                        .get(value as usize)
+                        .cloned()
+                        .unwrap_or_default();
                     let mut found = None;
                     while i + 1 < tokens.len() && is_dot(tokens[i]) && is_name(tokens[i + 1]) {
                         let seg = tokens[i + 1];
                         i += 2;
-                        if src.text(seg) == "caller_args" {
-                            return true;
-                        }
                         if let Ok((d, HeadKind::Fn)) = self.r.export(&module, self.sym_token(seg)) {
                             found = Some(d);
                             break;
