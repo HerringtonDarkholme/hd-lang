@@ -12546,8 +12546,33 @@ impl ProgramEnv for Env<'_> {
     fn cold_transfers(&self, def: DefId, ty: Ty) -> bool {
         self.cold_transfers_declared(def, ty)
     }
-    fn cold_value_transfers(&self, ty: Ty) -> bool {
+    fn function_value_copies(&self, ty: Ty) -> bool {
+        hd_tir::own::OwnCx::copies(self, ty) == hd_tir::own::Tri::Yes
+    }
+    fn function_value_transfers(&self, ty: Ty) -> bool {
         self.function_parameter(ty) == hd_tir::own::Pass::Owned
+    }
+
+    fn transfer_adapter(&self, def: DefId, args: TyList) -> bool {
+        if ProgramEnv::cold_transfer_adapter(self, def) {
+            return true;
+        }
+        let lends = self.lent_mask(self.node(def, args));
+        lends != 0
+            && self
+                .params(def)
+                .unwrap_or_default()
+                .iter()
+                .enumerate()
+                .take(64)
+                .any(|(k, &ty)| {
+                    lends & (1 << k) != 0
+                        && hd_wasm::holds_drop_type(
+                            &self.run.pool,
+                            self,
+                            hd_mono::subst(&self.run.pool, self, def, args, ty),
+                        )
+                })
     }
 
     fn suspends(&self, def: DefId) -> bool {

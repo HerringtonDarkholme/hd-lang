@@ -664,15 +664,33 @@ impl OwnCx for Env<'_> {
         };
         let params = pool.list_items(params);
         if params.len() != n {
-            return Pass::Lent;
+            // A spread transfers its tuple's native components; its count
+            // carrier is retained independently by the argument packet.
+            return Pass::Owned;
+        }
+        let ty = params[k];
+        if self.copies(ty) != Tri::Yes && self.value_parameter(ty) == Pass::Owned {
+            return Pass::Owned;
         }
         if suspends
-            && !ProgramEnv::cold_value_transfers(self, params[k])
+            && !ProgramEnv::function_value_transfers(self, params[k])
             && !self.cold_moves(params[k])
         {
             return Pass::Lent;
         }
-        self.function_parameter(params[k])
+        self.function_parameter(ty)
+    }
+
+    fn function_lends_counts(&self, fn_ty: Ty, k: usize, n: usize) -> bool {
+        let pool = &self.run.pool;
+        let TyData::Fn { params, .. } = pool.get(hd_wasm::strip_type(pool, self, fn_ty)) else {
+            return false;
+        };
+        let params = pool.list_items(params);
+        params.len() != n
+            || params
+                .get(k)
+                .is_some_and(|&ty| self.is_open(ty) || self.function_parameter(ty) == Pass::Lent)
     }
 
     fn keeps(&self, callee: &Callee, k: usize, _: usize) -> bool {
@@ -1326,16 +1344,16 @@ impl Env<'_> {
         self.parameter(t, true)
     }
 
-    /// Function variance may lend a counted reference as a local reference,
-    /// including inside containers and inside a value that holds one in
-    /// place (`(*T, i32)` as `(&T, i32)`). All such function-value inputs
-    /// therefore share the borrowed convention
-    /// (`hd_wasm::function_input_borrows`); declaration adapters bridge to
-    /// named targets that receive an owner.
+    /// Function values lend Copy inputs and the existing reference-variance
+    /// inputs (`hd_wasm::function_input_borrows`). Adapters and closure entry
+    /// acquire any count their concrete body owns. Other inputs keep their
+    /// ownership transfer, including noncopy resources.
     pub(super) fn function_parameter(&self, t: Ty) -> Pass {
         match self.parameter(t, false) {
             Pass::Owned
-                if !self.is_open(t) && hd_wasm::function_input_borrows(&self.run.pool, self, t) =>
+                if self.copies(t) == Tri::Yes
+                    || !self.is_open(t)
+                        && hd_wasm::function_input_borrows(&self.run.pool, self, t) =>
             {
                 Pass::Lent
             }

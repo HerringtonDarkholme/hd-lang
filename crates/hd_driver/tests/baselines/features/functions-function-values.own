@@ -30,16 +30,15 @@ fn apply(f: fn(string) -> usize, s: string) -> usize:
 >   local $0 f: fn(string) -> usize [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %3 lend last
 >   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     f(s)
 >   %2 = Read borrow [$0] : fn(string) -> usize
->   %3 = Read move [$1] : string
+>   %3 = Read borrow [$1] : string
 >   %4 = CallValue %2 [%3] : usize
 >   %5 = Block %4 : usize
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0] writes
+>   summary kept [] borrows [$0 $1] writes
 
 fn named_value(s: string) -> usize:
 > app/main/named_value
@@ -81,18 +80,17 @@ fn ident[T](x: T) -> T:
 fn map_one[A, B](x: A, f: fn(A) -> B) -> B:
 > app/main/map_one
 >   local $0 x: A [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %3 lend last
 >   local $1 f: fn(A) -> B [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = Release %5 Exit local $1 #2 : ()
->   %1 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     f(x)
 >   %2 = Read borrow [$1] : fn(A) -> B
->   %3 = Read move [$0] : A
+>   %3 = Read borrow [$0] : A
 >   %4 = CallValue %2 [%3] : B
 >   %5 = Block %4 : B
->   exit sub 0 drops [$0]
->   summary kept [$0] borrows [$1] writes
+>   summary kept [] borrows [$0 $1] writes
 
 fn generic_value(s: string) -> string:
 > app/main/generic_value

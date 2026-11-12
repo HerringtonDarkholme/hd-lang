@@ -824,8 +824,8 @@ impl Em<'_, '_, '_> {
         // ruled out: check_args/tuple_inputs_args already coerced each TIR
         // argument to its parameter type, so their flattened ABIs agree.
         self.comp(callee, 1)?;
-        // Function values borrow reference inputs across variance views;
-        // non-reference values keep their type-selected ownership.
+        // Copy inputs and references use the common borrowed convention;
+        // noncopy values retain their ownership transfer.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
         self.push_args(i, args, Some(&tys), None, copy)?;
         let c = self.push_fn_ctx(i, ft);
@@ -842,6 +842,21 @@ impl Em<'_, '_, '_> {
             _ => self.ty(i),
         };
         self.call_results(i, ty)?;
+        // The explicit ownership packet takes native components, while the
+        // original value remains the carrier of lent thin-reference counts.
+        // Keep its original discriminants: conditional borrowed leaves must
+        // be released according to the value that was actually passed.
+        if self
+            .operation_count(i, Tag::Release, hd_tir::ir::count::Part::Arguments)
+            .is_some()
+        {
+            for arg in args {
+                if let Some(&(flag, _)) = self.input_transferred.get(arg) {
+                    self.f.i32(1);
+                    self.f.set(flag);
+                }
+            }
+        }
         self.release_call_ctx(i, c);
         Ok(())
     }

@@ -6689,6 +6689,8 @@ typing/invalid/implicit-lend-cancellation-actors.hd	type	reject:conflicting-acce
 runtime/valid/constant-tee-comprehension.hd	runtime	accept	lang/05-expressions.md#comprehensions
 runtime/valid/inlined-constant-arithmetic.hd	runtime	accept	std/num.md#r-std-num.wrapping.result
 runtime/valid/readonly-optional-tag-lends-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.place
+runtime/valid/function-value-copy-inputs-preserve-owners.hd	runtime	accept	std/weak.md#r-std-weak.release.target
+runtime/valid/cold-function-value-copy-inputs-keep-owners.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

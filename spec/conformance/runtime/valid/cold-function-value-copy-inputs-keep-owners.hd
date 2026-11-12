@@ -1,0 +1,25 @@
+# test: cold named adapters and closures keep borrowed callback and string inputs
+# Functions: fn.type.values, fn.type.suspend.ctor, fn.capture.copies.
+use std.testing.assert_equal
+use std.time.{Clock, ms, sleep}
+
+fn delayed!(callback: fn(string) -> string, value: string) -> string $ Clock:
+    sleep!(ms(1))
+    callback(value)
+
+fn prepared(literal: bool) -> Suspend[string] $ Clock:
+    prefix := ["ke", "pt"].join("")
+    suffix := [" val", "ue"].join("")
+    captured := fn(value: string) -> string: prefix + value
+    let constructor = delayed
+    if literal:
+        constructor = fn!(callback: fn(string) -> string, value: string) -> string $ Clock:
+            sleep!(ms(1))
+            callback(value)
+    constructor(captured, suffix)
+
+pub fn main!() -> void $ Clock:
+    for literal in [false, true]:
+        pending := prepared(literal)
+        assert_equal(pending!(), "kept value", reason="a Pending child outlives its input creators")
+        _ := prepared(literal)

@@ -1,6 +1,7 @@
 # @dump: counts own wat
 # @build: v8 release
-# expected: cold closure parameters receive transferred string and List owners.
+# expected: cold closure parameters borrow string and List inputs, taking
+# their own copies at Cold or fresh Entry; the caller retains its owners.
 fn fetch!(key: string) -> string:
     key + "?"
 

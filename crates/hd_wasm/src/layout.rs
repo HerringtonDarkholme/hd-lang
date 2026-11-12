@@ -478,6 +478,8 @@ thread_local! {
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static THIN_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static LOCAL_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    static INPUT_BORROWED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    static INPUT_OWNED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -492,6 +494,8 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         drops: Option<hd_base::HashMap<Ty, bool>>,
         thin_refs: Option<hd_base::HashMap<Ty, bool>>,
         local_refs: Option<hd_base::HashMap<Ty, bool>>,
+        input_borrowed: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+        input_owned: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
     }
     impl Drop for Reset {
@@ -502,6 +506,8 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
             DROPS.set(self.drops.take());
             THIN_REFS.set(self.thin_refs.take());
             LOCAL_REFS.set(self.local_refs.take());
+            INPUT_BORROWED.set(self.input_borrowed.take());
+            INPUT_OWNED.set(self.input_owned.take());
             FLATS.set(self.flats.take());
         }
     }
@@ -513,6 +519,8 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         drops: DROPS.take(),
         thin_refs: THIN_REFS.take(),
         local_refs: LOCAL_REFS.take(),
+        input_borrowed: INPUT_BORROWED.take(),
+        input_owned: INPUT_OWNED.take(),
         flats: FLATS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
@@ -521,6 +529,8 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     DROPS.set(Some(hd_base::HashMap::default()));
     THIN_REFS.set(Some(hd_base::HashMap::default()));
     LOCAL_REFS.set(Some(hd_base::HashMap::default()));
+    INPUT_BORROWED.set(Some(hd_base::HashMap::default()));
+    INPUT_OWNED.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
     link()
 }
@@ -875,7 +885,8 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
     parameter_pass(pool, env, counts, t, true)
 }
 
-/// Function values borrow every reference input. Variance may turn a
+/// Function values borrow Copy inputs through the driver's common query,
+/// and preserve the existing reference-variance convention. Variance may turn a
 /// counted reference input into a local loan without changing the code
 /// pointer (`fn.type.variance-repr`), including for function values inside
 /// containers, and inside a tuple, struct or enum the input holds by value:
@@ -884,7 +895,9 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
 /// its caller releases what it counts, as it does a lone `*T`.
 pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
     match parameter_pass(pool, env, counts, t, false) {
-        Pass::Owned(_) if holds_thin_ref(pool, env, t) => Pass::Borrowed,
+        Pass::Owned(_) if holds_thin_ref(pool, env, t) || !env.function_value_transfers(t) => {
+            Pass::Borrowed
+        }
         p => p,
     }
 }
@@ -903,6 +916,69 @@ pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
             Kind::Boxed => false,
         },
     )
+}
+
+/// Independent count ownership and value transfer at a function-value input.
+/// A noncopy value transfers its native ownership even when reference variance
+/// requires some thin reference counts to remain with the caller.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FunctionInput {
+    pub transfer: bool,
+    pub owned: Option<Walk>,
+    pub borrowed: Option<Walk>,
+}
+
+pub(crate) fn function_input(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> FunctionInput {
+    let t = strip(pool, env, t);
+    if env.function_value_copies(t) || matches!(kind(pool, env, t), Kind::Ref { .. }) {
+        return FunctionInput {
+            transfer: false,
+            owned: None,
+            borrowed: count_walk(pool, env, t),
+        };
+    }
+    if !holds_thin_ref(pool, env, t) {
+        return FunctionInput {
+            transfer: true,
+            owned: count_walk(pool, env, t),
+            borrowed: None,
+        };
+    }
+    FunctionInput {
+        transfer: true,
+        owned: memoized(&INPUT_OWNED, pool, env, t, &|t, part| {
+            if matches!(kind(pool, env, t), Kind::Ref { fat: false, .. }) {
+                None
+            } else {
+                walk_one(pool, env, t, part, true)
+            }
+        }),
+        borrowed: memoized(&INPUT_BORROWED, pool, env, t, &|t, part| match pool
+            .get(strip(pool, env, t))
+        {
+            TyData::Ref { .. } => match kind(pool, env, t) {
+                Kind::Ref {
+                    fat: false,
+                    whole: true,
+                    ..
+                } => count_walk(pool, env, t),
+                _ => None,
+            },
+            TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
+            TyData::Union(_) => switch_walk_by(pool, env, t, part),
+            TyData::Adt { def, args }
+                if env.std_kind(def) == StdKind::Other
+                    && matches!(kind(pool, env, t), Kind::Value) =>
+            {
+                if env.enum_variants(def, args).is_some() {
+                    switch_walk_by(pool, env, t, part)
+                } else {
+                    fields_walk_by(pool, env, &value_parts(pool, env, t), part)
+                }
+            }
+            _ => None,
+        }),
+    }
 }
 
 /// Whether a value of `t` holds a thin reference by value: a `*T` or a
@@ -2099,6 +2175,8 @@ mod tests {
             && DROPS.with(|d| d.borrow().is_none())
             && THIN_REFS.with(|r| r.borrow().is_none())
             && LOCAL_REFS.with(|r| r.borrow().is_none())
+            && INPUT_BORROWED.with(|r| r.borrow().is_none())
+            && INPUT_OWNED.with(|r| r.borrow().is_none())
             && FLATS.with(|d| d.borrow().is_none())
     }
 

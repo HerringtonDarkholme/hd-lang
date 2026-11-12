@@ -75,16 +75,16 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   local $1 wrap: fn(FsError) -> SyncError [param read] value
 >     uses $1: entry -> %22 lend
 >   local $2 $acc: List[SyncError] [assigned] value
->     uses $2: %3 -> %9 lend, %26 lend, %41 consume last
+>     uses $2: %3 -> %9 lend, %27 lend, %42 consume last
 >   local $4 $len: usize [assigned] value
 >     uses $4: %6 -> %7 lend, %11 consume last
 >   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
 >     uses $6: %12 -> %15 lend
 >   local $7 e: FsError [read assigned] value
->     uses $7: %30 -> %23 consume last
->   %0 = Release %42 Exit local $0 #2 : ()
->   %1 = Release %42 Exit local $1 #2 : ()
+>     uses $7: %31 -> %23 lend last
+>   %0 = Release %43 Exit local $0 #2 : ()
+>   %1 = Release %43 Exit local $1 #2 : ()
     [for e in errors => wrap(e)]
 >   %2 = NewList - [] : List[SyncError]
 >   %3 = Store [$2] %2 : ()
@@ -109,23 +109,24 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %22 = Read borrow [$1] : fn(FsError) -> SyncError
 >   %23 = Read copy [$7] : FsError
 >   %24 = CallValue %22 [%23] : SyncError
->   %25 = IsUnique fresh [$2] : ()
->   %26 = Read borrow [$2] : List[SyncError]
->   %27 = Intrinsic ListPush [%26 %24] : ()
->   %28 = Block - : ()
->   %29 = Read borrow [%18] : FsError
->   %30 = Store [$7] %29 : ()
->   %31 = Release %30 Operation #3 : ()
->   %33 = Block - : never
->   %34 = Match %18 [%33 %28] : ()
->   %35 = Block - : ()
->   %36 = Break L0 - : never
->   %37 = Block - : ()
->   %38 = If %16 [%35 %37] : ()
->   %39 = Block - : ()
->   %40 = Loop %39 - : ()
->   %41 = Read move [$2] : List[SyncError]
->   %42 = Block %41 : List[SyncError]
+>   %25 = Drop [%23] : ()
+>   %26 = IsUnique fresh [$2] : ()
+>   %27 = Read borrow [$2] : List[SyncError]
+>   %28 = Intrinsic ListPush [%27 %24] : ()
+>   %29 = Block - : ()
+>   %30 = Read borrow [%18] : FsError
+>   %31 = Store [$7] %30 : ()
+>   %32 = Release %31 Operation #3 : ()
+>   %34 = Block - : never
+>   %35 = Match %18 [%34 %29] : ()
+>   %36 = Block - : ()
+>   %37 = Break L0 - : never
+>   %38 = Block - : ()
+>   %39 = If %16 [%36 %38] : ()
+>   %40 = Block - : ()
+>   %41 = Loop %40 - : ()
+>   %42 = Read move [$2] : List[SyncError]
+>   %43 = Block %42 : List[SyncError]
 >   summary kept [] borrows [$0 $1] writes
 
 fn as_value(errors: List[FsError]) -> List[SyncError]:

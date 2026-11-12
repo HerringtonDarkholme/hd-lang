@@ -12,40 +12,42 @@ fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args: Args) -> O $ R:
 >   local $0 f: Fn[Args, O, $ R] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 args: Args [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %3 lend last
 >   %0 = Release %8 Exit local $0 #2 : ()
->   %1 = Retain %8 Entry local $1 #0 : ()
+>   %1 = Release %8 Exit local $1 #2 : ()
     f(args...)
 >   %2 = Read borrow [$0] : Fn[Args, O, $ R]
->   %3 = Read move [$1] : Args
+>   %3 = Read borrow [$1] : Args
 >   %4 = CallValue %2 [%3] : O
 >   %5 = Retain %4 Operation row #0 : ()
 >   %6 = Release %4 Operation row #2 : ()
 >   %7 = Retain %4 Operation arguments #0 : ()
 >   %8 = Block %4 : O
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0] writes
+>   summary kept [] borrows [$0 $1] writes
 
 fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) -> usize $ Tag:
 > app/main/spread
 >   local $0 f: fn(string, List[i32]) -> usize [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 values: (string, List[i32]) [param read] value
->     uses $1: entry -> %3 lend last
->   %0 = Release %11 Exit local $0 #2 : ()
->   %1 = Release %11 Exit local $1 #2 : ()
+>     uses $1: entry -> %3 consume last
+>   %0 = Release %13 Exit local $0 #2 : ()
+>   %1 = Retain %13 Entry local $1 #0 : ()
     call(f, values)
 >   %2 = Read borrow [$0] : fn(string, List[i32]) -> usize
->   %3 = Read borrow [$1] : (string, List[i32])
+>   %3 = Read move [$1] : (string, List[i32])
 >   %4 = CallValue %2 [%3] : usize
 >   %5 = Retain %4 Operation row #0 : ()
 >   %6 = Release %4 Operation row #2 : ()
 >   %7 = Retain %4 Operation arguments #0 : ()
->   %8 = Break L0 %4 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Block %10 : usize
->   summary kept [] borrows [$0 $1] writes
+>   %8 = Release %4 Operation arguments #2 : ()
+>   %9 = Drop [%3] : ()
+>   %10 = Break L0 %4 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Block %12 : usize
+>   exit sub 0 drops [$1]
+>   summary kept [$1] borrows [$0] writes
 
 fn scalars(f: fn(i32, usize) -> i32, values: (i32, usize)) -> i32:
 > app/main/scalars
@@ -54,8 +56,8 @@ fn scalars(f: fn(i32, usize) -> i32, values: (i32, usize)) -> i32:
 >   local $1 values: (i32, usize) [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $3 args: (i32, usize) [read] value
->     uses $3: %2 -> %4 lend last
->   %0 = Release %10 Exit local $0 #2 : ()
+>     uses $3: %2 -> %4 consume last
+>   %0 = Release %11 Exit local $0 #2 : ()
     call(f, values)
 >   %1 = Read copy [$1] : (i32, usize)
 >   %2 = Store [$3] %1 : ()
@@ -63,10 +65,11 @@ fn scalars(f: fn(i32, usize) -> i32, values: (i32, usize)) -> i32:
 >   %4 = Read copy [$3] : (i32, usize)
 >   %5 = CallValue %3 [%4] : i32
 >   %6 = Retain %5 Operation arguments #0 : ()
->   %7 = Break L0 %5 : never
->   %8 = Block - : i32
->   %9 = Scope %8 [] : i32
->   %10 = Block %9 : i32
+>   %7 = Release %5 Operation arguments #2 : ()
+>   %8 = Break L0 %5 : never
+>   %9 = Block - : i32
+>   %10 = Scope %9 [] : i32
+>   %11 = Block %10 : i32
 >   summary kept [] borrows [$0] writes
 
 fn one(f: fn((string, List[i32])) -> usize, value: (string, List[i32])) -> usize:
@@ -74,13 +77,12 @@ fn one(f: fn((string, List[i32])) -> usize, value: (string, List[i32])) -> usize
 >   local $0 f: fn((string, List[i32])) -> usize [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 value: (string, List[i32]) [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %3 lend last
 >   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     f(value)
 >   %2 = Read borrow [$0] : fn((string, List[i32])) -> usize
->   %3 = Read move [$1] : (string, List[i32])
+>   %3 = Read borrow [$1] : (string, List[i32])
 >   %4 = CallValue %2 [%3] : usize
 >   %5 = Block %4 : usize
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0] writes
+>   summary kept [] borrows [$0 $1] writes

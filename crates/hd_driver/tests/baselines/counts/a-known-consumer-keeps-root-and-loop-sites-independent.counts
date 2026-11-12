@@ -7,9 +7,10 @@ use std.function.FnMut
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:
-        f(x)
 > app/main/each
->   retain string (stored)
+>   release string (last use)
+        f(x)
+>   retain string (second owner)
 
 fn mixed(xs: List[string]) -> usize:
     let total: usize = 0
@@ -17,8 +18,6 @@ fn mixed(xs: List[string]) -> usize:
 > app/main/mixed
 >   release fn(string) -> () (last use)
         each(xs, fn(x: string) -> void: total += x.len())
-> app/main/mixed
->   release string (last use)
 >   retain counted reference (stored)
     each(xs, fn(x: string) -> void: total += x.len())
     total

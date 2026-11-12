@@ -323,6 +323,58 @@ fn stable_cold_arguments_transfer_across_call_routes() {
     }
 }
 
+/// A borrowed Copy callback input becomes an owned cold dynamic argument.
+/// The returned task must retain the input after the callback returns, while
+/// an ordinary dynamic reader can still borrow it for the call.
+#[test]
+fn a_plain_function_value_transfers_its_cold_dynamic_argument_before_returning() {
+    use hd_driver::OptLevel;
+
+    let sources = one_file(include_str!("cold_dynamic_function_value_argument.hd"));
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    for (name, build_profile, level, checked) in [
+        ("dev", BuildProfile::Checked, OptLevel::Dev, false),
+        ("checked", BuildProfile::Checked, OptLevel::Dev, true),
+        (
+            "optimized",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            false,
+        ),
+        (
+            "optimized-checked",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            true,
+        ),
+    ] {
+        let out = build_packages(
+            &host,
+            "app",
+            &Packages {
+                build_profile,
+                level,
+                checked,
+                verify_own: true,
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(out.diags.is_empty(), "{name}: {}", out.render());
+        let run = run_wasm(name, &out.wasm.expect("the program links"));
+        assert!(stdout(name, &run).is_empty());
+    }
+}
+
 /// Whole-container function variance preserves reference argument ownership.
 #[test]
 fn nested_function_variance_preserves_counted_reference_lifetimes() {

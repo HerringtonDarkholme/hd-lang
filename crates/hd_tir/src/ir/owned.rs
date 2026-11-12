@@ -71,7 +71,7 @@ use crate::own::flow::{
     Backward, BitArena, Flow, Forward, Suites, backward, forward, get_bit, set_bit,
 };
 use crate::own::parts::Slots;
-use crate::own::{OwnCx, Role, consumes, operands, tracked};
+use crate::own::{OwnCx, Role, consumes_counts as consumes, operands, tracked};
 use hd_base::SliceSort as _;
 
 /// Verifies a body after the ownership passes: the structural invariants

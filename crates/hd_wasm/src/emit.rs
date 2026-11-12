@@ -39,6 +39,7 @@ pub(crate) use borrow::{StorageRoots, global_root};
 pub(crate) use hd_tir::own::pointer::LoanSite;
 mod closure;
 mod count;
+pub(crate) use count::LoanCell;
 mod ctx;
 pub(crate) use ctx::ctx_lookup;
 mod drop_flags;
@@ -108,6 +109,25 @@ pub(crate) fn prepare_element_checks(input: &Input<'_>, module: &mut Module) {
             .entry(std::ptr::from_ref(body))
             .or_insert_with(|| Arc::new(hd_tir::own::ElementChecks::new(body)));
         module.element_checks[id.idx()] = Some(Arc::clone(facts));
+    }
+}
+
+/// Share a lazy immutable-body loan census between all collected sub-bodies.
+/// Pointer grouping is confined to this prepass while Input owns every body;
+/// emission retains only stable instance-indexed cells, never pointer keys.
+pub(crate) fn prepare_loan_uses(input: &Input<'_>, module: &mut Module) {
+    use std::sync::{Arc, OnceLock};
+    let mut grouped = HashMap::default();
+    module.loan_uses = vec![None; input.collected.table.item.len()];
+    crate::work::loan_queries(input.order.len());
+    for &id in input.order {
+        let Some(body) = (input.body)(id) else {
+            continue;
+        };
+        let facts = grouped
+            .entry(std::ptr::from_ref(body))
+            .or_insert_with(|| Arc::new(OnceLock::new()));
+        module.loan_uses[id.idx()] = Some(Arc::clone(facts));
     }
 }
 
@@ -194,7 +214,19 @@ fn body_func<'a>(
     }
     let cells = closure::cell_locals(b, &stored);
     let inst = m.inst_of.get(&own.key).copied();
-    let mut em = Em::new(input, m, b, (item, args), targets, cells, (sub, inst));
+    let loan_uses = inst
+        .and_then(|id| m.loan_uses.get(id.idx()))
+        .and_then(Clone::clone)
+        .unwrap_or_default();
+    let mut em = Em::new(
+        input,
+        m,
+        b,
+        (item, args),
+        targets,
+        cells,
+        (sub, inst, loan_uses),
+    );
     em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
     em.type_promoted(promoted);
     em.plan_slots(&slots, framed_slots)?;
@@ -456,6 +488,32 @@ fn body_func<'a>(
                 // that owns it releases it by the stated exit `Release`.
                 let unowned = by_type && !em.owns_at_exit(*l);
                 if by_type {
+                    let input = crate::layout::function_input(em.pool(), em.env(), t);
+                    if sub != 0 && input.transfer {
+                        // The native owner arrived with this argument. Only
+                        // the reference-count portion of the common ABI was
+                        // lent, so acquire exactly that portion for the body.
+                        if let Some(walk) = input.borrowed.filter(|_| !suspending) {
+                            let vals = em.vals(t)?;
+                            let reason = em.required_stated_count(
+                                Tag::Retain,
+                                CountAt::Entry,
+                                CountPart::Local(u32::try_from(*l).map_err(|_| {
+                                    hd_base::NotImplemented::bug(
+                                        hd_base::Stage::Emit,
+                                        "closure entry local index exceeds u32",
+                                    )
+                                })?),
+                            );
+                            em.because(reason, |em| {
+                                for &local in ls {
+                                    em.f.get(local);
+                                }
+                                em.f.helper(Helper::Retain { vals, walk });
+                            });
+                        }
+                        continue;
+                    }
                     match em.parameter_pass(k, t) {
                         Pass::Borrowed if unowned || lent_here.contains(l) => {
                             em.borrowed.insert(*l);
@@ -554,7 +612,7 @@ fn body_func<'a>(
     if em.counting {
         em.open(Ctl::Exit);
     }
-    em.prepare_own_loans();
+    em.prepare_own_loans()?;
     {
         let short_loans = hd_tir::own::short::mark(b, &em.topo, &em);
         em.prepare_short_loans(short_loans);
@@ -885,7 +943,7 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     // Collection resolves every adapter's one target (`scan_adapter`).
     match input.collected.calls[id.idx()][&0].clone() {
         Target::Call(ct)
-            if ct.kind == TargetKind::Instance && !input.env.cold_transfer_adapter(ct.item) =>
+            if ct.kind == TargetKind::Instance && !input.env.transfer_adapter(ct.item, ct.args) =>
         {
             forward(
                 input,
@@ -981,15 +1039,19 @@ fn forward(
         let t = subst(pool, env, callee, cargs, p);
         let vs = vals(pool, env, t)?;
         let target_lends = k < 64 && lends & (1 << k) != 0;
-        if let Pass::Owned(w) = crate::layout::pass(pool, env, true, t) {
-            let value_pass = crate::layout::function_pass(pool, env, true, t);
+        if let Pass::Owned(_) = crate::layout::pass(pool, env, true, t) {
+            let input = crate::layout::function_input(pool, env, t);
             // ruled out: collected function signatures use Wasm's u32
             // parameter indices, as the existing signature encoding does.
             let at = u32::try_from(params.len()).expect("params");
-            if matches!(value_pass, Pass::Borrowed) && !target_lends {
-                copied.push((at, vs.clone(), w));
-            } else if matches!(value_pass, Pass::Owned(_)) && target_lends {
-                lent.push((at, vs.clone(), w));
+            if !target_lends {
+                if let Some(walk) = input.borrowed {
+                    copied.push((at, vs.clone(), walk));
+                }
+            } else if input.transfer
+                && let Some(walk) = input.owned
+            {
+                lent.push((at, vs.clone(), walk));
             }
         }
         params.extend(vs);
@@ -1013,7 +1075,7 @@ fn forward(
     for k in hd_mono::declared_row_keys(pool, env, callee, cargs) {
         provs.push(ctx::ctx_lookup(&mut f, c, ctx::key_id(input, k)));
     }
-    // The common function-value ABI lends references. A declaration
+    // The common function-value ABI lends Copy values and references. A declaration
     // adapter creates the owner only when its target consumes one.
     for (at, vals, walk) in copied {
         for (offset, _) in (0_u32..).zip(&vals) {
@@ -1191,6 +1253,9 @@ struct Em<'i, 'a, 'm> {
     f: Func,
     /// Each computed instruction's locals.
     vals: HashMap<u32, Vec<u32>>,
+    /// Per owned argument value: whether a callback has taken its native
+    /// components, leaving only the lent thin-reference counts to release.
+    input_transferred: HashMap<u32, (u32, Option<crate::layout::Walk>)>,
     /// A map read's hash and entry locals, for a following store that the
     /// TIR proves reaches the same map and key without an intervening change.
     map_probes: HashMap<u32, MapProbe>,
@@ -1359,6 +1424,8 @@ struct Em<'i, 'a, 'm> {
     /// consumer's lowering takes no count is one the passes lend, and its
     /// own `Drop` releases it.
     consumer: Vec<u32>,
+    /// One local-use census shared by parameter and capture loan queries.
+    loan_uses: LoanCell,
     /// With origins, in an owned body: each `copy` read's reason
     /// (`hd_tir::own::copy_reasons`), for the counts view.
     copy_reasons: Vec<Option<Reason>>,
@@ -1456,7 +1523,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         (item, args): (DefId, TyList),
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
-        (sub, inst): (u16, Option<InstId>),
+        (sub, inst, loan_uses): (u16, Option<InstId>, LoanCell),
     ) -> Self {
         let boundary_counts = inst
             .and_then(|id| m.boundary_counts.get(id.idx()))
@@ -1478,6 +1545,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             calls,
             f,
             vals: HashMap::default(),
+            input_transferred: HashMap::default(),
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
             string_slice_comparisons: HashMap::default(),
@@ -1537,6 +1605,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             drive_buffer: None,
             sub_id: sub,
             consumer: Vec::new(),
+            loan_uses,
             copy_reasons: Vec::new(),
             used: Vec::new(),
             value_uses: Vec::new(),
@@ -2878,8 +2947,12 @@ impl Em<'_, '_, '_> {
                 .iter()
                 .copied()
                 .filter(|&l| {
-                    self.env()
-                        .cold_value_transfers(self.sub(self.b.local_ty[l]))
+                    crate::layout::function_input(
+                        self.pool(),
+                        self.env(),
+                        self.sub(self.b.local_ty[l]),
+                    )
+                    .transfer
                 })
                 .collect();
         }
@@ -3003,7 +3076,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The body's own input convention, distinct from a callee's. Lifted
-    /// closure code uses the common function-value reference convention.
+    /// closure code uses the common function-value input convention.
     pub(super) fn parameter_pass(&self, k: usize, t: Ty) -> Pass {
         if self.sub_id != 0 {
             self.argument_pass(None, k, t)
@@ -3083,7 +3156,11 @@ impl Em<'_, '_, '_> {
             // its tuple spread has that same flattened component layout.
             assert!(part.is_some());
             let part = part.as_slice()[0];
-            if let Pass::Owned(walk) = self.argument_pass(lends, k, *t) {
+            if let Pass::Owned(walk) = self.argument_pass(lends, k, *t)
+                && self
+                    .operation_count(i, Tag::Release, CountPart::Arguments)
+                    .is_none()
+            {
                 for &(r, k) in part {
                     self.comp(r, k)?;
                 }

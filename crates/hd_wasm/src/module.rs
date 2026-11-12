@@ -1209,6 +1209,8 @@ pub struct Module {
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
     pub(crate) boundary_counts: Vec<Option<crate::emit::BoundaryCell>>,
+    /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
+    pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
     /// The top-level bindings some reference refers to, by path hash:
@@ -1328,6 +1330,7 @@ impl Module {
             loan_stores: Vec::default(),
             element_checks: Vec::default(),
             boundary_counts: Vec::default(),
+            loan_uses: Vec::default(),
             frames: BTreeMap::default(),
             addressed: BTreeMap::default(),
             objects: hd_base::HashSet::default(),

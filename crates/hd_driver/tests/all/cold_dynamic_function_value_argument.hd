@@ -1,0 +1,28 @@
+# #1376: a plain function-value adapter must own the List transferred to
+# a dynamic cold constructor before the caller releases its input.
+use std.task.block_on
+use std.testing.assert_equal
+
+trait Echo[T]:
+    fn echo!(&self, value: T) -> T
+    fn read(&self, value: List[string]) -> usize
+
+struct Echoer:
+    padding: usize
+
+impl[T] Echo[T] for Echoer:
+    fn echo!(&self, value: T) -> T:
+        value
+
+    fn read(&self, value: List[string]) -> usize:
+        value.len()
+
+pub fn main() -> void:
+    let dynamic: *dyn Echo[List[string]] = box(Echoer { padding: 0 })
+    adapter := fn(value: List[string]) -> Suspend[List[string]]: dynamic.echo(value)
+    pending := adapter(["adapter"])
+    match block_on(pending):
+        .Completed(value) => assert_equal(value, ["adapter"])
+        _ => panic("the immediate cold dynamic call must complete")
+    reader := fn(value: List[string]) -> usize: dynamic.read(value)
+    assert_equal(reader(["reader"]), 1)

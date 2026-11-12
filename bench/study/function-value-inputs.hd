@@ -1,0 +1,19 @@
+use std.annotation.inline
+
+@inline(.Never)
+fn apply(callback: fn(string) -> usize, text: string) -> usize:
+    callback(text)
+
+fn width(text: string) -> usize:
+    text.len()
+
+fn twice(text: string) -> usize:
+    text.len() * 2
+
+pub fn main() -> void $ Console:
+    text := ["shared", " payload"].join("")
+    callbacks := [width, twice]
+    let total: u64 = 0
+    for i in 0..20000000:
+        total += u64(apply(callbacks[i % 2], text))
+    println(total)

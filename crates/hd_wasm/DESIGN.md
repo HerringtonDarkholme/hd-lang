@@ -1418,14 +1418,18 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   await skips that copy and reloads the saved owner. Function-value
   adapters forward the ownership their target needs. A dynamic slot
   lends its erased receiver payload through its existing adapter.
-  Function values borrow every reference input, including counted references,
-  for both plain code and cold constructors/fresh entries. This common
+  Function values borrow Copy inputs and every reference input, including
+  counted references, for plain code and cold constructors/fresh entries. This common
   convention preserves input variance through nested containers without
-  wrapping their elements. An input that holds a thin reference by value,
-  a tuple, struct or optional member, is borrowed whole, since variance
-  may make that member counted on one side and local on the other
-  (`layout::function_pass`, #1693). Other non-reference values keep
-  type-selected ownership. A cold frame counts the object of each thin
+  wrapping their elements. Thin-reference counts held by value in a tuple,
+  struct or optional member remain borrowed, since variance may make that
+  member counted on one side and local on the other (`layout::function_pass`,
+  #1693). A noncopy aggregate still transfers its native ownership and other
+  owned counts; `layout::function_input` separates those from the borrowed
+  count carrier. Other inputs keep type-selected ownership.
+  A cold constructor or fresh entry acquires borrowed inputs'
+  counts before keeping them; polling reuses those saved owners.
+  A cold frame counts the object of each thin
   local reference its parameters hold by value, a tuple member's too.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
@@ -1455,7 +1459,7 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   the captures from the environment into the frame, with a count of
   each. A function-reference adapter bridges the function value's selected
   argument convention to the target declaration's convention: it copies a
-  borrowed reference when the target consumes its owner, and releases an
+  borrowed Copy value or reference when the target consumes its owner, and releases an
   owned value after calling a target that lends it. A generic declaration
   may lend an open parameter even when the value takes an owning argument. Weakening a suspending function
   value to an ordinary constructor preserves its argument convention. The
@@ -1757,16 +1761,27 @@ reads, and the counts of the code it generates.
   decides, so every caller and the callee agree without reading each
   other's bodies (§4.3's header rule). A caller reads the types from the
   callee instance's own parameter locals (`emit::callee_params`), which
-  the callee itself counts by. A suspending function's cold constructor
-  counts each argument into its frame, so its callers lend their
-  arguments.
+  the callee itself counts by. Cold constructors follow the selected
+  convention above: they acquire borrowed inputs' counts or receive transferred
+  owners. Fresh entries use that same convention.
+- **Function-value inputs.** Copy values and references arrive borrowed;
+  noncopy values transfer their native ownership, retaining a borrowed
+  thin-reference count carrier when reference variance requires one.
+  `ProgramEnv::function_value_transfers`
+  shares the driver's cached Copy classification with `function_pass`.
+  An owning declaration adapter or closure entry acquires its own count.
+  Unknown calls retain their conservative write and frame-escape effects.
+  This uses the same lifetime distinction as [Swift SIL's guaranteed
+  arguments](https://github.com/swiftlang/swift/blob/main/docs/SIL/SIL.md):
+  the caller keeps the input alive, and an owned use requires its own copy.
 - **Callers.** A direct call, a default argument's call and a call of a
   function value give each owned argument its count: by a move when the
   call consumes the argument (`Em::take_from`), else by one retain.
   Arguments spread from a tuple do not line up with the parameters one
   to one, so each owned parameter's values take a count wherever they
-  come from. A function reference's adapter passes its arguments on
-  unchanged. A synchronous dynamic call hands in a native value that
+  come from. Function-reference adapters bridge the common borrowed inputs
+  to their declaration's ownership, copying only what that target owns.
+  A synchronous dynamic call hands in a native value that
   holds an inline `Drop` implementation the same way: retaining its
   counted fields cannot copy its Drop ownership. Its vtable slot
   (`Helper::DynSlot`, `DynRead`) forwards that value unchanged and
@@ -1789,6 +1804,15 @@ reads, and the counts of the code it generates.
   element of the checker's private snapshot, a reference parameter's
   read (§23.31) and a local's read over its span (§23.36). A borrowed
   read takes no count, and its drops release nothing (`Em::loans`).
+  Parameter and capture loan queries share one lazy immutable-body local-use
+  census across collected sub-bodies and specializations; a transient body
+  grouping assigns stable instance-indexed cells before emission. Synthesized
+  call bodies use private cells. Capture uses are indexed by sub-body too,
+  so sibling captures query only their own uses. Each call's borrowed arguments
+  are indexed once per emitted specialization.
+  Work is linear in instructions, locals, operands, referenced captures,
+  exit rows, place words and flattened argument slots, without input-depth recursion.
+  Bodies without eligible borrowed inputs or captures build no census.
 - **Balanced pairs.** A part's read moves where no path touches the part
   again, so no copy and drop of it stand as a pair. In generated code, `opt.rs` cancels a retain and its
   matching release over a short straight-line span on unchanged locals,

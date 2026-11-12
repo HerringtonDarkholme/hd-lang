@@ -22,7 +22,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
         for l in cold::locals(b, crate::ir::u32_of(sub)) {
             let ty = b.local_ty[l as usize];
             if cx.counted(ty)
-                && cx.holds_drop(ty) != Tri::Yes
+                && (sub != 0 || cx.holds_drop(ty) != Tri::Yes)
                 && b.exit_drops
                     .iter()
                     .any(|&(s, local)| s.idx() == sub && local.raw() == l)
