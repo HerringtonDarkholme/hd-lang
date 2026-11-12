@@ -39,8 +39,7 @@
     i32.add
     local.set $t1
     i32.const 2
-    local.set $t2
-    i32.const 2
+    local.tee $t2
     local.get $t1
     i32.add
     local.tee $t3

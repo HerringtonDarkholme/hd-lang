@@ -258,19 +258,17 @@
     ;; 11 |     n
     local.get $n
   )
-  (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $t3 i32) (local $t4 i32)
+  (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $x.1 i32) (local $t4 i32)
     ;; 30 |     [for x in xs => x.len()]
     i32.const 80 ;; &empty-buffer
     local.set $t0
     local.get $xs
     i32.load $heap offset=4
     local.tee $t1
-    i32.const 80 ;; &empty-buffer
-    local.set $t2
-    local.tee $x.1
+    local.tee $t2
     if
+      local.get $t0
       local.get $t2
-      local.get $x.1
       call $rt:list_reserve
       local.set $t0
     end

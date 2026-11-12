@@ -91,8 +91,7 @@
     if
     ;; 20 |         panic("negative: $t")
       i32.const 10
-      local.set $s.0
-      i32.const 10
+      local.tee $s.0
     ;; 19 |     if n < 0:
       local.get $t.1
     ;; 20 |         panic("negative: $t")

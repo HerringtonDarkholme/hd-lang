@@ -16,7 +16,7 @@ struct Frame {
 }
 
 /// O(instructions + locals + branch-table entries), with heap control stacks.
-/// Each input instruction is indexed once and rewritten at most once. Epochs
+/// Two input walks and one compaction walk of at most three times the input. Epochs
 /// invalidate local facts in O(1); there is no nesting-dependent retry.
 pub(super) fn run(f: &mut Func) -> bool {
     run_with(f, &mut || {})
@@ -69,6 +69,10 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(f.body.len());
     let mut changed = false;
+    let mut expanded = false;
+    // Surviving copy sources can keep their existing locals. Arithmetic users
+    // still receive literals, allowing dead constant locals to disappear.
+    let mut exposed = Vec::new();
     let mut at = 0;
     while at < f.body.len() {
         visit();
@@ -77,6 +81,7 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
         match ins {
             Ins::Op(I::LocalGet(l)) if facts[l as usize].0 == epoch => {
                 if let Some(value) = facts[l as usize].1 {
+                    exposed.push((out.len(), l));
                     out.push(value);
                     changed = true;
                 } else {
@@ -88,12 +93,15 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
                 facts[l as usize] = (epoch, value);
                 if let (Ins::Op(I::LocalTee(_)), Some(value)) = (ins, value) {
                     // Keep the write, but expose the tee's literal result.
-                    out.pop();
+                    let producer = pop_exposed(&mut out, &mut exposed);
                     let source = origins.pop().or(origins.first(at..at + 1));
+                    if let Some(local) = producer {
+                        exposed.push((out.len(), local));
+                    }
                     out.extend([value, Ins::Op(I::LocalSet(l)), value]);
                     origins.repeat(source, 3);
                     at += 1;
-                    changed = true;
+                    expanded = true;
                     continue;
                 }
                 out.push(ins);
@@ -101,7 +109,7 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
             Ins::Op(I::If(bt)) => {
                 if let Some(Ins::Op(I::I32Const(c))) = out.last() {
                     let take_then = *c != 0;
-                    out.pop();
+                    pop_exposed(&mut out, &mut exposed);
                     origins.pop();
                     out.push(Ins::Op(I::Block(bt)));
                     frame.selected = true;
@@ -145,7 +153,7 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
                 if let Some((n, value)) = evaluate(op, &out) {
                     let mut source = origins.first(at..at + 1);
                     for _ in 0..n {
-                        out.pop();
+                        pop_exposed(&mut out, &mut exposed);
                         source = origins.pop().or(source);
                     }
                     out.push(Ins::Op(value));
@@ -160,7 +168,7 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
                     || matches!((op, out.last()),
                     (I::I64Shl | I::I64ShrS | I::I64ShrU, Some(Ins::Op(I::I64Const(c)))) if c.trailing_zeros() >= 6);
                 if zero_shift {
-                    out.pop();
+                    pop_exposed(&mut out, &mut exposed);
                     origins.pop();
                     at += 1;
                     changed = true;
@@ -175,7 +183,79 @@ fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
     }
     f.body = out;
     origins.finish(f);
+    if changed || expanded {
+        compact_tees(f, &exposed, visit);
+    }
     changed
+}
+
+fn pop_exposed(out: &mut Vec<Ins>, exposed: &mut Vec<(usize, u32)>) -> Option<u32> {
+    out.pop();
+    if exposed.last().is_some_and(|&(at, _)| at == out.len()) {
+        exposed.pop().map(|(_, local)| local)
+    } else {
+        None
+    }
+}
+
+/// Restore exposed tee results and surviving local-to-local copies. The top
+/// hint spans only adjacent literals and tees; no control-flow fact is assumed.
+fn compact_tees(f: &mut Func, exposed: &[(usize, u32)], visit: &mut impl FnMut()) {
+    let mut out = Vec::with_capacity(f.body.len());
+    let mut origins = Remap::new(f.origins.as_deref());
+    let mut top = None;
+    let mut stored = None;
+    let mut exposed = exposed.iter().peekable();
+    for (at, &ins) in f.body.iter().enumerate() {
+        visit();
+        let original = if exposed.peek().is_some_and(|&&(index, _)| index == at) {
+            exposed
+                .next()
+                .filter(|_| {
+                    matches!(
+                        f.body.get(at + 1),
+                        Some(Ins::Op(I::LocalSet(_) | I::LocalTee(_)))
+                    )
+                })
+                .map(|&(_, local)| Ins::Op(I::LocalGet(local)))
+        } else {
+            None
+        };
+        if literal(&ins) {
+            if stored.is_some_and(|value| same_literal(value, ins))
+                && let Some(Ins::Op(I::LocalSet(local))) = out.last().copied()
+            {
+                out.pop();
+                out.push(Ins::Op(I::LocalTee(local)));
+                top = Some(ins);
+                stored = None;
+                continue;
+            }
+            top = Some(ins);
+            stored = None;
+        } else if matches!(ins, Ins::Op(I::LocalSet(_))) {
+            stored = top.take();
+        } else if matches!(ins, Ins::Op(I::LocalTee(_))) {
+            stored = None;
+        } else {
+            top = None;
+            stored = None;
+        }
+        out.push(original.unwrap_or(ins));
+        origins.copy(at..at + 1);
+    }
+    f.body = out;
+    origins.finish(f);
+}
+
+fn same_literal(a: Ins, b: Ins) -> bool {
+    match (a, b) {
+        (Ins::Op(I::I32Const(a)), Ins::Op(I::I32Const(b))) => a == b,
+        (Ins::Op(I::I64Const(a)), Ins::Op(I::I64Const(b))) => a == b,
+        (Ins::Op(I::F32Const(a)), Ins::Op(I::F32Const(b))) => a.bits() == b.bits(),
+        (Ins::Op(I::F64Const(a)), Ins::Op(I::F64Const(b))) => a.bits() == b.bits(),
+        _ => false,
+    }
 }
 
 fn literal(ins: &Ins) -> bool {
@@ -423,6 +503,73 @@ mod tests {
     }
 
     #[test]
+    fn unconsumed_tees_stay_compact_in_one_walk() {
+        for width in [1, 1_000, 10_000] {
+            let mut body = vec![I::I32Const(24)];
+            body.extend(std::iter::repeat_n(I::LocalTee(1), width));
+            body.push(I::Drop);
+            let mut f = function(body);
+            let n = f.body.len();
+            let mut visits = 0;
+            assert!(!run_with(&mut f, &mut || visits += 1));
+            assert_eq!(f.body.len(), n);
+            assert_eq!(
+                f.body
+                    .iter()
+                    .filter(|i| matches!(i, Ins::Op(I::LocalTee(1))))
+                    .count(),
+                width
+            );
+            assert!(visits <= 5 * n);
+            assert_eq!(f.origins.as_ref().map(Vec::len), Some(n));
+        }
+    }
+
+    #[test]
+    fn surviving_local_reads_avoid_rematerializing_constants() {
+        let mut f = function(vec![
+            I::I32Const(24),
+            I::LocalSet(1),
+            I::LocalGet(0),
+            I::LocalGet(1),
+            I::LocalSet(0),
+            I::Drop,
+        ]);
+        run(&mut f);
+        assert!(matches!(f.body[3], Ins::Op(I::LocalGet(1))));
+        let mut f = function(vec![
+            I::I32Const(3),
+            I::LocalSet(1),
+            I::LocalGet(1),
+            I::I32Eqz,
+        ]);
+        run(&mut f);
+        assert!(matches!(f.body.last(), Some(Ins::Op(I::I32Const(0)))));
+    }
+
+    #[test]
+    fn different_literal_bits_keep_the_store() {
+        use wasm_encoder::{Ieee32, Ieee64};
+        for (a, b) in [
+            (I::I32Const(24), I::I32Const(25)),
+            (I::I64Const(24), I::I64Const(25)),
+            (
+                I::F32Const(Ieee32::new(0)),
+                I::F32Const(Ieee32::new(1 << 31)),
+            ),
+            (
+                I::F64Const(Ieee64::new(0x7ff8_0000_0000_0001)),
+                I::F64Const(Ieee64::new(0x7ff8_0000_0000_0002)),
+            ),
+        ] {
+            let mut f = function(vec![a, I::LocalSet(1), b, I::Drop]);
+            compact_tees(&mut f, &[], &mut || {});
+            assert!(matches!(f.body[1], Ins::Op(I::LocalSet(1))));
+            assert_eq!(f.body.len(), 4);
+        }
+    }
+
+    #[test]
     fn generated_width_and_depth_count_linear_work() {
         for (width, depth) in [(1_000, 20), (10_000, 20), (1_000, 1_000)] {
             let mut body = vec![I::Block(BlockType::Empty); depth];
@@ -434,7 +581,7 @@ mod tests {
             let n = f.body.len();
             let mut visits = 0;
             run_with(&mut f, &mut || visits += 1);
-            assert_eq!(visits, 2 * n);
+            assert_eq!(visits, 3 * n);
             assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
         }
     }

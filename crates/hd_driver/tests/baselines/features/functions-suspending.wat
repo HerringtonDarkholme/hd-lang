@@ -2335,10 +2335,8 @@
         local.set $t7
         local.set $t3
         i32.const 0
-        local.set $key.0
-        i32.const 0
-        local.set $key.1
-        i32.const 0
+        local.tee $key.0
+        local.tee $key.1
         local.get $t3
         local.get $t7
         i32.const 0

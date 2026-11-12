@@ -10,8 +10,7 @@
     call $unsigned_width
     local.set $t0
     i32.const 1
-    local.set $t1
-    i32.const 1
+    local.tee $t1
     local.get $t0
     i32.add
     local.tee $t2

@@ -8,8 +8,7 @@
     ;; 7 |     for i in 0..3:
     i32.const 0
     i32.const 3
-    local.set $t0
-    i32.const 3
+    local.tee $t0
     i32.lt_u
     if
       local.get $write

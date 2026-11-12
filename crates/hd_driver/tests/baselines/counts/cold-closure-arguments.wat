@@ -1527,14 +1527,12 @@
         local.set $t5
         local.set $t3
         i32.const 0
-        local.set $key.0
-        i32.const 0
+        local.tee $key.0
         local.set $key.1
         local.get $keys
         local.set $t6
         i32.const 0
-        local.set $keys
-        i32.const 0
+        local.tee $keys
         local.get $t3
         local.get $t5
         local.get $t6

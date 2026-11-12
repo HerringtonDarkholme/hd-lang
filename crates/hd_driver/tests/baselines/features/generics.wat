@@ -158,8 +158,7 @@
     i32.add
     local.set $t1
     i32.const 80 ;; &empty-buffer
-    local.set $xs
-    i32.const 80 ;; &empty-buffer
+    local.tee $xs
     local.tee $t4
     i32.load $heap offset=4
     local.tee $t3

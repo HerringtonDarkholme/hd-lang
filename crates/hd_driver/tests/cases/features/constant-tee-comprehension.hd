@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# expected: the known empty-buffer pointer stays on the stack through local.tee;
+# no repeated constant is needed to initialize the comprehension's locals.
+fn lengths(xs: List[string]) -> List[usize]:
+    [for x in xs => x.len()]
