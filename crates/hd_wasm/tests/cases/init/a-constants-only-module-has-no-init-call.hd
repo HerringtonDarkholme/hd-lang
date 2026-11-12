@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: program
+# @helpers: entry_init main/init.init
+# A module whose top-level bindings hold only constants: the constant fold
+# takes its init's stores, so the init does nothing, and `hd.init` neither
+# calls it nor links it (#1719).
+LIMIT := 40
+STEP := 3
+
+pub fn main() -> void:
+    let mut total = 0
+    let mut i = 0
+    while i < LIMIT:
+        total += i
+        i += STEP
+    if total != 273:
+        panic("wrong")

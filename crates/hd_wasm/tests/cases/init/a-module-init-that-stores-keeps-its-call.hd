@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: program
+# @helpers: entry_init main/init.init
+# A module whose top-level binding a function writes keeps its init: the
+# store is no constant the fold can take, so `hd.init` calls the init
+# (#1719).
+let COUNT = 0
+
+fn bump() -> void:
+    COUNT += 1
+
+pub fn main() -> void:
+    bump()
+    if COUNT != 1:
+        panic("wrong")

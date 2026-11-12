@@ -1240,13 +1240,15 @@ pub struct Module {
     /// the inits among them and before user/module initializers, which can
     /// construct weak values.
     pub runtime_insts: BTreeSet<Hash128>,
-    /// Every `std.*` instance, the runtime's included: the inits that
-    /// `hd.init` may leave out. A program's own inits keep their calls.
+    /// Every `std.*` instance, the runtime's included: the inits whose
+    /// releases of a binding's constant link drops before it looks for
+    /// quiet inits.
     pub std_insts: BTreeSet<Hash128>,
-    /// The std inits whose calls do nothing once
-    /// [`crate::opt::constants`] took their constant stores: `hd.init`
-    /// leaves them out (#1423), such as `std.time`'s list of waiting
-    /// clocks in a program that sleeps on no `ManualClock`.
+    /// The inits whose calls do nothing once [`crate::opt::constants`]
+    /// took their constant stores: the entry helpers leave them out
+    /// (#1423, #1719), such as `std.time`'s list of waiting clocks in a
+    /// program that sleeps on no `ManualClock`, or a module that holds
+    /// only constants.
     pub quiet_inits: BTreeSet<Hash128>,
     /// The instances of `@cold` functions: [`Module::finish`] lowers each
     /// direct call of one as [`Func::cold_helper`] lowers a helper's
@@ -1677,13 +1679,6 @@ impl Module {
         Ok(())
     }
 
-    /// Builds `hd.init` again without the std inits whose calls do
-    /// nothing, such as the allocator's in a program that never allocates:
-    /// its bindings' only writes were its constant stores, which
-    /// [`crate::opt::constants`] took (#1423). The final reach drops them.
-    /// A program whose std inits all still do something keeps its
-    /// `hd.init` as it was. A program's own inits keep their calls, even
-    /// an empty one.
     /// Drops each release of a constant that holds no reference, such as
     /// an init's release of a binding's old `.None` once
     /// [`crate::opt::constants`] read the binding as that constant, and
@@ -1728,33 +1723,69 @@ impl Module {
         dropped
     }
 
+    /// Leaves out of every entry helper the calls of inits that do
+    /// nothing ([`crate::opt::does_nothing`]) once [`crate::opt::constants`]
+    /// took their constant stores, std's and the program's own alike: the
+    /// `hd.init` exports, a script's later inits ([`Helper::EntryPoll`]'s
+    /// `then`) and checked mode's `reinit` ([`Helper::CheckedPoll`]). The
+    /// final reach then drops those inits. The other inits keep their
+    /// order. The cost is one look at each init an entry helper names, a
+    /// set lookup once it is known quiet, and only a helper that names a
+    /// quiet init is built again.
     fn skip_quiet_inits(&mut self) {
+        let mut helpers: Vec<(SymId, Helper, Vec<Hash128>)> = Vec::new();
+        for &(_, export) in &self.exports {
+            let mut id = export;
+            // `hd.poll` and `hd.test.N` wrap their `EntryPoll`, a helper of
+            // its own.
+            loop {
+                let Sym::Helper(h) = Sym::clone(&self.symbols.get(id)) else {
+                    break;
+                };
+                let inits: Option<Vec<Hash128>> = match &h {
+                    Helper::EntryInit { inits } => Some(inits.iter().map(|k| k.0).collect()),
+                    // A suspending root's poll calls no later init.
+                    Helper::EntryPoll {
+                        then, bang: None, ..
+                    } => Some(then.iter().map(|k| k.0).collect()),
+                    Helper::CheckedPoll { reinit, .. } => Some(reinit.clone()),
+                    _ => None,
+                };
+                let inner = match &h {
+                    Helper::CollectPoll { poll } | Helper::CheckedPoll { poll, .. } => {
+                        Some((**poll).clone())
+                    }
+                    _ => None,
+                };
+                if let Some(inits) = inits {
+                    helpers.push((id, h, inits));
+                }
+                let Some(inner) = inner else { break };
+                id = self.symbols.intern(Sym::Helper(inner));
+            }
+        }
         let mut rebuild = Vec::new();
-        // `hd.init` and each test module's `hd.init.N` are exports.
-        let exports: Vec<SymId> = self.exports.iter().map(|&(_, id)| id).collect();
-        for id in exports {
-            let inits = match &*self.symbols.get(id) {
-                Sym::Helper(Helper::EntryInit { inits }) => inits.clone(),
-                _ => continue,
-            };
+        for (id, h, keys) in helpers {
             let mut quiet = false;
-            for (key, _) in &inits {
-                if !self.std_insts.contains(key) {
+            for key in keys {
+                if self.quiet_inits.contains(&key) {
+                    quiet = true;
                     continue;
                 }
-                let init = self.symbols.intern(Sym::Inst(*key));
+                let init = self.symbols.intern(Sym::Inst(key));
                 if self
                     .funcs
                     .get(init.idx())
                     .and_then(Option::as_ref)
                     .is_some_and(crate::opt::does_nothing)
                 {
-                    self.quiet_inits.insert(*key);
+                    self.quiet_inits.insert(key);
                     quiet = true;
                 }
             }
-            if quiet {
-                rebuild.push((id, Helper::EntryInit { inits }));
+            // Only a helper that is emitted is built again.
+            if quiet && self.funcs.get(id.idx()).is_some_and(Option::is_some) {
+                rebuild.push((id, h));
             }
         }
         for (id, h) in rebuild {

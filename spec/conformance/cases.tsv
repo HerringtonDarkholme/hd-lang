@@ -1069,6 +1069,7 @@ typing/invalid/transitive-uninitialized-binding.hd	type	reject:top-level-read-be
 typing/valid/transitive-initialized-binding.hd	type	accept	lang/10-modules.md#module-initialization
 runtime/valid/entry-init-closure-provider-scope.hd	runtime	accept	lang/10-modules.md#r-module.init.entry.statements-before-main
 runtime/valid/module-initialization-before-main.hd	runtime	accept	lang/10-modules.md#module-initialization
+runtime/valid/init-constants-only-module-reads-its-constants.hd	runtime	accept	lang/10-modules.md#r-module.init.binding
 runtime/valid/cancellation-unwinds-nested-frames.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
 runtime/valid/an-awaited-reference-argument-lives-in-its-callers-frame.hd	runtime	accept	std/time.md#r-std-time.clock.sleep

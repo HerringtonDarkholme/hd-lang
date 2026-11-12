@@ -1,0 +1,20 @@
+# test: a module whose top-level bindings hold only constants reads them from main, and a binding a function writes keeps its initial value
+# Spec 10 Module Initialization: module.init.binding, module.init.no-step.
+use std.testing.assert_equal
+
+LIMIT := 40
+STEP := 3
+let calls = 0
+
+fn count() -> void:
+    calls = calls + 1
+
+pub fn main() -> void:
+    let mut total = 0
+    let mut i = 0
+    while i < LIMIT:
+        total += i
+        i += STEP
+        count()
+    assert_equal(total, 273, reason="the constants hold their values")
+    assert_equal(calls, 14, reason="the written binding started at 0")

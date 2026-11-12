@@ -1024,7 +1024,7 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     }
     f.i32(0);
     f.call(Sym::Inst(c.audit));
-    for k in reinit {
+    for k in reinit.iter().filter(|k| !m.quiet_inits.contains(k)) {
         call_init(&mut f, *k, true);
     }
     f.op(Instruction::Else);
@@ -1723,7 +1723,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 // A script's later inits: its own bodies, which share the
                 // first's providers and result, and the others, as
                 // forbidden contexts.
-                for (k, forbid) in then {
+                for (k, forbid) in then.iter().filter(|(k, _)| !m.quiet_inits.contains(k)) {
                     if !forbid {
                         host_providers(&mut f, providers);
                     }
