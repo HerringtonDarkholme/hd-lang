@@ -2274,7 +2274,12 @@ pre.ebnf .eb-definition:target {
   align-items: start;
 }
 
+/* The auto margins stop the grid from stretching the prose, so it would
+ * shrink to fit its content, and a code block's longest line would set the
+ * page width on a phone. An explicit width keeps it inside its column; long
+ * code lines scroll inside their block instead. */
 .split-prose {
+  width: 100%;
   max-width: 40rem;
   margin: 0 0 0 auto;
 }

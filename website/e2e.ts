@@ -336,6 +336,21 @@ try {
     }
   });
 
+  await step("a tour page's long code lines scroll inside their block on a phone", async () => {
+    const { page } = await openPage("tour/11-typed-errors/", { width: 375 });
+    const fit = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      prose: document.querySelector(".split-prose")!.getBoundingClientRect().right,
+      longest: Math.max(
+        ...[...document.querySelectorAll(".split-prose pre")].map((pre) => pre.scrollWidth),
+      ),
+    }));
+    assert.ok(fit.longest > 375, "the page has a code line wider than a phone");
+    assert.equal(fit.overflow, 0, "no horizontal page scroll");
+    assert.ok(fit.prose <= 375, "the prose stays inside the viewport");
+    await page.context().close();
+  });
+
   await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
     const { page } = await openPage("tour/15-requirements/", { ready: "#tour-editor .cm-editor" });
     const output = page.locator("#tour-output");
