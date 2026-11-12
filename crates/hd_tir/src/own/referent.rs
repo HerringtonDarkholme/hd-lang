@@ -239,8 +239,7 @@ mod tests {
             let ds = declarations(&b);
             assert_eq!(ds.len(), 6);
             for sub in [1, 2] {
-                let r = b.sub_params[sub];
-                let l = b.extra[r.start as usize + 1];
+                let l = b.sub_param_locals(sub)[0];
                 assert!(ds.contains(&(
                     Tag::Retain,
                     b.sub_root[sub],

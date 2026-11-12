@@ -2214,9 +2214,9 @@ fn closure_allows(
     ids: &[u32],
 ) -> bool {
     let Origin::Param(p, k) = o else { return false };
-    let r = b.sub_params[sub];
-    (0..r.len)
-        .position(|j| b.extra[(r.start + 1 + j) as usize] == p)
+    b.sub_param_locals(sub)
+        .iter()
+        .position(|&local| local == p)
         .is_some_and(|at| (ids.iter()).any(|&id| dep.allows(ls, Origin::Param(w(at), k), id)))
 }
 

@@ -2078,9 +2078,9 @@ pub(crate) fn entry_locals(b: &Body, s: usize) -> Vec<usize> {
     let mut out = Vec::new();
     if s == 0 {
         let mut in_sub = vec![false; b.local_ty.len()];
-        for r in b.sub_params.iter().skip(1) {
-            for k in 0..r.len {
-                if let Some(x) = in_sub.get_mut(b.extra[(r.start + 1 + k) as usize] as usize) {
+        for sub in 1..b.sub_params.len() {
+            for &local in b.sub_param_locals(sub) {
+                if let Some(x) = in_sub.get_mut(local as usize) {
                     *x = true;
                 }
             }
@@ -2092,10 +2092,8 @@ pub(crate) fn entry_locals(b: &Body, s: usize) -> Vec<usize> {
         }
         return out;
     }
-    if let Some(r) = b.sub_params.get(s) {
-        for k in 0..r.len {
-            out.push(b.extra[(r.start + 1 + k) as usize] as usize);
-        }
+    if s < b.sub_params.len() {
+        out.extend(b.sub_param_locals(s).iter().map(|&local| local as usize));
     }
     for i in 0..b.len() {
         if b.tags[i] == Tag::Closure && b.data[i][0] as usize == s && !b.is_instantiation(i) {

@@ -37,8 +37,8 @@ impl ValueFlow {
             }
         }
         let mut in_sub = vec![false; body.local_flags.len()];
-        for r in body.sub_params.iter().skip(1) {
-            for &l in body.record(r.start) {
+        for sub in 1..body.sub_params.len() {
+            for &l in body.sub_param_locals(sub) {
                 if let Some(x) = in_sub.get_mut(l as usize) {
                     *x = true;
                 }

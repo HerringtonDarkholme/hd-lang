@@ -430,12 +430,9 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
             t.entry[l] = true;
         }
     }
-    for r in &b.sub_params {
-        for k in 0..r.len {
-            if let Some(x) = t
-                .entry
-                .get_mut(b.extra[(r.start + 1 + k) as usize] as usize)
-            {
+    for sub in 0..b.sub_params.len() {
+        for &local in b.sub_param_locals(sub) {
+            if let Some(x) = t.entry.get_mut(local as usize) {
                 *x = true;
             }
         }

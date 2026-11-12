@@ -1103,9 +1103,9 @@ pub struct Summary {
 #[must_use]
 pub fn params(b: &Body) -> Vec<u32> {
     let mut inner = vec![false; b.local_ty.len()];
-    for r in b.sub_params.iter().skip(1) {
-        for k in 0..r.len {
-            inner[b.extra[(r.start + 1 + k) as usize] as usize] = true;
+    for sub in 1..b.sub_params.len() {
+        for &local in b.sub_param_locals(sub) {
+            inner[local as usize] = true;
         }
     }
     (0..u32_of(b.local_ty.len()))

@@ -34,8 +34,7 @@ pub(super) fn locals(b: &Body, sub: u32) -> Vec<u32> {
     if sub == 0 {
         params(b)
     } else {
-        let r = b.sub_params[sub as usize];
-        b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize].to_vec()
+        b.sub_param_locals(sub as usize).to_vec()
     }
 }
 
@@ -223,8 +222,7 @@ mod tests {
                 .collect();
             assert_eq!(copies.len(), 4);
             for sub in 1..=2 {
-                let r = b.sub_params[sub];
-                let l = b.extra[r.start as usize + 1];
+                let l = b.sub_param_locals(sub)[0];
                 for at in [At::Cold, At::Entry] {
                     assert!(copies.contains(&(b.sub_root[sub], Info::new(at, Part::Local(l), 0))));
                 }
