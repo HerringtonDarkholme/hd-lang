@@ -706,17 +706,18 @@ hd test --seed 42                 # every property test starts from seed 42
 26. r[cli.test.snapshot.update.conflict] When failing test cases of one update run want different texts at one `snapshot` call, the call is left as it is, and those test cases fail.
 27. r[cli.test.snapshot.update.continue] In an update run, a failing `snapshot` call of an `it` test case records its new text, as [`std-testing.snapshot.update`](../std/testing.md#r-std-testing.snapshot.update) says, and the test case goes on. So one update run rewrites every failing `snapshot` call of the test case.
 28. r[cli.test.snapshot.update.accepted] A `snapshot` call that an update run rewrites is no failure of its test case. The run's counts and exit status include only its other failures, so a run whose only failures were rewritten snapshots exits 0. The run prints the file and line of each rewritten call.
-29. r[cli.test.snapshot.update.unfixable] A failing `snapshot` call that an update run cannot rewrite fails its test case. That is a call the run cannot find in its file, and a call in a file that changed during the run.
-30. r[cli.test.every-case] In every output mode, `hd test` runs every selected test case of every file and reports each failure. A failing test case does not stop later ones.
-31. r[cli.test.seed] `hd test` derives a property test case's **base seed**, the [`seed`](../std/testing.md#r-std-testing.runner.case.seed) of its first case, from the test case's name. The same name gives the same base seed on every run.
-32. r[cli.test.seed.flag] `hd test --seed N` makes N the base seed of every property test case it runs. N is a whole number.
-33. r[cli.test.seed.report] The report of a failing property test case names its base seed, so a run with `--seed` and that seed draws the same cases.
-34. r[cli.test.leak] A test case whose run otherwise passes fails when a host handle that the run opened is still open at its end.
-35. r[cli.test.leak.message] Its failure message names each kind of handle left open, such as `TcpListener`, with its count.
-36. r[cli.test.leak.closed] `hd test` closes those handles once the run ends, so a later test case never sees them.
-37. r[cli.test.leak.runs] Each run of a test case counts alone: a row of an `it_each` test case, and each case of a property test case.
-38. r[cli.test.leak.abandoned] Abandoning a suspension closes no handle, by [`req.abandon.host`](../lang/11-requirements-and-suspension.md#r-req.abandon.host). A handle that an abandoned cleanup left open is still open at the run's end, and fails the test case by [`cli.test.leak`](#r-cli.test.leak).
-39. r[cli.test.cancelled] A test case whose body turns out cancelled, by [`module.testing.cancelled`](../lang/10-modules.md#r-module.testing.cancelled), fails with the message `cancelled`.
+29. r[cli.test.snapshot.update.non-literal] An update run does not rewrite a failing `snapshot` call whose `expect` argument is not one string literal. It reports the call's file and line, and that its `expect` is not a string literal, and leaves the file as it is.
+30. r[cli.test.snapshot.update.unfixable] A failing `snapshot` call that an update run cannot rewrite fails its test case. That is a call the run cannot find in its file, and a call in a file that changed during the run.
+31. r[cli.test.every-case] In every output mode, `hd test` runs every selected test case of every file and reports each failure. A failing test case does not stop later ones.
+32. r[cli.test.seed] `hd test` derives a property test case's **base seed**, the [`seed`](../std/testing.md#r-std-testing.runner.case.seed) of its first case, from the test case's name. The same name gives the same base seed on every run.
+33. r[cli.test.seed.flag] `hd test --seed N` makes N the base seed of every property test case it runs. N is a whole number.
+34. r[cli.test.seed.report] The report of a failing property test case names its base seed, so a run with `--seed` and that seed draws the same cases.
+35. r[cli.test.leak] A test case whose run otherwise passes fails when a host handle that the run opened is still open at its end.
+36. r[cli.test.leak.message] Its failure message names each kind of handle left open, such as `TcpListener`, with its count.
+37. r[cli.test.leak.closed] `hd test` closes those handles once the run ends, so a later test case never sees them.
+38. r[cli.test.leak.runs] Each run of a test case counts alone: a row of an `it_each` test case, and each case of a property test case.
+39. r[cli.test.leak.abandoned] Abandoning a suspension closes no handle, by [`req.abandon.host`](../lang/11-requirements-and-suspension.md#r-req.abandon.host). A handle that an abandoned cleanup left open is still open at the run's end, and fails the test case by [`cli.test.leak`](#r-cli.test.leak).
+40. r[cli.test.cancelled] A test case whose body turns out cancelled, by [`module.testing.cancelled`](../lang/10-modules.md#r-module.testing.cancelled), fails with the message `cancelled`.
 
 | Part | Value |
 | --- | --- |

@@ -1,0 +1,10 @@
+# A computed `expect` checks and runs like any other argument. An update
+# run cannot rewrite it when it fails: it names the call site, leaves the
+# file as it is, and the test case fails.
+run: hd test --update
+exit: 1
+stdout: test result: FAILED. 1 passed; 1 failed; 0 ignored
+stderr: error: not updated src/lib.hd:11: its `expect` is not a string literal
+run: hd test --filter passes
+run: hd test --filter fails
+exit: 1

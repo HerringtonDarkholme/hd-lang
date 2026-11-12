@@ -1633,7 +1633,7 @@ written in the source:
 pub fn snapshot(text: string, expect: string = "") -> void
 ```
 
-1. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
+1. r[module.testing.snapshot.expect] `expect` is an ordinary `string` argument. Any `string` expression is valid there, a computed one included.
 
 ```text
 fn greeting(name: string) -> string: "hello, " + name
@@ -1645,12 +1645,13 @@ tests:
         snapshot(greeting("Ada"), expect="hello, Ada")
 
     it("computes the expectation"):
-        snapshot(greeting("Ada"), expect=greeting("Ada"))  # error: non-literal-test-argument
+        snapshot(greeting("Ada"), expect=greeting("Ada"))  # an update run cannot rewrite it
 ```
 
-> **Why.** A literal `expect` lets a tool rewrite it in place. So an update
-> run records a new or changed expectation, and an empty `expect` is filled
-> on the first update.
+> **Why.** An update run rewrites a literal `expect` in place, so it
+> records a new or changed expectation, and fills an empty `expect` on the
+> first update. Only that rewrite needs a literal, so the update run checks
+> it, at the call that fails, and the compiler checks nothing extra.
 
 See also: [Snapshot Files](../std/testing.md#snapshot-files) in the stdlib
 tier, for how `snapshot` and `snapshot_file` compare text, update runs, and

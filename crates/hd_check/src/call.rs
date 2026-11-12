@@ -2532,9 +2532,6 @@ impl Ck<'_, '_> {
             self.err(Code::MisplacedTestCase, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));
         }
-        if def == self.cx.names.known.snapshot {
-            self.check_snapshot_expect(args);
-        }
         match &item.data {
             ItemData::Fn(sig, _) => {
                 if item
@@ -5895,26 +5892,6 @@ impl Ck<'_, '_> {
                 .item(def)
                 .and_then(hd_resolve::Item::intrinsic)
                 .is_some_and(|k| self.cx.names.text(k) == "test_case")
-    }
-
-    /// `module.testing.snapshot.literal`: a `snapshot` call's `expect`,
-    /// named or second, is a string literal without interpolation.
-    fn check_snapshot_expect(&mut self, args: &Args<'_>) {
-        let expect = args
-            .named
-            .iter()
-            .find(|(name, _)| name == "expect")
-            .map(|(_, e)| *e)
-            .or_else(|| args.positional.get(1).copied());
-        if let Some(e) = expect
-            && crate::expr::literal_text(&self.cx.src, e).is_none()
-        {
-            self.err(
-                Code::NonLiteralTestArgument,
-                e,
-                "a snapshot's `expect` is a string literal",
-            );
-        }
     }
 
     /// `module.testing.reg.body-closure-result.reference-values`: the body closure of a

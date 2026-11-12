@@ -735,10 +735,10 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
         message := if reason == "": details else: "${reason}: ${details}"
         panic_with("assertion-failed", message)
 
-# `snapshot(text, expect)` compares `text` with the literal expectation
-# written in the source; the compiler checks that `expect` is a literal
-# (module.testing.snapshot.literal). A difference is a failed assertion
-# (r-std-testing.snapshot.mismatch).
+# `snapshot(text, expect)` compares `text` with the expectation written in
+# the source, any `string` (module.testing.snapshot.expect); only
+# `hd test --update` needs a literal there (cli.test.snapshot.update.non-literal).
+# A difference is a failed assertion (r-std-testing.snapshot.mismatch).
 ## Compares `text` with `expect`, the expected text written in the source; a difference is a failed assertion.
 ## See [std-testing.snapshot](../../spec/std/testing.md#r-std-testing.snapshot).
 pub fn snapshot(text: string, expect: string = "") -> void:

@@ -178,9 +178,6 @@ pub struct KnownItems {
     pub each_case: DefId,
     pub prop_case: DefId,
     pub prop_with_case: DefId,
-    /// `std.testing.snapshot`, whose `expect` is a literal
-    /// (`module.testing.snapshot.literal`).
-    pub snapshot: DefId,
     /// The runner capabilities that a test case's std body uses
     /// (`std-testing.runner.binding`).
     pub test_runner: DefId,
@@ -371,7 +368,6 @@ impl KnownItems {
             each_case: item("std.testing", "each_case"),
             prop_case: item("std.testing", "prop_case"),
             prop_with_case: item("std.testing", "prop_with_case"),
-            snapshot: item("std.testing", "snapshot"),
             test_runner: item("std.testing", "TestRunner"),
             property_runner: item("std.testing", "PropertyRunner"),
             sealed: [

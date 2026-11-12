@@ -135,7 +135,6 @@ fn every_known_item_is_declared() {
         ("each_case", known.each_case),
         ("prop_case", known.prop_case),
         ("prop_with_case", known.prop_with_case),
-        ("snapshot", known.snapshot),
         ("test_runner", known.test_runner),
         ("property_runner", known.property_runner),
     ];

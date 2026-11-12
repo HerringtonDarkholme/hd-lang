@@ -1,0 +1,11 @@
+# test: a snapshot expectation may be any string expression
+# Spec 10 Snapshots: module.testing.snapshot.expect, a computed expect is an
+# ordinary argument; only an update run needs a literal.
+fn greeting(name: string) -> string:
+    "hello, " + name
+
+tests:
+    use std.testing.snapshot
+
+    it("computes the expectation"):
+        snapshot(greeting("Ada"), expect=greeting("Ada"))

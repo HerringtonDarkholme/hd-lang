@@ -1,0 +1,11 @@
+fn greeting(name: string) -> string:
+    "hello, " + name
+
+tests:
+    use std.testing.snapshot
+
+    it("passes with a computed expectation"):
+        snapshot(greeting("Ada"), expect=greeting("Ada"))
+
+    it("fails with a computed expectation"):
+        snapshot(greeting("Ada"), expect=greeting("Lin"))

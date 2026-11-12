@@ -97,7 +97,7 @@ impl Updates {
             for (line, want) in sites {
                 let edit = match (&want.literal, &text) {
                     (None, _) => Err("failing cases want different texts"),
-                    (Some(l), Some(t)) => locate(t, line, l).ok_or("its call was not found"),
+                    (Some(l), Some(t)) => locate(t, line, l),
                     (Some(_), None) => Err("its file was not found"),
                 };
                 match edit {
@@ -156,13 +156,25 @@ fn write(path: &std::path::Path, before: &str, text: &str) -> Result<(), String>
         })
 }
 
+/// The edit of one call site: the byte span to replace and its new text,
+/// or why there is none.
+type Edit = Result<(usize, usize, String), &'static str>;
+
+/// No `snapshot` call covers the line (`cli.test.snapshot.update.unfixable`).
+const NOT_FOUND: &str = "its call was not found";
+
+/// The call's `expect` is no single string literal
+/// (`cli.test.snapshot.update.non-literal`).
+const NOT_LITERAL: &str = "its `expect` is not a string literal";
+
 /// The edit that sets the `expect` of the `snapshot` call that covers
-/// 1-based `line` to `literal`: the byte span to replace and its new text.
-/// `None` when no such call is there, or its `expect` is no single string
-/// literal.
-fn locate(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)> {
+/// 1-based `line` to `literal`.
+fn locate(text: &str, line: u32, literal: &str) -> Edit {
     // A line that no compiled code has is a `##` line: a doc test's call.
-    let at_line = text.lines().nth((line as usize).checked_sub(1)?)?;
+    let at_line = (line as usize)
+        .checked_sub(1)
+        .and_then(|l| text.lines().nth(l))
+        .ok_or(NOT_FOUND)?;
     if at_line.trim_start().starts_with("##") {
         return locate_doc(text, line, literal);
     }
@@ -173,7 +185,7 @@ fn locate(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)
 /// lines with their `##` prefix cut are the code, and the edit maps back
 /// to the file. A literal that spans lines is replaced with its `##`
 /// prefixes inside the span.
-fn locate_doc(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)> {
+fn locate_doc(text: &str, line: u32, literal: &str) -> Edit {
     let lines: Vec<&str> = text.split('\n').collect();
     let indent_of = |l: &str| l.len() - l.trim_start().len();
     let is_doc = |i: usize| lines[i].trim_start().starts_with("##");
@@ -211,10 +223,10 @@ fn locate_doc(text: &str, line: u32, literal: &str) -> Option<(usize, usize, Str
         let col = pos - code[..pos].rfind('\n').map_or(0, |n| n + 1);
         starts[row].0 + starts[row].1 + col
     };
-    Some((back(lo), back(hi), new))
+    Ok((back(lo), back(hi), new))
 }
 
-fn locate_code(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)> {
+fn locate_code(text: &str, line: u32, literal: &str) -> Edit {
     let lexed = hd_syntax::lex(text.as_bytes());
     let t = &lexed.tokens;
     let line_of = |at: u32| 1 + text[..at as usize].matches('\n').count();
@@ -236,7 +248,7 @@ fn locate_code(text: &str, line: u32, literal: &str) -> Option<(usize, usize, St
             best = Some((i, close));
         }
     }
-    let (call, close) = best?;
+    let (call, close) = best.ok_or(NOT_FOUND)?;
     // The arguments: token ranges split at the commas of depth one.
     let mut args: Vec<(usize, usize)> = Vec::new();
     let (mut depth, mut from) = (0usize, call + 2);
@@ -275,11 +287,15 @@ fn locate_code(text: &str, line: u32, literal: &str) -> Option<(usize, usize, St
         // A literal is one string token; anything else is left alone.
         (hi == lo + 1 && t.kind[lo] == T::String)
             .then(|| (t.start[lo] as usize, t.end[lo] as usize, literal.to_owned()))
+            .ok_or(NOT_LITERAL)
     } else {
         // No `expect`: its empty default is filled on the first update.
-        let last = close.checked_sub(1).filter(|l| *l > call + 1)?;
+        let last = close
+            .checked_sub(1)
+            .filter(|l| *l > call + 1)
+            .ok_or(NOT_FOUND)?;
         let at = t.end[last] as usize;
-        Some((at, at, format!(", expect={literal}")))
+        Ok((at, at, format!(", expect={literal}")))
     }
 }
 
@@ -306,7 +322,7 @@ mod tests {
     use super::*;
 
     fn rewrite(text: &str, line: u32, literal: &str) -> Option<String> {
-        let (lo, hi, new) = locate(text, line, literal)?;
+        let (lo, hi, new) = locate(text, line, literal).ok()?;
         let mut out = text.to_owned();
         out.replace_range(lo..hi, &new);
         Some(out)
@@ -318,6 +334,18 @@ mod tests {
             debug_literal("a\"$\\\n\t\0\u{1}\u{7f}é"),
             "\"a\\\"\\$\\\\\\n\\t\\0\\u{1}\\u{7f}é\""
         );
+    }
+
+    /// `cli.test.snapshot.update.non-literal`: a computed `expect` is
+    /// named as such, apart from a call that is not there.
+    #[test]
+    fn a_computed_expect_is_not_rewritten() {
+        let computed = "    snapshot(f(), expect=g())\n";
+        assert_eq!(locate(computed, 1, "\"new\""), Err(NOT_LITERAL));
+        let second = "    snapshot(f(), \"a\" + b)\n";
+        assert_eq!(locate(second, 1, "\"new\""), Err(NOT_LITERAL));
+        assert_eq!(locate("    other(f())\n", 1, "\"new\""), Err(NOT_FOUND));
+        assert_eq!(locate("x\n", 7, "\"new\""), Err(NOT_FOUND));
     }
 
     #[test]

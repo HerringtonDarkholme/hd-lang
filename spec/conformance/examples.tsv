@@ -732,7 +732,7 @@ lang/10-modules.md	55	mixed	runtime/valid/test-registration-renamed-import.hd|ru
 lang/10-modules.md	56	complete	runtime/valid/test-expect-panic.hd
 lang/10-modules.md	57	mixed	typing/invalid/unit-test-missing-requirement.hd
 lang/10-modules.md	58	type-fragment	-
-lang/10-modules.md	59	mixed	typing/valid/snapshot-inline.hd|typing/invalid/snapshot-non-literal-expect.hd
+lang/10-modules.md	59	complete	typing/valid/snapshot-inline.hd|typing/valid/snapshot-computed-expect.hd
 lang/10-modules.md	60	mixed	typing/invalid/std-only-use.hd
 lang/10-modules.md	61	type-fragment	-
 lang/10-modules.md	62	type-fragment	-
