@@ -1,0 +1,4 @@
+fn greeting(name: string) -> string:
+    "hello, $name"
+
+println(greeting("Ada"))

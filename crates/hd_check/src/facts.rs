@@ -35,8 +35,11 @@ use crate::ty::Named;
 /// `Facts` and the type of its `items`.
 fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
     let facts = cx.names.item("std.structure", "Facts");
-    // ruled out: every build loads std, and lib/std/structure.hd declares
-    // `Facts` as a struct whose first field is `items`.
+    // ruled out: every build loads the whole std, embedded or, for a root
+    // package named `std`, the root's own sources; the CLI names no
+    // directory's program `std` (#1714); and lib/std/structure.hd declares
+    // `Facts` as a struct whose first field is `items`. Not yet for a
+    // manifest that names its package `std`, an open gap.
     let ItemData::Struct(fields, _) = &cx.lookup.item(facts).expect("stdpack Facts").data else {
         unreachable!("stdpack Facts is a struct");
     };

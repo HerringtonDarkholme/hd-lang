@@ -1,0 +1,6 @@
+# A file in a directory named `std` is a single-file program like any
+# other (#1714): its string interpolation lowers to std's
+# `StringBuilder` helpers, which are not its directory's.
+run: hd check lib/std/greet.hd
+run: hd lib/std/greet.hd
+stdout: hello, Ada

@@ -1,0 +1,7 @@
+use std.annotation.inline
+
+@inline
+fn twice(x: i32) -> i32:
+    x * 2
+
+println(twice(21).to_string())

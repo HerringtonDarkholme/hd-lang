@@ -819,8 +819,11 @@ impl Ck<'_, '_> {
             def: self.cx.names.item("std.text", "StringBuilder"),
             args: pool.list(&[]),
         });
-        // ruled out: std's `StringBuilder` declares every helper the
-        // lowering names, and std is checked with the compiler's own tests.
+        // ruled out: every build loads the whole std (the CLI names no
+        // directory's program `std`, #1714), its `StringBuilder` declares
+        // every helper the lowering names, and std is checked with the
+        // compiler's own tests. Not yet for a manifest that names its
+        // package `std`, an open gap.
         self.find_inherent_any(sb, name)
             .expect("stdpack interpolation method")
             .0

@@ -597,6 +597,10 @@ struct Dependencies {
 }
 
 /// A package name for a root without `hd.toml`: its directory's name.
+/// The name `std` is the standard library's identity, which the driver
+/// and the module table read as std itself, so a directory named `std`,
+/// as `lib/std` of this repository, takes the prefixed name as a
+/// directory whose name starts with a digit does (#1714).
 fn default_name(root: &Path) -> String {
     let raw = hd_run::canonicalize(root)
         .ok()
@@ -612,7 +616,7 @@ fn default_name(root: &Path) -> String {
             }
         })
         .collect();
-    if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+    if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) || name == "std" {
         format!("p{name}")
     } else {
         name

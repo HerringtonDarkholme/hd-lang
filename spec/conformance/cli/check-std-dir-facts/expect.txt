@@ -1,0 +1,10 @@
+# A file in a directory named `std` is a single-file program like any
+# other (#1714): it uses the standard library, which is not its directory,
+# so a decorator's facts check against std's `Facts`.
+run: hd check lib/std/twice.hd
+run: hd lib/std/twice.hd
+stdout: 42
+# It is no part of std, so a runtime module is out of its reach.
+run: hd check --format json lib/std/runtime.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"std-only-use","file":"lib/std/runtime.hd","line":1},{"kind":"summary","errors":1,"status":101}]
