@@ -108,10 +108,10 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
         .None => panic("index")
 ```
 
-Today: `report` releases `Result[(), string]` in the `.Ok` arm (#1381);
-`uniq_write` releases a `(&mut string)?` that counts nothing (#1360).
+Today: `report` releases `Result[(), string]` in the `.Ok` arm (#1381, done);
+`uniq_write` releases a `(&mut string)?` that counts nothing (#1360, done).
 `place_receiver` in `functions-receivers` releases an empty frame slot
-(#1386). **Cause:** a `Drop` is placed by type before liveness, and also
+(#1386, done). **Cause:** a `Drop` is placed by type before liveness, and also
 ends a loan. **Design:** a release needs the reason "owned, last use, not
 consumed". A value whose type counts nothing in this instance is never
 owned. A matched variant with no counted payload is not owned past the
@@ -138,9 +138,9 @@ fn build(parts: &List[string]) -> string:
 ```
 
 Today: `keep_each` calls `rt:list_unique'1` on `out` once per element
-(`for-loops.wat`, #1371). `build` copies `parts` with `rt:coll_copy`
+(`for-loops.wat`, #1371, done). `build` copies `parts` with `rt:coll_copy`
 because the body calls a writer (#1397). `through_ref` checks each element
-of a `&List` (#1380); `rewarded` checks `out` three times (#1396).
+of a `&List` (#1380, done); `rewarded` checks `out` three times (#1396, done).
 **Cause:** no uniqueness fact, and "a call writes every place".
 **Design:** a buffer is unique from its allocation until a retain of it,
 a consuming use, or a call that may keep it. An `IsUnique` needs the
@@ -166,8 +166,8 @@ fn capture_call(s: string) -> usize:
 
 Today: `bind` (above) releases `s` and its caller retains it (#1365);
 `over_value` no longer counts each element (#1366, done); `capture_call`
-retains `s` into the environment and releases it at the exit (#1367);
-`all!` in `requirements-join-list` copies `keys` on entry (#1392).
+retains `s` into the environment and releases it at the exit (#1367, done);
+`all!` in `requirements-join-list` copies `keys` on entry (#1392, done).
 **Cause:** names are places; insertion copies, then patterns weaken.
 **Design:** `s`, `t` and `u` are one value, lent by the caller. Each use
 of it lends, so no count has a reason. `x` is a borrowed element read
@@ -200,9 +200,9 @@ fn local(xs: &List[string]) -> usize:
 ```
 
 Today: `capture_call` allocates an environment and, per call of `f`, a
-cell to lend `s` to `string.len` (#1383, #1370). `two` calls
-`rt:new/class-2` four times (#1382). `local#1` copies the captured list on
-every call (#1395). Calling a held closure counts it (#1387). **Cause:**
+cell to lend `s` to `string.len` (#1383; #1370, done). `two` calls
+`rt:new/class-2` four times (#1382, done). `local#1` copies the captured list on
+every call (#1395, done). Calling a held closure counts it (#1387, done). **Cause:**
 storage is chosen in the emitter and `frame.rs`, where a `Fn` value is
 always an escape. **Design:** the storage pass runs on the instance after
 inlining. A closure only called in its body keeps its environment in
@@ -233,15 +233,14 @@ fn by_value(s: string) -> usize:
 ```
 
 Today: `by_value` retains the new `Named` and at once releases a
-reference to it (#1390). `all!` saves `keys` and `t1` to `t68` at its one
-`join!` (#1393). `block_on(fetch(key))` allocates a cold frame for a
-known function (#1391). **Cause:** frames are laid out in the emitter
+reference to it (#1390, done). `all!` saves `keys` and `t1` to `t68` at its one
+`join!` (#1393, done). `block_on(fetch(key))` allocates a cold frame for a
+known function (#1391, done). **Cause:** frames are laid out in the emitter
 without liveness, and the provider conversion is emitter glue. **Design:**
 the frame holds the values live across each point. A fresh provider moves
 into its scope: one owner, no reason for a retain. A known callee under
-`block_on` is a direct call after per-instance rechoice. Left: #1394,
-row-polymorphic calls still build a context, because rows share one
-instance ([Alternatives](#appendix-c-alternatives-considered), Option 3).
+`block_on` is a direct call after per-instance rechoice. A scoped
+row-polymorphic callback is inlined and builds no context (#1394, done).
 
 ## The Design
 

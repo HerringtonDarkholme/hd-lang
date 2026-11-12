@@ -1704,8 +1704,8 @@ impl Module {
                     seen.contains(SymId(u32::try_from(k).expect("symbols"))) && cyclic_desc(f)
                 })
             });
-        // Read the linked helper feature, including functions reused from
-        // the code cache, rather than mutable state from fresh emission.
+        // Read the linked helper feature from the reached helpers rather
+        // than from mutable state left by emission.
         self.fixed_allocations = session
             || seen.iter().any(|s| {
                 matches!(
