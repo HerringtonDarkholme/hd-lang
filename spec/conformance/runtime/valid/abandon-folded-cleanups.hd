@@ -51,6 +51,13 @@ pub fn main!() -> void $ Console + Clock:
     println(log.join(", "))
     other := box::[List[string]]([])
     let shared: Suspend[i32] = worker("c", other)
-    let holder: Suspend[i32] = waiter(shared, other)
-    _ := join!(race(shared, ready()), waiter(shared, other), race(holder, stop(holder, other)))
+    holder_log := other
+    waiter_log := other
+    stop_log := other
+    let holder: Suspend[i32] = waiter(shared, holder_log)
+    _ := join!(
+        race(shared, ready()),
+        waiter(shared, waiter_log),
+        race(holder, stop(holder, stop_log)),
+    )
     println(other.join(", "))

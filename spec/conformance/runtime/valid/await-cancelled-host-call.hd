@@ -53,12 +53,14 @@ fn supervise_waiter!(call: Suspend[void], log: &mut List[string]) -> string $ Cl
 pub fn main!() -> void $ Console + Clock:
     let mut clock = $.use(Clock)
     log := box::[List[string]]([])
-    let runner: Suspend[void] = run(log, supervise(clock.sleep(s(60)), log))
+    supervisor_log := log
+    let runner: Suspend[void] = run(log, supervise(clock.sleep(s(60)), supervisor_log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))
     other := box::[List[string]]([])
-    let second: Suspend[void] = run(other, supervise_waiter(clock.sleep(s(60)), other))
+    waiter_log := other
+    let second: Suspend[void] = run(other, supervise_waiter(clock.sleep(s(60)), waiter_log))
     second!()
     println(other.join(", "))
     println(ended!(second))

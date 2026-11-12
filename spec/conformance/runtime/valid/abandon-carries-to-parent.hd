@@ -45,7 +45,8 @@ fn stop!(kid: Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let kid: Suspend[string] = child(log)
-    let top: Suspend[string] = parent(kid, log)
+    parent_log := log
+    let top: Suspend[string] = parent(kid, parent_log)
     let (winner, stopped) = join!(race(top, ready()), stop(kid, log))
     println("${winner} ${stopped}")
     println(log.join(", "))

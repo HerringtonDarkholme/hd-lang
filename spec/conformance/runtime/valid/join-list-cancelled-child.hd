@@ -56,13 +56,22 @@ fn supervise_waiter!(job: Suspend[void], log: &mut List[string]) -> string $ Clo
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let runner: Suspend[void] = run(log, supervise(race(slow("a", log), slow("b", log)), log))
+    first_log := log
+    second_log := log
+    supervisor_log := log
+    let runner: Suspend[void] = run(
+        log,
+        supervise(race(slow("a", first_log), slow("b", second_log)), supervisor_log),
+    )
     runner!()
     println(log.join(", "))
     println(ended!(runner))
     other := box::[List[string]]([])
-    let pair: Suspend[void] = race(slow("c", other), slow("d", other))
-    let second: Suspend[void] = run(other, supervise_waiter(pair, other))
+    third_log := other
+    fourth_log := other
+    waiter_log := other
+    let pair: Suspend[void] = race(slow("c", third_log), slow("d", fourth_log))
+    let second: Suspend[void] = run(other, supervise_waiter(pair, waiter_log))
     second!()
     println(other.join(", "))
     println(ended!(second))

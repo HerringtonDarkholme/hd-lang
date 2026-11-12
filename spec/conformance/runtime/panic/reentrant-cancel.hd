@@ -11,8 +11,9 @@ fn outer!(slot: &mut Slot) -> i32:
     inner!(slot)
 
 pub fn main!() -> void:
-    # A counted slot: the suspension keeps it, and borrows no local.
+    # Distinct counted aliases permit the slot write before the cold frame is driven.
     slot := box(Slot { task: .None })
-    let pending: Suspend[i32] = outer(slot)
+    frame_slot := slot
+    let pending: Suspend[i32] = outer(frame_slot)
     slot.task = pending
     _ := pending!() # panic: suspension-reentrant-poll

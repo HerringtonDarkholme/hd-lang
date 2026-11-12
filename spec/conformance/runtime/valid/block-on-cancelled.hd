@@ -49,7 +49,8 @@ fn ended[T](pending: Suspend[T]) -> string:
         .Abandoned => "abandoned"
 
 fn inside(log: *mut List[string]) -> string $ Clock:
-    let job: Suspend[string] = work(log)
+    work_log := log
+    let job: Suspend[string] = work(work_log)
     ended(both(job, log))
 
 pub fn main!() -> void $ Console + Clock:

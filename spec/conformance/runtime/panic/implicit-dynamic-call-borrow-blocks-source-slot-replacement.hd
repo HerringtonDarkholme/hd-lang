@@ -1,0 +1,23 @@
+# test: an implicit dynamic call borrow protects the captured source slot during the call
+# Rule: ref.excl.alias.conflict.
+trait Note:
+    fn text(&self, step: fn() -> void) -> string
+
+struct Held:
+    name: string
+
+impl Note for Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *dyn Note:
+    box(Held { name: "${name}" })
+
+fn through(note: &dyn Note, step: fn() -> void) -> string:
+    note.text(step)
+
+pub fn main() -> void:
+    let mut source = make("kept")
+    replace := fn() -> void: source = make("other") # panic: borrow-conflict
+    _ := through(source, replace)

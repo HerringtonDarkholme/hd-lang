@@ -42,8 +42,10 @@ fn winner_later!(victim: Suspend[string], log: &mut List[string]) -> string $ Cl
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let victim: Suspend[string] = slow(log)
-    let runner: Suspend[void] = run(log, race(victim, winner_later(victim, log)))
+    victim_log := log
+    winner_log := log
+    let victim: Suspend[string] = slow(victim_log)
+    let runner: Suspend[void] = run(log, race(victim, winner_later(victim, winner_log)))
     runner!()
     println(log.join(", "))
     println(ended!(runner))
