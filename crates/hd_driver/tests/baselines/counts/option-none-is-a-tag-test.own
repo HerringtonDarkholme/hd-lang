@@ -6,7 +6,7 @@
 fn absent(value: string?) -> bool:
 > app/main/absent
 >   local $0 value: string? [param read captured] place
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     value == .None
 >   %1 = Ref local frame [$0] : &string?
 >   %2 = NewVariant #0 [] : string?
@@ -22,16 +22,14 @@ fn absent(value: string?) -> bool:
 >   %12 = Block 0:bool : bool
 >   %13 = Match %1 [%10 %11 %12] : bool
 >   %14 = LoanEnd [%1] : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %13 : bool
->   exit sub 0 drops [$0]
+>   %15 = Block %13 : bool
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn present(value: string?) -> bool:
 > app/main/present
 >   local $0 value: string? [param read captured] place
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     value != .None
 >   %1 = Ref local frame [$0] : &string?
 >   %2 = NewVariant #0 [] : string?
@@ -47,11 +45,9 @@ fn present(value: string?) -> bool:
 >   %12 = Block 1:bool : bool
 >   %13 = Match %1 [%10 %11 %12] : bool
 >   %14 = LoanEnd [%1] : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %13 : bool
->   exit sub 0 drops [$0]
+>   %15 = Block %13 : bool
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn none_first(value: string?) -> bool:
 > app/main/none_first

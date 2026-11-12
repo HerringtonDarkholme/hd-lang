@@ -96,6 +96,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         places: &places,
         addressed: &reference_uses.escaping,
         reference_calls: &reference_uses.calls,
+        read_through: &reference_uses.read_through,
         reference_values: &reference_values,
     };
     decided(b, &mut errs);
@@ -727,6 +728,7 @@ struct Cx<'a> {
     places: &'a [Option<Place>],
     addressed: &'a [bool],
     reference_calls: &'a [u32],
+    read_through: &'a [bool],
     reference_values: &'a [u32],
 }
 
@@ -1135,6 +1137,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     if !any {
         return;
     }
+    let no_external_write = !crate::own::writes_in(b, 0..b.len(), &|c| own.may_write(c));
     let mut frame_parameters = vec![false; b.local_ty.len()];
     for &(sub, l, storage) in &b.storage {
         if sub.idx() == 0 && storage == super::Storage::Slot && lent[l.idx()] {
@@ -1156,22 +1159,24 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
         // A borrowed parameter still has private frame storage for its
         // descriptor. An immutable address that dies with one read-only
-        // call borrows that storage without giving it a count. Bindings,
-        // mutable/escaping references and absent frame slots stay rejected.
+        // call, or only reads through it in a body without external writes,
+        // borrows that storage. Bindings, mutable/escaping references and
+        // absent frame slots stay rejected.
         let call = cx.reference_calls[i];
         if b.tags[i] == Tag::Ref
             && frame_parameters[l.idx()]
             && cx.topo.sub[i] == 0
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
                 == ref_word::LOCAL | ref_word::FRAME
-            && call != NONE
-            && b.data
-                .get(call as usize)
-                .and_then(|[at, _]| b.extra.get(*at as usize..))
-                .and_then(|words| words.split_first())
-                .and_then(|(&len, words)| words.get(..len as usize))
-                .and_then(Callee::from_words)
-                .is_some_and(|callee| !own.may_write(&callee))
+            && ((cx.read_through[i] && no_external_write)
+                || (call != NONE
+                    && b.data
+                        .get(call as usize)
+                        .and_then(|[at, _]| b.extra.get(*at as usize..))
+                        .and_then(|words| words.split_first())
+                        .and_then(|(&len, words)| words.get(..len as usize))
+                        .and_then(Callee::from_words)
+                        .is_some_and(|callee| !own.may_write(&callee))))
         {
             continue;
         }

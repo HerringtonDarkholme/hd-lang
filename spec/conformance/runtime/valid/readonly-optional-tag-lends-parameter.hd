@@ -1,0 +1,40 @@
+# test: a read-only optional tag test borrows, while a writing callback preserves its value snapshot
+# expect: test
+use std.annotation.inline
+use std.testing.{assert, assert_equal}
+
+@inline(.Never)
+fn text(n: i32) -> string:
+    "live-$n"
+
+@inline(.Never)
+fn absent(value: string?) -> bool:
+    value == .None
+
+@inline(.Never)
+fn present(value: string?) -> bool:
+    match &value:
+        .Some(_) => true
+        .None => false
+
+@inline(.Never)
+fn guarded(value: string?, write: fn() -> void) -> bool:
+    held := &value
+    write()
+    match held:
+        .Some(s) => s == "live-17"
+        .None => false
+
+tests:
+    it("tag-only readers preserve their caller's dynamic payload"):
+        let some: string? = .Some(text(17))
+        assert(!absent(some))
+        assert(present(some))
+        assert_equal(some, .Some(text(17)))
+        assert(absent(.None))
+        assert(!present(.None))
+
+    it("a writing call cannot invalidate the referred parameter snapshot"):
+        owner := box::[string?](.Some(text(17)))
+        assert(guarded(*owner, fn() -> void: *owner = .None))
+        assert(absent(*owner))

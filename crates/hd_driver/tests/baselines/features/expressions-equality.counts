@@ -20,8 +20,6 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 
 fn opt_none(o: string?) -> bool:
     o == .None
-> app/main/opt_none
->   release string? (last use)
 
 fn opt_some(o: string?, s: string) -> bool:
     o == .Some(s)
