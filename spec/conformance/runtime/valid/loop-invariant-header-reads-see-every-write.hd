@@ -1,0 +1,87 @@
+# test: Header reads that a loop does not write load once before it, and a loop that writes a header reads each new value
+# Spec std/collections UniqList: std-collections.uniq-list.index-places.
+# expect-stdout: 1220.0
+# expect-stdout: 2548
+# expect-stdout: 36
+# expect-stdout: true 0 547 996
+# expect-stdout: 1218
+# expect-stdout: true false
+use std.collections.{UniqList, UniqMap}
+
+struct Counter:
+    n: usize
+
+fn bump(c: &mut Counter) -> void:
+    c.n += 1
+
+fn multiply(n: usize) -> f64:
+    nn := n * n
+    let mut a = UniqList::[f64].with_capacity(nn)
+    let mut b = UniqList::[f64].with_capacity(nn)
+    let mut c = UniqList::[f64].with_capacity(nn)
+    for i in 0..nn:
+        a.push(f64(i % 7))
+        b.push(f64(i % 5))
+        c.push(0.0)
+    for i in 0..n:
+        for k in 0..n:
+            aik := a[i * n + k]
+            for j in 0..n:
+                idx := i * n + j
+                prev := c[idx]
+                c[idx] = prev + aik * b[k * n + j]
+    let sum = 0.0
+    for i in 0..nn:
+        sum = sum + c[i]
+    sum
+
+fn grow(n: usize) -> i64:
+    let mut xs = UniqList::[i64].new()
+    xs.push(1)
+    let sum: i64 = 0
+    for i in 0..n:
+        sum += xs[i] + i64(xs.len())
+        xs.push(sum)
+    sum
+
+fn counted() -> usize:
+    let mut c = Counter { n: 0 }
+    bump(&mut c)
+    let total: usize = 0
+    for _ in 0..5:
+        total += c.n
+        c.n = c.n + 2
+    total + c.n
+
+fn find_all(m: &UniqMap[u32, u32], keys: &UniqList[u32]) -> u32:
+    let hits: u32 = 0
+    for i in 0..keys.len():
+        if m.contains_key(keys[i]):
+            hits += m[keys[i]]
+    hits
+
+pub fn main() -> void $ Console:
+    println(multiply(6))
+    println(grow(10))
+    println(counted())
+    let mut xs: List[u32] = []
+    let state = u32(12345)
+    for _ in 0..300:
+        state = state.wrapping_mul(1664525).wrapping_add(1013904223)
+        xs.push(state % 1000)
+    xs.sort()
+    let sorted = true
+    for i in 1..xs.len():
+        if xs[i - 1] > xs[i]:
+            sorted = false
+    println("$sorted ${xs[0]} ${xs[150]} ${xs[299]}")
+    let mut m = UniqMap::[u32, u32].new()
+    let mut keys = UniqList::[u32].new()
+    for i in 0..200:
+        _ := m.insert(u32(i * 7), u32(i))
+        keys.push(u32(i * 3))
+    println(find_all(&m, &keys))
+    let mut items = UniqList::[u32].new()
+    for i in 0..50:
+        items.push(u32(i * 2))
+    println("${items.binary_search(&40).is_ok()} ${items.binary_search(&41).is_ok()}")

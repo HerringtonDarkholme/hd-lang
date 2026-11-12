@@ -1,5 +1,7 @@
 # @dump: wat
 # @build: v8 release std
+# The header is `&mut`: a shared `&Header` is unchanged whatever the
+# loop writes, so its reads load once before the loop (#1706).
 # Conservative header proofs never cache across an unknown raw source.
 use std.rt.bytes.panic_with
 use std.rt.memory.Ptr
@@ -10,7 +12,7 @@ struct Header:
 struct Holder:
     ptr: Ptr[usize]
 
-fn deep_pointer_aliases(header: &Header, pointer: Ptr[usize], n: usize) -> usize:
+fn deep_pointer_aliases(header: &mut Header, pointer: Ptr[usize], n: usize) -> usize:
     p0 := pointer
     p1 := p0
     p2 := p1

@@ -1,5 +1,7 @@
 # @dump: wat
 # @build: v8 release std
+# The header is `&mut`: a shared `&Header` is unchanged whatever the
+# loop writes, so its reads load once before the loop (#1706).
 # A header reached through global or indirect storage is not an unchanged parameter field.
 use std.rt.bytes.panic_with
 use std.rt.memory.{Buffer, Ptr}
@@ -10,7 +12,7 @@ struct Header:
 struct Holder:
     ptr: Ptr[usize]
 
-fn direct_pointer_reference(header: &Header, pointers: Ptr[Ptr[usize]], n: usize) -> usize:
+fn direct_pointer_reference(header: &mut Header, pointers: Ptr[Ptr[usize]], n: usize) -> usize:
     raw := *(pointers.as_ref())
     let i: usize = 0
     let total: usize = 0

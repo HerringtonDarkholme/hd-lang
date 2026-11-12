@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index
+# `find_index` takes the map as `&self`, a shared reference: the probe
+# loop's calls change nothing the reference reaches (#1706), so the slots'
+# address loads once, before the loop, not per matching entry.
+use std.collections.UniqMap
+
+fn run(m: &UniqMap[u32, u32], k: u32) -> bool:
+    m.contains_key(k)

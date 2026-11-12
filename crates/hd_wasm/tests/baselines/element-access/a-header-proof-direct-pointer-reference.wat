@@ -4,7 +4,7 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $direct_pointer_reference (param $header i32) (param $pointers i32) (param $n i32) (result i32) (local $i i32) (local $total i32)
     ;; ...
-    ;; 18 |     while i < n:
+    ;; 20 |     while i < n:
     block
       loop
         local.get $i
@@ -12,7 +12,7 @@
         i32.lt_u
         i32.eqz
         br_if 1
-    ;; 19 |         raw.offset(i).write(i)
+    ;; 21 |         raw.offset(i).write(i)
         local.get $pointers
         local.get $i
         i32.const 4
@@ -20,13 +20,13 @@
         i32.add
         local.get $i
         i32.store $heap
-    ;; 20 |         if i >= header.length:
+    ;; 22 |         if i >= header.length:
         local.get $i
         local.get $header
         i32.load $heap
         i32.ge_u
         if
-    ;; 21 |             panic_with("index", "index")
+    ;; 23 |             panic_with("index", "index")
           i32.const 65 ;; &"index"
           i32.const 5
           i32.const 65 ;; &"index"
@@ -34,19 +34,19 @@
           i32.const 0
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
-    ;; 20 |         if i >= header.length:
+    ;; 22 |         if i >= header.length:
         end
-    ;; 22 |         total = total + i
+    ;; 24 |         total = total + i
         local.get $total
         local.get $i
         i32.add
         local.set $total
-    ;; 23 |         i = i + 1
+    ;; 25 |         i = i + 1
         local.get $i
         i32.const 1
         i32.add
         local.set $i
-    ;; 18 |     while i < n:
+    ;; 20 |     while i < n:
         br 0
       end
     end

@@ -1,0 +1,28 @@
+# @dump: wat
+# @build: v8 release
+# Lists held in locals, in cells since `push` borrows them (#1706): the
+# multiply loops store only into the rooms of `c`'s buffer, so no write
+# in them reaches a header. Each list's length and buffer address load
+# once, before the outer loop, and the second `c[idx]` guard goes, since
+# the first one ran with the same index and length.
+use std.collections.UniqList
+
+fn multiply(n: usize) -> f64:
+    nn := n * n
+    let mut a = UniqList::[f64].with_capacity(nn)
+    let mut b = UniqList::[f64].with_capacity(nn)
+    let mut c = UniqList::[f64].with_capacity(nn)
+    for _ in 0..nn:
+        a.push(1.0)
+        b.push(2.0)
+        c.push(0.0)
+    for i in 0..n:
+        for k in 0..n:
+            aik := a[i * n + k]
+            # subject
+            for j in 0..n:
+                idx := i * n + j
+                prev := c[idx]
+                add := aik * b[k * n + j]
+                c[idx] = prev + add
+    c[0]

@@ -2331,11 +2331,14 @@ impl Em<'_, '_, '_> {
                 self.ptr_place(i, p)?;
             }
             // A read of an unchanged header field that an earlier read
-            // of it dominates: that read's value (`guards.rs`).
+            // of it dominates, or that its loop's start read: that read's
+            // value (`guards.rs`).
             Tag::Read
                 if self.susp.is_none()
-                    && let Some(j) = self.headers.same_reads.get(&i)
-                    && let Some(&kept) = self.headers.kept.get(j)
+                    && let Some(&kept) = (self.headers.hoisted.get(&i)).or_else(|| {
+                        let j = self.headers.same_reads.get(&i)?;
+                        self.headers.kept.get(j)
+                    })
                     && !self.tracked(self.ty(i)) =>
             {
                 self.f.get(kept);
@@ -2518,6 +2521,7 @@ impl Em<'_, '_, '_> {
             Tag::Loop => {
                 self.slot(i)?;
                 let caches = self.begin_list_loop(i)?;
+                self.hoist_header_reads(i)?;
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));

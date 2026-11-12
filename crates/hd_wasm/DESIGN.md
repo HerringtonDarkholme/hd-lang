@@ -2502,6 +2502,27 @@ takes that read's value. The kernel of #1689 keeps no guard and no header
 load in its inner loop. Calls of the wrapping arithmetic intrinsics write
 nothing either.
 
+Issue #1706 scopes the header facts to loops and widens their roots. A
+root is a reference parameter that no store and no `Ref` names, or a
+local in a cell (`c | OWN`, the value in the cell). A shared `&T`
+parameter's referent is unchanged whatever the body does: nothing may
+write it while the reference lives (`ref.excl.shared`,
+`ref.excl.alias.conflict`, `module.rt.ptr.as-ref`). Any other root's
+fields are unchanged in a loop whose writes, its inner loops' included,
+reach none of them: no call but the pure intrinsics, no store through a
+dereference or an element, no store into or move out of that cell, and
+`Ptr` stores only into buffer rooms (a cell is never in a room; a room
+may hold another referent, so a room write keeps only its own root's).
+One pass attributes each write to its innermost loop and merges each
+loop into the one around it, deepest first. A copy read of such a field
+that no earlier read of it runs before loads once, before the outermost
+loop whose writes don't reach it, into a local the reads in the loop
+take. A guard of the same key that ran first in the same loop, or a
+rising counter whose test reads the same field there, proves a guard as
+before. The sort kernel's `&Buffer[T]` parameters, `find_index`'s
+`&self`, and lists in locals (the race's matmul) load their headers
+before their loops.
+
 A masked index is the third shape, for `List` and for the guard pass,
 in release builds only (#1713): `xs[y & (n - 1)]`, the `&`'s operands in
 either order and `n - 1` possibly `n.wrapping_sub(1)`, where `n` is the

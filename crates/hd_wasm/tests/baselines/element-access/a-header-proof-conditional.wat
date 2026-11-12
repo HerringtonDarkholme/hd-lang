@@ -3,6 +3,9 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $conditional (param $header i32) (param $n i32) (param $choose i32) (param $stop i32) (result i32) (local $i i32) (local $total i32)
     ;; 24 |     while i < n:
+    local.get $header
+    i32.load $heap
+    local.set $header
     block
       loop
         local.get $i
@@ -23,7 +26,6 @@
     ;; 28 |             total += header.length
           local.get $total
           local.get $header
-          i32.load $heap
           i32.add
           local.set $total
     ;; 25 |         if choose:
@@ -31,7 +33,6 @@
     ;; 29 |         total += header.length
         local.get $total
         local.get $header
-        i32.load $heap
         i32.add
         local.set $total
     ;; 30 |         i = i + 1

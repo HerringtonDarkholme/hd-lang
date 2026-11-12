@@ -303,7 +303,7 @@ impl Em<'_, '_, '_> {
     /// A use in a suspending body, whose resume reloads its locals from the
     /// frame and enters blocks in the middle (`susp.rs`), takes only the
     /// first. Anything else keeps the test.
-    fn cell_made(&self, l: usize) -> bool {
+    pub(super) fn cell_made(&self, l: usize) -> bool {
         if self.entry_cells.contains(&l) {
             return true;
         }

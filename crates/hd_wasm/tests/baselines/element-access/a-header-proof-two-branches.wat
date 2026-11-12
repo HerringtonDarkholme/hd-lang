@@ -3,6 +3,9 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $two_branches (param $header i32) (param $n i32) (param $choose i32) (result i32) (local $i i32) (local $total i32)
     ;; 11 |     while i < n:
+    local.get $header
+    i32.load $heap
+    local.set $header
     block
       loop
         local.get $i
@@ -16,7 +19,6 @@
     ;; 13 |             total = total + header.length
           local.get $total
           local.get $header
-          i32.load $heap
           i32.add
           local.set $total
     ;; 12 |         if choose:
@@ -24,7 +26,6 @@
     ;; 15 |             total = total + header.length
           local.get $total
           local.get $header
-          i32.load $heap
           i32.add
           local.set $total
     ;; 12 |         if choose:

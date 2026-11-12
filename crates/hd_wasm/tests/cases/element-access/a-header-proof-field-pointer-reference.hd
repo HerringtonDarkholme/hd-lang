@@ -1,6 +1,9 @@
 # @dump: wat
 # @build: v8 release std
+# The header is `&mut`: a shared `&Header` is unchanged whatever the
+# loop writes, so its reads load once before the loop (#1706).
 # Conservative header proofs never cache across an unknown raw source.
+# The pointer in `holder`, a shared reference, loads once before the loop.
 use std.rt.bytes.panic_with
 use std.rt.memory.Ptr
 
@@ -10,7 +13,7 @@ struct Header:
 struct Holder:
     ptr: Ptr[usize]
 
-fn field_pointer_reference(header: &Header, holder: &Holder, n: usize) -> usize:
+fn field_pointer_reference(header: &mut Header, holder: &Holder, n: usize) -> usize:
     reference := &holder.ptr
     let i: usize = 0
     let total: usize = 0

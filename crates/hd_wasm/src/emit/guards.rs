@@ -15,7 +15,13 @@
 //!    through a `Ptr` only into the room of a buffer that lies inline in
 //!    `p`'s referent. That room is a block of its own, which the header
 //!    is never in (`module.rt.ptr.holds`, `module.rt.buffer.type`), and
-//!    with no call nothing else runs while the body does.
+//!    with no call nothing else runs while the body does. A shared `&T`
+//!    parameter's referent is unchanged whatever the body does: nothing
+//!    may write it while the reference lives (`ref.excl.shared`,
+//!    `ref.excl.alias.conflict`, `module.rt.ptr.as-ref`). In a loop
+//!    (#1706), the same holds of the loop's writes alone, and of a local
+//!    in a cell as of a parameter's referent: no store into the cell or
+//!    move out of it, and a `Ptr` store goes into a room, never a cell.
 //! 2. **Values by their source.** A read of a local with one dominating
 //!    store is the stored value; an identity or weakening coercion, and a
 //!    block whose one break carries a value, are that value.
@@ -42,7 +48,9 @@
 //!    earlier read of the same field always runs before takes that read's
 //!    value, kept in a local: a loop's `len` and buffer address load once,
 //!    where the first access before it loaded them, as Rust's `noalias`
-//!    on `&mut` lets LLVM do.
+//!    on `&mut` lets LLVM do. A read in a loop that no earlier read runs
+//!    before loads once at the start of the outermost loop whose writes
+//!    don't reach its field ([`Em::hoist_header_reads`]).
 //!
 //! "Runs first" is [`Em::dominates`], or a statement of an inlined call's
 //! block that no earlier statement of the block can leave (`clear`), whose
@@ -57,9 +65,12 @@
 //! [`DEPTH`] times; a read or guard is compared with at most [`READS`]
 //! earlier ones of its field, and a masked key with at most [`READS`]
 //! tests of its length. Dominance walks the block path, which is
-//! the nesting depth. No fixpoint.
+//! the nesting depth. The loop summaries take one pass that adds each
+//! write to its innermost loop, then a merge of each loop into the one
+//! around it, deepest first, at most [`READS`] rooms and cells each; a
+//! read's hoist loop walks out at most the nesting depth. No fixpoint.
 
-use hd_base::HashMap;
+use hd_base::{HashMap, SliceSort as _, StageResult};
 use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{NONE, PrimOp, Proj, ReadMode, Ref, Root, Tag, local_flags};
 use hd_types::Ty;
@@ -97,17 +108,39 @@ pub(super) struct HeaderFacts {
     pub(super) leaders: hd_base::HashSet<u32>,
     /// Each emitted leader's value, in a local of its own.
     pub(super) kept: HashMap<u32, u32>,
+    /// The header fields that each loop reads but no write in it can
+    /// reach, read once before it ([`Em::hoist_header_reads`]).
+    pub(super) hoists: HashMap<u32, Vec<Hoist>>,
+    /// Each read of a hoisted field, with the local its loop's start
+    /// loaded the field into.
+    pub(super) hoisted: HashMap<u32, u32>,
 }
 
-/// A value by its source.
+/// A header field that loop reads but does not write: the root that
+/// holds it, its field path, and the copy reads of it in the loop.
+pub(super) struct Hoist {
+    root: u32,
+    path: Path,
+    reads: Vec<u32>,
+}
+
+/// The root bit of a local's own storage, in a cell: `c | OWN` names the
+/// value in local `c`'s cell, as `p` names the referent of the reference
+/// that parameter `p` holds.
+const OWN: u32 = 1 << 31;
+
+/// A value by its source. A root is a reference parameter `p` that the
+/// body never stores into, which names its referent, or `c | OWN` for a
+/// local `c` in a cell ([`OWN`]), which names the cell's value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Key {
     /// An instruction's own value or a constant.
     Val(u32),
-    /// The reference that parameter local `p` holds.
-    Param(u32),
-    /// A field, at any depth of inline structs, of the referent of
-    /// parameter `p`, which the body never writes.
+    /// A reference to a root's value: the one parameter `p` holds, or
+    /// `&c`.
+    Ref(u32),
+    /// A field, at any depth of inline structs, of a root's value, or
+    /// with the empty path a reference parameter's whole referent.
     Field(u32, Path),
     /// A reference to such a field.
     FieldRef(u32, Path),
@@ -122,6 +155,17 @@ impl Path {
     fn push(self, k: u32) -> Option<Path> {
         let used = (32 - self.0.leading_zeros()).div_ceil(10);
         (k < 1023 && used < 3).then(|| Path(self.0 | ((k + 1) << (10 * used))))
+    }
+
+    /// The field indices, outermost first.
+    fn fields(self) -> Vec<u32> {
+        let mut out = Vec::new();
+        let mut rest = self.0;
+        while rest != 0 {
+            out.push((rest & 1023) - 1);
+            rest >>= 10;
+        }
+        out
     }
 }
 
@@ -165,8 +209,23 @@ struct Proof<'e, 'x, 'a, 'm> {
     addressed: Vec<bool>,
     /// The value of the one break that leaves each labelled instruction.
     breaks: HashMap<u32, Option<u32>>,
-    /// Reference parameters whose referent the body never writes.
+    /// Reference parameters that hold one reference all through the body:
+    /// no store and no `Ref` names them, and the reference is no trait
+    /// value. Each is a root.
+    fixed: Vec<bool>,
+    /// Those whose reference is shared, `&T`: nothing writes the referent
+    /// while the body runs (`ref.excl.shared`, `ref.excl.alias.conflict`,
+    /// `module.rt.ptr.as-ref`), whatever the body does.
+    shared: Vec<bool>,
+    /// Locals in a cell that no closure shares, and that hold no
+    /// reference: each one's cell value is a root (`c | OWN`).
+    own: Vec<bool>,
+    /// Roots whose value no write of the body reaches.
     unchanged: Vec<bool>,
+    /// What the body's writes may reach.
+    body: Writes,
+    /// What each loop's writes, its inner loops' included, may reach.
+    loops: HashMap<u32, Writes>,
     keys: HashMap<u32, Key>,
     /// Statements that run whenever their block runs to them: no earlier
     /// statement of the block can leave it and go on elsewhere.
@@ -176,6 +235,74 @@ struct Proof<'e, 'x, 'a, 'm> {
     /// Tests that show a header field above zero, each with the outcome
     /// that shows it, at most [`READS`] per field.
     positive: HashMap<Key, Vec<(u32, bool)>>,
+}
+
+/// What one instruction may write.
+#[derive(Clone, Copy)]
+enum Write {
+    None,
+    /// Any root's value but a shared referent's.
+    Any,
+    /// The room of a buffer inline in root `p`'s value.
+    Room(u32),
+    /// Cell local `c`'s value.
+    Cell(u32),
+}
+
+/// What the writes of a loop, or of the body, may reach.
+#[derive(Clone, Default)]
+struct Writes {
+    any: bool,
+    /// The roots whose buffer rooms a `Ptr` writes, at most [`READS`].
+    rooms: Vec<u32>,
+    /// The cell locals written, at most [`READS`].
+    cells: Vec<u32>,
+}
+
+impl Writes {
+    fn add(&mut self, w: Write) {
+        match w {
+            Write::None => {}
+            Write::Any => self.any = true,
+            Write::Room(p) => self.any |= !add_capped(&mut self.rooms, p),
+            Write::Cell(c) => self.any |= !add_capped(&mut self.cells, c),
+        }
+    }
+
+    fn merge(&mut self, other: &Writes) {
+        self.any |= other.any;
+        for &p in &other.rooms {
+            self.add(Write::Room(p));
+        }
+        for &c in &other.cells {
+            self.add(Write::Cell(c));
+        }
+    }
+
+    /// Whether no write reaches root `root`'s value. A buffer room is a
+    /// block of its own (`module.rt.buffer.type`), which holds no cell
+    /// and no header of the root whose buffer it is; it may hold another
+    /// referent, so a room write keeps only its own root's referent.
+    fn keeps(&self, root: u32) -> bool {
+        !self.any
+            && if root & OWN != 0 {
+                !self.cells.contains(&(root & !OWN))
+            } else {
+                self.rooms.iter().all(|&p| p == root)
+            }
+    }
+}
+
+/// Adds `x` to `v` unless it is there; false when `v` is full.
+fn add_capped(v: &mut Vec<u32>, x: u32) -> bool {
+    if v.contains(&x) {
+        return true;
+    }
+    if v.len() >= READS {
+        return false;
+    }
+    v.push(x);
+    true
 }
 
 impl Em<'_, '_, '_> {
@@ -190,12 +317,18 @@ impl Em<'_, '_, '_> {
         if !self.input.optimized || !b.tags.contains(&Tag::Loop) {
             return facts;
         }
+        let n = b.local_ty.len();
         let mut p = Proof {
             em: self,
             sets: self.local_sets(),
-            addressed: vec![false; b.local_ty.len()],
+            addressed: vec![false; n],
             breaks: HashMap::default(),
-            unchanged: vec![false; b.local_ty.len()],
+            fixed: vec![false; n],
+            shared: vec![false; n],
+            own: vec![false; n],
+            unchanged: vec![false; n],
+            body: Writes::default(),
+            loops: HashMap::default(),
             keys: HashMap::default(),
             clear: Vec::new(),
             rising: HashMap::default(),
@@ -207,18 +340,33 @@ impl Em<'_, '_, '_> {
         }
         let mut guards: HashMap<(Key, Key), Vec<u32>> = HashMap::default();
         let mut reads: HashMap<Key, Vec<u32>> = HashMap::default();
+        let mut hoists: HashMap<(u32, Key), usize> = HashMap::default();
         for (i, x) in (0..b.len()).zip(0u32..) {
-            // A copy read of an unchanged header field that an earlier
-            // one of the same field dominates.
             if b.tags[i] == Tag::Read
                 && b.data[i][1] == ReadMode::Copy as u32
-                && let key @ Key::Field(..) = p.key(x, 0)
+                && let key @ Key::Field(root, path) = p.key(x, 0)
             {
+                let unchanged = p.unchanged(root);
                 let before = reads.entry(key).or_default();
-                if let Some(&j) = before.iter().find(|&&j| p.runs_before(j, x)) {
+                if let Some(&j) = before.iter().find(|&&j| unchanged && p.runs_before(j, x)) {
+                    // An earlier read of the same unchanged field that
+                    // runs first.
                     facts.same_reads.insert(x, j);
                     facts.leaders.insert(j);
-                } else if before.len() < READS {
+                } else if let Some(l) = p.hoist_loop(root, x) {
+                    // A read in a loop that no write in it reaches: read
+                    // once before the outermost such loop.
+                    let group = facts.hoists.entry(l).or_default();
+                    let k = *hoists.entry((l, key)).or_insert_with(|| {
+                        group.push(Hoist {
+                            root,
+                            path,
+                            reads: Vec::new(),
+                        });
+                        group.len() - 1
+                    });
+                    group[k].reads.push(x);
+                } else if unchanged && before.len() < READS {
                     before.push(x);
                 }
             }
@@ -226,11 +374,15 @@ impl Em<'_, '_, '_> {
                 continue;
             };
             let (ik, lk) = (p.key(index, 0), p.key(len, 0));
-            if !matches!(lk, Key::Field(..)) {
+            let Key::Field(root, _) = lk else {
                 continue;
-            }
+            };
             let before = guards.entry((ik, lk)).or_default();
-            if before.iter().any(|&g| p.runs_before(g, x)) || p.below(index, lk, 0) {
+            if before
+                .iter()
+                .any(|&g| p.runs_before(g, x) && p.same_value(root, g, x))
+                || p.below(index, lk, x, 0)
+            {
                 facts.proven_guards.insert(x);
             }
             if p.panics(x) && before.len() < READS {
@@ -238,6 +390,67 @@ impl Em<'_, '_, '_> {
             }
         }
         facts
+    }
+
+    /// Loop `l` is about to start: each header field it reads and no
+    /// write in it reaches ([`HeaderFacts::hoists`]) loads once, into a
+    /// local that the reads in the loop take. A field this can't load
+    /// here, a cell not yet made, is read where it was.
+    pub(super) fn hoist_header_reads(&mut self, l: u32) -> StageResult<()> {
+        // A suspending body's resume enters a loop in the middle, past
+        // its start: its reads load where they are.
+        let susp = self.susp.is_some();
+        let Some(groups) = self.headers.hoists.remove(&l).filter(|_| !susp) else {
+            return Ok(());
+        };
+        for h in groups {
+            if let Some(kept) = self.hoisted_load(&h)? {
+                for r in h.reads {
+                    self.headers.hoisted.insert(r, kept);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Loads hoisted field `h` into a new local: one scalar leaf at its
+    /// offset from the root's address. `None` for a field of more than
+    /// one value, or of a cell that may not be made yet.
+    fn hoisted_load(&mut self, h: &Hoist) -> StageResult<Option<u32>> {
+        // A group starts with its first read.
+        let ty = self.ty(h.reads[0]);
+        let vals = self.vals(ty)?;
+        let path = h.path.fields();
+        let (pool, env) = (self.pool(), self.env());
+        let (leaves, address) = if h.root & OWN != 0 {
+            let c = (h.root & !OWN) as usize;
+            let (m, _) = self.cell_mem(c)?;
+            let (_, part) = self.fold_path(self.sub(self.b.local_ty[c]), &path)?;
+            let leaves = m.leaves[part.first..part.first + part.count].to_vec();
+            let made = self.cell_made(c);
+            (leaves, if made { Some(self.cell_of(c)?) } else { None })
+        } else {
+            let ref_ty = self.sub(self.b.local_ty[h.root as usize]);
+            let target = pool.ref_inner(crate::layout::strip(pool, env, ref_ty));
+            let m = crate::layout::mem(pool, env, target)?;
+            let (_, part) = self.fold_path(target, &path)?;
+            let leaves = m.leaves[part.first..part.first + part.count].to_vec();
+            // ruled out: a fixed root holds a reference that is no trait
+            // value (`Proof::collect`), one address word.
+            let address = self.local_value(h.root)?.first().copied();
+            (leaves, address)
+        };
+        let (&[leaf], &[val], Some(address)) = (&leaves[..], &vals[..], address) else {
+            return Ok(None);
+        };
+        if leaf.val != val || self.tracked(ty) {
+            return Ok(None);
+        }
+        let kept = self.f.local(val);
+        self.f.get(address);
+        self.f.op(leaf.load(0));
+        self.f.set(kept);
+        Ok(Some(kept))
     }
 
     /// The operand that `Prim` condition `c` shows above zero when it
@@ -355,17 +568,20 @@ impl Em<'_, '_, '_> {
 }
 
 impl Proof<'_, '_, '_, '_> {
-    /// The body's breaks, addressed locals and unchanged parameters, and
-    /// its loop facts. False when the body may write a parameter's
-    /// referent some other way than these facts allow.
+    /// The body's breaks, addressed locals and roots, what its writes and
+    /// each loop's may reach, and its loop facts. False when no root is
+    /// left.
     fn collect(&mut self) -> bool {
-        let b = self.em.b;
+        let em = self.em;
+        let b = em.b;
+        let shared_flags = local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED;
         for l in 0..b.local_ty.len() {
-            self.addressed[l] = self.em.is_cell(l)
-                || b.local_flags[l] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0;
+            self.addressed[l] = em.is_cell(l) || b.local_flags[l] & shared_flags != 0;
         }
+        let mut captured = hd_base::HashSet::default();
         for local in &b.cap_local {
             self.addressed[local.idx()] = true;
+            captured.insert(local.idx());
         }
         for i in 0..b.len() {
             if let Some(l) = super::shape::ref_local(b, i) {
@@ -381,37 +597,59 @@ impl Proof<'_, '_, '_, '_> {
             }
         }
         for l in 0..b.local_ty.len() {
-            self.unchanged[l] = b.local_flags[l] & local_flags::PARAM != 0
+            let ty = em.sub(b.local_ty[l]);
+            let target = em.ref_target(ty);
+            self.fixed[l] = b.local_flags[l] & local_flags::PARAM != 0
                 && !self.addressed[l]
-                && self.sets[l].is_empty();
+                && self.sets[l].is_empty()
+                && matches!(target, Some((_, false)));
+            self.shared[l] = self.fixed[l] && !crate::layout::ref_mutable(em.pool(), em.env(), ty);
+            // A cell's flags may say captured where only a `Ref` takes
+            // it; a closure's capture list names those it shares.
+            self.own[l] = em.is_cell(l) && !captured.contains(&l) && target.is_none();
         }
-        // Every write the body makes, and every call.
-        let mut ptr_stores = Vec::new();
-        for (i, x) in (0..b.len()).zip(0u32..) {
-            if self.may_write_header(i, x, &mut ptr_stores) {
-                return false;
-            }
-        }
-        // A `Ptr` write keeps the referent of the parameter whose buffer
-        // room it writes, and no other.
-        for r in ptr_stores {
-            match self.origin(r, 0) {
-                Origin::PtrInto(p) => {
-                    for l in 0..self.unchanged.len() {
-                        if l != p as usize {
-                            self.unchanged[l] = false;
-                        }
-                    }
-                }
-                _ => self.unchanged.fill(false),
-            }
-        }
-        if !self.unchanged.contains(&true) {
+        if !self.fixed.contains(&true) && !self.own.contains(&true) {
             return false;
         }
+        // Each write, in the body's summary and its innermost loop's.
+        let mut loops = Vec::new();
+        for (i, x) in (0..b.len()).zip(0u32..) {
+            if b.tags[i] == Tag::Loop {
+                loops.push(x);
+            }
+            let w = self.write_of(i, x);
+            self.body.add(w);
+            let l = em.topo.loop_of[i];
+            if l != NONE && !matches!(w, Write::None) {
+                self.loops.entry(l).or_default().add(w);
+            }
+        }
+        // An inner loop's writes are its outer loop's too: deepest first.
+        let depth = |mut l: u32| {
+            let mut d = 0u32;
+            while l != NONE {
+                l = em.topo.loop_of[l as usize];
+                d += 1;
+            }
+            d
+        };
+        let mut loops: Vec<(std::cmp::Reverse<u32>, u32)> = loops
+            .into_iter()
+            .map(|l| (std::cmp::Reverse(depth(l)), l))
+            .collect();
+        loops.sort_stable_by_key(|&(d, _)| d);
+        for (_, l) in loops {
+            let outer = em.topo.loop_of[l as usize];
+            if outer != NONE
+                && let Some(w) = self.loops.get(&l).cloned()
+            {
+                self.loops.entry(outer).or_default().merge(&w);
+            }
+        }
+        for (l, root) in (0..b.local_ty.len()).zip(0u32..) {
+            self.unchanged[l] = self.fixed[l] && (self.shared[l] || self.body.keeps(root));
+        }
         self.clear = self.clear_statements();
-        // Keys found before a parameter turned out changed are stale.
-        self.keys.clear();
         for (i, x) in (0..b.len()).zip(0u32..) {
             if b.tags[i] == Tag::Loop {
                 self.loop_facts(x);
@@ -422,31 +660,82 @@ impl Proof<'_, '_, '_, '_> {
         true
     }
 
-    /// Whether instruction `i` may write a referent other than as
-    /// [`Proof`] allows: a call other than [`Proof::pure_call`], a store
-    /// through a dereference or an element, a drop, a uniqueness check or
-    /// a count of a value that may own drop code. A `Ptr` store goes to
-    /// `ptr_stores`, whose room [`Proof::collect`] checks.
-    fn may_write_header(&mut self, i: usize, x: u32, ptr_stores: &mut Vec<u32>) -> bool {
+    /// Whether no write of the body reaches root `root`'s value.
+    fn unchanged(&self, root: u32) -> bool {
+        root & OWN == 0 && self.unchanged[root as usize]
+    }
+
+    /// Whether no write of loop `l` reaches root `root`'s value.
+    fn kept_in(&self, root: u32, l: u32) -> bool {
+        (root & OWN == 0 && self.shared[root as usize])
+            || self.loops.get(&l).is_none_or(|w| w.keeps(root))
+    }
+
+    /// The outermost loop around `x` whose writes do not reach root
+    /// `root`'s value. A loop's writes hold its inner loops', so the walk
+    /// out stops at the first loop that may write it. At most the
+    /// nesting depth.
+    fn hoist_loop(&self, root: u32, x: u32) -> Option<u32> {
+        let mut l = self.em.topo.loop_of[x as usize];
+        let mut found = None;
+        while l != NONE && self.kept_in(root, l) {
+            found = Some(l);
+            l = self.em.topo.loop_of[l as usize];
+        }
+        found
+    }
+
+    /// Whether root `root`'s fields hold one value at `a` and at `b`: no
+    /// write of the body reaches its root, or both lie in one loop whose
+    /// writes do not.
+    fn same_value(&self, root: u32, a: u32, b: u32) -> bool {
+        self.unchanged(root)
+            || self
+                .hoist_loop(root, b)
+                .is_some_and(|l| a == l || self.em.in_loop(a, l))
+    }
+
+    /// What instruction `i` may write ([`Write`]): a store into a cell
+    /// root, or a move out of one, which leaves zeros there; a `Ptr`
+    /// store into a root's buffer room; anything [`Proof::may_write_header`]
+    /// finds.
+    fn write_of(&mut self, i: usize, x: u32) -> Write {
+        let b = self.em.b;
+        match b.tags[i] {
+            Tag::Store => {
+                let v = b.view(b.data[i][0]);
+                let fields = v
+                    .steps(b)
+                    .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)));
+                match v.root {
+                    Root::Ptr(r) => match self.origin(r, 0) {
+                        Origin::PtrInto(p) => Write::Room(p),
+                        _ => Write::Any,
+                    },
+                    Root::Local(l) if fields && self.own[l as usize] => Write::Cell(l),
+                    Root::Local(_) | Root::Value(_) if fields => Write::None,
+                    _ => Write::Any,
+                }
+            }
+            Tag::Read if b.data[i][1] == ReadMode::Move as u32 => match b.view(b.data[i][0]).root {
+                Root::Local(l) if self.own[l as usize] => Write::Cell(l),
+                _ => Write::None,
+            },
+            _ if self.may_write_header(i, x) => Write::Any,
+            _ => Write::None,
+        }
+    }
+
+    /// Whether instruction `i`, no store, may write a root's value: a
+    /// call other than [`Proof::pure_call`], a drop, a uniqueness check
+    /// or a count of a value that may own drop code.
+    fn may_write_header(&mut self, i: usize, x: u32) -> bool {
         let b = self.em.b;
         match b.tags[i] {
             Tag::Call => !self.pure_call(x),
-            Tag::Store => {
-                let v = b.view(b.data[i][0]);
-                match v.root {
-                    Root::Ptr(r) => {
-                        ptr_stores.push(r);
-                        false
-                    }
-                    Root::Local(_) | Root::Value(_) => !v
-                        .steps(b)
-                        .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_))),
-                    Root::Const(_) | Root::Global(..) | Root::Other => true,
-                }
-            }
             // A count that reaches zero runs drop code, which may write
             // anywhere. A value that counts nothing runs none, nor does a
-            // local reference a parameter lent, which owns nothing.
+            // local reference to a root, which owns nothing.
             Tag::Release | Tag::Retain => {
                 let t = b.data[i][0] as usize;
                 let v = if b.tags.get(t) == Some(&Tag::Store) {
@@ -459,7 +748,7 @@ impl Proof<'_, '_, '_, '_> {
                 }
                 let ty = self.em.ty_of(v);
                 self.em.tracked(ty)
-                    && !(self.em.local_ref(ty) && matches!(self.key(v, 0), Key::Param(_)))
+                    && !(self.em.local_ref(ty) && matches!(self.key(v, 0), Key::Ref(_)))
             }
             Tag::CallValue
             | Tag::CallDyn
@@ -481,7 +770,6 @@ impl Proof<'_, '_, '_, '_> {
             _ => false,
         }
     }
-
     /// [`Proof::clear`]: one walk up from each break and continue marks
     /// the statements it leaves, then one pass over each block's list.
     fn clear_statements(&self) -> Vec<bool> {
@@ -580,32 +868,38 @@ impl Proof<'_, '_, '_, '_> {
         }
         let i = r as usize;
         if let Some(l) = b.local_read(i)
-            && self.unchanged[l.idx()]
+            && self.fixed[l.idx()]
         {
-            return Key::Param(l.raw());
+            return Key::Ref(l.raw());
         }
         if let Some(next) = self.follow(r) {
             return self.key(next, depth + 1);
         }
         if matches!(b.tags[i], Tag::Read | Tag::Ref) {
             let v = b.view(b.data[i][0]);
-            let mut steps = v.steps(b);
-            if steps.next() != Some(Proj::Deref) {
-                return Key::Val(r);
-            }
-            let root = match v.root {
-                Root::Value(x) => self.key(x, depth + 1),
-                Root::Local(l) if self.unchanged[l as usize] => Key::Param(l),
-                Root::Local(l) => match self.single_store(l as usize, r) {
-                    Some(x) => self.key(x, depth + 1),
-                    None => return Key::Val(r),
-                },
-                _ => return Key::Val(r),
-            };
-            let (p, mut path) = match root {
-                Key::Param(p) => (p, Path::default()),
-                Key::FieldRef(p, path) => (p, path),
-                _ => return Key::Val(r),
+            let mut steps = v.steps(b).peekable();
+            let (root, mut path) = if steps.peek() == Some(&Proj::Deref) {
+                steps.next();
+                let root = match v.root {
+                    Root::Value(x) => self.key(x, depth + 1),
+                    Root::Local(l) if self.fixed[l as usize] => Key::Ref(l),
+                    Root::Local(l) => match self.single_store(l as usize, r) {
+                        Some(x) => self.key(x, depth + 1),
+                        None => return Key::Val(r),
+                    },
+                    _ => return Key::Val(r),
+                };
+                match root {
+                    Key::Ref(p) => (p, Path::default()),
+                    Key::FieldRef(p, path) => (p, path),
+                    _ => return Key::Val(r),
+                }
+            } else {
+                // A cell root's own fields, read or referred to in place.
+                match v.root {
+                    Root::Local(c) if self.own[c as usize] => (c | OWN, Path::default()),
+                    _ => return Key::Val(r),
+                }
             };
             for step in steps {
                 let Proj::Field(k) = step else {
@@ -616,13 +910,14 @@ impl Proof<'_, '_, '_, '_> {
                 };
                 path = longer;
             }
-            if path == Path::default() {
-                return Key::Val(r);
-            }
-            return if b.tags[i] == Tag::Ref {
-                Key::FieldRef(p, path)
-            } else {
-                Key::Field(p, path)
+            return match (b.tags[i], path == Path::default()) {
+                (Tag::Ref, true) => Key::Ref(root),
+                (Tag::Ref, false) => Key::FieldRef(root, path),
+                // A whole referent, as `*value` of a `&u32`; a cell's whole
+                // value is the local's own read.
+                (_, true) if root & OWN == 0 => Key::Field(root, path),
+                (_, true) => Key::Val(r),
+                (_, false) => Key::Field(root, path),
             };
         }
         Key::Val(r)
@@ -642,22 +937,22 @@ impl Proof<'_, '_, '_, '_> {
             Tag::Read | Tag::Ref => {
                 let v = b.view(b.data[i][0]);
                 let mut steps = v.steps(b);
-                if steps.next() != Some(Proj::Deref) || !steps.all(|s| matches!(s, Proj::Field(_)))
-                {
+                let deref = steps.next();
+                if !steps.all(|s| matches!(s, Proj::Field(_))) {
                     return Origin::Other;
                 }
-                let root = match v.root {
-                    Root::Value(x) => match self.key(x, depth + 1) {
-                        Key::Param(p) => Some(p),
+                let root = match (deref, v.root) {
+                    (Some(Proj::Deref), Root::Value(x)) => match self.key(x, depth + 1) {
+                        Key::Ref(p) => Some(p),
                         _ => match self.origin(x, depth + 1) {
                             Origin::InlineRef(p) => Some(p),
                             _ => None,
                         },
                     },
-                    Root::Local(l) if self.unchanged[l as usize] => Some(l),
-                    Root::Local(l) => match self.single_store(l as usize, r) {
+                    (Some(Proj::Deref), Root::Local(l)) if self.fixed[l as usize] => Some(l),
+                    (Some(Proj::Deref), Root::Local(l)) => match self.single_store(l as usize, r) {
                         Some(x) => match self.key(x, depth + 1) {
-                            Key::Param(p) => Some(p),
+                            Key::Ref(p) => Some(p),
                             _ => None,
                         },
                         None => None,
@@ -816,7 +1111,8 @@ impl Proof<'_, '_, '_, '_> {
         let cond = self.em.b.data[x as usize][0];
         for outcome in [true, false] {
             if let Some(field) = self.positive_field(cond, outcome)
-                && let key @ Key::Field(..) = self.key(field, 0)
+                && let key @ Key::Field(root, _) = self.key(field, 0)
+                && self.unchanged(root)
             {
                 let tests = self.positive.entry(key).or_default();
                 if tests.len() < READS {
@@ -888,13 +1184,17 @@ impl Proof<'_, '_, '_, '_> {
         (mask_of_len(y) || mask_of_len(z)) && self.positive_at(len, x)
     }
 
-    /// Whether value `index` is below header field `len` wherever it is
-    /// read ([`Proof`]'s facts).
-    fn below(&mut self, index: u32, len: Key, depth: u32) -> bool {
+    /// Whether value `index` is below header field `len` at guard `at`
+    /// ([`Proof`]'s facts). Only a rising counter's test may read a
+    /// length that the body changes, in a loop around `at` that doesn't.
+    fn below(&mut self, index: u32, len: Key, at: u32, depth: u32) -> bool {
         if depth > DEPTH {
             return false;
         }
-        if self.masked(index, len) {
+        // The guard pass asks only of a field: `len` is `Key::Field`.
+        let root = if let Key::Field(r, _) = len { r } else { NONE };
+        let whole = root != NONE && self.unchanged(root);
+        if whole && self.masked(index, len) {
             return true;
         }
         let em = self.em;
@@ -905,6 +1205,7 @@ impl Proof<'_, '_, '_, '_> {
                     rising_stores(&self.sets[v], |x| em.in_loop(x, f.loop_inst)).is_some_and(
                         |[init, step]| {
                             f.end == len
+                                && (whole || self.same_value(root, f.test, at))
                                 && !em.in_loop(init.0, f.loop_inst)
                                 && em.topo.loop_of[step.0 as usize] == f.loop_inst
                                 && em.topo.loop_of[read as usize] == f.loop_inst
@@ -920,14 +1221,16 @@ impl Proof<'_, '_, '_, '_> {
             }
             // A falling index, at most its value when set.
             if let Some(&Falling { init, value, .. }) = self.falling.get(&v)
+                && whole
                 && em.dominates(init, read)
             {
-                return self.below(value, len, depth + 1);
+                return self.below(value, len, at, depth + 1);
             }
             return false;
         }
         // `v - 1` after the test `v > 0`, before `v`'s decrement.
-        if let Some(r) = self.minus_one(index)
+        if whole
+            && let Some(r) = self.minus_one(index)
             && let Some((v, read)) = self.read_of(r)
             && let Some(&Falling {
                 test,
@@ -940,7 +1243,7 @@ impl Proof<'_, '_, '_, '_> {
             && em.after_test(test, read)
             && em.dominates(read, dec)
         {
-            return self.below(value, len, depth + 1);
+            return self.below(value, len, at, depth + 1);
         }
         false
     }

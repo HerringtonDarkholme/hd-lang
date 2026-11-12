@@ -2,6 +2,8 @@
 # @build: v8 release std
 use std.rt.bytes.panic_with
 
+# The header is `&mut`: a shared `&Header` is unchanged whatever the
+# loop writes, so its reads load once before the loop (#1706).
 # Unknown raw storage may alias the header. A write into one parameter's
 # buffer preserves only that parameter's header, not another parameter's.
 use std.rt.memory.{Buffer, Ptr}
@@ -13,7 +15,7 @@ struct Room:
     room: Buffer[usize]
     length: usize
 
-fn unknown(header: &Header, raw: Ptr[usize], n: usize) -> usize:
+fn unknown(header: &mut Header, raw: Ptr[usize], n: usize) -> usize:
     let i: usize = 0
     let total: usize = 0
     # subject

@@ -107,7 +107,8 @@ impl Program {
 /// declares; `@host` lists the package host traits its manifest declares
 /// (`module.host.package.marker`); `@helpers` selects functions the `wat`
 /// view prints whole, by short runtime name or exact ordinary item path,
-/// without following their calls. `@file` begins a virtual module;
+/// without following their calls, and `@helper` selects one item path
+/// that holds spaces, as a method's does. `@file` begins a virtual module;
 /// subsequent lines belong to it until the next `@file`. Main defaults to
 /// `main.hd`. `@repl: N` makes the case REPL input `N` of a session whose
 /// earlier inputs each begin at `@input: K`, numbered 1 up, as `@file`
@@ -143,7 +144,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
             if !header
                 && matches!(
                     name,
-                    "dump" | "build" | "profile" | "host" | "helpers" | "repl" | "fuel"
+                    "dump" | "build" | "profile" | "host" | "helpers" | "helper" | "repl" | "fuel"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -175,6 +176,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     );
                 }
                 "helpers" => helpers.extend(value.split_whitespace().map(str::to_owned)),
+                // One item path that holds spaces, as a method's does.
+                "helper" => helpers.push(value.to_owned()),
                 "repl" => {
                     repl = Some(
                         value

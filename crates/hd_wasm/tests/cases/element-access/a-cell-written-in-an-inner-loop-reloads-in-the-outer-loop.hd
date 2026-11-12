@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: v8 release
+# An inner loop that stores into a local's cell writes it for the outer
+# loop too, so the outer loop reads `c.n` each time (#1706).
+struct Counter:
+    n: usize
+
+# Recursive, so it stays a call and `c` stays in its cell.
+fn bump(c: &mut Counter, k: usize) -> void:
+    if k > 0:
+        c.n += 1
+        bump(c, k - 1)
+
+fn count(rows: usize) -> usize:
+    let mut c = Counter { n: 0 }
+    bump(&mut c, 1)
+    let total: usize = 0
+    # subject
+    for _ in 0..rows:
+        total += c.n
+        for _ in 0..2:
+            c.n = c.n + 1
+    total

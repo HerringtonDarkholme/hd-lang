@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: std/collections/drift_partition std/collections/drift_merge
+# The sort kernel's buffers are `&Buffer[T]` parameters: shared
+# references, whose referents nothing writes while the call runs, even
+# with the `Ptr` stores into their rooms (#1706). The partition and merge
+# loops load each buffer's address once, before the loop, or take it from
+# a read that ran before it; inside them no `i32.load` reads an address.
+fn run(xs: &mut List[u32]) -> void:
+    xs.sort()

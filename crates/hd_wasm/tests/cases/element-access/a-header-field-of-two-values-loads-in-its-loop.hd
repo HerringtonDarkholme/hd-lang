@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# A shared reference's field that holds two values, a struct of two
+# `u32`s, is no one load: the loop reads it where it was (#1706). Its
+# one-value fields load once, before the loop.
+struct Pair:
+    low: u32
+    high: u32
+
+struct Header:
+    pair: Pair
+    count: usize
+
+fn spread(header: &Header) -> u32:
+    let total: u32 = 0
+    # subject
+    for _ in 0..header.count:
+        pair := header.pair
+        total += pair.high - pair.low
+    total

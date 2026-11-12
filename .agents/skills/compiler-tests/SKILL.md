@@ -61,7 +61,9 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
     may import internal runtime code;
   - `# @helpers: enc std/hash/hash_integer` prints the named runtime
     helper or exact ordinary function item path whole in `wat`; callees
-    remain imports unless separately selected;
+    remain imports unless separately selected; `# @helper:` takes one
+    item path with spaces, as a method's
+    (`std/collections/impl[T < ?Copy] UniqList[T].contains`);
   - `# @file: other.hd` starts an additional virtual module; following
     lines belong to it until the next `@file`. The first module defaults
     to `main.hd`; dumps and subject markers select that module only.

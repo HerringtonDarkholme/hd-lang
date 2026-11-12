@@ -2,11 +2,14 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $pairs (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32) (local $t3 i32)
+  (func $pairs (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32)
     ;; 10 |     for i in 0..items.len():
     local.get $items
     i32.load $heap offset=8
     local.set $t0
+    local.get $items
+    i32.load $heap
+    local.set $items
     block
       loop
         local.get $t1
@@ -22,10 +25,6 @@
         local.set $t1
     ;; 11 |         total += items[i] + items[i + 1]
         local.get $items
-        i32.load $heap
-        local.tee $t2
-        local.set $t3
-        local.get $t2
         local.get $i
         i32.const 4
         i32.mul
@@ -47,7 +46,7 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $t3
+        local.get $items
         local.get $i
         i32.const 4
         i32.mul

@@ -71,27 +71,29 @@
     ;; 16 |     sum
     local.get $sum
   )
-  (func $uniq_after_plain_if (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $t1 i32) (local $t2 i32)
+  (func $uniq_after_plain_if (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
     ;; 60 |     for i in 0..n:
+    local.get $xs
+    i32.load $heap offset=8
+    local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
+        local.get $t1
         local.set $i
-        local.get $t0
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
     ;; 61 |         if xs.len() == 0:
-        local.get $xs
-        i32.load $heap offset=8
-        local.tee $t1
-        local.set $t2
-        local.get $t1
+        local.get $t0
         i32.eqz
         if
     ;; 62 |             sum += 1
@@ -105,12 +107,12 @@
         local.get $head
         local.get $i
         i32.add
-        local.get $t2
+        local.get $t0
         i32.const 1
         i32.sub
         i32.and
         local.tee $i
-        local.get $t2
+        local.get $t0
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -123,7 +125,6 @@
         end
         local.get $sum
         local.get $xs
-        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul
@@ -138,7 +139,7 @@
     ;; 64 |     sum
     local.get $sum
   )
-  (func $uniq_after_inlined_return (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $t1 i32)
+  (func $uniq_after_inlined_return (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
     ;; 53 |     let sum = count_or_zero(xs)
     block
       local.get $xs
@@ -151,33 +152,35 @@
       local.set $sum
     end
     ;; 54 |     for i in 0..n:
+    local.get $xs
+    i32.load $heap offset=8
+    local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
+        local.get $t1
         local.set $i
-        local.get $t0
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
     ;; 55 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
         i32.add
-        local.get $xs
-        i32.load $heap offset=8
-        local.tee $i
-        local.set $t1
-        local.get $i
+        local.get $t0
         i32.const 1
         i32.sub
         i32.and
         local.tee $i
-        local.get $t1
+        local.get $t0
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -190,7 +193,6 @@
         end
         local.get $sum
         local.get $xs
-        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul
@@ -224,6 +226,12 @@
     end
     if
     ;; 34 |         for i in 0..n:
+      local.get $ys
+      i32.load $heap offset=8
+      local.set $ys
+      local.get $xs
+      i32.load $heap
+      local.set $xs
       block
         loop
           local.get $t1
@@ -242,7 +250,6 @@
           local.get $i
           i32.add
           local.get $ys
-          i32.load $heap offset=8
           i32.const 1
           i32.sub
           i32.and
@@ -260,7 +267,6 @@
           end
           local.get $sum
           local.get $xs
-          i32.load $heap
           local.get $i
           i32.const 4
           i32.mul
@@ -346,35 +352,37 @@
     ;; 45 |     sum
     local.get $sum
   )
-  (func $uniq_untested (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $t1 i32)
+  (func $uniq_untested (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
     ;; 20 |     for i in 0..n:
+    local.get $xs
+    i32.load $heap offset=8
+    local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
+        local.get $t1
         local.set $i
-        local.get $t0
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
     ;; 21 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
         i32.add
-        local.get $xs
-        i32.load $heap offset=8
-        local.tee $i
-        local.set $t1
-        local.get $i
+        local.get $t0
         i32.const 1
         i32.sub
         i32.and
         local.tee $i
-        local.get $t1
+        local.get $t0
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -387,7 +395,6 @@
         end
         local.get $sum
         local.get $xs
-        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul

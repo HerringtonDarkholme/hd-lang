@@ -3,7 +3,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $deep_pointer_aliases (param $header i32) (param $pointer i32) (param $n i32) (result i32) (local $i i32) (local $total i32)
-    ;; 38 |     while i < n:
+    ;; 40 |     while i < n:
     block
       loop
         local.get $i
@@ -11,7 +11,7 @@
         i32.lt_u
         i32.eqz
         br_if 1
-    ;; 39 |         raw.offset(i).write(i)
+    ;; 41 |         raw.offset(i).write(i)
         local.get $pointer
         local.get $i
         i32.const 4
@@ -19,13 +19,13 @@
         i32.add
         local.get $i
         i32.store $heap
-    ;; 40 |         if i >= header.length:
+    ;; 42 |         if i >= header.length:
         local.get $i
         local.get $header
         i32.load $heap
         i32.ge_u
         if
-    ;; 41 |             panic_with("index", "index")
+    ;; 43 |             panic_with("index", "index")
           i32.const 65 ;; &"index"
           i32.const 5
           i32.const 65 ;; &"index"
@@ -33,19 +33,19 @@
           i32.const 0
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
-    ;; 40 |         if i >= header.length:
+    ;; 42 |         if i >= header.length:
         end
-    ;; 42 |         total = total + i
+    ;; 44 |         total = total + i
         local.get $total
         local.get $i
         i32.add
         local.set $total
-    ;; 43 |         i = i + 1
+    ;; 45 |         i = i + 1
         local.get $i
         i32.const 1
         i32.add
         local.set $i
-    ;; 38 |     while i < n:
+    ;; 40 |     while i < n:
         br 0
       end
     end

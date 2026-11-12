@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# A loop that pushes to a list in a local writes its header, so each
+# access in the loop loads the length and the buffer address again
+# (#1706).
+use std.collections.UniqList
+
+fn grow(n: usize) -> i64:
+    let mut xs = UniqList::[i64].new()
+    xs.push(1)
+    let sum: i64 = 0
+    # subject
+    for i in 0..n:
+        sum += xs[i]
+        xs.push(sum)
+    sum

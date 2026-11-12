@@ -2,14 +2,14 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $parameter_falls (param $items i32) (param $cursor i32) (result i32) (local $total i32)
+  (func $parameter_falls (param $items i32) (param $cursor i32) (result i32) (local $total i32) (local $t0 i32)
+    ;; ...
     block
       loop
         ;; ...
     ;; 15 |         total += items[cursor]
         local.get $cursor
-        local.get $items
-        i32.load $heap offset=8
+        local.get $t0
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -22,7 +22,6 @@
         end
         local.get $total
         local.get $items
-        i32.load $heap
         local.get $cursor
         i32.const 4
         i32.mul

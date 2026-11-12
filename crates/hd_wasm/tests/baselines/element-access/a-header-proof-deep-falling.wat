@@ -3,6 +3,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $j17 i32)
+    ;; ...
     block
       loop
         ;; ...
@@ -77,7 +78,6 @@
                                                                                 local.get $total
     ;; 49 |                                                                                     + items[j17]
                                                                                 local.get $items
-                                                                                i32.load $heap
                                                                                 local.get $j17
                                                                                 i32.const 4
                                                                                 i32.mul

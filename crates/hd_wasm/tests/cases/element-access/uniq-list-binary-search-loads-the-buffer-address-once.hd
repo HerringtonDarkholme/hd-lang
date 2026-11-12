@@ -1,0 +1,9 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/collections/impl[T < ?Copy & Ord] UniqList[T].binary_search
+# `binary_search` takes the list as `&self`: its loop calls the element
+# comparison, yet loads the buffer address once, before the loop (#1706).
+use std.collections.UniqList
+
+fn run(xs: &UniqList[u32], x: u32) -> bool:
+    xs.binary_search(&x).is_ok()

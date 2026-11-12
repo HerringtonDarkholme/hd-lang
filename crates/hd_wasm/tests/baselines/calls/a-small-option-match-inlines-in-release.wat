@@ -214,6 +214,9 @@
     local.get $xs
     i32.load $heap offset=8
     local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
         local.get $t1
@@ -237,7 +240,6 @@
         else
           i32.const 1
           local.get $xs
-          i32.load $heap
           local.get $t2
           i32.const 8
           i32.mul
@@ -356,6 +358,9 @@
     local.get $xs
     i32.load $heap offset=8
     local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
         local.get $t1
@@ -379,7 +384,6 @@
         else
           i32.const 1
           local.get $xs
-          i32.load $heap
           local.get $t2
           i32.const 8
           i32.mul

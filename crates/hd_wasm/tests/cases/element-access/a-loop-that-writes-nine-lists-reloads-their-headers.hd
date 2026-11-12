@@ -1,0 +1,30 @@
+# @dump: wat
+# @build: v8 release
+# A loop's summary names at most eight buffer rooms it writes; past them
+# it may write any header, so each access in it loads the length and
+# the buffer address again (#1706).
+use std.collections.UniqList
+
+fn clear(
+    a: &mut UniqList[u8],
+    b: &mut UniqList[u8],
+    c: &mut UniqList[u8],
+    d: &mut UniqList[u8],
+    e: &mut UniqList[u8],
+    f: &mut UniqList[u8],
+    g: &mut UniqList[u8],
+    h: &mut UniqList[u8],
+    k: &mut UniqList[u8],
+    n: usize,
+) -> void:
+    # subject
+    for i in 0..n:
+        a[i] = 0
+        b[i] = 0
+        c[i] = 0
+        d[i] = 0
+        e[i] = 0
+        f[i] = 0
+        g[i] = 0
+        h[i] = 0
+        k[i] = 0
