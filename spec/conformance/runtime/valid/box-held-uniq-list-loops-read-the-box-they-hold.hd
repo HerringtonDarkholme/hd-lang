@@ -1,0 +1,65 @@
+# expect-stdout: 6 6 6 15 10
+# Loops read a `UniqList` through the `*T` a struct holds: by a shared
+# reference, by value, from a local, and in a loop that replaces the
+# box, which reads the new one after each replacement.
+use std.annotation.inline
+use std.collections.UniqList
+
+struct Holder:
+    store: *UniqList[i64]
+
+impl Holder:
+    @inline
+    fn at(&self, i: usize) -> i64:
+        self.store[i]
+
+    @inline
+    fn len(&self) -> usize:
+        self.store.len()
+
+fn make(n: i64) -> Holder:
+    let mut u = UniqList::[i64].new()
+    for i in 1..n + 1:
+        u.push(i)
+    Holder { store: box(u) }
+
+fn by_reference(h: &Holder) -> i64:
+    let s: i64 = 0
+    for i in 0..h.len():
+        s = s + h.at(i)
+    s
+
+fn by_value(h: Holder) -> i64:
+    let s: i64 = 0
+    for i in 0..h.len():
+        s = s + h.at(i)
+    s
+
+fn in_a_local(n: i64) -> i64:
+    h := make(n)
+    let s: i64 = 0
+    for i in 0..h.len():
+        s = s + h.store[i]
+    s
+
+fn replaced(n: i64) -> i64:
+    let mut h = make(1)
+    let s: i64 = 0
+    for k in 2..n + 1:
+        s = s + h.store[h.store.len() - 1]
+        h = make(k)
+    s + h.store[h.store.len() - 1]
+
+fn grown(n: i64) -> i64:
+    let mut h = make(1)
+    let s: i64 = 0
+    let i: usize = 0
+    while i < usize(n):
+        s = s + h.at(i)
+        h = make(i64(i) + 2)
+        i += 1
+    s
+
+pub fn main() -> void $ Console:
+    h := make(3)
+    println("${by_reference(&h)} ${by_value(h)} ${in_a_local(3)} ${replaced(5)} ${grown(4)}")

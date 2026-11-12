@@ -22,6 +22,13 @@
 //!    (#1706), the same holds of the loop's writes alone, and of a local
 //!    in a cell as of a parameter's referent: no store into the cell or
 //!    move out of it, and a `Ptr` store goes into a room, never a cell.
+//!    The object of a thin `*T` held in such a root's field is a root too
+//!    ([`BOX`]): while the field holds the box, the box keeps a count of
+//!    its own, so `unique_mut` lends the object to no other holder, and
+//!    the object is no room and no cell. Whatever keeps the holder's root
+//!    keeps the object. A dereference of a value read from the field
+//!    names that object only when the read is a `borrow`, which the field
+//!    keeps while the value lives.
 //! 2. **Values by their source.** A read of a local with one dominating
 //!    store is the stored value; an identity or weakening coercion, and a
 //!    block whose one break carries a value, are that value.
@@ -76,6 +83,7 @@ use hd_tir::ir::{NONE, PrimOp, Proj, ReadMode, Ref, Root, Tag, local_flags};
 use hd_types::Ty;
 
 use super::Em;
+use crate::module::Val;
 
 /// The longest chain of local stores, coercions and breaks a value is
 /// followed through, and the deepest chain of falling facts.
@@ -114,6 +122,8 @@ pub(super) struct HeaderFacts {
     /// Each read of a hoisted field, with the local its loop's start
     /// loaded the field into.
     pub(super) hoisted: HashMap<u32, u32>,
+    /// The box roots ([`BOX`]): each one's holder field and its `*T` type.
+    boxes: Vec<(u32, Path, Ty)>,
 }
 
 /// A header field that loop reads but does not write: the root that
@@ -128,6 +138,16 @@ pub(super) struct Hoist {
 /// value in local `c`'s cell, as `p` names the referent of the reference
 /// that parameter `p` holds.
 const OWN: u32 = 1 << 31;
+
+/// The root bit of a box's object: `k | BOX` names the object of the `*T`
+/// in entry `k` of the box table, a field of another root. While that
+/// field holds the box, the box holds a count of its own, so nothing
+/// else lends its object for writing (`unique_mut` finds it shared), and
+/// it is no room and no cell: whatever keeps the holder's root keeps it.
+const BOX: u32 = 1 << 30;
+
+/// The most box roots a body names.
+const BOXES: usize = 64;
 
 /// A value by its source. A root is a reference parameter `p` that the
 /// body never stores into, which names its referent, or `c | OWN` for a
@@ -235,6 +255,8 @@ struct Proof<'e, 'x, 'a, 'm> {
     /// Tests that show a header field above zero, each with the outcome
     /// that shows it, at most [`READS`] per field.
     positive: HashMap<Key, Vec<(u32, bool)>>,
+    /// The box roots, at most [`BOXES`] ([`HeaderFacts::boxes`]).
+    boxes: Vec<(u32, Path, Ty)>,
 }
 
 /// What one instruction may write.
@@ -334,6 +356,7 @@ impl Em<'_, '_, '_> {
             rising: HashMap::default(),
             falling: HashMap::default(),
             positive: HashMap::default(),
+            boxes: Vec::new(),
         };
         if !p.collect() {
             return facts;
@@ -393,6 +416,7 @@ impl Em<'_, '_, '_> {
                 before.push(x);
             }
         }
+        facts.boxes = std::mem::take(&mut p.boxes);
         facts
     }
 
@@ -424,30 +448,53 @@ impl Em<'_, '_, '_> {
         // A group starts with its first read.
         let ty = self.ty(h.reads[0]);
         let vals = self.vals(ty)?;
-        let path = h.path.fields();
+        let &[val] = &vals[..] else {
+            return Ok(None);
+        };
+        if self.tracked(ty) {
+            return Ok(None);
+        }
+        self.root_load(h.root, h.path, val)
+    }
+
+    /// Loads the one scalar leaf of type `val` at `path` in root `root`'s
+    /// value into a new local; a box root first loads its holder's `*T`.
+    /// `None` for a field of more than one value, or of a cell that may
+    /// not be made yet. A box's holder comes before it in the box table,
+    /// so the holders end within [`BOXES`] steps.
+    fn root_load(&mut self, root: u32, path: Path, val: Val) -> StageResult<Option<u32>> {
+        let path = path.fields();
         let (pool, env) = (self.pool(), self.env());
-        let (leaves, address) = if h.root & OWN != 0 {
-            let c = (h.root & !OWN) as usize;
+        let (leaves, address) = if root & OWN != 0 {
+            let c = (root & !OWN) as usize;
             let (m, _) = self.cell_mem(c)?;
             let (_, part) = self.fold_path(self.sub(self.b.local_ty[c]), &path)?;
             let leaves = m.leaves[part.first..part.first + part.count].to_vec();
             let made = self.cell_made(c);
             (leaves, if made { Some(self.cell_of(c)?) } else { None })
+        } else if root & BOX != 0 {
+            let (holder, holder_path, box_ty) = self.headers.boxes[(root & !BOX) as usize];
+            let target = pool.ref_inner(crate::layout::strip(pool, env, box_ty));
+            let m = crate::layout::mem(pool, env, target)?;
+            let (_, part) = self.fold_path(target, &path)?;
+            let leaves = m.leaves[part.first..part.first + part.count].to_vec();
+            // A thin `*T` is one address word.
+            (leaves, self.root_load(holder, holder_path, Val::I32)?)
         } else {
-            let ref_ty = self.sub(self.b.local_ty[h.root as usize]);
+            let ref_ty = self.sub(self.b.local_ty[root as usize]);
             let target = pool.ref_inner(crate::layout::strip(pool, env, ref_ty));
             let m = crate::layout::mem(pool, env, target)?;
             let (_, part) = self.fold_path(target, &path)?;
             let leaves = m.leaves[part.first..part.first + part.count].to_vec();
             // ruled out: a fixed root holds a reference that is no trait
             // value (`Proof::collect`), one address word.
-            let address = self.local_value(h.root)?.first().copied();
+            let address = self.local_value(root)?.first().copied();
             (leaves, address)
         };
-        let (&[leaf], &[val], Some(address)) = (&leaves[..], &vals[..], address) else {
+        let (&[leaf], Some(address)) = (&leaves[..], address) else {
             return Ok(None);
         };
-        if leaf.val != val || self.tracked(ty) {
+        if leaf.val != val {
             return Ok(None);
         }
         let kept = self.f.local(val);
@@ -664,15 +711,90 @@ impl Proof<'_, '_, '_, '_> {
         true
     }
 
+    /// The root that holds root `root`: a box root's holder's, through
+    /// boxes in boxes; any other root is its own. A box's object changes
+    /// only while its holder's root does ([`BOX`]).
+    fn base(&self, mut root: u32) -> u32 {
+        while root & (OWN | BOX) == BOX {
+            root = self.boxes[(root & !BOX) as usize].0;
+        }
+        root
+    }
+
     /// Whether no write of the body reaches root `root`'s value.
     fn unchanged(&self, root: u32) -> bool {
+        let root = self.base(root);
         root & OWN == 0 && self.unchanged[root as usize]
     }
 
     /// Whether no write of loop `l` reaches root `root`'s value.
     fn kept_in(&self, root: u32, l: u32) -> bool {
+        let root = self.base(root);
         (root & OWN == 0 && self.shared[root as usize])
             || self.loops.get(&l).is_none_or(|w| w.keeps(root))
+    }
+
+    /// The root that dereferencing value `k` reaches, of type `ty`, and
+    /// the path in it: a reference to a root or its field, or a field
+    /// that holds a thin `*T` ([`BOX`]), named in the box table, when
+    /// the value is `current`: still the box the field holds.
+    fn deref_root(&mut self, k: Key, ty: Ty, current: bool) -> Option<(u32, Path)> {
+        match k {
+            Key::Ref(p) => Some((p, Path::default())),
+            Key::FieldRef(p, path) => Some((p, path)),
+            Key::Field(holder, path) if current && self.is_box(ty) => {
+                let entry = (holder, path, ty);
+                let k = match self.boxes.iter().position(|b| *b == entry) {
+                    Some(k) => k,
+                    None if self.boxes.len() < BOXES => {
+                        self.boxes.push(entry);
+                        self.boxes.len() - 1
+                    }
+                    None => return None,
+                };
+                Some((u32::try_from(k).ok()? | BOX, Path::default()))
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether value `x` is a `borrow` read, through the one store of
+    /// each local it reads and identity coercions, down to the read of a
+    /// place: no count, so that place keeps it while it lives (`ReadMode`)
+    /// and a dereference of it reads what the place holds then.
+    fn borrowed(&self, x: u32, depth: u32) -> bool {
+        let b = self.em.b;
+        let Some(i) = Ref(x).as_inst().map(|i| i.0 as usize) else {
+            return false;
+        };
+        if depth > DEPTH {
+            return false;
+        }
+        match b.tags[i] {
+            Tag::Read if b.data[i][1] == ReadMode::Borrow as u32 => match b.local_read(i) {
+                Some(l) => self
+                    .single_store(l.idx(), x)
+                    .is_some_and(|v| self.borrowed(v, depth + 1)),
+                None => true,
+            },
+            Tag::Coerce if b.same_value_coercion(i) => self.borrowed(b.data[i][0], depth + 1),
+            _ => false,
+        }
+    }
+
+    /// Whether `ty` is a thin `*T`: a counted reference that lends no
+    /// writes, to no trait value. A `*mut T` lends them to every holder.
+    fn is_box(&self, ty: Ty) -> bool {
+        let em = self.em;
+        let (pool, env) = (em.pool(), em.env());
+        matches!(
+            pool.get(crate::layout::strip(pool, env, ty)),
+            hd_types::TyData::Ref {
+                counted: true,
+                mutable: false,
+                ..
+            }
+        ) && matches!(em.ref_target(ty), Some((_, false)))
     }
 
     /// The outermost loop around `x` whose writes do not reach root
@@ -739,9 +861,13 @@ impl Proof<'_, '_, '_, '_> {
             Tag::Call => !self.pure_call(x),
             // A count that reaches zero runs drop code, which may write
             // anywhere. A value that counts nothing runs none, nor does a
-            // local reference to a root, which owns nothing.
+            // local reference to a root, which owns nothing, nor the old
+            // value of a local that only ever holds borrowed reads.
             Tag::Release | Tag::Retain => {
                 let t = b.data[i][0] as usize;
+                if b.tags.get(t) == Some(&Tag::Store) && self.holds_no_count(t) {
+                    return false;
+                }
                 let v = if b.tags.get(t) == Some(&Tag::Store) {
                     b.data[t][1]
                 } else {
@@ -774,6 +900,23 @@ impl Proof<'_, '_, '_, '_> {
             _ => false,
         }
     }
+    /// Whether `Store` `t` sets all of a local whose every store is a
+    /// `borrow` read: the local never holds a count of its own, so what
+    /// the store replaces releases nothing.
+    fn holds_no_count(&self, t: usize) -> bool {
+        let b = self.em.b;
+        let p = b.view(b.data[t][0]);
+        let Some(l) = p.local().filter(|_| p.whole()) else {
+            return false;
+        };
+        !self.addressed[l as usize]
+            && self.sets[l as usize].iter().all(|&(_, v)| {
+                Ref(v).as_inst().is_some()
+                    && b.tags[v as usize] == Tag::Read
+                    && b.data[v as usize][1] == ReadMode::Borrow as u32
+            })
+    }
+
     /// [`Proof::clear`]: one walk up from each break and continue marks
     /// the statements it leaves, then one pass over each block's list.
     fn clear_statements(&self) -> Vec<bool> {
@@ -884,19 +1027,23 @@ impl Proof<'_, '_, '_, '_> {
             let mut steps = v.steps(b).peekable();
             let (root, mut path) = if steps.peek() == Some(&Proj::Deref) {
                 steps.next();
-                let root = match v.root {
-                    Root::Value(x) => self.key(x, depth + 1),
-                    Root::Local(l) if self.fixed[l as usize] => Key::Ref(l),
+                let (root, ty) = match v.root {
+                    Root::Value(x) => (self.key(x, depth + 1), x),
+                    Root::Local(l) if self.fixed[l as usize] => (Key::Ref(l), NONE),
                     Root::Local(l) => match self.single_store(l as usize, r) {
-                        Some(x) => self.key(x, depth + 1),
+                        Some(x) => (self.key(x, depth + 1), x),
                         None => return Key::Val(r),
                     },
                     _ => return Key::Val(r),
                 };
-                match root {
-                    Key::Ref(p) => (p, Path::default()),
-                    Key::FieldRef(p, path) => (p, path),
-                    _ => return Key::Val(r),
+                let (ty, current) = if ty == NONE {
+                    (Ty::VOID, false)
+                } else {
+                    (em_ty(self.em, ty), self.borrowed(ty, 0))
+                };
+                match self.deref_root(root, ty, current) {
+                    Some(at) => at,
+                    None => return Key::Val(r),
                 }
             } else {
                 // A cell root's own fields, read or referred to in place.
@@ -946,19 +1093,27 @@ impl Proof<'_, '_, '_, '_> {
                     return Origin::Other;
                 }
                 let root = match (deref, v.root) {
-                    (Some(Proj::Deref), Root::Value(x)) => match self.key(x, depth + 1) {
-                        Key::Ref(p) => Some(p),
-                        _ => match self.origin(x, depth + 1) {
-                            Origin::InlineRef(p) => Some(p),
-                            _ => None,
-                        },
-                    },
+                    (Some(Proj::Deref), Root::Value(x)) => {
+                        let k = self.key(x, depth + 1);
+                        let current = self.borrowed(x, 0);
+                        match self.deref_root(k, em_ty(self.em, x), current) {
+                            Some((p, path)) if path == Path::default() => Some(p),
+                            _ => match self.origin(x, depth + 1) {
+                                Origin::InlineRef(p) => Some(p),
+                                _ => None,
+                            },
+                        }
+                    }
                     (Some(Proj::Deref), Root::Local(l)) if self.fixed[l as usize] => Some(l),
                     (Some(Proj::Deref), Root::Local(l)) => match self.single_store(l as usize, r) {
-                        Some(x) => match self.key(x, depth + 1) {
-                            Key::Ref(p) => Some(p),
-                            _ => None,
-                        },
+                        Some(x) => {
+                            let k = self.key(x, depth + 1);
+                            let current = self.borrowed(x, 0);
+                            match self.deref_root(k, em_ty(self.em, x), current) {
+                                Some((p, path)) if path == Path::default() => Some(p),
+                                _ => None,
+                            }
+                        }
                         None => None,
                     },
                     _ => None,
@@ -1333,6 +1488,11 @@ fn rising_stores(
 ) -> Option<[(u32, u32); 2]> {
     let [a, c] = stores else { return None };
     Some(if in_loop(a.0) { [*c, *a] } else { [*a, *c] })
+}
+
+/// The type of value `x` at the body's instance.
+fn em_ty(em: &Em<'_, '_, '_>, x: u32) -> Ty {
+    em.ty_of(x)
 }
 
 /// A `Ptr` constructor has one address field. A general aggregate is not

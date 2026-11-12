@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# The loop replaces the box its holder holds, so each read loads the
+# holder's box, its length and its buffer address again.
+use std.collections.UniqList
+
+struct Holder:
+    store: *UniqList[i64]
+
+fn replaced(h: &mut Holder, n: usize) -> i64:
+    let s: i64 = 0
+    # subject
+    for i in 0..n:
+        s = s + h.store[i]
+        h.store = box(UniqList::[i64].new())
+    s

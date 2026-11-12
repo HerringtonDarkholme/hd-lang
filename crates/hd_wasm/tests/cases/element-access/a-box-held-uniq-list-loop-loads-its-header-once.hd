@@ -1,0 +1,39 @@
+# @dump: wat
+# @build: v8 release
+# A `UniqList` held in a `*T` field: while the holder keeps the box, the
+# box holds a count, so nothing else writes the object, and a loop that
+# writes no holder loads the box's length and buffer address once before
+# it, as it does for a `UniqList` behind a reference. The holder is a
+# shared reference or a value in a cell.
+# expected: `in_a_local`'s holder is a plain local that holds a value the
+# body built, no root of the proof, so its loop still loads the header on
+# each read (/tmp/lt46/box-in-a-plain-local-reloads-its-header.md).
+use std.annotation.inline
+use std.collections.UniqList
+
+struct Holder:
+    store: *UniqList[i64]
+
+impl Holder:
+    @inline
+    fn at(&self, i: usize) -> i64:
+        self.store[i]
+
+fn by_reference(h: &Holder, n: usize) -> i64:
+    let s: i64 = 0
+    for i in 0..n:
+        s = s + h.at(i)
+    s
+
+fn by_value(h: Holder, n: usize) -> i64:
+    let s: i64 = 0
+    for i in 0..n:
+        s = s + h.at(i)
+    s
+
+fn in_a_local(u: UniqList[i64], n: usize) -> i64:
+    h := Holder { store: box(u) }
+    let s: i64 = 0
+    for i in 0..n:
+        s = s + h.store[i]
+    s
