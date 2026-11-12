@@ -1,0 +1,7 @@
+[package]
+name = "hash-of-two-runs"
+
+[capabilities]
+Console = true
+FsRead = true
+FsWrite = true

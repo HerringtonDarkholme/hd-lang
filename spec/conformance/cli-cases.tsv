@@ -114,6 +114,7 @@ task-beside-dir	cli.task.beside-directory,cli.exit.hd-failure
 dep-path-no-package	cli.dep.invalid,cli.diagnostic.file
 exe-unselected-main-used	cli.exe.unselected-main.lint
 typeid-package-name	cli.run.default.one,cli.exit.program
+hash-of-two-runs	cli.run.default.one,cli.host.default-profile
 typeid-single-file	cli.file.run,cli.exit.program
 test-err-report	cli.exit.test-failure,cli.json.test.result,cli.json.test.result.fields
 cap-total-deny	cli.cap.table.required-builtins,cli.json.run,cli.json.diagnostic.fields,cli.json.diagnostic.no-position,cli.json.summary.result.fields,cli.cap.value.false,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.order.deny,cli.cap.source.production,cli.host.entry-binding,cli.host.default-profile,cli.host.default-profile.main-row,cli.cap.table,cli.cap.table.keys.with-package-host,cli.cap.flag.value,cli.cap.flag.commands,cli.cap.no-prompt,cli.cap.source.hd-run.entry
@@ -224,6 +225,7 @@ name-std-manifest	cli.name.std,cli.name.std.manifest,cli.json.diagnostic.fields,
 repl-value	cli.repl.script,cli.repl.script.lines,cli.repl.script.echo,cli.repl.value,cli.repl.value.stream,cli.repl.input-types
 repl-value-stream	cli.repl.script.output,cli.repl.value.stream,cli.dbg.repl
 repl-checkpoint	cli.repl.checkpoint.continue,cli.repl.checkpoint.initialized,cli.repl.checkpoint.effects,cli.repl.checkpoint.history
+repl-hash-replay	cli.repl.rebuild,cli.repl.command.reload,cli.repl.host.once
 repl-declarations	cli.repl.declarations.bindings,cli.repl.redeclare.binding,cli.repl.redeclare.type
 repl-member	cli.repl.declarations.bindings,cli.repl.value
 repl-typeid-descriptors	cli.repl.declarations.bindings,cli.repl.input-types,cli.repl.command.reload

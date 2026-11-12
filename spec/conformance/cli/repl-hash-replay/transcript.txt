@@ -1,0 +1,10 @@
+hd> use std.fs.{read_text, write_text}
+hd> use std.hash.hash_of
+hd> use std.path.Path
+hd> first := hash_of(("hd", 7u32, [1u8, 2u8]))
+hd> _ := write_text!(Path("digest.txt"), "$first").expect("save the digest")
+hd> :reload
+hd> first == hash_of(("hd", 7u32, [1u8, 2u8]))
+true : bool
+hd> read_text!(Path("digest.txt")).expect("read the digest") == "$first"
+true : bool

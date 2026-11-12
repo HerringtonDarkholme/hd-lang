@@ -1,0 +1,32 @@
+# The first run saves the digests; the second compares its own with them
+# (std-hash.default.per-toolchain). The digests are never printed, since
+# the algorithm is not specified (std-hash.default.unspecified).
+use std.fs.{FsError, FsRead, FsWrite, read_text, write_text}
+use std.hash.{DefaultHasher, Hasher, hash_of}
+use std.path.Path
+
+@derive(Eq, Hash)
+struct Key:
+    name: string
+    id: u32
+
+fn digests() -> string:
+    let mut hasher = DefaultHasher::new()
+    hasher.write([1, 2, 3])
+    hasher.write_u64(258)
+    key := Key { name: "hd", id: 7 }
+    a := hash_of(42u32)
+    b := hash_of("a string longer than one sixteen-byte block")
+    c := hash_of(key)
+    d := hasher.finish()
+    "$a $b $c $d"
+
+pub fn main!() -> Result[void, FsError] $ Console + FsRead + FsWrite:
+    path := Path("digests.txt")
+    now := digests()
+    match read_text!(path):
+        .Ok(saved) => println(if saved == now: "same digests" else: "different digests")
+        .Err(_) =>
+            write_text!(path, now)?
+            println("saved")
+    .Ok(())

@@ -1,0 +1,8 @@
+# hash_of and DefaultHasher give the same digests in two runs of one
+# toolchain (std-hash.default.per-toolchain).
+run: hd run
+stdout: saved
+file: digests.txt
+
+run: hd run
+stdout: same digests

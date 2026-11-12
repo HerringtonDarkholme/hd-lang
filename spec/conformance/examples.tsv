@@ -1081,9 +1081,10 @@ std/hash.md	2	complete	typing/valid/tuple-derived-traits.hd
 std/hash.md	3	complete	runtime/valid/list-map-key.hd
 std/hash.md	4	mixed	typing/invalid/list-float-map-key.hd
 std/hash.md	5	complete	runtime/valid/hash-bytes-result.hd
-std/hash.md	6	complete	runtime/valid/hash-of-reference-values.hd
+std/hash.md	6	complete	runtime/valid/fnv1a-reference-values.hd
 std/hash.md	7	complete	runtime/valid/default-hasher.hd
-std/hash.md	8	complete	runtime/valid/reference-eq-generic.hd
+std/hash.md	8	complete	runtime/valid/fnv1a-hasher.hd
+std/hash.md	9	complete	runtime/valid/reference-eq-generic.hd
 std/host.md	1	type-fragment	-
 std/host.md	2	type-fragment	-
 std/host.md	3	complete	runtime/valid/host-env-as.hd

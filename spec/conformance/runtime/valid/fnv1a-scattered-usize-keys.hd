@@ -1,8 +1,13 @@
-# test: usize hashes preserve four little-endian bytes through the concrete hash chain
-# Spec std Hash: std-hash.bytes.integer, std-hash.default.algorithm, std-hash.hash-of-local.
+# test: usize hashes through Fnv1a preserve four little-endian bytes through the concrete hash chain
+# Spec std Hash: std-hash.bytes.integer, std-hash.fnv1a.algorithm, std-hash.fnv1a.fixed.
 # Literal digests were calculated independently with arbitrary-precision FNV-1a,
 # reducing modulo 2^64 after each byte, rather than by this compiler.
-use std.hash.hash_of
+use std.hash.Fnv1a
+
+fn fnv_of[T < Hash](value: T) -> u64:
+    let mut hasher = Fnv1a::new()
+    value.hash(&mut hasher)
+    hasher.finish()
 
 tests:
     use std.testing.assert_equal
@@ -24,7 +29,7 @@ tests:
             (4294967295, 11047178588169845073),
         ]
         for item in cases:
-            assert_equal(hash_of(item._0), item._1, reason="four-byte FNV-1a digest")
+            assert_equal(fnv_of(item._0), item._1, reason="four-byte FNV-1a digest")
 
     it("scattered map keys preserve their fixed digest"):
         let cases: List[(usize, u64)] = [
@@ -38,4 +43,4 @@ tests:
             (1586805636, 3017112164848259182),
         ]
         for item in cases:
-            assert_equal(hash_of(item._0), item._1, reason="four-byte FNV-1a digest")
+            assert_equal(fnv_of(item._0), item._1, reason="four-byte FNV-1a digest")

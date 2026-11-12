@@ -1,7 +1,12 @@
-# test: usize hashing matches an independent four-byte FNV-1a oracle at boundaries and scattered keys
-# Spec std Hash: std-hash.bytes.integer, std-hash.default.algorithm, std-hash.hash-of-local.
-use std.hash.hash_of
+# test: usize hashing through Fnv1a matches an independent four-byte FNV-1a oracle at boundaries and scattered keys
+# Spec std Hash: std-hash.bytes.integer, std-hash.fnv1a.algorithm, std-hash.fnv1a.typed-writes.
+use std.hash.Fnv1a
 use std.testing.assert_equal
+
+fn fnv_of[T < Hash](value: T) -> u64:
+    let mut hasher = Fnv1a::new()
+    value.hash(&mut hasher)
+    hasher.finish()
 
 fn byte_oracle(value: usize) -> u64:
     let hash: u64 = 14695981039346656037
@@ -32,13 +37,13 @@ tests:
             4294967295,
         ]
         for value in edges:
-            assert_equal(hash_of(value), byte_oracle(value), reason="four little-endian bytes")
+            assert_equal(fnv_of(value), byte_oracle(value), reason="four little-endian bytes")
 
     it("hashes the first and last thousand scattered keys"):
         let count: usize = 1000
         for index in 0..count:
             value := scattered(index)
-            assert_equal(hash_of(value), byte_oracle(value), reason="first scattered keys")
+            assert_equal(fnv_of(value), byte_oracle(value), reason="first scattered keys")
         for index in 0..count:
             value := scattered(999000 + index)
-            assert_equal(hash_of(value), byte_oracle(value), reason="last scattered keys")
+            assert_equal(fnv_of(value), byte_oracle(value), reason="last scattered keys")

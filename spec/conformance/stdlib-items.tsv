@@ -49,6 +49,7 @@ std.collections.UniqMapValues	std/collections.md#uniq-map
 std.collections.UniqMapDrain	std/collections.md#uniq-map
 std.cmp.Reverse	std/cmp.md#reverse
 std.hash.DefaultHasher	std/hash.md#default-hasher
+std.hash.Fnv1a	std/hash.md#fnv-1a-hasher
 std.hash.hash_of	std/hash.md#default-hasher
 std.task.Backoff	std/task.md#retry-with-backoff
 std.task.timeout	std/task.md#r-std-task.policy.timeout.builder

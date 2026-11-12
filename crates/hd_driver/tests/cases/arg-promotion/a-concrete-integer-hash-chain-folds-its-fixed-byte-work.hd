@@ -1,6 +1,9 @@
 # @dump: own wat
 # @build: v8 release
-# expected: the concrete integer hash chain is inline; #1675 still tracks folding the fixed four-byte loop.
+# The concrete integer hash chain is inline, with no call and no byte loop:
+# one four-byte word enters the sponge, and `finish` folds it.
+# expected: the branches on the constant width 32 and the empty sponge stay;
+# release does not fold a branch whose condition is constant after inlining.
 use std.hash.hash_of
 
 fn digest(value: usize) -> u64:

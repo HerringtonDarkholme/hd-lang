@@ -1,0 +1,106 @@
+# test: Fnv1a is 64-bit FNV-1a with its published digests, for any split of the bytes into writes
+# Spec std Hash, FNV-1a Hasher: std-hash.fnv1a.declarations, std-hash.fnv1a.algorithm,
+# std-hash.fnv1a.new-value, std-hash.fnv1a.write, std-hash.fnv1a.finish,
+# std-hash.fnv1a.typed-writes, std-hash.fnv1a.fixed, std-hash.fnv1a.vectors.
+# Each digest is 64-bit FNV-1a over the bytes in its reason, computed outside any hd
+# implementation.
+use std.hash.{Fnv1a, Hasher}
+
+fn digest(bytes: List[u8]) -> u64:
+    let mut hasher = Fnv1a::new()
+    hasher.write(bytes)
+    hasher.finish()
+
+fn fnv[T < Hash](value: T) -> u64:
+    let mut hasher = Fnv1a::new()
+    value.hash(&mut hasher)
+    hasher.finish()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a new hasher finishes with the FNV offset basis"):
+        let basis: u64 = 14695981039346656037
+        assert_equal(Fnv1a::new().finish(), basis, reason="no bytes written")
+
+    it("each byte is XORed in and then multiplied by the FNV prime"):
+        let one: u64 = 12638187200555641996
+        let two: u64 = 620445648566982762
+        let foobar: u64 = 9625390261332436968
+        assert_equal(digest([97]), one, reason="the byte 97")
+        assert_equal(digest([97, 98]), two, reason="the bytes 97 and 98")
+        assert_equal(digest([102, 111, 111, 98, 97, 114]), foobar, reason="the bytes of foobar")
+        let mut text = Fnv1a::new()
+        text.write_str("foobar")
+        assert_equal(text.finish(), foobar, reason="write_str writes the UTF-8 bytes")
+
+    it("the Hash bytes of a value give its published digest"):
+        let pair: (u8, string) = (7, "a")
+        let expected: u64 = 12920292002639229810
+        assert_equal(fnv(pair), expected, reason="bytes 7, 1, seven 0s, 97")
+
+    it("two writes give the state of one write of both lists"):
+        let mut hasher = Fnv1a::new()
+        hasher.write([97])
+        hasher.write([98])
+        assert_equal(hasher.finish(), digest([97, 98]), reason="writes concatenate")
+
+    it("finish does not change the state"):
+        let mut hasher = Fnv1a::new()
+        hasher.write([97])
+        first := hasher.finish()
+        assert_equal(hasher.finish(), first, reason="finish twice")
+
+    it("typed writes give the digest of their bytes"):
+        let mut typed = Fnv1a::new()
+        typed.write_u8(171)
+        typed.write_u16(4660)
+        typed.write_u32(305419896)
+        typed.write_u64(72623859790382856)
+        typed.write_usize(2309737967)
+        typed.write_i8(-2)
+        typed.write_i16(-2)
+        typed.write_i32(-2)
+        typed.write_i64(-2)
+        assert_equal(
+            typed.finish(),
+            digest(
+                [
+                    171,
+                    52,
+                    18,
+                    120,
+                    86,
+                    52,
+                    18,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    239,
+                    205,
+                    171,
+                    137,
+                    254,
+                    254,
+                    255,
+                    254,
+                    255,
+                    255,
+                    255,
+                    254,
+                    255,
+                    255,
+                    255,
+                    255,
+                    255,
+                    255,
+                    255,
+                ],
+            ),
+            reason="each typed write, little-endian at its width",
+        )

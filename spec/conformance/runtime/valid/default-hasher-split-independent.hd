@@ -1,0 +1,74 @@
+# test: DefaultHasher gives the same digest for every split of one byte stream into writes
+# Spec std Hash, Default Hasher: std-hash.default.write, std-hash.default.typed-writes,
+# std-hash.default.finish-digest. Splits straddle every word and block boundary.
+use std.hash.{DefaultHasher, Hasher}
+
+fn stream() -> List[u8]:
+    let mut bytes: List[u8] = []
+    for index in 0..53:
+        bytes.push(u8((index * 37 + 11) % 256))
+    bytes
+
+fn digest(bytes: List[u8]) -> u64:
+    let mut hasher = DefaultHasher::new()
+    hasher.write(bytes)
+    hasher.finish()
+
+# Writes `bytes` in chunks of `width`, then the rest.
+fn chunked(bytes: List[u8], width: usize) -> u64:
+    let mut hasher = DefaultHasher::new()
+    let mut part: List[u8] = []
+    for byte in bytes:
+        part.push(byte)
+        if part.len() == width:
+            hasher.write(part)
+            part = []
+    hasher.write(part)
+    hasher.finish()
+
+# Two writes, split at `at`.
+fn split_at(bytes: List[u8], at: usize) -> u64:
+    let mut first: List[u8] = []
+    let mut second: List[u8] = []
+    for index in 0..bytes.len():
+        if index < at:
+            first.push(bytes[index])
+        else:
+            second.push(bytes[index])
+    let mut hasher = DefaultHasher::new()
+    hasher.write(first)
+    hasher.write(second)
+    hasher.finish()
+
+tests:
+    use std.testing.assert_equal
+
+    it("every chunk width gives the digest of one write"):
+        bytes := stream()
+        whole := digest(stream())
+        for width in 1..20:
+            assert_equal(chunked(bytes, width), whole, reason="chunked writes")
+
+    it("every split point gives the digest of one write"):
+        bytes := stream()
+        whole := digest(stream())
+        for at in 0..54:
+            assert_equal(split_at(bytes, at), whole, reason="two writes")
+
+    it("typed and string writes at every offset give the digest of their bytes"):
+        for padding in 0..17:
+            let mut typed = DefaultHasher::new()
+            let mut raw: List[u8] = []
+            for _index in 0..padding:
+                typed.write_u8(23)
+                raw.push(23)
+            typed.write_u64(72623859790382856)
+            typed.write_str("h\u{E9}llo, w\u{F6}rld")
+            typed.write_u32(305419896)
+            for byte in [8, 7, 6, 5, 4, 3, 2, 1]:
+                raw.push(byte)
+            for byte in [104, 195, 169, 108, 108, 111, 44, 32, 119, 195, 182, 114, 108, 100]:
+                raw.push(byte)
+            for byte in [120, 86, 52, 18]:
+                raw.push(byte)
+            assert_equal(typed.finish(), digest(raw), reason="same bytes from each block offset")

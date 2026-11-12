@@ -1,5 +1,5 @@
 # test: DefaultHasher::new returns a local value whose mutable borrow is hashed in place, while copies have independent state
-# Spec std Hash, Default Hasher: std-hash.default.new-value, std-hash.default.declarations, std-hash.hash-of-local.
+# Spec std Hash, Default Hasher: std-hash.default.new-empty, std-hash.default.declarations, std-hash.hash-of-local.
 # expect-stdout: true
 # expect-stdout: true
 # expect-stdout: true

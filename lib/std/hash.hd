@@ -4,8 +4,10 @@
 # at its own width, a `bool` one byte, a `char` its scalar as a `u32`, a
 # string or a list its length as a `u64` and then its contents, and an
 # optional or a result a tag byte and then its payload. `DefaultHasher` is
-# 64-bit FNV-1a, and `hash_of` hashes a value into a new one
-# (spec/std/hash.md#default-hasher).
+# foldhash's `fast` hasher with one fixed seed, so its digests are fixed for
+# a toolchain but not across toolchains, and `hash_of` hashes a value into a
+# new one (spec/std/hash.md#default-hasher). `Fnv1a` is 64-bit FNV-1a, whose
+# digests are published (spec/std/hash.md#fnv-1a-hasher).
 use std.annotation.inline
 use std.function.Tuple
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
@@ -79,46 +81,55 @@ impl Hash for bool:
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i8:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i8(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i16:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i16(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i32:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i32(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i64:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i64(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u8:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u8(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u16:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u16(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u32:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u32(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for usize:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_usize(*self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u64:
+    @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u64(*self)
 
@@ -131,63 +142,54 @@ impl[T < Hash] Hash for List[T]:
         for item in self:
             item.hash(state)
 
-# The standard `Hasher`: 64-bit FNV-1a with no seed
-# (r-std-hash.default.algorithm, r-std-hash.default.fixed). The state
-# starts at the FNV offset basis `0xcbf29ce484222325`.
-## The standard hasher: 64-bit FNV-1a over the bytes written to it.
-## See [std-hash.default.declarations](../../spec/std/hash.md#r-std-hash.default.declarations).
+# `Fnv1a`: 64-bit FNV-1a with no seed, whose digests are published
+# (spec/std/hash.md#fnv-1a-hasher). The state starts at the FNV offset
+# basis `0xcbf29ce484222325`.
+## A hasher computing 64-bit FNV-1a over the bytes written to it. Its
+## digests never change, so a program may persist them.
+## See [std-hash.fnv1a.declarations](../../spec/std/hash.md#r-std-hash.fnv1a.declarations).
 @derive(Debug)
-pub struct DefaultHasher:
+pub struct Fnv1a:
     state: u64
 
-impl DefaultHasher:
+impl Fnv1a:
     ## Returns a fresh hasher value whose state is the FNV offset basis.
-    ## See [std-hash.default.new-value](../../spec/std/hash.md#r-std-hash.default.new-value).
-    pub fn new() -> DefaultHasher:
-        DefaultHasher { state: 14695981039346656037 }
+    ## See [std-hash.fnv1a.new-value](../../spec/std/hash.md#r-std-hash.fnv1a.new-value).
+    pub fn new() -> Fnv1a:
+        Fnv1a { state: 14695981039346656037 }
 
-    # The state, unchanged (r-std-hash.default.finish).
-    ## The hash of the bytes written so far.
-    ## See [std-hash.default.finish](../../spec/std/hash.md#r-std-hash.default.finish).
+    ## The FNV-1a hash of the bytes written so far.
+    ## See [std-hash.fnv1a.finish](../../spec/std/hash.md#r-std-hash.fnv1a.finish).
     pub fn finish(self) -> u64:
         self.state
 
-# Each byte is XORed in, then the state is multiplied by the FNV prime
-# `0x100000001b3` modulo 2^64, so two writes equal one write of both lists
-# (r-std-hash.default.write). The prime is 256 * 2^32 + 435, and the
-# state is split into 32-bit halves, so no intermediate product overflows
-# the checked `u64` arithmetic.
-# One FNV-1a step on the state.
-fn fnv_mix(state: u64, byte: u8) -> u64:
-    let mask: u64 = 4294967295
-    mixed := state ^ u64(byte)
-    low := mixed & mask
-    low_product := low * 435
-    middle := (low * 256 + (mixed >> 32) * 435 + (low_product >> 32)) & mask
-    (middle << 32) | (low_product & mask)
-
-# Each method mixes into a local and stores the state once, so a write
-# through the reference happens once per call, not once per byte.
-impl DefaultHasher:
+    # Each method mixes into a local and stores the state once, so a write
+    # through the reference happens once per call, not once per byte.
     fn write_integer(&mut self, value: u64, width: usize) -> void:
         let state = self.state
         let rest = value
         let index: usize = 0
         while index < width:
-            state = fnv_mix(state, u8(rest & 255))
+            state = fnv_mix(state, rest & 255)
             rest = rest >> 8
-            index = index + 1
+            index += 1
         self.state = state
 
-impl Hasher for DefaultHasher:
+# One FNV-1a step: XOR the byte in, then multiply by the FNV prime
+# `0x100000001b3` modulo 2^64 (std-hash.fnv1a.algorithm).
+@inline(.Always)
+fn fnv_mix(state: u64, byte: u64) -> u64:
+    (state ^ byte).wrapping_mul(1099511628211u64)
+
+impl Hasher for Fnv1a:
     fn write(&mut self, bytes: List[u8]) -> void:
         let state = self.state
         for byte in bytes:
-            state = fnv_mix(state, byte)
+            state = fnv_mix(state, u64(byte))
         self.state = state
 
     fn write_u8(&mut self, value: u8) -> void:
-        self.write_integer(u64(value), 1)
+        self.state = fnv_mix(self.state, u64(value))
 
     fn write_u16(&mut self, value: u16) -> void:
         self.write_integer(u64(value), 2)
@@ -202,7 +204,7 @@ impl Hasher for DefaultHasher:
         self.write_integer(u64(value), 4)
 
     fn write_i8(&mut self, value: i8) -> void:
-        self.write_integer(u64(u8(value)), 1)
+        self.state = fnv_mix(self.state, u64(u8(value)))
 
     fn write_i16(&mut self, value: i16) -> void:
         self.write_integer(u64(u16(value)), 2)
@@ -219,13 +221,14 @@ impl Hasher for DefaultHasher:
         n := bytes_len(text)
         let index: usize = 0
         while index < n:
-            state = fnv_mix(state, bytes_at(text, index))
-            index = index + 1
+            state = fnv_mix(state, u64(bytes_at(text, index)))
+            index += 1
         self.state = state
 
 # Hashes `value` into a local `DefaultHasher` (r-std-hash.hash-of-local).
 ## `value`'s hash under a fresh `DefaultHasher`.
 ## See [std-hash.hash-of-local](../../spec/std/hash.md#r-std-hash.hash-of-local).
+@inline(.Always)
 pub fn hash_of[T < Hash](value: T) -> u64:
     let mut hasher = DefaultHasher::new()
     value.hash(&mut hasher)
@@ -281,8 +284,8 @@ fn key_equal[T < Eq](left: T, right: T) -> bool:
 # foldhash 0.2.0 fast, with its non-wide-arithmetic Wasm multiply.
 # Port of Orson Peters' foldhash (2024), distributed under Zlib/Apache-2.0/MIT.
 # Source: https://github.com/orlp/foldhash/tree/8f878c636fda9c9e93384824ea45e06d03f009f5/src
-# Map bucket hashes use the low 32 bits (std-hash.map.foldhash-fast).
-# DefaultHasher and hash_of keep their separate published FNV-1a algorithm.
+# Map bucket hashes use the low 32 bits (std-hash.map.foldhash-fast), and
+# DefaultHasher and hash_of use all 64 with one fixed seed.
 # Copyright (c) 2024 Orson Peters
 #
 # This software is provided 'as-is', without any express or implied warranty. In
@@ -503,53 +506,71 @@ fn hash_bytes(bytes: string, accumulator: u64) -> u64:
     rotated := rotate_right(accumulator, size)
     if size <= 16: hash_bytes_short(bytes, rotated) else: hash_bytes_long(bytes, rotated)
 
-struct FoldHasher:
+# The standard `Hasher` is foldhash's `fast` hasher over a 16-byte sponge,
+# the one maps use with their own seeds. `new` fixes the per-hasher seed to
+# foldhash's `FixedState::default()` constant, so a digest depends only on
+# the bytes and the toolchain (std-hash.default.per-toolchain). The algorithm
+# is not specified (std-hash.default.unspecified): `Fnv1a` is the stable one.
+## The standard hasher. For one hd toolchain it gives the same digest for the
+## same bytes in every run, replay and platform; its algorithm may change
+## between toolchain versions, so do not persist a digest. Use `Fnv1a` for a
+## digest that never changes.
+## See [std-hash.default.declarations](../../spec/std/hash.md#r-std-hash.default.declarations).
+@derive(Debug)
+pub struct DefaultHasher:
     accumulator: u64
     low: u64
     high: u64
     bits: usize
 
-impl FoldHasher:
+impl DefaultHasher:
+    ## Returns a fresh hasher value, with no bytes written.
+    ## See [std-hash.default.new-empty](../../spec/std/hash.md#r-std-hash.default.new-empty).
+    pub fn new() -> DefaultHasher:
+        # foldhash 0.2's ARBITRARY3, the seed of `FixedState::default()`.
+        DefaultHasher { accumulator: 589684135938649225u64, low: 0, high: 0, bits: 0 }
+
     @inline(.Always)
-    fn new(seed: u64) -> FoldHasher:
-        FoldHasher { accumulator: seed, low: 0, high: 0, bits: 0 }
+    fn with_seed(seed: u64) -> DefaultHasher:
+        DefaultHasher { accumulator: seed, low: 0, high: 0, bits: 0 }
 
     # hd Hash names one byte stream, independent of write boundaries.
     # Pack that stream into fixed 16-byte blocks before foldhash mixing.
-    # A crossing typed word fills the old block and carries its suffix;
-    # this is equivalent to upstream FoldHasher.write_u8 for every byte.
+    # A word that fills the block folds it at once and carries its suffix
+    # into the next block. Folding a full block on the next write, as
+    # upstream foldhash's FoldHasher.write_u8 does for every byte, gives
+    # the same accumulator, and `finish` the same digest, so this is
+    # equivalent; it keeps one fold site, so an instance stays small.
     @inline(.Always)
     fn write_num(&mut self, value: u64, width: usize) -> void:
         let h = *self
         let low = h.low
         let high = h.high
-        let bits = h.bits
         let accumulator = h.accumulator
-        if bits == 128:
-            accumulator = folded_multiply(low ^ accumulator, high ^ fold_seed0())
-            low = 0
-            high = 0
-            bits = 0
-        if bits + width > 128:
-            remaining := 128 - bits
-            high = high | (value << (bits - 64))
-            accumulator = folded_multiply(low ^ accumulator, high ^ fold_seed0())
-            low = value >> remaining
-            high = 0
-            bits = width - remaining
-        else:
+        bits := h.bits
+        total := bits + width
+        let next = total
+        if total < 128:
             if bits < 64:
                 low = low | (value << bits)
-                if bits + width > 64:
+                if total > 64:
                     high = high | (value >> (64 - bits))
             else:
                 high = high | (value << (bits - 64))
-            bits += width
-        *self = FoldHasher { accumulator: accumulator, low: low, high: high, bits: bits }
+        else:
+            # The block fills, so `bits >= 64`; at most 63 bits carry over.
+            high = high | (value << (bits - 64))
+            accumulator = folded_multiply(low ^ accumulator, high ^ fold_seed0())
+            next = total - 128
+            low = if next == 0: 0 else: value >> (128 - bits)
+            high = 0
+        *self = DefaultHasher { accumulator: accumulator, low: low, high: high, bits: next }
 
-    # Word reads preserve the input's little-endian byte order, with at
-    # most seven individual bytes at the end. Zero-byte writes do nothing.
-    # This is O(n) time, O(1) state, and never buffers or replays Hash.
+    # Word reads preserve the input's little-endian byte order. The last
+    # one to seven bytes pack into one word of their width, which is the
+    # same byte stream, so a write takes at most one short write.
+    # Zero-byte writes do nothing. This is O(n) time, O(1) state, and
+    # never buffers or replays Hash.
     @inline(.Always)
     fn write_bytes[B < HashBytes](&mut self, bytes: &B) -> void:
         size := bytes.size()
@@ -557,18 +578,31 @@ impl FoldHasher:
         while size - index >= 8:
             self.write_num(bytes.word8(index), 64)
             index += 8
-        while index < size:
-            self.write_num(bytes.byte(index), 8)
-            index += 1
+        if index < size:
+            let tail: u64 = 0
+            let width: usize = 0
+            if size - index >= 4:
+                tail = bytes.word4(index)
+                width = 32
+                index += 4
+            while index < size:
+                tail = tail | (bytes.byte(index) << width)
+                width += 8
+                index += 1
+            self.write_num(tail, width)
 
+    # The pending block folds into a copy, so `finish` leaves the hasher
+    # unchanged (std-hash.default.finish-digest).
+    ## The digest of the bytes written so far.
+    ## See [std-hash.default.finish-digest](../../spec/std/hash.md#r-std-hash.default.finish-digest).
     @inline(.Always)
-    fn finish(self) -> u64:
+    pub fn finish(self) -> u64:
         if self.bits == 0:
             self.accumulator
         else:
             folded_multiply(self.low ^ self.accumulator, self.high ^ fold_seed0())
 
-impl Hasher for FoldHasher:
+impl Hasher for DefaultHasher:
     @inline(.Always)
     fn write(&mut self, bytes: List[u8]) -> void:
         self.write_bytes(&bytes)
@@ -613,6 +647,6 @@ pub fn hash_string(value: string, seed: u64) -> u32:
 
 # General hd Hash byte streams use canonical 16-byte foldhash sponge blocks.
 pub fn hash_key[T < Hash](value: T, seed: u64) -> u32:
-    let mut hasher = FoldHasher::new(seed)
+    let mut hasher = DefaultHasher::with_seed(seed)
     value.hash(&mut hasher)
     u32(hasher.finish())

@@ -1,6 +1,6 @@
 # test: a concrete scalar writer and its helper mutate the original local state, with the same bytes as integer hashing
-# Spec std Hash, Default Hasher: std-hash.default.algorithm, std-hash.bytes.integer.
-use std.hash.hash_of
+# Spec std Hash, FNV-1a Hasher: std-hash.fnv1a.algorithm, std-hash.bytes.integer.
+use std.hash.Fnv1a
 use std.testing.assert_equal
 
 struct State:
@@ -25,8 +25,13 @@ fn digest(value: u32) -> u64:
     write(&mut state, value)
     state.value
 
+fn fnv_of(value: u32) -> u64:
+    let mut hasher = Fnv1a::new()
+    value.hash(&mut hasher)
+    hasher.finish()
+
 tests:
     it("the writer mutates the evaluated receiver"):
-        assert_equal(digest(0), hash_of(u32(0)), reason="zero bytes")
-        assert_equal(digest(305419896), hash_of(u32(305419896)), reason="four different bytes")
-        assert_equal(digest(4294967295), hash_of(u32(4294967295)), reason="four full bytes")
+        assert_equal(digest(0), fnv_of(u32(0)), reason="zero bytes")
+        assert_equal(digest(305419896), fnv_of(u32(305419896)), reason="four different bytes")
+        assert_equal(digest(4294967295), fnv_of(u32(4294967295)), reason="four full bytes")

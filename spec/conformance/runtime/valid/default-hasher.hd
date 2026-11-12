@@ -1,6 +1,7 @@
-# test: DefaultHasher is 64-bit FNV-1a, and hash_of hashes a value into a new DefaultHasher
-# Spec std Hash, Default Hasher: std-hash.default.algorithm, std-hash.default.write,
-# std-hash.default.finish, std-hash.hash-of-local (batch 64, DEFAULT-HASHER).
+# test: DefaultHasher digests depend only on the bytes, and hash_of hashes a value into a new DefaultHasher
+# Spec std Hash, Default Hasher: std-hash.default.per-toolchain, std-hash.default.write,
+# std-hash.default.finish-digest, std-hash.hash-of-local. The algorithm is not specified
+# (std-hash.default.unspecified), so no case names a literal digest.
 use std.hash.{DefaultHasher, Hasher, hash_of}
 fn digest(bytes: List[u8]) -> u64:
     let mut hasher = DefaultHasher::new()
@@ -15,27 +16,29 @@ fn by_hand(value: string) -> u64:
 tests:
     use std.testing.assert_equal
 
-    it("a new hasher finishes with the FNV offset basis"):
-        let basis: u64 = 14695981039346656037
-        assert_equal(DefaultHasher::new().finish(), basis, reason="no bytes written")
+    it("two new hashers give the same digest of the same bytes"):
+        assert_equal(DefaultHasher::new().finish(), digest([]), reason="no bytes written")
+        assert_equal(digest([97, 98]), digest([97, 98]), reason="the bytes 97 and 98")
+        assert_equal(digest([97, 98]) == digest([98, 97]), false, reason="order matters")
 
-    it("each byte is XORed in and then multiplied by the FNV prime"):
-        let one: u64 = 12638187200555641996
-        let two: u64 = 620445648566982762
-        assert_equal(digest([97]), one, reason="the byte 97")
-        assert_equal(digest([97, 98]), two, reason="the bytes 97 and 98")
-
-    it("two writes give the state of one write of both lists"):
+    it("two writes give the digest of one write of both lists"):
         let mut hasher = DefaultHasher::new()
         hasher.write([97])
         hasher.write([98])
         assert_equal(hasher.finish(), digest([97, 98]), reason="writes concatenate")
 
-    it("finish does not change the state"):
+    it("finish does not change the hasher"):
         let mut hasher = DefaultHasher::new()
         hasher.write([97])
         first := hasher.finish()
         assert_equal(hasher.finish(), first, reason="finish twice")
+        hasher.write([98])
+        assert_equal(hasher.finish(), digest([97, 98]), reason="writing after finish continues")
 
     it("hash_of hashes into a new DefaultHasher"):
         assert_equal(hash_of("hd"), by_hand("hd"), reason="same bytes, same algorithm")
+        assert_equal(
+            hash_of("hd"),
+            digest([2, 0, 0, 0, 0, 0, 0, 0, 104, 100]),
+            reason="the Hash bytes of a string",
+        )

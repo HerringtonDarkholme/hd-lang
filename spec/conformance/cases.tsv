@@ -3245,10 +3245,12 @@ typing/invalid/covariant-optional-field.hd	type	reject:invalid-variance	lang/04-
 typing/invalid/covariant-result-field.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.option.invariant.result
 runtime/valid/console-error-line-default.hd	runtime	accept	lang/10-modules.md#r-module.console.write-error-sync.forwarding
 runtime/valid/default-hasher.hd	runtime	accept	std/hash.md#default-hasher
+runtime/valid/default-hasher-split-independent.hd	runtime	accept	std/hash.md#r-std-hash.default.write
+runtime/valid/fnv1a-hasher.hd	runtime	accept	std/hash.md#r-std-hash.fnv1a.vectors
 runtime/valid/hash-bytes-scalars.hd	runtime	accept	std/hash.md#r-std-hash.bytes.integer
 runtime/valid/hash-bytes-sequences.hd	runtime	accept	std/hash.md#r-std-hash.bytes.string
 runtime/valid/hash-bytes-derived.hd	runtime	accept	std/hash.md#r-std-hash.bytes.derive-enum
-runtime/valid/hash-of-reference-values.hd	runtime	accept	std/hash.md#r-std-hash.bytes.sequence
+runtime/valid/fnv1a-reference-values.hd	runtime	accept	std/hash.md#r-std-hash.bytes.exact
 runtime/valid/retry-with-backoff.hd	runtime	accept	std/task.md#retry-with-backoff
 runtime/valid/task-records-value-copy.hd	runtime	accept	std/task.md#r-std-task.backoff.decl.defaults
 runtime/valid/clock-helpers.hd	runtime	accept	std/time.md#clock-helpers
@@ -4771,7 +4773,7 @@ runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.c
 runtime/valid/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.typed-writes
 runtime/valid/hasher-struct-ref-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.hash.generic-hasher
 runtime/valid/hash-self-borrows.hd	runtime	accept	lang/09-traits.md#r-trait.hash.self-ref
-runtime/valid/default-hasher-local.hd	runtime	accept	std/hash.md#r-std-hash.default.new-value
+runtime/valid/default-hasher-local.hd	runtime	accept	std/hash.md#r-std-hash.default.new-empty
 runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
 typing/invalid/shared-enum-type-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.type-parameter
 typing/invalid/shared-enum-lifetime-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.lifetime
@@ -6627,8 +6629,8 @@ runtime/valid/a-tuple-element-reads-through-a-reference.hd	runtime	accept	lang/1
 runtime/valid/inlined-scalar-writer-mutates-its-local-receiver.hd	runtime	accept	std/hash.md#r-std-hash.bytes.integer
 runtime/panic/inlined-scalar-writer-keeps-pointer-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/inlined-scalar-writer-keeps-shared-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
-runtime/valid/hash-of-scattered-usize-keys.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
-runtime/valid/hash-of-usize-byte-oracle.hd	runtime	accept	std/hash.md#r-std-hash.default.algorithm
+runtime/valid/fnv1a-scattered-usize-keys.hd	runtime	accept	std/hash.md#r-std-hash.fnv1a.fixed
+runtime/valid/fnv1a-usize-byte-oracle.hd	runtime	accept	std/hash.md#r-std-hash.fnv1a.algorithm
 runtime/valid/an-argument-infers-a-parameter-named-beside-its-projection.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.projection
 typing/invalid/an-argument-differs-from-its-parameter-projection.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.projection.check
 typing/invalid/a-later-argument-solves-a-parameter-its-projection-argument-differs-from.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.projection.check

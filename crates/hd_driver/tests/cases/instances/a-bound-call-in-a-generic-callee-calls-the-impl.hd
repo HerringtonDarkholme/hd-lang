@@ -1,9 +1,8 @@
 # @dump: wat
 # @build: v8 release
 # `hash_of[usize]` inlines, and its bound `value.hash(&mut hasher)` is
-# chosen as `usize`'s `Hash` impl, so it is a direct call (#1205).
-# expected: the impl call inlines too; it stays a call because it takes
-# `&mut` (#1399 step 28)
+# chosen as `usize`'s `Hash` impl (#1205), which inlines too: no call
+# remains.
 use std.hash.hash_of
 
 pub fn key_hash(key: usize) -> u64:

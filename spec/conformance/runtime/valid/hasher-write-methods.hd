@@ -1,7 +1,7 @@
 # test: typed Hasher defaults and overrides preserve their byte streams and existing hash values
 # Spec std Hash, Bytes Written and Hasher methods: trait.hash.typed-methods,
 # trait.hash.typed-bytes, trait.hash.string-bytes, trait.hash.override-equivalent,
-# std-hash.default.typed-writes, std-hash.bytes.sequence.
+# std-hash.default.typed-writes, std-hash.bytes.exact.
 use std.hash.Hasher
 use std.collections.UniqMap
 
@@ -203,10 +203,13 @@ tests:
             reason="same byte stream",
         )
 
-    it("hash_of values for integers and strings are unchanged"):
+    it("hash_of values for integers and strings are the digests of their bytes"):
         let key: (u8, string) = (7, "a")
-        let expected: u64 = 12920292002639229810
-        assert_equal(hash_of(key), expected, reason="the spec's digest of (7, \"a\")")
+        assert_equal(
+            hash_of(key),
+            digest([7, 1, 0, 0, 0, 0, 0, 0, 0, 97]),
+            reason="the bytes of (7, \"a\")",
+        )
         let wide: u64 = 258
         assert_equal(
             hash_of(wide),

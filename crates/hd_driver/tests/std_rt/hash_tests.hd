@@ -4,7 +4,12 @@
 # Integer/raw-string vectors use upstream direct methods. Generic hd Hash
 # streams use upstream write_u8 for each serialized byte, which canonicalizes
 # call boundaries; write_usize serializes 32 bits, as on this runtime.
+# `hash_of` vectors are upstream `fast::FixedState::default()` (per-hasher
+# seed ARBITRARY3) fed the same write_u8 stream, all 64 bits of `finish`.
+# They pin this toolchain's digests: the spec leaves the algorithm open
+# (std-hash.default.unspecified), so a change here is a toolchain change.
 use std.hash.{Hash, Hasher}
+use std.hash.{DefaultHasher, hash_of}
 use std.hash.{hash_integer, hash_string, hash_key}
 use std.rt.map_hash_seed
 
@@ -388,6 +393,23 @@ tests:
         assert_equal(hash_key(StreamKey3 {}, 18446744073709551615u64), 2849172291u32)
         assert_equal(hash_key(StreamKey4 {}, 18446744073709551615u64), 1002211661u32)
         assert_equal(hash_key(StreamKey5 {}, 18446744073709551615u64), 2366655773u32)
+
+    it("hash_of is foldhash's default fixed state over the Hash bytes"):
+        assert_equal(DefaultHasher::new().finish(), 589684135938649225u64)
+        assert_equal(hash_of(42u32), 9174106799469798059u64)
+        assert_equal(hash_of(18364758544493064720u64), 10628260816633449540u64)
+        assert_equal(hash_of("hd"), 1927349526242060103u64)
+        let pair: (u8, string) = (7, "a")
+        assert_equal(hash_of(pair), 16210116857368862073u64)
+        # Eight length bytes and 40 text bytes: two full sponge blocks and a third.
+        assert_equal(
+            hash_of("abcdefghijklmnopqrstuvwxyz0123456789ABCD"),
+            1336580192291833804u64,
+        )
+        assert_equal(hash_of(""), 16200781398385399916u64)
+        assert_equal(hash_of("abcdefgh"), 1975664701518251446u64)
+        assert_equal(hash_of("abcdefghijklmnop"), 9251196824928732509u64)
+        assert_equal(hash_of("abcdefghijklmnopq"), 16705508687924400420u64)
 
     it("empty Hash streams preserve the supplied seed"):
         assert_equal(hash_key(EmptyKey {}, 0u64), 0u32)

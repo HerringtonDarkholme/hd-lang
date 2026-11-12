@@ -9,7 +9,8 @@ ordinary hd over the language tier:
 - how tuples hash, through the trait's tuple template;
 - how lists and results hash;
 - the bytes each standard implementation writes;
-- the standard hasher `DefaultHasher`, and `hash_of`.
+- the standard hasher `DefaultHasher`, and `hash_of`;
+- the stable hasher `Fnv1a`.
 
 The language tier keeps `Hash` and `Hasher`, which map keys require
 ([Hashing](../lang/09-traits.md#hashing)), and the `@derive` checks.
@@ -80,11 +81,13 @@ Each standard `Hash` implementation writes a fixed sequence of bytes to
 its `Hasher`:
 
 ```text
-use std.hash.hash_of
+use std.hash.Fnv1a
 
 fn digest() -> u64:
     let key: (u8, string) = (7, "a")
-    hash_of(key)  # 12920292002639229810, from the bytes 7, 1, 0, 0, 0, 0, 0, 0, 0, 97
+    let mut hasher = Fnv1a::new()
+    key.hash(&mut hasher)
+    hasher.finish()  # 12920292002639229810, from the bytes 7, 1, 0, 0, 0, 0, 0, 0, 0, 97
 ```
 
 | Rule | Value | Bytes written, in order |
@@ -99,7 +102,7 @@ fn digest() -> u64:
 | r[std-hash.bytes.reference] Reference | `&T` or `&mut T` | the bytes of the value it refers to |
 | r[std-hash.bytes.result] `Result[T, E]` | `.Ok(value)` or `.Err(error)` | the tag byte `0`, then the bytes of `value`, for `.Ok`; the tag byte `1`, then the bytes of `error`, for `.Err` |
 
-1. r[std-hash.bytes.sequence] Each standard implementation of `Hash` writes exactly the bytes of the table above, so `hash_of` of a value is the same in every implementation.
+1. r[std-hash.bytes.exact] Each standard implementation of `Hash` writes exactly the bytes of the table above. So a value's `Fnv1a` digest is the same in every implementation.
 2. r[std-hash.bytes.typed-methods] A standard `Hash` implementation may write integer bytes or a string's bytes through the corresponding [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods), since it writes the same byte sequence as `write`.
 3. r[std-hash.bytes.derive-enum] A derived `Hash` on an enum writes the variant's zero-based index as a `u32`, before the members that [`std-hash.derive.hash.enum`](#r-std-hash.derive.hash.enum) lists.
 4. r[std-hash.bytes.derive-data] A derived `Hash` on a struct writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
@@ -112,37 +115,33 @@ fn digest() -> u64:
 
 > **Note.** These rules fix the bytes in order, not how an implementation
 > splits them into `write` calls. A `DefaultHasher` gives the same result
-> for any split, by [`std-hash.default.write`](#r-std-hash.default.write).
+> for any split, by [`std-hash.default.write`](#r-std-hash.default.write),
+> and so does an `Fnv1a`, by [`std-hash.fnv1a.write`](#r-std-hash.fnv1a.write).
 
 ## Default Hasher
 
-`DefaultHasher` is the standard `Hasher`, with one fixed algorithm:
+`DefaultHasher` is the standard `Hasher`. For one hd toolchain, its digest
+of the same bytes never changes; its algorithm is not specified:
 
 ```text
 use std.hash.{DefaultHasher, Hasher, hash_of}
 
-fn digest() -> u64:
+fn same_digest() -> bool:
     let mut hasher = DefaultHasher::new()
-    hasher.write([97])
-    hasher.finish()  # 12638187200555641996
+    "hd".hash(&mut hasher)
+    hasher.finish() == hash_of("hd")  # true, in every run of every program
 
 fn bucket(key: string) -> u64:
     hash_of(key)
 ```
 
-| Step | Effect on the 64-bit state |
-| --- | --- |
-| start | the FNV offset basis, `0xcbf29ce484222325` |
-| each byte `b`, in order | XOR `b` into the state, then multiply by the FNV prime `0x100000001b3`, modulo 2^64 |
-| `finish` | returns the state |
-
 1. r[std-hash.default.declarations] `std.hash` declares `DefaultHasher` with private fields and the function `hash_of`, imported with `use std.hash.{DefaultHasher, hash_of}`.
-2. r[std-hash.default.algorithm] `DefaultHasher` computes 64-bit FNV-1a over the bytes written to it, by the table above.
-3. r[std-hash.default.new-value] `DefaultHasher::new() -> DefaultHasher` returns a hasher value whose state is the offset basis.
-4. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
-5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
-6. r[std-hash.default.typed-writes] `DefaultHasher` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.
-7. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
+2. r[std-hash.default.per-toolchain] For one hd toolchain, `DefaultHasher` gives the same digest of the same bytes in every run, replay, program, and platform.
+3. r[std-hash.default.unspecified] The algorithm of `DefaultHasher` is not specified, and it may change between toolchain versions. A program must not persist its digests or compare them with another toolchain's.
+4. r[std-hash.default.new-empty] `DefaultHasher::new() -> DefaultHasher` returns a hasher value with no bytes written to it.
+5. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
+6. r[std-hash.default.finish-digest] `finish(self) -> u64` returns the digest of the bytes written so far and does not change the hasher.
+7. r[std-hash.default.typed-writes] `DefaultHasher` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.
 8. r[std-hash.hash-of-local] `hash_of[T < Hash](value: T) -> u64` hashes through a mutable borrow of a local `DefaultHasher`, then returns its `finish()`.
 9. r[std-hash.map.foldhash-fast] `Map` and `UniqMap` bucket keys by the low 32 bits of foldhash 0.2's `fast` hash.
 10. r[std-hash.map.seed-word] Each map stores one 64-bit seed.
@@ -152,14 +151,20 @@ fn bucket(key: string) -> u64:
 14. r[std-hash.map.seed-replay] Replaying a run's recorded seed and map operations reproduces its map seeds.
 15. r[std-hash.map.order-independent] `Map` and `UniqMap` iteration order does not depend on bucket hashes or seeds.
 
-> **Why.** FNV-1a is a few lines of hd that need only XOR and one
-> wrapping multiplication. SipHash-1-3 mixes better, but its strength is
-> a secret key. With a fixed key it gives no defense against chosen keys,
-> so its larger code buys little here.
+> **Why.** A general hash that must stay the same forever locks the
+> language into its algorithm, as `String.hashCode` locked Java. Go, Python
+> and Swift instead choose a random seed per process, which breaks replay.
+> Like [Rust's `DefaultHasher`](https://doc.rust-lang.org/std/hash/struct.DefaultHasher.html),
+> hd fixes the seed but promises nothing across versions. So a digest
+> depends on no run state, replay stays deterministic, and a later
+> toolchain may adopt a faster algorithm. `DefaultHasher` uses foldhash's
+> `fast` algorithm, the one maps use, with one constant seed.
 
-> **Note.** A fixed algorithm makes hash values reproducible, so a test
-> may assert one. It also means that keys chosen to collide stay
-> colliding, so `Map` and `UniqMap` do not bucket keys by it.
+> **Note.** A digest is reproducible within one toolchain, so a test may
+> compare two digests. A test that asserts a literal digest, or a program
+> that stores one, uses [`Fnv1a`](#fnv-1a-hasher). With a fixed seed, keys
+> chosen to collide stay colliding. So `Map` and `UniqMap` do not bucket keys
+> by `DefaultHasher`, but give each map its own seed.
 
 > **Why.** A fixed bucket hash lets one chosen collision pattern apply to
 > every map. [Foldhash's `fast` algorithm](https://github.com/orlp/foldhash/blob/8f878c636fda9c9e93384824ea45e06d03f009f5/src/fast.rs) hashes integer and string keys
@@ -178,6 +183,49 @@ fn bucket(key: string) -> u64:
 See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
 [Lookup And Order](../lang/04-type-system.md#lookup-and-order),
 [Cmp](cmp.md).
+
+## FNV-1a Hasher
+
+`Fnv1a` is a `Hasher` whose digests never change, for a program that
+persists them:
+
+```text
+use std.hash.{Fnv1a, Hasher}
+
+fn digest() -> u64:
+    let mut hasher = Fnv1a::new()
+    hasher.write([97])
+    hasher.finish()  # 12638187200555641996
+```
+
+| Step | Effect on the 64-bit state |
+| --- | --- |
+| start | the FNV offset basis, `0xcbf29ce484222325` |
+| each byte `b`, in order | XOR `b` into the state, then multiply by the FNV prime `0x100000001b3`, modulo 2^64 |
+| `finish` | returns the state |
+
+1. r[std-hash.fnv1a.declarations] `std.hash` declares `Fnv1a` with private fields, imported with `use std.hash.Fnv1a`.
+2. r[std-hash.fnv1a.algorithm] `Fnv1a` computes 64-bit FNV-1a over the bytes written to it, by the table above.
+3. r[std-hash.fnv1a.new-value] `Fnv1a::new() -> Fnv1a` returns a hasher value whose state is the offset basis.
+4. r[std-hash.fnv1a.write] `Fnv1a` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
+5. r[std-hash.fnv1a.finish] `finish(self) -> u64` returns the state and does not change it.
+6. r[std-hash.fnv1a.typed-writes] `Fnv1a` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.
+7. r[std-hash.fnv1a.fixed] The algorithm has no seed and no key. So the same bytes give the same digest in every run, program, implementation, and toolchain version, and a program may persist it.
+8. r[std-hash.fnv1a.vectors] `Fnv1a` gives these digests:
+
+| Bytes written | Digest |
+| --- | --- |
+| none | `14695981039346656037` (`0xcbf29ce484222325`) |
+| `97` | `12638187200555641996` (`0xaf63dc4c8601ec8c`) |
+| `97`, `98` | `620445648566982762` (`0x089c4407b545986a`) |
+| the UTF-8 bytes of `foobar` | `9625390261332436968` (`0x85944171f73967e8`) |
+| `7`, `1`, seven `0`s, `97`: the `Hash` bytes of `(7, "a")` as `(u8, string)` | `12920292002639229810` |
+
+> **Why.** FNV-1a is a few lines of hd that need only XOR and one
+> wrapping multiplication. Its published digests let any program check
+> its own. SipHash-1-3 mixes better, but its strength is a secret
+> key. With a fixed key it gives no defense against chosen keys, so its
+> larger code buys little here.
 
 ## Reference Hashing
 

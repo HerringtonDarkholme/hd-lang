@@ -1,0 +1,5 @@
+# `:reload` rebuilds the session by running its inputs again, so `first`
+# is hashed again in the replay, while the file keeps the first run's
+# digest: the replay gives the same digest (std-hash.default.per-toolchain).
+run: hd --repl session.in
+transcript: transcript.txt
