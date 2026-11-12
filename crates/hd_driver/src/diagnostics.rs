@@ -170,7 +170,7 @@ pub fn for_input(diags: Vec<Diag>, file: &str) -> Vec<Diag> {
 }
 
 /// The diagnostics of a compiler run, in content order. `as_written`
-/// replaces the file of a single-file program (`cli.json.diagnostic.file`).
+/// replaces the file of a single-file program (`cli.diagnostic.file`).
 /// No migration edit is among their fix-its.
 #[must_use]
 pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {

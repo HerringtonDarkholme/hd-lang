@@ -282,7 +282,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
 /// The key of `t`'s stored report (#1510): the package-result key of a
 /// check over its sources, and the hash of what the report reads besides
 /// them: the scope, the FILE, a single file as the command line wrote it
-/// (`cli.json.diagnostic.file` names its diagnostics so), the lint policy
+/// (`cli.diagnostic.file` names its diagnostics so), the lint policy
 /// and a package's manifest text (`caps::required` reads its capability
 /// tables). A report is a function of these alone: the doc tests come from
 /// the sources, and every other input is the run's. `None` when the run

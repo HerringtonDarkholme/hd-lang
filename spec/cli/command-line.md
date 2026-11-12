@@ -630,7 +630,7 @@ hd check --summary         # a count per code and file, in place of each diagnos
 4. r[cli.check.output-options] `--max-errors` and `--summary` change only what is printed. They change no diagnostic, count, or exit status.
 5. r[cli.check.report.stream] In text output, `hd check` writes its diagnostics and its summary to standard error, and nothing to standard output.
 6. r[cli.check.report.summary] The last line is the summary: `check result: ok.` when the run reported no error, or `check result: FAILED.` when it did, then `errors: E; warnings: W` with both counts, zero counts included.
-7. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic.
+7. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic, by [`cli.diagnostic.file`](#r-cli.diagnostic.file).
 8. r[cli.check.summary-mode.order] `--summary` lines are in file-path order, then in code order.
 
 ```sh
@@ -1255,6 +1255,23 @@ See also: [Doc Tests](../lang/10-modules.md#doc-tests),
 [Documentation Comments](../lang/01-lexical-structure.md#documentation-comments),
 [Creating A Package](#creating-a-package).
 
+## Diagnostic Files
+
+A diagnostic names its file by one rule, in text output and in
+[machine output](#machine-output) alike:
+
+```sh
+hd check x/greet.hd
+# error: x/greet.hd:2:5: type-mismatch: in result: expected i32, found string
+hd check --format json x/greet.hd
+# {"kind":"diagnostic","code":"type-mismatch","severity":"error","message":"...","file":"x/greet.hd","line":2,"column":5}
+```
+
+1. r[cli.diagnostic.file] In both output formats, a diagnostic in a package names its file by the path relative to the package root, as `src/cart.hd`, whatever the working directory. Outside a package, it names the file by the path as written on the command line. At a workspace root, it names the file by the path relative to the workspace root, as `lib/src/lib.hd`, so two members' files stay apart.
+
+> **Why.** An agent reads text and JSON output alike, and a path that
+> changed with the format would point the two at different files.
+
 ## Text Output
 
 Without `--format json`, a diagnostic's fix-its follow it in text output:
@@ -1286,19 +1303,21 @@ hd check --format json
 5. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
 6. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
 7. r[cli.json.diagnostic.fields] A diagnostic object has the fields `code`, `severity`, `message`, `file`, `line`, and `column`.
-8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory. Outside a package, `file` is the path as written on the command line. At a workspace root, `file` is relative to the workspace root, as `lib/src/lib.hd`, so two members' files stay apart.
-9. r[cli.json.test.result] Each test case's result is one object, with the test case's name and its outcome: passed, failed, or ignored.
-10. r[cli.json.test.result.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, or `"ignored"`, and `message` holds the failure or ignore reason, or `""` when there is none.
-11. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
-12. r[cli.json.summary.result] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
-13. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
-14. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
-15. r[cli.json.diagnostic.fixes] A diagnostic object also has the field `fixes`: a list of the diagnostic's fix-its. It is `[]` when the diagnostic has no fix-it.
-16. r[cli.json.fix.object] A fix-it is an object with the fields `message`, which says what the fix-it does, and `edits`, a list of its edits.
-17. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
-18. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.json.diagnostic.file`](#r-cli.json.diagnostic.file) gives it.
-19. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
-20. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+8. r[cli.json.test.result] Each test case's result is one object, with the test case's name and its outcome: passed, failed, or ignored.
+9. r[cli.json.test.result.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, or `"ignored"`, and `message` holds the failure or ignore reason, or `""` when there is none.
+10. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
+11. r[cli.json.summary.result] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
+12. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
+13. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
+14. r[cli.json.diagnostic.fixes] A diagnostic object also has the field `fixes`: a list of the diagnostic's fix-its. It is `[]` when the diagnostic has no fix-it.
+15. r[cli.json.fix.object] A fix-it is an object with the fields `message`, which says what the fix-it does, and `edits`, a list of its edits.
+16. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
+17. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
+18. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
+19. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+
+> **Note.** A diagnostic object's `file` names its file by
+> [`cli.diagnostic.file`](#r-cli.diagnostic.file), as text output does.
 
 ```sh
 hd check --format json

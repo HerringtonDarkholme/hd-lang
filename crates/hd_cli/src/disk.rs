@@ -325,7 +325,7 @@ pub struct Program {
     /// the command before compiling.
     pub problems: Vec<Diag>,
     /// A single-file program's FILE as the command line wrote it
-    /// (`cli.json.diagnostic.file`).
+    /// (`cli.diagnostic.file`).
     pub as_written: Option<String>,
     /// Whether it is a single-file program, alone without an `hd.toml`
     /// (`trait.typeid.name.single-file`).
@@ -933,7 +933,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         .to_string_lossy()
         .into_owned();
     // The manifest's path as written, as the file's is
-    // (`cli.json.diagnostic.file`).
+    // (`cli.diagnostic.file`).
     let written = target.parent().unwrap_or(Path::new(""));
     let (package, problems) = single_file_package(root, written)?;
     let as_written = Some(target.to_string_lossy().into_owned());

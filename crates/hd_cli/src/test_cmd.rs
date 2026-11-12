@@ -602,7 +602,7 @@ fn test_one(
     // package or under no root is tested as a single-file program, which
     // may use only std and whose declarations print under the file's stem
     // (`trait.typeid.name.single-file`), in its frames too. Its
-    // diagnostics name FILE as written (`cli.json.diagnostic.file`), not
+    // diagnostics name FILE as written (`cli.diagnostic.file`), not
     // the canonical path its root comes from.
     let load = || match file.filter(|_| alone) {
         Some(f) => disk::load_file(&root.join(f)).map(|mut p| {

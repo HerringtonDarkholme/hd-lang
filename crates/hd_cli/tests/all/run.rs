@@ -217,7 +217,7 @@ fn errors_print_severity_location_code_and_message_without_unused_advice() {
         .expect("run hd");
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
-    // The file as written on the command line (`cli.json.diagnostic.file`).
+    // The file as written on the command line (`cli.diagnostic.file`).
     assert_eq!(
         err,
         format!(

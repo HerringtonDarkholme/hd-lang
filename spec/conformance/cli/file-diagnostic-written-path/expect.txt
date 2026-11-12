@@ -1,5 +1,5 @@
 # Outside a package, a diagnostic names FILE as written on the command
-# line (`cli.json.diagnostic.file`): in text output as in JSON, whether
+# line (`cli.diagnostic.file`): in text output as in JSON, whether
 # `hd FILE`, `hd check FILE` or `hd test FILE` reads it.
 run: hd x/greet.hd
 exit: 101
