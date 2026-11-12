@@ -116,6 +116,7 @@ mod scenario_cleanup;
 mod sealed_rows;
 mod sealed_user_impls;
 mod session_store;
+mod std_drop_invariant;
 mod std_interfaces;
 mod std_stages;
 mod stored_fn_call;

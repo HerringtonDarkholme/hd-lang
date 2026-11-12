@@ -45,7 +45,7 @@ fn program(store: &MemoryStore, src: &MemorySources, profile: BuildProfile) -> O
     build_in(store, src, &goal, profile)
 }
 
-fn run_wasm(name: &str, wasm: &[u8]) -> Run {
+pub(super) fn run_wasm(name: &str, wasm: &[u8]) -> Run {
     let path = Scratch::unmade(
         env!("CARGO_TARGET_TMPDIR"),
         &format!("release-profile-{name}.wasm"),
