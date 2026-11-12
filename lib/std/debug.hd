@@ -4,9 +4,10 @@
 # A `@track_caller` function gets one hidden argument, a `string` constant
 # that is the call site's record (fn.caller.record). Its fields are separated
 # by U+001F: the root-package bit, the line, the column and the file, then
-# six fields for each argument when the record holds argument texts: the
+# seven fields for each argument when the record holds argument texts: the
 # start line and column, the end line and column, the name of a named
-# argument or nothing, and the source text. The
+# argument or nothing, the source text, and the name of the function a
+# positional argument names or nothing (for `dbg`'s `<fn name(..)>`). The
 # record is static data; only an accessor reads it, at run time.
 
 ## Where a call begins in source: the file as diagnostics name it, and the
@@ -72,7 +73,7 @@ fn site_args(record: string) -> List[CallArg]:
     root := fields[0] == "1"
     let mut args: List[CallArg] = []
     let at: usize = 4
-    while at + 6 <= fields.len():
+    while at + 7 <= fields.len():
         start := Location {
             file: file,
             line: site_number(fields[at]),
@@ -89,5 +90,16 @@ fn site_args(record: string) -> List[CallArg]:
         if fields[at + 4] != "":
             name = .Some(fields[at + 4])
         args.push(CallArg { text: fields[at + 5], start: start, end: end, name: name })
-        at = at + 6
+        at = at + 7
     args
+
+# `text`, how `dbg` prints a function value, `<fn(..)>`, with the name of the
+# function that argument `at` of the call names, if it names one
+# (spec/lang/10-modules.md#r-module.dbg.value.function). `debug_texts` calls
+# it for each element of a function type. Cost: one split of the record.
+fn site_function_text(record: string, at: usize, text: string) -> string:
+    fields := record.split("\u{1f}")
+    field := 4 + at * 7 + 6
+    if field >= fields.len() || fields[field] == "" || !text.starts_with("<fn"):
+        return text
+    "<fn ${fields[field]}${text.slice(3, text.len())}"

@@ -4,6 +4,7 @@
 # `debug`, the standard `Debug` implementations, and `Debug`'s template
 # (Testing T48, T53, T54).
 
+use std.debug.Location
 use std.function.Tuple
 use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
@@ -767,16 +768,74 @@ pub fn debug[T < Debug](value: T) -> string:
     value.debug(out)
     out.text()
 
-# `dbg` (spec/lang/10-modules.md#debug-printing) is an ordinary declaration:
-# one signature for every call, of any arity, returning `void`. Only its body
-# is intrinsic. The body that the emitter gives it prints nothing, which is
-# what a fetched dependency runs (r-module.dbg.dependency). In the user's own
-# code the checker swaps in the printing body, the functions below, which
-# need each argument's static type and source text (crates/hd_check/src/dbg.rs).
-@intrinsic("dbg")
-## Prints each value's debug text with its source position, for troubleshooting; the compiler supplies its body.
-## See [module.dbg.signature](../../spec/lang/10-modules.md#r-module.dbg.signature).
+# `dbg` (spec/lang/10-modules.md#debug-printing): ordinary hd over one
+# intrinsic, `debug_texts`. As a `@track_caller` function it gets its call
+# site's record, which holds each argument's source text (fn.caller.record.args).
+# In a fetched package the record's root-package bit is clear, so the call
+# prints nothing after its arguments are evaluated (r-module.dbg.dependency).
+# Cost per call: one decode of the record, one or two renders per element,
+# one write per line.
+## Prints each value's debug text with its call site, for troubleshooting.
+## See [module.dbg.declaration](../../spec/lang/10-modules.md#r-module.dbg.declaration).
+@track_caller
 pub fn dbg[Args < Tuple](values...: Args) -> void:
+    at := Location::caller()
+    if !at.in_root_package():
+        return
+    place := "${at.file}:${at.line}:${at.column}: "
+    # A head for each positional argument whose text is known
+    # (r-module.dbg.body.texts); a named or spread argument leaves none.
+    let mut heads: List[string] = []
+    for arg in Location::caller_args():
+        if arg.name.is_some():
+            return dbg_lines(place, [], values)
+        heads.push("$place${dbg_source(arg.text)} = ")
+    dbg_lines(place, heads, values)
+
+# One line for each element of `values` (r-module.dbg.line,
+# r-module.dbg.line.bare): its head, or `place` when it has none, then the
+# element's text, laid out after the head's width (r-module.dbg.layout).
+# As a `@track_caller` function it passes `dbg`'s record on to `debug_texts`.
+@track_caller
+fn dbg_lines[Args < Tuple](place: string, heads: List[string], values: Args) -> void:
+    let mut columns: List[usize] = []
+    for head in heads:
+        columns.push(head.len())
+    if columns.is_empty():
+        columns.push(place.len())
+    let at: usize = 0
+    for text in debug_texts(values, columns):
+        if at < heads.len():
+            dbg_write("${heads[at]}$text")
+        else:
+            dbg_write("$place$text")
+        at = at + 1
+
+# An argument's source text with its line breaks, and the indentation around
+# them, collapsed to one space (r-module.dbg.line).
+fn dbg_source(text: string) -> string:
+    if !text.contains("\n"):
+        return text
+    let mut parts: List[string] = []
+    for line in text.split("\n"):
+        part := line.trim()
+        if part != "":
+            parts.push(part)
+    parts.join(" ")
+
+# The text of each element of `values`, as `dbg` prints it: through the
+# element type's `Debug`, else its structure (r-module.dbg.value.debug,
+# r-module.dbg.value.structural), and a function the call's argument names
+# as `<fn name(..)>` (r-module.dbg.value.function). Element `i` starts at
+# column `columns[i]` of its line, or at the last column when the list is
+# shorter, which decides its layout (r-module.dbg.layout). Only the body is
+# compiler supplied, written at each concrete `Args`: one `dbg_layout` per
+# element. As a `@track_caller` function it reads the record of the `dbg`
+# call that calls it, for the names of functions.
+## See [module.dbg.texts](../../spec/lang/10-modules.md#r-module.dbg.texts).
+@track_caller
+@intrinsic("debug_texts")
+fn debug_texts[Args < Tuple](values: Args, columns: List[usize]) -> List[string]:
     panic("intrinsic")
 
 # Writes one `dbg` line to the program's debug output, which is no effect and
@@ -787,6 +846,13 @@ fn dbg_write(line: string) -> void:
 
 fn dbg_writer(pretty: bool) -> DebugWriter:
     DebugWriter { parts: [], limited: true, pretty: pretty, depth: 0, active: [] }
+
+# The column element `at` starts at: its own, or the last one.
+fn dbg_column(columns: List[usize], at: usize) -> usize:
+    if at < columns.len():
+        columns[at]
+    else:
+        columns[columns.len() - 1]
 
 # The text of `value`, written by `show`, after `width` columns of its line:
 # compact when the line fits in 80 columns, else pretty
@@ -803,46 +869,18 @@ fn dbg_layout[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) 
     show(value, pretty)
     pretty.text()
 
-# `dbg(x)` where `head` is the line's location and `x`'s source text, and
-# `show` the printer the checker generated for `x`'s type.
-fn dbg_one[T](head: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> T:
-    dbg_write("$head = ${dbg_layout(head.len() + 3, value, show)}")
-    value
-
-# `dbg(x)` for a type that implements `Debug` (r-module.dbg.value.debug).
-fn dbg_shown[T < Debug](head: string, value: T) -> T:
-    dbg_one(head, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
-
-# `dbg(x)` whose value prints as `text`, such as `<T>` for a type parameter.
-fn dbg_opaque[T](head: string, value: T, text: string) -> T:
-    dbg_write("$head = $text")
-    value
-
-# One line of a `dbg` call that has no per-argument source text, or no call
-# site at all: `prefix` is the location and `: `, or empty, then the value.
-fn dbg_bare_one[T](prefix: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> void:
-    dbg_write("$prefix${dbg_layout(prefix.len(), value, show)}")
-
-# A runtime vararg rest prints one value per line, using the same selected printer.
-fn dbg_bare_rest[T](prefix: string, items: List[T], show: fn(T, *mut DebugWriter) -> void) -> void:
+# The texts of a runtime vararg rest, after `texts`, the elements before it:
+# one per item, each laid out at its column (`debug_texts`).
+fn dbg_rest_texts[T](
+    texts: List[string],
+    columns: List[usize],
+    items: List[T],
+    show: fn(T, *mut DebugWriter) -> void,
+) -> List[string]:
+    let mut out = texts
     for value in items:
-        dbg_bare_one(prefix, value, show)
-
-fn dbg_bare_shown[T < Debug](prefix: string, value: T) -> void:
-    dbg_bare_one(prefix, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
-
-fn dbg_bare_opaque[T](prefix: string, value: T, text: string) -> void:
-    dbg_write("$prefix$text")
-
-# What every `dbg(...)` call of one or more arguments ends in: the printed
-# values, as one value or a tuple of them, which the call then drops, so the
-# call has the type `void` (r-module.dbg.signature).
-fn dbg_done[T](printed: T) -> void:
-    pass
-
-# `dbg()`: its location alone (r-module.dbg.body.site).
-fn dbg_here(head: string) -> void:
-    dbg_write(head)
+        out.push(dbg_layout(dbg_column(columns, out.len()), value, show))
+    out
 
 # Writes one line to the program's standard output through the runtime, not
 # through `Console`, so it needs no requirement. Only the REPL's value line
@@ -859,6 +897,11 @@ fn repl_write(line: string) -> void:
 # The checker calls it for an input that is one expression.
 fn repl_value(text: string, ty: string) -> void:
     repl_write("$text : $ty")
+
+# The REPL value line's text of `value`, after `width` columns: the one
+# element of `debug_texts`, as a `dbg` line lays it out (r-cli.repl.value).
+fn repl_text[T](value: T, width: usize) -> string:
+    debug_texts((value,), [width])[0]
 
 # A part whose type implements `Debug`, inside a generated printer.
 fn dbg_nested[T < Debug](value: T, out: *mut DebugWriter) -> void:
@@ -962,13 +1005,6 @@ fn dbg_map[K < Eq & Hash, V](
                 out.end_item()
             count = count + 1
         out.entry_close(count, "{", "}")
-
-# The REPL's forms of `dbg_one` and `dbg_shown`.
-fn dbg_render[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
-    dbg_layout(width, value, show)
-
-fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
-    dbg_layout(width, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
 
 # The printer `dbg_printer` selects for a type with no `Debug`: it lends the
 # value to the private template's `show`.

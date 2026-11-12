@@ -1,6 +1,6 @@
 # test: dbg needs no requirement and prints any value
 # Spec 10 Debug Printing: module.dbg.no-requirement, module.dbg.value.no-bound,
-# module.dbg.body.site, module.dbg.body.value.
+# module.dbg.body.texts, module.dbg.body.value-site.
 # Account implements no Debug, and dbg shows its private field; what dbg
 # prints is not judged.
 struct Account:

@@ -105,6 +105,7 @@ dbg-value-forms	cli.dbg.run
 dbg-closure-names-its-types	cli.dbg.run
 dbg-references	cli.dbg.run
 dbg-structural-printer	cli.dbg.run
+dbg-evaluates-first	cli.dbg.run
 derivation-lines-agree	cli.json.summary.result,cli.exit.success
 dev-dependency-cyclic-integration	cli.dep.path,cli.json.test.result
 dev-dependency-tests-block	cli.dep.path,cli.json.test.result

@@ -1,5 +1,5 @@
 # test: dbg accepts a tuple with a runtime list rest as its collected arguments
-# Spec Debug Printing: module.dbg.check, module.dbg.body.print, module.dbg.body.value.
+# Spec Debug Printing: module.dbg.check, module.dbg.body.evaluate-first, module.dbg.body.value-site.
 # Spec Functions: fn.type.ctor.tuple-trait.rest.
 # expect-empty-stdout: true
 pub fn main() -> void:

@@ -1582,12 +1582,10 @@ impl InlineEnv for Env<'_> {
         let mut fresh =
             hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
         run.checked_room_calls(&mut fresh, Hash128::default());
-        // A fetched package's `dbg` prints nothing (`module.dbg.dependency`):
-        // the copy keeps the suppression `decode` gave its body.
+        // A fetched package's call-site records keep the cleared
+        // root-package bit `decode` gave them (`fn.caller.root-package`), so
+        // its `dbg` calls print nothing (`module.dbg.dependency`).
         if run.fetched[usize::from(run.table.modules[*m].package)] {
-            crate::dbg::suppress(&mut fresh, &run.names());
-            // And its call-site records keep their cleared root-package bit
-            // (`fn.caller.root-package`).
             crate::dbg::foreign_sites(&mut fresh, |d| {
                 self.p
                     .items

@@ -9432,7 +9432,6 @@ impl Run<'_> {
                 let mut hash = hd_tir::wire::tir_hash(bytes);
                 hash = self.checked_room_calls(&mut body, hash);
                 if self.fetched[usize::from(self.table.modules[*m].package)] {
-                    let dbg = dbg::suppress(&mut body, &self.names());
                     let sites = items.is_some_and(|items| {
                         dbg::foreign_sites(&mut body, |def| {
                             items
@@ -9441,7 +9440,7 @@ impl Run<'_> {
                                 .is_some_and(|a| a.track_caller)
                         })
                     });
-                    if dbg || sites {
+                    if sites {
                         hash = dbg::key(hash);
                     }
                 }
@@ -9580,9 +9579,9 @@ impl Run<'_> {
             match self.check[m].get() {
                 Some(Some(c)) if counted => {
                     // A fetched module's code differs from the same module
-                    // built as the user's own: its `dbg` calls print nothing
-                    // (`module.dbg.dependency`) and its call sites are not in
-                    // the root package (`fn.caller.root-package`).
+                    // built as the user's own: its call sites are not in the
+                    // root package (`fn.caller.root-package`), so its `dbg`
+                    // calls print nothing (`module.dbg.dependency`).
                     let hash = if self.fetched[usize::from(module.package)] {
                         dbg::key(c.content)
                     } else {
@@ -12857,7 +12856,7 @@ impl ProgramEnv for Env<'_> {
         };
         let body = match key {
             "dbg_printer" => hd_structure::dbg_printer_body(&cx, item, ty, debug),
-            _ => hd_structure::dbg_values_body(&cx, item, ty),
+            _ => hd_structure::debug_texts_body(&cx, item, ty),
         }?;
         self.owned_generated(body)
     }

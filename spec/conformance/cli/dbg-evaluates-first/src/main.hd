@@ -1,0 +1,14 @@
+fn noisy(value: i32) -> i32:
+    dbg(value)
+    value * 10
+
+fn double(value: i32) -> i32:
+    value * 2
+
+pub fn main() -> void $ Console:
+    dbg(noisy(1), noisy(2))
+    dbg(double, (double))
+    println("done")
+
+# Spec 10 Debug Printing: module.dbg.body.evaluate-first, module.dbg.texts;
+# Debug Values: module.dbg.value.function.

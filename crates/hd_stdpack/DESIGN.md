@@ -20,7 +20,7 @@ of source-backed std interfaces).
 | Origin | Names every ordinary module sees | Source |
 | --- | --- | --- |
 | `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | `hd_resolve::seed`, in `core/mod.hd`; `Option` and `Result` also have methods in `option.hd` and `result.hd` |
-| `std.format` | `Display`, `Debug`, `debug`, `dbg` | `format.hd`; `dbg` has an intrinsic body |
+| `std.format` | `Display`, `Debug`, `debug`, `dbg` | `format.hd`; `dbg` is `@track_caller` hd over `debug_texts` |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | `cmp.hd`; `Eq` is declared in `core/mod.hd` and re-exported; primitive impls use intrinsic methods |
 | `std.hash` | `Hash`, `Hasher` | declared in `core/mod.hd`, re-exported by `hash.hd` |
 | `std.iter` | `Iterator`, `Iterable` | `iter.hd` |
@@ -83,7 +83,7 @@ others are private to the one module that calls them.
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
 | `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame`, `task_wait_cell`, `task_wait_frame`, `task_wait_signal` | `task.hd` | compiler |
-| `dbg`, `dbg_printer`, `dbg_write`, `repl_write` | `format.hd` | compiler |
+| `debug_texts`, `dbg_printer`, `dbg_write`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `entry_write` | seeded items and `rt/entry/mod.hd` | compiler |
 | `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler; only std can use these runtime memory intrinsics |
 | `ptr_size_of`, `ptr_read`, `ptr_write`, `ptr_ref`, `ptr_mut`, `ptr_offset` | `rt/memory.hd`: `size_of[T]` and the methods of `Ptr[T]` in `std.rt.memory` (spec 10 `module.rt.ptr.*`); the checker makes `read` and `write` a `Read` and a `Store` of the pointer's target | compiler; only std can use this typed memory |

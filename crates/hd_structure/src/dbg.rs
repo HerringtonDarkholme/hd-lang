@@ -191,23 +191,40 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
     g.finish(body).map(|(body, _)| body)
 }
 
-/// The body of `dbg[args]`, whose one parameter is the tuple `args`.
-pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
+/// The body of `debug_texts[args]` (`module.dbg.texts`): its parameters are
+/// the tuple `values`, the `columns` each element starts at, and the hidden
+/// call-site record `$site` (`fn.caller.hidden`). Each element's text is
+/// `dbg_layout` at its column with the printer selected for its type; a
+/// function's names the function its argument names
+/// (`module.dbg.value.function`); a runtime rest's items follow through
+/// `dbg_rest_texts`. Cost: one `dbg_layout` call per element, and one
+/// record split per element of a function type.
+pub fn texts_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
-    // ruled out: dbg's sealed Args < Tuple bound excludes non-tuples.
+    // ruled out: debug_texts's sealed Args < Tuple bound excludes non-tuples.
     let (elems, rest) = pool.tuple_parts(args);
     let elems = pool.list_items(elems).to_vec();
     let mut g = Gen::new(cx, args, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
-    let values = g.b.local(
-        args,
-        names.syms.intern("values"),
-        hd_tir::ir::local_flags::PARAM,
-        SYN,
-    );
+    let usize = Ty::prim(hd_types::Prim::Usize);
+    let columns_ty = g.adt(names.known.list, &[usize]);
+    let texts_ty = g.adt(names.known.list, &[Ty::STRING]);
+    let param = hd_tir::ir::local_flags::PARAM;
+    let values = g.b.local(args, names.syms.intern("values"), param, SYN);
+    let columns =
+        g.b.local(columns_ty, names.syms.intern("columns"), param, SYN);
+    let site =
+        g.b.local(Ty::STRING, names.syms.intern("$site"), param, SYN);
     let blk = g.b.open_block();
-    let bare = names.item(FORMAT, "dbg_bare_one");
+    let call = |g: &mut Gen<'_, '_>, def: DefId, targs: &[Ty], refs: &[Ref], ret: Ty| {
+        let c = Callee::Item {
+            def,
+            targs: pool.list(targs),
+        };
+        g.b.call(&c, refs, Providers::None, ret, SYN)
+    };
+    let mut texts = Vec::with_capacity(elems.len());
     // ruled out: interned type-list lengths and TIR field indices are u32.
     debug_assert!(u32::try_from(elems.len()).is_ok());
     let mut position = 0u32;
@@ -215,20 +232,28 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
         let e = *e;
         let tuple = g.b.get(values, args, SYN);
         let v = g.b.field(tuple, position, e, SYN);
+        let at = g.b.const_value(usize, u64::from(position));
         position += 1;
-        let prefix = g.b.const_str("");
-        let show = g.printer(e);
-        g.b.call(
-            &Callee::Item {
-                def: bare,
-                targs: pool.list(&[e]),
-            },
-            &[prefix, v, show],
-            Providers::None,
-            Ty::VOID,
-            SYN,
+        let cols = g.b.get(columns, columns_ty, SYN);
+        let column = call(
+            &mut g,
+            names.item(FORMAT, "dbg_column"),
+            &[],
+            &[cols, at],
+            usize,
         );
+        let show = g.printer(e);
+        let layout = names.item(FORMAT, "dbg_layout");
+        let mut text = call(&mut g, layout, &[e], &[column, v, show], Ty::STRING);
+        if matches!(pool.get(e), TyData::Fn { .. }) {
+            let record = g.b.get(site, Ty::STRING, SYN);
+            let site_text = names.known.site_function_text;
+            text = call(&mut g, site_text, &[], &[record, at, text], Ty::STRING);
+        }
+        texts.push(text);
     }
+    let rec = g.b.refs_record(&texts);
+    let mut list = g.b.emit(Tag::NewList, hd_tir::ir::NONE, rec, texts_ty, SYN);
     if let Some(rest_type) = rest {
         let (def, args) = pool.adt_parts(rest_type);
         // ruled out: types.tuple.rest.list fixes the rest to List[T].
@@ -236,20 +261,18 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
         let item = pool.list_items(args)[0];
         let tuple = g.b.get(values, g.target, SYN);
         let tail = g.b.field(tuple, position, rest_type, SYN);
-        let prefix = g.b.const_str("");
+        let cols = g.b.get(columns, columns_ty, SYN);
         let show = g.printer(item);
-        g.b.call(
-            &Callee::Item {
-                def: names.item(FORMAT, "dbg_bare_rest"),
-                targs: pool.list(&[item]),
-            },
-            &[prefix, tail, show],
-            Providers::None,
-            Ty::VOID,
-            SYN,
+        let rest_texts = names.item(FORMAT, "dbg_rest_texts");
+        list = call(
+            &mut g,
+            rest_texts,
+            &[item],
+            &[list, cols, tail, show],
+            texts_ty,
         );
     }
-    let root = g.b.close_block(blk, None, Ty::VOID, SYN);
+    let root = g.b.close_block(blk, Some(list), texts_ty, SYN);
     g.finish(root).map(|(body, _)| body)
 }
 

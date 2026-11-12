@@ -8,9 +8,10 @@
 //! read `$site` through ordinary `std.debug` decoders.
 //!
 //! The record's fields are separated by U+001F: the root-package bit, the
-//! line, the column and the file, then six fields per argument (start line
+//! line, the column and the file, then seven fields per argument (start line
 //! and column, end line and column, the name of a named argument or empty,
-//! text) when the callee reads the argument texts (`fn.caller.record.args`). A string constant is one
+//! text, and the function a positional argument names or empty, for `dbg`)
+//! when the callee reads the argument texts (`fn.caller.record.args`). A string constant is one
 //! pointer to static data, so a call pays one argument and no allocation;
 //! only an accessor decodes the record. The driver clears the root-package
 //! bit in fetched and std code (`crate::caller` users in `hd_driver`).
@@ -100,11 +101,36 @@ impl Ck<'_, '_> {
                     .get(span.lo as usize..span.hi as usize)
                     .unwrap_or("")
                     .replace(s, "");
+                // The function a positional argument names
+                // (`module.dbg.value.function`), keyed by the span of the
+                // expression inside any parentheses.
+                let function = match name {
+                    Some(_) => "",
+                    None => self.named_fn(e),
+                };
                 let name = name.unwrap_or("");
-                let _ = write!(out, "{s}{sl}{s}{sc}{s}{el}{s}{ec}{s}{name}{s}{text}");
+                let _ = write!(
+                    out,
+                    "{s}{sl}{s}{sc}{s}{el}{s}{ec}{s}{name}{s}{text}{s}{function}"
+                );
             }
         }
         out
+    }
+
+    /// The name of the function expression `e` refers to, if it names one,
+    /// else empty.
+    fn named_fn(&self, mut e: NodeRef<'_>) -> &str {
+        while e.kind() == SyntaxKind::ParenExpr
+            && let Some(inner) = e.children().next()
+        {
+            e = inner;
+        }
+        let span = self.cx.src.span(e);
+        self.named_fns
+            .get(&(span.lo, span.hi))
+            .and_then(|def| self.cx.lookup.item(*def))
+            .map_or("", |item| self.cx.names.text(item.name))
     }
 
     /// The enclosing `@track_caller` function's `$site`, read here.

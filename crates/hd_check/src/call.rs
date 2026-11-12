@@ -2575,10 +2575,6 @@ impl Ck<'_, '_> {
                 {
                     return Ok(self.facts_of_call(args, n));
                 }
-                // A direct `dbg` call prints with its call site.
-                if def == self.cx.names.known.dbg && crate::dbg::is_direct(args, explicit) {
-                    return self.dbg_call(args, n);
-                }
                 // The result first, so an expected type guides literals.
                 let ret = self.normalize_deep(inst(sig.ret))?;
                 if let Some(w) = want
@@ -2733,12 +2729,6 @@ impl Ck<'_, '_> {
                 };
                 if let Some(lowered) = self.lowered_call(&c, &refs, ret, bang, n) {
                     return Ok(lowered);
-                }
-                if def == self.cx.names.known.dbg
-                    && let (Some(&tuple), Some(&args_ty)) = (refs.first(), vars.first())
-                    && let Some(r) = self.dbg_bare(tuple, args_ty, n)
-                {
-                    return Ok((r, Ty::VOID));
                 }
                 Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
             }

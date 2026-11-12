@@ -298,6 +298,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set while a `@track_caller` function value's body is built: its call
     /// binds the place that creates the value (`fn.caller.value`).
     pub site_value: bool,
+    /// The function each expression node that names one refers to, by the
+    /// node's span: a call-site record names it for `dbg`'s
+    /// `<fn name(..)>` (`module.dbg.value.function`).
+    pub named_fns: hd_base::HashMap<(u32, u32), DefId>,
     /// The locals bound with `let mut`: a struct value in one changes in
     /// place (`types.value.writable-places`).
     pub mut_locals: Vec<LocalId>,
@@ -680,6 +684,7 @@ pub(crate) fn new_ck<'a, 'c>(
         auto_closing_function: false,
         trailing_heads: Vec::new(),
         site_value: false,
+        named_fns: hd_base::HashMap::default(),
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),

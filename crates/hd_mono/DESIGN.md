@@ -1612,8 +1612,8 @@ sequences of §13.15; release emits the wrapping ones. `dbg` never
 reaches Emit in a release build: Check rejects it there
 (`module.dbg.release`), while test builds, `hd test --release` included,
 accept it. A dependency `dbg` call is accepted with `dbg-in-dependency`
-(`module.dbg.dependency`) and lowers to argument evaluation with no
-print, keeping left-to-right evaluation. Release link writes `hd.names`
+(`module.dbg.dependency`); its call-site record's root-package bit is
+clear, so `dbg` prints nothing at run time (`module.dbg.body.root`). Release link writes `hd.names`
 in place of the `name` section; the line table is separate, so release
 keeps panic frames.
 

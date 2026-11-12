@@ -857,6 +857,9 @@ impl Ck<'_, '_> {
         {
             return Ok((self.lowered_ref(&m, (params, result), ft, n), ft));
         }
+        // A call-site record names the function (`module.dbg.value.function`).
+        let span = self.cx.src.span(n);
+        self.named_fns.insert((span.lo, span.hi), m.def);
         let a = self.b.refs_record(&[Ref(m.def.raw())]);
         let l = pool.list(&targs);
         let bw = self.b.refs_record(&[Ref(l.0)]);

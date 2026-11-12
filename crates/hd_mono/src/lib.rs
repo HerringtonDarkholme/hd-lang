@@ -224,7 +224,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// The requested body first, followed by the cached helper bodies it calls.
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>>;
     /// The body of one of the `dbg` functions the compiler supplies per
-    /// concrete argument (`dbg_printer[ty]`, `dbg[args]`; spec/lang/10-modules.md
+    /// concrete argument (`dbg_printer[ty]`, `debug_texts[args]`; spec/lang/10-modules.md
     /// "Debug Printing"). `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `body`, which collection built (a function reference's call body,
@@ -2243,7 +2243,7 @@ impl Cx<'_> {
         if let Some(key) = self
             .env
             .intrinsic(def)
-            .filter(|k| matches!(k.as_str(), "dbg" | "dbg_printer"))
+            .filter(|k| matches!(k.as_str(), "debug_texts" | "dbg_printer"))
         {
             return self.dbg_target(def, &key, args, parent);
         }
@@ -2643,7 +2643,7 @@ impl Cx<'_> {
         }))
     }
 
-    /// A call of `dbg_printer` or `dbg`, whose body the compiler writes at the
+    /// A call of `dbg_printer` or `debug_texts`, whose body the compiler writes at the
     /// exact argument (`ProgramEnv::dbg_body`): an instance keyed like any
     /// other, with no A1 class, since the body reads the type's declaration.
     fn dbg_target(

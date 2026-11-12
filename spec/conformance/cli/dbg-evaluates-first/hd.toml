@@ -1,0 +1,5 @@
+[package]
+name = "first"
+
+[capabilities]
+Console = true

@@ -69,9 +69,37 @@ pub fn main() -> void $ Console:
     assert_eq!(ran.err, "src/main.hd:2:5: price * qty = 1250\n");
 }
 
+/// `dbg(a, b)` evaluates both arguments before it prints a line, so the
+/// `dbg` lines of the arguments' own evaluation come first
+/// (`module.dbg.body.evaluate-first`).
+#[test]
+fn dbg_evaluates_every_argument_before_its_first_line() {
+    let ran = run_main(
+        "hd-dbg-print-order",
+        "\
+fn noisy(value: i32) -> i32:
+    dbg(value)
+    value * 10
+
+pub fn main() -> void:
+    dbg(noisy(1), noisy(2))
+",
+    );
+    assert_eq!(ran.code, Some(0), "{}", ran.err);
+    assert_eq!(
+        ran.err,
+        "\
+src/main.hd:2:5: value = 1
+src/main.hd:2:5: value = 2
+src/main.hd:6:5: noisy(1) = 10
+src/main.hd:6:5: noisy(2) = 20
+"
+    );
+}
+
 /// `dbg()` writes nothing, and each argument of `dbg(a, b)` writes a
 /// line of its own, in order (`module.dbg.line`,
-/// `module.dbg.body.print`).
+/// `module.dbg.body.evaluate-first`).
 #[test]
 fn dbg_with_no_arguments_writes_nothing_and_with_several_a_line_each() {
     let ran = run_main(
@@ -450,7 +478,7 @@ fn release_rejects_dbg_in_path_dependencies_and_workspace_members() {
     assert_eq!(debug.out, "4\n");
 }
 
-/// Runtime tuple rests follow module.dbg.body.print and module.dbg.line.bare.
+/// Runtime tuple rests follow module.dbg.body.evaluate-first and module.dbg.line.bare.
 #[test]
 fn dbg_tuple_rest_direct_spread_and_named_calls_keep_the_location() {
     let ran = run_main(
@@ -470,7 +498,8 @@ fn dbg_tuple_rest_direct_spread_and_named_calls_keep_the_location() {
     );
 }
 
-/// A function value prints each string and no site; an empty rest adds no line.
+/// A function value prints each string after the place that created the
+/// value (`module.dbg.body.value-site`); an empty rest adds no line.
 #[test]
 fn dbg_tuple_rest_function_value_handles_counted_strings_and_empty_tails() {
     let ran = run_main(
@@ -488,7 +517,15 @@ fn dbg_tuple_rest_function_value_handles_counted_strings_and_empty_tails() {
     );
     assert_eq!(ran.code, Some(0), "{}", ran.err);
     assert_eq!(ran.out, "");
-    assert_eq!(ran.err, "\"head\"\n\"ab\"\n\"cd\"\n\"empty\"\n");
+    assert_eq!(
+        ran.err,
+        concat!(
+            "src/main.hd:4:55: \"head\"\n",
+            "src/main.hd:4:55: \"ab\"\n",
+            "src/main.hd:4:55: \"cd\"\n",
+            "src/main.hd:4:55: \"empty\"\n",
+        )
+    );
 }
 
 /// Spread arguments finish evaluation once, left to right, before any value line.
@@ -528,7 +565,10 @@ pub fn main() -> void $ Console:
             "src/main.hd:15:5: \"cd\"\n",
             "src/main.hd:6:5: \"fixed\" = \"fixed\"\n",
             "src/main.hd:11:5: \"rest\" = \"rest\"\n",
-            "7\n\"ab\"\n\"cd\"\n",
+            // `module.dbg.body.value-site`: the place that created the value.
+            "src/main.hd:16:52: 7\n",
+            "src/main.hd:16:52: \"ab\"\n",
+            "src/main.hd:16:52: \"cd\"\n",
         )
     );
 }

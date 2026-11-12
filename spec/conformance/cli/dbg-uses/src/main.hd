@@ -6,4 +6,4 @@ pub fn main() -> void $ Console:
     show((+5, "five"))
     println("done")
 
-# Spec 10 Debug Lines: module.dbg.line.bare, module.dbg.location, module.dbg.stream; Debug Printing: module.dbg.body.value.
+# Spec 10 Debug Lines: module.dbg.line.bare, module.dbg.location, module.dbg.stream; Debug Printing: module.dbg.body.value-site.

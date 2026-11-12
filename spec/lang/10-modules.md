@@ -841,7 +841,7 @@ fn count() -> i32:
 2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
 3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
 4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
-5. r[module.prelude.dbg] The prelude name `dbg` is the function with the signature that [Debug Printing](#r-module.dbg.signature) specifies, whose body the compiler supplies.
+5. r[module.prelude.dbg] The prelude name `dbg` is the function that [Debug Printing](#r-module.dbg.declaration) declares.
 6. r[module.prelude.box] The prelude name `box` is the function with the signature that [`ref.box.signature`](13-values-and-references.md#r-ref.box.signature) specifies, whose body the compiler supplies.
 
 ```hd
@@ -862,22 +862,25 @@ fn line_total(price: i32, qty: i32) -> i32:
 
 fn check_order(id: i32, count: i32) -> bool:
     dbg(id, count)  # two lines, one per argument
-    dbg()           # prints src/cart.hd:7:5
+    dbg()           # prints nothing: it has no argument
     id > 0 && count > 0
 ```
 
-1. r[module.dbg.signature] `std.format` declares `dbg` as `@intrinsic pub fn dbg[Args < Tuple](values...: Args) -> void`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
+1. r[module.dbg.declaration] `std.format` declares `dbg` as `@track_caller pub fn dbg[Args < Tuple](values...: Args) -> void`, and the prelude supplies it. It is ordinary hd, and its body reads its call site as [Call-Site Locations](07-functions.md#call-site-locations) says.
 2. r[module.dbg.check] A `dbg` call is checked by the plain call rules and the [vararg rules](07-functions.md#varargs). So `dbg()`, `dbg(x)`, and `dbg(a, b, c)` collect their arguments into `Args` as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) says. No rule gives `dbg` a type that the declaration does not.
 3. r[module.dbg.tuple-argument] `dbg((a, b, c))` is a call with one argument, a tuple, as [`fn.vararg.no-auto-spread`](07-functions.md#r-fn.vararg.no-auto-spread) says. It prints one line for the tuple, where `dbg(a, b, c)` prints one line for each argument.
-4. r[module.dbg.body.print] The body evaluates the arguments from left to right. It prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type. A call with a spread or `values=` evaluates every argument first, then prints each element. A call with positional arguments prints each one as it is evaluated.
-5. r[module.dbg.body.site] The body prints what it knows of the call site, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. A direct call with only positional arguments and no explicit type arguments knows each argument's source text. Any other call knows only the location.
-6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site. So its body prints each element of its one tuple argument on a line of its own, with no location.
-7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test](#r-module.testing.unit-row.anywhere), and in generic code.
-8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
-9. r[module.dbg.printer.declaration] `std.format` privately declares `@intrinsic fn dbg_printer[T]() -> fn(T, *mut DebugWriter) -> void`, with only its body compiler-supplied.
-10. r[module.dbg.printer.selection] `dbg_printer[T]()` selects an ordinary hd printer for `T` according to [Debug Values](#debug-values).
-11. r[module.dbg.printer.structure] A selected structural printer uses the `Structure` derivation machinery without adding public trait implementations to `T`.
-12. r[module.dbg.printer.algorithms] The selected printers perform traversal, labeling, delimiter rendering, and composite iteration in ordinary hd.
+4. r[module.dbg.body.evaluate-first] A call evaluates every argument from left to right before the body runs. The body then prints the value of each element of `values` on a line of its own, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
+5. r[module.dbg.body.texts] The body prints what [`Location::caller_args()`](07-functions.md#r-fn.caller.accessor.args) knows of the call, as [Debug Lines](#debug-lines) says. A call whose arguments are all positional and whose texts are known knows each argument's source text. Any other call knows only the location.
+6. r[module.dbg.body.value-site] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, binds the place that creates the value, as [`fn.caller.value`](07-functions.md#r-fn.caller.value) says. So its body prints each element of its one tuple argument on a line of its own, after that place's location.
+7. r[module.dbg.body.root] The body prints nothing when `Location::caller().in_root_package()` is false. It tests this at run time, as [`fn.caller.root-package`](07-functions.md#r-fn.caller.root-package) says.
+8. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test](#r-module.testing.unit-row.anywhere), and in generic code.
+9. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
+10. r[module.dbg.texts] `std.format` privately declares `@track_caller @intrinsic fn debug_texts[Args < Tuple](values: Args, columns: List[usize]) -> List[string]`, with only its body compiler-supplied. It returns the text of each element of `values` as [Debug Values](#debug-values) says, and is the one intrinsic of the `dbg` body.
+11. r[module.dbg.texts.column] Element `i` of `values` is laid out as [`module.dbg.layout`](#r-module.dbg.layout) says, as if its text starts at column `columns[i]` of its line, or at the last column when `columns` is shorter.
+12. r[module.dbg.printer.declaration] `std.format` privately declares `@intrinsic fn dbg_printer[T]() -> fn(T, *mut DebugWriter) -> void`, with only its body compiler-supplied.
+13. r[module.dbg.printer.selection] `dbg_printer[T]()` selects an ordinary hd printer for `T` according to [Debug Values](#debug-values).
+14. r[module.dbg.printer.structure] A selected structural printer uses the `Structure` derivation machinery without adding public trait implementations to `T`.
+15. r[module.dbg.printer.algorithms] The selected printers perform traversal, labeling, delimiter rendering, and composite iteration in ordinary hd.
 
 ```text
 fn total(prices: List[i32]) -> i32:
@@ -891,7 +894,7 @@ fn show_all(pair: (i32, string)) -> void:
     dbg(pair...)                           # a line per element, after the location
     dbg(values=pair)                       # the same
     let show: fn((i32, string)) -> void = dbg
-    show(pair)                             # a line per element, no location
+    show(pair)                             # a line per element, after the line above's location
 ```
 
 ```text
@@ -909,7 +912,7 @@ pub fn main() -> void:
 #### Debug Lines
 
 1. r[module.dbg.line] Each argument of a direct `dbg` call with positional arguments prints one line: the call's location, `: `, the argument's source text, ` = `, and its value.
-2. r[module.dbg.line.bare] A call that has no per-argument source text, as [`module.dbg.body.site`](#r-module.dbg.body.site) says, prints one line for each element of `values`. The line holds the call's location, `: `, and the element's value.
+2. r[module.dbg.line.bare] A call that has no per-argument source text, as [`module.dbg.body.texts`](#r-module.dbg.body.texts) says, prints one line for each element of `values`. The line holds the call's location, `: `, and the element's value.
 3. r[module.dbg.location] The location is `FILE:LINE:COLUMN`: the file as diagnostics name it, and the line and column where the call begins.
 4. r[module.dbg.stream] A `dbg` line goes to the program's debug output, which a program that `hd` runs writes to standard error. [Debug Output](../cli/command-line.md#debug-output) says where it goes in tests and the REPL.
 
@@ -981,7 +984,7 @@ hd build --release   # error: dbg-in-release; the fix-it deletes the dbg stateme
 2. r[module.dbg.release.delete] The fix-it of a call deletes the whole `dbg(...)` statement. A reference that is not a call has no fix-it, because the code that uses the value must change.
 3. r[module.dbg.release.debug-build] A debug or test build accepts a reference to `dbg` with no warning.
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
-5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.print`](#r-module.dbg.body.print) says.
+5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.evaluate-first`](#r-module.dbg.body.evaluate-first) says.
 6. r[module.dbg.dependency.lint] A fetched package containing such a call produces one lint finding naming the package. Warning: `dbg-in-dependency`.
 7. r[module.dbg.dependency.function-value] A function value referring to `dbg` in a fetched package follows the same suppression and warning rules as a direct call.
 
@@ -1774,7 +1777,7 @@ pub fn copy(to: usize, from: usize, count: usize) -> void
 pub fn fill(to: usize, byte: u8, count: usize) -> void
 ```
 
-1. r[module.rt.memory.decl] Each function of the block is an ordinary hd declaration marked `@intrinsic`, and the compiler supplies only its body, as for [`dbg`](#r-module.dbg.signature).
+1. r[module.rt.memory.decl] Each function of the block is an ordinary hd declaration marked `@intrinsic`, and the compiler supplies only its body, as for [`dbg_printer`](#r-module.dbg.printer.declaration).
 2. r[module.rt.memory.heap] The **heap** is an array of bytes in one program instance, at the `usize` addresses from 0. Its size is a whole number of pages of 65,536 bytes, and it never shrinks.
 3. r[module.rt.memory.pages] `pages()` returns the heap's size in pages.
 4. r[module.rt.memory.grow] `grow(count)` adds `count` pages at the heap's end and returns `.Some(before)`, where `before` is the heap's size in pages before the call. Every added byte is 0.

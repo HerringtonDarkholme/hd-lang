@@ -1,0 +1,11 @@
+# A dbg call evaluates both arguments before its body prints, so the dbg
+# lines of the arguments' own evaluation come first. An argument that names
+# a function prints the function's name, inside parentheses too.
+run: hd run
+stdout: done
+stderr: src/main.hd:2:5: value = 1
+stderr: src/main.hd:2:5: value = 2
+stderr: src/main.hd:9:5: noisy(1) = 10
+stderr: src/main.hd:9:5: noisy(2) = 20
+stderr: src/main.hd:10:5: double = <fn double(i32) -> i32>
+stderr: src/main.hd:10:5: (double) = <fn double(i32) -> i32>

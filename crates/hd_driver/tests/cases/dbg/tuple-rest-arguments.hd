@@ -1,5 +1,6 @@
 # @dump: wat
-# expected: the runtime tail is passed to one ordinary std helper; function-value dispatch stays indirect.
+# expected: each call passes the tuple and one static call-site record to the ordinary `dbg`;
+# a function value's closure passes the record of the place that creates it; dispatch stays indirect.
 fn direct(values: (List[string]...,)) -> void:
     dbg(values...)
 

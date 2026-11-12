@@ -3911,7 +3911,7 @@ impl Em<'_, '_, '_> {
             // `identity_of`, `Fn.call` and `FnMut.call_mut`
             // (`hd_check` `Ck::lowered_call`), and each `facts_of`, `join`
             // and `it` call, and refuses those three as values (`fnref.rs`);
-            // collection gives `dbg` and `dbg_printer` their generated body
+            // collection gives `debug_texts` and `dbg_printer` their generated body
             // (`hd_mono` `dbg_target`) and a map probe its key's probe
             // (`Target::MapKey`); `call` above takes the `ptr_`, `weak_`,
             // `downcast_` and `type_id_of` keys first.

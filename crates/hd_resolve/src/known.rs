@@ -124,7 +124,11 @@ pub struct KnownItems {
     /// `Location::caller()` and `Location::caller_args()` to calls of them.
     pub site_location: DefId,
     pub site_args: DefId,
-    /// `std.format.dbg`, whose call the checker writes out (spec/lang/10-modules.md "Debug Printing").
+    /// `std.debug.site_function_text`: `dbg`'s `<fn name(..)>` from a
+    /// call-site record (`module.dbg.value.function`).
+    pub site_function_text: DefId,
+    /// `std.format.dbg`, each reference to which the checker notes for the
+    /// release check (spec/lang/10-modules.md "Release Builds And Dependencies").
     pub dbg: DefId,
     // std.serde
     pub serialize: DefId,
@@ -345,6 +349,7 @@ impl KnownItems {
             debug: item("std.format", "Debug"),
             site_location: item("std.debug", "site_location"),
             site_args: item("std.debug", "site_args"),
+            site_function_text: item("std.debug", "site_function_text"),
             dbg: item("std.format", "dbg"),
             serialize: item("std.serde", "Serialize"),
             deserialize: item("std.serde", "Deserialize"),
