@@ -6629,6 +6629,8 @@ runtime/valid/zero-iteration-callback-preserves-dependent-read.hd	runtime	accept
 runtime/valid/function-reference-variance-tuple-inputs.hd	runtime	accept	std/weak.md#r-std-weak.release.target
 typing/invalid/function-variance-keeps-an-optional-input-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant
 runtime/valid/a-copied-row-callback-keeps-scoped-and-escaping-providers.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
+runtime/valid/function-value-copy-inputs-preserve-owners.hd	runtime	accept	std/weak.md#r-std-weak.release.target
+runtime/valid/cold-function-value-copy-inputs-keep-owners.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

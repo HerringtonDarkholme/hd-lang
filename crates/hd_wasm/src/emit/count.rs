@@ -24,7 +24,7 @@ use hd_base::StageResult;
 use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
 use hd_tir::own::Reason;
-use hd_types::Ty;
+use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::refs::bare_local;
@@ -118,6 +118,55 @@ impl Boundaries {
 
     fn get(&self, target: u32, tag: Tag, at: At, part: Part) -> Option<Reason> {
         self.counts.get(&(target, tag, at, part)).copied()
+    }
+}
+
+/// One immutable-body capture census. Parameter loans use Boundaries;
+/// captures visit their actual sub-body uses rather than rescanning it.
+pub(crate) type LoanCell = std::sync::Arc<std::sync::OnceLock<Box<LoanUses>>>;
+
+pub(crate) struct LoanUses {
+    sub_local: hd_base::HashMap<(u32, usize), Vec<usize>>,
+    moved: hd_base::HashSet<u32>,
+}
+
+impl LoanUses {
+    fn new(b: &hd_tir::ir::Body, topo: &hd_tir::ir::Topology) -> Self {
+        let mut work = b.len();
+        let mut out = Self {
+            sub_local: hd_base::HashMap::default(),
+            moved: hd_base::HashSet::default(),
+        };
+        for i in 0..b.len() {
+            let tag = b.tags[i];
+            if tag == Tag::Closure {
+                let rec = b.record(b.data[i][1]);
+                work += rec[1] as usize;
+                for c in rec[0]..rec[0] + rec[1] {
+                    let l = b.cap_local[c as usize].idx();
+                    out.sub_local.entry((topo.sub[i], l)).or_default().push(i);
+                }
+            } else if matches!(tag, Tag::Read | Tag::Store | Tag::Ref) {
+                let w = b.data[i][0];
+                if w & hd_tir::ir::place::BARE_LOCAL == 0 {
+                    work += b.record(w).len();
+                }
+                if let Some(l) = b.local_in_place(w) {
+                    out.sub_local
+                        .entry((topo.sub[i], l.idx()))
+                        .or_default()
+                        .push(i);
+                }
+                if tag == Tag::Read
+                    && b.data[i][1] == hd_tir::ir::ReadMode::Move as u32
+                    && let hd_tir::ir::Root::Value(v) = b.view(w).root
+                {
+                    out.moved.insert(v);
+                }
+            }
+        }
+        crate::work::loan_queries(work);
+        out
     }
 }
 
@@ -240,12 +289,28 @@ impl Em<'_, '_, '_> {
     /// count ([`crate::rt::ref_lend`]). A local the passes store a borrow
     /// into holds no count ([`Em::loan_locals`]): its stores and `Drop`s
     /// count nothing.
-    pub(super) fn prepare_own_loans(&mut self) {
+    pub(super) fn prepare_own_loans(&mut self) -> StageResult<()> {
         use hd_tir::ir::place;
         self.prepare_string_slice_comparisons();
         for i in 0..self.b.len() {
             let [a, w] = self.b.data[i];
             let x = u32::try_from(i).expect("insts");
+            if self.b.tags[i] == Tag::CallValue
+                && self
+                    .operation_count(x, Tag::Release, Part::Arguments)
+                    .is_some()
+            {
+                for (arg, borrowed) in self.input_carriers(a, &self.rec(w))? {
+                    if Ref(arg).as_inst().is_some()
+                        && crate::layout::function_input(self.pool(), self.env(), self.ty_of(arg))
+                            .transfer
+                        && !self.input_transferred.contains_key(&arg)
+                    {
+                        let flag = self.f.local(Val::I32);
+                        self.input_transferred.insert(arg, (flag, borrowed));
+                    }
+                }
+            }
             match self.b.tags[i] {
                 Tag::Read if self.b.is_borrow(x) => {
                     self.loans.insert(x);
@@ -292,6 +357,85 @@ impl Em<'_, '_, '_> {
                 self.loans.insert(call);
             }
         }
+        Ok(())
+    }
+
+    /// Borrowed portions of each physical source argument. A tuple spread
+    /// follows its concrete flattened parameters, so Copy fields stay with
+    /// the caller while adjacent unique fields transfer to their callees.
+    fn input_carriers(&self, callee: u32, args: &[u32]) -> StageResult<Vec<(u32, Option<Walk>)>> {
+        let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip(
+            self.pool(),
+            self.env(),
+            self.ty_of(callee),
+        )) else {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "function-value argument carrier has a non-function callee",
+            ));
+        };
+        let params: Vec<_> = self
+            .pool()
+            .list_items(params)
+            .iter()
+            .map(|&t| self.sub(t))
+            .collect();
+        crate::work::loan_queries(args.len() + params.len());
+        if params.len() == args.len() {
+            return Ok(args
+                .iter()
+                .map(|&arg| {
+                    (
+                        arg,
+                        crate::layout::function_input(self.pool(), self.env(), self.ty_of(arg))
+                            .borrowed,
+                    )
+                })
+                .collect());
+        }
+        let mut out = Vec::with_capacity(args.len());
+        let mut parameter = 0;
+        for &arg in args {
+            let width = u32::try_from(self.vals(self.ty_of(arg))?.len()).map_err(|_| {
+                hd_base::NotImplemented::bug(hd_base::Stage::Emit, "argument ABI width exceeds u32")
+            })?;
+            let mut offset = 0;
+            let mut borrowed = Vec::new();
+            while parameter < params.len() {
+                crate::work::loan_queries(1);
+                let t = params[parameter];
+                let len = u32::try_from(self.vals(t)?.len()).map_err(|_| {
+                    hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "parameter ABI width exceeds u32",
+                    )
+                })?;
+                if len > width - offset {
+                    break;
+                }
+                if let Some(walk) =
+                    crate::layout::function_input(self.pool(), self.env(), t).borrowed
+                {
+                    borrowed.push(walk.remap(&|k| offset + k));
+                }
+                offset += len;
+                parameter += 1;
+            }
+            if offset != width {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "spread argument does not partition into whole parameter ABIs",
+                ));
+            }
+            out.push((arg, (!borrowed.is_empty()).then_some(Walk::Seq(borrowed))));
+        }
+        if parameter != params.len() {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "spread argument carrier leaves unfilled parameters",
+            ));
+        }
+        Ok(out)
     }
 
     /// Build the direct `string.slice` call to string-equality map once
@@ -665,6 +809,9 @@ impl Em<'_, '_, '_> {
         for l in ls.iter().rev() {
             self.f.set(*l);
         }
+        if let Some(&(flag, _)) = self.input_transferred.get(&i) {
+            self.f.zero(flag);
+        }
         let t = self.ty(i);
         // A stated reference copy lowers at its `Retain` (`Em::own_retain`).
         let stated = self.b.tags[i as usize] == Tag::Ref
@@ -734,10 +881,30 @@ impl Em<'_, '_, '_> {
         if !self.needs_drop(t) {
             return Ok(());
         }
+        let transferred = self.input_transferred.get(&x).cloned();
+        if let Some((flag, borrowed)) = &transferred {
+            let flag = *flag;
+            self.f.get(flag);
+            self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
+            if let Some(walk) = borrowed.clone() {
+                for &local in &ls {
+                    self.f.get(local);
+                }
+                self.f.helper(Helper::Release {
+                    vals: self.vals(t)?,
+                    walk,
+                });
+            }
+            self.f.op(crate::op::Op::Else);
+        }
         if self.owned_refs.contains(&x) {
             self.release_owned_ref(&ls, t)?;
         } else if !self.loans.contains(&x) {
             self.release_drop_place(&ls, t, &Self::value_place(x))?;
+        }
+        if let Some((flag, _)) = transferred {
+            self.f.op(crate::op::Op::End);
+            self.f.zero(flag);
         }
         for l in ls {
             self.f.zero(l);
@@ -1050,32 +1217,24 @@ impl Em<'_, '_, '_> {
         let b = self.b;
         let sub = u32::from(self.sub_id);
         let mut out = hd_base::HashSet::default();
-        let moved: hd_base::HashSet<u32> = (0..b.len())
-            .filter(|&i| {
-                b.tags[i] == Tag::Read && b.data[i][1] == hd_tir::ir::ReadMode::Move as u32
-            })
-            .filter_map(|i| match b.view(b.data[i][0]).root {
-                hd_tir::ir::Root::Value(v) => Some(v),
-                _ => None,
-            })
-            .collect();
-        for (l, shared) in super::closure::captures(b, ci, &self.recursive_bindings) {
-            let t = self.sub(b.local_ty[l]);
-            if shared || self.is_cell(l) || !self.copied(t).is_empty() {
-                continue;
-            }
+        let mut captures = super::closure::captures(b, ci, &self.recursive_bindings);
+        captures.retain(|&(l, shared)| {
+            !shared && !self.is_cell(l) && self.copied(self.sub(b.local_ty[l])).is_empty()
+        });
+        if captures.is_empty() {
+            return out;
+        }
+        let uses = self
+            .loan_uses
+            .get_or_init(|| Box::new(LoanUses::new(b, &self.topo)));
+        for (l, _) in captures {
             let mut fits = true;
             let mut loans = Vec::new();
-            for i in 0..b.len() {
-                if self.topo.sub[i] != sub {
-                    continue;
-                }
+            for &i in uses.sub_local.get(&(sub, l)).into_iter().flatten() {
+                crate::work::loan_queries(1);
                 let tag = b.tags[i];
                 if tag == Tag::Closure {
-                    let rec = b.record(b.data[i][1]);
-                    if (rec[0]..rec[0] + rec[1]).any(|c| b.cap_local[c as usize].idx() == l) {
-                        fits = false;
-                    }
+                    fits = false;
                     continue;
                 }
                 if !matches!(tag, Tag::Read | Tag::Store | Tag::Ref) {
@@ -1083,12 +1242,7 @@ impl Em<'_, '_, '_> {
                 }
                 let w = b.data[i][0];
                 if w & place::BARE_LOCAL == 0 {
-                    if b.local_in_place(w).is_some_and(|x| x.idx() == l) {
-                        fits = false;
-                    }
-                    continue;
-                }
-                if bare_local(b, w) != l {
+                    fits = false;
                     continue;
                 }
                 if tag != Tag::Read {
@@ -1096,8 +1250,9 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
                 let x = u32::try_from(i).expect("insts");
-                let user = self.consumer.get(i).copied().unwrap_or(NONE);
-                if !moved.contains(&x) && (user == NONE || self.borrowed_arg(user, x)) {
+                let consumer = self.consumer.get(i).copied().unwrap_or(NONE);
+                if !uses.moved.contains(&x) && (consumer == NONE || self.borrowed_arg(consumer, x))
+                {
                     loans.push(x);
                 } else {
                     fits = false;
@@ -1114,6 +1269,7 @@ impl Em<'_, '_, '_> {
     /// Whether call `c` passes value `r` as an argument its callee borrows
     /// at this instance (`layout::Pass::Borrowed`).
     fn borrowed_arg(&self, c: u32, r: u32) -> bool {
+        crate::work::loan_queries(1);
         if let Some(loans) = self.argument_loans.borrow().get(&c) {
             return loans.contains(&r);
         }
@@ -1123,45 +1279,71 @@ impl Em<'_, '_, '_> {
         borrowed
     }
 
+    /// Build one sparse argument index for a call. Rejected arities and
+    /// other consumers are cached too, rather than rechecked per argument.
     fn borrowed_arguments(&self, c: u32) -> hd_base::HashSet<u32> {
-        if self.b.tags.get(c as usize) != Some(&Tag::Call) {
+        let tag = self.b.tags.get(c as usize).copied();
+        if !matches!(tag, Some(Tag::Call | Tag::CallValue)) {
             return hd_base::HashSet::default();
         }
-        let mut args = self.rec(self.b.data[c as usize][1]);
-        args.truncate(args.len().saturating_sub(3));
-        let passes: Vec<bool> = if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
-            // A dynamic slot acquires any owner its concrete target needs;
-            // the caller stays live through a blocking drive.
-            vec![true; args.len()]
-        } else {
-            let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
+        let [callee, arguments] = self.b.data[c as usize];
+        let mut args = self.rec(arguments);
+        crate::work::loan_queries(args.len());
+        let passes: Vec<bool> = if tag == Some(Tag::CallValue) {
+            let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip(
+                self.pool(),
+                self.env(),
+                self.ty_of(callee),
+            )) else {
                 return hd_base::HashSet::default();
             };
-            if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
-                return hd_base::HashSet::default();
-            }
-            let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
-                return hd_base::HashSet::default();
-            };
+            let params = self.pool().list_items(params);
             if params.len() != args.len() {
                 return hd_base::HashSet::default();
             }
-            let lends = self.env().lends(ct.item, ct.args);
             params
                 .iter()
-                .enumerate()
-                .map(|(k, &t)| matches!(self.pass_at(lends, k, t), crate::layout::Pass::Borrowed))
+                .map(|&t| {
+                    let t = self.sub(t);
+                    !crate::layout::function_input(self.pool(), self.env(), t).transfer
+                        && matches!(self.argument_pass(None, 0, t), Pass::Borrowed)
+                })
                 .collect()
+        } else {
+            args.truncate(args.len().saturating_sub(3));
+            if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
+                // A dynamic slot acquires any owner its concrete target
+                // needs; the caller stays live through a blocking drive.
+                vec![true; args.len()]
+            } else {
+                let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
+                    return hd_base::HashSet::default();
+                };
+                if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
+                    return hd_base::HashSet::default();
+                }
+                let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
+                    return hd_base::HashSet::default();
+                };
+                if params.len() != args.len() {
+                    return hd_base::HashSet::default();
+                }
+                let lends = self.env().lends(ct.item, ct.args);
+                params
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &t)| matches!(self.pass_at(lends, k, t), Pass::Borrowed))
+                    .collect()
+            }
         };
+        crate::work::loan_queries(args.len() * 2);
         let mut seen = hd_base::HashSet::default();
         let mut loans = hd_base::HashSet::default();
-        for (argument, borrowed) in args.into_iter().zip(passes) {
-            if !seen.insert(argument) {
-                // Even a third occurrence must stay rejected; inserting only
-                // at the first occurrence makes this equivalent to count==1.
-                loans.remove(&argument);
+        for (a, borrowed) in args.into_iter().zip(passes) {
+            if !seen.insert(a) {
+                loans.remove(&a);
             } else if borrowed {
-                loans.insert(argument);
+                loans.insert(a);
             }
         }
         loans

@@ -1,0 +1,172 @@
+# test: Copy function-value inputs lend while callbacks retain their own owners
+# Functions: fn.type.values, fn.capture.copies; References: ref.copy.structure.
+use std.annotation.inline
+use std.collections.UniqList
+use std.function.{Fn, Tuple}
+use std.testing.assert_equal
+use std.weak.weak
+
+struct Packet:
+    name: string
+    parts: List[string]
+
+enum Message:
+    Empty
+    Text(value: string)
+
+struct Handler:
+    read: fn(string) -> usize
+
+struct OwnedPacket:
+    owner: *i32
+    values: UniqList[usize]
+
+impl !Copy for OwnedPacket
+
+@inline(.Never)
+fn invoke[A < ?Copy, B < ?Copy](callback: fn(A) -> B, value: A) -> B:
+    callback(value)
+
+@inline(.Never)
+fn invoke_spread[Args < ?Copy & Tuple, O < ?Copy](callback: Fn[Args, O, $ ()], value: Args) -> O:
+    callback(value...)
+
+fn own_append(mut values: UniqList[usize], extra: usize) -> UniqList[usize]:
+    values.push(extra)
+    values
+
+fn own_append_labeled(mut values: UniqList[usize], label: string) -> UniqList[usize]:
+    values.push(label.len())
+    values
+
+@inline(.Never)
+fn invoke_pair(callback: fn(string, string) -> string, left: string, right: string) -> string:
+    callback(left, right)
+
+fn width(value: string) -> usize:
+    value.len()
+
+fn identity[T < ?Copy](value: T) -> T:
+    value
+
+fn save(value: string) -> fn() -> string:
+    fn() -> string: value
+
+fn append(left: string, right: string) -> string:
+    left + right
+
+fn packet_size(value: Packet) -> usize:
+    value.name.len() + value.parts.len()
+
+fn message_size(value: Message) -> usize:
+    match value:
+        .Empty => 0
+        .Text(text) => text.len()
+
+fn owned_size(value: OwnedPacket) -> usize:
+    usize(*value.owner) + value.values.len()
+
+fn owned_take(value: OwnedPacket) -> UniqList[usize]:
+    value.values
+
+fn owned_reference(value: OwnedPacket, fallback: &i32) -> &i32:
+    assert_equal(value.values.len(), 0, reason="native aggregate remains valid in callback")
+    fallback
+
+@inline(.Never)
+fn invoke_reference(callback: fn(OwnedPacket, &i32) -> &i32, value: OwnedPacket, fallback: &i32) -> i32:
+    reference := callback(value, fallback)
+    *reference
+
+pub fn main() -> void:
+    let mut parts = ["shared", " payload"]
+    text := parts.join("")
+    handler := Handler { read: width }
+    assert_equal((handler.read)(text), 14, reason="stored named reader borrows its input")
+    assert_equal(invoke(width, text), 14, reason="generic function value reads an aliased input")
+    copy := invoke(identity, text)
+    kept := invoke(save, text)
+    assert_equal(copy, text, reason="a returning adapter acquires the result owner")
+    assert_equal(kept(), text, reason="an escaping capture keeps its own input copy")
+    assert_equal(
+        invoke_pair(append, text, text),
+        text + text,
+        reason="duplicate inputs own separately",
+    )
+    let mut copied = invoke(identity, parts)
+    copied[0] = "changed"
+    assert_equal(parts[0], "shared", reason="returned collection owns its COW copy")
+    parts[1] = " source"
+    assert_equal(text, "shared payload", reason="later source changes preserve an aliased argument")
+    packet := Packet { name: text, parts: copied }
+    assert_equal(invoke(packet_size, packet), 16, reason="counted Copy record fields are lent")
+    assert_equal(packet.name, text, reason="record fields remain alive after a callback")
+    message := Message.Text(text)
+    assert_equal(invoke(message_size, message), 14, reason="counted enum inputs are lent")
+    wrapped := invoke(Message.Text, text)
+    assert_equal(
+        invoke(message_size, wrapped),
+        14,
+        reason="a variant adapter owns its payload copy",
+    )
+    assert_equal(
+        text,
+        "shared payload",
+        reason="a variant payload does not consume a live argument",
+    )
+    assert_equal(invoke(message_size, .Empty), 0, reason="empty enum payload needs no owner")
+    destination := box(["old"])
+    store := fn(value: string) -> void: destination[0] = value
+    invoke(store, text)
+    assert_equal(destination[0], text, reason="a writing closure retains the stored argument")
+    source := box(["old"])
+    replace_source := fn(values: List[string]) -> string:
+        source[0] = "new"
+        values[0]
+    assert_equal(
+        invoke(replace_source, *source),
+        "old",
+        reason="a callback snapshot survives writes through a captured alias",
+    )
+    assert_equal(source[0], "new", reason="the captured writer still changes its source")
+    let mut unique: UniqList[usize] = UniqList::new()
+    unique.push(3)
+    let mut moved = invoke(identity, unique)
+    moved.push(5)
+    assert_equal(moved.len(), 2, reason="noncopy input and result transfer their single owner")
+    pointer := box(+9)
+    seen := weak(pointer)
+    let mut values: UniqList[usize] = UniqList::new()
+    values.push(1)
+    owned := OwnedPacket { owner: pointer, values: values }
+    assert_equal(
+        invoke(owned_size, owned),
+        10,
+        reason="noncopy records transfer their owned fields",
+    )
+    expired := match seen:
+        .Some(link) => link.upgrade().is_none()
+        .None => false
+    assert_equal(expired, true, reason="a transferred noncopy record releases its counted field")
+    let mut transferred: UniqList[usize] = UniqList::new()
+    transferred.push(2)
+    resource_packet := OwnedPacket { owner: box(+4), values: transferred }
+    let mut taken = invoke(owned_take, resource_packet)
+    taken.push(8)
+    assert_equal(taken.len(), 2, reason="a noncopy record field moves into the callback result")
+    let mut spread_values: UniqList[usize] = UniqList::new()
+    spread_values.push(3)
+    let mut spread_result = invoke_spread(own_append, (spread_values, 7))
+    spread_result.push(11)
+    assert_equal(spread_result.len(), 3, reason="noncopy tuple-spread components transfer ownership")
+    let mut labeled = invoke_spread(own_append_labeled, (spread_result, text))
+    labeled.push(13)
+    assert_equal(labeled.len(), 5, reason="mixed spread transfers only native components")
+    assert_equal(text, "shared payload", reason="Copy spread components retain their caller's owner")
+    fallback := box(+17)
+    reference := invoke_reference(
+        owned_reference,
+        OwnedPacket { owner: box(+17), values: UniqList::new() },
+        fallback,
+    )
+    assert_equal(reference, +17, reason="reference source outlives a stored callback result during native transfer")

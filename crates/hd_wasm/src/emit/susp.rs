@@ -1712,8 +1712,29 @@ pub(super) fn finish(
         for &l in plocals {
             let ls = arrived(em, l);
             let t = em.sub(em.b.local_ty[l]);
-            // ruled out: TIR local ids are u32 (`LocalId::raw`).
-            let local = u32::try_from(l).expect("local");
+            let local = u32::try_from(l).map_err(|_| {
+                hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "cold entry local index exceeds u32",
+                )
+            })?;
+            if em.sub_id != 0 && transferred.contains(&l) {
+                if let Some(walk) = crate::layout::function_input(em.pool(), em.env(), t).borrowed {
+                    let reason = em.required_stated_count(
+                        Tag::Retain,
+                        CountAt::Cold,
+                        CountPart::Local(local),
+                    );
+                    let vals = em.vals(t)?;
+                    em.because(reason, |em| {
+                        for &local in &ls {
+                            em.f.get(local);
+                        }
+                        em.f.helper(Helper::Retain { vals, walk });
+                    });
+                }
+                continue;
+            }
             if let Some(reason) =
                 em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Local(local))
                 && !transferred.contains(&l)

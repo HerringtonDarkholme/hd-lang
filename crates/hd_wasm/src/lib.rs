@@ -890,6 +890,7 @@ fn link(
     emit::collect_loans(input, &mut m);
     emit::prepare_element_checks(input, &mut m);
     emit::prepare_boundary_counts(input, &mut m);
+    emit::prepare_loan_uses(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);

@@ -158,16 +158,15 @@ fn apply(g: fn(Field) -> i64, f: Field) -> i64:
 >   local $0 g: fn(Field) -> i64 [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 f: Field [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %3 lend last
 >   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     g(f)
 >   %2 = Read borrow [$0] : fn(Field) -> i64
->   %3 = Read move [$1] : Field
+>   %3 = Read borrow [$1] : Field
 >   %4 = CallValue %2 [%3] : i64
 >   %5 = Block %4 : i64
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0] writes
+>   summary kept [] borrows [$0 $1] writes
 
 fn set_first(target: &i64, xs: List[i64]) -> i64:
 > app/main/set_first

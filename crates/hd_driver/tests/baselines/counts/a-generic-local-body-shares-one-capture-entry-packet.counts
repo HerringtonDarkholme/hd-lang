@@ -10,6 +10,7 @@ fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string
 >   release string (last use)
 > app/main/generic
 >   retain string (stored)
+>   retain string (stored)
 > app/main/generic
 >   retain string (stored)
         (captured, value)

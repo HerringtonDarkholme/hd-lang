@@ -193,6 +193,15 @@
       "noOpsAndSkipped": "3"
     },
     {
+      "program": "bench/study/function-value-inputs.hd",
+      "retained": "0",
+      "released": "4",
+      "uniques": "0",
+      "total": "4",
+      "noOpsAndSkipped": "4",
+      "reason": "#1376 adds the alternating function-value input benchmark with a dynamically allocated shared string and a non-inlined dispatcher. Its 20,000,000 reader callbacks perform no retain/release work: the measured whole-program total is four releases plus four no-op/skipped calls, all fixed setup/teardown. Existing 33 program totals and no-op/skipped limits are unchanged."
+    },
+    {
       "program": "bench/study/json.hd",
       "retained": "2380002",
       "released": "3400100",

@@ -3,11 +3,11 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -60,14 +60,9 @@
     i32.load $heap
     local.tee $env
     i32.load $heap
-    local.set $ctx
-    local.get $x.0
-    if
-      local.get $x.0
-      call $rt:release_ref'2
-    end
+    local.set $x.0
     local.get $env
-    local.get $ctx
+    local.get $x.0
     local.get $x.1
     i32.add
     i32.store $heap
@@ -257,6 +252,12 @@
         i32.const 0
         call $mixed#1
     ;; 8 |     for x in xs:
+        local.get $x.0
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
         br 0
       end
     end
