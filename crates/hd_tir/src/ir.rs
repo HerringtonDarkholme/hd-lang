@@ -901,6 +901,11 @@ pub struct Body {
     pub local_syn: Vec<NodeIdx>,
     pub local_flags: Vec<u8>,
     pub sub_root: Vec<u32>,
+    /// Parameter locals per sub-body: `start` points at a length prefix in
+    /// `extra`, and `len` is the number of following local IDs. An empty
+    /// range reaches no words, regardless of `start`. Read through
+    /// [`Body::sub_param_locals`]; the root's ordinary parameters instead
+    /// come from local flags, excluding the nested sub-bodies' parameters.
     pub sub_params: Vec<Range32>,
     pub sub_parent: Vec<SubId>,
     pub sub_flags: Vec<u8>,
@@ -1215,6 +1220,19 @@ impl Body {
     pub fn record(&self, at: u32) -> &[u32] {
         let n = self.extra[at as usize] as usize;
         &self.extra[at as usize + 1..at as usize + 1 + n]
+    }
+
+    /// The parameter locals explicitly recorded for sub-body `sub`.
+    /// Empty ranges do not dereference their offset, including a copied
+    /// body's default root range. The range length is authoritative.
+    #[must_use]
+    pub fn sub_param_locals(&self, sub: usize) -> &[u32] {
+        let r = self.sub_params[sub];
+        if r.len == 0 {
+            return &[];
+        }
+        let start = r.start as usize + 1;
+        &self.extra[start..start + r.len as usize]
     }
 
     /// Whether sub-body `sub` is a generic local function's

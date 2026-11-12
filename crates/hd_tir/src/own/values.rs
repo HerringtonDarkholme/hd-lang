@@ -103,11 +103,8 @@ fn joined_places(b: &Body, out: &mut [Local]) {
             *h = root;
         }
     }
-    for (s, r) in b.sub_params.iter().enumerate().skip(1) {
-        if r.len == 0 {
-            continue;
-        }
-        for &l in b.record(r.start) {
+    for s in 1..b.sub_params.len() {
+        for &l in b.sub_param_locals(s) {
             if let Some(h) = home.get_mut(l as usize) {
                 *h = b.sub_root[s];
             }
@@ -494,8 +491,8 @@ pub(crate) fn after(b: &Body, u: &[Level], w: &[Level]) -> bool {
 
 /// The root block of the sub-body local `l` is a parameter of.
 fn param_root(b: &Body, l: u32) -> u32 {
-    for (s, r) in b.sub_params.iter().enumerate().skip(1) {
-        if r.len > 0 && b.record(r.start).contains(&l) {
+    for s in 1..b.sub_params.len() {
+        if b.sub_param_locals(s).contains(&l) {
             return b.sub_root[s];
         }
     }

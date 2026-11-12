@@ -547,9 +547,7 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
     // the body's own parameters, those in no closure's list.
     let mut in_sub = std::mem::take(&mut t.placed);
     for s in 1..b.sub_params.len() {
-        let r = b.sub_params[s];
-        for k in 0..r.len {
-            let l = b.extra[(r.start + 1 + k) as usize];
+        for &l in b.sub_param_locals(s) {
             t.entries.push((u32_of(s), l));
             in_sub[l as usize] = u32_of(s);
         }
