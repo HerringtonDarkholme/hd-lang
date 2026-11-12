@@ -92,7 +92,6 @@ const fn s(generics: u8, params: &'static [Kind], ret: Kind) -> Shape {
 /// Every intrinsic key with its shapes, sorted by key for a binary search.
 /// A static table: nothing builds it at run time.
 pub static INTRINSICS: &[(&str, &[Shape])] = &[
-    ("assert_equal", &[s(1, &[Any, Any, STR], VOID)]),
     ("block_on", &[s(1, &[SUSPEND], Named("BlockOn"))]),
     ("bytes_at", &[s(0, &[STR, USIZE], U8)]),
     ("bytes_index", &[s(0, &[STR, USIZE, U8], USIZE)]),

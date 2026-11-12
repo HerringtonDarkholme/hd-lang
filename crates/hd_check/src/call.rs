@@ -3107,7 +3107,6 @@ impl Ck<'_, '_> {
                     self.cx.names.text(k),
                     "ref_identity"
                         | "box"
-                        | "assert_equal"
                         | "caller_location"
                         | "caller_args"
                         | "ptr_read"
@@ -3164,15 +3163,6 @@ impl Ck<'_, '_> {
                 let (r, rt) = self.new_object_ref(*v, t, true, n);
                 self.boxes.insert(r.0);
                 Some((r, rt))
-            }
-            // A checked `assert_equal` call runs std's `check_equal`
-            // (lib/std/testing.hd), which has the same signature.
-            ("assert_equal", _) => {
-                let check = Callee::Item {
-                    def: self.cx.names.known.check_equal,
-                    targs,
-                };
-                Some(self.emit_call(&check, refs, ret, false, bang, n))
             }
             // `Ptr[T]`'s `read` and `write`: `emit_call` makes them a read
             // and a store of the place at the pointer's target.

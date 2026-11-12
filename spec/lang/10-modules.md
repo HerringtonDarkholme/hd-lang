@@ -1334,6 +1334,7 @@ fn first_word(text: string) -> string:
 
 ```text
 fn assert(condition: bool, reason: string = "") -> void
+@track_caller
 fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string = "") -> void
 ```
 
@@ -1345,6 +1346,7 @@ fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string = "") -> 
 6. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
 7. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `unsatisfied-trait-bound`.
 8. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
+9. r[module.testing.assert-equal.caller] `assert_equal` is a [`@track_caller`](07-functions.md#call-site-locations) function, so a failure's frame list leaves it out, as [`fn.caller.frames`](07-functions.md#r-fn.caller.frames) says.
 
 > **Why.** The failed expression's source line, and both values for
 > `assert_equal`, already identify the check. Rust, pytest, JUnit, and Kotlin

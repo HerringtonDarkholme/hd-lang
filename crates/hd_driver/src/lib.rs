@@ -8415,13 +8415,26 @@ impl Run<'_> {
         }
         let mut fw = Writer::default();
         let body_items: Vec<DefId> = keep.iter().map(|b| b.item).collect();
-        positions::write_frame_names(&mut fw, &self.paths, &body_items, &|d| {
-            let item = all_items.iter().find(|i| i.def == d)?;
-            let ItemData::Impl { self_ty, .. } = &item.data else {
-                return None;
-            };
-            Some(positions::self_type_name(&names, &item.generics, *self_ty))
-        });
+        // `fn.caller.frames`: a `@track_caller` function's frames name its
+        // caller instead. One pass over the items; most modules have none.
+        let tracked: hd_base::HashSet<DefId> = all_items
+            .iter()
+            .filter(|i| i.fn_attrs().is_some_and(|a| a.track_caller))
+            .map(|i| i.def)
+            .collect();
+        positions::write_frame_names(
+            &mut fw,
+            &self.paths,
+            &body_items,
+            &|d| {
+                let item = all_items.iter().find(|i| i.def == d)?;
+                let ItemData::Impl { self_ty, .. } = &item.data else {
+                    return None;
+                };
+                Some(positions::self_type_name(&names, &item.generics, *self_ty))
+            },
+            &|d| tracked.contains(&d),
+        );
         let generic_edges = encode_generic_edges(generic_edges, &lines);
         let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,

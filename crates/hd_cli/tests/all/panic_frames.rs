@@ -159,6 +159,20 @@ test result: FAILED. 0 passed; 3 failed; 0 ignored
         text(&out.stderr)
     );
     assert_eq!(out.status.code(), Some(1));
+    // The JSON report of an `assert_equal` failure: its category and
+    // message, which `check_equal` writes.
+    let out = hd(
+        &root,
+        &["test", "--filter", "equal with reason", "--format", "json"],
+    );
+    assert_eq!(
+        text(&out.stdout).lines().next(),
+        Some(
+            "{\"kind\":\"test\",\"name\":\"equal with reason\",\"outcome\":\"failed\",\"message\":\"panic: assertion-failed: three is not four: actual 3, expected 4\"}"
+        ),
+        "{}",
+        text(&out.stderr)
+    );
 }
 
 /// Frames are a text-report feature: a passing run prints none, and a JSON
@@ -625,6 +639,51 @@ fn a_built_module_prints_its_frames_without_the_cache() {
          src/main.hd:6 shop.main.main\n"
     );
     assert_eq!(ran.status.code(), Some(3));
+}
+
+const TRACKED: &str = "\
+@track_caller
+fn must_be_positive(value: i32) -> i32:
+    if value <= 0:
+        panic(\"not positive\")
+    value
+
+@track_caller
+fn relay(value: i32) -> i32:
+    must_be_positive(value)
+
+fn total(value: i32) -> i32:
+    relay(value) + 1
+
+pub fn main() -> void $ Console:
+    let n = +0
+    println(total(n))
+";
+
+/// A `@track_caller` function's frames are left out of every frame list
+/// (`fn.caller.frames`), through a chain of them too: `hd run`, and a
+/// module `hd build` wrote in debug and release, where the release build
+/// inlines the helpers into `total`.
+#[test]
+fn a_track_caller_function_leaves_its_frames_out() {
+    let root = package("hd-frames-track-caller", TRACKED);
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    let expected = "\
+panic: explicit-panic: not positive
+    src/main.hd:12 shop.main.total
+    src/main.hd:16 shop.main.main
+";
+    let out = hd(&root, &["run"]);
+    assert_eq!(text(&out.stderr), expected);
+    for (args, file) in [
+        (&["build"][..], "build/debug/shop.wasm"),
+        (&["build", "--release"][..], "build/release/shop.wasm"),
+    ] {
+        let built = hd(&root, args);
+        assert!(built.status.success(), "{args:?}: {}", text(&built.stderr));
+        let out = hd(&root, &[file]);
+        assert_eq!(text(&out.stderr), expected, "{args:?}");
+    }
 }
 
 /// Sets every file under `dir` an hour back, so the listing stamps it and

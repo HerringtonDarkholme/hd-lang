@@ -1424,6 +1424,7 @@ pub fn main() -> void:
 13. r[fn.caller.accessor.args.end] A `CallArg`'s `end` is the location just after the argument's last character.
 14. r[fn.caller.accessor.inside] Either accessor is valid only lexically inside a `@track_caller` function, the closures it contains included. Error: `caller-outside-track-caller`.
 15. r[fn.caller.root-package] `Location::in_root_package()` is true when the call site is in the user's own code, as [`module.dbg.own-code`](10-modules.md#r-module.dbg.own-code) defines it. It is tested at run time, and no call is compiled out.
+16. r[fn.caller.frames] A panic report's frame list leaves out each frame in the body of a `@track_caller` function, the closures it contains included. So the list names the caller where the function was called.
 
 ```hd
 use std.debug.Location
@@ -1436,6 +1437,10 @@ fn plain() -> u32:
 > names the line that called it. Rust's `#[track_caller]` and
 > `Location::caller()` do this with one hidden argument, so a call that
 > never fails pays one pointer and no allocation.
+>
+> A failure inside such a helper is the caller's mistake, so its frame list
+> starts at the call, as Rust's `#[track_caller]` reports the caller's
+> location.
 
 ## Unsupported Function Extensions
 

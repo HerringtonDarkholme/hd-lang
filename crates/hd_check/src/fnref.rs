@@ -900,7 +900,7 @@ impl Ck<'_, '_> {
     }
 
     /// A reference to a member whose call checking lowers itself
-    /// (`Ck::lowered_call`: `box`, `assert_equal`, `identity_of`,
+    /// (`Ck::lowered_call`: `box`, `identity_of`,
     /// `Ptr.read`, `Ptr.write`, `Fn.call`, `FnMut.call_mut`): a closure of
     /// type `ft` (`params` to `result`) whose body is that lowered call of
     /// its parameters, as

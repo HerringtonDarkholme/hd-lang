@@ -39,7 +39,7 @@ wins.
 | `std.task` | `all` | `join!` has no writable signature; the emitter lowers it through the `task_all` key |
 | `std.function` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `function.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
-| `std.testing` | `it`, `assert_equal` | intrinsic bodies (`test_case`, `assert_equal`) |
+| `std.testing` | `it` | intrinsic body (`test_case`) |
 | `std.rt.entry` | `entry_status`, `entry_status_error`, `entry_status_dyn`, `entry_status_dyn_ref`, `test_status_error`, `test_status_dyn`, `test_status_dyn_ref`, `entry_write` | hd functions in the virtual `rt/entry/mod.hd` report entry and test results over the `entry_write` intrinsic |
 
 | Fixed, non-exporting prelude use | Why the compiler needs it |
@@ -84,7 +84,7 @@ others are private to the one module that calls them.
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
 | `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame`, `task_wait_cell`, `task_wait_frame`, `task_wait_signal` | `task.hd` | compiler |
 | `dbg`, `dbg_printer`, `dbg_write`, `repl_write` | `format.hd` | compiler |
-| `panic_message`, `task_all`, `test_case`, `assert_equal`, `entry_write` | seeded items and `rt/entry/mod.hd` | compiler |
+| `panic_message`, `task_all`, `test_case`, `entry_write` | seeded items and `rt/entry/mod.hd` | compiler |
 | `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler; only std can use these runtime memory intrinsics |
 | `ptr_size_of`, `ptr_read`, `ptr_write`, `ptr_ref`, `ptr_mut`, `ptr_offset` | `rt/memory.hd`: `size_of[T]` and the methods of `Ptr[T]` in `std.rt.memory` (spec 10 `module.rt.ptr.*`); the checker makes `read` and `write` a `Read` and a `Store` of the pointer's target | compiler; only std can use this typed memory |
 | `mem_string_bytes`, `mem_new_string` | `rt/memory.hd`: `string_bytes` and `new_string` in `std.rt.memory` (spec 10 `module.rt.string.*`); `Buffer` is hd over the allocator (`module.rt.buffer.*`) | compiler; only std can use these |

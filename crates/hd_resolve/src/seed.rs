@@ -461,52 +461,16 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     FnAttrs::default(),
                 ),
             );
-            // `assert_equal[T < Eq & Debug](actual: T, expected: T, reason:
-            // string = "")` (module.testing.assertions.signatures): the
-            // checker checks the call and runs std's `check_equal`
-            // (lib/std/testing.hd).
-            let ae = names.item(module, "assert_equal");
-            let t = param(names, ae, 0);
-            let tv = |d| {
-                pool.intern_ty(&TyData::TraitValue {
-                    def: d,
-                    args: TyList::EMPTY,
-                    bindings: vec![],
-                })
-            };
-            let eq = names.known.eq;
-            let g = Generic {
-                bound: Some(eq),
-                bounds: vec![tv(eq), tv(names.known.debug)],
-                ..Generic::plain(sym(names, "T"))
-            };
-            let mut sig = FnSig::simple(
-                vec![g],
-                vec![
-                    (sym(names, "actual"), t),
-                    (sym(names, "expected"), t),
-                    (sym(names, "reason"), Ty::STRING),
-                ],
-                Ty::VOID,
-            );
-            sig.defaults[2] = true;
-            item(
-                "assert_equal",
-                vec![],
-                ItemData::Fn(sig, FnAttrs::default()),
-            );
         }
         // ruled out: a match on a module path; the other modules have no seeded items.
         _ => {}
     }
-    for (name, key) in [("it", "test_case"), ("assert_equal", "assert_equal")] {
-        if module == "std.testing"
-            && let Some(c) = (out.iter_mut())
-                .find(|i| i.def == names.item(module, name))
-                .and_then(Item::call_mut)
-        {
-            c.intrinsic = Some(sym(names, key));
-        }
+    if module == "std.testing"
+        && let Some(c) = (out.iter_mut())
+            .find(|i| i.def == names.item(module, "it"))
+            .and_then(Item::call_mut)
+    {
+        c.intrinsic = Some(sym(names, "test_case"));
     }
     for it in &out {
         names.record_params(it);

@@ -167,7 +167,6 @@ pub struct KnownItems {
     pub inline: DefId,
     pub cold: DefId,
     pub testing_module: PathId,
-    pub check_equal: DefId,
     /// The test registration functions besides `it`
     /// (`module.testing.reg.calls-ref`), and the private std bodies that their
     /// test cases run, which take the generics of the registration
@@ -361,7 +360,6 @@ impl KnownItems {
             inline: item("std.annotation", "inline"),
             cold: item("std.annotation", "cold"),
             testing_module: module("std.testing"),
-            check_equal: item("std.testing", "check_equal"),
             it_each: item("std.testing", "it_each"),
             it_prop: item("std.testing", "it_prop"),
             it_prop_with: item("std.testing", "it_prop_with"),

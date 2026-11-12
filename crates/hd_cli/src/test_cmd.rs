@@ -340,6 +340,9 @@ impl Frames {
             .map(fallback_note);
         let lines: Vec<String> = anchors
             .into_iter()
+            // A `@track_caller` function's frames are left out, so the
+            // list names its caller (`fn.caller.frames`).
+            .filter(|a| !self.positions.hidden(&a.item))
             .filter_map(|a| {
                 let (file, line) = self.positions.line(&a.item, a.inst)?;
                 let (file, line) = match &self.doc {
@@ -402,13 +405,17 @@ impl Frames {
     /// of its line table resolved to the file, line and function name a
     /// frame prints, so the written module stands alone
     /// (`crates/hd_mono/DESIGN.md` "Positions"). A function the run did
-    /// not check is left out, and a row it cannot resolve has line 0.
+    /// not check, or a `@track_caller` function's (`fn.caller.frames`), is
+    /// left out, and a row it cannot resolve has line 0.
     pub(crate) fn positions_section(&self, wasm: &[u8], src: &disk::DiskSources) -> Vec<u8> {
         let Ok(table) = hd_run::frames::LineTable::parse(wasm) else {
             return Vec::new();
         };
         let (mut funcs, mut inlined) = (Vec::new(), Vec::new());
         for (f, item, rows) in table.functions() {
+            if self.positions.hidden(&item) {
+                continue;
+            }
             // A row's own frame is its last; an inlined copy's come first.
             let at: Vec<Option<(&str, u32)>> = rows
                 .iter()
@@ -419,7 +426,11 @@ impl Frames {
             };
             for (k, row) in rows.iter().enumerate().filter(|(_, r)| r.len() > 1) {
                 let frames = row[..row.len() - 1].iter().map(|a| {
-                    let (file, line) = self.positions.line(&a.item, a.inst).unwrap_or(("", 0));
+                    // Line 0 leaves an inlined `@track_caller` frame out.
+                    let (file, line) = (!self.positions.hidden(&a.item))
+                        .then(|| self.positions.line(&a.item, a.inst))
+                        .flatten()
+                        .unwrap_or(("", 0));
                     (src.display(file), self.positions.name(&a.item), line)
                 });
                 inlined.push(((f, u32::try_from(k).unwrap_or(u32::MAX)), frames.collect()));

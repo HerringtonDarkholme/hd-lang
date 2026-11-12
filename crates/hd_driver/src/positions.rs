@@ -91,6 +91,9 @@ struct Module {
 struct Body {
     syn: Arc<[NodeIdx]>,
     name: String,
+    /// The body of a `@track_caller` function, whose frames a panic's
+    /// frame list leaves out (`fn.caller.frames`).
+    hidden: bool,
     /// Its operations whose `usize` type is a literal's default, by
     /// instruction, each with the name of the local it reads.
     fallback: Arc<[(u32, Option<String>)]>,
@@ -106,6 +109,7 @@ impl Body {
                 Arc::from(body.syn.as_slice())
             },
             name: String::new(),
+            hidden: false,
             fallback: body
                 .fallback
                 .iter()
@@ -295,6 +299,17 @@ impl Positions {
         }
     }
 
+    /// Whether frames in the body of the item with stable path `item` are
+    /// left out of a panic's frame list: a `@track_caller` function's body,
+    /// so the list names its caller (`fn.caller.frames`).
+    #[must_use]
+    pub fn hidden(&self, item: &str) -> bool {
+        self.module_of(item)
+            .and_then(|(_, source)| source.module())
+            .and_then(|m| m.bodies.get(item))
+            .is_some_and(|b| b.hidden)
+    }
+
     /// The module that declares an item, from its stable path: the package,
     /// then the module's segments, then the item (`PathTable::print`). A
     /// package's root module has no segment of its own. The module comes
@@ -339,7 +354,7 @@ impl ModuleSource {
                 let b = hd_tir::wire::read_body(bytes, &pool, &paths, &syms)?;
                 (path_of(&paths, b.item), Body::from_tir(&b, &syms))
             };
-            body.name = names.remove(&path)?;
+            (body.name, body.hidden) = names.remove(&path)?;
             bodies.insert(path, body);
         }
         let parse = self
@@ -377,12 +392,15 @@ fn path_of(paths: &PathTable, d: DefId) -> String {
 /// `List`, as `impl_type` names it from the impl's item), and a hidden segment,
 /// such as a default argument's body or a block-local scope, is left out,
 /// so its frames name their declaration. The names come from the items the
-/// checker built, so no spelling of a path segment decides them.
+/// checker built, so no spelling of a path segment decides them. A body
+/// of a `@track_caller` function (`hidden`) is marked: its frames are left
+/// out of a panic's frame list (`fn.caller.frames`).
 pub(crate) fn write_frame_names(
     w: &mut Writer,
     paths: &PathTable,
     items: &[DefId],
     impl_type: &dyn Fn(DefId) -> Option<String>,
+    hidden: &dyn Fn(DefId) -> bool,
 ) {
     w.len_of(items);
     for &item in items {
@@ -407,17 +425,20 @@ pub(crate) fn write_frame_names(
         for s in &segs {
             w.str(s);
         }
+        w.u8(u8::from(hidden(item)));
     }
 }
 
-/// The frame names [`write_frame_names`] wrote, by body path.
-fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, String>> {
+/// The frame names [`write_frame_names`] wrote, by body path, each with
+/// whether its frames are left out.
+fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, (String, bool)>> {
     let mut r = Reader::new(bytes);
     let mut names = HashMap::default();
     for _ in 0..r.count() {
         let path = r.str().to_owned();
         let segs: Vec<&str> = (0..r.count()).map(|_| r.str()).collect();
-        names.insert(path, segs.join("."));
+        let hidden = r.u8() != 0;
+        names.insert(path, (segs.join("."), hidden));
     }
     r.ok().then_some(names)
 }
@@ -528,6 +549,7 @@ mod tests {
                                 Body {
                                     syn: syn.into(),
                                     name: "f".into(),
+                                    hidden: false,
                                     fallback: Arc::from([]),
                                 },
                             )]
@@ -655,13 +677,13 @@ mod tests {
         };
         let items = [generic_method, derived_method, inherent_method, free];
         let mut w = Writer::default();
-        write_frame_names(&mut w, &paths, &items, &record);
+        write_frame_names(&mut w, &paths, &items, &record, &|d| d == free);
         let names = read_frame_names(&w.bytes).expect("record");
         let of = |d: DefId| names[&super::path_of(&paths, d)].clone();
-        assert_eq!(of(generic_method), "List.remove_at");
-        assert_eq!(of(derived_method), "Cart.eq");
-        assert_eq!(of(inherent_method), "Cart.total");
-        assert_eq!(of(free), "run");
+        assert_eq!(of(generic_method), ("List.remove_at".to_owned(), false));
+        assert_eq!(of(derived_method), ("Cart.eq".to_owned(), false));
+        assert_eq!(of(inherent_method), ("Cart.total".to_owned(), false));
+        assert_eq!(of(free), ("run".to_owned(), true));
     }
 
     #[test]

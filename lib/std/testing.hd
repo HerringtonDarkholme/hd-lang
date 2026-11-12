@@ -1,7 +1,6 @@
 # std.testing, the part written in hd (spec/lang/10-modules.md#standard-testing).
-# `it` is compiler-provided. `assert_equal`, `it_each`, `it_prop`,
-# `it_prop_with`, and `snapshot` are declared here, and the compiler checks
-# their calls (spec/lang/10-modules.md#standard-testing, #registration-calls, #snapshots);
+# `it` is compiler-provided. `it_each`, `it_prop`, `it_prop_with`, and
+# `snapshot` are declared here, and the compiler checks their calls (spec/lang/10-modules.md#standard-testing, #registration-calls, #snapshots);
 # `Choices`, `Arbitrary`, and `snapshot_file` too (Testing T53), with the
 # bodies that the compiler gives an `it_each`, `it_prop`, or `it_prop_with`
 # test case and the runner capabilities they use. `std.testing.arbitrary`
@@ -717,16 +716,16 @@ pub fn assert(condition: bool, reason: string = "") -> void:
     if !condition:
         panic_with("assertion-failed", reason)
 
-# Compares `actual` and `expected`; a direct call is checked here, then the
-# compiler runs `check_equal` with the call's static type and defaulted reason.
-@intrinsic("assert_equal")
+# Compares `actual` and `expected`. As a `@track_caller` function it is left
+# out of a failure's frames, which go from `check_equal` to the caller
+# (spec/lang/10-modules.md#r-module.testing.assert-equal.caller).
 ## Compares two values and fails the assertion when they are unequal.
 ## See [module.testing.assertions.signatures](../../spec/lang/10-modules.md#r-module.testing.assertions.signatures).
+@track_caller
 pub fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string = "") -> void:
     check_equal(actual, expected, reason)
 
-# What a checked `assert_equal` or `snapshot` call runs, with `T` the
-# readonly type of `actual`; the compiler checks the call itself. A failure
+# The check of `assert_equal`, the frame a failure names in std. A failure
 # shows a nonempty reason and both values as `debug` renders them
 # (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
 fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:

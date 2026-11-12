@@ -3908,7 +3908,7 @@ impl Em<'_, '_, '_> {
             key if key.starts_with("mem_") => self.memory(i, key, args),
             // ruled out: every other key is lowered before emission.
             // Checking lowers each call and function value of `box`,
-            // `assert_equal`, `identity_of`, `Fn.call` and `FnMut.call_mut`
+            // `identity_of`, `Fn.call` and `FnMut.call_mut`
             // (`hd_check` `Ck::lowered_call`), and each `facts_of`, `join`
             // and `it` call, and refuses those three as values (`fnref.rs`);
             // collection gives `dbg` and `dbg_printer` their generated body
