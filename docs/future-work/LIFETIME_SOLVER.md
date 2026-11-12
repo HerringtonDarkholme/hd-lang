@@ -137,7 +137,7 @@ variance; elsewhere it is covariant:
 | `Read` of `p` | `p`'s slots ⊑ the value's, both ways in invariant slots |
 | `Store` into `p` | the value's slots ⊑ `p`'s, both ways in invariant slots; a universal slot of `p` adds a check |
 | field, variant, tuple projection | the field slot map |
-| `Deref` projection | the reference's slots after slot 0 |
+| `Deref` projection | a local reference's slots after slot 0; a counted reference's own slots |
 | `Elem`, `push`, map store | the collection's type-argument slots |
 | struct, variant, tuple, list construction | each part ⊑ the parent, by the field slot map |
 | `Coerce` | slot by slot; to `&dyn` or a shape that does not line up, every slot ⊑ each target slot |
@@ -146,7 +146,8 @@ variance; elsewhere it is covariant:
 | suspension (bang call without `!`) | each argument's slots, but a lent counted reference's, ⊑ its own slot; the result's slots as the call's with `!` |
 | closure | each captured local's slots ⊑ the capture slot |
 | return, body value | value ⊑ the result's universal regions (checked) |
-| `box`, provider, host call, `'static` type parameter | value ⊑ `'static` (checked) |
+| `box` | the new object's value ⊑ the counted reference, slot by slot: a `*T` holds `T`'s slots (`ref.local.holding.counted`, #1219); a captured function value's slot ⊑ `'static` (checked) |
+| provider, host call, `'static` type parameter | value ⊑ `'static` (checked) |
 
 The table covers every tag that `Solve::step`, `generic_store` and
 `captured_fn_escapes` handle today. The call row replaces the `TVAR`,

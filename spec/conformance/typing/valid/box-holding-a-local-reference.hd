@@ -1,0 +1,14 @@
+# test: a box may hold a local reference; the box is local, and a function may return one that depends on its parameter
+# Spec 13 Boxes: ref.box.declaration, ref.box.local; Local References: ref.local.holding.counted.
+struct User:
+    name: string
+
+fn boxed(u: &User) -> *(&User):
+    box(u)
+
+fn name_len(a: User, c: User) -> usize:
+    b := box(&a)
+    d := b
+    *b = &c
+    held := boxed(&a)
+    d.name.len() + held.name.len()

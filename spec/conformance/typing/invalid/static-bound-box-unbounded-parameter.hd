@@ -1,4 +1,7 @@
-# test: a generic body boxes a value only of a type parameter bounded by 'static
-# Spec 13 Generic Locality: ref.generic.static.error, ref.box.no-local.
-fn keep[T](value: T) -> *mut T:
-    box(value) # diagnostic: local-reference-escapes
+# test: a box of an unbounded type parameter's value does not meet 'static
+# Spec 13 Generic Locality: ref.generic.static.error, ref.generic.static.no-local.
+fn hold[U < 'static](value: U) -> void:
+    pass
+
+fn keep[T](value: T) -> void:
+    hold(box(value)) # diagnostic: local-reference-escapes

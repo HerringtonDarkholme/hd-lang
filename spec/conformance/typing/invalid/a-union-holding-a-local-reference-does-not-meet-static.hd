@@ -1,5 +1,5 @@
 # test: a union with a reference member holds a local reference, so it does not meet 'static
-# Spec 13 Generic Locality: ref.generic.static.meets, ref.generic.static.error.
+# Spec 13 Generic Locality: ref.generic.static.no-local, ref.generic.static.error.
 fn keep[T < 'static](value: T) -> void:
     pass
 

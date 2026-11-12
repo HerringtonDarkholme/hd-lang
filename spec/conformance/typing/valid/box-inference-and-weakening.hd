@@ -1,5 +1,5 @@
 # test: `box` infers `T` from its argument or from the expected type, and its `*mut T` weakens to `*T`, to an optional, and to a counted trait value
-# Spec 13 Boxes: ref.box.signature, ref.box.check, ref.box.weaken; Conversions: ref.convert.weaken; Spec 09 Trait Value References: trait.dyn.ref.counted.new.
+# Spec 13 Boxes: ref.box.declaration, ref.box.check, ref.box.weaken; Conversions: ref.convert.weaken; Spec 09 Trait Value References: trait.dyn.ref.counted.new.
 struct Point:
     x: i32
 

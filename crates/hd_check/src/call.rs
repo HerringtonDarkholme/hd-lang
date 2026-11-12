@@ -3143,8 +3143,9 @@ impl Ck<'_, '_> {
                 Some(self.caller_access(&k, ret, n))
             }
             // `box(e)` (ref.box.new): a new object holding the argument's
-            // value, which the argument already copied (ref.box.copy). Its
-            // `T < 'static` keeps a local reference out (ref.box.no-local).
+            // value, which the argument already copied (ref.box.copy). A
+            // `T` that holds a local reference makes the result local
+            // (ref.box.local).
             ("box", [v]) => {
                 let &[t] = pool.list_items(targs) else {
                     return None;

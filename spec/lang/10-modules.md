@@ -842,7 +842,7 @@ fn count() -> i32:
 3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
 4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
 5. r[module.prelude.dbg] The prelude name `dbg` is the function that [Debug Printing](#r-module.dbg.declaration) declares.
-6. r[module.prelude.box] The prelude name `box` is the function with the signature that [`ref.box.signature`](13-values-and-references.md#r-ref.box.signature) specifies, whose body the compiler supplies.
+6. r[module.prelude.box] The prelude name `box` is the function with the signature that [`ref.box.declaration`](13-values-and-references.md#r-ref.box.declaration) specifies, whose body the compiler supplies.
 
 ```hd
 pub fn main() -> void $ Console:

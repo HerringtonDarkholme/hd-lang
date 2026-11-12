@@ -1,0 +1,7 @@
+# test: a field of a counted reference to a local reference holds a local reference
+# Spec 13 Local References: ref.local.holding.counted, ref.local.escape.field.
+struct User:
+    name: string
+
+struct Holder:
+    user: *(&User) # diagnostic: local-reference-escapes

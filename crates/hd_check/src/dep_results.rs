@@ -686,11 +686,14 @@ struct Slot {
     /// holds no captured origins (`ref.generic.outlives.written`): not the
     /// type itself nor the referent of one of its references.
     written: bool,
+    /// Whether a `*mut` holds it: every copy of the counted reference
+    /// shares it, so it is related both ways, as behind a `&mut`.
+    shared_mut: bool,
 }
 
 /// The origin slots of a type in pre-order (`ref.dep.position`): each
-/// reference type outside function types and counted references, as in
-/// [`Types::ref_slots`], each borrowing opaque type, each function type
+/// local reference type outside function types, through counted
+/// references, as in [`Types::ref_slots`], each borrowing opaque type, each function type
 /// outside another function type, and each suspension after its
 /// result's slots, as a struct's lifetime. [`Layouts`] makes each once.
 struct Layout {
@@ -741,6 +744,7 @@ impl Layout {
             top,
             end: out.len() + 1,
             written: false,
+            shared_mut: false,
         };
         match pool.get(t) {
             TyData::Ref {
@@ -754,6 +758,15 @@ impl Layout {
                 out[k].end = out.len();
             }
             TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
+            // A counted reference holds its referent's slots, as a
+            // generic instance does (`ref.local.holding.counted`).
+            TyData::Ref { inner, mutable, .. } => {
+                let k = out.len();
+                walk(inner, top, out);
+                if mutable {
+                    out[k..].iter_mut().for_each(|s| s.shared_mut = true);
+                }
+            }
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems) {
                     walk(e, top, out);

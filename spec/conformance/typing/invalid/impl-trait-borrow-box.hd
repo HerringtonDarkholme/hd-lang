@@ -1,10 +1,13 @@
-# test: box of an opaque value that may hide a local reference
-# Spec 04 Opaque Results That Borrow: types.opaque.static; 13 ref.box.no-local.
+# test: a box of an opaque value that may hide a local reference does not meet 'static
+# Spec 04 Opaque Results That Borrow: types.opaque.static; 13 ref.box.local.
 struct User:
     name: string
 
 fn label(u: &User) -> impl Display:
     &u.name
 
+fn hold[U < 'static](value: U) -> void:
+    pass
+
 fn kept(u: &User) -> void:
-    b := box(label(u)) # diagnostic: local-reference-escapes
+    hold(box(label(u))) # diagnostic: local-reference-escapes

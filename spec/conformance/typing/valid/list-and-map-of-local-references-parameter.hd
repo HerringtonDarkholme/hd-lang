@@ -1,0 +1,29 @@
+# test: a list's and a map's type arguments may hold local references in a parameter and a result, as any generic type's do
+# Spec 13 Lifetime Stores: ref.lifetime.store.argument; Local References: ref.local.holding.
+struct User:
+    name: string
+
+struct Wrapper[T]:
+    value: T
+
+fn first(xs: List[&User]) -> &User:
+    xs[0]
+
+fn count(by: Map[string, &User]) -> usize:
+    by.len()
+
+fn both(xs: List[&User], w: Wrapper[&User]) -> usize:
+    xs.len() + w.value.name.len()
+
+fn one(u: &User) -> List[&User]:
+    [u]
+
+fn seen(list: &mut List[&User]) -> usize:
+    list.len()
+
+fn total(a: User, b: User) -> usize:
+    let mut by: Map[string, &User] = {}
+    by[a.name] = &a
+    let mut xs = one(&a)
+    xs.push(&b)
+    first(xs).name.len() + count(by) + both(one(&b), Wrapper { value: &a }) + seen(&mut xs)

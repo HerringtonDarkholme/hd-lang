@@ -349,12 +349,6 @@ pub(crate) fn row(
     })
 }
 
-/// `ref.generic.static`: a type meets `'static` when it holds no local
-/// reference, so each part a value holds must meet it too. A counted
-/// reference meets it, since `box` made its object from a value that met
-/// it; a function value holds no local reference, since a closure never
-/// captures one. A parameter meets it
-/// only by its own bound, which the environment answers before this row.
 /// Whether `t` may copy (`ref.copy.structure`): no part held by value is
 /// a `&mut`, a type declared `!Copy`, or a type parameter whose bound
 /// fails. The parameters and inference variables it reaches are left in
@@ -426,13 +420,19 @@ struct Walk {
     copies: HashSet<Ty>,
 }
 
+/// `ref.generic.static.no-local`: a type meets `'static` when it holds no
+/// local reference, so each part a value holds must meet it too, a
+/// counted reference's referent included (`ref.local.holding.counted`); a
+/// function value holds no local reference, since a closure never captures
+/// one. A parameter meets it only by its own bound, which the environment
+/// answers before this row.
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     match pool.get(self_ty) {
         TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
-        // `box` made the object from a value that met `'static`. A trait
-        // value is only ever a reference's referent, so this answers it.
-        TyData::Ref { .. } => {}
+        // A counted reference meets it when its referent does. A trait
+        // value is only ever a reference's referent, and meets it.
+        TyData::Ref { inner, .. } => subs.push(inner),
         TyData::Tuple { elems, rest } => {
             subs.extend_from_slice(pool.list_items(elems));
             subs.extend(rest);
@@ -450,7 +450,7 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
         // An environment clause answers a parameter before this row.
         TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
         // No part to check: a value with no reference inside, a function
-        // type, which always meets it (`ref.generic.static.meets`), a goal
+        // type, which always meets it (`ref.generic.static.no-local`), a goal
         // already in error, or one the solver stalls on before this row.
         TyData::Prim(_)
         | TyData::Never

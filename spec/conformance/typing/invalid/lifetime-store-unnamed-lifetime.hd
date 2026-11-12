@@ -1,7 +1,7 @@
-# test: a `&mut` parameter's list of references that writes no lifetime is an escape to a type argument
-# Spec 13 Lifetime Stores: ref.lifetime.store.type.
+# test: a store into a `&mut` parameter's list of references that names no lifetime is an escape to a place the caller owns
+# Spec 13 Lifetime Stores: ref.lifetime.store, ref.lifetime.store.argument.
 struct User:
     name: string
 
-fn remember(seen: &mut List[&User], u: &User) -> void:  # diagnostic: local-reference-escapes
-    pass
+fn remember(seen: &mut List[&User], u: &User) -> void:
+    seen.push(u)  # diagnostic: local-reference-escapes

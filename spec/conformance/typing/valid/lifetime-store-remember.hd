@@ -1,5 +1,5 @@
 # test: a store through a `&mut` parameter whose type names the stored reference's lifetime is valid, and the caller uses the list in the source's scope
-# Spec 13 Lifetime Stores: ref.lifetime.store, ref.lifetime.store.call, ref.lifetime.store.type.
+# Spec 13 Lifetime Stores: ref.lifetime.store, ref.lifetime.store.call, ref.lifetime.store.argument.
 struct User:
     name: string
 

@@ -99,7 +99,7 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 }
 
 /// A written local reference type in a position that keeps it
-/// (`ref.local.escape.field`, `.top-level`, `.generic-argument`): one
+/// (`ref.local.escape.field`, `.top-level`, `.trait-argument`): one
 /// error per `&`. A parameter, a local binding, an impl's target, a
 /// function's result and a function type's parameters and result may be
 /// local references. A function type's result that holds one needs one
@@ -112,13 +112,13 @@ pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
             SyntaxKind::LetStmt => {
                 for c in item.children() {
                     if c.kind().is_type() {
-                        walk_ty(src, c, Some(Escape::TopLevel), true, diags);
+                        walk_ty(src, c, Some(Escape::TopLevel), diags);
                     } else {
-                        walk(src, c, false, diags);
+                        walk(src, c, diags);
                     }
                 }
             }
-            _ => walk(src, item, false, diags),
+            _ => walk(src, item, diags),
         }
     }
 }
@@ -126,8 +126,8 @@ pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
 /// One step of [`walk`]'s work: a node to walk, a type to check in its
 /// position, or a body's local functions.
 enum Task<'t> {
-    Walk(NodeRef<'t>, bool),
-    Ty(NodeRef<'t>, Option<Escape>, bool),
+    Walk(NodeRef<'t>),
+    Ty(NodeRef<'t>, Option<Escape>),
     LocalFns(NodeRef<'t>),
 }
 
@@ -135,28 +135,30 @@ enum Task<'t> {
 /// work stack, not recursion: a method chain nests one node per link, so
 /// a long one would overflow the stack (#1180). Each node's tasks run in
 /// order, before its next sibling's, as a recursive walk would.
-fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
-    let mut stack = vec![Task::Walk(n, body)];
+fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
+    let mut stack = vec![Task::Walk(n)];
     let mut next = Vec::new();
     while let Some(task) = stack.pop() {
         match task {
-            Task::Walk(n, body) => walk_node(src, n, body, &mut next),
-            Task::Ty(n, at, keep) => walk_ty(src, n, at, keep, diags),
+            Task::Walk(n) => walk_node(src, n, &mut next),
+            Task::Ty(n, at) => walk_ty(src, n, at, diags),
             Task::LocalFns(n) => local_fns(src, n, diags),
         }
         stack.extend(next.drain(..).rev());
     }
 }
 
-/// The tasks of walking node `n`, in order.
-fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, body: bool, next: &mut Vec<Task<'t>>) {
+/// The tasks of walking node `n`, in order. A type outside a field, as a
+/// parameter's, a result's, a closure's or an expression's type arguments
+/// (`ref.generic.local`), may hold a local reference.
+fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, next: &mut Vec<Task<'t>>) {
     match n.kind() {
         SyntaxKind::DataField => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    next.push(Task::Ty(c, Some(Escape::Field), true));
+                    next.push(Task::Ty(c, Some(Escape::Field)));
                 } else {
-                    next.push(Task::Walk(c, body));
+                    next.push(Task::Walk(c));
                 }
             }
         }
@@ -167,14 +169,14 @@ fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, body: bool, next: &mut Vec<Task<
                     for p in c.children() {
                         for t in p.children() {
                             if t.kind().is_type() {
-                                next.push(Task::Ty(t, Some(Escape::Field), true));
+                                next.push(Task::Ty(t, Some(Escape::Field)));
                             } else {
-                                next.push(Task::Walk(t, body));
+                                next.push(Task::Walk(t));
                             }
                         }
                     }
                 } else {
-                    next.push(Task::Walk(c, body));
+                    next.push(Task::Walk(c));
                 }
             }
         }
@@ -185,25 +187,7 @@ fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, body: bool, next: &mut Vec<Task<
                 if c.kind() == SyntaxKind::Block {
                     next.push(Task::LocalFns(c));
                 }
-                next.push(Task::Walk(c, c.kind() == SyntaxKind::Block));
-            }
-        }
-        // A test case's suite is a body.
-        SyntaxKind::TrailingCallExpr => {
-            for c in n.children() {
-                next.push(Task::Walk(c, true));
-            }
-        }
-        // A closure's written result may hold a local reference, whose
-        // source the checker finds from its parameters' types
-        // (`fn.closure.lifetime`).
-        SyntaxKind::ClosureExpr => {
-            for c in n.children() {
-                if c.kind().is_type() {
-                    next.push(Task::Ty(c, None, !body));
-                } else {
-                    next.push(Task::Walk(c, body));
-                }
+                next.push(Task::Walk(c));
             }
         }
         // An alias holds what its type holds (`ref.local.holding`), so its
@@ -211,42 +195,24 @@ fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, body: bool, next: &mut Vec<Task<
         SyntaxKind::TypeDecl => {
             if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_none() {
                 for c in n.children().filter(|c| c.kind().is_type()) {
-                    next.push(Task::Ty(c, Some(Escape::Field), true));
+                    next.push(Task::Ty(c, Some(Escape::Field)));
                 }
             }
         }
-        // An expression's explicit type arguments, as in `f::[&T]()`, may
-        // hold a local reference (`ref.generic.local`).
-        SyntaxKind::TypeArgumentList => {
-            for c in n.children() {
-                next.push(Task::Ty(c, None, !body));
-            }
-        }
-        // `ref.lifetime.store.type`: a `&mut` parameter's list or
-        // map may hold local references of written lifetimes.
-        SyntaxKind::Parameter if !body => {
-            for c in n.children() {
-                if c.kind().is_type() {
-                    next.push(Task::Ty(c, None, !lifetime_place(src, c)));
-                } else {
-                    next.push(Task::Walk(c, body));
-                }
-            }
-        }
-        _ if n.kind().is_type() => next.push(Task::Ty(n, None, !body)),
+        _ if n.kind().is_type() => next.push(Task::Ty(n, None)),
         _ => {
             for c in n.children() {
-                next.push(Task::Walk(c, body));
+                next.push(Task::Walk(c));
             }
         }
     }
 }
 
 /// The type `n` in position `at`: `None` where a local reference may
-/// stand, as a parameter's type does. `keep` is off in a body and for a
-/// `&mut` parameter of written lifetimes, where a list's or a map's type
-/// argument may hold one (`ref.lifetime.store.type`).
-fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, keep: bool, diags: &mut DiagBuf) {
+/// stand, as a parameter's type does. A generic type's type arguments,
+/// a list's and a map's included, stand where the instance stands
+/// (`ref.lifetime.store.argument`).
+fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBuf) {
     match n.kind() {
         SyntaxKind::RefType => {
             let amp = n.direct_token(&src.parse.tokens, TokenKind::Amp);
@@ -258,53 +224,43 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, keep: bool, diags:
             if let (Some(_), Some(at), false) = (amp, at, named) {
                 diags.error(Code::LocalReferenceEscapes, src.span(n), &message(at));
             }
-            // A reference may refer to a local reference (`ref.type.group`).
+            // A local reference may refer to a local reference
+            // (`ref.type.group`); a counted one holds what its referent
+            // holds (`ref.local.holding.counted`).
+            let inner = if amp.is_some() { None } else { at };
             for c in n.children() {
-                walk_ty(src, c, None, keep, diags);
+                walk_ty(src, c, inner, diags);
             }
         }
         // `ref.local.holding`: a tuple holds what its elements hold.
         SyntaxKind::TupleType | SyntaxKind::ParenType => {
             for c in n.children() {
-                walk_ty(src, c, at, keep, diags);
+                walk_ty(src, c, at, diags);
             }
         }
         // `ref.local.holding`: an optional, and a generic type's instance,
         // hold what their type arguments hold, where a local reference may
-        // stand (`ref.dep.result`). A list's or a map's type arguments
-        // hold one only where `keep` is off (`ref.local.escape.type-argument`).
+        // stand (`ref.dep.result`, `ref.lifetime.store.argument`).
         SyntaxKind::OptionalType => {
             for c in n.children() {
-                walk_ty(src, c, at, keep, diags);
+                walk_ty(src, c, at, diags);
             }
         }
         SyntaxKind::NamedType => {
-            let toks = &src.parse.tokens;
-            let name = n
-                .direct_tokens()
-                .filter(|&t| matches!(toks.kind(t), TokenKind::Ident | TokenKind::RawIdent))
-                .last()
-                .map(|t| src.text(t));
-            let at = if keep && matches!(name, Some("List" | "Map")) {
-                Some(Escape::TypeArgument)
-            } else {
-                at
-            };
             for c in n.children() {
                 if c.kind() == SyntaxKind::TypeArgumentList {
                     for a in c.children() {
-                        walk_ty(src, a, at, keep, diags);
+                        walk_ty(src, a, at, diags);
                     }
                 } else {
-                    walk_ty(src, c, None, keep, diags);
+                    walk_ty(src, c, None, diags);
                 }
             }
         }
-        // `ref.local.escape.type-argument`: an expression's or a
-        // trait's type arguments.
+        // `ref.local.escape.trait-argument`: a trait's type arguments.
         SyntaxKind::TypeArgumentList => {
             for c in n.children() {
-                walk_ty(src, c, Some(Escape::TypeArgument), keep, diags);
+                walk_ty(src, c, Some(Escape::TypeArgument), diags);
             }
         }
         // A function type's parameters may be local, and so may its
@@ -327,7 +283,7 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, keep: bool, diags:
                         ref_positions(src, c, &mut ins);
                     }
                 }
-                walk_ty(src, c, None, keep, diags);
+                walk_ty(src, c, None, diags);
             }
             if let Some(ret) = ret
                 && outs.iter().any(Option::is_none)
@@ -338,27 +294,13 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, keep: bool, diags:
         _ => {
             for c in n.children() {
                 if c.kind().is_type() || c.kind() == SyntaxKind::TypeArgumentList {
-                    walk_ty(src, c, None, keep, diags);
+                    walk_ty(src, c, None, diags);
                 } else {
-                    walk(src, c, !keep, diags);
+                    walk(src, c, diags);
                 }
             }
         }
     }
-}
-
-/// Whether the written parameter type `n` is a `&mut` whose every other
-/// `&` writes a lifetime (`ref.lifetime.store.type`).
-fn lifetime_place(src: &Src<'_>, n: NodeRef<'_>) -> bool {
-    let toks = &src.parse.tokens;
-    let amp = |r: NodeRef<'_>| {
-        r.kind() == SyntaxKind::RefType && r.direct_token(toks, TokenKind::Amp).is_some()
-    };
-    amp(n)
-        && n.direct_token(toks, TokenKind::KwMut).is_some()
-        && n.descendants()
-            .filter(|&d| d.index() != n.index() && amp(d))
-            .all(|d| d.direct_token(toks, TokenKind::Lifetime).is_some())
 }
 
 /// The local reference positions of the written type `n`
@@ -446,9 +388,9 @@ fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: 
 /// Where a value of type `t` keeps a local reference: in a type argument
 /// of a trait value or an opaque type, or as a
 /// function type's result. A local reference at the top (`top_ok`), in a
-/// tuple, an optional or another generic type's instance at the top
-/// (`ref.local.holding`), as a function type's parameter or behind a
-/// reference is no escape.
+/// tuple, an optional, a counted reference or another generic type's
+/// instance at the top (`ref.local.holding`), as a function type's
+/// parameter or behind a local reference is no escape.
 fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
     if depth > 32 || !pool.has_ref(t) {
         return None;
@@ -468,7 +410,9 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
                 Some(Escape::TypeArgument)
             }
         }
-        TyData::Ref { inner, .. } => escape_in(inner, true),
+        // A counted reference holds what its referent holds
+        // (`ref.local.holding.counted`), as a generic instance does.
+        TyData::Ref { inner, .. } => escape_in(inner, top_ok),
         TyData::Tuple { elems, rest } => {
             list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(r, top_ok)))
         }
@@ -511,7 +455,7 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
 }
 
 /// Whether a value of type `t` holds a local reference anywhere, its top
-/// included (`ref.local.holding`), as `box` checks (`ref.box.no-local`).
+/// included (`ref.local.holding`).
 pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
     escape_in(pool, t, false, 0).is_some()
 }
@@ -943,7 +887,7 @@ impl Ck<'_, '_> {
     }
 
     /// The types the finished body inferred that keep a local reference
-    /// (`ref.local.escape.type-argument`): a value's, a local's, and a
+    /// (`ref.local.escape.trait-argument`): a value's, a local's, and a
     /// local function call's type arguments
     /// (`ref.generic.local.local-function`). A written type reported
     /// already ([`declarations`]), so a type the body or its signature

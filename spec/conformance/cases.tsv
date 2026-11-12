@@ -5431,7 +5431,8 @@ typing/invalid/local-reference-escapes-top-level.hd	type	reject:local-reference-
 typing/invalid/local-reference-escapes-capture.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
 typing/valid/function-parameter-captures-local-reference.hd	type	accept	lang/07-functions.md#r-fn.capture.local-parameter
 typing/invalid/function-parameter-capture-stored-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.capture.local-store
-typing/invalid/local-reference-escapes-type-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.type-argument
+typing/invalid/local-reference-escapes-trait-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
+typing/valid/list-and-map-of-local-references-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.argument
 typing/valid/dependent-result-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
 typing/valid/dependent-result-one-position.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
 typing/valid/dependent-result-optional-match.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.projection
@@ -5538,8 +5539,12 @@ typing/invalid/counted-reference-to-field.hd	type	reject:local-reference-escapes
 typing/invalid/counted-reference-to-top-level.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.object
 typing/invalid/counted-reference-to-element.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.object
 typing/invalid/counted-reference-to-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.object
-typing/invalid/box-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.no-local
-typing/invalid/box-local-reference-tuple.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.no-local
+typing/invalid/box-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.local
+typing/invalid/box-local-reference-tuple.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.local
+typing/invalid/box-local-reference-alias-write.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.box.local
+typing/invalid/counted-field-holding-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.holding.counted
+typing/valid/box-holding-a-local-reference.hd	type	accept	lang/13-values-and-references.md#r-ref.box.local
+runtime/valid/box-holding-a-local-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.local
 typing/invalid/box-prelude-shadow.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.box
 typing/valid/box-inference-and-weakening.hd	type	accept	lang/13-values-and-references.md#r-ref.box.check
 runtime/valid/box-new-object.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.new
@@ -5672,7 +5677,7 @@ runtime/valid/lifetime-enum-payload.hd	runtime	accept	lang/13-values-and-referen
 typing/valid/lifetime-store-remember.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store
 typing/invalid/lifetime-store-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store
 typing/invalid/lifetime-store-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.store.call
-typing/invalid/lifetime-store-unnamed-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.type
+typing/invalid/lifetime-store-unnamed-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store
 runtime/valid/lifetime-store-list.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.store.collection
 typing/invalid/lifetime-store-element-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.element
 typing/valid/lifetime-store-field.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.field
@@ -5712,7 +5717,7 @@ runtime/valid/lifetime-trait-and-function-values-run.hd	runtime	accept	lang/07-f
 typing/invalid/static-bound-box-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
 typing/invalid/static-bound-capture-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 typing/invalid/static-bound-local-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
-typing/invalid/static-bound-unbounded-parameter-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.meets
+typing/invalid/static-bound-unbounded-parameter-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.no-local
 typing/invalid/static-bound-impl-unmet.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.generic.static.impl
 typing/invalid/static-lifetime-reference-type.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.generic.static.bound-only
 typing/invalid/lifetime-bound-two-lifetimes.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.generic.outlives.one
@@ -6614,7 +6619,7 @@ runtime/valid/span-index-of-span.hd	runtime	accept	std/collections.md#r-std-coll
 runtime/valid/a-local-trait-and-a-trait-default-name-their-enclosing-parameters.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 typing/valid/a-named-constant-reads-its-module-names-not-the-uses.hd	type	accept	lang/04-type-system.md#r-types.generic.const.named-scope
 typing/invalid/a-row-argument-key-is-an-invariant-position.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.variance.row
-typing/invalid/a-union-holding-a-local-reference-does-not-meet-static.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.meets
+typing/invalid/a-union-holding-a-local-reference-does-not-meet-static.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.no-local
 typing/invalid/a-union-member-in-a-signature-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
 typing/invalid/a-struct-holding-itself-through-a-union-is-recursive.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains
 typing/invalid/an-opaque-result-bound-argument-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied

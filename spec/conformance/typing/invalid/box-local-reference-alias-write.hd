@@ -1,0 +1,12 @@
+# test: a write through a copy of a `*mut` box of a local reference reaches every copy
+# Spec 13 Boxes: ref.box.local; Local References: ref.local.holding.counted.
+struct User:
+    name: string
+
+fn alias(a: User) -> usize:
+    b := box(&a) # diagnostic: local-reference-outlives-local
+    c := b
+    if a.name.len() > 0:
+        u := User { name: "u" }
+        *c = &u
+    b.name.len()

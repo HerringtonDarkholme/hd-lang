@@ -1769,17 +1769,13 @@ type BoundRef = (DefId, TyList);
 type AliasBody = (Vec<bool>, Ty, Vec<u16>);
 
 /// Calls `f` on each type in `t` along the paths that hold its reference
-/// slots, in [`Types::ref_slots`] order: through a local reference, `mut`,
-/// an optional, a tuple's elements and a type's arguments.
+/// slots, in [`Types::ref_slots`] order: through a reference of either
+/// kind, `mut`, an optional, a tuple's elements and a type's arguments.
 fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
     let d = pool.get(t);
     f(&d);
     match d {
-        TyData::Ref {
-            counted: false,
-            inner: i,
-            ..
-        } => slot_paths(pool, i, f),
+        TyData::Ref { inner: i, .. } => slot_paths(pool, i, f),
         TyData::Tuple { elems, rest } => {
             for &e in pool.list_items(elems).iter().chain(rest.as_ref()) {
                 slot_paths(pool, e, f);
@@ -1796,8 +1792,7 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
             }
         }
         // No path to a reference slot goes through these.
-        TyData::Ref { counted: true, .. }
-        | TyData::Prim(_)
+        TyData::Prim(_)
         | TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }

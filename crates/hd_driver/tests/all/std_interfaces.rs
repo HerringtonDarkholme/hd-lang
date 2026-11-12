@@ -426,8 +426,8 @@ fn stage_b_and_coherence_errors() {
 
 /// A signature's written lifetimes, one per local
 /// reference slot of the parameters and then the result, survive the
-/// interface blob. The program is rejected (a list of local references
-/// is `local-reference-escapes`), but its interface still builds.
+/// interface blob, a list of local references' among them
+/// (`ref.lifetime.store.argument`).
 #[test]
 fn written_lifetimes_map_reference_slots() {
     let mut s = MemorySources::default();
@@ -442,7 +442,7 @@ fn written_lifetimes_map_reference_slots() {
     );
     let out = run(&s);
     assert!(
-        out.diags
+        !out.diags
             .code
             .contains(&hd_diag::Code::LocalReferenceEscapes),
         "{}",

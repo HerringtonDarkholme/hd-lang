@@ -6,6 +6,9 @@ struct Point:
 fn same[T](value: T) -> T:
     value
 
+fn hold[U < 'static](value: U) -> void:
+    pass
+
 fn invalid() -> void:
     p := Point { x: 0 }
-    q := box(same(&p)) # diagnostic: local-reference-escapes
+    hold(same(&p)) # diagnostic: local-reference-escapes

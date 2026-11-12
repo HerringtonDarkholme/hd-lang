@@ -872,7 +872,7 @@ lang/13-values-and-references.md	11	mixed	typing/invalid/box-local-reference.hd|
 lang/13-values-and-references.md	12	mixed	typing/invalid/reference-mut-from-plain-let.hd|typing/invalid/reference-mut-from-short-binding.hd|typing/invalid/reference-mut-from-value-parameter.hd
 lang/13-values-and-references.md	13	mixed	typing/invalid/reference-shared-to-mut-argument.hd|typing/invalid/reference-shared-to-mut-result.hd
 lang/13-values-and-references.md	14	complete	-
-lang/13-values-and-references.md	15	mixed	typing/invalid/local-reference-escapes-field.hd|typing/invalid/local-reference-escapes-top-level.hd|typing/invalid/local-reference-escapes-element.hd|typing/invalid/local-reference-escapes-bound-method-result.hd|typing/invalid/local-reference-escapes-capture.hd|typing/invalid/local-reference-escapes-type-argument.hd
+lang/13-values-and-references.md	15	mixed	typing/invalid/local-reference-escapes-field.hd|typing/invalid/local-reference-escapes-top-level.hd|typing/invalid/local-reference-escapes-element.hd|typing/invalid/local-reference-escapes-bound-method-result.hd|typing/invalid/local-reference-escapes-capture.hd|typing/invalid/local-reference-escapes-trait-argument.hd
 lang/13-values-and-references.md	16	complete	-
 lang/13-values-and-references.md	17	complete	-
 lang/13-values-and-references.md	18	mixed	typing/invalid/dependent-result-without-source.hd|typing/invalid/dependent-result-ambiguous.hd|typing/invalid/dependent-result-value-parameter.hd|typing/invalid/dependent-result-store-caller-place.hd|typing/invalid/suspension-holds-local-argument.hd

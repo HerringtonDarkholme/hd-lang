@@ -1825,8 +1825,9 @@ impl<'a> Types<'a> {
     }
 
     /// The local reference slots of `t`: each `&T` and `&mut T` outside
-    /// function types and counted references, and each opaque type that
-    /// borrows (`types.opaque.borrows`), in pre-order. A signature's
+    /// function types, through counted references
+    /// (`ref.local.holding.counted`), and each opaque type that borrows
+    /// (`types.opaque.borrows`), in pre-order. A signature's
     /// written lifetimes follow this order (`FnSig::lifetimes`).
     #[must_use]
     pub fn ref_slots(self, t: Ty) -> usize {
@@ -1850,6 +1851,7 @@ impl<'a> Types<'a> {
                 inner,
                 ..
             } => 1 + self.ref_slots_at(inner, d),
+            TyData::Ref { inner, .. } => self.ref_slots_at(inner, d),
             TyData::Opaque { borrows: true, .. } => 1,
             TyData::Tuple { elems, rest } => {
                 list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))

@@ -1,5 +1,5 @@
 # test: an unbounded type parameter is no type argument for a 'static parameter
-# Spec 13 Generic Locality: ref.generic.static.meets.
+# Spec 13 Generic Locality: ref.generic.static.no-local.
 fn keep[T < 'static](value: T) -> *mut T:
     box(value)
 

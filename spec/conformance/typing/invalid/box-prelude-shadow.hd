@@ -1,5 +1,5 @@
 # test: `box` is a prelude name, so a local binding named `box` is an error
-# Spec 10 Prelude Functions: module.prelude.box, module.prelude.no-shadow; Spec 13 Boxes: ref.box.signature.
+# Spec 10 Prelude Functions: module.prelude.box, module.prelude.no-shadow; Spec 13 Boxes: ref.box.declaration.
 struct Point:
     x: i32
 

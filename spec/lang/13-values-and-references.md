@@ -229,12 +229,12 @@ fn demo() -> i32:
     holder.point.x + view.x + copy.x      # 11
 ```
 
-1. r[ref.box.signature] `std.core` declares `box` as `@intrinsic pub fn box[T < 'static](value: T) -> *mut T`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
+1. r[ref.box.declaration] `std.core` declares `box` as `@intrinsic pub fn box[T](value: T) -> *mut T`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
 2. r[ref.box.check] A `box` call is checked by the plain call rules, so `T` is inferred from the argument and the expected type as for any generic call.
 3. r[ref.box.new] `box(e)` evaluates `e` once and returns a `*mut T` to a new object that holds the value. Each call makes a new object.
 4. r[ref.box.copy] The new object holds a copy of the value. When `e` is a place, a later write to that place is not seen through the result, and a write through the result does not change the place.
 5. r[ref.box.weaken] The result converts by the rules of [Conversions](#conversions) and [Trait Value References](09-traits.md#trait-value-references), so it may be used where `*T` or `*mut dyn Tr` is expected.
-6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holding`](#r-ref.local.holding), since that type does not meet the bound `'static` ([Generic Locality](#generic-locality)). Error: `local-reference-escapes`.
+6. r[ref.box.local] When the type of `e` holds a local reference, so does the type of `box(e)`, by [`ref.local.holding.counted`](#r-ref.local.holding.counted). The result is then local: it follows every rule of [Local References](#local-references), as a `List[&T]` does.
 7. r[ref.box.object] Every counted reference refers to a whole object: one that `box` made, or one that another rule names as a new object. No expression makes a counted reference to a local, a parameter, a top-level binding, a field, or an element.
 8. r[ref.box.lifetime] A counted reference keeps the object it refers to alive. It may outlive the block that made it, and may be returned.
 9. r[ref.box.root] The local or parameter that holds the first counted reference a live local reference's place passes through, its **root**, stays alive until the reference's last use: its release, or a move of its value, waits for that use, in a suspending function's frame too.
@@ -246,8 +246,8 @@ fn demo() -> i32:
 struct Point:
     x: i32
 
-fn wrap(p: &Point) -> void:
-    b := box(p)  # error: local-reference-escapes
+struct Holder:
+    point: *(&Point)  # error: local-reference-escapes
 
 fn shadow() -> void:
     box := Point { x: 1 }  # error: prelude-name-shadow
@@ -356,8 +356,9 @@ fn demo(h: Holder) -> i32:
 1. r[ref.local.uses] A local reference may be the value of a parameter, a local binding, a call argument, or a receiver.
 2. r[ref.local.argument] Passing a local reference to a `&T` or `&mut T` parameter is valid, so a function may pass on what it was lent.
 3. r[ref.local.holding] A type **holds** a local reference when it is a local reference type, or a tuple, an optional, an instance of a generic type, or a type alias whose type or type argument holds one. An opaque type that [borrows](04-type-system.md#r-types.opaque.borrows) holds one too.
-4. r[ref.local.self.keep] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps `self` takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)). A `&self` method may still return a value that depends on `self` ([Dependent Results](#dependent-results)).
-5. r[ref.local.escape.counted] A local reference never converts to a counted one. Using one where a counted reference is expected, as for a `*T` parameter or field, is an error. Error: `local-reference-escapes`.
+4. r[ref.local.holding.counted] A counted reference type, `*T` or `*mut T`, holds a local reference when `T` holds one.
+5. r[ref.local.self.keep] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps `self` takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)). A `&self` method may still return a value that depends on `self` ([Dependent Results](#dependent-results)).
+6. r[ref.local.escape.counted] A local reference never converts to a counted one. Using one where a counted reference is expected, as for a `*T` parameter or field, is an error. Error: `local-reference-escapes`.
 
 A local reference escapes when it reaches one of these positions, and each is an error:
 
@@ -368,11 +369,11 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
 | r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
 | r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument, a [type parameter field](#r-ref.generic.outlives.field), and a [type parameter argument](#r-ref.generic.outlives.argument), a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
-| r[ref.local.escape.type-argument] Type argument | is a type argument of a trait or a trait value, or of a list or a map where [`ref.lifetime.store.type`](#r-ref.lifetime.store.type) does not allow one, written or inferred | `List[&Point]`, `dyn Store[&Point]` | `local-reference-escapes` |
+| r[ref.local.escape.trait-argument] Trait argument | is a type argument of a trait or a trait value, written or inferred | `dyn Store[&Point]` | `local-reference-escapes` |
 
-6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
-7. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
-8. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
+7. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
+8. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
+9. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
 
 ```text
 struct Point:
@@ -397,9 +398,6 @@ fn bound(p: Point) -> i32:
 
 fn reader(p: &Point) -> fn() -> i32:
     fn() -> i32: p.x  # error: local-reference-escapes
-
-fn first(points: List[&Point]) -> i32:  # error: local-reference-escapes
-    0
 ```
 
 > **Why.** Most references are lent for one call, as Swift's `inout`
@@ -970,10 +968,6 @@ fn scan(fallback: &string) -> usize:
         text := "hello"
         p = Parser { src: &text, pos: 0 }
     p.pos  # error: local-reference-outlives-local
-
-fn keep(text: string) -> void:
-    p := Parser { src: &text, pos: 0 }
-    b := box(p)  # error: local-reference-escapes
 ```
 
 1. r[ref.lifetime.struct] A top-level struct may declare lifetime parameters, as in `struct Parser[T, 'src]`.
@@ -1071,10 +1065,6 @@ fn count(fallback: &string) -> usize:
     match t:  # error: local-reference-outlives-local
         Token.Word(w) => w.len()
         Token.End => 0
-
-fn keep(text: string) -> void:
-    t := Token.Word(&text)
-    b := box(t)  # error: local-reference-escapes
 ```
 
 1. r[ref.lifetime.enum] A top-level enum may declare lifetime parameters, as in `enum Token[T, 'src]`.
@@ -1140,9 +1130,6 @@ struct User:
 fn bad['a, 'b](seen: &mut List[&'a User], u: &'b User) -> void:
     seen.push(u)  # error: local-reference-escapes
 
-fn unnamed(seen: &mut List[&User], u: &User) -> void:  # error: local-reference-escapes
-    pass
-
 struct Two['a, 'b]:
     x: &'a string
     y: &'b string
@@ -1164,7 +1151,7 @@ fn count(b: bool) -> usize:
 1. r[ref.lifetime.store] A store through a parameter's reference into a place the caller owns checks each reference position of the stored value against the lifetime that position of the place names. So `*t = Two { x: a, y: b }` is valid with `t: &mut Two['a, 'b]`, `a: &'a string` and `b: &'b string`. A store into a field checks the field's positions only ([`ref.lifetime.store.field`](#r-ref.lifetime.store.field)). The value in each position must depend only on what a result of that position's lifetime may depend on ([`ref.lifetime.return`](#r-ref.lifetime.return)). Any other such store of a value that holds a local reference is an error ([`ref.dep.store`](#r-ref.dep.store)). Error: `local-reference-escapes`.
 2. r[ref.lifetime.store.collection] A list's `push` and a map's index assignment store their value into the list's or the map's place, so `seen.push(u)` follows [`ref.lifetime.store`](#r-ref.lifetime.store) when `seen` is such a parameter.
 3. r[ref.lifetime.store.call] A `&mut` parameter whose referent has a reference position of a lifetime variable, as `seen: &mut List[&'a T]`, is a place the call may store into. So the argument's place takes what the call's arguments in that lifetime's positions depend on, as for a type parameter ([`ref.generic.store`](#r-ref.generic.store)).
-4. r[ref.lifetime.store.type] A list's or a map's type argument may hold a local reference in a function body. It may hold one in the type of a `&mut` parameter too, when each other `&` of that type writes a lifetime variable, as in `seen: &mut List[&'a User]`.
+4. r[ref.lifetime.store.argument] A type argument of a generic type may hold a local reference wherever the instance may hold one, by [`ref.local.holding`](#r-ref.local.holding): in a function body, a parameter's type, and a function's result. A list and a map follow this rule as any generic struct does, so `xs: List[&User]` and `seen: &mut List[&User]` are valid parameter types.
 5. r[ref.lifetime.store.element] A value read from a list or a map, as `seen[0]` or the result of `get`, has the origins of the collection's elements.
 6. r[ref.lifetime.store.field] A store into a field through such a reference, as `t.x = s` with `t: &mut Two['a, 'b]`, checks each reference position of the field against the lifetime that position names. This holds at any depth, as `t.inner.x = s`, through a `&mut` of a part, as `r := &mut t.inner` then `r.x = s`, and for a field of several lifetimes, as a field read does ([`ref.lifetime.struct.read.mixed`](#r-ref.lifetime.struct.read.mixed)). The value in each position must depend only on what a result of that position's lifetime may depend on.
 7. r[ref.lifetime.store.field.call] At a call, each position of a `&mut` argument's place takes only what the arguments in that position's lifetime depend on. So after `set_x(&mut t, &s)`, `t`'s `'a` position holds `s`'s origins and its `'b` position does not.
@@ -1234,7 +1221,7 @@ fn demo(u: User) -> string:
 ```
 
 1. r[ref.generic.static] A type parameter bounded by `'static`, as in `T < 'static` or `W < Display & 'static`, stands only for a type that meets `'static`.
-2. r[ref.generic.static.meets] A type meets `'static` when it holds no local reference, by [`ref.local.holding`](#r-ref.local.holding), and each type parameter it names is bounded by `'static`. A counted reference and a function type always meet it: `box` made the object from a value that met it, and a closure captures no local reference.
+2. r[ref.generic.static.no-local] A type meets `'static` when it holds no local reference, by [`ref.local.holding`](#r-ref.local.holding) and [`ref.local.holding.counted`](#r-ref.local.holding.counted), and each type parameter it names is bounded by `'static`. A function type always meets it, since a closure captures no local reference.
 3. r[ref.generic.static.error] At a call, a written or inferred type argument that does not meet `'static`, for a parameter bounded by it, is an error. Error: `local-reference-escapes`.
 4. r[ref.generic.static.impl] An implementation whose type parameter is bounded by `'static` applies only where that parameter's argument meets `'static`, as for any other bound.
 5. r[ref.generic.static.capture] A closure's capture whose type names a type parameter must meet `'static`. Error: `local-reference-escapes`.
@@ -1246,22 +1233,22 @@ fn demo(u: User) -> string:
 struct User:
     name: string
 
-fn keep[T](value: T) -> *mut T:
-    box(value)  # error: local-reference-escapes
-
 fn later[T](value: T) -> fn() -> T:
     fn() -> T: value  # error: local-reference-escapes
 
+fn hold[T < 'static](value: T) -> void:
+    pass
+
 fn wrap(u: &User) -> void:
-    b := box(u)  # error: local-reference-escapes
+    hold(box(u))  # error: local-reference-escapes
 
 fn view(u: &'static User) -> void:  # error: references-not-yet-checked
     pass
 ```
 
-> **Why.** This is Rust's `T: 'static`. A counted reference and a function
-> value carry no lifetime, so a value kept in one must hold no local
-> reference.
+> **Why.** This is Rust's `T: 'static`. A function value carries no
+> lifetime, so a value kept in one must hold no local reference. A counted
+> reference carries its referent's, as Rust's `Rc<&'a T>` does.
 
 ### Lifetime Bounds
 

@@ -1,5 +1,5 @@
 # test: an opaque value that borrows may be an element of a body's list, which holds what the value borrows
-# Spec 04 Opaque Results That Borrow: types.opaque.borrows.holds; 13 Lifetime Stores: ref.lifetime.store.type.
+# Spec 04 Opaque Results That Borrow: types.opaque.borrows.holds; 13 Lifetime Stores: ref.lifetime.store.argument.
 struct User:
     name: string
 

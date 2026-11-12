@@ -1,0 +1,17 @@
+# test: a box of a local reference is written and read through every copy
+# Spec 13 Boxes: ref.box.local, ref.box.new; Local References: ref.local.holding.counted.
+# expect-stdout: carol
+# expect-stdout: alice
+struct User:
+    name: string
+
+pub fn main() -> void $ Console:
+    a := User { name: "alice" }
+    c := User { name: "carol" }
+    b := box(&a)
+    d := b
+    *b = &c
+    let mut seen: List[*(&User)] = [d]
+    seen.push(box(&a))
+    println(seen[0].name)
+    println(seen[1].name)

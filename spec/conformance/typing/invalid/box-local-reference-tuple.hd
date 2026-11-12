@@ -1,7 +1,8 @@
-# test: `box` rejects a tuple that holds a local reference
-# Spec 13 Boxes: ref.box.no-local; Local References: ref.local.holding.
+# test: a box of a tuple that holds a local reference is local, so a stored closure cannot capture it
+# Spec 13 Boxes: ref.box.local; Local References: ref.local.holding, ref.local.escape.capture-stored.
 struct Point:
     x: i32
 
-fn wrap(p: &Point) -> void:
-    b := box((p, 1)) # diagnostic: local-reference-escapes
+fn wrap(p: &Point) -> fn() -> i32:
+    b := box((p, 1))
+    fn() -> i32: b._1 # diagnostic: local-reference-escapes

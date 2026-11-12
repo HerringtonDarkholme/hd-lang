@@ -1,7 +1,8 @@
-# test: `box` rejects a value whose type holds a local reference
-# Spec 13 Boxes: ref.box.no-local.
+# test: a box that holds a reference to a local is local, so the function cannot return it
+# Spec 13 Boxes: ref.box.local; Local References: ref.local.holding.counted.
 struct Point:
     x: i32
 
-fn wrap(p: &Point) -> void:
-    b := box(p) # diagnostic: local-reference-escapes
+fn wrap(q: &Point) -> *(&Point):
+    p := Point { x: 1 }
+    box(&p) # diagnostic: local-reference-escapes

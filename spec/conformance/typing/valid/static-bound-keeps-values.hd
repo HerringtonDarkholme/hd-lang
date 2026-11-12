@@ -1,5 +1,5 @@
 # test: a 'static parameter keeps values of types that hold no local reference
-# Spec 13 Generic Locality: ref.generic.static, ref.generic.static.meets.
+# Spec 13 Generic Locality: ref.generic.static, ref.generic.static.no-local.
 struct User:
     name: string
 

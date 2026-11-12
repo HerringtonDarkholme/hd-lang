@@ -74,7 +74,8 @@ pub(super) fn is_mut(pool: hd_types::Types<'_>, t: Ty) -> bool {
 
 /// Whether slot `k` of `l` lies behind a `&mut`, and so is invariant.
 fn under_mut(pool: hd_types::Types<'_>, l: &Layout, k: usize) -> bool {
-    (0..k.min(l.slots.len())).any(|j| l.slots[j].end > k && is_mut(pool, l.slots[j].ty))
+    l.slots.get(k).is_some_and(|s| s.shared_mut)
+        || (0..k.min(l.slots.len())).any(|j| l.slots[j].end > k && is_mut(pool, l.slots[j].ty))
 }
 
 impl Gen<'_, '_> {
@@ -188,9 +189,11 @@ impl Gen<'_, '_> {
     }
 
     /// The place `proj` reaches from `v`: a field by its field slot map, a
-    /// dereference the reference's slots after its first. An element, a
-    /// trait value with no slots or a counted reference stops at what it
-    /// is reached from.
+    /// dereference the reference's slots after its first, or a counted
+    /// reference's own when it holds a local reference
+    /// (`ref.local.holding.counted`). An element, a trait value with no
+    /// slots or another counted reference stops at what it is reached
+    /// from.
     fn project(&mut self, mut v: View, proj: &[Proj], dir: (bool, bool)) -> View {
         let (pool, mut variant) = (self.s.pool, None);
         for p in proj {
@@ -208,10 +211,19 @@ impl Gen<'_, '_> {
                 {
                     v = (v.0[1.min(v.0.len())..].to_vec(), referent(pool, v.1));
                 }
+                Proj::Deref if self.counted_holding(v.1) => v.1 = referent(pool, v.1),
                 _ => break,
             }
         }
         v
+    }
+
+    /// Whether `t` is a counted reference, to no trait value, that holds a
+    /// local reference (`ref.local.holding.counted`): its slots are its
+    /// referent's.
+    fn counted_holding(&self, t: Ty) -> bool {
+        matches!(local_ref(self.s.pool, t), Some((true, false)))
+            && !self.s.ls.of(t).slots.is_empty()
     }
 
     /// The value an element place's collection was read from, through
@@ -270,7 +282,9 @@ impl Gen<'_, '_> {
             }
             PlaceRoot::Value(v) if first == Some(Proj::Deref) => {
                 let kind = self.s.ty(v.0).and_then(|t| local_ref(self.s.pool, t));
-                if matches!(kind, Some((false, _))) {
+                if matches!(kind, Some((false, _)))
+                    || self.s.ty(v.0).is_some_and(|t| self.counted_holding(t))
+                {
                     self.val(v.0)
                 } else {
                     None
@@ -846,6 +860,13 @@ impl Gen<'_, '_> {
                 if let (Some(v), Some(&t)) = (self.val(d), b.label_inst.get(a as usize)) {
                     let to = self.val(t).expect("a label's instruction");
                     self.relate(&v, &to, false, false);
+                }
+            }
+            // A new object holds what its value holds (`ref.box.local`):
+            // the counted reference's slots are the value's.
+            Tag::Ref if self.counted_holding(me.1) => {
+                if let (_, Some(p)) = self.place(i, a, usize::MAX, (true, false)) {
+                    self.relate(&p, &me, false, false);
                 }
             }
             Tag::Ref if !me.0.is_empty() => {
