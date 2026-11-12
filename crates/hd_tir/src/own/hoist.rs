@@ -804,12 +804,10 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
             & (local_flags::PARAM | local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
             == 0;
     }
-    for r in b.sub_params.iter().skip(1) {
-        if r.len > 0 {
-            for &x in b.record(r.start) {
-                if let Some(o) = ok.get_mut(x as usize) {
-                    *o = false;
-                }
+    for sub in 1..b.sub_params.len() {
+        for &x in b.sub_param_locals(sub) {
+            if let Some(o) = ok.get_mut(x as usize) {
+                *o = false;
             }
         }
     }
@@ -940,12 +938,9 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     for (l, flags) in b.local_flags.iter().enumerate() {
         t.param[l] = flags & local_flags::PARAM != 0;
     }
-    for r in &b.sub_params {
-        for k in 0..r.len {
-            if let Some(x) = t
-                .param
-                .get_mut(b.extra[(r.start + 1 + k) as usize] as usize)
-            {
+    for sub in 0..b.sub_params.len() {
+        for &local in b.sub_param_locals(sub) {
+            if let Some(x) = t.param.get_mut(local as usize) {
                 *x = true;
             }
         }

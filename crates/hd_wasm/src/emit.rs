@@ -866,8 +866,7 @@ fn handle_once_cell_runs_its_body_once() {
 
 /// The parameter locals of closure body `sub`, in order.
 fn sub_param_locals(b: &Body, sub: u16) -> Vec<usize> {
-    let r = b.sub_params[sub as usize];
-    b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize]
+    b.sub_param_locals(sub as usize)
         .iter()
         .map(|&l| l as usize)
         .collect()
@@ -1087,8 +1086,8 @@ pub(crate) fn callee_params(
 /// flagged as parameters that belong to no closure.
 pub(super) fn param_locals(b: &Body) -> Vec<usize> {
     let mut in_sub = vec![false; b.local_ty.len()];
-    for r in &b.sub_params[1..] {
-        for &l in &b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize] {
+    for sub in 1..b.sub_params.len() {
+        for &l in b.sub_param_locals(sub) {
             if let Some(x) = in_sub.get_mut(l as usize) {
                 *x = true;
             }

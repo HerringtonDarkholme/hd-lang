@@ -94,18 +94,14 @@ fn references(b: &Body, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
         inst_refs(b, i, f)?;
     }
     for (s, r) in b.sub_params.iter().enumerate() {
-        // `[len, local...]`. A closure's (`s > 0`) is a record that
-        // readers take whole (`Body::record`, as `hd_opt::value_flow` and
-        // `own::hoist` do). The root's is read as `r.len` words only, so
-        // one with none reaches nothing: a copy's root is
-        // `Range32::default()`, whose offset 0 names an unrelated record.
-        if s > 0 {
-            record_span(b, Holder::SubParams(s), r.start, f)?;
-        } else if r.len > 0 {
+        // The range length, not the prefix word, defines its payload.
+        // Empty ranges reach nothing, including a copied body's root.
+        if r.len > 0 {
+            let payload = bounded(b, r.start, 1)?;
             f(Reach::Span {
                 at: Holder::SubParams(s),
                 start: r.start,
-                end: bounded(b, r.start, r.len + 1)?,
+                end: bounded(b, payload, r.len)?,
             });
         }
     }
@@ -486,7 +482,7 @@ fn encode(
         &mut w,
         b.sub_params
             .iter()
-            .flat_map(|r| [r.start, r.len])
+            .flat_map(|r| [if r.len == 0 { 0 } else { r.start }, r.len])
             .collect::<Vec<_>>()
             .into_iter(),
     );
@@ -990,6 +986,7 @@ mod tests {
             b.emit(Tag::Return, call.0, crate::ir::NONE, Ty::NEVER, n);
             let root = b.close_block(blk, None, Ty::NEVER, n);
             let mut body = b.finish(root, &[]).expect("verifies");
+            assert!(body.sub_param_locals(0).is_empty());
             // A dead callee record in front of every live one.
             let dead = paths.item("app", "main", "dead").raw();
             let shift = 4;
@@ -1022,11 +1019,34 @@ mod tests {
                 r.start += shift;
             }
             body.susp[0].scopes.start += shift;
+            // A nested range is authoritative even when its prefix names
+            // more words. Empty nested ranges may have unrelated or stale
+            // offsets, just like a copied body's default root.
+            let child = list + 3 + shift;
+            body.extra.extend([7, 0]);
+            for range in [
+                hd_base::Range32::new(child, 1),
+                hd_base::Range32::default(),
+                hd_base::Range32::new(u32::MAX, 0),
+            ] {
+                body.sub_root.push(root.0);
+                body.sub_params.push(range);
+                body.sub_parent.push(hd_base::SubId::from_raw(0));
+                body.sub_flags.push(0);
+            }
+            assert_eq!(body.sub_param_locals(1), &[0]);
+            assert!(body.sub_param_locals(2).is_empty());
+            assert!(body.sub_param_locals(3).is_empty());
             let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
             let back = read_body(&bytes, &pool, &paths, &syms).expect("read");
             assert_eq!(back.extra.len() + 4, body.extra.len());
             assert_eq!(back.extra[back.susp[0].scopes.start as usize], 5);
-            assert_eq!(back.record(back.sub_params[0].start), &[0]);
+            assert_eq!(back.sub_param_locals(0), &[0]);
+            assert_eq!(back.sub_param_locals(1), &[0]);
+            for sub in [2, 3] {
+                assert!(back.sub_param_locals(sub).is_empty());
+                assert_eq!(back.sub_params[sub], hd_base::Range32::default());
+            }
             let words = back.record(back.data[call.0 as usize][0]);
             assert_eq!(
                 words[1],

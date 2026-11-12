@@ -72,10 +72,10 @@ impl Index {
         }
         work!(body.local_ty.len());
         let mut params = vec![crate::own::params(body)];
-        for r in body.sub_params.iter().skip(1) {
-            work!(r.len as usize);
-            params
-                .push(body.extra[(r.start + 1) as usize..(r.start + 1 + r.len) as usize].to_vec());
+        for sub in 1..body.sub_params.len() {
+            let locals = body.sub_param_locals(sub);
+            work!(locals.len());
+            params.push(locals.to_vec());
         }
         let mut copy_roots = vec![Vec::new(); rows.len()];
         for &(sub, snapshot, creator) in &body.inlined_capture_origins {

@@ -557,8 +557,8 @@ fn index(n: usize) -> u32 {
 /// The item's parameter locals, excluding parameters of nested functions.
 fn params(body: &Body) -> Vec<usize> {
     let mut nested = vec![false; body.local_ty.len()];
-    for r in body.sub_params.iter().skip(1) {
-        for &l in body.record(r.start) {
+    for sub in 1..body.sub_params.len() {
+        for &l in body.sub_param_locals(sub) {
             nested[l as usize] = true;
         }
     }
