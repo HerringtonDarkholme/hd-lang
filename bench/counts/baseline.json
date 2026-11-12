@@ -118,7 +118,7 @@
       "released": "614481",
       "uniques": "2768400",
       "total": "3382881",
-      "noOpsAndSkipped": "37995552"
+      "noOpsAndSkipped": "21099052"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
