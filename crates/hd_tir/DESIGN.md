@@ -725,8 +725,8 @@ providers from the callee's signature row; the `Pending` form is unused.
 Every suspension point has a side record (`SuspRow`): the `Scope`s
 enclosing it from the innermost out, which are the scopes whose suites
 cancellation must run there, and its hook site. Liveness is not
-recorded; emission computes it. Not built yet: the wire form refuses a
-body with suspension rows (`src/wire.rs`), so no body writes them today.
+recorded; emission computes it. Not built yet: no stage writes them
+today, though the wire's owned section carries them (`src/wire.rs`).
 
 **Data and closures**
 
@@ -1300,16 +1300,20 @@ with its per-item interface hash), for code keys.
 | item, kind | the item's path row, the body kind |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
+| owned section | an owned body's pass columns, `susp` to `inlined_capture_origins`, `inlined` callees as path rows; written only when one is non-empty |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs
   and cannot be written. `id_words` knows the ID-carrying words of each
   tag, and a tag whose words are not mapped is refused with a structured
   error, never written with run IDs. `map_ids` rewrites a decoded body
   into another run's IDs.
-- **Checker output only.** The ownership passes run after decoding, so
-  the wire refuses their output: an ownership statement, and an
-  `exit_drops`, `unwind_drops`, `stable_lists` or `regions` row, are structured errors. A taking `Ref`
-  comes only with its local's exit row.
+- **Owned bodies too.** A checker's body has no pass output, so its
+  bytes and hash are as before. An owned body (after the ownership
+  passes) adds the owned section after the locations, for a cache of
+  std's owned bodies across builds (#1423). An ownership statement's IDs
+  are its place's; a count record holds none. A record that no
+  instruction reaches any more, such as an inlined call's callee record,
+  is still copied with the writer's IDs.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on
   every run and thread count. A module pays for this stability by

@@ -2,7 +2,8 @@
 //! `crates/hd_tir/DESIGN.md` §4.13.11): entry-local tables, then the columns,
 //! with every run ID (item, type, type list, symbol) replaced by a table
 //! row. The tables are per body, so the TIR hash is a function of the body
-//! alone (reconciliation, SK-N9).
+//! alone (reconciliation, SK-N9). An owned body, after the ownership
+//! passes, adds their columns after the locations ([`write_owned`]).
 //!
 //! Remapping knows the ID-carrying words of each tag. A tag whose words
 //! are not mapped yet is refused with a structured error, never written
@@ -17,7 +18,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, Ty, TyList};
 
-use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Tag, place};
+use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Storage, SuspRow, Tag, place};
 
 const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
@@ -128,9 +129,9 @@ fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult
         Tag::RefDyn | Tag::RefIdentity => {}
         // A global root's IDs are the place's ([`append_place_id_words`]).
         Tag::Read | Tag::Store | Tag::Ref => {}
-        // The ownership passes run after decoding, so their statements
-        // never reach the wire (`docs/compiler/tir-v2.md`, "Encoding, wire
-        // format and caching").
+        // The ownership statements of an owned body (`write_body`): a
+        // place's IDs are its own, and a count's record names a part of
+        // the instruction it counts, no ID.
         Tag::Drop
         | Tag::LoanEnd
         | Tag::Retain
@@ -138,12 +139,7 @@ fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult
         | Tag::MakeUnique
         | Tag::IsUnique
         | Tag::FlagSet
-        | Tag::FlagClear => {
-            return Err(NotImplemented::bug(
-                Stage::ModuleFinish,
-                format!("wire form of the ownership statement {}", b.tags[i].name()),
-            ));
-        }
+        | Tag::FlagClear => {}
         Tag::Prim
         | Tag::CallHost
         | Tag::CallValue
@@ -266,28 +262,12 @@ pub fn write_body(
         .iter()
         .map(|(ct, bits)| Ok((t.ty(*ct)?, *bits)))
         .collect::<StageResult<_>>()?;
-    if !b.susp.is_empty() {
-        return Err(NotImplemented::new(
-            Stage::ModuleFinish,
-            "wire form of suspension rows",
-        ));
-    }
-    // The exit and unwind sets are the ownership passes' output, which
-    // runs after decoding; lifetime regions are tier 2's.
-    if !b.exit_drops.is_empty()
-        || !b.storage.is_empty()
-        || !b.unwind_drops.is_empty()
-        || !b.live.is_empty()
-        || !b.full_cells.is_empty()
-        || !b.stable_lists.is_empty()
-        || !b.regions.is_empty()
-        || !b.anchors.is_empty()
-    {
-        return Err(NotImplemented::bug(
-            Stage::ModuleFinish,
-            "wire form of exit drops, storage, unwind drops, stable lists, lifetime regions or anchors",
-        ));
-    }
+    // The inliner's frames name their callees: IDs, in the tables.
+    let inlined: Vec<[u32; 4]> = b
+        .inlined
+        .iter()
+        .map(|&[first, len, callee, call]| [first, len, t.def(DefId::from_raw(callee)), call])
+        .collect();
     let mut w = Writer::default();
     t.write(&mut w);
     w.u32(item);
@@ -346,9 +326,169 @@ pub fn write_body(
             .collect::<Vec<_>>()
             .into_iter(),
     );
+    if owned(b) {
+        write_owned(&mut w, b, &inlined);
+    }
     let mut out = hashed.to_le_bytes().to_vec();
     out.extend_from_slice(&w.bytes);
     Ok(out)
+}
+
+/// Whether `b` holds the ownership passes' output, which only an owned
+/// body's wire form carries: a checker's body encodes as it always has.
+fn owned(b: &Body) -> bool {
+    !(b.susp.is_empty()
+        && b.exit_drops.is_empty()
+        && b.storage.is_empty()
+        && b.unwind_drops.is_empty()
+        && b.live.is_empty()
+        && b.full_cells.is_empty()
+        && b.stable_lists.is_empty()
+        && b.regions.is_empty()
+        && b.anchors.is_empty()
+        && b.inlined.is_empty()
+        && b.inlined_origins.is_empty()
+        && b.inlined_shared.is_empty()
+        && b.inlined_capture_origins.is_empty())
+}
+
+/// The owned section, after the locations: the passes' columns
+/// (`Body::susp` to `Body::inlined_capture_origins`), each a flat `u32`
+/// column of its rows; `inlined` has its callees as table rows. Outside
+/// the hashed prefix: a cache of owned bodies keys one by its checked
+/// body, never by this encoding's hash.
+fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
+    let pairs = |w: &mut Writer, v: &[(u32, u32)]| {
+        u32s(
+            w,
+            v.iter()
+                .flat_map(|&(x, y)| [x, y])
+                .collect::<Vec<_>>()
+                .into_iter(),
+        );
+    };
+    u32s(
+        w,
+        b.susp
+            .iter()
+            .flat_map(|s| [s.inst, s.scopes.start, s.scopes.len, s.hook_site])
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+    u32s(
+        w,
+        b.exit_drops
+            .iter()
+            .flat_map(|&(s, l)| [s.raw(), l.raw()])
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+    u32s(
+        w,
+        b.storage
+            .iter()
+            .flat_map(|&(s, l, k)| [s.raw(), l.raw(), k as u32])
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+    pairs(w, &b.unwind_drops);
+    w.len_of(&b.live);
+    for (point, held) in &b.live {
+        w.u32(*point);
+        u32s(w, held.iter().copied());
+    }
+    pairs(w, &b.full_cells);
+    pairs(w, &b.stable_lists);
+    pairs(w, &b.regions);
+    u32s(w, b.anchors.iter().copied());
+    u32s(
+        w,
+        inlined
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+    u32s(
+        w,
+        b.inlined_origins
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+    u32s(
+        w,
+        b.inlined_shared
+            .iter()
+            .flat_map(|&(s, row)| [s.raw(), row])
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+    u32s(
+        w,
+        b.inlined_capture_origins
+            .iter()
+            .flat_map(|&(s, a, c)| [s.raw(), a.raw(), c.raw()])
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+}
+
+/// Reads the owned section into `b` ([`write_owned`]); `None` on a
+/// malformed row.
+fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
+    let pairs = |v: Vec<u32>| v.chunks_exact(2).map(|c| (c[0], c[1])).collect();
+    b.susp = col(r)
+        .chunks_exact(4)
+        .map(|c| SuspRow {
+            inst: c[0],
+            scopes: Range32::new(c[1], c[2]),
+            hook_site: c[3],
+        })
+        .collect();
+    b.exit_drops = col(r)
+        .chunks_exact(2)
+        .map(|c| (SubId::from_raw(c[0]), LocalId::from_raw(c[1])))
+        .collect();
+    b.storage = col(r)
+        .chunks_exact(3)
+        .map(|c| {
+            let k = [Storage::Slot, Storage::Cell].get(c[2] as usize).copied()?;
+            Some((SubId::from_raw(c[0]), LocalId::from_raw(c[1]), k))
+        })
+        .collect::<Option<_>>()?;
+    b.unwind_drops = pairs(col(r));
+    for _ in 0..r.count() {
+        let point = r.u32();
+        b.live.push((point, col(r)));
+    }
+    b.full_cells = pairs(col(r));
+    b.stable_lists = pairs(col(r));
+    b.regions = pairs(col(r));
+    b.anchors = col(r);
+    b.inlined = col(r)
+        .chunks_exact(4)
+        .map(|c| Some([c[0], c[1], t.def(c[2])?.raw(), c[3]]))
+        .collect::<Option<_>>()?;
+    b.inlined_origins = col(r).chunks_exact(2).map(|c| [c[0], c[1]]).collect();
+    b.inlined_shared = col(r)
+        .chunks_exact(2)
+        .map(|c| (SubId::from_raw(c[0]), c[1]))
+        .collect();
+    b.inlined_capture_origins = col(r)
+        .chunks_exact(3)
+        .map(|c| {
+            (
+                SubId::from_raw(c[0]),
+                LocalId::from_raw(c[1]),
+                LocalId::from_raw(c[2]),
+            )
+        })
+        .collect();
+    Some(())
 }
 
 fn col(r: &mut Reader<'_>) -> Vec<u32> {
@@ -432,6 +572,9 @@ pub fn read_body(
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.fallback = col(&mut r).chunks_exact(2).map(|c| [c[0], c[1]]).collect();
+    if !r.at_end() {
+        read_owned(&mut r, &mut b, &t)?;
+    }
     if !r.ok() || b.data.len() != b.tags.len() || b.ty.len() != b.tags.len() {
         return None;
     }
@@ -467,6 +610,9 @@ pub fn map_ids(
         }
     }
     b.item = def(b.item);
+    for frame in &mut b.inlined {
+        frame[2] = def(DefId::from_raw(frame[2])).raw();
+    }
     for t in b.ty.iter_mut().chain(b.local_ty.iter_mut()) {
         *t = ty(*t);
     }
@@ -541,6 +687,78 @@ mod tests {
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
         assert_eq!(tir_hash(&bytes), tir_hash(&again));
         assert_eq!(back.item, paths2.item("app", "main", "f"));
+    }
+
+    /// An owned body's pass columns ride in the owned section, the
+    /// inliner's callee remapped like any ID; a checker's body writes no
+    /// such section, so its bytes and hash do not change.
+    #[test]
+    fn an_owned_body_round_trips_its_pass_columns_into_a_fresh_run() {
+        use crate::ir::{Storage, SuspRow};
+        use hd_base::{LocalId, Range32, SubId};
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let f = paths.item("app", "main", "f");
+        let g = paths.item("app", "main", "g");
+        let mut b = TirBuilder::new(f, BodyKind::Fn);
+        let n = NodeIdx::from_raw(0);
+        let blk = b.open_block();
+        let x = b.local(Ty::I32, syms.intern("x"), local_flags::PARAM, n);
+        let get = b.get(x, Ty::I32, n);
+        b.emit(Tag::Return, get.0, crate::ir::NONE, Ty::NEVER, n);
+        let root = b.close_block(blk, None, Ty::NEVER, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        let checked = write_body(&body, &pool, &paths, &syms).expect("wire");
+        body.susp = vec![SuspRow {
+            inst: 1,
+            scopes: Range32::new(0, 0),
+            hook_site: crate::ir::NONE,
+        }];
+        body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
+        body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Cell)];
+        body.unwind_drops = vec![(1, 2)];
+        body.live = vec![(1, vec![3, 4]), (2, vec![])];
+        body.full_cells = vec![(0, 0)];
+        body.stable_lists = vec![(2, 5)];
+        body.anchors = vec![0, crate::ir::NONE, 2];
+        body.inlined = vec![[3, 2, g.raw(), 1]];
+        body.inlined_origins = vec![[4, 1]];
+        body.inlined_shared = vec![(SubId::from_raw(0), 0)];
+        body.inlined_capture_origins = vec![(
+            SubId::from_raw(0),
+            LocalId::from_raw(1),
+            LocalId::from_raw(0),
+        )];
+        let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
+        assert_ne!(
+            tir_hash(&bytes),
+            tir_hash(&checked),
+            "the callee's path row"
+        );
+        let (pool2, paths2, syms2) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        paths2.item("zzz", "a", "b");
+        let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
+        assert_eq!(
+            back.inlined,
+            vec![[3, 2, paths2.item("app", "main", "g").raw(), 1]]
+        );
+        let mut want = body.clone();
+        want.item = back.item;
+        want.inlined = back.inlined.clone();
+        want.local_name = back.local_name.clone();
+        assert_eq!(back, want);
+        let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
+        assert_eq!(bytes, again);
+        // A checker's body reads back with no pass column.
+        let plain = read_body(&checked, &pool2, &paths2, &syms2).expect("read");
+        assert!(plain.anchors.is_empty() && plain.inlined.is_empty());
     }
 
     /// `counter.count += 1` on a top-level binding: a `Read` and a `Store`

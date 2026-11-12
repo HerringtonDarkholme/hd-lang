@@ -278,7 +278,8 @@ projection word: top 2 bits the kind
 `Read` keeps its mode in data word b. Lifetime regions (tier 2) live in
 a side column `regions: Vec<(u32, u32)>` of (instruction, region),
 sorted, empty in tier 1, so tier 1 pays nothing. `exit_drops` is a pass
-output and never reaches the wire.
+output: only an owned body's wire form carries it, in the owned section
+after the locations (`crates/hd_tir/DESIGN.md`, "The wire form").
 
 `body.x = 1.0` through `&mut Body` is then one instruction (17 bytes)
 and a five-word record (20 bytes), where today it is 41 instructions,

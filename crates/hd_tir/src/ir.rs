@@ -932,26 +932,26 @@ pub struct Body {
     /// "Ownership statements"): per row, a sub-body and an owned local of
     /// it that may still hold a value at the sub-body's one exit, which
     /// drops it. Sorted, each row once. A pass output: empty in the
-    /// checker's TIR (invariant 22), never written to the wire.
+    /// checker's TIR (invariant 22); the wire's owned section.
     pub exit_drops: Vec<(SubId, LocalId)>,
     /// Where each local lives (`own/storage.rs`): per row, a sub-body, a
     /// local and its storage there. A local with no row lives in Wasm
     /// locals. Sorted, each pair once. A pass output: empty in the
-    /// checker's TIR (invariant 22), never written to the wire.
+    /// checker's TIR (invariant 22); the wire's owned section.
     pub storage: Vec<(SubId, LocalId, Storage)>,
     /// The ownership passes' unwind set (`docs/compiler/tir-v2.md`,
     /// "Known-null"): per row, a suspension point and an owned value that
     /// may still hold a count there, which the point's cancellation, a way
     /// out the body has no jump for, releases. The exit releases the exit
     /// set on that way out too, so the locals need no rows. Sorted, each
-    /// row once. A pass output: empty in the checker's TIR (invariant 22),
-    /// never written to the wire.
+    /// row once. A pass output: empty in the checker's TIR (invariant 22);
+    /// the wire's owned section.
     pub unwind_drops: Vec<(u32, u32)>,
     /// What a suspension frame holds at each point (`own/live.rs`): per
     /// row, a point and the locals (`place::BARE_LOCAL | l`) and values
     /// a resume there may read, sorted. A point with no row saves
     /// everything. Sorted by point. A pass output: empty in the checker's
-    /// TIR (invariant 22), never written to the wire.
+    /// TIR (invariant 22); the wire's owned section.
     pub live: Vec<(u32, Vec<u32>)>,
     /// Known-null's rule 5 (`docs/compiler/tir-v2.md`, "Known-null"): per
     /// row, an instruction and an addressed local (one that a `Ref` of its
@@ -960,7 +960,7 @@ pub struct Body {
     /// with no null test. The instruction is a `Read`, `Store`, `Ref`,
     /// `IsUnique` or `Pin` of a place rooted at the local, a `Closure` that
     /// captures it, or a `Loop`. Sorted, each row once. A pass output: empty
-    /// in the checker's TIR (invariant 22), never written to the wire.
+    /// in the checker's TIR (invariant 22); the wire's owned section.
     pub full_cells: Vec<(u32, u32)>,
     /// The hoisting pass's stable list places (`docs/compiler/tir-v2.md`,
     /// "Hoisting"): per row, a `Loop` and a place word of a list whose
@@ -968,7 +968,7 @@ pub struct Body {
     /// keep the buffer's address and length in locals for the loop. The
     /// place is rooted at a local, with fields and dereferences only.
     /// Sorted, each row once. A pass output: empty in the checker's TIR
-    /// (invariant 22), never written to the wire.
+    /// (invariant 22); the wire's owned section.
     pub stable_lists: Vec<(u32, u32)>,
     /// Lifetime regions of borrows, per row an instruction and its region,
     /// sorted (`docs/compiler/tir-v2.md`, "Encoding, wire format and
@@ -981,28 +981,30 @@ pub struct Body {
     /// since the anchor is resolved against the `check` entry's body; `NONE`
     /// for an instruction the passes added. Empty in the checker's TIR,
     /// where each instruction is its own ([`Body::anchor`]). The driver
-    /// fills it before the passes and every rebuild carries it; never
-    /// written to the wire.
+    /// fills it before the passes and every rebuild carries it; the
+    /// wire's owned section.
     pub anchors: Vec<u32>,
     /// The inliner's copies, each `[first, len, callee, call]`, sorted:
     /// an anchor `INLINED | a` with `first <= a < first + len` names
     /// instruction `a - first` of the callee's checker body, which the
     /// copy's call at anchor `call` ran ([`Body::inlined_frame`]); `call`
     /// is itself `INLINED | a` of an earlier row for a copy made inside a
-    /// copy (release, bottom-up). Never written to the wire.
+    /// copy (release, bottom-up). The wire's owned section.
     pub inlined: Vec<[u32; 4]>,
     /// Sparse source-instruction overrides for dense inlined anchors: the
     /// virtual anchor and its instruction in the frame's checked body.
-    /// Sorted, pass output only; never written to the TIR wire.
+    /// Sorted, pass output only; the wire's owned section.
     pub inlined_origins: Vec<[u32; 2]>,
     /// Logical shared captures whose function values were eliminated by
     /// inlining: (creation sub-body, row in `cap_local`/`cap_mode`). Their cell
-    /// alias/loan contract survives the environment. Pass output, not wire.
+    /// alias/loan contract survives the environment. Pass output; the wire's
+    /// owned section.
     pub inlined_shared: Vec<(SubId, u32)>,
     /// Copy-capture provenance after literal elimination: (creation sub-body,
     /// snapshot local, creator local). Only captures share creator own-loan
     /// context; ordinary reference copies remain distinct aliases. Snapshots
-    /// are appended after their creators. Pass output, never TIR wire data.
+    /// are appended after their creators. Pass output; the wire's owned
+    /// section.
     pub inlined_capture_origins: Vec<(SubId, LocalId, LocalId)>,
 }
 
