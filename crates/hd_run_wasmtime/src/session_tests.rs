@@ -955,14 +955,16 @@ fn a_rebuilt_session_repeats_no_host_call() {
     let _ = std::fs::remove_file(&path);
 }
 
-/// The map's string hash key (#353, `std-hash.map.bucket-hash`) is asked
-/// of the host once and kept in a runtime global the inputs share. A map
+/// The run seed (#353, `std-hash.map.seed-replay`) is asked of the host
+/// once and kept in runtime globals the inputs share, including globals
+/// first needed by a later input. A map
 /// an earlier input built is found after an input panics, which resets the
-/// other runtime globals, and after a rebuild, which serves the key from
-/// the journal and asks the host for nothing.
+/// other runtime globals, and after a rebuild, which serves the run seed
+/// from the journal and asks the host for nothing.
 #[test]
 fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
     let inputs = [
+        "warm := +0\n",
         "let mut m: Map[string, i32] = {}\n",
         "m[\"tea\"] = +1\n",
         "m[\"cake\"] = +2\nlost := [+1][3]\n",
@@ -975,6 +977,7 @@ fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
         assert_eq!(
             codes,
             [
+                Outcome::Exit(0),
                 Outcome::Exit(0),
                 Outcome::Exit(0),
                 Outcome::Exit(3),

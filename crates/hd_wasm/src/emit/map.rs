@@ -17,8 +17,8 @@ use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
-use crate::module::{Global, HEADER, HEAP, Import, Sym, Val, mem};
-use crate::rt::{Helper, empty_buffer};
+use crate::module::{HEADER, HEAP, Val, mem};
+use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
     /// The value type of map type `t` and a local holding the address of
@@ -65,11 +65,11 @@ impl Em<'_, '_, '_> {
     /// How instruction `i`'s map hashes and compares keys whose values
     /// are `key`: an integer, `bool`, `char` or `string` through the keyed
     /// bucket hash collection chose and an inline comparison, any other
-    /// key through the `key_bucket_hash` and `Eq.eq` instances it chose.
+    /// key through the `hash_key` and `Eq.eq` instances it chose.
     /// Collection selects them for every map operation (`hd_mono`
-    /// `map_key`): std's `int_bucket_hash(u64)` or
-    /// `string_bucket_hash(string)` by the key's primitive type, else
-    /// `key_bucket_hash[K](K) -> u32` and `key_equal[K](K, K) -> bool`, so
+    /// `map_key`): std's `hash_integer(u64, u64)` or
+    /// `hash_string(string, u64)` by the key's primitive type, else
+    /// `hash_key[K](K, u64) -> u32` and `key_equal[K](K, K) -> bool`, so
     /// each takes the key's values.
     fn key_ops(&self, i: u32, key: &[Val]) -> KeyOps {
         let ops = self
@@ -92,18 +92,20 @@ impl Em<'_, '_, '_> {
     }
 
     /// Key `r` in fresh locals, and its bucket hash in one.
-    fn map_key(&mut self, r: u32, e: &Entry, ops: &KeyOps) -> StageResult<(Vec<u32>, u32)> {
+    fn map_key(&mut self, m: u32, r: u32, e: &Entry, ops: &KeyOps) -> StageResult<(Vec<u32>, u32)> {
         let kl = self.map_key_locals(r, e)?;
-        let h = self.map_hash(&kl, e, ops);
+        let h = self.map_hash(m, &kl, e, ops);
         Ok((kl, h))
     }
 
     /// The bucket hash of the key in locals `kl`, in a local.
-    fn map_hash(&mut self, kl: &[u32], e: &Entry, ops: &KeyOps) -> u32 {
+    fn map_hash(&mut self, m: u32, kl: &[u32], e: &Entry, ops: &KeyOps) -> u32 {
         let key = e.key_vals();
         for l in kl {
             self.f.get(*l);
         }
+        self.f.get(m);
+        self.f.op(I::I64Load(mem(HEAP, crate::map::SEED, 3)));
         self.f.helper(Helper::MapHash {
             key,
             ops: ops.clone(),
@@ -161,23 +163,27 @@ impl Em<'_, '_, '_> {
     /// `NewMap`: a table with room for the entries, each put in source
     /// order (`expr.map.order`), so a later equal key's value replaces the
     /// earlier one in its place (`expr.map.duplicate.last`). An empty
-    /// literal shares the static empty table. Each key's count moves in as
+    /// literal has its own zero-capacity header and seed. Each key's count moves in as
     /// a value's does: the operand is consumed, and a repeated key's put
     /// releases the count it was given.
     pub(super) fn new_map(&mut self, i: u32, items: u32) -> StageResult<()> {
         let items = self.rec(items);
         let (_, vt, e) = self.entry(self.ty(i))?;
+        let cap = if items.is_empty() {
+            0
+        } else {
+            u32::try_from((items.len() / 2).next_power_of_two().max(4)).expect("entries")
+        };
+        let m = self.f.local(Val::I32);
+        self.f.u32(cap);
+        self.f.helper(Helper::MapSeed);
+        self.f.helper(Helper::MapTable { entry: e.clone() });
+        self.f.set(m);
         if items.is_empty() {
-            let at = empty_buffer(self.m);
-            self.f.static_addr(at);
+            self.f.get(m);
             return self.store_owned(i);
         }
         let ops = self.key_ops(i, &e.key_vals());
-        let cap = u32::try_from((items.len() / 2).next_power_of_two().max(4)).expect("entries");
-        let m = self.f.local(Val::I32);
-        self.f.u32(cap);
-        self.f.helper(Helper::MapTable { entry: e.clone() });
-        self.f.set(m);
         for pair in items.chunks(2) {
             let key = self.consumed(pair[0])?;
             let kl: Vec<u32> = e.key_vals().iter().map(|v| self.f.local(*v)).collect();
@@ -185,7 +191,7 @@ impl Em<'_, '_, '_> {
                 self.src(&key, k)?;
                 self.f.set(*l);
             }
-            let h = self.map_hash(&kl, &e, &ops);
+            let h = self.map_hash(m, &kl, &e, &ops);
             let probe = self.map_find(m, h, &kl, &e, &ops);
             self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(pair[1]))?;
         }
@@ -415,7 +421,7 @@ impl Em<'_, '_, '_> {
             let (kl, h, probe) = if let Some(probe) = cached {
                 (self.map_key_locals(args[1], &e)?, probe.hash, probe.entry)
             } else {
-                let (kl, h) = self.map_key(args[1], &e, &ops)?;
+                let (kl, h) = self.map_key(m, args[1], &e, &ops)?;
                 let probe = self.map_find(m, h, &kl, &e, &ops);
                 (kl, h, probe)
             };
@@ -425,7 +431,7 @@ impl Em<'_, '_, '_> {
             self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
             return self.put_back(args[0], m);
         }
-        let (kl, h) = self.map_key(args[1], &e, &ops)?;
+        let (kl, h) = self.map_key(m, args[1], &e, &ops)?;
         let ent = self.map_find(m, h, &kl, &e, &ops);
         if matches!(op, IntrinsicOp::MapGet | IntrinsicOp::MapEntry) {
             self.map_probes.insert(
@@ -506,6 +512,14 @@ impl Em<'_, '_, '_> {
             self.f.i32(1);
             self.f.op(I::I32Sub);
             self.f.op(I::I32Store(mem(HEAP, LIVE, 2)));
+            self.f.get(m);
+            self.f.op(I::I32Load(mem(HEAP, LIVE, 2)));
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(m);
+            self.f.helper(Helper::MapSeed);
+            self.f.op(I::I64Store(mem(HEAP, crate::map::SEED, 3)));
+            self.f.op(I::End);
         }
         self.f.op(I::Else);
         self.new_variant(i, 0, &[])?;
@@ -598,7 +612,7 @@ impl Em<'_, '_, '_> {
         // A local reference takes no count of its table (`ref.count.local`):
         // the map's root lives until its last use.
         self.map_probe_refs.insert(i, (m, false));
-        let (kl, hash) = self.map_key(key, &entry, &ops)?;
+        let (kl, hash) = self.map_key(m, key, &entry, &ops)?;
         let found = self.map_find(m, hash, &kl, &entry, &ops);
         self.map_probe_unique(i, m, &entry);
 
@@ -640,27 +654,9 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `map_hash_seed`: the run's map hash key, the runtime global filled
-    /// from the host's `hash_seed` import on first use. A host that draws
-    /// 0 is asked again, and answers 0 again.
+    /// `map_hash_seed`: the next seed from the shared per-run sequence.
     pub(super) fn hash_seed(&mut self, i: u32) -> StageResult<()> {
-        let seed = self.f.local(Val::I64);
-        self.f.global_get(Global::HashSeed);
-        self.f.set(seed);
-        self.f.get(seed);
-        self.f.op(I::I64Eqz);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.call(Sym::Import(Import::new(
-            "hd:rt",
-            "hash_seed",
-            &[],
-            &[Val::I64],
-        )));
-        self.f.set(seed);
-        self.f.get(seed);
-        self.f.global_set(Global::HashSeed);
-        self.f.op(I::End);
-        self.f.get(seed);
+        self.f.helper(Helper::MapSeed);
         self.store(i)
     }
 }

@@ -3,6 +3,7 @@
 # trait.hash.typed-bytes, trait.hash.string-bytes, trait.hash.override-equivalent,
 # std-hash.default.typed-writes, std-hash.bytes.sequence.
 use std.hash.Hasher
+use std.collections.UniqMap
 
 use std.hash.{DefaultHasher, hash_of}
 
@@ -118,6 +119,16 @@ fn edge_bytes() -> List[u8]:
         255,
     ]
 
+# Raw call boundaries deliberately straddle the word and sponge boundaries.
+fn write_chunks(state: &mut dyn Hasher, bytes: List[u8], width: usize) -> void:
+    let mut part: List[u8] = []
+    for byte in bytes:
+        part.push(byte)
+        if part.len() == width:
+            state.write(part)
+            part = []
+    state.write(part)
+
 # Equal keys use different write methods for the same byte stream. Map lookups
 # therefore check its private hasher without depending on its hash algorithm.
 struct ByteKey:
@@ -133,11 +144,21 @@ impl Hash for ByteKey:
         for _index in 0..self.padding:
             state.write([23])
         if self.typed:
+            state.write([])
             write_typed(state)
             write_edges(state)
+            state.write_str("")
         else:
-            state.write(typed_bytes())
-            state.write(edge_bytes())
+            width := match self.padding % 5:
+                0 => 7
+                1 => 8
+                2 => 15
+                3 => 16
+                _ => 17
+            state.write_str("")
+            write_chunks(state, typed_bytes(), width)
+            state.write([])
+            write_chunks(state, edge_bytes(), width)
 
 tests:
     use std.testing.assert_equal
@@ -229,7 +250,7 @@ tests:
         )
 
     it("DefaultHasher typed writes match bytes across mixed call boundaries"):
-        for padding in 0..4:
+        for padding in 0..17:
             let mut typed = DefaultHasher::new()
             let mut raw = DefaultHasher::new()
             for _index in 0..padding:
@@ -242,12 +263,12 @@ tests:
             assert_equal(
                 typed.finish(),
                 raw.finish(),
-                reason="same bytes with zero to three leading bytes",
+                reason="same bytes across every 16-byte block offset",
             )
 
     it("Map keys hash equally through typed and raw writes at every word offset"):
         let mut values: Map[ByteKey, usize] = {}
-        for padding in 0..4:
+        for padding in 0..17:
             values[ByteKey { padding: padding, typed: false }] = padding + 7
             assert_equal(
                 values.get(ByteKey { padding: padding, typed: true }),
@@ -260,4 +281,21 @@ tests:
                 .Some(padding + 9),
                 reason="raw lookup finds the updated typed-written key",
             )
-        assert_equal(values.len(), 4, reason="typed and raw modes are the same keys")
+        assert_equal(values.len(), 17, reason="typed and raw modes are the same keys")
+
+    it("UniqMap keys hash equally through typed and raw writes at every block offset"):
+        let mut values = UniqMap::[ByteKey, usize].new()
+        for padding in 0..17:
+            _ := values.insert(ByteKey { padding: padding, typed: false }, padding + 7)
+            assert_equal(
+                values.get(ByteKey { padding: padding, typed: true }),
+                .Some(padding + 7),
+                reason="typed unique-map lookup finds a raw-written key",
+            )
+            _ := values.insert(ByteKey { padding: padding, typed: true }, padding + 9)
+            assert_equal(
+                values.get(ByteKey { padding: padding, typed: false }),
+                .Some(padding + 9),
+                reason="raw unique-map lookup finds the updated typed-written key",
+            )
+        assert_equal(values.len(), 17, reason="typed and raw modes are the same unique keys")

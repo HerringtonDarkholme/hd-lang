@@ -176,3 +176,5 @@ impl hd_cache::CacheStore for Shared {
 }
 
 mod owned_adapter_calls;
+
+mod map_seed_runtime;

@@ -144,7 +144,13 @@ fn bucket(key: string) -> u64:
 6. r[std-hash.default.typed-writes] `DefaultHasher` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.
 7. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
 8. r[std-hash.hash-of-local] `hash_of[T < Hash](value: T) -> u64` hashes through a mutable borrow of a local `DefaultHasher`, then returns its `finish()`.
-9. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it may differ between runs.
+9. r[std-hash.map.foldhash-fast] `Map` and `UniqMap` bucket keys by the low 32 bits of foldhash 0.2's `fast` hash.
+10. r[std-hash.map.seed-word] Each map stores one 64-bit seed.
+11. r[std-hash.map.seed-new] A new map takes its seed by mixing the run seed with the next value of a per-run counter.
+12. r[std-hash.map.seed-empty] Whenever a nonempty map becomes empty, it takes a fresh seed.
+13. r[std-hash.map.seed-copy] A copy-on-write copy of a `Map` preserves its source's seed.
+14. r[std-hash.map.seed-replay] Replaying a run's recorded seed and map operations reproduces its map seeds.
+15. r[std-hash.map.order-independent] `Map` and `UniqMap` iteration order does not depend on bucket hashes or seeds.
 
 > **Why.** FNV-1a is a few lines of hd that need only XOR and one
 > wrapping multiplication. SipHash-1-3 mixes better, but its strength is
@@ -153,19 +159,21 @@ fn bucket(key: string) -> u64:
 
 > **Note.** A fixed algorithm makes hash values reproducible, so a test
 > may assert one. It also means that keys chosen to collide stay
-> colliding, so the built-in `Map` does not bucket keys by it.
+> colliding, so `Map` and `UniqMap` do not bucket keys by it.
 
-> **Why.** Keys chosen to collide make every insertion probe the whole
-> table, and a map built from untrusted JSON takes its keys from the
-> sender. So the reference implementation buckets every key by a hash
-> under a random key that the host draws once per run, as Rust keys
-> SipHash-1-3 per process and Go seeds its hash per map. A string, or
-> the `Hash` bytes of a tuple or other key, goes through HalfSipHash-1-3;
-> an integer through the keyed multiply mix Go uses on 32-bit platforms.
-> A REPL session's journal records the key, so a rebuild replays exactly.
-> Iteration order does not depend on the hash
-> ([`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic)),
-> so the key changes no output.
+> **Why.** A fixed bucket hash lets one chosen collision pattern apply to
+> every map. [Foldhash's `fast` algorithm](https://github.com/orlp/foldhash/blob/8f878c636fda9c9e93384824ea45e06d03f009f5/src/fast.rs) hashes integer and string keys
+> efficiently, while a separate seed gives each map its own bucket hash.
+> Refreshing the seed when a map becomes empty follows
+> [Go's map seed rotation](https://github.com/golang/go/issues/25237).
+> The journal records the run seed, so rebuilding reproduces map seeds.
+> Bucket changes preserve
+> [deterministic iteration](../lang/04-type-system.md#r-types.map.order.deterministic).
+
+> **Note.** The [`Hasher` contract](../lang/09-traits.md#r-trait.hash.override-equivalent)
+> requires equivalent typed and raw writes. Generic key bytes use fast's
+> sponge as repeated single-byte writes. The implementation batches words
+> with constant state and one `Hash` call.
 
 See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
 [Lookup And Order](../lang/04-type-system.md#lookup-and-order),

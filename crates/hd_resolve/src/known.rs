@@ -108,16 +108,15 @@ pub struct KnownItems {
     pub ordering: DefId,
     pub hash: DefId,
     /// The keyed hashes a map buckets its keys by
-    /// (spec/std/hash.md#r-std-hash.map.bucket-hash): `std.hash`'s
-    /// `key_bucket_hash` for a key that is not inline,
-    /// `string_bucket_hash` for a string and `int_bucket_hash` for any
-    /// other inline key.
-    pub key_bucket_hash: DefId,
+    /// (spec/std/hash.md#r-std-hash.map.foldhash-fast): `std.hash`'s seeded
+    /// `hash_key` for a key that is not inline, `hash_string` for a string
+    /// and `hash_integer` for any other inline key.
+    pub map_key_hash: DefId,
     /// `std.hash.key_equal`, the by-value `Eq` comparison of two map keys
     /// that are not inline.
     pub key_equal: DefId,
-    pub string_bucket_hash: DefId,
-    pub int_bucket_hash: DefId,
+    pub map_string_hash: DefId,
+    pub map_integer_hash: DefId,
     pub display: DefId,
     pub debug: DefId,
     /// `std.format.dbg`, whose call the checker writes out (spec/lang/10-modules.md "Debug Printing").
@@ -337,10 +336,10 @@ impl KnownItems {
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
             hash: item("std.core", "Hash"),
-            key_bucket_hash: item("std.hash", "key_bucket_hash"),
+            map_key_hash: item("std.hash", "hash_key"),
             key_equal: item("std.hash", "key_equal"),
-            string_bucket_hash: item("std.hash", "string_bucket_hash"),
-            int_bucket_hash: item("std.hash", "int_bucket_hash"),
+            map_string_hash: item("std.hash", "hash_string"),
+            map_integer_hash: item("std.hash", "hash_integer"),
             display: item("std.format", "Display"),
             debug: item("std.format", "Debug"),
             dbg: item("std.format", "dbg"),

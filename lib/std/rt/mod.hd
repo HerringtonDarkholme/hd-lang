@@ -6,3 +6,10 @@ use std.core.Copy
 ## See [module.rt.drop.glue](../../../spec/lang/10-modules.md#r-module.rt.drop.glue).
 pub trait Drop < ?Copy:
     fn drop(&mut self) -> void
+
+# The private seed bridge shared by Map and UniqMap. The bucket algorithms
+# live in std.hash; this runtime leaf exposes no seed sequence to user code.
+# See std-hash.map.seed-new and std-hash.map.seed-replay.
+@intrinsic("map_hash_seed")
+pub fn map_hash_seed() -> u64:
+    panic("intrinsic")

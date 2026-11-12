@@ -2,9 +2,9 @@
 (module
   (import "fixture" "derive PartialOrd for Key.partial_cmp" (func $"derive PartialOrd for Key.partial_cmp" (param i32 i32) (result i32)))
   (import "fixture" "derive Eq for Key.eq" (func $"derive Eq for Key.eq" (param i32 i32) (result i32)))
-  (import "fixture" "rt:map_hash'1" (func $rt:map_hash'1 (param i32 i32 i32) (result i32)))
+  (import "fixture" "rt:map_hash'1" (func $rt:map_hash'1 (param i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32 i32 i32) (result i32)))
+  (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -160,6 +160,8 @@
     local.get $k.name.0
     local.get $k.name.1
     local.get $k.n
+    local.get $m
+    i64.load $heap offset=24
     call $rt:map_hash'1
     local.get $k.name.0
     local.get $k.name.1
@@ -175,7 +177,7 @@
       i32.const 12
       i32.mul
       i32.add
-      i32.const 24
+      i32.const 32
       i32.add
       local.get $k.name.0
       i32.const 20
@@ -214,6 +216,8 @@
     local.get $s.0
     local.get $s.1
     i32.const 1
+    local.get $m
+    i64.load $heap offset=24
     call $rt:map_hash'2
     local.get $s.0
     local.get $s.1
@@ -230,7 +234,7 @@
       i32.const 12
       i32.mul
       i32.add
-      i32.const 24
+      i32.const 32
       i32.add
       local.get $s.1
       i32.const 16

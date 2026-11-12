@@ -57,6 +57,11 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
   - `# @dump: VIEW...` names the views to generate;
   - `# @build: wasmtime release` picks the engine target and profile
     (defaults `v8`, `dev`);
+  - add `std` to `@build` to compile the case as a std test module that
+    may import internal runtime code;
+  - `# @helpers: enc std/hash/hash_integer` prints the named runtime
+    helper or exact ordinary function item path whole in `wat`; callees
+    remain imports unless separately selected;
   - `# @file: other.hd` starts an additional virtual module; following
     lines belong to it until the next `@file`. The first module defaults
     to `main.hd`; dumps and subject markers select that module only.
@@ -217,7 +222,7 @@ Every perf change reports the same table, so results compare across jobs.
   - hello.wasm in dev and release; unexplained growth blocks the commit;
   - each program's Wasm bytes;
   - the web compiler's gzip size (`node scripts/build-web-compiler.ts`;
-    2 MB is a hard cap).
+    2.5 MB is the current cap; `scripts/test-web-compiler.ts` records the owner decision).
 - **Compile time:** json release compile, cold cache, interleaved. The
   compiler must not get slower.
 - **Reference languages** (hand-written JS, MoonBit linear and wasm-gc,

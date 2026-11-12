@@ -244,12 +244,12 @@ pub trait ProgramEnv: LayoutEnv {
 
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): `std.hash.key_equal`, which compares two keys by value
-    /// through `Eq`, and `std.hash.key_bucket_hash`, the keyed hash a map
+    /// through `Eq`, and `std.hash.hash_key`, the keyed hash a map
     /// buckets a key that is not inline by.
     fn map_key_items(&self) -> Option<(DefId, DefId)>;
     /// The keyed hash a map buckets an inline key by (`crates/hd_mono/DESIGN.md`
-    /// §13.12): `std.hash.string_bucket_hash` for a `string`, else
-    /// `std.hash.int_bucket_hash`, which takes the key's bits as a `u64`.
+    /// §13.12): `std.hash.hash_string` for a `string`, else
+    /// `std.hash.hash_integer`, which takes the key's bits as a `u64`.
     fn inline_bucket_hash(&self, string: bool) -> DefId;
     /// The build's profile (`cli.profile.*`), which decides whether
     /// emitted integer arithmetic checks overflow and shift counts.
@@ -354,14 +354,14 @@ pub enum Target {
     /// field.
     KnownClosure(Hash128),
     /// A map operation on a key that is not inline
-    /// (`layout::inline_map_key`): `key_bucket_hash` and `key_equal` at the
+    /// (`layout::inline_map_key`): `hash_key` and `key_equal` at the
     /// key type (`crates/hd_mono/DESIGN.md` §13.12).
     MapKey {
         hash: CallTarget,
         eq: CallTarget,
     },
     /// A map operation on an inline key: its keyed bucket hash,
-    /// `std.hash.string_bucket_hash` or `std.hash.int_bucket_hash`
+    /// `std.hash.hash_string` or `std.hash.hash_integer`
     /// (`crates/hd_mono/DESIGN.md` §13.12); equality stays inline.
     MapInline(CallTarget),
 }
@@ -3172,7 +3172,7 @@ impl Cx<'_> {
     }
 
     /// The key operations of a map of type `map` (`crates/hd_mono/DESIGN.md` §13.12):
-    /// the keyed bucket hash of an inline key, else `key_bucket_hash` and
+    /// the keyed bucket hash of an inline key, else `hash_key` and
     /// `key_equal` at the key type, selected here so the TIR carries only
     /// the key type.
     /// A boundary map's codec belongs to no instance, so it hashes into no

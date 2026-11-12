@@ -272,8 +272,8 @@ pub fn main() -> void $ Console:
 /// strings by (#353): each key picks one 6-letter block of each pair, and
 /// both blocks of a pair lead from the same FNV state to the same state, so
 /// all 2^16 keys had one bucket hash and every insertion probed all the
-/// earlier ones, about 4 * 10^9 key comparisons. Keyed by the run's seed
-/// (`std.hash.string_bucket_hash`), they spread, and the program ends in
+/// earlier ones, about 4 * 10^9 key comparisons. With each map's seed
+/// (`std.hash.hash_string`), they spread, and the program ends in
 /// well under the bound; the old hash took over ten seconds.
 #[test]
 fn keys_chosen_to_collide_under_a_fixed_hash_stay_fast() {
@@ -311,8 +311,8 @@ pub fn main() -> void $ Console:
 /// `a << 16`, and all 65,536 keys fell into two runs of the index; as a
 /// `u64` the key sits in the high half, which the old mix folded onto the
 /// low one. Each insertion and lookup then probed half the earlier keys,
-/// about 4 * 10^9 probes over the two maps. Keyed by the run's seed
-/// (`std.hash.int_bucket_hash`), they spread.
+/// about 4 * 10^9 probes over the two maps. With each map's seed
+/// (`std.hash.hash_integer`), they spread.
 #[test]
 fn integer_keys_chosen_to_collide_under_a_fixed_mix_stay_fast() {
     let main = "\
@@ -352,7 +352,7 @@ pub fn main() -> void $ Console:
 /// all 2^15 tuples `(name, 7)`, and the derived `Entry` values that write
 /// the same bytes, had one hash. Every insertion then compared the key
 /// with all the earlier ones, about 10^9 `eq` calls over the two maps.
-/// Keyed by the run's seed (`std.hash.key_bucket_hash`), they spread.
+/// With each map's seed (`std.hash.hash_key`), they spread.
 #[test]
 fn composite_keys_chosen_to_collide_under_hash_of_stay_fast() {
     let main = "\

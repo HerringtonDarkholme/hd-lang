@@ -385,9 +385,11 @@ pub enum Global {
     /// The end of the pages that bump allocation owns: at first the heap's
     /// initial size, then the end of the pages it last grew.
     HeapEnd,
-    /// The run's map hash key (`map_hash_seed`): 0 until the first map
-    /// key is hashed, which asks the host's `hash_seed` import.
+    /// The host-provided run seed, initialized once even when it is zero.
     HashSeed,
+    HashSeedReady,
+    /// The next per-map seed's counter; shared by both map implementations.
+    MapSeedCounter,
     /// The `abandon()` depth: cancels under it abandon (§23.21).
     Aband,
     /// The `ABANDONED` bits that a frame's cancels saw.
@@ -452,6 +454,7 @@ impl Global {
     const fn val(&self) -> Val {
         match self {
             Global::Forbid
+            | Global::HashSeedReady
             | Global::HeapTop
             | Global::HeapEnd
             | Global::Aband
@@ -480,7 +483,7 @@ impl Global {
             | Global::LocalsBase
             | Global::SessionData
             | Global::Binding(_) => Val::I32,
-            Global::HashSeed => Val::I64,
+            Global::HashSeed | Global::MapSeedCounter => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
     }

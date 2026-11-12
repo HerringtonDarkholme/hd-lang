@@ -5,8 +5,9 @@
   (import "fixture" "rt:copy_elems" (func $rt:copy_elems (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:map_table" (func $rt:map_table (param i32) (result i32)))
-  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_seed" (func $rt:map_seed (result i64)))
+  (import "fixture" "rt:map_table" (func $rt:map_table (param i32 i64) (result i32)))
+  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -154,10 +155,13 @@
       call $retain
     end
     i32.const 4
+    call $rt:map_seed
     call $rt:map_table
     local.set $k.0
     local.tee $t0
     local.get $k.1
+    local.get $k.0
+    i64.load $heap offset=24
     call $rt:map_hash
     local.set $t1
     local.get $k.0
@@ -174,13 +178,17 @@
     local.get $v.0
     local.get $v.1
     call $rt:map_put
-    local.tee $k.0
+    local.set $k.0
     i32.const 65 ;; &"fixed"
     local.tee $k.1
     i32.const 5
     local.tee $t0
+    local.get $k.0
+    i64.load $heap offset=24
     call $rt:map_hash
-    local.tee $t1
+    local.set $t1
+    local.get $k.0
+    local.get $t1
     local.get $k.1
     local.get $t0
     call $rt:map_find

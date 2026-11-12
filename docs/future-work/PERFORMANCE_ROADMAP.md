@@ -150,7 +150,9 @@ Later records:
   (HalfSipHash-1-3). SipHash-1-3 with a native `i64.add` hashes 400k
   short inputs in 3 ms, as fast as FNV, against 13 ms with adds built from
   32-bit halves. So the regression comes from the missing one-instruction
-  wrapping add.
+  wrapping add. The current bucket hash is foldhash 0.2 fast with a
+  seed per map ([spec](../../spec/std/hash.md#r-std-hash.map.foldhash-fast));
+  those timings describe the earlier HalfSipHash implementation.
 - **Closures.** The closures bench runs in 292 ms on V8 and 781 ms on
   wasmtime in release, with closure specialization on
   (crates/hd_opt/DESIGN.md §8). Before specialization, #65 measured about
