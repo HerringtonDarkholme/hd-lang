@@ -217,15 +217,16 @@ and driven later with `!()`. The tuple form returns `Suspend[(A, B, ...)]`;
 `join(tasks...)` returns `Suspend[List[T]]`. Both take
 cold suspensions — plain calls, not bang calls — so `race!(fetch_user(),
 slow())` starts two candidates and keeps one. A test binds a fake store
-and a manual clock, so the timeout never actually fires. The exact rules
+and a manual clock, so the test waits no real time. The exact rules
 are in [Tasks](../../spec/std/task.md). Two bounds of the pattern are worth
 knowing before you extend it. An implementation's method must repeat the
 trait's signature, row included, so a fake store that itself suspends —
 a slow one — needs the trait to declare the row, as in
-`fn lookup!(&self, key: string) -> string $ Clock`. And a `ManualClock`'s
-`sleep!` never waits: it completes at once and advances the virtual
-time, so a test can check the fast path and the clock's reads, but not
-which of two sleeps finishes first.
+`fn lookup!(&self, key: string) -> string $ Clock`. And a `ManualClock`
+moves its virtual time only when every task is waiting: then it jumps to
+the earliest pending deadline. Concurrent sleeps overlap, so two 1 s
+sleeps under `join!` take 1 s, and a test can check which of two sleeps
+finishes first.
 
 ```hd
 use std.task.{join, race}
@@ -340,9 +341,8 @@ into a typed `Result` before returning it from the `apply!` block.
 Constructing the policy needs no `Clock`. Executing retry or timeout does,
 even with a zero backoff delay. Here `$.with` supplies a `ManualClock`, so
 `main!` needs only `Console`; without that binding, its row must also name
-`Clock`. The immediately completing attempts make this example
-deterministic; it does not use the manual clock to decide which of two
-pending sleeps wins.
+`Clock`. The attempts complete at once, so the 50 ms deadline never
+passes.
 
 A predicate supplied through `retry(backoff).when(predicate)` chooses which
 errors permit another attempt. Untimed fallback and circuit guarding add

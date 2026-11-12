@@ -1,0 +1,31 @@
+# test: under race! the earlier ManualClock deadline wins, virtual time stops there, and the cancelled loser's sleep leaves no pending deadline
+# Spec std/time Manual Clock: std-time.manual.sleep.deadline, std-time.manual.sleep.idle, std-time.manual.sleep.overlap, std-time.manual.sleep.cancel (#1533).
+# expect-stdout: fast after 1000ms
+# expect-stdout: tie first after 1000ms
+# expect-stdout: alone after 500ms
+use std.task.race
+use std.testing.assert
+use std.time.{Clock, Duration, ManualClock, Timestamp, elapsed, monotonic, ms, s, sleep}
+
+fn job!(name: string, pause: Duration) -> string $ Clock:
+    sleep!(pause)
+    name
+
+fn shown(span: Duration) -> string:
+    "after ${span.as_milliseconds()}ms"
+
+pub fn main!() -> void $ Console:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        start := monotonic()
+        winner := race!(job("slow", 2s), job("fast", 1s))
+        println("${winner} ${shown(elapsed(start))}")
+        second := monotonic()
+        tie := race!(job("tie first", 1s), job("tie second", 1s))
+        println("${tie} ${shown(elapsed(second))}")
+        # The cancelled 2 s loser above is not pending: a lone sleep
+        # jumps only to its own deadline.
+        third := monotonic()
+        alone := job!("alone", 500ms)
+        println("${alone} ${shown(elapsed(third))}")
+    assert(clock.now() == Timestamp::from_unix_milliseconds(2500), reason="1 s + 1 s + 500 ms")

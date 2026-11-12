@@ -1,0 +1,57 @@
+# test: a block_on nested in a task advances a ManualClock that a blocked outer task also sleeps on, under join! and race!, on one clock and on two
+# Spec std/time Manual Clock: std-time.manual.sleep.idle, std-time.manual.sleep.idle.nested, std-time.manual.sleep.overlap, std-time.manual.sleep.cancel (#1533).
+# expect-stdout: alone 1000
+# expect-stdout: join, outer later: 6000
+# expect-stdout: join, outer earlier: 9000
+# expect-stdout: race 10000
+# expect-stdout: two clocks 5000 3000
+use std.task.{block_on, join, race}
+use std.testing.assert_equal
+use std.time.{Clock, ManualClock, Timestamp, s}
+
+# Synchronous code that waits on the clock through its own drive.
+fn nap(clock: *mut ManualClock, seconds: i64) -> void:
+    match block_on(clock.sleep(s(seconds))):
+        .Completed(_) => pass
+        _ => panic("the nested sleep did not complete")
+
+fn sync_nap!(clock: *mut ManualClock, seconds: i64) -> string:
+    nap(clock, seconds)
+    "sync"
+
+fn task_nap!(clock: *mut ManualClock, seconds: i64) -> string:
+    clock.sleep!(s(seconds))
+    "task"
+
+fn at(clock: *mut ManualClock) -> i64:
+    clock.now().unix_milliseconds()
+
+# A nested drive of a join over both clocks.
+fn both!(a: *mut ManualClock, b: *mut ManualClock) -> void:
+    match block_on(join(a.sleep(2s), b.sleep(3s))):
+        .Completed(_) => pass
+        _ => panic("the nested join did not complete")
+
+pub fn main!() -> void $ Console:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    nap(clock, 1)
+    println("alone ${at(clock)}")
+    # The outer sleep blocks while the nested drive runs, and its deadline
+    # is later: the nested sleep ends first, at 2000, then the outer one.
+    _ := join!(task_nap(clock, 5), sync_nap(clock, 1))
+    println("join, outer later: ${at(clock)}")
+    # The outer deadline is earlier: the nested drive passes it, at 7000,
+    # and goes on to its own, at 9000; the outer sleep is then done.
+    _ := join!(task_nap(clock, 1), sync_nap(clock, 3))
+    println("join, outer earlier: ${at(clock)}")
+    # The synchronous child completes on its first poll and wins; the
+    # cancelled outer sleep moves the time no further.
+    winner := race!(task_nap(clock, 5), sync_nap(clock, 1))
+    assert_equal(winner, "sync", reason="the nested drive finished first")
+    println("race ${at(clock)}")
+    a := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    b := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    # Each clock keeps its own time: the nested drive moves `a` to 2000,
+    # short of the outer 5000, and `b` to 3000.
+    _ := join!(task_nap(a, 5), both(a, b))
+    println("two clocks ${at(a)} ${at(b)}")

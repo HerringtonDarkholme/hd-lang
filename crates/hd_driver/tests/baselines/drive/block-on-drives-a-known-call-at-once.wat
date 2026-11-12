@@ -12,7 +12,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
+  (import "fixture" "rt:idle_block" (func $rt:idle_block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
@@ -324,7 +324,7 @@
           local.set $t1
           br 1
         end
-        call $hd:rt/block
+        call $rt:idle_block
         call $rt:wake_mark
         i32.const 1
         local.set $t1

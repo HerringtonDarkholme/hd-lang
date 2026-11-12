@@ -127,6 +127,22 @@ check and the wait, because nothing runs between them
 (`req.schedule.yield-points`), and a signal in between moves the epoch
 the frame compares.
 
+**Idle hook.** std's `ManualClock` moves its virtual time only when every
+task waits (`std-time.manual.sleep.idle`). `task_idle_hook(hook)` installs
+one std function value, `fn() -> void`, in the `idle_hook` and `idle_env`
+globals; std passes a top-level function, so they own no count. Where a
+driver would wait for the host, it runs the hook through `IdleWake`: the
+root driver when its root is Pending with no `Rewake`, and `block_on`
+through `IdleBlock`, which replaces its call of the host's `block`. The
+hook advances every clock with a pending sleep and signals the wait cells
+of the sleeps that are due, which sets `Rewake`; the driver then polls
+again with no host event and takes no host completion. A hook that readied
+nothing leaves `Rewake` clear, and the driver waits for the host. Advancing
+needs no task to run, so a `block_on` nested in a task advances a clock
+that an outer, blocked task also sleeps on. A module that reaches no
+`task_idle_hook` links none of this: `IdleBlock` is the host's `block`
+alone.
+
 ### 14.5 `join!` And `race!`
 
 Generated task frames own their children and retain the results they need.

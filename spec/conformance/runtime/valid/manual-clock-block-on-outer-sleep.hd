@@ -1,0 +1,21 @@
+# test: block_on of a ManualClock sleep completes while an outer task already sleeps on the same clock; before the idle hook advanced the clock itself, this program panicked deadlock
+# Spec std/time Manual Clock: std-time.manual.sleep.idle, std-time.manual.sleep.idle.nested (#1533).
+# expect-stdout: nested sleep done at 1000
+# expect-stdout: outer sleep done at 5000
+use std.task.{block_on, join}
+use std.time.{Clock, ManualClock, Timestamp, s}
+
+fn inner(clock: *mut ManualClock) -> void:
+    _ := block_on(clock.sleep(1s))
+    println("nested sleep done at ${clock.now().unix_milliseconds()}")
+
+fn outer!(clock: *mut ManualClock) -> void:
+    clock.sleep!(5s)
+    println("outer sleep done at ${clock.now().unix_milliseconds()}")
+
+fn sync_side!(clock: *mut ManualClock) -> void:
+    inner(clock)
+
+pub fn main!() -> void $ Console:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    _ := join!(outer(clock), sync_side(clock))

@@ -873,6 +873,9 @@ fn link(
         if (input.path)(item).starts_with("std/rt.") {
             m.runtime_insts.insert(key);
         }
+        if (input.path)(item).starts_with("std/") {
+            m.std_insts.insert(key);
+        }
         if (input.path)(item).starts_with("std/rt.cycle/") {
             m.cycle_insts.insert(key);
         }

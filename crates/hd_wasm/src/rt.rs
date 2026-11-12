@@ -632,6 +632,16 @@ pub enum Helper {
     WaitPoll,
     /// `(cell)`: wakes every frame waiting on `cell`.
     WaitSignal,
+    /// `(code, env)`: installs std's idle hook (`task.rs`, std's
+    /// `ManualClock`).
+    IdleHook,
+    /// `()`: runs the idle hook, if one is installed; the drivers call it
+    /// where they would wait for the host.
+    IdleWake,
+    /// `() -> completions`: `block_on`'s wait: [`Helper::IdleWake`] first,
+    /// and no host completion when the hook readied something, else the
+    /// host's `block`.
+    IdleBlock,
     /// `race!`'s frame over a list of tasks of results `results`: part 0
     /// `(list) -> frame`, 1 its poll, 2 its cancel.
     Race {
@@ -1386,9 +1396,11 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::CancelEnter
         | H::PendingCold { .. }
         | H::WaitCell
+        | H::IdleBlock
         | H::TypeIdOf(_)
         | H::TypeInfo(_) => (0, 1),
         H::CancellationRoot
+        | H::IdleWake
         | H::EntryInit { .. }
         | H::EntryReset
         | H::Teardown
@@ -1456,6 +1468,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::WeakTypeInit
         | H::CopyElems { .. }
         | H::CancelLeave
+        | H::IdleHook
         | H::WakeSignal
         | H::All { part: 4, .. } => (2, 0),
         H::PanicWith => (4, 0),
@@ -1589,6 +1602,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::WaitCold
         | Helper::WaitPoll
         | Helper::WaitSignal
+        | Helper::IdleHook
+        | Helper::IdleWake
+        | Helper::IdleBlock
         | Helper::Race { .. }
         | Helper::RaceDrop { .. }
         | Helper::All { .. } => crate::task::helper(h, m),

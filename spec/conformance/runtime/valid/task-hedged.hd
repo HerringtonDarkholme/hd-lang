@@ -3,7 +3,7 @@
 # expect-empty-stdout: true
 use std.ops.defer
 use std.task.{Hedge, apply, hedged, race}
-use std.time.{Clock, ManualClock, Timestamp, sleep}
+use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 use std.testing.assert_equal
 
 pub fn quick!() -> Result[string, string] $ Clock:
@@ -31,7 +31,10 @@ fn replica!(
     copies.finished += 1
     .Ok("replica $number")
 
-fn cancel!(job: Suspend[Result[string, string]]) -> Result[string, string]:
+# Cancels `job` once the covering clock passes 20ms, after the hedge
+# delay of 10ms started the second copy (std-time.manual.sleep.idle).
+fn cancel!(job: Suspend[Result[string, string]]) -> Result[string, string] $ Clock:
+    sleep!(20ms)
     assert_equal(job.cancel!(), .Finished, reason="both hedge children finish cancellation")
     .Ok("canceled")
 
@@ -109,4 +112,9 @@ pub fn main!() -> void $ Clock:
         (pending_copies.started, pending_copies.finished, pending_copies.closed),
         (2, 0, 2),
         reason="both active copies are canceled and both defers run exactly once",
+    )
+    assert_equal(
+        cancel_clock.now().unix_milliseconds(),
+        20,
+        reason="the cancel waits for the covering clock",
     )

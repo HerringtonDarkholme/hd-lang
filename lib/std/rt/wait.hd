@@ -1,0 +1,29 @@
+# std.rt.wait: wait cells, the wakes that hd code sends. A runtime module,
+# so only std may use it: std.task's channels and std.time's ManualClock.
+# The compiler supplies the cell, the signal and the idle hook, since every
+# other suspension waits for a host operation
+# (r-req.combinator.intrinsic). A runtime module uses only std.core
+# (r-module.rt.leaf), so each user declares the wait frame,
+# `@intrinsic("task_wait_frame")`, whose result is a `std.task.Suspend`.
+
+## A cell that frames wait on and hd code signals.
+pub struct WaitCell:
+    pass
+
+## A new cell with no waiters.
+@intrinsic("task_wait_cell")
+pub fn wait_cell() -> *mut WaitCell:
+    panic("intrinsic")
+
+## Wakes every frame waiting on `cell`.
+@intrinsic("task_wait_signal")
+pub fn wait_signal(cell: *mut WaitCell) -> void:
+    panic("intrinsic")
+
+## Installs `hook`, which a driver runs when every task is waiting and it
+## would wait for the host (r-std-time.manual.sleep.idle). The hook wakes
+## what it readies by `wait_signal`. `hook` is a top-level function: the
+## runtime keeps no count of an environment. Installing again replaces it.
+@intrinsic("task_idle_hook")
+pub fn idle_hook(hook: fn() -> void) -> void:
+    panic("intrinsic")

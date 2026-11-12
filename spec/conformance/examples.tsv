@@ -1296,7 +1296,7 @@ std/time.md	6	type-fragment	-
 std/time.md	7	complete	runtime/valid/time-unix-milliseconds.hd
 std/time.md	8	complete	runtime/valid/clock-helpers.hd
 std/time.md	9	complete	runtime/valid/clock-elapsed.hd
-std/time.md	10	complete	runtime/valid/manual-clock.hd
+std/time.md	10	complete	runtime/valid/manual-clock.hd|runtime/valid/manual-clock-join-overlap.hd|runtime/valid/manual-clock-race-overlap.hd
 std/time.md	11	complete	runtime/valid/time-date-utc.hd
 std/time.md	12	type-fragment	-
 std/time.md	13	complete	runtime/valid/time-rfc3339-text.hd

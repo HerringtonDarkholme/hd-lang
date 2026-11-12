@@ -398,6 +398,11 @@ pub enum Global {
     /// host completions leaves a party that no wake will reach: the driver
     /// polls its root again.
     Rewake,
+    /// std's idle hook (`task_idle_hook`): its code's table slot, 0
+    /// until it is installed, and its environment. A driver about to wait
+    /// for the host runs it first (§14.4, "Idle hook").
+    IdleHook,
+    IdleEnv,
     /// The entry's pending root frame, 0 for none.
     Root,
     /// The `hd.poll` context that owns the root, plus one.
@@ -460,6 +465,8 @@ impl Global {
             | Global::Aband
             | Global::AbSeen
             | Global::Rewake
+            | Global::IdleHook
+            | Global::IdleEnv
             | Global::Root
             | Global::Owner
             | Global::WakeTab
@@ -1233,9 +1240,13 @@ pub struct Module {
     /// the inits among them and before user/module initializers, which can
     /// construct weak values.
     pub runtime_insts: BTreeSet<Hash128>,
-    /// The runtime inits whose calls do nothing once
+    /// Every `std.*` instance, the runtime's included: the inits that
+    /// `hd.init` may leave out. A program's own inits keep their calls.
+    pub std_insts: BTreeSet<Hash128>,
+    /// The std inits whose calls do nothing once
     /// [`crate::opt::constants`] took their constant stores: `hd.init`
-    /// leaves them out (#1423).
+    /// leaves them out (#1423), such as `std.time`'s list of waiting
+    /// clocks in a program that sleeps on no `ManualClock`.
     pub quiet_inits: BTreeSet<Hash128>,
     /// The instances of `@cold` functions: [`Module::finish`] lowers each
     /// direct call of one as [`Func::cold_helper`] lowers a helper's
@@ -1256,6 +1267,8 @@ pub struct Module {
     pub drain_glues: Vec<Sym>,
     /// Reachable all! nodes use generation-checked weak waker targets.
     pub wakers: bool,
+    /// A reachable idle hook: the drivers run it before they wait.
+    pub idle: bool,
     /// The types whose objects a pointer loan may hold (model A,
     /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
     /// access through a `*T` checks a borrow state.
@@ -1322,6 +1335,7 @@ impl Module {
             acyclic: Default::default(),
             cycle_insts: BTreeSet::default(),
             runtime_insts: BTreeSet::default(),
+            std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
             cold_insts: BTreeSet::default(),
             inline_counts: Default::default(),
@@ -1330,6 +1344,7 @@ impl Module {
             weak_types: BTreeSet::default(),
             drain_glues: Vec::default(),
             wakers: Default::default(),
+            idle: Default::default(),
             lent: hd_base::HashMap::default(),
             kept: hd_base::HashSet::default(),
             result_inner: hd_base::HashSet::default(),
@@ -1662,23 +1677,71 @@ impl Module {
         Ok(())
     }
 
-    /// Builds `hd.init` again without the runtime inits whose calls do
+    /// Builds `hd.init` again without the std inits whose calls do
     /// nothing, such as the allocator's in a program that never allocates:
     /// its bindings' only writes were its constant stores, which
     /// [`crate::opt::constants`] took (#1423). The final reach drops them.
-    /// A program whose runtime inits all still do something keeps its
+    /// A program whose std inits all still do something keeps its
     /// `hd.init` as it was. A program's own inits keep their calls, even
     /// an empty one.
+    /// Drops each release of a constant that holds no reference, such as
+    /// an init's release of a binding's old `.None` once
+    /// [`crate::opt::constants`] read the binding as that constant, and
+    /// answers whether it dropped one. Cost: one pass over the body.
+    fn drop_null_releases(&mut self, id: SymId) -> bool {
+        let Some(f) = self.funcs.get_mut(id.idx()).and_then(Option::as_mut) else {
+            return false;
+        };
+        let mut k = 0;
+        let mut dropped = false;
+        while k < f.body.len() {
+            let Ins::Op(Instruction::I32Const(c)) = f.body[k] else {
+                k += 1;
+                continue;
+            };
+            let mut call = k + 1;
+            while matches!(f.body.get(call), Some(Ins::Anchor(_))) {
+                call += 1;
+            }
+            let nothing = match f.body.get(call) {
+                Some(Ins::Call(callee)) => match &*self.symbols.get(*callee) {
+                    Sym::Helper(Helper::Release { vals, walk })
+                        if vals.as_slice() == [Val::I32] =>
+                    {
+                        crate::layout::releases_nothing(walk, c.cast_unsigned())
+                    }
+                    _ => false,
+                },
+                _ => false,
+            };
+            if nothing {
+                f.remove(call);
+                f.remove(k);
+                dropped = true;
+            } else {
+                k += 1;
+            }
+        }
+        if dropped {
+            f.rebuild_callees();
+        }
+        dropped
+    }
+
     fn skip_quiet_inits(&mut self) {
         let mut rebuild = Vec::new();
         // `hd.init` and each test module's `hd.init.N` are exports.
-        for &(_, id) in &self.exports {
+        let exports: Vec<SymId> = self.exports.iter().map(|&(_, id)| id).collect();
+        for id in exports {
             let inits = match &*self.symbols.get(id) {
                 Sym::Helper(Helper::EntryInit { inits }) => inits.clone(),
                 _ => continue,
             };
             let mut quiet = false;
-            for (key, _) in inits.iter().filter(|(k, _)| self.runtime_insts.contains(k)) {
+            for (key, _) in &inits {
+                if !self.std_insts.contains(key) {
+                    continue;
+                }
                 let init = self.symbols.intern(Sym::Inst(*key));
                 if self
                     .funcs
@@ -1766,6 +1829,13 @@ impl Module {
                     Sym::Helper(crate::rt::Helper::WakerNew)
                 )
             });
+        self.idle = session
+            || seen.iter().any(|s| {
+                matches!(
+                    &*self.symbols.get(s),
+                    Sym::Helper(crate::rt::Helper::IdleHook)
+                )
+            });
         let mut glues = Vec::new();
         for (k, f) in self.funcs.iter().enumerate() {
             if let Some(f) = f
@@ -1783,7 +1853,7 @@ impl Module {
             }
             f.rebuild_callees();
         }
-        if self.fixed_allocations || self.wakers || !self.drain_glues.is_empty() {
+        if self.fixed_allocations || self.wakers || self.idle || !self.drain_glues.is_empty() {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
         if !cyclic {
@@ -1879,6 +1949,21 @@ impl Module {
         };
         crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
         if !session && !self.open_world {
+            // A std init's release of its binding's old value reads the
+            // constant the fold just gave it. Dropping a release of a
+            // value that holds no reference leaves its helper's writes
+            // unreached, so the fold runs once more (#1423).
+            let mut dropped = false;
+            for key in self.init_insts.clone() {
+                if self.std_insts.contains(&key) {
+                    let init = self.symbols.intern(Sym::Inst(key));
+                    dropped |= self.drop_null_releases(init);
+                }
+            }
+            if dropped {
+                self.reach();
+                crate::opt::constants(&mut self.funcs, &self.symbols, &self.init_insts, &arity);
+            }
             self.skip_quiet_inits();
         }
         for f in self.funcs.iter_mut().flatten() {

@@ -1,0 +1,40 @@
+# test: concurrent sleeps under join! overlap in a ManualClock's virtual time: two 1 s sleeps take 1 s, and a join ends at its latest deadline
+# Spec std/time Manual Clock: std-time.manual.sleep.deadline, std-time.manual.sleep.idle, std-time.manual.sleep.overlap, std-time.helper.elapsed.virtual (#1533).
+# expect-stdout: 1 1 after 1000ms
+# expect-stdout: 3 1 2 after 3000ms
+# expect-stdout: nested 2 2 after 2000ms
+# expect-stdout: zero 0 after 0ms
+use std.task.join
+use std.testing.assert
+use std.time.{Clock, Duration, ManualClock, Timestamp, elapsed, monotonic, s, sleep}
+
+fn nap!(seconds: i64) -> i64 $ Clock:
+    sleep!(s(seconds))
+    seconds
+
+# Two sleeps in sequence beside a third: the pair ends at 2 s, as the
+# other does.
+fn pair!() -> i64 $ Clock:
+    sleep!(1s)
+    sleep!(1s)
+    2
+
+fn shown(span: Duration) -> string:
+    "after ${span.as_milliseconds()}ms"
+
+pub fn main!() -> void $ Console:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        start := monotonic()
+        let (a, b) = join!(nap(1), nap(1))
+        println("${a} ${b} ${shown(elapsed(start))}")
+        second := monotonic()
+        let (c, d, e) = join!(nap(3), nap(1), nap(2))
+        println("${c} ${d} ${e} ${shown(elapsed(second))}")
+        third := monotonic()
+        let (f, g) = join!(pair(), nap(2))
+        println("nested ${f} ${g} ${shown(elapsed(third))}")
+        fourth := monotonic()
+        let (h, i) = join!(nap(0), nap(0))
+        println("zero ${h + i} ${shown(elapsed(fourth))}")
+    assert(clock.now() == Timestamp::from_unix_milliseconds(6000), reason="1 s + 3 s + 2 s")

@@ -223,8 +223,9 @@ fn lookup_in_time!() -> Result[string, TimedOut] $ Clock:
 
 On a real clock, `lookup_in_time!` returns
 `.Err(TimedOut { limit: 1s, cleanup: .Finished })` after one second, and the
-5 second sleep is cancelled. On a `ManualClock`, every sleep completes at once,
-so `lookup!` finishes first and the result is `.Ok("value")`.
+5 second sleep is cancelled. On a `ManualClock`, the same happens in one
+second of virtual time, by
+[`std-time.manual.sleep.idle`](time.md#r-std-time.manual.sleep.idle).
 
 > **Why.** The policy uses the existing race and cancellation rules.
 > Work is polled first, so immediately completing work wins a zero-limit tie.

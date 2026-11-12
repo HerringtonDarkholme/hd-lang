@@ -18,6 +18,9 @@ use std.error.Error
 use std.text.Parse
 use std.ops.{Add, Sub, num_suffix}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
+use std.collections.Heap
+use std.ops.defer
+use std.rt.wait.{WaitCell, wait_cell, wait_signal, idle_hook}
 
 ## A distance in time, as a count of whole milliseconds, never negative.
 ## See [std-time.suffix.std.duration](../../spec/std/time.md#r-std-time.suffix.std.duration).
@@ -635,40 +638,175 @@ impl Ord for Instant:
     fn cmp(&self, other: &Instant) -> Ordering:
         self.millis.cmp(&other.millis)
 
-# The helpers `now` and `sleep!` (r-std-time.helper.now) are not written
-# yet: the prototype's std loader renames every top-level name textually
-# (src/checker/standard-library.ts), so a helper cannot share the name of
-# the `Clock` method it calls.
-
-# The deterministic `Clock` (spec/std/time.md#manual-clock): its current
-# time is its whole state. Virtual time advances only by `sleep!`, which
-# returns at once (r-std-time.manual.sleep).
+# The deterministic `Clock` (spec/std/time.md#manual-clock). Virtual time
+# moves only when every task waits: then it jumps to the earliest pending
+# deadline, as tokio's paused clock does, so concurrent sleeps overlap
+# (r-std-time.manual.sleep.idle).
+#
+# A clock's state is its `Timeline`, shared by every copy of the clock.
+# Each pending sleep has a `Due` entry in the timeline's `due`, a min-heap
+# by deadline and then start order, which shares the sleep's `Pending`
+# state: its own wait cell and whether it still waits. A timeline with a
+# pending sleep is in `idle_clocks`. When every task waits, the runtime
+# runs the idle hook, `advance_clocks`: each listed timeline moves to its
+# earliest live deadline and signals the cells of the sleeps that are due.
+# No task has to run for the time to move, so a `block_on` nested in a task
+# advances a clock that a blocked outer task also sleeps on. A sleep that
+# ends or is cancelled is no longer live; its entry is dropped when it
+# reaches the top, and a timeline with no live sleep leaves `idle_clocks`.
+# Cost: O(log n) heap work per sleep in the n pending sleeps of its clock,
+# one cell, and one wake when it is due; an idle point does O(1) work per
+# waiting clock plus the sleeps it readies, and wakes nothing else.
 ## The deterministic `Clock` provider: virtual time that a test advances.
 ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
-@derive(Debug)
 pub struct ManualClock:
-    current: Timestamp
+    timeline: *mut Timeline
+
+# The current time in milliseconds, the pending sleeps, the next start
+# order, and whether the timeline is in `idle_clocks`, with its link.
+struct Timeline:
+    current: i64
+    due: Heap[Due]
+    next: u64
+    listed: bool
+    next_idle: *mut Timeline?
+
+# A pending sleep's deadline in milliseconds, its start order, and its
+# state. The order is reversed, so `Heap`'s largest is the earliest
+# deadline, and the first started among equal ones.
+struct Due:
+    deadline: i64
+    seq: u64
+    sleep: *mut Pending
+
+# A sleep's wait cell, and whether the sleep still waits.
+struct Pending:
+    cell: *mut WaitCell
+    live: bool
+
+impl Eq for Due:
+    fn eq(&self, other: &Due) -> bool:
+        self.deadline == other.deadline && self.seq == other.seq
+
+impl PartialOrd for Due:
+    fn partial_cmp(&self, other: &Due) -> Ordering?:
+        .Some(self.cmp(other))
+
+impl Ord for Due:
+    fn cmp(&self, other: &Due) -> Ordering:
+        match other.deadline.cmp(&self.deadline):
+            .Equal => other.seq.cmp(&self.seq)
+            order => order
+
+# The timelines that have a pending sleep, linked through `next_idle`.
+# Its init stores a constant that only a ManualClock sleep overwrites, so a
+# program that sleeps on no ManualClock runs no init for it.
+let mut idle_clocks: *mut Timeline? = .None
+
+# The idle hook (std.rt.wait): advances every listed timeline once, and
+# unlinks the timelines that no longer have a live sleep.
+fn advance_clocks() -> void:
+    let mut previous: *mut Timeline? = .None
+    let mut at = idle_clocks
+    while true:
+        match at:
+            .None => return
+            .Some(timeline) =>
+                next := timeline.next_idle
+                if timeline.advance():
+                    previous = .Some(timeline)
+                else:
+                    timeline.listed = false
+                    timeline.next_idle = .None
+                    match previous:
+                        .None => idle_clocks = next
+                        .Some(kept) => kept.next_idle = next
+                at = next
+
+impl Timeline:
+    # The earliest live pending sleep, after dropping the dead entries above it.
+    fn earliest(&mut self) -> Due?:
+        while true:
+            top := self.due.peek()?
+            if top.sleep.live:
+                return .Some(top)
+            _ := self.due.pop()
+        .None
+
+    # At an idle point: move the time to the earliest live deadline and
+    # wake every sleep that is due. True when a live sleep remains.
+    fn advance(&mut self) -> bool:
+        first := match self.earliest():
+            .Some(due) => due
+            .None => return false
+        if first.deadline > self.current:
+            self.current = first.deadline
+        while true:
+            match self.earliest():
+                .Some(due) =>
+                    if due.deadline > self.current:
+                        return true
+                    _ := self.due.pop()
+                    due.sleep.live = false
+                    wait_signal(due.sleep.cell)
+                .None => return false
+        false
+
+    # Waits until the current time reaches `deadline`.
+    fn wait!(timeline: *mut Timeline, deadline: i64) -> void:
+        seq := timeline.next
+        timeline.next = seq + 1
+        cell := wait_cell()
+        sleep := box(Pending { cell: cell, live: true })
+        timeline.due.push(Due { deadline: deadline, seq: seq, sleep: sleep })
+        if !timeline.listed:
+            timeline.listed = true
+            timeline.next_idle = idle_clocks
+            idle_clocks = .Some(timeline)
+        idle_hook(advance_clocks)
+        defer(fn() -> void: sleep.live = false)
+        while timeline.current < deadline:
+            let woken: Suspend[void] = wait_frame(cell)
+            woken!()
 
 impl ManualClock:
     ## Returns a `ManualClock` whose current time starts at `start`.
     ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
     pub fn new(start: Timestamp) -> *mut ManualClock:
         # Boxed because the returned clock is installed as a provider and advanced later.
-        box(ManualClock { current: start })
+        timeline := box(
+            Timeline { current: start.millis, due: Heap::new(), next: 0, listed: false, next_idle: .None },
+        )
+        box(ManualClock { timeline: timeline })
+
+# A frame that completes once `cell` is signalled after the call
+# (std.rt.wait).
+@intrinsic("task_wait_frame")
+fn wait_frame(cell: *mut WaitCell) -> Suspend[void]:
+    panic("intrinsic")
+
+# `ManualClock` debugs as its current time, its only state that a reader
+# sees; the pending sleeps are the scheduler's.
+impl Debug for ManualClock:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        out.debug_struct("ManualClock").field("current", self.now()).finish()
 
 impl Clock for ManualClock:
     fn now(self) -> Timestamp:
-        self.current
+        Timestamp::from_unix_milliseconds(self.timeline.current)
 
     # The monotonic origin is the Unix epoch (r-std-time.manual.monotonic).
     fn monotonic(self) -> Instant:
-        Instant::from_milliseconds(self.current.millis)
+        Instant::from_milliseconds(self.timeline.current)
 
-    # A zero duration leaves the time as it is (r-std-time.manual.sleep.zero).
+    # A zero duration leaves the time as it is and returns at once
+    # (r-std-time.manual.sleep.zero). Otherwise the sleep waits until
+    # the time reaches its deadline (r-std-time.manual.sleep.idle).
     fn sleep!(&mut self, duration: Duration) -> void:
-        self.current = Timestamp::from_unix_milliseconds(
-            self.current.millis + duration.as_milliseconds(),
-        )
+        if duration.as_milliseconds() == 0:
+            return
+        deadline := self.timeline.current + duration.as_milliseconds()
+        Timeline::wait!(self.timeline, deadline)
 
 # `Duration` and `Instant` serialize to every format, and so to the host
 # boundary, as their whole milliseconds; a `Timestamp` serializes as its

@@ -10,6 +10,11 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             assert_equal(page!(7), "user-7 has 2 orders", reason="joined page")
+        assert_equal(
+            clock.now().unix_milliseconds(),
+            120i64,
+            reason="the sleeps overlap: 120 ms, not 200",
+        )
 
 # ── plumbing ──────────
 use std.task.join

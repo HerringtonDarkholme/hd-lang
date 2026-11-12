@@ -3695,6 +3695,14 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::WaitCold);
                 self.store_owned(i)
             }
+            // Installs the hook that the drivers run when every task
+            // waits (§14.4, "Idle hook"), for std's `ManualClock`.
+            "task_idle_hook" => {
+                self.comp(args[0], 0)?;
+                self.comp(args[0], 1)?;
+                self.f.helper(Helper::IdleHook);
+                Ok(())
+            }
             "task_wait_signal" => {
                 self.comp(args[0], 0)?;
                 self.f.helper(Helper::WaitSignal);
@@ -4128,12 +4136,9 @@ impl Em<'_, '_, '_> {
             self.f.op(Instruction::Br(1));
             self.f.op(Instruction::End);
         }
-        self.f.call(Sym::Import(crate::module::Import::new(
-            "hd:rt",
-            "block",
-            &[],
-            &[Val::I32],
-        )));
+        // The host's `block`, after the idle hook when one is installed
+        // (§14.4, "Idle hook").
+        self.f.helper(Helper::IdleBlock);
         self.f.helper(Helper::WakeMark);
         if fused.is_some() {
             self.f.op(Instruction::End);

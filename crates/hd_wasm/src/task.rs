@@ -346,6 +346,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::WaitCold => wait_cold(m),
         Helper::WaitPoll => wait_poll(m),
         Helper::WaitSignal => wait_signal(m),
+        Helper::IdleHook => idle_hook(m),
+        Helper::IdleWake => idle_wake(m),
+        Helper::IdleBlock => idle_block(m),
         Helper::Race {
             part,
             results,
@@ -1769,6 +1772,17 @@ pub fn root_poll(
     }
     f.set(ready);
     f.op(Instruction::End);
+    if m.idle {
+        // Every task waits: run the idle hook before the host waits
+        // (§14.4, "Idle hook").
+        f.get(ready);
+        f.global_get(Global::Rewake);
+        f.op(Instruction::I32Or);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::IdleWake);
+        f.op(Instruction::End);
+    }
     f.get(ready);
     f.op(Instruction::I32Eqz);
     f.global_get(Global::Rewake);
@@ -2081,6 +2095,60 @@ fn wait_signal(m: &Module) -> Func {
     f.op(Instruction::End);
     f.i32(1);
     f.global_set(Global::Rewake);
+    f
+}
+
+/// [`Helper::IdleHook`]: `(code, env)`, installs std's idle hook, a
+/// function value of type `fn() -> void`, in [`Global::IdleHook`] and
+/// [`Global::IdleEnv`]. std passes a top-level function, whose
+/// environment is empty, so the globals own no count. Installing it again
+/// replaces it.
+fn idle_hook(m: &Module) -> Func {
+    let mut f = m.func("rt:idle_hook", vec![Val::I32, Val::I32], vec![]);
+    f.get(0);
+    f.global_set(Global::IdleHook);
+    f.get(1);
+    f.global_set(Global::IdleEnv);
+    f
+}
+
+/// [`Helper::IdleWake`]: `()`, runs the idle hook once, if one is
+/// installed: the drivers call it where every task waits and they would
+/// wait for the host. The hook signals the wait cells of what it made
+/// ready, which sets `Rewake`; a hook that readied nothing leaves it
+/// clear, and the driver waits for the host. Cost: one global read when no
+/// hook is installed.
+fn idle_wake(m: &Module) -> Func {
+    let mut f = m.func("rt:idle_wake", vec![], vec![]);
+    f.global_get(Global::IdleHook);
+    f.op(Instruction::If(BlockType::Empty));
+    // A function value's call: its environment, then the context of its
+    // empty row, through its code's table slot (`emit/closure.rs`).
+    f.global_get(Global::IdleEnv);
+    f.i32(0);
+    f.global_get(Global::IdleHook);
+    f.call_indirect(vec![Val::I32, Val::I32], vec![]);
+    f.op(Instruction::End);
+    f
+}
+
+/// [`Helper::IdleBlock`]: `() -> completions`, `block_on`'s wait. With an
+/// idle hook reachable, the hook runs first; when it readied something,
+/// no host completion is taken and the driver's next poll follows at
+/// once, so the hook's `Rewake` is cleared. Else the host's `block`.
+fn idle_block(m: &Module) -> Func {
+    let mut f = m.func("rt:idle_block", vec![], vec![Val::I32]);
+    if m.idle {
+        f.helper(Helper::IdleWake);
+        f.global_get(Global::Rewake);
+        f.op(Instruction::If(BlockType::Empty));
+        f.i32(0);
+        f.global_set(Global::Rewake);
+        f.i32(0);
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
+    f.call(Sym::Import(Import::new("hd:rt", "block", &[], &[Val::I32])));
     f
 }
 

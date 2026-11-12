@@ -3419,6 +3419,10 @@ typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-st
 runtime/valid/seeded-random.hd	runtime	accept	std/random.md#seeded-random
 runtime/valid/manual-clock.hd	runtime	accept	std/time.md#manual-clock
 runtime/valid/manual-clock-handle-shared.hd	runtime	accept	std/time.md#r-std-time.manual.new-ref
+runtime/valid/manual-clock-join-overlap.hd	runtime	accept	std/time.md#r-std-time.manual.sleep.overlap
+runtime/valid/manual-clock-race-overlap.hd	runtime	accept	std/time.md#r-std-time.manual.sleep.idle
+runtime/valid/manual-clock-block-on-outer-sleep.hd	runtime	accept	std/time.md#r-std-time.manual.sleep.idle.nested
+runtime/valid/manual-clock-block-on-nested.hd	runtime	accept	std/time.md#r-std-time.manual.sleep.idle.nested
 runtime/valid/time-properties.hd	runtime	accept	std/time.md#r-std-time.duration.parse
 runtime/valid/time-values-copy.hd	runtime	accept	std/time.md#r-std-time.date.decl-struct
 runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers

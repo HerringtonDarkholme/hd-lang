@@ -1,5 +1,5 @@
 # test: monotonic() and elapsed(start) read the covering Clock provider, so timing a block under ManualClock gives the slept total
-# Spec std/time Clock Helpers: std-time.helper.monotonic, std-time.helper.elapsed, std-time.helper.elapsed.manual (#370).
+# Spec std/time Clock Helpers: std-time.helper.monotonic, std-time.helper.elapsed, std-time.helper.elapsed.virtual (#370).
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, elapsed, monotonic, ms, s, sleep}
 
 fn timed_sum() -> Duration $ Clock:

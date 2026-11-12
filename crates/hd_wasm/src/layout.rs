@@ -685,6 +685,27 @@ pub enum Walk {
     Switch(Box<Discr>, Vec<Option<Walk>>),
 }
 
+/// Whether releasing the one-value constant `c` walked by `walk` releases
+/// nothing: an enum whose variant `c` encodes has no counted payload, such
+/// as `.None` of a `*T?`. Conservative: any other walk may release.
+#[must_use]
+pub fn releases_nothing(walk: &Walk, c: u32) -> bool {
+    let Walk::Switch(discr, arms) = walk else {
+        return false;
+    };
+    if discr.value != 0 || discr.leaf.offset != 0 {
+        return false;
+    }
+    let encoded = (0..u32::try_from(arms.len()).unwrap_or(u32::MAX))
+        .find(|v| matches!(discr.enc.is(*v), Is::Eq(x) if x == c));
+    let variant = match (encoded, discr.enc) {
+        (Some(v), _) => v,
+        (None, Enc::Niche { untagged, .. }) => untagged,
+        (None, Enc::Direct) => return false,
+    };
+    matches!(arms.get(variant as usize), Some(None))
+}
+
 impl Walk {
     /// The walk with each value index `k` replaced by `to(k)`.
     #[must_use]
@@ -2011,6 +2032,65 @@ mod tests {
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
     use super::*;
+
+    #[test]
+    fn only_a_constant_of_a_payload_free_variant_releases_nothing() {
+        let leaf = Leaf {
+            offset: 0,
+            val: Val::I32,
+            bytes: 4,
+            signed: false,
+        };
+        let niche = Enc::Niche {
+            untagged: 1,
+            first: 0,
+            last: 0,
+            start: 0,
+            bytes: 4,
+        };
+        let option = |enc| {
+            Walk::Switch(
+                Box::new(Discr {
+                    leaf,
+                    value: 0,
+                    enc,
+                }),
+                vec![None, Some(Walk::Known(0))],
+            )
+        };
+        assert!(
+            releases_nothing(&option(niche), 0),
+            "`.None` holds no reference"
+        );
+        assert!(
+            !releases_nothing(&option(niche), 8),
+            "an address is `.Some`"
+        );
+        assert!(
+            !releases_nothing(&option(Enc::Direct), 1),
+            "tag 1 has a payload"
+        );
+        assert!(
+            !releases_nothing(&option(Enc::Direct), 7),
+            "no variant is tag 7"
+        );
+        assert!(
+            !releases_nothing(&Walk::Known(0), 0),
+            "only an enum is read"
+        );
+        let second = Walk::Switch(
+            Box::new(Discr {
+                leaf,
+                value: 1,
+                enc: niche,
+            }),
+            vec![None, None],
+        );
+        assert!(
+            !releases_nothing(&second, 0),
+            "only a one-value enum is read"
+        );
+    }
 
     fn caches_are_absent() -> bool {
         MEMS.with(|m| m.borrow().is_none())

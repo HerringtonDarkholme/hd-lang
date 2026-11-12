@@ -10,6 +10,7 @@ use std.function.{Fn, FnMut}
 use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
 use std.collections.Deque
+use std.rt.wait.{WaitCell, wait_cell, wait_signal}
 
 ## A configuration that wraps work and declares the resulting type.
 ## See [std-task.layer.decl](../../spec/std/task.md#r-std-task.layer.decl).
@@ -426,7 +427,7 @@ fn cleanup_deadline![T](
 # A suspension that never completes: each poll answers Pending and
 # registers no wake, and a cancel only marks it cancelled. The compiler
 # supplies it, since every suspension hd code can build completes once a
-# host operation or a child does, and a `ManualClock` sleep never waits.
+# host operation, a child or a signalled wait cell does.
 @intrinsic("task_pending_frame")
 fn pending_frame[T]() -> Suspend[T]:
     panic("intrinsic")
@@ -553,22 +554,8 @@ impl[T < 'static] Receiver[T]:
             next!()
         .None
 
-# A cell that frames wait on and hd code signals. The compiler supplies
-# it, its wait frame, and the signal, since every other suspension waits
-# for a host operation (r-req.combinator.intrinsic).
-struct WaitCell:
-    pass
-
-@intrinsic("task_wait_cell")
-fn wait_cell() -> *mut WaitCell:
-    panic("intrinsic")
-
-# A frame that completes once `cell` is signalled after the call.
+# A frame that completes once `cell` is signalled after the call
+# (std.rt.wait).
 @intrinsic("task_wait_frame")
 fn wait_frame(cell: *mut WaitCell) -> Suspend[void]:
-    panic("intrinsic")
-
-# Wakes every frame waiting on `cell`.
-@intrinsic("task_wait_signal")
-fn wait_signal(cell: *mut WaitCell) -> void:
     panic("intrinsic")

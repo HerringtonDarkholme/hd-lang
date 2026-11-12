@@ -297,7 +297,7 @@ fn timed_sum() -> Duration $ Clock:
 2. r[std-time.helper.sleep] `std.time` declares `pub fn sleep!(duration: Duration) -> void $ Clock`, which calls `sleep!(duration)` on that provider.
 3. r[std-time.helper.monotonic] `std.time` declares `pub fn monotonic() -> Instant $ Clock`, which returns `monotonic()` of the `Clock` provider that covers the call.
 4. r[std-time.helper.elapsed] `std.time` declares `pub fn elapsed(since: Instant) -> Duration $ Clock`, which returns `monotonic().since(since)`: the time from `since` to the provider's monotonic reading now.
-5. r[std-time.helper.elapsed.manual] Under a `ManualClock`, `elapsed(start)` is the total that was slept since `start` was read.
+5. r[std-time.helper.elapsed.virtual] Under a `ManualClock`, `elapsed(start)` is the virtual time that passed since `start` was read. Concurrent sleeps overlap in it, by [`std-time.manual.sleep.idle`](#r-std-time.manual.sleep.idle).
 
 > **Why.** Timing a block is two lines, as Go's `time.Since` and Rust's
 > `Instant::elapsed` make it. The helpers take the provider from the
@@ -307,16 +307,23 @@ fn timed_sum() -> Duration $ Clock:
 ### Manual Clock
 
 `ManualClock` is the deterministic `Clock` provider. Its virtual time
-moves only when code sleeps, and a sleep returns at once:
+moves only when every task is waiting: then it jumps to the earliest
+deadline of a pending sleep. Concurrent sleeps overlap, so two 1 s sleeps
+under `join!` take 1 s:
 
 ```text
-use std.time.{Clock, ManualClock, Timestamp, s}
+use std.task.{join, race}
+use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 fn wait_twice!() -> Timestamp $ Clock:
     let mut clock = $.use(Clock)
     clock.sleep!(2s)
     clock.sleep!(3s)
     clock.now()
+
+fn nap!(seconds: i64) -> i64 $ Clock:
+    sleep!(s(seconds))
+    seconds
 
 tests:
     use std.testing.assert
@@ -325,21 +332,35 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             assert(wait_twice!() == Timestamp::from_unix_milliseconds(5000), reason="five virtual seconds")
+
+    it("overlaps concurrent sleeps"):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=clock):
+            _ := join!(nap(1), nap(1))
+            assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="one second, not two")
+            assert(race!(nap(3), nap(1)) == 1, reason="the earlier deadline wins")
+            assert(clock.now() == Timestamp::from_unix_milliseconds(2000), reason="one more second")
 ```
 
 1. r[std-time.manual.decl-ref] `std.time` declares the struct `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`. Its `sleep!` takes `&mut self`, as the trait's does, so a `ManualClock` serves as a provider through a reference to it.
-2. r[std-time.manual.state] A `ManualClock`'s only state is its current time, a `Timestamp`.
+2. r[std-time.manual.state.pending] A `ManualClock`'s state is its current time, a `Timestamp`, and its pending sleeps, each with a deadline.
 3. r[std-time.manual.new-ref] `ManualClock::new(start: Timestamp) -> *mut ManualClock` returns a clock whose current time is `start`, a new object. A provider installed from that reference, and every copy of it, share the one clock, so a sleep through the provider moves the clock the caller holds.
 4. r[std-time.manual.now] `now` returns the current time.
 5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_milliseconds(m)`, where `m` is the current time in milliseconds since the Unix epoch.
-6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. The `duration` is added to the current time.
+6. r[std-time.manual.sleep.deadline] `sleep!(duration)` has the deadline of the current time plus `duration`. It is pending until the current time reaches its deadline, and then it completes.
 7. r[std-time.manual.sleep.zero] A zero `duration` leaves the current time unchanged.
-8. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
-9. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
+8. r[std-time.manual.sleep.idle] When every task is waiting, the current time jumps to the earliest deadline of the clock's pending sleeps, and every sleep whose deadline it reached completes. A task that waits for a host operation is waiting too.
+9. r[std-time.manual.sleep.idle.nested] Inside a `block_on` drive, every task is waiting when nothing that the drive polls can run. A task outside the drive, blocked until the drive returns, is waiting too, so a sleep under `block_on` completes even when a blocked outer task sleeps on the same clock.
+10. r[std-time.manual.sleep.overlap] Concurrent sleeps on one clock overlap, so two sleeps of 1 s under `join!` complete together after 1 s of virtual time, and under `race!` the earlier deadline wins.
+11. r[std-time.manual.sleep.cancel] A cancelled sleep is no longer pending.
+12. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
+13. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
 
-> **Why.** Virtual time advances by itself. A test of a timeout or a
-> backoff sleeps through it in no real time and needs no extra call. A
-> test that only moves the clock calls `sleep!` on it.
+> **Why.** Virtual time advances by itself, as tokio's paused clock
+> advances to the next timer when its runtime is idle. A test of a
+> timeout or a backoff sleeps through it in no real time and needs no
+> extra call, and a race between two sleeps ends as it would on a real
+> clock. A test that only moves the clock calls `sleep!` on it.
 
 See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 [Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers).

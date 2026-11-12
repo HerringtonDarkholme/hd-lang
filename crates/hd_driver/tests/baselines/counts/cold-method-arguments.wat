@@ -11,7 +11,7 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
-  (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
+  (import "fixture" "rt:idle_block" (func $rt:idle_block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
@@ -701,7 +701,7 @@
           i32.const 0
           global.set $rewake
         else
-          call $hd:rt/block
+          call $rt:idle_block
           call $rt:wake_mark
         end
         i32.const 1
@@ -777,7 +777,7 @@
           i32.const 0
           global.set $rewake
         else
-          call $hd:rt/block
+          call $rt:idle_block
           call $rt:wake_mark
         end
         i32.const 1
