@@ -1,0 +1,45 @@
+# ruled out: this std-only test deliberately violates module.rt.drop.snapshot.
+# It documents the checked failure boundary, not a valid user program or a
+# guarantee about arbitrary invariant-violating hooks. Public drain borrowing
+# excludes this snapshot/read sequence; no compiler ceiling is being added.
+use std.annotation.cold
+use std.core.Copy
+use std.rt.Drop
+
+fn check_count(actual: usize, expected: usize) -> void:
+    if actual != expected:
+        panic("the destructor changed a value snapshot")
+
+struct Counter:
+    value: usize
+
+struct Resource:
+    counter: *mut Counter
+    target: *mut List[usize]
+
+impl !Copy for Resource
+
+impl Drop for Resource:
+    fn drop(&mut self) -> void:
+        self.counter.value += 1
+        self.target.push(9)
+
+@cold
+fn effect(counter: *mut Counter, target: *mut List[usize]) -> void:
+    value := Resource { counter: counter, target: target }
+    _ := value.counter.value
+
+@cold
+fn observe(counter: *mut Counter, target: *mut List[usize]) -> usize:
+    copied := *target
+    effect(counter, target)
+    copied.len()
+
+pub fn main() -> void:
+    counter := box(Counter { value: 0 })
+    target := box([1usize])
+    observed := observe(counter, target)
+    if observed != 1:
+        panic("violated Drop snapshot invariant: length $observed")
+    check_count(counter.value, 1)
+    check_count(target.len(), 2)
