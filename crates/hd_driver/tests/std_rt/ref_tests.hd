@@ -176,6 +176,110 @@ fn add_made(h: &mut CountHolder, n: i64) -> void:
         make_unique(&mut h.store, copy_count).n += i
         i += 1
 
+# Two writes of a parameter's box with nothing between that could share
+# it: the second test reads the flag the first one set.
+fn make_twice(h: &mut CountHolder, a: i64, b: i64) -> void:
+    make_unique(&mut h.store, copy_count).n = a
+    make_unique(&mut h.store, copy_count).n += b
+
+# Counts `k` up and returns it: a call in a loop's test, which runs on
+# every check of the test, so the loop's writes stay in it.
+fn next_k(k: &mut i64) -> i64:
+    *k += 1
+    *k
+
+fn add_while_counting(h: &mut CountHolder, n: i64) -> void:
+    let mut k: i64 = 0
+    while next_k(&mut k) <= n:
+        make_unique(&mut h.store, copy_count).n += k
+
+# The inner loop writes on each of its iterations.
+fn add_grid(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        let mut j: i64 = 0
+        while j < n:
+            make_unique(&mut h.store, copy_count).n += 1
+            j += 1
+        i += 1
+
+# A match whose one arm always runs.
+fn add_matched(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        match i:
+            _ => make_unique(&mut h.store, copy_count).n += i
+        i += 1
+
+fn pick(h: &mut CountHolder) -> &mut CountHolder:
+    h
+
+# The place is behind a call's result, which the passes don't follow.
+fn add_picked(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut pick(h).store, copy_count).n += i
+        i += 1
+
+# The copy is a function value, not an item.
+fn add_with(h: &mut CountHolder, n: i64, copy: fn(&Count) -> Count) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy).n += i
+        i += 1
+
+# The holder is itself a counted box.
+fn add_boxed(h: *mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy_count).n += i
+        i += 1
+
+fn add_with_a_call(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    let mut calls: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy_count).n += i
+        next_k(&mut calls)
+        i += 1
+
+# A new box replaces the place's on one iteration.
+fn add_resetting(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy_count).n += i
+        if i == 1:
+            h.store = box(Count { n: 100 })
+        i += 1
+
+# Another holder's box replaces the place's on one iteration.
+fn add_sharing(h: &mut CountHolder, other: &CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy_count).n += i
+        if i == 1:
+            h.store = other.store
+        i += 1
+
+# A box in a plain local.
+fn sum_in_a_local(start: *Count, n: i64) -> i64:
+    let mut p = start
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut p, copy_count).n += i
+        i += 1
+    p.n
+
+fn tick!(k: i64) -> i64:
+    k + 1
+
+# A loop that suspends on each iteration.
+fn add_suspending!(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy_count).n += i
+        i = tick!(i)
+
 # Each iteration shares the box before its write, so each write copies it;
 # the shared copies keep the counts before each write.
 fn add_shared(h: &mut CountHolder, n: i64) -> List[i64]:
@@ -397,6 +501,43 @@ tests:
         assert(h.store.n == 12 && keep.n == 6, "the shared box keeps its value")
         add_made(&mut h, 0)
         assert(h.store.n == 12, "an empty loop writes nothing")
+
+    it("two writes of a parameter's box test its count once"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        keep := h.store
+        make_twice(&mut h, 4, 3)
+        assert(h.store.n == 7 && keep.n == 0, "the first write copied the shared box")
+        make_twice(&mut h, 1, 1)
+        assert(h.store.n == 2, "an unshared box is written in place")
+
+    it("make_unique loops the passes leave alone write each iteration"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        keep := h.store
+        add_while_counting(&mut h, 3)
+        assert(h.store.n == 6 && keep.n == 0, "a loop with a call in its test")
+        add_grid(&mut h, 3)
+        assert(h.store.n == 15, "an inner loop")
+        add_matched(&mut h, 3)
+        assert(h.store.n == 18, "a match arm that always runs")
+        add_picked(&mut h, 3)
+        assert(h.store.n == 21, "a place behind a call")
+        add_with(&mut h, 3, copy_count)
+        assert(h.store.n == 24, "a copy function value")
+        add_with_a_call(&mut h, 3)
+        assert(h.store.n == 27, "a loop that calls a writing function")
+        shared := h.store
+        add_resetting(&mut h, 4)
+        assert(h.store.n == 105 && shared.n == 27, "a new box stored in the loop")
+        other := CountHolder { store: box(Count { n: 50 }) }
+        add_sharing(&mut h, &other, 4)
+        assert(h.store.n == 55 && other.store.n == 50, "a shared box stored in the loop")
+        let boxed: *mut CountHolder = box(CountHolder { store: box(Count { n: 1 }) })
+        add_boxed(boxed, 3)
+        assert(boxed.store.n == 4, "a holder in a box")
+        p := box(Count { n: 10 })
+        assert(sum_in_a_local(p, 4) == 16 && p.n == 10, "a box in a local")
+        add_suspending!(&mut h, 3)
+        assert(h.store.n == 58, "a loop that suspends")
 
     it("a loop that shares the box on each iteration copies it on each write"):
         let mut h = CountHolder { store: box(Count { n: 0 }) }
