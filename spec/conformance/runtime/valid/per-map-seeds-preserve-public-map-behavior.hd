@@ -1,0 +1,185 @@
+# test: separate map seeds preserve iteration, lookup, emptying, and reuse
+# expect: test
+# Spec std/hash: std-hash.map.order-independent, std-hash.map.seed-empty.
+use std.collections.UniqMap
+
+fn key(index: usize) -> string:
+    "key-é-${index % 7}-$index"
+
+fn fill_map(values: &mut Map[string, usize]) -> void:
+    let index = 0
+    while index < 80:
+        values[key(index)] = index
+        index += 1
+
+fn fill_unique(values: &mut UniqMap[string, usize]) -> void:
+    let index = 0
+    while index < 80:
+        _ := values.insert(key(index), index)
+        index += 1
+
+fn map_keys(values: Map[string, usize]) -> List[string]:
+    let mut keys: List[string] = []
+    for (name, _) in values:
+        keys.push(*name)
+    keys
+
+fn unique_keys(values: &UniqMap[string, usize]) -> List[string]:
+    let mut keys: List[string] = []
+    for name in values.keys():
+        keys.push(name)
+    keys
+
+fn empty_map() -> Map[usize, usize]:
+    {}
+
+tests:
+    use std.testing.assert_equal
+
+    it("independent maps keep the same public order"):
+        let mut first: Map[string, usize] = {}
+        let mut second: Map[string, usize] = {}
+        fill_map(&mut first)
+        fill_map(&mut second)
+        assert_equal(map_keys(first), map_keys(second), reason="different map seeds preserve order")
+        let mut copy = first
+        copy["extra"] = 80
+        first["extra"] = 80
+        assert_equal(map_keys(first), map_keys(copy), reason="copy-on-write keeps public order")
+        assert_equal(second.get("extra"), .None, reason="the earlier snapshot is unchanged")
+        assert_equal(first.get("extra"), .Some(80), reason="the changed map finds its new key")
+
+    it("maps remain usable after removing their last entry"):
+        let mut first: Map[string, usize] = {}
+        let mut second: Map[string, usize] = {}
+        fill_map(&mut first)
+        fill_map(&mut second)
+        let index = 0
+        while index < 80:
+            assert_equal(
+                first.remove(key(index)),
+                .Some(index),
+                reason="remove finds the first map key",
+            )
+            assert_equal(
+                second.remove(key(index)),
+                .Some(index),
+                reason="remove finds the second map key",
+            )
+            index += 1
+        assert_equal(first.is_empty(), true, reason="all entries were removed")
+        fill_map(&mut first)
+        fill_map(&mut second)
+        assert_equal(
+            map_keys(first),
+            map_keys(second),
+            reason="fresh seeds preserve reused map order",
+        )
+        assert_equal(first.get(key(79)), .Some(79), reason="the final reinserted key is found")
+
+    it("retained and drained maps can be reused"):
+        let mut first: Map[string, usize] = {}
+        let mut second: Map[string, usize] = {}
+        fill_map(&mut first)
+        fill_map(&mut second)
+        first.retain(fn(_key: &string, _value: &mut usize) -> bool: false)
+        second.retain(fn(_key: &string, _value: &mut usize) -> bool: false)
+        assert_equal(first.is_empty(), true, reason="retain can remove every map entry")
+        fill_map(&mut first)
+        fill_map(&mut second)
+        assert_equal(
+            map_keys(first),
+            map_keys(second),
+            reason="retain preserves seed-independent order",
+        )
+        _ := first.drain()
+        _ := second.drain()
+        assert_equal(first.is_empty(), true, reason="dropping a map drain leaves it empty")
+        fill_map(&mut first)
+        fill_map(&mut second)
+        assert_equal(map_keys(first), map_keys(second), reason="drain preserves map order")
+        assert_equal(first.get(key(0)), .Some(0), reason="drained map storage accepts keys again")
+
+    it("independent unique maps keep the same public order"):
+        let mut first = UniqMap::[string, usize].new()
+        let mut second = UniqMap::[string, usize].new()
+        fill_unique(&mut first)
+        fill_unique(&mut second)
+        assert_equal(
+            unique_keys(&first),
+            unique_keys(&second),
+            reason="unique map order ignores seeds",
+        )
+        let index = 0
+        while index < 80:
+            assert_equal(
+                first.remove(key(index)),
+                .Some(index),
+                reason="remove finds the first unique key",
+            )
+            assert_equal(
+                second.remove(key(index)),
+                .Some(index),
+                reason="remove finds the second unique key",
+            )
+            index += 1
+        assert_equal(first.is_empty(), true, reason="the unique map becomes empty")
+        fill_unique(&mut first)
+        fill_unique(&mut second)
+        assert_equal(
+            unique_keys(&first),
+            unique_keys(&second),
+            reason="reuse preserves unique map order",
+        )
+        assert_equal(first.get(key(79)), .Some(79), reason="a reinserted unique key is found")
+
+    it("cleared and drained unique maps can be reused"):
+        let mut first = UniqMap::[string, usize].new()
+        let mut second = UniqMap::[string, usize].new()
+        fill_unique(&mut first)
+        fill_unique(&mut second)
+        first.clear()
+        second.clear()
+        assert_equal(first.is_empty(), true, reason="clear empties the map")
+        fill_unique(&mut first)
+        fill_unique(&mut second)
+        assert_equal(
+            unique_keys(&first),
+            unique_keys(&second),
+            reason="clear preserves seed-independent order",
+        )
+        first.retain(fn(_key: &string, _value: &mut usize) -> bool: false)
+        second.retain(fn(_key: &string, _value: &mut usize) -> bool: false)
+        assert_equal(first.is_empty(), true, reason="retain can remove every unique map entry")
+        fill_unique(&mut first)
+        fill_unique(&mut second)
+        assert_equal(
+            unique_keys(&first),
+            unique_keys(&second),
+            reason="retain preserves unique map order",
+        )
+        _ := first.drain()
+        _ := second.drain()
+        assert_equal(first.is_empty(), true, reason="dropping a drain empties the map")
+        fill_unique(&mut first)
+        fill_unique(&mut second)
+        assert_equal(
+            unique_keys(&first),
+            unique_keys(&second),
+            reason="drain preserves seed-independent order",
+        )
+        assert_equal(
+            first.get(key(0)),
+            .Some(0),
+            reason="drained storage accepts the first key again",
+        )
+
+    it("empty Map values keep their owners across calls, copies, and mutation"):
+        original := empty_map()
+        copy := original
+        assert_equal(original.len(), 0)
+        assert_equal(copy.len(), 0)
+        let mut changed = copy
+        changed[7] = 11
+        assert_equal(original.len(), 0)
+        assert_equal(changed.get(7), .Some(11))

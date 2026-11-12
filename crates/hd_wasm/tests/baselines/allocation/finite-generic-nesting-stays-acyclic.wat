@@ -2,11 +2,12 @@
 (module
   (import "fixture" "rt:list_buf'1" (func $rt:list_buf'1 (param i32) (result i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
-  (import "fixture" "rt:map_table'1" (func $rt:map_table'1 (param i32) (result i32)))
-  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_seed" (func $rt:map_seed (result i64)))
+  (import "fixture" "rt:map_table'1" (func $rt:map_table'1 (param i32 i64) (result i32)))
+  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put'1" (func $rt:map_put'1 (param i32 i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:map_table'2" (func $rt:map_table'2 (param i32) (result i32)))
+  (import "fixture" "rt:map_table'2" (func $rt:map_table'2 (param i32 i64) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
@@ -30,14 +31,19 @@
     local.get $t0
     i32.store $heap offset=16
     i32.const 4
+    call $rt:map_seed
     call $rt:map_table'1
-    local.tee $t0
+    local.set $t0
     i32.const 65 ;; &"inner"
     local.tee $t2
     i32.const 5
     local.tee $t3
+    local.get $t0
+    i64.load $heap offset=24
     call $rt:map_hash
-    local.tee $t4
+    local.set $t4
+    local.get $t0
+    local.get $t4
     local.get $t2
     local.get $t3
     call $rt:map_find'1
@@ -51,14 +57,19 @@
     call $rt:map_put'1
     local.set $t0
     i32.const 4
+    call $rt:map_seed
     call $rt:map_table'2
-    local.tee $t2
+    local.set $t2
     i32.const 70 ;; &"outer"
     local.tee $t3
     i32.const 5
     local.tee $t4
+    local.get $t2
+    i64.load $heap offset=24
     call $rt:map_hash
-    local.tee $t5
+    local.set $t5
+    local.get $t2
+    local.get $t5
     local.get $t3
     local.get $t4
     call $rt:map_find'2

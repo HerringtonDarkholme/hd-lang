@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release std
+# @helpers: std/hash/hash_integer
+# expected: foldhash's numeric path uses fixed 32-bit products and folds;
+# no byte loads, hasher allocation, or loop appears in the integer hash.
+use std.hash.hash_integer
+
+fn bucket(value: u64, seed: u64) -> u32:
+    hash_integer(value, seed)
+    #^^^^^^^^^^^^^^^^^^^^^^^^

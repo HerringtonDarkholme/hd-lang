@@ -935,25 +935,32 @@ Each operation implements collection value semantics (§15.2;
 `crates/hd_mono/DESIGN.md` §13.12), using the table's count for copy-on-write.
 
 - **The table.** A map is the address of one counted block: the live and written entry counts, the owner word (at a list
-  buffer's offset), the capacity, the rebuild count, then an index of entry numbers plus one (0 empty) twice the
+  buffer's offset), the capacity, the rebuild count, alignment padding,
+  the 64-bit seed, then an index of entry numbers plus one (0 empty) twice the
   capacity long, each entry's hash (-1 once removed), and the entries
   in the order they were added, each a `(K, V)` record laid out as a
   tuple. Probing is linear from the hash's low bits; the index is at
   most half full, so a probe always meets an empty slot.
 - **Keys.** A key hashes and compares through the operations collection
-  chose: an integer, `bool` or `char` through `int_bucket_hash` over its
-  bits zero-extended and `i32.eq` or `i64.eq`, a string through
-  `string_bucket_hash` and a byte comparison, any other key through its
-  `key_bucket_hash` and `key_equal` instances, which take the key by
-  value (`key_equal` lends both to `Eq.eq`). `map_hash_seed` is a runtime
-  global filled from the host's `hd:rt.hash_seed` on first use.
+  chose: an integer, `bool` or `char` through `std.hash.hash_integer`
+  over its bits zero-extended and `i32.eq` or `i64.eq`, a string through
+  `hash_string` and a byte comparison, any other key through its
+  `hash_key` and `std.hash.key_equal` instances, which take the key by
+  value (`key_equal` lends both to `Eq.eq`). Foldhash 0.2 fast uses each
+  map's stored seed and returns the low 32 bits
+  (`std-hash.map.foldhash-fast`). `map_hash_seed` mixes the host's
+  recorded `hd:rt.hash_seed` with a per-run counter; construction and
+  emptying take a fresh seed, while growth and copy-on-write keep it.
+  The stored fingerprint clears bit 31 to reserve -1 for tombstones;
+  map capacities stay below 2^29, so this encoding changes no bucket bit.
 - **Literals and puts.** A literal makes a table with room for its
   entries and puts each in source order (`expr.map.order`). A put of an
   equal key replaces the value in the entry's place
   (`expr.map.duplicate.last`) and releases the key it was given; a new
   key appends an entry. The table takes a count of each key and value it
-  keeps. Every empty literal shares the static empty buffer of §23.17,
-  now 16 zero bytes, which is an empty table too.
+  keeps. An empty literal allocates its own zero-capacity table with a
+  32-byte payload holding its fresh seed; the allocation header adds
+  eight bytes.
 - **Growth.** A put into a full table moves the live entries in order
   into a new table, of twice the capacity (at least 4) when at least half
   are live and of the same capacity otherwise, rebuilds the index from
@@ -1731,7 +1738,7 @@ reads, and the counts of the code it generates.
   releases it, including its hooks, after a target that only borrows it.
   Other native arguments and the receiver stay lent, as host stubs
   expect; the slot counts what its target owns of those. Other generated
-  code lends what it passes: the map glue's `key_bucket_hash` and `eq`
+  code lends what it passes: the map glue's `hash_key` and `key_equal`
   calls (`KeyOps`), the boundary's encoders and `host_provider` count
   a copy of each argument the target owns (`rt::own_arg`); a boundary
   decoder hands its fresh string's count to the codec.

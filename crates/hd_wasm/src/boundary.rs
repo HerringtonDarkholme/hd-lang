@@ -2750,6 +2750,7 @@ fn dec_map(f: &mut Func, mp: &LMap) {
     f.i32(4);
     f.op(I::I32GtU);
     f.op(I::Select);
+    f.helper(Helper::MapSeed);
     f.helper(Helper::MapTable { entry: e.clone() });
     f.set(t);
     f.op(I::Block(BlockType::Empty));
@@ -2763,6 +2764,8 @@ fn dec_map(f: &mut Func, mp: &LMap) {
     for l in &key {
         f.get(*l);
     }
+    f.get(t);
+    f.op(I::I64Load(mem(HEAP, crate::map::SEED, 3)));
     f.helper(Helper::MapHash {
         key: e.key_vals(),
         ops: mp.ops.clone(),

@@ -15,24 +15,25 @@ use hd_types::Ty;
 
 use crate::Input;
 use crate::layout::{Leaf, Pass, Walk};
-use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
+use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
 use crate::rt::{Helper, LIST_OWN, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), the owner word at a list buffer's
 /// ([`LIST_OWN`]), the entry capacity (0 or a power of two), how many
-/// times growth rebuilt the entries, then the index, the hashes and the
-/// entries.
+/// times growth rebuilt the entries, a 64-bit per-map seed, then the index,
+/// the hashes and the entries.
 pub const LIVE: u64 = 0;
 pub const USED: u64 = 4;
 pub const CAP: u64 = 12;
 pub const GROWN: u64 = 16;
-pub const INDEX: u32 = 24;
+pub const SEED: u64 = 24;
+pub const INDEX: u32 = 32;
 
 /// How a map hashes and compares its key (`crates/hd_mono/DESIGN.md`
 /// §13.12): an inline key through the keyed bucket hash collection chose
 /// and an inline comparison, any other through the key type's
-/// `key_bucket_hash` and `Eq.eq` instances.
+/// `hash_key` and `Eq.eq` instances.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum KeyOps {
     /// An integer, `bool` or `char` in one `i32`, hashed as its bits
@@ -43,7 +44,7 @@ pub enum KeyOps {
     /// A string, hashed over its bytes; equal by its bytes. With the walk
     /// of the hash's parameter when the hash owns it (`layout::Pass`).
     Str(Hash128, Option<Walk>),
-    /// The key type's `key_bucket_hash` and `Eq.eq`. With the walk of
+    /// The key type's `hash_key` and `Eq.eq`. With the walk of
     /// each of their parameters that the callee owns: the hash's key, then
     /// `eq`'s two.
     Call {
@@ -124,8 +125,8 @@ impl Entry {
 impl KeyOps {
     /// The key operations collection selected as `target` (`hd_mono`
     /// `map_key`), for keys whose values are `key`: std's
-    /// `int_bucket_hash(u64)` or `string_bucket_hash(string)` by the key's
-    /// primitive type, else `key_bucket_hash[K](K) -> u32` and
+    /// `hash_integer(u64, u64)` or `hash_string(string, u64)` by the key's
+    /// primitive type, else `hash_key[K](K, u64) -> u32` and
     /// `key_equal[K](K, K) -> bool`, so each takes the key's values.
     pub(crate) fn of(input: &Input<'_>, m: &Module, target: &Target, key: &[Val]) -> Self {
         // The walk of parameter `k` of a key operation's instance when
@@ -303,9 +304,60 @@ fn load_entry(f: &mut Func, entry: &Entry, from: usize, to: usize) -> Vec<u32> {
     ls
 }
 
-/// [`Helper::MapTable`]: `(cap) -> table`, empty, its index cleared.
+/// [`Helper::MapSeed`]: bijective `SplitMix64` finalization of the run
+/// seed plus an odd counter stride. Distinct counter values yield distinct
+/// seeds within a run. Constant work and one counter increment per seed;
+/// replay supplies the same run seed and replays the same creation order.
+/// Prior art: Vigna's public-domain `SplitMix64`, <https://prng.di.unimi.it/splitmix.c>.
+pub fn seed(m: &Module) -> Func {
+    let mut f = m.func("rt:map_seed", vec![], vec![Val::I64]);
+    let value = f.local(Val::I64);
+    f.global_get(Global::HashSeedReady);
+    f.op(I::I32Eqz);
+    f.op(I::If(BlockType::Empty));
+    f.call(Sym::Import(Import::new(
+        "hd:rt",
+        "hash_seed",
+        &[],
+        &[Val::I64],
+    )));
+    f.global_set(Global::HashSeed);
+    f.i32(1);
+    f.global_set(Global::HashSeedReady);
+    f.op(I::End);
+    f.global_get(Global::MapSeedCounter);
+    f.op(I::I64Const(0x9e37_79b9_7f4a_7c15_u64.cast_signed()));
+    f.op(I::I64Add);
+    f.op(I::LocalTee(value));
+    f.global_set(Global::MapSeedCounter);
+    f.get(value);
+    f.global_get(Global::HashSeed);
+    f.op(I::I64Add);
+    f.set(value);
+    for (shift, factor) in [
+        (30, 0xbf58_476d_1ce4_e5b9_u64),
+        (27, 0x94d0_49bb_1331_11eb_u64),
+    ] {
+        f.get(value);
+        f.get(value);
+        f.op(I::I64Const(shift));
+        f.op(I::I64ShrU);
+        f.op(I::I64Xor);
+        f.op(I::I64Const(factor.cast_signed()));
+        f.op(I::I64Mul);
+        f.set(value);
+    }
+    f.get(value);
+    f.get(value);
+    f.op(I::I64Const(31));
+    f.op(I::I64ShrU);
+    f.op(I::I64Xor);
+    f
+}
+
+/// [`Helper::MapTable`]: `(cap, seed) -> table`, empty, its index cleared.
 pub fn table(m: &Module, entry: &Entry) -> Func {
-    let mut f = m.func("rt:map_table", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:map_table", vec![Val::I32, Val::I64], vec![Val::I32]);
     let t = f.local(Val::I32);
     if let Some(most) = (u32::MAX - INDEX - HEADER).checked_div(12 + entry.size) {
         f.get(0);
@@ -325,6 +377,9 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
         store_u32(&mut f, t, at, &|f| f.i32(0));
     }
     store_u32(&mut f, t, CAP, &|f| f.get(0));
+    f.get(t);
+    f.get(1);
+    f.op(I::I64Store(mem(HEAP, SEED, 3)));
     f.get(t);
     f.u32(INDEX);
     f.op(I::I32Add);
@@ -359,18 +414,22 @@ pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
     f
 }
 
-/// [`Helper::MapHash`]: `(key...) -> i32`, the keyed bucket hash, made
+/// [`Helper::MapHash`]: `(key..., seed) -> i32`, the keyed bucket hash, made
 /// non-negative.
 pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
-    let mut f = m.func("rt:map_hash", key.to_vec(), vec![Val::I32]);
+    let mut params = key.to_vec();
+    params.push(Val::I64);
+    let mut f = m.func("rt:map_hash", params, vec![Val::I32]);
     match ops {
         KeyOps::I32(h) => {
             f.get(0);
             f.op(I::I64ExtendI32U);
+            f.get(n32(key.len()));
             f.call(Sym::Inst(*h));
         }
         KeyOps::I64(h) => {
             f.get(0);
+            f.get(n32(key.len()));
             f.call(Sym::Inst(*h));
         }
         KeyOps::Str(h, own)
@@ -388,6 +447,7 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
             for k in 0..key.len() {
                 f.get(n32(k));
             }
+            f.get(n32(key.len()));
             f.call(Sym::Inst(*h));
         }
     }
@@ -717,6 +777,8 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
     f.set(ncap);
     f.op(I::End);
     f.get(ncap);
+    f.get(t);
+    f.op(I::I64Load(mem(HEAP, SEED, 3)));
     f.helper(Helper::MapTable {
         entry: entry.clone(),
     });
@@ -964,4 +1026,112 @@ pub fn hash_address(f: &mut Func, t: u32, e: u32) {
     f.i32(4);
     f.op(I::I32Mul);
     f.op(I::I32Add);
+}
+
+#[cfg(test)]
+mod seed_tests {
+    use super::*;
+
+    #[test]
+    fn map_headers_keep_seeds_across_copies_growth_and_replay()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // Reuse the assembler harness's bounded bump allocator and
+        // non-freeing count stubs; this oracle inspects real map helpers'
+        // header/seed behavior, without testing the allocator again.
+        let mut m = Module::default();
+        let entry = Entry {
+            size: 0,
+            leaves: vec![],
+            keys: 0,
+            key_walk: None,
+            val_walk: None,
+            colls: vec![],
+            cyclic: false,
+        };
+        let mut make = m.func("test:map", vec![Val::I32], vec![Val::I32]);
+        make.get(0);
+        make.helper(Helper::MapSeed);
+        make.helper(Helper::MapTable {
+            entry: entry.clone(),
+        });
+        let constructor = Sym::Inst(Hash128(1));
+        m.define(constructor.clone(), make);
+        m.export("make", constructor);
+        let mut get = m.func("test:seed", vec![Val::I32], vec![Val::I64]);
+        get.get(0);
+        get.op(I::I64Load(mem(HEAP, SEED, 3)));
+        let key = Sym::Inst(Hash128(2));
+        m.define(key.clone(), get);
+        m.export("seed", key);
+        let mut copy = m.func("test:copy", vec![Val::I32], vec![Val::I32]);
+        copy.get(0);
+        copy.u32(HEADER);
+        copy.op(I::I32Sub);
+        copy.i32(2);
+        copy.op(I::I32Store(mem(HEAP, 0, 2)));
+        copy.get(0);
+        copy.helper(Helper::MapUnique {
+            entry: entry.clone(),
+        });
+        let key = Sym::Inst(Hash128(3));
+        m.define(key.clone(), copy);
+        m.export("copy", key);
+        m.export("grow", Sym::Helper(Helper::MapGrow { entry }));
+        m.export("next", Sym::Helper(Helper::MapSeed));
+        m.export("reset", Sym::Helper(Helper::EntryReset));
+        let bytes = m.finish().map_err(|e| format!("{e:?}"))?;
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(&bytes)?;
+        let script = format!(
+            r"
+import assert from 'node:assert/strict';
+const module = new WebAssembly.Module(new Uint8Array({bytes:?}));
+function run(seed, maintain = true) {{
+  let calls = 0;
+  const imports = {{}};
+  for (const item of WebAssembly.Module.imports(module)) {{
+    (imports[item.module] ??= {{}})[item.name] = item.name === 'hash_seed'
+      ? () => {{ calls++; return seed; }}
+      : () => {{ throw Error('unexpected host import ' + item.name); }};
+  }}
+  const map = new WebAssembly.Instance(module, imports).exports;
+  const first = map.make(0), second = map.make(0);
+  const a = map.seed(first), b = map.seed(second);
+  assert.notEqual(a, b);
+  if (maintain) {{
+    const copy = map.copy(first);
+    assert.notEqual(copy, first);
+    assert.equal(map.seed(copy), a);
+    const grown = map.grow(copy);
+    assert.equal(map.seed(grown), a);
+    // Existing tables and the per-instance sequence survive an entry reset.
+    map.reset();
+  }}
+  const c = map.next();
+  const values = [a, b, c];
+  for (let i = 0; i < 61; i++) values.push(map.next());
+  assert.equal(new Set(values).size, values.length);
+  assert.equal(calls, 1, 'zero is a valid run seed, not an initialization sentinel');
+  return values;
+}}
+assert.deepEqual(run(0n), run(0n));
+assert.deepEqual(run(0n), run(0n, false), 'copy/grow/reset must consume no seed');
+assert.deepEqual(run(19n), run(19n));
+assert.notDeepEqual(run(0n), run(19n));
+console.log('ok');
+"
+        );
+        // cost: one Node process runs a fixed Wasm module with two fixed run seeds;
+        // its replay and lifecycle checks use a constant number of seed requests.
+        let output = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", &script])
+            .output()?;
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8(output.stdout)?.trim(), "ok");
+        Ok(())
+    }
 }

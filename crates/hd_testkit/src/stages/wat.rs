@@ -49,6 +49,8 @@ pub fn wat(p: &Program) -> String {
 /// [`wat`], for the target and level `at` names.
 #[must_use]
 pub fn wat_for(p: &Program, at: Build) -> String {
+    // Build once: selection costs O(S log S + F log S), with O(S) space.
+    let selected: BTreeSet<&str> = p.helpers.iter().map(String::as_str).collect();
     let (prefix, case) = if at.std {
         ("std/rt_tests.stage_case/", super::own::STD_CASE.to_owned())
     } else {
@@ -77,14 +79,12 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         // Each function's excerpt, as tokens, before anything is named.
         let mut excerpts: Vec<(&FunctionOrigins, Instructions)> = Vec::new();
         for f in &built.instruction_origins {
-            // A runtime helper the case names in `# @helpers:` prints whole.
-            let helper = f.item.is_none()
-                && short_name(&f.name)
-                    .strip_prefix("rt:")
-                    .is_some_and(|name| p.helpers.iter().any(|h| h == name));
+            // Explicitly selected functions print whole; their callees
+            // remain imports unless separately selected.
+            let whole = selected_whole(&selected, f.item.as_deref(), &f.name);
             let item = match f.item.as_deref() {
                 Some(item) if item.starts_with(prefix) => item,
-                _ if helper => "",
+                _ if whole => "",
                 _ => continue,
             };
             let (start, end) = module.bodies[&f.index];
@@ -113,7 +113,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                     )
                 })
                 .collect();
-            let kept = focused(p, instructions, helper);
+            let kept = focused(p, instructions, whole);
             if !kept.is_empty() {
                 excerpts.push((f, kept));
             }
@@ -559,6 +559,17 @@ fn static_label(data: &StaticData, module: &Module) -> String {
     }
 }
 
+/// `@helpers` keeps its short runtime names and accepts an exact item
+/// path for an ordinary function; it never expands a call graph.
+fn selected_whole(selected: &BTreeSet<&str>, item: Option<&str>, name: &str) -> bool {
+    match item {
+        Some(item) => selected.contains(item),
+        None => short_name(name)
+            .strip_prefix("rt:")
+            .is_some_and(|name| selected.contains(name)),
+    }
+}
+
 /// A function's name without what changes with unrelated code or only
 /// repeats the obvious: the case's own module path, an instance body's
 /// `#0`, a helper's module-order `#k`.
@@ -893,7 +904,35 @@ fn leb(bytes: &[u8]) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Names, function_names, short_name};
+    use super::{Names, function_names, selected_whole, short_name};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn whole_function_selection_requires_an_exact_item_path() {
+        let selected = BTreeSet::from(["enc", "std/hash/hash_integer"]);
+        assert!(selected_whole(&selected, None, "rt:enc#7"));
+        assert!(selected_whole(
+            &selected,
+            Some("std/hash/hash_integer"),
+            "std/hash/hash_integer#0",
+        ));
+        assert!(!selected_whole(&selected, None, "rt:dec#7"));
+        assert!(!selected_whole(
+            &selected,
+            Some("app/main/enc"),
+            "app/main/enc#0"
+        ));
+        assert!(!selected_whole(
+            &selected,
+            Some("app/main/hash_integer"),
+            "app/main/hash_integer#0",
+        ));
+        assert!(!selected_whole(
+            &selected,
+            Some("std/hash/hash_integer_extra"),
+            "std/hash/hash_integer_extra#0",
+        ));
+    }
 
     #[test]
     fn names_drop_what_moves_with_unrelated_code() {

@@ -3,7 +3,7 @@
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
@@ -67,11 +67,15 @@
         local.get $frame
         i32.load $heap offset=4
     ;; 12 |         frame.entries[frame.keys[index]] = index
-        local.tee $t3
+        local.set $t3
         local.get $t0
         local.get $t1
+        local.get $t3
+        i64.load $heap offset=24
         call $rt:map_hash
-        local.tee $t4
+        local.set $t4
+        local.get $t3
+        local.get $t4
         local.get $t0
         local.get $t1
         call $rt:map_find

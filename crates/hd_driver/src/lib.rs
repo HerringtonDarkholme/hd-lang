@@ -12799,13 +12799,13 @@ impl ProgramEnv for Env<'_> {
     }
     fn map_key_items(&self) -> Option<(DefId, DefId)> {
         let known = &self.run.known;
-        Some((known.key_equal, known.key_bucket_hash))
+        Some((known.key_equal, known.map_key_hash))
     }
     fn inline_bucket_hash(&self, string: bool) -> DefId {
         if string {
-            self.run.known.string_bucket_hash
+            self.run.known.map_string_hash
         } else {
-            self.run.known.int_bucket_hash
+            self.run.known.map_integer_hash
         }
     }
     fn build_profile(&self) -> BuildProfile {

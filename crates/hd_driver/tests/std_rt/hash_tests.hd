@@ -1,0 +1,405 @@
+# foldhash 0.2.0 fast vectors, using the official Wasm multiply path.
+# Upstream revision: 8f878c636fda9c9e93384824ea45e06d03f009f5.
+# The native reference forces only folded_multiply's existing Wasm branch;
+# Integer/raw-string vectors use upstream direct methods. Generic hd Hash
+# streams use upstream write_u8 for each serialized byte, which canonicalizes
+# call boundaries; write_usize serializes 32 bits, as on this runtime.
+use std.hash.{Hash, Hasher}
+use std.hash.{hash_integer, hash_string, hash_key}
+use std.rt.map_hash_seed
+
+struct StreamKey0: pass
+
+impl Hash for StreamKey0:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u8(171u8)
+        state.write_u64(18364758544493064720u64)
+        state.write_u32(3735928559u32)
+        state.write_u16(65535u16)
+        state.write_u8(17u8)
+        state.write_u8(33u8)
+
+struct StreamKey1: pass
+
+impl Hash for StreamKey1:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u64(0u64)
+        state.write_u64(18446744073709551615u64)
+        state.write_u64(81985529216486895u64)
+
+struct StreamKey2: pass
+
+impl Hash for StreamKey2:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u32(123u32)
+        state.write_str("hello")
+        state.write_u64(18364758544493064720u64)
+        state.write_str("abcdefghijklmnopqrstuvwxyz")
+        state.write_u16(42u16)
+
+struct StreamKey3: pass
+
+impl Hash for StreamKey3:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i8(-1i8)
+        state.write_i16(-12345i16)
+        state.write_i32(-123456789i32)
+        state.write_i64(-918273645546372819i64)
+
+struct StreamKey4: pass
+
+impl Hash for StreamKey4:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u8(1u8)
+        state.write_u16(2u16)
+        state.write_u32(3u32)
+        state.write_u64(4u64)
+        state.write_u16(5u16)
+
+struct StreamKey5: pass
+
+impl Hash for StreamKey5:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_usize(4294967295usize)
+        state.write_u8(255u8)
+        state.write(
+            [
+                48u8,
+                49u8,
+                50u8,
+                51u8,
+                52u8,
+                53u8,
+                54u8,
+                55u8,
+                56u8,
+                57u8,
+                97u8,
+                98u8,
+                99u8,
+                100u8,
+                101u8,
+                102u8,
+                103u8,
+                104u8,
+                105u8,
+                106u8,
+                107u8,
+                108u8,
+                109u8,
+                110u8,
+                111u8,
+                112u8,
+                113u8,
+            ],
+        )
+        state.write_u64(18446744073709551615u64)
+
+struct EmptyKey: pass
+
+impl Hash for EmptyKey:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        pass
+
+tests:
+    use std.testing.{assert, assert_equal, it}
+
+    it("integer keys match foldhash's Wasm multiply"):
+        assert_equal(hash_integer(0u64, 0u64), 0u32)
+        assert_equal(hash_integer(1u64, 0u64), 3380367581u32)
+        assert_equal(hash_integer(4294967295u64, 0u64), 4130309781u32)
+        assert_equal(hash_integer(4294967296u64, 0u64), 3232508343u32)
+        assert_equal(hash_integer(81985529216486895u64, 0u64), 3231654477u32)
+        assert_equal(hash_integer(18446744073709551615u64, 0u64), 0u32)
+        assert_equal(hash_integer(0u64, 1u64), 3380367581u32)
+        assert_equal(hash_integer(1u64, 1u64), 0u32)
+        assert_equal(hash_integer(4294967295u64, 1u64), 2913695731u32)
+        assert_equal(hash_integer(4294967296u64, 1u64), 164657514u32)
+        assert_equal(hash_integer(81985529216486895u64, 1u64), 369324919u32)
+        assert_equal(hash_integer(18446744073709551615u64, 1u64), 1535439206u32)
+        assert_equal(hash_integer(0u64, 18446744073709551615u64), 0u32)
+        assert_equal(hash_integer(1u64, 18446744073709551615u64), 1535439206u32)
+        assert_equal(hash_integer(4294967295u64, 18446744073709551615u64), 4130309781u32)
+        assert_equal(hash_integer(4294967296u64, 18446744073709551615u64), 1106541276u32)
+        assert_equal(hash_integer(81985529216486895u64, 18446744073709551615u64), 809903601u32)
+        assert_equal(hash_integer(18446744073709551615u64, 18446744073709551615u64), 0u32)
+
+    it("byte hashes match every short and long length boundary"):
+        assert_equal(hash_string("", 0u64), 0u32)
+        assert_equal(hash_string("-", 0u64), 3716243001u32)
+        assert_equal(hash_string("->", 0u64), 3716461118u32)
+        assert_equal(hash_string("->O", 0u64), 3716633918u32)
+        assert_equal(hash_string("->O`", 0u64), 760395965u32)
+        assert_equal(hash_string("->O`q", 0u64), 325663418u32)
+        assert_equal(hash_string("->O`q#4", 0u64), 4151019364u32)
+        assert_equal(hash_string("->O`q#4E", 0u64), 1621144904u32)
+        assert_equal(hash_string("->O`q#4EV", 0u64), 1722265108u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]", 0u64), 1691607444u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n", 0u64), 2731296506u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n ", 0u64), 3769696734u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?P", 0u64), 2902671890u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Pa", 0u64), 318104778u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par", 0u64), 2727364985u32)
+        assert_equal(
+            hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6", 0u64),
+            108201186u32,
+        )
+        assert_equal(
+            hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6G", 0u64),
+            458076050u32,
+        )
+        assert_equal(
+            hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GX", 0u64),
+            3224522099u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{",
+                0u64,
+            ),
+            1308283061u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{-",
+                0u64,
+            ),
+            2160082576u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->",
+                0u64,
+            ),
+            220355992u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Pa",
+                0u64,
+            ),
+            126739076u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par",
+                0u64,
+            ),
+            279088067u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$",
+                0u64,
+            ),
+            3060000417u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GX",
+                0u64,
+            ),
+            3183004110u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXi",
+                0u64,
+            ),
+            2607639738u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz",
+                0u64,
+            ),
+            2059040941u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz",
+                0u64,
+            ),
+            1959179022u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWh",
+                0u64,
+            ),
+            971360777u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3",
+                0u64,
+            ),
+            2250525624u32,
+        )
+        assert_equal(hash_string("", 18446744073709551615u64), 0u32)
+        assert_equal(hash_string("-", 18446744073709551615u64), 663725647u32)
+        assert_equal(hash_string("->", 18446744073709551615u64), 663543400u32)
+        assert_equal(hash_string("->O", 18446744073709551615u64), 663346536u32)
+        assert_equal(hash_string("->O`", 18446744073709551615u64), 3266070211u32)
+        assert_equal(hash_string("->O`q", 18446744073709551615u64), 344934116u32)
+        assert_equal(hash_string("->O`q#4", 18446744073709551615u64), 4169959046u32)
+        assert_equal(hash_string("->O`q#4E", 18446744073709551615u64), 270292432u32)
+        assert_equal(hash_string("->O`q#4EV", 18446744073709551615u64), 3704533747u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]", 18446744073709551615u64), 3160595699u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n", 18446744073709551615u64), 2393377276u32)
+        assert_equal(hash_string("->O`q#4EVgx*;L]n ", 18446744073709551615u64), 1824428143u32)
+        assert_equal(
+            hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?P", 18446744073709551615u64),
+            1908261116u32,
+        )
+        assert_equal(
+            hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Pa", 18446744073709551615u64),
+            2758356713u32,
+        )
+        assert_equal(
+            hash_string("->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par", 18446744073709551615u64),
+            3270469051u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6",
+                18446744073709551615u64,
+            ),
+            1554283153u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6G",
+                18446744073709551615u64,
+            ),
+            3776553585u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GX",
+                18446744073709551615u64,
+            ),
+            1408887924u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{",
+                18446744073709551615u64,
+            ),
+            2746247574u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{-",
+                18446744073709551615u64,
+            ),
+            1241028318u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->",
+                18446744073709551615u64,
+            ),
+            622852860u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Pa",
+                18446744073709551615u64,
+            ),
+            463754789u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par",
+                18446744073709551615u64,
+            ),
+            2134843306u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$",
+                18446744073709551615u64,
+            ),
+            3153119131u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GX",
+                18446744073709551615u64,
+            ),
+            3369882575u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXi",
+                18446744073709551615u64,
+            ),
+            1694793857u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz",
+                18446744073709551615u64,
+            ),
+            2077726722u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz",
+                18446744073709551615u64,
+            ),
+            3225516294u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWh",
+                18446744073709551615u64,
+            ),
+            1370281280u32,
+        )
+        assert_equal(
+            hash_string(
+                "->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3DUfw):K\\m~0ARct&7HYj{->O`q#4EVgx*;L]n 1BSdu'8IZk|.?Par\$5FWhy+<M^o!2CTev(9J[l}/@Qbs%6GXiz,=N_p\"3",
+                18446744073709551615u64,
+            ),
+            2992991963u32,
+        )
+        assert_equal(hash_string("hé🙂漢字", 0u64), 2215734121u32)
+        assert_equal(hash_string("hé🙂漢字", 1u64), 78199910u32)
+        assert_equal(hash_string("hé🙂漢字", 18446744073709551615u64), 2256722765u32)
+
+    it("canonical Hash bytes preserve sponge crossings and raw byte writes"):
+        assert_equal(hash_key(StreamKey0 {}, 0u64), 289446562u32)
+        assert_equal(hash_key(StreamKey1 {}, 0u64), 3231654477u32)
+        assert_equal(hash_key(StreamKey2 {}, 0u64), 1575145332u32)
+        assert_equal(hash_key(StreamKey3 {}, 0u64), 3401088151u32)
+        assert_equal(hash_key(StreamKey4 {}, 0u64), 2241051510u32)
+        assert_equal(hash_key(StreamKey5 {}, 0u64), 4037217772u32)
+        assert_equal(hash_key(StreamKey0 {}, 1u64), 667104166u32)
+        assert_equal(hash_key(StreamKey1 {}, 1u64), 107776722u32)
+        assert_equal(hash_key(StreamKey2 {}, 1u64), 1035078816u32)
+        assert_equal(hash_key(StreamKey3 {}, 1u64), 2169446648u32)
+        assert_equal(hash_key(StreamKey4 {}, 1u64), 1482709122u32)
+        assert_equal(hash_key(StreamKey5 {}, 1u64), 4144913961u32)
+        assert_equal(hash_key(StreamKey0 {}, 18446744073709551615u64), 467805393u32)
+        assert_equal(hash_key(StreamKey1 {}, 18446744073709551615u64), 3231654477u32)
+        assert_equal(hash_key(StreamKey2 {}, 18446744073709551615u64), 2273441253u32)
+        assert_equal(hash_key(StreamKey3 {}, 18446744073709551615u64), 2849172291u32)
+        assert_equal(hash_key(StreamKey4 {}, 18446744073709551615u64), 1002211661u32)
+        assert_equal(hash_key(StreamKey5 {}, 18446744073709551615u64), 2366655773u32)
+
+    it("empty Hash streams preserve the supplied seed"):
+        assert_equal(hash_key(EmptyKey {}, 0u64), 0u32)
+        assert_equal(hash_key(EmptyKey {}, 1u64), 1u32)
+        assert_equal(hash_key(EmptyKey {}, 18446744073709551615u64), 4294967295u32)
+
+    it("seed requests remain effects across consecutive calls and loops"):
+        first := map_hash_seed()
+        second := map_hash_seed()
+        assert(first != second)
+        let previous = second
+        for _ in 0..8:
+            current := map_hash_seed()
+            assert(current != previous)
+            previous = current

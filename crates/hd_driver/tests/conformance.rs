@@ -2034,6 +2034,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt_tests/map_tests.hd", include_str!("std_rt/map_tests.hd")),
     (
+        "rt_tests/hash_tests.hd",
+        include_str!("std_rt/hash_tests.hd"),
+    ),
+    (
         "rt_tests/closure_tests.hd",
         include_str!("std_rt/closure_tests.hd"),
     ),
