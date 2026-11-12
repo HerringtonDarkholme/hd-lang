@@ -1,0 +1,9 @@
+# test: a contextual tuple payload preserves its counted source origin
+# Rules: ref.dep.return, ref.dep.origin.position.parts.
+struct Packet:
+    owner: *i32
+
+fn unrelated(value: Packet, fallback: &i32) -> &i32:
+    owner := value.owner
+    let converted: (&i32, &i32) = (fallback, owner)
+    converted._1 # diagnostic: local-reference-escapes

@@ -1,0 +1,7 @@
+# test: an implicit counted-to-local borrow rejects replacing its owner before its last use
+# Rules: ref.convert.lend, ref.excl.place, ref.excl.shared.
+pub fn main() -> void:
+    let mut owner = box(+7)
+    let loan: &i32 = owner
+    owner = box(+9) # diagnostic: conflicting-access
+    _ := *loan

@@ -30,12 +30,12 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   local $0 log: *mut List[string] [param read captured] value
 >     uses $0: entry -> %5 lend, %9 consume last
 >   local $1 s: string [param read captured] value
->     uses $1: entry -> %3 consume, %9 consume, %23 lend last
+>     uses $1: entry -> %3 consume, %9 consume, %24 lend last
 >   local $2 $ref: DeferGuard[fn() -> (), $()] [:= read assigned captured captured-assigned] place
 >   local $4 action: fn() -> () [read] value
 >     uses $4: %11 -> %12 consume last
->   %1 = Retain %33 Entry local $0 #0 : ()
->   %2 = Retain %33 Entry local $1 #0 : ()
+>   %1 = Retain %34 Entry local $0 #0 : ()
+>   %2 = Retain %34 Entry local $1 #0 : ()
     defer(fn() -> void: log.push(s))
 >   %0 = Retain %8 Entry captures #0 : ()
 >   %3 = Read move [$1] : string
@@ -49,27 +49,28 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %11 = Store [$4] %9 : ()
 >   %12 = Read move [$4] : fn() -> ()
 >   %13 = NewStruct [%12] : DeferGuard[fn() -> (), $()]
->   %14 = Break L1 %13 : never
->   %15 = Block - : DeferGuard[fn() -> (), $()]
->   %16 = Scope %15 [] : DeferGuard[fn() -> (), $()]
->   %17 = Store [$2] %16 : ()
->   %18 = Ref mut local frame [$2] : &mut DeferGuard[fn() -> (), $()]
->   %19 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%18) : ()
->   %20 = LoanEnd [%18] : ()
->   %21 = Block - : ()
->   %22 = Defer #21 : ()
->   %28 = Block %27 : usize
->   %29 = Scope %28 [%21] : usize
->   %30 = Drop [$2] : ()
->   %31 = Drop [$0] : ()
->   %32 = Drop [$1] : ()
->   %33 = Block %29 : usize
+>   %14 = Coerce %13 [Weaken -] : DeferGuard[fn() -> (), $()]
+>   %15 = Break L1 %14 : never
+>   %16 = Block - : DeferGuard[fn() -> (), $()]
+>   %17 = Scope %16 [] : DeferGuard[fn() -> (), $()]
+>   %18 = Store [$2] %17 : ()
+>   %19 = Ref mut local frame [$2] : &mut DeferGuard[fn() -> (), $()]
+>   %20 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%19) : ()
+>   %21 = LoanEnd [%19] : ()
+>   %22 = Block - : ()
+>   %23 = Defer #22 : ()
+>   %29 = Block %28 : usize
+>   %30 = Scope %29 [%22] : usize
+>   %31 = Drop [$2] : ()
+>   %32 = Drop [$0] : ()
+>   %33 = Drop [$1] : ()
+>   %34 = Block %30 : usize
     s.len()
->   %23 = Read borrow [$1] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L0 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
+>   %24 = Read borrow [$1] : string
+>   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %26 = Break L0 %25 : never
+>   %27 = Block - : usize
+>   %28 = Scope %27 [] : usize
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$0 $1]
 >   storage sub 0: $2 slot

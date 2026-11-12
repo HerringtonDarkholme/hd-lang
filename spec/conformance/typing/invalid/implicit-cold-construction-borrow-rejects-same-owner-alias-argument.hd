@@ -1,0 +1,11 @@
+# test: a cold constructor's implicit mutable borrow excludes a same-owner pointer argument
+use std.task.block_on
+
+fn append!(items: &mut List[string], alias: *mut List[string]) -> usize:
+    alias.push("x")
+    items.len()
+
+fn drive(log: *mut List[string]) -> usize:
+    match block_on(append(log, log)): # diagnostic: conflicting-access
+        .Completed(value) => value
+        _ => 0

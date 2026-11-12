@@ -118,7 +118,12 @@
     call $bump
     ;; 23 |     view(h)
     local.get $h
-    call $view
+    i32.load $heap
+    local.get $h
+    i32.load $heap offset=4
+    local.set $h
+    drop
+    local.get $h
   )
   (func $weaken (param $h i32) (result i32)
     ;; 33 |     h

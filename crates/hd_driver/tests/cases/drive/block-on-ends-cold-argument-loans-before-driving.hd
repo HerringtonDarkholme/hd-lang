@@ -8,8 +8,8 @@ fn append!(items: &mut List[string], alias: *mut List[string]) -> usize:
     alias.push("x")
     items.len()
 
-fn drive(log: *mut List[string]) -> usize:
+fn drive(log: *mut List[string], alias: *mut List[string]) -> usize:
     # subject
-    match block_on(append(log, log)):
+    match block_on(append(log, alias)):
         .Completed(value) => value
         _ => 0

@@ -959,10 +959,14 @@ fn address_globals(
     // The bindings a place writes: a store, a change in place or a `&mut`,
     // through the binding or a read of it.
     let mut written = hd_base::HashSet::default();
+    let mut storage = hd_base::HashMap::default();
     for id in input.order {
         let Some(b) = (input.body)(*id) else {
             continue;
         };
+        let roots = storage
+            .entry(std::ptr::from_ref(b))
+            .or_insert_with(|| emit::StorageRoots::new(b));
         for i in 0..b.len() {
             let write = match b.tags[i] {
                 hd_tir::ir::Tag::Store | hd_tir::ir::Tag::IsUnique => true,
@@ -970,7 +974,7 @@ fn address_globals(
                 _ => false,
             };
             if let Some(p) = write.then(|| b.decode_place(b.data[i][0])).flatten()
-                && let Some((def, _)) = emit::global_root(b, &p)
+                && let Some((def, _)) = emit::global_root(roots, &p)
             {
                 written.insert(input.env.path_hash(def));
             }
@@ -980,6 +984,9 @@ fn address_globals(
         let Some(b) = (input.body)(*id) else {
             continue;
         };
+        let roots = storage
+            .entry(std::ptr::from_ref(b))
+            .or_insert_with(|| emit::StorageRoots::new(b));
         for i in 0..b.len() {
             let global =
                 if session && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store) {
@@ -988,7 +995,7 @@ fn address_globals(
                         _ => None,
                     })
                 } else {
-                    referenced_global(input.env, b, i, &written)
+                    referenced_global(input.env, b, roots, i, &written)
                 };
             let Some((def, ty)) = global else {
                 continue;
@@ -1036,6 +1043,7 @@ fn address_globals(
 fn referenced_global(
     env: &dyn ProgramEnv,
     b: &hd_tir::ir::Body,
+    roots: &emit::StorageRoots,
     i: usize,
     written: &hd_base::HashSet<hd_base::Hash128>,
 ) -> Option<(DefId, Ty)> {
@@ -1045,7 +1053,7 @@ fn referenced_global(
     let p = b.decode_place(b.data[i][0])?;
     match p.root {
         hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
-        _ => emit::global_root(b, &p).filter(|(def, _)| written.contains(&env.path_hash(*def))),
+        _ => emit::global_root(roots, &p).filter(|(def, _)| written.contains(&env.path_hash(*def))),
     }
 }
 

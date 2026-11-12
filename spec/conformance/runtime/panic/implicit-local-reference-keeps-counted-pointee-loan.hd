@@ -1,0 +1,15 @@
+# test: an implicitly lent local reference prevents an aliased pointee write
+# Rule: ref.excl.alias.conflict.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+fn change(owner: *mut P, alias: *mut P) -> void:
+    let value: &P = owner
+    alias.name = "new" # panic: borrow-conflict
+    assert_equal(value.name, "old")
+
+pub fn main() -> void:
+    owner := box(P { name: "old" })
+    change(owner, owner)

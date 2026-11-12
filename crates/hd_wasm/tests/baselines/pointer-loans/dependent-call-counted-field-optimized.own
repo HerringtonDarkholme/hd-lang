@@ -27,21 +27,21 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >     uses $2: entry -> %11 consume last
 >   local $3 d: &string [:= read assigned] value
 >     uses $3: %10 -> %14 lend last
->   local $4 p: *P [read] value
->     uses $4: %5 -> %6 lend last
->   %0 = Release %17 Exit local $1 #2 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
->   %2 = Retain %17 Entry local $2 #0 : ()
+>   local $4 p: &P [read] value
+>     uses $4: %4 -> %5 lend last
+>   %0 = Release %16 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $1 #2 : ()
+>   %2 = Retain %16 Entry local $2 #0 : ()
     d := name_of(h.p)
->   %3 = Read copy [*$0 .p] : *P
->   %4 = Drop [$0] : ()
->   %5 = Store [$4] %3 : ()
->   %6 = Ref local [*$4 .name] : &string
->   %7 = Break L0 %6 : never
->   %8 = Block - : &string
->   %9 = Scope %8 [] : &string
->   %10 = Store [$3] %9 : ()
->   %17 = Block %14 : string
+>   %3 = Ref local [*$0 .p *] : &P
+>   %4 = Store [$4] %3 : ()
+>   %5 = Ref local [*$4 .name] : &string
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : &string
+>   %8 = Scope %7 [] : &string
+>   %9 = LoanEnd [$4] : ()
+>   %10 = Store [$3] %8 : ()
+>   %16 = Block %14 : string
     alias.p = next
 >   %11 = Read move [$2] : *P
 >   %12 = Store [*$1 .p] %11 : ()
@@ -49,9 +49,8 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
     *d
 >   %14 = Read copy [*$3] : string
 >   %15 = LoanEnd [$3] : ()
->   %16 = Drop [$4] : ()
->   exit sub 0 drops [$0 $2]
->   summary kept [$0 $2] borrows [$1] writes
+>   exit sub 0 drops [$2]
+>   summary kept [$2] borrows [$0 $1] writes
 
 struct M:
     p: *mut P
@@ -75,21 +74,21 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >     uses $2: entry -> %11 consume last
 >   local $3 d: &mut string [:= read assigned] value
 >     uses $3: %10 -> %14 lend last
->   local $4 p: *mut P [read] value
->     uses $4: %5 -> %6 lend last
->   %0 = Release %17 Exit local $1 #2 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
->   %2 = Retain %17 Entry local $2 #0 : ()
+>   local $4 p: &mut P [read] value
+>     uses $4: %4 -> %5 lend last
+>   %0 = Release %16 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $1 #2 : ()
+>   %2 = Retain %16 Entry local $2 #0 : ()
     d := name_mut(h.p)
->   %3 = Read copy [*$0 .p] : *mut P
->   %4 = Drop [$0] : ()
->   %5 = Store [$4] %3 : ()
->   %6 = Ref mut local [*$4 .name] : &mut string
->   %7 = Break L0 %6 : never
->   %8 = Block - : &mut string
->   %9 = Scope %8 [] : &mut string
->   %10 = Store [$3] %9 : ()
->   %17 = Block %14 : string
+>   %3 = Ref mut local [*$0 .p *] : &mut P
+>   %4 = Store [$4] %3 : ()
+>   %5 = Ref mut local [*$4 .name] : &mut string
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : &mut string
+>   %8 = Scope %7 [] : &mut string
+>   %9 = LoanEnd [$4] : ()
+>   %10 = Store [$3] %8 : ()
+>   %16 = Block %14 : string
     alias.p = next
 >   %11 = Read move [$2] : *mut P
 >   %12 = Store [*$1 .p] %11 : ()
@@ -97,6 +96,5 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
     *d
 >   %14 = Read copy [*$3] : string
 >   %15 = LoanEnd [$3] : ()
->   %16 = Drop [$4] : ()
->   exit sub 0 drops [$0 $2]
->   summary kept [$0 $2] borrows [$1] writes
+>   exit sub 0 drops [$2]
+>   summary kept [$2] borrows [$0 $1] writes

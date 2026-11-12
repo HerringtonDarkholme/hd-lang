@@ -1,0 +1,11 @@
+# test: two implicit mutable loans from the same counted owner cannot overlap
+# Rules: ref.convert.lend, ref.excl.place, ref.excl.mut.
+struct Item:
+    value: i32
+
+pub fn main() -> void:
+    owner := box(Item { value: +7 })
+    let first: &mut Item = owner
+    let second: &mut Item = owner # diagnostic: conflicting-access
+    _ := first.value
+    second.value = +9

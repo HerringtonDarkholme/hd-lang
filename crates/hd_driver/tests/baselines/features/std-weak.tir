@@ -14,8 +14,7 @@ struct Node:
 fn make(node: *Node) -> Weak[Node]?:
     weak(node)
 > app/main/make
->   local $0 node: *Node [param read]
->   %0 = Read [$0] : *Node
+>   %0 = Ref local [*$0] : &Node
 >   %1 = Call std/weak/weak[Node] (%0) : Weak[Node]?
 >   %2 = Block %1 : Weak[Node]?
 

@@ -1,0 +1,15 @@
+# test: two implicitly lent shared references may overlap through counted aliases
+# Rule: ref.excl.alias.loan.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+fn read_twice(owner: *mut P, alias: *mut P) -> string:
+    let first: &P = owner
+    let second: &P = alias
+    first.name + second.name
+
+pub fn main() -> void:
+    owner := box(P { name: "shared" })
+    assert_equal(read_twice(owner, owner), "sharedshared")

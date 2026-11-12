@@ -88,6 +88,131 @@ struct CaptureOrigins {
 mod capture_origin_tests {
     use super::*;
     use hd_base::{DefId, LocalId, SubId};
+    use hd_tir::ir::{TirBuilder, TirSink as _};
+
+    #[test]
+    fn pointer_key_interning_is_independent_of_other_keys() {
+        for (width, depth) in [(100_u32, 20), (1000, 20), (20, 1000)] {
+            let mut borrows = Borrows::default();
+            let keys: Vec<_> = (0..width)
+                .map(|local| {
+                    (
+                        PlaceRoot::Local(LocalId::from_raw(local)),
+                        vec![Proj::Field(0); depth],
+                        ANY_FRAME,
+                    )
+                })
+                .collect();
+            for (expected, key) in keys.iter().enumerate() {
+                assert_eq!(borrows.intern_key(key.clone()), expected);
+            }
+            for _ in 0..10 {
+                for (expected, key) in keys.iter().enumerate() {
+                    let before = borrows.key_work;
+                    assert_eq!(borrows.intern_key(key.clone()), expected);
+                    assert_eq!(borrows.key_work - before, depth + 1);
+                }
+            }
+            assert_eq!(u32::try_from(borrows.keys.len()), Ok(width));
+            assert_eq!(borrows.key_work, 12 * keys.len() * (depth + 1));
+        }
+    }
+
+    #[test]
+    fn pointer_keys_normalize_capture_origins_before_interning() {
+        let body = body(3, &[(1, 0), (2, 1)]);
+        let mut borrows = Borrows {
+            capture_origins: CaptureOrigins::new(&body, |_| true),
+            ..Borrows::default()
+        };
+        for local in [2, 0, 1] {
+            assert_eq!(
+                borrows.intern_key((
+                    PlaceRoot::Local(LocalId::from_raw(local)),
+                    vec![],
+                    ANY_FRAME
+                )),
+                0
+            );
+        }
+        assert_eq!(borrows.keys.len(), 1);
+        assert_eq!(borrows.key_index.len(), 1);
+        assert_eq!(borrows.keys[0].0.0, PlaceRoot::Local(LocalId::from_raw(0)));
+    }
+
+    fn storage_body(locals: usize) -> TirBuilder {
+        let mut builder = TirBuilder::new(DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
+        builder.body_mut().local_ty = vec![Ty::VOID; locals];
+        builder
+    }
+
+    fn storage_read(body: &mut TirBuilder, root: PlaceRoot) -> hd_tir::ir::Ref {
+        let word = body.place(&hd_tir::ir::Place { root, proj: vec![] });
+        body.emit(
+            Tag::Read,
+            word,
+            hd_tir::ir::ReadMode::Use as u32,
+            Ty::VOID,
+            hd_base::NodeIdx::NONE,
+        )
+    }
+
+    #[test]
+    fn storage_roots_follow_nested_reads_but_stop_at_named_copies() {
+        let mut body = storage_body(2);
+        let first = storage_read(&mut body, PlaceRoot::Local(LocalId::from_raw(0)));
+        let nested = storage_read(&mut body, PlaceRoot::Value(first));
+        let copied = storage_read(&mut body, PlaceRoot::Local(LocalId::from_raw(1)));
+        let copied_child = storage_read(&mut body, PlaceRoot::Value(copied));
+        let global = storage_read(&mut body, PlaceRoot::Global(DefId::from_raw(0), Ty::VOID));
+        let global_child = storage_read(&mut body, PlaceRoot::Value(global));
+        let roots = StorageRoots::new(body.body_mut());
+        let place = |value| hd_tir::ir::Place {
+            root: PlaceRoot::Value(value),
+            proj: vec![],
+        };
+        assert_eq!(
+            roots.binding(&place(nested)),
+            Some(PlaceRoot::Local(LocalId::from_raw(0)))
+        );
+        assert_eq!(
+            roots.binding(&place(copied_child)),
+            Some(PlaceRoot::Local(LocalId::from_raw(1)))
+        );
+        assert_eq!(
+            global_root(&roots, &place(global_child)),
+            Some((DefId::from_raw(0), Ty::VOID))
+        );
+    }
+
+    #[test]
+    fn storage_root_preparation_and_queries_have_bounded_work() {
+        for (width, depth) in [(100, 20), (1000, 20), (20, 1000)] {
+            let mut body = storage_body(1);
+            let first = storage_read(&mut body, PlaceRoot::Local(LocalId::from_raw(0)));
+            let mut previous = vec![first; width];
+            for _ in 0..depth {
+                for value in &mut previous {
+                    *value = storage_read(&mut body, PlaceRoot::Value(*value));
+                }
+            }
+            let mut work = 0;
+            let roots = StorageRoots::prepare(body.body_mut(), |n| work += n);
+            assert_eq!(work, 2 * body.body_mut().len());
+            for value in previous {
+                let place = hd_tir::ir::Place {
+                    root: PlaceRoot::Value(value),
+                    proj: vec![],
+                };
+                for _ in 0..10 {
+                    assert_eq!(
+                        roots.binding(&place),
+                        Some(PlaceRoot::Local(LocalId::from_raw(0)))
+                    );
+                }
+            }
+        }
+    }
 
     fn body(locals: usize, edges: &[(u32, u32)]) -> Body {
         let mut b = Body::new(DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
@@ -267,6 +392,7 @@ fn frames_of(b: &Body) -> Vec<u32> {
 #[derive(Default)]
 pub(super) struct Borrows {
     capture_origins: CaptureOrigins,
+    storage_roots: StorageRoots,
     /// The holder bindings each `Store` makes.
     binds: HashMap<u32, Vec<(Held, Bind)>>,
     /// The `Ref`s whose loans a holder takes, and the objects each one
@@ -282,6 +408,10 @@ pub(super) struct Borrows {
     /// The pointers places reach objects through, and the local holding
     /// the state of the function's own loans through each, once used.
     keys: Vec<(Key, Option<u32>)>,
+    /// Stable vector IDs, indexed without scanning other pointers.
+    key_index: HashMap<Key, usize>,
+    #[cfg(test)]
+    key_work: usize,
     /// The first `loans` keys are those some holder's or call's loan is
     /// taken through, interned before emission.
     loans: usize,
@@ -486,25 +616,58 @@ pub(super) fn dyn_receiver(
 /// crosses before its first step.
 pub(super) const ROOT: usize = u32::MAX as usize - 2;
 
-/// The local or top-level binding place `p` starts from: its root, or the
-/// root of the read its root value is, as a loop over `&mut xs` makes.
-fn root_binding(b: &Body, p: &hd_tir::ir::Place) -> Option<PlaceRoot> {
-    let root = match p.root {
-        PlaceRoot::Value(r) => {
-            let x = r.as_inst()?.0 as usize;
-            if b.tags[x] != Tag::Read {
-                return None;
-            }
-            b.decode_place(b.data[x][0])?.root
-        }
-        root => root,
-    };
-    matches!(root, PlaceRoot::Local(_) | PlaceRoot::Global(..)).then_some(root)
+/// The terminal storage binding of each value-backed Read chain. This is
+/// prepared once per body, not by walking a chain at every loan/access.
+#[derive(Default)]
+pub(crate) struct StorageRoots {
+    reads: Vec<Option<PlaceRoot>>,
 }
 
-/// The top-level binding place `p` starts from ([`root_binding`]).
-pub(crate) fn global_root(b: &Body, p: &hd_tir::ir::Place) -> Option<(hd_base::DefId, Ty)> {
-    match root_binding(b, p)? {
+impl StorageRoots {
+    pub(crate) fn new(body: &Body) -> Self {
+        Self::prepare(body, |_| {})
+    }
+
+    fn prepare(body: &Body, mut measure: impl FnMut(usize)) -> Self {
+        let mut reads = vec![None; body.len()];
+        measure(body.len());
+        // The verifier orders a Read's value-root producer before that Read.
+        // Reading a named binding stops here: a stored counted copy does not
+        // inherit the original binding's loan identity.
+        for i in 0..body.len() {
+            measure(1);
+            if body.tags[i] != Tag::Read {
+                continue;
+            }
+            reads[i] = match body.view(body.data[i][0]).root {
+                hd_tir::ir::Root::Local(local) => {
+                    Some(PlaceRoot::Local(hd_base::LocalId::from_raw(local)))
+                }
+                hd_tir::ir::Root::Global(def, ty) => Some(PlaceRoot::Global(def, ty)),
+                hd_tir::ir::Root::Value(value) => reads.get(value as usize).copied().flatten(),
+                _ => None,
+            };
+        }
+        Self { reads }
+    }
+
+    fn binding(&self, place: &hd_tir::ir::Place) -> Option<PlaceRoot> {
+        match place.root {
+            root @ (PlaceRoot::Local(_) | PlaceRoot::Global(..)) => Some(root),
+            PlaceRoot::Value(value) => value
+                .as_inst()
+                .and_then(|value| self.reads.get(value.0 as usize).copied().flatten()),
+            _ => None,
+        }
+    }
+}
+
+/// The top-level binding place `p` starts from, through its Read roots.
+pub(crate) fn global_root(
+    roots: &StorageRoots,
+    p: &hd_tir::ir::Place,
+) -> Option<(hd_base::DefId, Ty)> {
+    match roots.binding(p)? {
         PlaceRoot::Global(def, ty) => Some((def, ty)),
         _ => None,
     }
@@ -513,6 +676,7 @@ pub(crate) fn global_root(b: &Body, p: &hd_tir::ir::Place) -> Option<(hd_base::D
 /// The objects a place may start at: the locals a closure shares, and the
 /// top-level bindings that are objects ([`Module::objects`]).
 pub(super) struct Roots<'a> {
+    pub(super) storage: &'a StorageRoots,
     pub(super) shared: &'a hd_base::HashSet<usize>,
     /// The local references that hold only `*T` values ([`pointer_locals`]):
     /// a place through one crosses the object it points to.
@@ -525,7 +689,7 @@ impl Roots<'_> {
     /// The object place `p` crosses at its root, as the root it is keyed
     /// by, and its type before substitution.
     pub(super) fn of(&self, b: &Body, p: &hd_tir::ir::Place) -> Option<(PlaceRoot, Ty)> {
-        match root_binding(b, p)? {
+        match self.storage.binding(p)? {
             PlaceRoot::Local(l) if self.shared.contains(&l.idx()) => {
                 Some((PlaceRoot::Local(l), b.local_ty[l.idx()]))
             }
@@ -711,6 +875,28 @@ pub(super) fn pointer_lent(
 }
 
 impl Borrows {
+    /// Expected O(key projection words); IDs retain first-insertion order.
+    fn intern_key(&mut self, key: Key) -> usize {
+        let key = self.capture_origins.key(key);
+        #[cfg(test)]
+        {
+            self.key_work += 1 + key.1.len();
+        }
+        match self.key_index.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let index = self.keys.len();
+                #[cfg(test)]
+                {
+                    self.key_work += 1 + entry.key().1.len();
+                }
+                self.keys.push((entry.key().clone(), None));
+                entry.insert(index);
+                index
+            }
+        }
+    }
+
     fn load_own_cell(&mut self, local: usize, cell: u32, held: bool) {
         self.own_cells.insert(local, (cell, held));
         let root = self.capture_origins.local(local);
@@ -741,6 +927,7 @@ impl Em<'_, '_, '_> {
         let found = binds(self.pool(), self.env(), self.b, &sub, &sites, true);
         let mut st = Borrows {
             capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
+            storage_roots: StorageRoots::new(self.b),
             shared: super::closure::shared_locals(self.b),
             frames: frames_of(self.b),
             pointers: pointer_locals(self.pool(), self.env(), self.b, &sub, &sites),
@@ -751,13 +938,9 @@ impl Em<'_, '_, '_> {
         // Seed their keys directly from the capture list, rather than
         // rediscovering them by laying out ancestor or sibling stores.
         if let Some(ci) = closure {
-            let origins = &st.capture_origins;
-            st.keys.extend(self.own_capture_ids(ci).map(|l| {
-                (
-                    origins.key((PlaceRoot::Local(l), Vec::new(), ANY_FRAME)),
-                    None,
-                )
-            }));
+            for local in self.own_capture_ids(ci) {
+                st.intern_key((PlaceRoot::Local(local), Vec::new(), ANY_FRAME));
+            }
         }
 
         for (i, held, bind, _) in found {
@@ -891,9 +1074,7 @@ impl Em<'_, '_, '_> {
                                     p.proj.pop();
                                 }
                                 let key = st.capture_origins.key((p.root, p.proj, ANY_FRAME));
-                                if !st.keys.iter().any(|(x, _)| *x == key) {
-                                    st.keys.push((key, None));
-                                }
+                                st.intern_key(key);
                             }
                             st.call_ptrs.insert(v, (call, mutable, two_phase));
                         }
@@ -979,10 +1160,12 @@ impl Em<'_, '_, '_> {
     /// The index of pointer local `l`'s own key, when the body takes a
     /// loan through it.
     fn own_key(&self, l: usize) -> Option<usize> {
-        let l = self.borrows.capture_origins.local(l);
-        let k = (self.borrows.keys.iter()).position(|((r, proj, f), _)| {
-            matches!(r, PlaceRoot::Local(x) if x.idx() == l) && proj.is_empty() && *f == ANY_FRAME
-        })?;
+        let local = hd_base::LocalId::from_raw(u32::try_from(l).ok()?);
+        let key =
+            self.borrows
+                .capture_origins
+                .key((PlaceRoot::Local(local), Vec::new(), ANY_FRAME));
+        let k = *self.borrows.key_index.get(&key)?;
         (k < self.borrows.loans).then_some(k)
     }
 
@@ -1169,8 +1352,10 @@ impl Em<'_, '_, '_> {
         &'s self,
         shared: &'s hd_base::HashSet<usize>,
         pointers: &'s hd_base::HashSet<usize>,
+        storage: &'s StorageRoots,
     ) -> Roots<'s> {
         Roots {
+            storage,
             shared,
             pointers,
             objects: &self.m.objects,
@@ -1183,13 +1368,14 @@ impl Em<'_, '_, '_> {
         let Some(p) = self.b.decode_place(self.b.data[v as usize][0]) else {
             return;
         };
-        if let Some((r, _)) = self.roots(&st.shared, &st.pointers).of(self.b, &p) {
+        if let Some((r, _)) = self
+            .roots(&st.shared, &st.pointers, &st.storage_roots)
+            .of(self.b, &p)
+        {
             let key = st
                 .capture_origins
                 .key((r, Vec::new(), st.frames[v as usize]));
-            if !st.keys.iter().any(|(x, _)| *x == key) {
-                st.keys.push((key, None));
-            }
+            st.intern_key(key);
         }
         let p = match root_read(self.b, &p) {
             Some((_, q)) => q,
@@ -1200,34 +1386,17 @@ impl Em<'_, '_, '_> {
         }
         let root = self.at_root_ty(p.root);
         let pointer_root = matches!(p.root, PlaceRoot::Local(l) if st.pointers.contains(&l.idx()));
-        for (k, step) in p.proj.iter().enumerate() {
-            let thin = *step == Proj::Deref
-                && (k == 0 && pointer_root
-                    || matches!(
-                        self.walk_ty(root, &p.proj[..k]).map(|t| self.kind(t)),
-                        Ok(Kind::Ref {
-                            fat: false,
-                            whole: true,
-                            ..
-                        })
-                    ));
-            let key = st
-                .capture_origins
-                .key((p.root, p.proj[..k].to_vec(), ANY_FRAME));
-            if thin && !st.keys.iter().any(|(x, _)| *x == key) {
-                st.keys.push((key, None));
-            }
+        if pointer_root && p.proj.first() == Some(&Proj::Deref) {
+            st.intern_key((p.root, Vec::new(), ANY_FRAME));
+        }
+        for (k, _) in crossings(self.pool(), self.env(), root, &p.proj) {
+            st.intern_key((p.root, p.proj[..k].to_vec(), ANY_FRAME));
         }
     }
 
     /// The index of pointer `key`, interned.
     fn borrow_key(&mut self, key: Key) -> usize {
-        let key = self.borrows.capture_origins.key(key);
-        if let Some(k) = self.borrows.keys.iter().position(|(x, _)| *x == key) {
-            return k;
-        }
-        self.borrows.keys.push((key, None));
-        self.borrows.keys.len() - 1
+        self.borrows.intern_key(key)
     }
 
     /// The local holding the state of the function's own loans through
@@ -1287,7 +1456,7 @@ impl Em<'_, '_, '_> {
         let shared = std::mem::take(&mut self.borrows.shared);
         let pointers = std::mem::take(&mut self.borrows.pointers);
         let root_obj = self
-            .roots(&shared, &pointers)
+            .roots(&shared, &pointers, &self.borrows.storage_roots)
             .of(self.b, &p)
             .filter(|(r, _)| match r {
                 PlaceRoot::Local(l) => {

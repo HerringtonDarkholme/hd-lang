@@ -26,7 +26,7 @@ fn repeat[F < FnMut() -> void](n: usize, mut f: F) -> void:
 fn element() -> string:
     let mut ps = [box(P { name: "a" })]
 > app/main/element
->   release *mut app.main.P (last use)
+>   unique List[*mut app.main.P] (may be shared)
 >   release counted reference (last use)
     change := fn() -> void: ps[0] = box(P { name: "b" })
 > app/main/element
@@ -34,7 +34,6 @@ fn element() -> string:
 >   release *mut app.main.P (overwritten)
 >   retain counted reference (stored)
     d := name_of(ps[0])
->   retain *mut app.main.P (conservative: copy read)
     repeat(0, change)
     *d
 >   retain counted reference (stored)
@@ -42,14 +41,12 @@ fn element() -> string:
 fn field() -> string:
     let mut h = Holder { p: box(P { name: "e" }) }
 > app/main/field
->   release *app.main.P (last use)
 >   release counted reference (last use)
     change := fn() -> void: h.p = box(P { name: "f" })
 > app/main/field
 >   release *app.main.P (overwritten)
 >   retain counted reference (stored)
     d := name_of(h.p)
->   retain *app.main.P (second owner)
     repeat(0, change)
     *d
 >   retain counted reference (stored)

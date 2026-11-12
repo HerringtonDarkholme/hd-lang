@@ -1,0 +1,15 @@
+# test: an implicitly lent mutable local reference can read and write its pointee
+# Rule: ref.excl.alias.conflict.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+fn change(owner: *mut P) -> string:
+    let value: &mut P = owner
+    value.name = "new"
+    value.name
+
+pub fn main() -> void:
+    owner := box(P { name: "old" })
+    assert_equal(change(owner), "new")

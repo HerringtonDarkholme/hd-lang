@@ -1,0 +1,9 @@
+# test: a contextual tuple keeps its reference parameters in separate positions
+# Rules: ref.dep.return, ref.dep.origin.position.parts.
+fn first['a, 'b](left: &'a i32, right: &'b i32) -> &'a i32:
+    let pair: (&i32, &i32) = (left, right)
+    pair._0
+
+fn second['a, 'b](left: &'a i32, right: &'b i32) -> &'b i32:
+    let pair: (&i32, &i32) = (left, right)
+    pair._1

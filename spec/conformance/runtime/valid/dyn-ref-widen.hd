@@ -28,7 +28,7 @@ pub fn main() -> void $ Console:
     let shape: &mut dyn Shape = sq
     println("${label(shape)} ${shape.area()}")
     let named: &dyn Named = shape
-    let again: &dyn Named = sq
+    let again: &dyn Named = named
     println("${named.name()} ${named is again}")
     let maybe: *dyn Shape? = sq
     sq.side = 3.0

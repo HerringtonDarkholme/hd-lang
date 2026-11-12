@@ -67,40 +67,41 @@ fn element() -> string:
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 ps: List[*mut P] [read assigned captured] place
 >   local $2 change: fn() -> () [:= read assigned] value
->     uses $2: %16 -> %23 consume last
+>     uses $2: %17 -> %23 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
 >   local $4 d: &string [:= read assigned] value
 >     uses $4: %22 -> %25 lend last
 >   %0 = NewStruct ["a"] : P
 >   %1 = Store [$0] %0 : ()
 >   %2 = Ref take mut [$0] : *mut P
->   %3 = NewList - [%2] : List[*mut P]
->   %4 = Store [$1] %3 : ()
+>   %3 = Coerce %2 [Weaken -] : *mut P
+>   %4 = NewList - [%3] : List[*mut P]
+>   %5 = Store [$1] %4 : ()
 >   %28 = Block %25 : string
 >   %2 finds [$0] full
     change := fn() -> void: ps[0] = box(P { name: "b" })
->   %5 = Retain %13 Entry captures #0 : ()
->   %6 = NewStruct ["b"] : P
->   %7 = Store [$3] %6 : ()
->   %8 = Ref take mut [$3] : *mut P
->   %9 = IsUnique [$1] : ()
->   %10 = Store [$1 [0:usize]] %8 : ()
->   %11 = Release %10 Operation #3 : ()
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = Closure #1 : fn() -> ()
->   %15 = Retain %14 Operation captures #0 : ()
->   %16 = Store [$2] %14 : ()
->   %8 finds [$3] full
->   %14 finds [$1] full
+>   %6 = Retain %14 Entry captures #0 : ()
+>   %7 = NewStruct ["b"] : P
+>   %8 = Store [$3] %7 : ()
+>   %9 = Ref take mut [$3] : *mut P
+>   %10 = IsUnique [$1] : ()
+>   %11 = Store [$1 [0:usize]] %9 : ()
+>   %12 = Release %11 Operation #3 : ()
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = Closure #1 : fn() -> ()
+>   %16 = Retain %15 Operation captures #0 : ()
+>   %17 = Store [$2] %15 : ()
+>   %9 finds [$3] full
+>   %15 finds [$1] full
     d := name_of(ps[0])
->   %17 = Read copy [$1 [0:usize]] : *mut P
->   %18 = Coerce %17 [Weaken -] : &P
->   %19 = Call app/main/name_of[] (%18) : &string
->   %20 = Drop [%18] : ()
->   %21 = Drop [%17] : ()
->   %22 = Store [$4] %19 : ()
->   %17 finds [$1] full
+>   %18 = IsUnique [$1] : ()
+>   %19 = Ref local [$1 [0:usize] *] : &P
+>   %20 = Call app/main/name_of[] (%19) : &string
+>   %21 = LoanEnd [%19] : ()
+>   %22 = Store [$4] %20 : ()
+>   %18 finds [$1] full
+>   %19 finds [$1] full
     repeat(0, change)
 >   %23 = Read move [$2] : fn() -> ()
 >   %24 = Call app/main/repeat[fn() -> ()] (0:usize, %23) : ()
@@ -123,7 +124,7 @@ fn field() -> string:
 >     uses $2: %17 -> %22 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
 >   local $4 d: &string [:= read assigned] value
->     uses $4: %20 -> %24 lend last
+>     uses $4: %21 -> %24 lend last
 >   %0 = NewStruct ["e"] : P
 >   %1 = Store [$0] %0 : ()
 >   %2 = Ref take mut [$0] : *mut P
@@ -148,10 +149,10 @@ fn field() -> string:
 >   %9 finds [$3] full
 >   %15 finds [$1] full
     d := name_of(h.p)
->   %18 = Read copy [$1 .p] : *P
+>   %18 = Ref local [$1 .p *] : &P
 >   %19 = Call app/main/name_of[] (%18) : &string
->   %20 = Store [$4] %19 : ()
->   %21 = Drop [%18] : ()
+>   %20 = Drop [%18] : ()
+>   %21 = Store [$4] %19 : ()
 >   %18 finds [$1] full
     repeat(0, change)
 >   %22 = Read move [$2] : fn() -> ()

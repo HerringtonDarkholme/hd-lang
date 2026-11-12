@@ -424,3 +424,109 @@ fn ordinary_trait_slots_preserve_escaping_counted_arguments() {
         assert!(stdout(&run_name, &run).is_empty());
     }
 }
+
+/// Existing tuple kind conversions lend each field and retain owned neighbors.
+#[test]
+fn whole_tuple_reference_lending_preserves_owners() {
+    use hd_driver::OptLevel;
+
+    // Bounded corpus: three programs in four modes, one Node process per
+    // program/mode. Each program checks two caller-liveness routes.
+    for (case, text) in [
+        (
+            "references",
+            include_str!("counted_tuple_reference_lending.hd"),
+        ),
+        (
+            "mixed",
+            include_str!("counted_tuple_reference_lending_mixed.hd"),
+        ),
+        (
+            "rest",
+            include_str!("counted_tuple_reference_lending_rest.hd"),
+        ),
+    ] {
+        let sources = one_file(text);
+        let store = crate::warm_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        for (mode, build_profile, level, checked) in [
+            ("dev", BuildProfile::Checked, OptLevel::Dev, false),
+            ("checked", BuildProfile::Checked, OptLevel::Dev, true),
+            (
+                "optimized",
+                BuildProfile::Release,
+                OptLevel::Optimized,
+                false,
+            ),
+            (
+                "optimized-checked",
+                BuildProfile::Release,
+                OptLevel::Optimized,
+                true,
+            ),
+        ] {
+            let name = format!("tuple-lending-{case}-{mode}");
+            let out = build_packages(
+                &host,
+                "app",
+                &Packages {
+                    build_profile,
+                    level,
+                    checked,
+                    verify_own: true,
+                    ..Packages::default()
+                },
+                &Goal::Program {
+                    entry: "main".into(),
+                },
+            );
+            assert!(out.diags.is_empty(), "{name}: {}", out.render());
+            let run = run_wasm(&name, &out.wasm.expect("the tuple program links"));
+            assert!(stdout(&name, &run).is_empty());
+        }
+    }
+}
+
+/// A tuple conversion preserves separate dependent-result origins.
+#[test]
+fn whole_tuple_reference_lending_preserves_result_origins() {
+    use hd_diag::Code;
+
+    for (text, expected) in [
+        (
+            include_str!("counted_tuple_reference_lending_invalid_return.hd"),
+            true,
+        ),
+        (
+            include_str!("counted_tuple_reference_lending_valid_return.hd"),
+            false,
+        ),
+    ] {
+        let sources = one_file(text);
+        let store = crate::warm_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let out = build_packages(&host, "app", &Packages::default(), &Goal::Analyze);
+        if expected {
+            assert_eq!(
+                out.diags.code,
+                [Code::LocalReferenceEscapes],
+                "{}",
+                out.render()
+            );
+        } else {
+            assert!(out.diags.is_empty(), "{}", out.render());
+        }
+    }
+}

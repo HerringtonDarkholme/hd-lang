@@ -29,9 +29,9 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   local $0 reverse: bool [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 left: &i32 [param read] value
->     uses $1: entry -> %26 lend last
+>     uses $1: entry -> %28 lend last
 >   local $2 right: &i32 [param read] value
->     uses $2: entry -> %27 lend last
+>     uses $2: entry -> %29 lend last
 >   local $3 a: &i32 [param read] value
 >     uses $3: entry -> %4 lend last
 >   local $4 b: &i32 [param read] value
@@ -41,7 +41,7 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   local $6 b: &i32 [param read] value
 >     uses $6: entry -> %16 lend last
 >   local $7 by: fn(&i32, &i32) -> i32 [:= read assigned] value
->     uses $7: %24 -> %25 lend last
+>     uses $7: %25 -> %26 consume last
 >   %0 = Read copy [$0] : bool
 >   %1 = Retain %9 Entry local $3 #0 : ()
 >   %2 = Retain %9 Entry local $4 #0 : ()
@@ -64,17 +64,19 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   %19 = Drop [$6] : ()
 >   %20 = Block %17 : i32
 >   %21 = Closure #2 : fn(&i32, &i32) -> i32
->   %22 = Block %21 : fn(&i32, &i32) -> i32
->   %23 = If %0 [%12 %22] : fn(&i32, &i32) -> i32
->   %24 = Store [$7] %23 : ()
->   %31 = Block %28 : i32
+>   %22 = Coerce %21 [Weaken -] : fn(&i32, &i32) -> i32
+>   %23 = Block %22 : fn(&i32, &i32) -> i32
+>   %24 = If %0 [%12 %23] : fn(&i32, &i32) -> i32
+>   %25 = Store [$7] %24 : ()
+>   %33 = Block %30 : i32
     apply(by, left, right)
->   %25 = Read move [$7] : fn(&i32, &i32) -> i32
->   %26 = Read borrow [$1] : &i32
->   %27 = Read borrow [$2] : &i32
->   %28 = Call app/main/apply[] (%25, %26, %27) : i32
->   %29 = Retain %28 Operation operand 0 #0 : ()
->   %30 = Drop [%25] : ()
+>   %26 = Read move [$7] : fn(&i32, &i32) -> i32
+>   %27 = Coerce %26 [Weaken -] : fn(&i32, &i32) -> i32
+>   %28 = Read borrow [$1] : &i32
+>   %29 = Read borrow [$2] : &i32
+>   %30 = Call app/main/apply[] (%27, %28, %29) : i32
+>   %31 = Retain %30 Operation operand 0 #0 : ()
+>   %32 = Drop [%27] : ()
 >   exit sub 1 drops [$3 $4]
 >   exit sub 2 drops [$5 $6]
 >   summary kept [] writes

@@ -1,0 +1,16 @@
+# test: creating an implicitly lent mutable reference conflicts with a live shared holder
+# Rule: ref.excl.alias.conflict.
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+fn change(owner: *mut P, alias: *mut P) -> void:
+    let first: &P = owner
+    let second: &mut P = alias # panic: borrow-conflict
+    assert_equal(first.name, "old")
+    second.name = "new"
+
+pub fn main() -> void:
+    owner := box(P { name: "old" })
+    change(owner, owner)

@@ -49,7 +49,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %27 = Block - : ()
 >   %28 = Loop %27 - : ()
         walk(*child, sink)
->   %15 = Read [*$4] : *Node
+>   %15 = Ref local [**$4] : &Node
 >   %16 = Read [$1] : &mut dyn Sink
 >   %17 = Call app/main/walk[] (%15, %16) : ()
 
@@ -117,7 +117,6 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
 > app/main/run
->   local $0 root: *Node [param read]
 >   local $1 total: Total [read assigned captured captured-assigned]
 >   local $2 $ref: &mut Total [read assigned captured]
 >   local $3 keeper: Keeper [read assigned captured captured-assigned]
@@ -125,7 +124,7 @@ pub fn run(root: *Node) -> i64:
 >   %1 = Store [$1] %0 : ()
 >   %21 = Block %20 : i64
     walk(root, &mut total)
->   %2 = Read [$0] : *Node
+>   %2 = Ref local [*$0] : &Node
 >   %3 = Ref mut local [$1] : &mut Total
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read [$2] : &mut Total
@@ -138,7 +137,7 @@ pub fn run(root: *Node) -> i64:
 >   %11 = NewStruct [%10] : Keeper
 >   %12 = Store [$3] %11 : ()
     save(root, &mut keeper)
->   %13 = Read [$0] : *Node
+>   %13 = Ref local [*$0] : &Node
 >   %14 = Ref mut local [$3] : &mut Keeper
 >   %15 = Call app/main/save[] (%13, %14) : ()
     total.sum + i64(keeper.saved.len())

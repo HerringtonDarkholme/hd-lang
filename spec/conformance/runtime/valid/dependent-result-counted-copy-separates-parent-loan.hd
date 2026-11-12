@@ -1,0 +1,38 @@
+# test: a counted copy gives a dependent loan its own root
+# Rules: ref.box.root, ref.excl.alias.conflict.
+use std.annotation.inline
+use std.testing.assert_equal
+
+struct P:
+    name: string
+
+struct H:
+    p: *P
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn local_copy() -> void:
+    h := box(H { p: box(P { name: "old" }) })
+    alias := h
+    copied := h.p
+    value := name_of(copied)
+    alias.p = box(P { name: "new" })
+    assert_equal(*value, "old")
+    assert_equal(h.p.name, "new")
+
+@inline(.Always)
+fn read_then_replace(p: *P, alias: *mut H, next: *P) -> string:
+    value := name_of(p)
+    alias.p = next
+    *value
+
+fn parameter_copy() -> void:
+    h := box(H { p: box(P { name: "old" }) })
+    result := read_then_replace(h.p, h, box(P { name: "new" }))
+    assert_equal(result, "old")
+    assert_equal(h.p.name, "new")
+
+pub fn main() -> void:
+    local_copy()
+    parameter_copy()

@@ -1,0 +1,9 @@
+# test: an explicit local reference to a counted field cannot borrow an unrelated result source
+# Rule: ref.dep.return.
+struct Packet:
+    owner: *i32
+
+fn unrelated(value: Packet, fallback: &i32) -> &i32:
+    owner := value.owner
+    let source: &i32 = &*owner
+    if *fallback == +0: source else: fallback # diagnostic: local-reference-escapes

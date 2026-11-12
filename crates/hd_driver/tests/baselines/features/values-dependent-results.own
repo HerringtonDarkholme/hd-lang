@@ -74,18 +74,19 @@ fn read_list(us: List[User]) -> usize:
 fn through_ptr(u: *User) -> usize:
 > app/main/through_ptr
 >   local $0 u: *User [param read] value
->     uses $0: entry -> %1 consume last
->   local $1 u: *User [read] value
+>     uses $0: entry -> %1 lend last
+>   local $1 u: &User [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = Release %9 Exit local $0 #2 : ()
+>   %0 = Release %10 Exit local $0 #2 : ()
     name_of(u).len()
->   %1 = Read borrow [$0] : *User
+>   %1 = Ref local [*$0] : &User
 >   %2 = Store [$1] %1 : ()
 >   %3 = Ref local [*$1 .name] : &string
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : &string
 >   %6 = Scope %5 [] : &string
->   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = LoanEnd [%6] : ()
->   %9 = Block %7 : usize
+>   %7 = LoanEnd [$1] : ()
+>   %8 = Call std/text/impl string.len[] (%6) : usize
+>   %9 = LoanEnd [%6] : ()
+>   %10 = Block %8 : usize
 >   summary kept [] borrows [$0]

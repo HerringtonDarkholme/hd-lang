@@ -1,0 +1,17 @@
+# test: an implicit trait reference borrow rejects replacing its owner before its last use
+# Rules: ref.convert.lend, ref.excl.place, ref.excl.shared.
+trait Read:
+    fn read(&self) -> i32
+
+struct Item:
+    value: i32
+
+impl Read for Item:
+    fn read(&self) -> i32:
+        self.value
+
+pub fn main() -> void:
+    let mut owner = box(Item { value: +7 })
+    let loan: &dyn Read = owner
+    owner = box(Item { value: +9 }) # diagnostic: conflicting-access
+    _ := loan.read()

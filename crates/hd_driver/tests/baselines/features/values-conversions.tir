@@ -38,17 +38,15 @@ fn bump(p: &mut Point) -> void:
 fn lend(h: *mut Point) -> usize:
     nudge(h)
 > app/main/lend
->   local $0 h: *mut Point [param read]
->   %0 = Read [$0] : *mut Point
+>   %0 = Ref mut local [*$0] : &mut Point
 >   %1 = Call app/main/nudge[] (%0) : ()
->   %7 = Block %6 : usize
+>   %6 = Block %5 : usize
     bump(h)
->   %2 = Read [$0] : *mut Point
+>   %2 = Ref mut local [*$0] : &mut Point
 >   %3 = Call app/main/bump[] (%2) : ()
     view(h)
->   %4 = Read [$0] : *mut Point
->   %5 = Coerce %4 [Weaken -] : &Point
->   %6 = Call app/main/view[] (%5) : usize
+>   %4 = Ref local [*$0] : &Point
+>   %5 = Call app/main/view[] (%4) : usize
 
 fn local(s: string) -> usize:
     let mut origin = Point { name: s, n: 0 }

@@ -54,19 +54,34 @@ fn bump(p: &mut Point) -> void:
 fn lend(h: *mut Point) -> usize:
 > app/main/lend
 >   local $0 h: *mut Point [param read] value
->     uses $0: entry -> %1 lend, %3 lend, %5 lend last
->   %0 = Release %8 Exit local $0 #2 : ()
+>     uses $0: entry -> %1 lend, %4 lend, %7 lend last
+>   local $1 p: Point [read] value
+>     uses $1: %8 -> %9 consume last
+>   local $2 self: string [read] value
+>     uses $2: %10 -> %11 lend last
+>   %0 = Release %19 Exit local $0 #2 : ()
     nudge(h)
->   %1 = Read borrow [$0] : *mut Point
+>   %1 = Ref mut local [*$0] : &mut Point
 >   %2 = Call app/main/nudge[] (%1) : ()
->   %8 = Block %7 : usize
+>   %3 = LoanEnd [%1] : ()
+>   %19 = Block %18 : usize
     bump(h)
->   %3 = Read borrow [$0] : *mut Point
->   %4 = Call app/main/bump[] (%3) : ()
+>   %4 = Ref mut local [*$0] : &mut Point
+>   %5 = Call app/main/bump[] (%4) : ()
+>   %6 = LoanEnd [%4] : ()
     view(h)
->   %5 = Read borrow [$0] : *mut Point
->   %6 = Coerce %5 [Weaken -] : &Point
->   %7 = Call app/main/view[] (%6) : usize
+>   %7 = Read borrow [*$0] : Point
+>   %8 = Store [$1] %7 : ()
+>   %9 = Read borrow [$1 .name] : string
+>   %10 = Store [$2] %9 : ()
+>   %11 = Read borrow [$2] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Break L1 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
 >   summary kept [] borrows [$0] writes
 
 fn local(s: string) -> usize:

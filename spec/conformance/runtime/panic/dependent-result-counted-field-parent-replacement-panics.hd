@@ -1,0 +1,19 @@
+# test: a dependent result from a counted field keeps its parent loan
+# Rule: ref.excl.alias.conflict.
+struct P:
+    name: string
+
+struct H:
+    p: *P
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
+    d := name_of(h.p)
+    alias.p = next # panic: borrow-conflict
+    *d
+
+pub fn main() -> void:
+    h := box(H { p: box(P { name: "a" }) })
+    _ := replace(h, h, box(P { name: "b" }))

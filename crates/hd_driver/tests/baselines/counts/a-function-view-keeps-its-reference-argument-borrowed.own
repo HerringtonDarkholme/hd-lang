@@ -35,7 +35,8 @@ fn lend_view() -> fn(*i32) -> i32:
     read
 > app/main/lend_view
 >   %0 = ItemRef #0 [..] : fn(&i32) -> i32
->   %1 = Block %0 : fn(*i32) -> i32
+>   %1 = Coerce %0 [Weaken -] : fn(*i32) -> i32
+>   %2 = Block %1 : fn(*i32) -> i32
 >   summary kept []
 
 fn own_view() -> fn(*i32) -> *i32:

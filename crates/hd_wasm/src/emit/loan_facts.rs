@@ -17,6 +17,12 @@ use crate::module::Module;
 struct LocalRoots {
     shared: HashSet<usize>,
     pointers: HashSet<usize>,
+    storage: Arc<borrow::StorageRoots>,
+}
+
+struct PreparedBody {
+    stores: Vec<Arc<[usize]>>,
+    storage: Arc<borrow::StorageRoots>,
 }
 
 struct Facts<'a, 'b> {
@@ -33,7 +39,7 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
     // The retained body references keep these identities live throughout
     // preparation; no pointer key survives in Module. A generic body's
     // instruction groups are built once, shared by all its instances.
-    let mut grouped: HashMap<*const Body, Vec<Arc<[usize]>>> = HashMap::default();
+    let mut grouped: HashMap<*const Body, PreparedBody> = HashMap::default();
     let mut stores: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
     for &id in input.order {
         let Some(b) = (input.body)(id) else {
@@ -45,8 +51,11 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         };
         let groups = grouped
             .entry(std::ptr::from_ref(b))
-            .or_insert_with(|| excl::binding_stores(b));
-        let sites = Arc::clone(&groups[usize::from(scope)]);
+            .or_insert_with(|| PreparedBody {
+                stores: excl::binding_stores(b),
+                storage: Arc::new(borrow::StorageRoots::new(b)),
+            });
+        let sites = Arc::clone(&groups.stores[usize::from(scope)]);
         stores[id.idx()] = Arc::clone(&sites);
         let t = &input.collected.table;
         let sub = |ty| {
@@ -61,6 +70,7 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         roots.insert(
             id,
             LocalRoots {
+                storage: Arc::clone(&groups.storage),
                 shared: super::closure::shared_locals(b),
                 pointers: borrow::pointer_locals(input.pool, input.env, b, &sub, &sites),
             },
@@ -131,6 +141,7 @@ impl Context for Facts<'_, '_> {
         let root = borrow::root_ty(b, &sub, p.root)?;
         let locals = &self.roots[&id];
         let roots = Roots {
+            storage: &locals.storage,
             shared: &locals.shared,
             pointers: &locals.pointers,
             objects: &self.module.objects,

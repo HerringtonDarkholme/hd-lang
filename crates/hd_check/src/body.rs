@@ -2081,11 +2081,67 @@ impl Ck<'_, '_> {
         if opaque_return && !self.constrain_opaque_return(got, target, n) {
             return r;
         }
-        // `ref.convert.lend`: a counted reference lends itself where a
-        // local one is expected, with no conversion at run time. A local
-        // one never becomes counted (`ref.local.escape.counted`).
+        // `ref.convert.lend`: retain the typed lending edge even though
+        // the runtime representation is unchanged. Ownership and result
+        // origins need the counted producer and borrowed destination
+        // separately, including operands of aggregate constructions.
         if self.lends_by_kind(g, w) {
-            return r;
+            if let (
+                TyData::Tuple {
+                    elems: from,
+                    rest: from_rest,
+                },
+                TyData::Tuple {
+                    elems: to,
+                    rest: to_rest,
+                },
+            ) = (pool.get(g), pool.get(w))
+            {
+                // Each field has its own ownership: a borrowed reference
+                // must not consume the neighboring owned fields. Project
+                // without rewriting the shared aggregate producer.
+                let fields: Vec<_> = pool
+                    .list_items(from)
+                    .iter()
+                    .copied()
+                    .zip(pool.list_items(to).iter().copied())
+                    .collect();
+                // Interned type lists have a u32 length, so every field
+                // index and the optional tail index fit that word.
+                let mut values = Vec::with_capacity(fields.len());
+                let mut index = 0_u32;
+                for (from, to) in fields.iter().copied() {
+                    let value = self.b.field(r, index, from, n.index());
+                    values.push(self.coerce(value, from, to, n, what, position));
+                    index += 1;
+                }
+                let tail = match (from_rest, to_rest) {
+                    (Some(from), Some(to)) => {
+                        let value = self.b.field(r, index, from, n.index());
+                        self.coerce(value, from, to, n, what, position).0
+                    }
+                    _ => NONE,
+                };
+                let fields = self.b.refs_record(&values);
+                return self.b.emit(Tag::NewTuple, tail, fields, want, n.index());
+            }
+            if let (
+                TyData::Ref { counted: true, .. },
+                TyData::Ref {
+                    counted: false,
+                    inner,
+                    mutable,
+                },
+            ) = (pool.get(g), pool.get(w))
+            {
+                let place = crate::refs::Place {
+                    root: crate::refs::Root::Deref(r, g),
+                    path: Vec::new(),
+                    ty: inner,
+                };
+                return self.make_ref(&place, mutable, want, n);
+            }
+            return self.retype(r, want, n.index());
         }
         if let Some(out) = self.coerce_ref_kind(r, g, w, n, what, (target, position)) {
             return out;
@@ -2187,13 +2243,10 @@ impl Ck<'_, '_> {
             && !open
             && self.injects_into(gs, ws)
         {
-            // A trait value reference converts before the wrap
-            // (`trait.dyn.ref.convert`).
-            if self.dyn_ref_of(inner).is_some() {
-                let r = self.coerce(r, got, inner, n, what, position);
-                return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
-            }
-            self.expect_ty(got, inner, n, what, position);
+            // Convert the payload before the wrap, including a counted
+            // reference lent as a local one (`ref.convert.lend`) and a
+            // trait value reference (`trait.dyn.ref.convert`).
+            let r = self.coerce(r, got, inner, n, what, position);
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
         // A suspending function value weakens to its lowered constructor

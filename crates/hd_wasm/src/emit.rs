@@ -35,7 +35,7 @@ use crate::rt::Helper;
 
 mod borrow;
 mod loan_facts;
-pub(crate) use borrow::global_root;
+pub(crate) use borrow::{StorageRoots, global_root};
 pub(crate) use hd_tir::own::pointer::LoanSite;
 mod closure;
 mod count;

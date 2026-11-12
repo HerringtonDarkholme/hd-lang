@@ -93,7 +93,7 @@
       end
     end
   )
-  (func $run (param $root i32) (result i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $run (param $root i32) (result i64) (local $t0 i32) (local $t1 i32) (local $keeper i32)
     ;; 39 |     let mut total = Total { sum: 0 }
     global.get $locals
     global.get $locals_base
@@ -147,36 +147,33 @@
     local.get $t0
     i32.const 24
     i32.add
-    local.tee $t2
+    local.tee $keeper
     i32.const 80 ;; &empty-buffer
     i32.store $heap
     ;; 42 |     save(root, &mut keeper)
     local.get $root
-    ;; 41 |     let mut keeper = Keeper { saved: [] }
-    local.get $t2
-    local.tee $root
-    ;; 42 |     save(root, &mut keeper)
+    local.get $keeper
     call $save
     ;; 39 |     let mut total = Total { sum: 0 }
     local.get $t1
     ;; 43 |     total.sum + i64(keeper.saved.len())
     i64.load $heap
-    local.get $root
+    local.get $keeper
     i32.load $heap
-    local.tee $t1
-    local.get $root
+    local.tee $root
+    local.get $keeper
     i32.const 0
     i32.store $heap
     i32.load $heap offset=4
     ;; 39 |     let mut total = Total { sum: 0 }
-    local.get $t1
+    local.get $root
     if
-      local.get $t1
+      local.get $root
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $root
         call $rt:release_ref
       end
     end

@@ -1,0 +1,11 @@
+# test: an implicit shared loan excludes a mutable loan from the same counted owner
+# Rules: ref.convert.lend, ref.excl.place, ref.excl.shared.
+struct Item:
+    value: i32
+
+pub fn main() -> void:
+    owner := box(Item { value: +7 })
+    let first: &Item = owner
+    let second: &mut Item = owner # diagnostic: conflicting-access
+    _ := first.value
+    second.value = +9
