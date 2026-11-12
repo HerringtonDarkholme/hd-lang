@@ -194,7 +194,7 @@ fn std_drop_hooks_pass_the_pointer_write_screen() {
         hooks += screened.hooks;
         assert!(
             screened.findings.is_empty(),
-            "{}: review Drop pointer writes at byte offsets {:?} against module.rt.drop.snapshot",
+            "{}: review Drop pointer writes at byte offsets {:?} against module.rt.drop.caller-read",
             entry.path,
             screened.findings
         );
@@ -264,17 +264,54 @@ fn pointer_write_screen_has_linear_width_and_depth_work() {
 
 #[test]
 fn deliberately_broken_drop_invariant_has_a_checked_boundary_fixture() {
+    let source = include_str!("std_drop_snapshot_boundary.hd");
+    assert!(
+        screen(source).findings.len() >= 2,
+        "the intentional pointer violation must be flagged"
+    );
+    let run = run_checked_boundary("drop-invariant-boundary", source);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success() && stderr.contains("violated Drop snapshot invariant"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("3739147998"),
+        "checked freed-header poison is shown: {stderr}"
+    );
+}
+
+// Global writes alone cannot reveal a caller's live references syntactically.
+// Existing std test hooks legitimately write globals outside such a borrow.
+#[test]
+fn deliberately_broken_drop_reference_invariant_has_a_checked_boundary_fixture() {
+    let source = include_str!("std_drop_reference_boundary.hd");
+    assert!(screen(source).findings.is_empty());
+    let run = run_checked_boundary("drop-reference-boundary", source);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success()
+            && stderr.contains("violated Drop live-reference invariant: observed 1"),
+        "{stderr}"
+    );
+    // The ordinary explicit write remains dynamically checked. This control
+    // prevents confusing the deliberately invalid hook with accepted semantics.
+    let direct = source.replace("    destroy(Token {})", "    counter += 1");
+    let run = run_checked_boundary("drop-reference-direct-write", &direct);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success() && stderr.contains("borrow-conflict"),
+        "{stderr}"
+    );
+}
+
+fn run_checked_boundary(label: &str, source: &str) -> std::process::Output {
     use hd_cache::MemoryStore;
     use hd_driver::{
         BuildProfile, Executor, Goal, Host, NoClock, OptLevel, Packages, build_packages,
     };
     use hd_sched::SerialOrder;
 
-    let source = include_str!("std_drop_snapshot_boundary.hd");
-    assert!(
-        screen(source).findings.len() >= 2,
-        "the intentional violation must be flagged"
-    );
     let mut sources = hd_driver::std_sources();
     sources.insert("main.hd", source);
     let store = MemoryStore::default();
@@ -304,14 +341,5 @@ fn deliberately_broken_drop_invariant_has_a_checked_boundary_fixture() {
     // ruled out: successful Program compilation emits its Wasm program.
     let wasm = out.wasm.expect("boundary program emitted");
     // Cost: one fixed checked std program, one Node process via the existing runner.
-    let run = super::release_profile_run::run_wasm("drop-invariant-boundary", &wasm);
-    let stderr = String::from_utf8_lossy(&run.stderr);
-    assert!(
-        !run.status.success() && stderr.contains("violated Drop snapshot invariant"),
-        "{stderr}"
-    );
-    assert!(
-        stderr.contains("3739147998"),
-        "checked freed-header poison is shown: {stderr}"
-    );
+    super::release_profile_run::run_wasm(label, &wasm)
 }

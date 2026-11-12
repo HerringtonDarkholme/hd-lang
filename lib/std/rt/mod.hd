@@ -4,13 +4,14 @@ use std.core.Copy
 
 ## The standard library's final-release hook. Release glue calls `drop` before releasing the value's fields.
 ## A hook must not write a place its caller may read later through a by-value snapshot.
+## The same restriction covers places protected by a live ordinary reference.
 ## It may release its own storage. ListDrain, UniqListDrain and UniqMapDrain
 ## write only the collection they borrow exclusively, apart from their own
 ## storage; that borrow excludes a live snapshot read of the collection.
-## Test hooks may update globals when no caller holds snapshots of those globals.
+## Test hooks may update globals when no caller holds snapshots or live references to those globals.
 ## The std-only syntactic screen flags direct pointer-field/raw-address writes;
 ## helper behavior and raw ownership still require review of this invariant.
-## See [module.rt.drop.snapshot](../../../spec/lang/10-modules.md#r-module.rt.drop.snapshot).
+## See [module.rt.drop.caller-read](../../../spec/lang/10-modules.md#r-module.rt.drop.caller-read).
 ## See [module.rt.drop.glue](../../../spec/lang/10-modules.md#r-module.rt.drop.glue).
 pub trait Drop < ?Copy:
     fn drop(&mut self) -> void
