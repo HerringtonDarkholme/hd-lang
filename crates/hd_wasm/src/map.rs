@@ -2,8 +2,9 @@
 //! value is the address of a counted table that holds its entries
 //! in the order they were added, a removed entry marked by hash -1, and a
 //! linear-probing index of entry numbers plus one (0 empty), twice the
-//! entry capacity, so a probe always meets an empty slot. It is the Wasm
-//! GC backend's map (`crates/hd_wasm/src/map.rs`) in one block of memory.
+//! entry capacity, so a probe always meets an empty slot. Above the
+//! index mask a slot holds its entry's hash bits, so a probe passes
+//! another key's slot without loading that entry's hash (#1711).
 
 use crate::op::Op as I;
 use hd_base::Hash128;
@@ -505,7 +506,17 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.op(I::I32Xor);
     f.op(I::Return);
     f.op(I::End);
+    // A slot whose hash bits above the mask differ holds another key:
+    // the probe passes it without loading the entry's hash.
     f.get(slot);
+    f.get(1);
+    f.op(I::I32Xor);
+    f.get(mask);
+    f.op(I::I32LeU);
+    f.op(I::If(BlockType::Empty));
+    f.get(slot);
+    f.get(mask);
+    f.op(I::I32And);
     f.i32(1);
     f.op(I::I32Sub);
     f.set(e);
@@ -564,6 +575,7 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.op(I::Return);
     f.op(I::End);
     f.op(I::End);
+    f.op(I::End);
     f.get(p);
     f.i32(1);
     f.op(I::I32Add);
@@ -613,8 +625,22 @@ fn index_insert(f: &mut Func, t: u32, cap: u32, h: u32, slot: u32) {
     f.op(I::End);
     f.op(I::End);
     at(f);
-    f.get(slot);
+    tagged(f, h, mask, slot);
     f.op(I::I32Store(mem(HEAP, u64::from(INDEX), 2)));
+}
+
+/// Pushes the index slot of the entry numbered `slot` (a local, its entry
+/// number plus one) whose hash is in local `h`, for a table of index mask
+/// `mask`: the hash's bits above the mask with the slot number below it.
+/// The number is at most the entry capacity, which is at most the mask.
+fn tagged(f: &mut Func, h: u32, mask: u32, slot: u32) {
+    f.get(h);
+    f.get(mask);
+    f.i32(-1);
+    f.op(I::I32Xor);
+    f.op(I::I32And);
+    f.get(slot);
+    f.op(I::I32Or);
 }
 
 /// [`Helper::MapPut`]: `(map, hash, probe, key..., value...) -> map`, taking
@@ -719,6 +745,13 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     f.op(I::If(BlockType::Empty));
     index_insert(&mut f, t, cap, 1, slot);
     f.op(I::Else);
+    let mask = f.local(Val::I32);
+    f.get(cap);
+    f.i32(1);
+    f.op(I::I32Shl);
+    f.i32(1);
+    f.op(I::I32Sub);
+    f.set(mask);
     f.get(t);
     f.get(2);
     f.i32(-1);
@@ -726,7 +759,7 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     f.i32(4);
     f.op(I::I32Mul);
     f.op(I::I32Add);
-    f.get(slot);
+    tagged(&mut f, 1, mask, slot);
     f.op(I::I32Store(mem(HEAP, u64::from(INDEX), 2)));
     f.op(I::End);
     store_u32(&mut f, t, USED, &|f| f.get(slot));

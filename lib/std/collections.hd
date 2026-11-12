@@ -1003,7 +1003,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                         )
         # The probe index and slots must fit one buffer, including its header.
         slot_bytes := u64(size_of::[UniqMapSlot[K, V]]())
-        index_bytes := u64(room) * 2 * u64(size_of::[usize]())
+        index_bytes := u64(room) * 8
         slots := u64(room) + (index_bytes + slot_bytes - 1) / slot_bytes
         if slots * slot_bytes > 0xfffe0000:
             panic_with("heap-exhausted", "uniq map capacity does not fit the heap")
@@ -1014,7 +1014,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
 
     fn allocate_seeded(capacity: usize, seed: u64) -> UniqMap[K, V]:
         slot_bytes := size_of::[UniqMapSlot[K, V]]()
-        index_bytes := capacity * 2 * size_of::[usize]()
+        index_bytes := capacity * 2 * 4
         index_slots := (index_bytes + slot_bytes - 1) / slot_bytes
         slots := Buffer::[UniqMapSlot[K, V]].new(capacity + index_slots)
         fill(slots.at(capacity).address, 0, index_bytes)
@@ -1120,76 +1120,78 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn keys['a](&'a self) -> UniqMapKeys[K, V, 'a]:
         UniqMapKeys { entries: self.iter() }
 
-    fn index_address(&self, index: usize) -> usize:
-        self.slots.at(self.entry_capacity).address + index * size_of::[usize]()
+    # The index follows the entries: twice their capacity of u32 slots,
+    # each 0 when empty, else its entry's hash bits above `index_mask`
+    # over that entry's number plus one, which is at most the capacity.
+    # A probe passes a slot whose hash bits differ without loading its
+    # entry (#1711); a map of capacity 2^k keeps 31 - k such bits.
+    fn index_base(&self) -> usize:
+        self.slots.at(self.entry_capacity).address
 
-    fn index_value(&self, index: usize) -> usize:
-        usize(load_u32(self.index_address(index)))
-
-    fn set_index(&self, index: usize, value: usize) -> void:
-        store_u32(self.index_address(index), u32(value))
-
-    fn start(&self, hash: usize) -> usize:
-        hash & (self.entry_capacity * 2 - 1)
+    fn index_mask(&self) -> usize:
+        self.entry_capacity * 2 - 1
 
     # The index of `key`, borrowing every probed slot rather than moving it.
     fn find_index(&self, key: K) -> usize?:
         if self.entry_capacity == 0:
             return .None
-        capacity := self.entry_capacity * 2
+        mask := self.index_mask()
+        base := self.index_base()
         hash := usize(hash_key(key, self.seed))
-        let index = self.start(hash)
+        let index = hash & mask
         while true:
-            entry_plus_one := self.index_value(index)
-            if entry_plus_one == 0:
+            slot := usize(load_u32(base + index * 4))
+            if slot == 0:
                 return .None
-            entry := entry_plus_one - 1
-            match self.slots.at(entry).as_ref():
-                .Deleted => pass
-                .Occupied(found_hash, found, _) =>
-                    if found_hash == hash && found == key:
-                        return .Some(entry)
-            index = (index + 1) & (capacity - 1)
+            if (slot ^ hash) <= mask:
+                entry := (slot & mask) - 1
+                match self.slots.at(entry).as_ref():
+                    .Deleted => pass
+                    .Occupied(found_hash, found, _) =>
+                        if found_hash == hash && found == key:
+                            return .Some(entry)
+            index = (index + 1) & mask
 
     # Adds one occupied entry to this freshly allocated table's compact index.
     fn index_entry(&mut self, hash: usize, entry: usize) -> void:
-        capacity := self.entry_capacity * 2
-        let index = self.start(hash)
-        while true:
-            if self.index_value(index) == 0:
-                self.set_index(index, entry + 1)
-                return
-            index = (index + 1) & (capacity - 1)
+        mask := self.index_mask()
+        base := self.index_base()
+        let index = hash & mask
+        while load_u32(base + index * 4) != 0:
+            index = (index + 1) & mask
+        store_u32(base + index * 4, u32((hash & ~mask) | (entry + 1)))
 
     ## Moves `value` into the entry for `key`; returns the replaced value, or `.None` for a new key.
     ## See [std-collections.uniq-map.insert](../../spec/std/collections.md#r-std-collections.uniq-map.insert).
     pub fn insert(&mut self, key: K, value: V) -> V?:
         if self.used == self.entry_capacity:
             self.grow()
-        capacity := self.entry_capacity * 2
+        mask := self.index_mask()
+        base := self.index_base()
         hash := usize(hash_key(key, self.seed))
-        let index = self.start(hash)
+        let index = hash & mask
         while true:
-            entry_plus_one := self.index_value(index)
-            if entry_plus_one == 0:
+            slot := usize(load_u32(base + index * 4))
+            if slot == 0:
                 entry := self.used
                 self.slots.at(entry).write(.Occupied(hash, key, value))
                 self.used = entry + 1
-                self.set_index(index, entry + 1)
+                store_u32(base + index * 4, u32((hash & ~mask) | (entry + 1)))
                 self.size += 1
                 return .None
-            entry := entry_plus_one - 1
-            match self.slots.at(entry).as_ref():
-                .Deleted => pass
-                .Occupied(found_hash, found, _) =>
-                    if found_hash == hash && found == key:
-                        place := self.slots.at(entry)
-                        match place.read():
-                            .Occupied(matched_hash, matched, old) =>
-                                place.write(.Occupied(matched_hash, matched, value))
-                                return .Some(old)
-                            .Deleted => panic("uniq map matched a deleted entry")
-            index = (index + 1) & (capacity - 1)
+            if (slot ^ hash) <= mask:
+                entry := (slot & mask) - 1
+                match self.slots.at(entry).as_ref():
+                    .Deleted => pass
+                    .Occupied(found_hash, found, _) =>
+                        if found_hash == hash && found == key:
+                            place := self.slots.at(entry)
+                            match place.read():
+                                .Occupied(matched_hash, matched, old) =>
+                                    place.write(.Occupied(matched_hash, matched, value))
+                                    return .Some(old)
+                                .Deleted => panic("uniq map matched a deleted entry")
+            index = (index + 1) & mask
 
     fn grow(&mut self) -> void:
         old_capacity := self.entry_capacity

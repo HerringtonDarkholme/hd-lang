@@ -940,7 +940,12 @@ Each operation implements collection value semantics (§15.2;
   capacity long, each entry's hash (-1 once removed), and the entries
   in the order they were added, each a `(K, V)` record laid out as a
   tuple. Probing is linear from the hash's low bits; the index is at
-  most half full, so a probe always meets an empty slot.
+  most half full, so a probe always meets an empty slot. Above the index
+  mask, a slot holds its entry's hash bits (#1711): the entry number
+  plus one is at most the capacity, so it fits under the mask, and a
+  probe passes a slot whose upper bits differ without loading the
+  entry's hash. The tag costs no memory; a map of capacity 2^k keeps
+  30 - k tag bits, at least 7 below 2^23 entries.
 - **Keys.** A key hashes and compares through the operations collection
   chose: an integer, `bool` or `char` through `std.hash.hash_integer`
   over its bits zero-extended and `i32.eq` or `i64.eq`, a string through

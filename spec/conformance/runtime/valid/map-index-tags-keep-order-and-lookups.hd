@@ -1,0 +1,72 @@
+# test: hash bits in the index leave iteration order and lookups unchanged across seeds, growth and removal
+# expect: test
+# Spec std/hash: std-hash.map.order-independent; lang/04-type-system: types.map.order.deterministic.
+use std.collections.UniqMap
+
+fn key(index: u32) -> u32:
+    u32(u64(index) * 2654435761 % 4294967296)
+
+fn build_map() -> Map[u32, u32]:
+    let mut values: Map[u32, u32] = {}
+    for index in 0..3000:
+        values[key(u32(index))] = u32(index)
+    for index in 0..3000:
+        if index % 3 == 0:
+            _ := values.remove(key(u32(index)))
+    for index in 3000..4000:
+        values[key(u32(index))] = u32(index)
+    values
+
+fn build_unique() -> UniqMap[u32, u32]:
+    let mut values = UniqMap::[u32, u32].new()
+    for index in 0..3000:
+        _ := values.insert(key(u32(index)), u32(index))
+    for index in 0..3000:
+        if index % 3 == 0:
+            _ := values.remove(key(u32(index)))
+    for index in 3000..4000:
+        _ := values.insert(key(u32(index)), u32(index))
+    values
+
+fn map_digest(values: Map[u32, u32]) -> u64:
+    let digest: u64 = 0
+    for (found, value) in values:
+        digest = (digest * 31 + u64(*found) + u64(*value)) % 1000000007
+    digest
+
+fn unique_digest(values: &UniqMap[u32, u32]) -> u64:
+    let digest: u64 = 0
+    for (found, value) in values.iter():
+        digest = (digest * 31 + u64(found) + u64(*value)) % 1000000007
+    digest
+
+tests:
+    use std.testing.assert_equal
+
+    it("Map order is the same for every seed after growth and removal"):
+        first := build_map()
+        second := build_map()
+        assert_equal(first.len(), 3000, reason="2000 kept and 1000 added")
+        assert_equal(map_digest(first), map_digest(second), reason="two seeds, one order")
+        assert_equal(map_digest(first), 46563579, reason="the order of every run")
+
+    it("Map finds each kept key and none of the removed or absent ones"):
+        values := build_map()
+        for index in 0..4000:
+            let expected: u32? = if index < 3000 && index % 3 == 0: .None else: .Some(u32(index))
+            assert_equal(values.get(key(u32(index))), expected, reason="a kept or removed key")
+            assert_equal(values.get(key(u32(index)) ^ 1), .None, reason="an absent key")
+
+    it("UniqMap order is the same for every seed after growth and removal"):
+        first := build_unique()
+        second := build_unique()
+        assert_equal(first.len(), 3000, reason="2000 kept and 1000 added")
+        assert_equal(unique_digest(&first), unique_digest(&second), reason="two seeds, one order")
+        assert_equal(unique_digest(&first), 46563579, reason="the order of every run")
+
+    it("UniqMap finds each kept key and none of the removed or absent ones"):
+        values := build_unique()
+        for index in 0..4000:
+            let expected: u32? = if index < 3000 && index % 3 == 0: .None else: .Some(u32(index))
+            assert_equal(values.get(key(u32(index))), expected, reason="a kept or removed key")
+            assert_equal(values.get(key(u32(index)) ^ 1), .None, reason="an absent key")
