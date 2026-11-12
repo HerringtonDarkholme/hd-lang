@@ -1,0 +1,8 @@
+# test: an implicit mutable lend excludes a closure argument that writes its source
+fn interleaved(values: &mut List[i32], snapshot: fn() -> void) -> void:
+    values[0] = +1
+    snapshot()
+
+pub fn main() -> void:
+    values := box::[List[i32]]([+0])
+    interleaved(values, fn() -> void: values[0] = +2) # diagnostic: conflicting-access
