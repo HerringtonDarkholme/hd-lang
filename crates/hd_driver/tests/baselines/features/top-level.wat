@@ -13,13 +13,11 @@
   (func $init.init (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 6 | greeting := "hello ${1}"
     i64.const 1
-    local.set $t0
-    i64.const 1
+    local.tee $t0
     call $unsigned_width
     local.set $t1
     i32.const 6
-    local.set $t2
-    i32.const 6
+    local.tee $t2
     local.get $t1
     i32.add
     local.tee $t3
@@ -68,13 +66,11 @@
     end
     ;; 8 | names := ["a${1}", "b"]
     i64.const 1
-    local.set $t0
-    i64.const 1
+    local.tee $t0
     call $unsigned_width
     local.set $t1
     i32.const 1
-    local.set $t2
-    i32.const 1
+    local.tee $t2
     local.get $t1
     i32.add
     local.tee $t3

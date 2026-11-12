@@ -263,8 +263,7 @@
   (func $clean (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 12 |     "[${raw}]"
     i32.const 1
-    local.set $t0
-    i32.const 1
+    local.tee $t0
     local.get $raw.1
     i32.add
     local.tee $t1

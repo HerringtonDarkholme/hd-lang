@@ -1,0 +1,15 @@
+# test: constant propagation preserves comprehension initialization and evaluation
+# expect: test
+use std.testing.assert_equal
+
+fn lengths(xs: List[string]) -> List[usize]:
+    [for x in xs => x.len()]
+
+tests:
+    it("empty and growing comprehensions retain their values"):
+        assert_equal(lengths([]), [])
+        assert_equal(lengths(["a", "", "abcd"]), [1, 0, 4])
+        let mut source: List[string] = []
+        for n in 0..20:
+            source.push("x")
+            assert_equal(lengths(source).len(), n + 1)

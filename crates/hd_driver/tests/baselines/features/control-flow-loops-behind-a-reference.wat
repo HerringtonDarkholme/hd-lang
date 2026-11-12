@@ -234,8 +234,7 @@
     ;; 34 |     for i in 0..4:
     i32.const 0
     i32.const 4
-    local.set $t1
-    i32.const 4
+    local.tee $t1
     i32.lt_u
     if
       local.get $p
