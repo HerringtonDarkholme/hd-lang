@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# `@track_caller` (fn.caller.hidden): each direct call passes one more
+# argument, the address of its call site's static record; nothing is
+# allocated until `Location::caller()` decodes it.
+use std.debug.Location
+
+@track_caller
+fn line_of() -> u32:
+    Location::caller().line
+
+pub fn main() -> void $ Console:
+    println(line_of())
+    #       ^^^^^^^^^

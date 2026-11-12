@@ -5797,6 +5797,10 @@ typing/invalid/auto-closing-stored-through-a-shorthand-field.hd	type	reject:unre
 typing/invalid/auto-closing-undecorated-return.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.return
 typing/invalid/auto-closing-result-not-marker.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.auto-closing.result
 typing/invalid/auto-closing-missing-disposal-protocol.hd	type	reject:missing-supertrait-implementation	lang/06-control-flow.md#r-flow.auto-closing.protocol
+runtime/valid/track-caller-location.hd	runtime	accept	lang/07-functions.md#r-fn.caller.chain
+typing/valid/track-caller-caller-in-a-closure.hd	type	accept	lang/07-functions.md#r-fn.caller.accessor.inside
+typing/invalid/track-caller-caller-outside.hd	type	reject:caller-outside-track-caller	lang/07-functions.md#r-fn.caller.accessor.inside
+typing/invalid/track-caller-on-a-method.hd	type	reject:decorator-target-kind	lang/07-functions.md#r-fn.caller.target
 typing/invalid/call-mut-argument-aliased-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args
 typing/invalid/call-mut-argument-shared-borrow.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args
 typing/invalid/call-mut-receiver-shared-argument.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args

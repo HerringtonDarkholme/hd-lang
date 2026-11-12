@@ -1,0 +1,86 @@
+# std.debug: the call site of a `@track_caller` function
+# (spec/lang/07-functions.md#call-site-locations).
+#
+# A `@track_caller` function gets one hidden argument, a `string` constant
+# that is the call site's record (fn.caller.record). Its fields are separated
+# by U+001F: the root-package bit, the line, the column and the file, then
+# five fields for each argument when the record holds argument texts: the
+# start line and column, the end line and column, and the source text. The
+# record is static data; only an accessor reads it, at run time.
+
+## Where a call begins in source: the file as diagnostics name it, and the
+## 1-based line and column, counted in characters.
+## See [fn.caller.location](../../spec/lang/07-functions.md#r-fn.caller.location).
+pub struct Location:
+    pub file: string
+    pub line: u32
+    pub column: u32
+    # Whether the call site is in the user's own code (fn.caller.root-package).
+    root: bool
+
+impl Location:
+    ## The location of the call of the enclosing `@track_caller` function.
+    ## See [fn.caller.accessor.location](../../spec/lang/07-functions.md#r-fn.caller.accessor.location).
+    @intrinsic("caller_location")
+    pub fn caller() -> Location:
+        panic("intrinsic")
+
+    ## The source text and span of each argument of the call of the
+    ## enclosing `@track_caller` function; empty when they are unknown.
+    ## See [fn.caller.accessor.args](../../spec/lang/07-functions.md#r-fn.caller.accessor.args).
+    @intrinsic("caller_args")
+    pub fn caller_args() -> List[CallArg]:
+        panic("intrinsic")
+
+    ## Whether the call site is in the user's own code.
+    ## See [fn.caller.root-package](../../spec/lang/07-functions.md#r-fn.caller.root-package).
+    pub fn in_root_package(self) -> bool:
+        self.root
+
+## One argument of a call: its source text, and where it starts and ends.
+## See [fn.caller.accessor.args](../../spec/lang/07-functions.md#r-fn.caller.accessor.args).
+pub struct CallArg:
+    pub text: string
+    pub start: Location
+    pub end: Location
+
+# A decimal field of a record, which the compiler writes.
+fn site_number(text: string) -> u32:
+    let value: u32 = 0
+    for c in text.chars():
+        value = value * 10 + c.to_u32() - '0'.to_u32()
+    value
+
+# What `Location::caller()` is, given the record.
+fn site_location(record: string) -> Location:
+    fields := record.split("\u{1f}")
+    Location {
+        file: fields[3],
+        line: site_number(fields[1]),
+        column: site_number(fields[2]),
+        root: fields[0] == "1",
+    }
+
+# What `Location::caller_args()` is, given the record.
+fn site_args(record: string) -> List[CallArg]:
+    fields := record.split("\u{1f}")
+    file := fields[3]
+    root := fields[0] == "1"
+    let mut args: List[CallArg] = []
+    let at: usize = 4
+    while at + 5 <= fields.len():
+        start := Location {
+            file: file,
+            line: site_number(fields[at]),
+            column: site_number(fields[at + 1]),
+            root: root,
+        }
+        end := Location {
+            file: file,
+            line: site_number(fields[at + 2]),
+            column: site_number(fields[at + 3]),
+            root: root,
+        }
+        args.push(CallArg { text: fields[at + 4], start: start, end: end })
+        at = at + 5
+    args

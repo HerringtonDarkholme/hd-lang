@@ -352,6 +352,19 @@ impl Lower<'_, '_, '_> {
                         );
                     }
                 }
+                "track_caller" => {
+                    if k != kind::FN {
+                        self.target_error(
+                            span,
+                            "`@track_caller` precedes only a module-level function",
+                        );
+                    } else if !deco.bare || deco.typed {
+                        self.target_error(
+                            span,
+                            "write bare `@track_caller`, without arguments or type arguments",
+                        );
+                    }
+                }
                 "auto_closing" => {
                     if k != kind::FN {
                         self.target_error(
@@ -588,6 +601,15 @@ impl Lower<'_, '_, '_> {
             .any(|deco| deco.name == "auto_closing")
     }
 
+    /// Whether a module-level function carries a `@track_caller` line
+    /// (`fn.caller.decorator`).
+    pub(super) fn track_caller(&self, n: NodeRef<'_>) -> bool {
+        n.children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter_map(|d| self.deco(d))
+            .any(|deco| deco.name == "track_caller")
+    }
+
     /// Checks that a function has at most one compiler-known
     /// `@auto_closing` marker. Its spelling and target are checked with the
     /// other decorators; its return-type obligation is a stage-B trait goal.
@@ -596,16 +618,16 @@ impl Lower<'_, '_, '_> {
             .children()
             .filter(|c| c.kind() == SyntaxKind::Decorator)
             .filter_map(|d| self.deco(d).map(|deco| (d, deco)))
-            .filter(|(_, deco)| deco.name == "auto_closing")
+            .filter(|(_, deco)| matches!(deco.name.as_str(), "auto_closing" | "track_caller"))
             .collect();
-        for (index, (line, _)) in lines.into_iter().enumerate() {
+        let mut seen: Vec<String> = Vec::new();
+        for (line, deco) in lines {
             let span = self.src.span(line);
-            if index > 0 {
-                self.diags.error(
-                    Code::DuplicateFact,
-                    span,
-                    "a function has one `@auto_closing` line",
-                );
+            if seen.contains(&deco.name) {
+                let msg = format!("a function has one `@{}` line", deco.name);
+                self.diags.error(Code::DuplicateFact, span, &msg);
+            } else {
+                seen.push(deco.name);
             }
         }
     }

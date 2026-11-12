@@ -119,6 +119,11 @@ pub struct KnownItems {
     pub map_integer_hash: DefId,
     pub display: DefId,
     pub debug: DefId,
+    /// `std.debug`'s private decoders of a call-site record
+    /// (spec/lang/07-functions.md "Call-Site Locations"): the checker lowers
+    /// `Location::caller()` and `Location::caller_args()` to calls of them.
+    pub site_location: DefId,
+    pub site_args: DefId,
     /// `std.format.dbg`, whose call the checker writes out (spec/lang/10-modules.md "Debug Printing").
     pub dbg: DefId,
     // std.serde
@@ -342,6 +347,8 @@ impl KnownItems {
             map_integer_hash: item("std.hash", "hash_integer"),
             display: item("std.format", "Display"),
             debug: item("std.format", "Debug"),
+            site_location: item("std.debug", "site_location"),
+            site_args: item("std.debug", "site_args"),
             dbg: item("std.format", "dbg"),
             serialize: item("std.serde", "Serialize"),
             deserialize: item("std.serde", "Deserialize"),

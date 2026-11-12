@@ -1,0 +1,9 @@
+# test: @track_caller precedes only a module-level function
+# Spec lang/07 Call-Site Locations: fn.caller.target.
+struct Meter:
+    value: i32
+
+impl Meter:
+    @track_caller  # diagnostic: decorator-target-kind
+    fn read(self) -> i32:
+        self.value

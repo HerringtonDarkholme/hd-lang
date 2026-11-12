@@ -509,7 +509,9 @@ lang/07-functions.md	65	mixed	typing/invalid/counted-self-call-on-local.hd
 lang/07-functions.md	66	mixed	typing/invalid/recursive-closure-inferred-result.hd
 lang/07-functions.md	67	complete	-
 lang/07-functions.md	68	complete	-
-lang/07-functions.md	69	complete	-
+lang/07-functions.md	69	mixed	typing/invalid/track-caller-caller-outside.hd
+lang/07-functions.md	70	complete	-
+lang/07-functions.md	71	complete	-
 lang/08-data-and-enums.md	1	complete	-
 lang/08-data-and-enums.md	2	complete	-
 lang/08-data-and-enums.md	3	mixed	typing/invalid/struct-embedded-field.hd|typing/invalid/struct-contains-itself.hd

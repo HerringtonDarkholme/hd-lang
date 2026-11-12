@@ -852,7 +852,7 @@ impl Ck<'_, '_> {
             }
         };
         targs.extend(&m.vars);
-        if self.lowers_call(m.def)
+        if (self.lowers_call(m.def) || self.tracked_caller(m.def).is_some())
             && let TyData::Fn { params, result, .. } = pool.get(ft)
         {
             return Ok((self.lowered_ref(&m, (params, result), ft, n), ft));
@@ -935,9 +935,18 @@ impl Ck<'_, '_> {
             .collect();
         // A new object `box` makes belongs to this closure's body.
         self.scopes.push(hd_base::HashMap::default());
-        let r = match self.lowered_call(&callee, &refs, result, false, n) {
-            Some((r, _)) => r,
-            None => self.b.call(&callee, &refs, Providers::None, result, syn),
+        let r = if self.tracked_caller(m.def).is_some() {
+            // `fn.caller.value`: the call binds the place that creates the
+            // value.
+            let saved = std::mem::replace(&mut self.site_value, true);
+            let (r, _) = self.emit_call(&callee, &refs, result, false, false, n);
+            self.site_value = saved;
+            r
+        } else {
+            match self.lowered_call(&callee, &refs, result, false, n) {
+                Some((r, _)) => r,
+                None => self.b.call(&callee, &refs, Providers::None, result, syn),
+            }
         };
         self.scopes.pop();
         let root = self.b.close_block(blk, Some(r), result, syn);

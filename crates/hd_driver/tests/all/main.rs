@@ -129,6 +129,7 @@ mod test_registration_spellings;
 mod test_runner_registration_rows;
 mod tests_block_impls;
 mod tests_block_shape;
+mod track_caller_dependency;
 mod trailing_blocks;
 mod trials;
 mod tuple_structure;

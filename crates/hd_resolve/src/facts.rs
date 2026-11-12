@@ -19,6 +19,7 @@ const COMPILER_DECORATORS: &[&str] = &[
     "host",
     "cfg",
     "auto_closing",
+    "track_caller",
 ];
 
 /// A decorator line's callee, without its call and type-argument wrappers.
@@ -70,7 +71,7 @@ pub(crate) fn decorator_parts(d: NodeRef<'_>) -> Option<DecoParts<'_>> {
 pub fn is_marker(src: &Src<'_>, d: NodeRef<'_>) -> bool {
     matches!(
         line(src, d),
-        Some((Some(name), _)) if matches!(name.as_str(), "intrinsic" | "from" | "source" | "auto_closing")
+        Some((Some(name), _)) if matches!(name.as_str(), "intrinsic" | "from" | "source" | "auto_closing" | "track_caller")
     )
 }
 

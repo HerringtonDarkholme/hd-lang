@@ -1,0 +1,45 @@
+# test: a @track_caller function reads its call's location and argument texts
+# Spec lang/07 Call-Site Locations: fn.caller.hidden, fn.caller.location,
+# fn.caller.chain, fn.caller.value, fn.caller.accessor.args.
+# expect-stdout: 39:5 root
+# expect-stdout: 40:5 root
+# expect-stdout: [a + 1 @41:11-41:16][b @41:18-41:19]
+# expect-stdout: [a * 2 @42:13-42:18]
+# expect-stdout: 43:13 root
+# expect-stdout: 0 texts
+use std.debug.Location
+
+@track_caller
+fn here() -> void:
+    at := Location::caller()
+    println("${at.line}:${at.column} ${if at.in_root_package(): "root" else: "fetched"}")
+
+@track_caller
+fn outer() -> void:
+    here()
+
+@track_caller
+fn texts(x: i32, y: i32) -> void:
+    let shown = ""
+    for arg in Location::caller_args():
+        shown = shown + "[${arg.text} @${arg.start.line}:${arg.start.column}-${arg.end.line}:${arg.end.column}]"
+    println(shown)
+
+@track_caller
+fn forward(x: i32) -> void:
+    texts(x, x)
+
+@track_caller
+fn count(x: i32, y: i32) -> void:
+    println("${Location::caller_args().len()} texts")
+
+pub fn main() -> void $ Console:
+    a := +2
+    b := +3
+    here()
+    outer()
+    texts(a + 1, b)
+    forward(a * 2)
+    show := here
+    show()
+    count(x=a, y=b)

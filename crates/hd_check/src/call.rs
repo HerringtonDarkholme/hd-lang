@@ -849,7 +849,10 @@ impl Ck<'_, '_> {
         };
         let mut args = self.args_of(al);
         args.trailing = Some(block);
-        self.call_args(call, callee, &args, want)
+        self.trailing_heads.push(call.index());
+        let r = self.call_args(call, callee, &args, want);
+        self.trailing_heads.pop();
+        r
     }
 
     /// A call of `callee` with `args`; `n` is the call node. The call is
@@ -3108,6 +3111,8 @@ impl Ck<'_, '_> {
                     "ref_identity"
                         | "box"
                         | "assert_equal"
+                        | "caller_location"
+                        | "caller_args"
                         | "ptr_read"
                         | "ptr_write"
                         | "fn_call"
@@ -3144,6 +3149,13 @@ impl Ck<'_, '_> {
             // std's `identity_of(r)` (lib/std/cmp.hd): the identity
             // fields of the reference (`crate::refs`), as the result.
             ("ref_identity", [r]) => Some((self.ref_identity_value(*r, ret, n), ret)),
+            // `Location::caller()` and `Location::caller_args()`
+            // (`fn.caller.accessor.inside`): a decoder of the enclosing
+            // `@track_caller` function's call-site record.
+            (k @ ("caller_location" | "caller_args"), []) => {
+                let k = k.to_owned();
+                Some(self.caller_access(&k, ret, n))
+            }
             // `box(e)` (ref.box.new): a new object holding the argument's
             // value, which the argument already copied (ref.box.copy). Its
             // `T < 'static` keeps a local reference out (ref.box.no-local).
@@ -3223,6 +3235,21 @@ impl Ck<'_, '_> {
                 return (self.b.emit(tag, word, w, ty, n.index()), ty);
             }
         }
+        // `fn.caller.hidden`: a `@track_caller` callee takes the call
+        // site's record after its written arguments.
+        let with_site;
+        let refs = match c {
+            Callee::Item { def, .. } => match self.tracked_caller(*def) {
+                Some(reads_args) => {
+                    let mut v = refs.to_vec();
+                    v.push(self.site_arg(reads_args, n));
+                    with_site = v;
+                    &with_site[..]
+                }
+                None => refs,
+            },
+            Callee::TraitMethod { .. } => refs,
+        };
         let ret = self.open_projections(ret, ProjectSite::Result, n);
         if bang {
             self.check_bang(suspends, n);
@@ -3858,6 +3885,9 @@ impl Ck<'_, '_> {
                 targs: pool.list(&targs),
             };
             let ret = self.normalize_deep(inst(sig.ret))?;
+            if let Some(lowered) = self.lowered_call(&c, &refs, ret, bang, n) {
+                return Ok(lowered);
+            }
             return Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n));
         }
         // A trait method with no receiver through a bound (`N::zero()`).

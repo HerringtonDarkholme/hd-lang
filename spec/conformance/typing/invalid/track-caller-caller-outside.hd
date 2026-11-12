@@ -1,0 +1,6 @@
+# test: Location::caller() outside a @track_caller function has no caller
+# Spec lang/07 Call-Site Locations: fn.caller.accessor.inside.
+use std.debug.Location
+
+fn plain() -> u32:
+    Location::caller().line  # diagnostic: caller-outside-track-caller

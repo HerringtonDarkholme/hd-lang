@@ -9128,8 +9128,9 @@ impl Run<'_> {
                     if def == init {
                         continue;
                     }
-                    let Some(Some((whole, tir))) =
-                        bodies.get(&names.path_hash(init)).map(|b| self.decode(b))
+                    let Some(Some((whole, tir))) = bodies
+                        .get(&names.path_hash(init))
+                        .map(|b| self.decode_with(b, Some(&items)))
                     else {
                         continue;
                     };
@@ -9400,6 +9401,16 @@ impl Run<'_> {
 
     /// A body, decoding its wire bytes on first use.
     fn decode<'p>(&self, b: &'p LazyBody) -> Option<&'p (Body, Hash128)> {
+        self.decode_with(b, self.program.get().map(|p| &p.items))
+    }
+
+    /// [`Self::decode`] with the program's items, which say which callees
+    /// are `@track_caller` (`fn.caller.root-package`).
+    fn decode_with<'p>(
+        &self,
+        b: &'p LazyBody,
+        items: Option<&ProgramItems>,
+    ) -> Option<&'p (Body, Hash128)> {
         b.body
             .get_or_init(|| {
                 let (m, entry, at) = b.wire.as_ref()?;
@@ -9407,10 +9418,19 @@ impl Run<'_> {
                 let mut body = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
                 let mut hash = hd_tir::wire::tir_hash(bytes);
                 hash = self.checked_room_calls(&mut body, hash);
-                if self.fetched[usize::from(self.table.modules[*m].package)]
-                    && dbg::suppress(&mut body, &self.names())
-                {
-                    hash = dbg::key(hash);
+                if self.fetched[usize::from(self.table.modules[*m].package)] {
+                    let dbg = dbg::suppress(&mut body, &self.names());
+                    let sites = items.is_some_and(|items| {
+                        dbg::foreign_sites(&mut body, |def| {
+                            items
+                                .get(def)
+                                .and_then(Item::fn_attrs)
+                                .is_some_and(|a| a.track_caller)
+                        })
+                    });
+                    if dbg || sites {
+                        hash = dbg::key(hash);
+                    }
                 }
                 let mut c = lock(&self.counters);
                 c.bodies_decoded += 1;
@@ -9546,9 +9566,11 @@ impl Run<'_> {
             let counted = module.package == 0 || usize::from(module.package) != std;
             match self.check[m].get() {
                 Some(Some(c)) if counted => {
-                    let hash = if self.fetched[usize::from(module.package)]
-                        && self.dbg_refs[m].get().is_some_and(|refs| !refs.is_empty())
-                    {
+                    // A fetched module's code differs from the same module
+                    // built as the user's own: its `dbg` calls print nothing
+                    // (`module.dbg.dependency`) and its call sites are not in
+                    // the root package (`fn.caller.root-package`).
+                    let hash = if self.fetched[usize::from(module.package)] {
                         dbg::key(c.content)
                     } else {
                         c.content

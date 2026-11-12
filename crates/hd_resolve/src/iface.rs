@@ -518,6 +518,14 @@ pub struct FnAttrs {
     /// Decorators attach values: `facts_of` of the function reads its facts
     /// body (`annot.facts-of.result.compiler-decorators.v2`).
     pub has_facts: bool,
+    /// The compiler decorator `@track_caller` (`fn.caller.decorator`): every
+    /// direct call passes a hidden call-site record.
+    pub track_caller: bool,
+    /// A `@track_caller` function whose body calls `Location::caller_args()`,
+    /// or passes its call site on to a function that does
+    /// (`fn.caller.record.args`): its call sites' records hold the argument
+    /// texts.
+    pub reads_args: bool,
 }
 
 /// What a struct's or enum's declaration says beyond its members.
@@ -1471,7 +1479,10 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 w,
                 t,
                 a.call,
-                u8::from(a.auto_closing) << 2 | u8::from(a.has_facts) << 3,
+                u8::from(a.auto_closing) << 2
+                    | u8::from(a.has_facts) << 3
+                    | u8::from(a.track_caller) << 4
+                    | u8::from(a.reads_args) << 5,
             );
             w.u8(a.literal_fn);
         }
@@ -1589,6 +1600,8 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                     call,
                     auto_closing: flags & 4 != 0,
                     has_facts: flags & 8 != 0,
+                    track_caller: flags & 16 != 0,
+                    reads_args: flags & 32 != 0,
                     literal_fn: r.u8(),
                 },
             )
@@ -3026,6 +3039,8 @@ mod tests {
             literal_fn: LITERAL_SUFFIX,
             auto_closing: true,
             has_facts: true,
+            track_caller: true,
+            reads_args: true,
         };
         let item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig, attrs));
         let items = vec![item];
@@ -3058,6 +3073,7 @@ mod tests {
         assert!(back_attrs.call.configured && back[0].configured());
         assert_eq!(back_attrs.literal_fn, LITERAL_SUFFIX);
         assert!(back_attrs.auto_closing && back_attrs.has_facts);
+        assert!(back_attrs.track_caller && back_attrs.reads_args);
         assert_eq!(back[0].intrinsic().map(|k| n2.text(k)), Some("first"));
         assert!(sig.generics[0].anonymous);
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);

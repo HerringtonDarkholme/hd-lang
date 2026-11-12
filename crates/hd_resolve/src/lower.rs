@@ -6245,6 +6245,13 @@ impl Lower<'_, '_, '_> {
                         self.literal_marker(d).is_some() || self.inline_marker(d)
                     })
                     .is_empty(),
+                    track_caller: self.track_caller(n),
+                    reads_args: false,
+                };
+                let attrs = FnAttrs {
+                    reads_args: attrs.track_caller
+                        && block.is_some_and(|b| names_in(&self.src, b, |t| t == "caller_args")),
+                    ..attrs
                 };
                 out.push(Item::new(h.def, h.name, h.public, ItemData::Fn(sig, attrs)));
             }
@@ -7266,6 +7273,66 @@ fn has_cfg(src: &Src<'_>, node: NodeRef<'_>) -> bool {
         .any(|(name, _)| name == "cfg")
 }
 
+/// Whether some identifier token in `n` has a text `hit` accepts.
+fn names_in(src: &Src<'_>, n: NodeRef<'_>, hit: impl Fn(&str) -> bool) -> bool {
+    src.tokens(n).any(|t| {
+        matches!(src.tkind(t), Some(TokenKind::Ident | TokenKind::RawIdent)) && hit(src.text(t))
+    })
+}
+
+/// `fn.caller.record.args` through a chain: a `@track_caller` function
+/// whose body names another `@track_caller` function of the same module
+/// that reads its arguments' texts reads them too, since it passes its
+/// call site on. A fixpoint over the module's `@track_caller` functions.
+/// Cost: at most one pass per such function, each scanning the tokens of
+/// their bodies; no other function is read.
+fn caller_arg_chains(names: &Names<'_>, src: &Src<'_>, hs: &[Head<'_>], items: &mut [Item]) {
+    let tracked = |items: &[Item], def: DefId| {
+        items
+            .iter()
+            .find(|i| i.def == def)
+            .and_then(|i| match &i.data {
+                ItemData::Fn(_, a) if a.track_caller => Some(*a),
+                _ => None,
+            })
+    };
+    let heads: Vec<&Head<'_>> = hs
+        .iter()
+        .filter(|h| h.kind == HeadKind::Fn && tracked(items, h.def).is_some())
+        .collect();
+    if heads.len() < 2 {
+        return;
+    }
+    loop {
+        let readers: HashSet<&str> = heads
+            .iter()
+            .filter(|h| tracked(items, h.def).is_some_and(|a| a.reads_args))
+            .map(|h| names.text(h.name))
+            .collect();
+        let mut changed = false;
+        for h in &heads {
+            if tracked(items, h.def).is_some_and(|a| a.reads_args) {
+                continue;
+            }
+            let Some(block) = Src::child(h.node, SyntaxKind::Block) else {
+                continue;
+            };
+            if names_in(src, block, |t| readers.contains(t))
+                && let Some(ItemData::Fn(_, a)) = items
+                    .iter_mut()
+                    .find(|i| i.def == h.def)
+                    .map(|i| &mut i.data)
+            {
+                a.reads_args = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            return;
+        }
+    }
+}
+
 /// Validates configured callable pairs after both signatures have been
 /// lowered, then keeps their one shared interface item.
 fn configured_pairs(
@@ -8204,6 +8271,7 @@ pub fn build_folder(
             }
         }
         configured_pairs(names, &m.src, hs, &mut items, diags, r.frozen.is_none());
+        caller_arg_chains(names, &m.src, hs, &mut items);
         {
             let not_copy = r.not_copy.borrow();
             for it in items.iter_mut().filter(|i| not_copy.contains(&i.def)) {

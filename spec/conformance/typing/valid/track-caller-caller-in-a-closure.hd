@@ -1,0 +1,11 @@
+# test: a closure inside a @track_caller function reads the function's caller
+# Spec lang/07 Call-Site Locations: fn.caller.accessor.inside.
+use std.debug.Location
+
+@track_caller
+fn line_later() -> fn() -> u32:
+    fn() -> u32: Location::caller().line
+
+pub fn main() -> void:
+    read := line_later()
+    _ := read()

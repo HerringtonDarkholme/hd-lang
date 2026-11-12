@@ -9,6 +9,7 @@ mod access;
 pub mod body;
 mod call;
 mod callable;
+pub mod caller;
 mod coll;
 mod collide;
 pub mod comparison;

@@ -292,6 +292,12 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the root function carries `@auto_closing`; nested closures do
     /// not inherit this permission for their returns.
     pub auto_closing_function: bool,
+    /// The call nodes of the open trailing-block calls, whose arguments'
+    /// texts are unknown to a call-site record (`fn.caller.accessor.args.known`).
+    pub trailing_heads: Vec<hd_base::NodeIdx>,
+    /// Set while a `@track_caller` function value's body is built: its call
+    /// binds the place that creates the value (`fn.caller.value`).
+    pub site_value: bool,
     /// The locals bound with `let mut`: a struct value in one changes in
     /// place (`types.value.writable-places`).
     pub mut_locals: Vec<LocalId>,
@@ -672,6 +678,8 @@ pub(crate) fn new_ck<'a, 'c>(
         cleanup_blocks: Vec::new(),
         auto_closing_statement: None,
         auto_closing_function: false,
+        trailing_heads: Vec::new(),
+        site_value: false,
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
@@ -1383,6 +1391,14 @@ fn fn_body_steps(
         let ty = ck.norm_ty(ty);
         ck.declared_tys.insert(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
+        ck.scopes[0].insert(name, l);
+    }
+    // `fn.caller.hidden`: the call site's record, after the written
+    // parameters.
+    if item.fn_attrs().is_some_and(|a| a.track_caller) {
+        let name = cx.names.syms.intern(crate::caller::SITE);
+        let l =
+            ck.b.local(Ty::STRING, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
     }
     ck.mark_mut_params(node);

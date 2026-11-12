@@ -1565,6 +1565,15 @@ impl InlineEnv for Env<'_> {
         // the copy keeps the suppression `decode` gave its body.
         if run.fetched[usize::from(run.table.modules[*m].package)] {
             crate::dbg::suppress(&mut fresh, &run.names());
+            // And its call-site records keep their cleared root-package bit
+            // (`fn.caller.root-package`).
+            crate::dbg::foreign_sites(&mut fresh, |d| {
+                self.p
+                    .items
+                    .get(d)
+                    .and_then(hd_resolve::Item::fn_attrs)
+                    .is_some_and(|a| a.track_caller)
+            });
         }
         Some(fresh)
     }

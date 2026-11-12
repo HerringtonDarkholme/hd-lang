@@ -107,6 +107,8 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("bytes_len", &[s(0, &[STR], USIZE)]),
     ("bytes_mismatch", &[s(0, &[STR, STR], USIZE)]),
     ("bytes_slice", &[s(0, &[STR, USIZE, USIZE], STR)]),
+    ("caller_args", &[s(0, &[], LIST)]),
+    ("caller_location", &[s(0, &[], Named("Location"))]),
     ("char_from_scalar", &[s(0, &[U32], Opt)]),
     ("char_scalar", &[s(0, &[CHAR], U32)]),
     ("dbg", &[s(1, &[Any], VOID)]),
