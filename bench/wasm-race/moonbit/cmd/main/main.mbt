@@ -1,6 +1,8 @@
 ///|
 struct Record {
-  id : Int64
+  // Int, not Int64: MoonBit's std encodes Int64 as a JSON string, and the
+  // workload's JSON has a number here, as Go's int64 field gives.
+  id : Int
   name : String
   email : String
   score : Double
@@ -12,7 +14,7 @@ fn gen_records(n : Int) -> Array[Record] {
   let out : Array[Record] = []
   for i = 0; i < n; i = i + 1 {
     out.push({
-      id: i.to_int64(),
+      id: i,
       name: "user_" + i.to_string(),
       email: "user_" + i.to_string() + "@example.com",
       score: (i % 1000).to_double() + 0.5,
@@ -32,7 +34,7 @@ fn bench_json(n : Int) -> (Int64, UInt64) raise {
   let us = @bench.monotonic_clock_end(t0)
   let mut sum : UInt64 = 0
   for r in decoded {
-    sum = sum + r.id.reinterpret_as_uint64() + r.name.length().to_uint64() +
+    sum = sum + r.id.to_int64().reinterpret_as_uint64() + r.name.length().to_uint64() +
       r.email.length().to_uint64() + r.tags.length().to_uint64()
   }
   sum = sum + raw.length().to_uint64()

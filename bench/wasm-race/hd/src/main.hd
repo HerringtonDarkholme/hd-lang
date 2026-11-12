@@ -1,6 +1,6 @@
 use std.time.{Clock, monotonic, elapsed}
 use std.host.{Args, args}
-use std.text.Parse
+use std.text.{Parse, StringBuilder}
 use std.collections.{UniqList, UniqMap}
 use std.json.{encode, decode}
 use std.serde.{Serialize, Deserialize}
@@ -98,6 +98,49 @@ fn bench_hashmap(n: usize) -> (i64, u64):
             misses = misses + 1
     ms := elapsed(t0).as_milliseconds()
     (ms * 1000000, sum + misses)
+
+fn bench_find(size: usize, stride: usize) -> (i64, u64):
+    let needle: List[u8] = "needle!!".bytes().collect()
+    let mut buf = List::[u8].with_capacity(size)
+    for i in 0..size:
+        buf.push(u8(i % 256))
+    let at: usize = 0
+    while at + needle.len() <= size:
+        for j in 0..needle.len():
+            buf[at + j] = needle[j]
+        at = at + stride
+    t0 := monotonic()
+    hay := buf.span()
+    pat := needle.span()
+    let count: u64 = 0
+    let pos: usize = 0
+    while pos + pat.len() <= hay.len():
+        match hay.slice(pos..hay.len()).index_of_span(pat):
+            .Some(i) =>
+                count = count + 1
+                pos = pos + i + 1
+            .None => break
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, count)
+
+fn bench_utf8(repeats: usize) -> (i64, u64):
+    chunk := "Hello世界🙂MoonBit综合性能ABC"
+    b := StringBuilder::new()
+    b.reserve(chunk.len() * repeats)
+    for _ in 0..repeats:
+        b.push(chunk)
+    s := b.build()
+    t0 := monotonic()
+    let sum: u64 = 0
+    for c in s.chars():
+        sum = sum + u64(c.to_u32())
+    let runes: u64 = 0
+    for c in s.chars():
+        sum = sum + u64(c.to_u32())
+        runes = runes + 1
+    sum = sum + u64(s.len()) + runes
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, sum)
 
 struct Node:
     left: *Node?
@@ -346,6 +389,17 @@ pub fn main() -> void $ Console + Clock + Args:
     else if workload == "graph-bfs":
         n := parse_usize(arg_at(av, 1, "200000"), 200000)
         pair := bench_graph_bfs(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "find":
+        size := parse_usize(arg_at(av, 1, "8388608"), 8388608)
+        stride := parse_usize(arg_at(av, 2, "1024"), 1024)
+        pair := bench_find(size, stride)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "utf8":
+        n := parse_usize(arg_at(av, 1, "100000"), 100000)
+        pair := bench_utf8(n)
         ns = pair._0
         sum = pair._1
     else:

@@ -14,7 +14,7 @@ mkdir -p bin
 (cd hd && $HD build --release)
 shim/target/release/hd-wasi-shim hd/build/release/wasm_bench.wasm bin/hd.wasm
 (cd go && GOOS=wasip1 GOARCH=wasm go build -o ../bin/go.wasm .)
-(cd zig && zig build-exe main.zig -target wasm32-wasi -O ReleaseFast -lc -femit-bin=../bin/zig.wasm)
+(cd zig && zig build-exe main.zig -target wasm32-wasi -O ReleaseSafe -lc -femit-bin=../bin/zig.wasm)
 (cd moonbit && moon build --target wasm --release)
 shim/target/release/moon_stub moonbit/_build/wasm/release/build/cmd/main/main.wasm bin/moonbit.wasm
 (cd silk && silk build --target wasm32-wasip1 --release)
@@ -31,4 +31,4 @@ Silk's release profile is `speed` with the LLVM backend; its link step uses Clan
 python3 -I run_cli.py hd=bin/hd.wasm go=bin/go.wasm zig=bin/zig.wasm moonbit=bin/moonbit.wasm silk=bin/silk.wasm
 ```
 
-The flags are `-O opt-level=2 -W max-wasm-stack=4194304`. It runs one discarded round, then 15 interleaved rounds rotating the starting language. Each cell is the median in milliseconds, with the range in parentheses. The last column compares checksums across languages.
+The flags are `-O opt-level=2 -W max-wasm-stack=4194304`. It runs one discarded round, then 15 interleaved rounds rotating the starting language; `ROUNDS=5` runs 5. Each cell is the median in milliseconds, with the range in parentheses. The last column compares checksums across languages.

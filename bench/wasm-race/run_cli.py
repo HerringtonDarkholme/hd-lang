@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Egoist's #1291 workloads on the plain wasmtime CLI: every language the same binary and flags.
-One discarded round, then 15 interleaved rounds rotating which language starts; median of each."""
+One discarded round, then ROUNDS (default 15) interleaved rounds rotating which language starts; median of each."""
 import os, re, statistics, subprocess, sys
 
 F = os.path.dirname(os.path.abspath(__file__))
@@ -11,7 +11,9 @@ W = [('matmul', '256'), ('sieve', '10000000'), ('sort', '1000000'), ('find', '83
      ('btree', '15'), ('alloc', '16 20'), ('fib', '37'), ('btree-stretch', '18'), ('utf8', '100000'), ('alloc-arena', '16 20'), ('btree-arena', '15')]
 times = {(l, w): [] for l, _ in LANGS for w, _ in W}
 checks = {}
-for r in range(16):
+ROUNDS = int(os.environ.get('ROUNDS', '15'))
+print('wasmtime', subprocess.run(['wasmtime', '--version'], capture_output=True, text=True).stdout.strip(), 'load', os.getloadavg(), flush=True)
+for r in range(ROUNDS + 1):
     order = LANGS[r % len(LANGS):] + LANGS[:r % len(LANGS)]
     for w, a in W:
         for l, path in order:
