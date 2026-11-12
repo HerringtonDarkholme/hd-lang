@@ -157,11 +157,14 @@ wasmtime, never enabled by the default host.
 | runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()`, `fact(len)`, `hash_seed() -> i64` | |
 | host primitive | `hd:prim` `name`, no receiver, never waits | `format_f64` |
 
-`hash_seed()` returns 64 random bits: the key of the map's bucket hash
-(`std-hash.map.bucket-hash`). The instance asks once, on the first map
-key it hashes, and keeps the answer in the runtime global `rt.hseed`,
-which a session's inputs share and never reset. A session's journal
-records the call as a `Call` row, so a rebuild hashes with the same key.
+`hash_seed()` returns the 64-bit run seed. The instance asks once and
+keeps the answer in runtime globals shared by a session's inputs.
+`map_hash_seed` mixes that seed with a per-run counter to give each map
+its own seed (`std-hash.map.seed-new`). A session's journal records the
+host call as a `Call` row, so a rebuild reproduces the same seed sequence.
+An emptying map takes a fresh seed; a copy-on-write copy keeps its
+source's seed. Bucket placement uses foldhash 0.2 fast
+(`std-hash.map.foldhash-fast`).
 
 `fact(len)` marks where a facts body runs: it is called as the body
 starts, with the body's label in the buffer, and with `-1` as it ends.

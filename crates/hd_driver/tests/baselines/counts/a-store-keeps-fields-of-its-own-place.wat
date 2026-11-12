@@ -5,8 +5,9 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32 i32)))
   (import "fixture" "rt:list_buf'1" (func $rt:list_buf'1 (param i32) (result i32)))
-  (import "fixture" "rt:map_table" (func $rt:map_table (param i32) (result i32)))
-  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_seed" (func $rt:map_seed (result i64)))
+  (import "fixture" "rt:map_table" (func $rt:map_table (param i32 i64) (result i32)))
+  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
@@ -130,14 +131,19 @@
     i64.const 0
     i64.store $heap offset=16
     i32.const 4
+    call $rt:map_seed
     call $rt:map_table
-    local.tee $shared
+    local.set $shared
     i32.const 65 ;; &"a"
     local.tee $o
     i32.const 1
     local.tee $t1
+    local.get $shared
+    i64.load $heap offset=24
     call $rt:map_hash
-    local.tee $t2
+    local.set $t2
+    local.get $shared
+    local.get $t2
     local.get $o
     local.get $t1
     call $rt:map_find
@@ -214,14 +220,19 @@
     i64.const 0
     i64.store $heap offset=16
     i32.const 4
+    call $rt:map_seed
     call $rt:map_table
-    local.tee $t1
+    local.set $t1
     i32.const 65 ;; &"a"
     local.tee $t2
     i32.const 1
     local.tee $t3
+    local.get $t1
+    i64.load $heap offset=24
     call $rt:map_hash
-    local.tee $t4
+    local.set $t4
+    local.get $t1
+    local.get $t4
     local.get $t2
     local.get $t3
     call $rt:map_find

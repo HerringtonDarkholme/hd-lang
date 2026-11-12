@@ -66,26 +66,27 @@
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "5760129",
       "released": "6660314",
-      "uniques": "9",
-      "total": "12420452",
-      "noOpsAndSkipped": "1440026",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "uniques": "8",
+      "total": "12420451",
+      "noOpsAndSkipped": "1440025"
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
       "retained": "0",
-      "released": "13",
+      "released": "14",
       "uniques": "0",
-      "total": "13",
-      "noOpsAndSkipped": "1"
+      "total": "14",
+      "noOpsAndSkipped": "0",
+      "reason": "#1709 gives the initially empty counts Map its own 40-byte seed-bearing allocation (8-byte object header plus 32-byte map header). First growth releases that counted table instead of making the former static-empty-buffer no-op call: releases 13 -> 14, no-op/skipped calls 1 -> 0; retains and uniqueness stay zero. Full 33-program optimized-release-checked measurement, default Node and host seed 0."
     },
     {
       "program": "bench/runtime/progs/map-count.hd",
       "retained": "0",
-      "released": "13",
+      "released": "14",
       "uniques": "0",
-      "total": "13",
-      "noOpsAndSkipped": "1"
+      "total": "14",
+      "noOpsAndSkipped": "0",
+      "reason": "#1709 gives the initially empty counts Map its own 40-byte seed-bearing allocation (8-byte object header plus 32-byte map header). First growth releases that counted table instead of making the former static-empty-buffer no-op call: releases 13 -> 14, no-op/skipped calls 1 -> 0; retains and uniqueness stay zero. Full 33-program optimized-release-checked measurement, default Node and host seed 0."
     },
     {
       "program": "bench/runtime/progs/nested-display.hd",
@@ -117,7 +118,7 @@
       "released": "614481",
       "uniques": "2768400",
       "total": "3382881",
-      "noOpsAndSkipped": "37995612"
+      "noOpsAndSkipped": "37995552"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
@@ -195,10 +196,11 @@
     {
       "program": "bench/study/json.hd",
       "retained": "2380002",
-      "released": "3400100",
+      "released": "3400103",
       "uniques": "12240015",
-      "total": "18020117",
-      "noOpsAndSkipped": "22610135"
+      "total": "18020120",
+      "noOpsAndSkipped": "22610132",
+      "reason": "#1709 makes the three initially empty TextReadFrame.positions maps at the reader's root-list, record-object and tags-list depths own 40-byte seed-bearing allocations. Cleanup performs three counted releases instead of three static-empty-buffer no-op calls: releases 3400100 -> 3400103, no-op/skipped calls 22610135 -> 22610132; retains and uniqueness are unchanged. Full 33-program optimized-release-checked measurement, default Node and host seed 0."
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -214,8 +216,7 @@
       "released": "7500039",
       "uniques": "2500000",
       "total": "15000039",
-      "noOpsAndSkipped": "3",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "noOpsAndSkipped": "2"
     },
     {
       "program": "bench/study/nbody.hd",

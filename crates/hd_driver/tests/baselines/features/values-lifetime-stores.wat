@@ -2,11 +2,13 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
-  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:map_seed" (func $rt:map_seed (result i64)))
+  (import "fixture" "rt:map_table" (func $rt:map_table (param i32 i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -33,11 +35,14 @@
     local.get $by
     local.get $t3
     i32.store $heap
-    local.get $t3
     local.get $t1
     local.get $t0
+    local.get $t3
+    i64.load $heap offset=24
     call $rt:map_hash
-    local.tee $t4
+    local.set $t4
+    local.get $t3
+    local.get $t4
     local.get $t1
     local.get $t0
     call $rt:map_find
@@ -48,7 +53,6 @@
       local.get $t2
       call $retain
     end
-    local.get $by
     local.get $t3
     local.get $t4
     local.get $t5
@@ -56,6 +60,9 @@
     local.get $t0
     local.get $u
     call $rt:map_put
+    local.set $t3
+    local.get $by
+    local.get $t3
     i32.store $heap
     local.get $t1
     local.tee $t2
@@ -174,16 +181,21 @@
     local.get $b
     call $remember
     ;; 20 |     let mut by: Map[string, &User] = {}
+    i32.const 0
+    call $rt:map_seed
+    call $rt:map_table
+    local.set $by
     local.get $t0
     i64.const 0
     i64.store $heap offset=48
     local.get $t0
     i32.const 56
     i32.add
-    local.tee $by
-    i32.const 80 ;; &empty-buffer
-    i32.store $heap
+    local.tee $t1
     local.get $by
+    i32.store $heap
+    local.get $t1
+    local.tee $by
     ;; 21 |     index(&mut by, &a)
     local.get $a
     call $index

@@ -6,7 +6,7 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
@@ -129,13 +129,16 @@
     local.get $t2
     i32.store $heap offset=20
   )
-  (func $map_add (param $m i32) (param $k.0 i32) (param $k.1 i32) (local $t0 i32) (local $t1 i64)
+  (func $map_add (param $m i32) (param $k.0 i32) (param $k.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     ;; 11 |     m[k] += 1
     local.get $m
     i32.load $heap
     local.tee $t0
+    local.tee $t1
     local.get $k.0
     local.get $k.1
+    local.get $t1
+    i64.load $heap offset=24
     call $rt:map_hash
     local.get $k.0
     local.get $k.1
@@ -153,7 +156,7 @@
     i32.const 12
     i32.mul
     i32.add
-    i32.const 24
+    i32.const 32
     i32.add
     local.get $k.0
     i32.const 16
@@ -162,7 +165,7 @@
     i64.load $heap offset=8
     i64.const 1
     i64.add
-    local.set $t1
+    local.set $t2
     local.get $m
     i32.load $heap
     call $rt:map_unique
@@ -176,13 +179,13 @@
     i32.const 12
     i32.mul
     i32.add
-    i32.const 24
+    i32.const 32
     i32.add
     local.get $k.0
     i32.const 16
     i32.mul
     i32.add
-    local.get $t1
+    local.get $t2
     i64.store $heap offset=8
   )
 )

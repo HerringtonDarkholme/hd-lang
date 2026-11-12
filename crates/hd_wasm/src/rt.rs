@@ -312,7 +312,9 @@ pub enum Helper {
     ListGrow {
         elem: Elem,
     },
-    /// `(capacity) -> table`: a new, empty map table (`map.rs`) with room
+    /// `() -> u64`: the next deterministic per-map seed for this run.
+    MapSeed,
+    /// `(capacity, seed) -> table`: a new, empty map table (`map.rs`) with room
     /// for `capacity` entries laid out as `entry`, its index cleared.
     MapTable {
         entry: map::Entry,
@@ -322,7 +324,7 @@ pub enum Helper {
     DropEntries {
         entry: map::Entry,
     },
-    /// `(key) -> i32`: a key's bucket hash, made non-negative.
+    /// `(key..., seed) -> i32`: a key's bucket hash, made non-negative.
     MapHash {
         key: Vec<Val>,
         ops: KeyOps,
@@ -1377,6 +1379,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::FreeClassLoaded
         | H::WakeLink => (3, 0),
         H::CanCancel
+        | H::MapSeed
         | H::EntryCall { .. }
         | H::AllocClass { .. }
         | H::Frame(_)
@@ -1404,7 +1407,6 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::ListUnique { .. }
         | H::ListCopy { .. }
         | H::ListGrow { .. }
-        | H::MapTable { .. }
         | H::MapGrow { .. }
         | H::MapUnique { .. }
         | H::Utf8ValidLen
@@ -1470,7 +1472,8 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::WakerLive => (2, 1),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
-        H::MapHash { key, .. } => (key.len(), 1),
+        H::MapTable { .. } => (2, 1),
+        H::MapHash { key, .. } => (key.len() + 1, 1),
         H::MapFind { entry, .. } => (2 + entry.keys, 1),
         H::MapPut { entry, .. } => (3 + entry.leaves.len(), 1),
         H::MapSlotNext => (3, 1),
@@ -1937,6 +1940,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListUnique { elem } => list_unique(elem, m),
         Helper::ListCopy { elem } => list_copy(elem, m),
         Helper::ListGrow { elem } => list_grow(elem, m),
+        Helper::MapSeed => map::seed(m),
         Helper::MapTable { entry } => map::table(m, entry),
         Helper::DropEntries { entry } => map::drop_entries(m, entry),
         Helper::MapHash { key, ops } => map::hash(m, key, ops),

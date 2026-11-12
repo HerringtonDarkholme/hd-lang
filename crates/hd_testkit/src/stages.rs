@@ -34,8 +34,9 @@ pub struct Program {
     pub files: Vec<(String, String)>,
     /// The host capability traits of the `# @profile:` runtime profile.
     pub profile: Option<Vec<String>>,
-    /// The runtime helpers the `wat` view prints whole, by name without
-    /// `rt:` and `#k` (`# @helpers: enc dec`).
+    /// Functions the `wat` view prints whole: short runtime names without
+    /// `rt:` and `#k`, or exact ordinary item paths
+    /// (`# @helpers: enc std/hash/hash_integer`).
     pub helpers: Vec<String>,
     /// The `@host` traits the case's package declares in its manifest's
     /// `[host]` (`# @host: main.Surface`), each package-relative.
@@ -104,8 +105,9 @@ impl Program {
 /// `@profile` names a conformance runtime profile
 /// ([`crate::profile_traits`]) whose traits the case's main module
 /// declares; `@host` lists the package host traits its manifest declares
-/// (`module.host.package.marker`); `@helpers` names runtime helpers the
-/// `wat` view prints whole. `@file` begins a virtual module;
+/// (`module.host.package.marker`); `@helpers` selects functions the `wat`
+/// view prints whole, by short runtime name or exact ordinary item path,
+/// without following their calls. `@file` begins a virtual module;
 /// subsequent lines belong to it until the next `@file`. Main defaults to
 /// `main.hd`. `@repl: N` makes the case REPL input `N` of a session whose
 /// earlier inputs each begin at `@input: K`, numbered 1 up, as `@file`

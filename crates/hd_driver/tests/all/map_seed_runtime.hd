@@ -1,0 +1,86 @@
+use std.annotation.cold
+use std.collections.UniqMap
+
+let seed_map: *mut Map[i32, i32] = box({})
+let seed_peer: *mut Map[i32, i32] = box({})
+let seed_copy: *mut Map[i32, i32] = box({})
+let seed_uniq: *mut UniqMap[i32, i32] = box(UniqMap::[i32, i32].new())
+let seed_uniq_peer: *mut UniqMap[i32, i32] = box(UniqMap::[i32, i32].new())
+
+# The test reads this actual backend layout, including the nested seed field.
+struct SeedUniqLayout:
+    value: UniqMap[i32, i32]
+
+@cold
+fn seed_probe_map_slot() -> *Map[i32, i32]:
+    seed_map
+
+@cold
+fn seed_probe_peer_slot() -> *Map[i32, i32]:
+    seed_peer
+
+@cold
+fn seed_probe_copy_slot() -> *Map[i32, i32]:
+    seed_copy
+
+@cold
+fn seed_probe_uniq_slot() -> *UniqMap[i32, i32]:
+    seed_uniq
+
+@cold
+fn seed_probe_uniq_peer_slot() -> *UniqMap[i32, i32]:
+    seed_uniq_peer
+
+@cold
+fn seed_probe_map_insert(key: i32) -> void:
+    (*seed_map)[key] = key
+
+@cold
+fn seed_probe_map_remove(key: i32) -> void:
+    _ := seed_map.remove(key)
+
+@cold
+fn seed_probe_map_copy() -> void:
+    *seed_copy = *seed_map
+
+@cold
+fn seed_probe_uniq_insert(key: i32) -> void:
+    _ := seed_uniq.insert(key, key)
+
+@cold
+fn seed_probe_uniq_remove(key: i32) -> void:
+    _ := seed_uniq.remove(key)
+
+@cold
+fn seed_probe_uniq_reserve() -> void:
+    seed_uniq.reserve(100)
+
+@cold
+fn seed_probe_uniq_clear() -> void:
+    seed_uniq.clear()
+
+@cold
+fn seed_probe_uniq_retain_none() -> void:
+    seed_uniq.retain(fn(key: &i32, value: &mut i32) -> bool: false)
+
+@cold
+fn seed_probe_uniq_drain() -> void:
+    _ := seed_uniq.drain()
+
+# Roots the private cold functions; the internal Wasm harness runs hd.init
+# and invokes them directly, exporting no additional hd language API.
+pub fn main() -> void $ Console:
+    println(seed_probe_map_slot().len())
+    println(seed_probe_peer_slot().len())
+    println(seed_probe_copy_slot().len())
+    println(seed_probe_uniq_slot().len())
+    println(seed_probe_uniq_peer_slot().len())
+    seed_probe_map_insert(+1)
+    seed_probe_map_remove(+1)
+    seed_probe_map_copy()
+    seed_probe_uniq_insert(+1)
+    seed_probe_uniq_remove(+1)
+    seed_probe_uniq_reserve()
+    seed_probe_uniq_clear()
+    seed_probe_uniq_retain_none()
+    seed_probe_uniq_drain()

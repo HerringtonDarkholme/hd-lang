@@ -61,7 +61,7 @@ primitives in the last rows.
 | Suspension (10) | `block_on`, `task_all`, `task_all_frame`, `task_race_frame`, `task_cleanup_frame`, `task_pending_frame`, `task_abandon`, `task_wait_cell`, `task_wait_frame`, `task_wait_signal` | keep | the suspension runtime's frames |
 | Closures (2) | `fn_call`, `fn_mut_call` | keep | the closure calling convention |
 | Weak references (5) | `weak_new`, `weak_new_mut`, `weak_upgrade`, `weak_upgrade_mut`, `weak_weaken` | keep | reference-count internals |
-| Hash seed (1) | `map_hash_seed` | keep | the per-run seed from the host |
+| Hash seed (1) | `map_hash_seed` | keep | a fresh map seed mixed from the recorded host run seed and a per-run counter |
 | Debug, test and entry output (8) | `dbg`, `dbg_write`, `dbg_printer`, `repl_write`, `entry_write`, `test_case`, `assert_equal`, `snapshot_update` (host) | keep | they need the call's source position and text; a caller-location primitive is parked (#1210) |
 | Host formatting and case (6) | `format_f64`, `format_f32`, `format_f64_fixed`, `parse_f64`, `string_lower`, `string_upper` | review | every host must implement them, the Rust host included; hd versions (shortest float printing, Unicode case tables) would remove six host primitives, at a size and speed cost to measure |
 
@@ -124,7 +124,7 @@ spec/lang/10-modules.md, Built-In Methods.
 | Suspension | `suspend`, `block_on`, `race`, `all`, `all_list` | keep |
 | Derivation and facts | `structure`, `walker`, `walker_data_variant`, `walker_data_member`, `field`, `field_get`, `variant_holds`, `describer`, `source`, `fills_defaults`, `skips`, `facts`, `facts_find`, `inspectable`, `annotate` | keep: the `Structure` walk that std derives over |
 | Formatting | `display`, `debug`, `dbg` | keep: interpolation and `dbg` |
-| Hashing | `hash`, `key_bucket_hash`, `key_equal`, `int_bucket_hash`, `string_bucket_hash` | hd later: the `Map` codegen picks a hash per key type by these names; with `Map` in hd they become ordinary calls |
+| Hashing | `hash`, `map_key_hash`, `key_equal`, `map_integer_hash`, `map_string_hash` | hd later: `Map` codegen selects ordinary `std.hash` foldhash functions through these known-item slots; `UniqMap` calls the same functions directly |
 | Testing | `check_equal`, `it_each`, `it_prop`, `it_prop_with`, `each_case`, `prop_case`, `prop_with_case`, `snapshot`, `test_runner`, `property_runner` | review: which of these need the compiler (source spans, test registration) and which are plain std |
 | Output and serde | `println`, `serialize`, `deserialize`, `serializer_begin_data`, `serializer_end_data` | `println` goes (#1236); the serde boundaries inline by hint (#1237). std.json picks its fast path in hd with `Serialize.regular()` (#1445) |
 | Collections | `list`, `list_is_empty`, `map`, `buffer` | hd later, with kind 3 |

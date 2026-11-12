@@ -14,7 +14,8 @@ use std.ops.IndexMut
 use std.ops.IndexSet
 use std.ops.Range
 use std.format.DebugWriter
-use std.hash.{hash_of, Hasher}
+use std.hash.{Hasher, hash_key}
+use std.rt.map_hash_seed
 use std.rt.bytes.{
     ByteBuffer,
     TextSink,
@@ -964,6 +965,8 @@ pub struct UniqMap[K < Eq & Hash, V < ?Copy]:
     size: usize
     # The slots in use from the start, deleted ones included.
     used: usize
+    # Growth preserves the seed with the cached bucket hashes.
+    seed: u64
 
 impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]
 
@@ -984,6 +987,9 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Returns an empty map with room for at least `capacity` entries before growing.
     ## See [std-collections.uniq-map.with-capacity](../../spec/std/collections.md#r-std-collections.uniq-map.with-capacity).
     pub fn with_capacity(capacity: usize) -> UniqMap[K, V]:
+        UniqMap::[K, V].with_capacity_seeded(capacity, map_hash_seed())
+
+    fn with_capacity_seeded(capacity: usize, seed: u64) -> UniqMap[K, V]:
         let room: usize = 0
         if capacity > 0:
             room = 8
@@ -1001,15 +1007,18 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         slots := u64(room) + (index_bytes + slot_bytes - 1) / slot_bytes
         if slots * slot_bytes > 0xfffe0000:
             panic_with("heap-exhausted", "uniq map capacity does not fit the heap")
-        UniqMap::[K, V].allocate(room)
+        UniqMap::[K, V].allocate_seeded(room, seed)
 
     fn allocate(capacity: usize) -> UniqMap[K, V]:
+        UniqMap::[K, V].allocate_seeded(capacity, map_hash_seed())
+
+    fn allocate_seeded(capacity: usize, seed: u64) -> UniqMap[K, V]:
         slot_bytes := size_of::[UniqMapSlot[K, V]]()
         index_bytes := capacity * 2 * size_of::[usize]()
         index_slots := (index_bytes + slot_bytes - 1) / slot_bytes
         slots := Buffer::[UniqMapSlot[K, V]].new(capacity + index_slots)
         fill(slots.at(capacity).address, 0, index_bytes)
-        UniqMap::[K, V] { slots: slots, entry_capacity: capacity, size: 0, used: 0 }
+        UniqMap::[K, V] { slots: slots, entry_capacity: capacity, size: 0, used: 0, seed: seed }
 
     ## Returns the number of entries in the map.
     ## See [std-collections.uniq-map.len](../../spec/std/collections.md#r-std-collections.uniq-map.len).
@@ -1067,11 +1076,12 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         if additional <= self.entry_capacity - self.used:
             return
         capacity := if minimum > self.entry_capacity: minimum else: self.entry_capacity
-        self.rehash(UniqMap::[K, V].with_capacity(capacity))
+        self.rehash(UniqMap::[K, V].with_capacity_seeded(capacity, self.seed))
 
     ## Keeps the entries accepted by `keep`, which may change their values in place.
     ## See [std-collections.uniq-map.retain](../../spec/std/collections.md#r-std-collections.uniq-map.retain).
     pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
+        was_nonempty := self.size != 0
         let index: usize = 0
         while index < self.used:
             place := self.slots.at(index)
@@ -1083,6 +1093,8 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                 place.write(.Deleted)
                 self.size -= 1
             index += 1
+        if was_nonempty && self.size == 0:
+            self.seed = map_hash_seed()
 
     ## Moves each key-value pair into the map; a later equal key replaces the former value.
     ## See [std-collections.uniq-map.extend](../../spec/std/collections.md#r-std-collections.uniq-map.extend).
@@ -1097,6 +1109,8 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## See [std-collections.uniq-map.drain](../../spec/std/collections.md#r-std-collections.uniq-map.drain).
     pub fn drain['a](&'a mut self) -> UniqMapDrain[K, V, 'a]:
         end := self.used
+        if self.size != 0:
+            self.seed = map_hash_seed()
         self.size = 0
         self.used = 0
         UniqMapDrain { items: .Some(self), at: 0, end: end }
@@ -1123,7 +1137,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         if self.entry_capacity == 0:
             return .None
         capacity := self.entry_capacity * 2
-        hash := usize(hash_of(key))
+        hash := usize(hash_key(key, self.seed))
         let index = self.start(hash)
         while true:
             entry_plus_one := self.index_value(index)
@@ -1153,7 +1167,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         if self.used == self.entry_capacity:
             self.grow()
         capacity := self.entry_capacity * 2
-        hash := usize(hash_of(key))
+        hash := usize(hash_key(key, self.seed))
         let index = self.start(hash)
         while true:
             entry_plus_one := self.index_value(index)
@@ -1185,7 +1199,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
             old_capacity
         else:
             old_capacity * 2
-        self.rehash(UniqMap::[K, V].allocate(capacity))
+        self.rehash(UniqMap::[K, V].allocate_seeded(capacity, self.seed))
 
     fn rehash(&mut self, next: UniqMap[K, V]) -> void:
         let mut next = next
@@ -1226,6 +1240,8 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                     .Occupied(_, _, value) =>
                         place.write(.Deleted)
                         self.size -= 1
+                        if self.size == 0:
+                            self.seed = map_hash_seed()
                         .Some(value)
                     .Deleted => panic("uniq map found a deleted entry")
 
@@ -1233,7 +1249,8 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## See [std-collections.uniq-map.clear](../../spec/std/collections.md#r-std-collections.uniq-map.clear).
     pub fn clear(&mut self) -> void:
         capacity := self.entry_capacity
-        *self = UniqMap::[K, V].allocate(capacity)
+        seed := if self.size == 0: self.seed else: map_hash_seed()
+        *self = UniqMap::[K, V].allocate_seeded(capacity, seed)
 
 impl[K < Eq & Hash, V < Copy] UniqMap[K, V]:
     ## Returns a copy of the value for `key`, or `.None` when absent.
