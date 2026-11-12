@@ -35,27 +35,27 @@ spec chapter or `hd doc` the std item instead of guessing again.
 
 ## Commands
 
-| Command | Does |
-| --- | --- |
-| `hd FILE [-- ARGS]` | run one file as a single-file program: it may use only std, even inside a package (use `hd run` for the package) |
-| `hd check [FILE]` | type-check the package, or FILE and the modules it uses; runs nothing |
-| `hd check --tests` / `--all` | also the test code / also the tests and tasks |
-| `hd check --max-errors N`, `--summary` | print fewer lines; the counts stay the same |
-| `hd lint [FILE]` | type-check, then report optional findings; selects tests and tasks like `check` and accepts `--allow`, `--warn`, and `--deny` for exact lint names |
-| `hd check --fix` | apply safe checker fix-its, at most 3 rounds; no FILE, package only |
-| `hd lint --fix` | apply behavior-preserving lint fixes, at most 3 rounds; no FILE, package only |
-| `hd test [FILE]` | run the package's tests, or those of FILE's module |
-| `hd test --filter WORD` | only the cases whose name contains WORD |
-| `hd test --affected` | only the test programs that changed since they last passed |
-| `hd test --update` | rewrite failing snapshots' expected text |
-| `hd test --seed N` | fix the base seed of property tests |
-| `hd run [NAME] [-- ARGS]` | run the package's executable, or the executable or task NAME |
-| `hd build [--release] [FILE]` | write `build/debug/NAME.wasm` (or `build/release/`) |
-| `hd fmt [--check] [FILE]` | apply the one canonical style (100 columns, four-space indentation, no settings); `--check` only lists files that would change |
-| `hd new PATH --app` / `--lib` | create an application or a library package |
-| `hd add ../money`, `hd add OWNER/REPO@1.2` | require a dependency; `--dev` for test-only |
-| `hd doc NAME` | print one item's docs, as `hd doc std.text.split`; `hd doc std.text` prints a module. Run it inside a package (a folder with `hd.toml`); outside one it is an error |
-| `hd` | the REPL on a terminal; piped stdin runs as a program |
+| Command                                    | Does                                                                                                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hd FILE [-- ARGS]`                        | run one file as a single-file program: it may use only std, even inside a package (use `hd run` for the package)                                                    |
+| `hd check [FILE]`                          | type-check the package, or FILE and the modules it uses; runs nothing                                                                                               |
+| `hd check --tests` / `--all`               | also the test code / also the tests and tasks                                                                                                                       |
+| `hd check --max-errors N`, `--summary`     | print fewer lines; the counts stay the same                                                                                                                         |
+| `hd lint [FILE]`                           | type-check, then report optional findings; selects tests and tasks like `check` and accepts `--allow`, `--warn`, and `--deny` for exact lint names                  |
+| `hd check --fix`                           | apply safe checker fix-its, at most 3 rounds; no FILE, package only                                                                                                 |
+| `hd lint --fix`                            | apply behavior-preserving lint fixes, at most 3 rounds; no FILE, package only                                                                                       |
+| `hd test [FILE]`                           | run the package's tests, or those of FILE's module                                                                                                                  |
+| `hd test --filter WORD`                    | only the cases whose name contains WORD                                                                                                                             |
+| `hd test --affected`                       | only the test programs that changed since they last passed                                                                                                          |
+| `hd test --update`                         | rewrite failing snapshots' expected text                                                                                                                            |
+| `hd test --seed N`                         | fix the base seed of property tests                                                                                                                                 |
+| `hd run [NAME] [-- ARGS]`                  | run the package's executable, or the executable or task NAME                                                                                                        |
+| `hd build [--release] [FILE]`              | requires a package; build its executables, or one FILE in that package, into `build/debug/NAME.wasm` (or `build/release/`)                                          |
+| `hd fmt [--check] [FILE]`                  | apply the one canonical style (100 columns, four-space indentation, no settings); `--check` only lists files that would change                                      |
+| `hd new PATH --app` / `--lib`              | create an application or a library package                                                                                                                          |
+| `hd add ../money`, `hd add OWNER/REPO@1.2` | require a dependency; `--dev` for test-only                                                                                                                         |
+| `hd doc NAME`                              | print one item's docs, as `hd doc std.text.split`; `hd doc std.text` prints a module. Run it inside a package (a folder with `hd.toml`); outside one it is an error |
+| `hd`                                       | the REPL on a terminal; piped stdin runs as a program                                                                                                               |
 
 Run flags (`hd FILE`, `hd run`, `hd test`, `hd build` where they apply):
 `--release` (overflow wraps instead of panicking), `--engine NAME` (this
@@ -67,14 +67,14 @@ Put flags after the command word: `hd check --format json FILE`.
 
 ## Reading Output
 
-| What | Where |
-| --- | --- |
-| text diagnostics and the `check result:` line | stderr |
-| `--format json` from `check`, `build`, `test` | stdout, one JSON object per line |
-| `--format json` from `hd FILE`, `hd run` | stderr; the program's own output stays on stdout |
-| program output (`println`) | stdout |
-| `dbg(x)`, `eprintln`, panics and their stack | stderr |
-| test results and failures | stdout |
+| What                                          | Where                                            |
+| --------------------------------------------- | ------------------------------------------------ |
+| text diagnostics and the `check result:` line | stderr                                           |
+| `--format json` from `check`, `build`, `test` | stdout, one JSON object per line                 |
+| `--format json` from `hd FILE`, `hd run`      | stderr; the program's own output stays on stdout |
+| program output (`println`)                    | stdout                                           |
+| `dbg(x)`, `eprintln`, panics and their stack  | stderr                                           |
+| test results and failures                     | stdout                                           |
 
 A JSON diagnostic, then the summary that always ends the stream:
 
@@ -110,12 +110,12 @@ and the program exits nonzero.
 
 ## Exit Status
 
-| Status | Meaning |
-| --- | --- |
-| 0 | success; warning-level `hd lint` findings do not change it |
-| 1 | `hd test`: a case failed; `hd fmt --check`: a file needs formatting |
-| 101 | `hd` failed (a compile error or a usage error) and ran nothing |
-| other | `hd FILE`, `hd run`: the program's own status; a panic exits nonzero |
+| Status | Meaning                                                              |
+| ------ | -------------------------------------------------------------------- |
+| 0      | success; warning-level `hd lint` findings do not change it           |
+| 1      | `hd test`: a case failed; `hd fmt --check`: a file needs formatting  |
+| 101    | `hd` failed (a compile error or a usage error) and ran nothing       |
+| other  | `hd FILE`, `hd run`: the program's own status; a panic exits nonzero |
 
 ## Packages
 

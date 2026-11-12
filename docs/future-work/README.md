@@ -26,7 +26,7 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 
 ### Language and library
 
-- [Raw Buffers](RAW_BUFFER.md): accepted 2026-11-03, being built: `Buffer` as raw memory with one owner, lists own their elements through a std-only `Drop`, and a verifier that no non-copyable value is ever copied (#1205).
+- [Raw Buffers](RAW_BUFFER.md): accepted 2026-11-03; raw storage, std-only `Drop` and the copy verifier are implemented. The counted copy-on-write layers remain tracked by #1219 and #1220.
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
