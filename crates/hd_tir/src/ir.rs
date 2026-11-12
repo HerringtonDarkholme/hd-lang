@@ -807,6 +807,12 @@ pub mod ref_word {
     /// which is a fresh box, so the backend runs the test until one finds
     /// it unique and not after. The checker never sets it (invariant 22).
     pub const STICKY: u32 = 128;
+    /// Set by the ownership passes (`own::unique_test`): the `&mut`
+    /// argument of a `make_unique` call they put before the loop that
+    /// follows it, whose own calls of the same place they mark `UNIQUE`.
+    /// It runs only when that loop's entry test lets the loop in, as a
+    /// hoisted `IsUnique` does. The checker never sets it (invariant 22).
+    pub const HOISTED: u32 = 256;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2201,7 +2207,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::PINS != 0 => "a pinning `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
-            Tag::Ref if w & (ref_word::UNIQUE | ref_word::STICKY) != 0 => {
+            Tag::Ref if w & (ref_word::UNIQUE | ref_word::STICKY | ref_word::HOISTED) != 0 => {
                 "a uniqueness-test `Ref` before the passes".to_owned()
             }
             _ => continue,

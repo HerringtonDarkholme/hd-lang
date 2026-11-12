@@ -3084,6 +3084,41 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
+    /// Call `i` of instance `ct` at `args`.
+    fn call_instance(&mut self, i: u32, ct: &hd_mono::CallTarget, args: &[u32]) -> StageResult<()> {
+        let suspends = self.env().suspends(ct.item);
+        if suspends && let Some(on) = crate::drive::block_on_of(self.b, &self.topo, self.calls, i) {
+            return self.call_known_drive(i, ct, args, on);
+        }
+        if suspends {
+            self.push_cold_args(i, args, ct.item, ct.args, None)?;
+        } else {
+            let params = self.param_tys(ct.key, ct.item, ct.args);
+            let lends = self.env().lends(ct.item, ct.args)
+                | promote::promoted_params(self.input, self.m, ct.key);
+            self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
+        }
+        let c = self.push_call_providers(i, ct.item, ct.args);
+        // A frame that only awaits in this body, whose
+        // reference arguments' locals outlive it, takes no
+        // count of their objects (#1355).
+        let lent = suspends
+            && args.iter().any(|&v| {
+                self.b.tags.get(v as usize) == Some(&Tag::Ref)
+                    && self.b.data[v as usize][1] & hd_tir::ir::ref_word::LENT != 0
+            });
+        self.f.call(if lent {
+            Sym::Part(ct.key, Part::Lent)
+        } else {
+            Sym::Inst(ct.key)
+        });
+        // A suspending callee called cold returns its frame.
+        let ret = if suspends { self.ty(i) } else { ct.ret };
+        self.call_results(i, ret)?;
+        self.release_call_ctx(i, c);
+        Ok(())
+    }
+
     fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
@@ -3094,42 +3129,10 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
             Some(Target::Call(ct)) => match &ct.kind {
-                TargetKind::Instance => {
-                    let suspends = self.env().suspends(ct.item);
-                    if suspends
-                        && let Some(on) =
-                            crate::drive::block_on_of(self.b, &self.topo, self.calls, i)
-                    {
-                        return self.call_known_drive(i, &ct, &args, on);
-                    }
-                    if suspends {
-                        self.push_cold_args(i, &args, ct.item, ct.args, None)?;
-                    } else {
-                        let params = self.param_tys(ct.key, ct.item, ct.args);
-                        let lends = self.env().lends(ct.item, ct.args)
-                            | promote::promoted_params(self.input, self.m, ct.key);
-                        self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
-                    }
-                    let c = self.push_call_providers(i, ct.item, ct.args);
-                    // A frame that only awaits in this body, whose
-                    // reference arguments' locals outlive it, takes no
-                    // count of their objects (#1355).
-                    let lent = suspends
-                        && args.iter().any(|&v| {
-                            self.b.tags.get(v as usize) == Some(&Tag::Ref)
-                                && self.b.data[v as usize][1] & hd_tir::ir::ref_word::LENT != 0
-                        });
-                    self.f.call(if lent {
-                        Sym::Part(ct.key, Part::Lent)
-                    } else {
-                        Sym::Inst(ct.key)
-                    });
-                    // A suspending callee called cold returns its frame.
-                    let ret = if suspends { self.ty(i) } else { ct.ret };
-                    self.call_results(i, ret)?;
-                    self.release_call_ctx(i, c);
-                    Ok(())
+                TargetKind::Instance if Some(ct.item) == self.env().make_unique_item() => {
+                    self.make_unique(i, &ct, &args)
                 }
+                TargetKind::Instance => self.call_instance(i, &ct, &args),
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
                     if matches!(key.as_str(), "downcast_ref" | "downcast_mut") =>
@@ -4035,20 +4038,36 @@ impl Em<'_, '_, '_> {
         // The object's address, the `*T`'s one word at `r`: `T` is never a
         // trait descriptor (`cannot-infer-type`), so the `(&mut T)?` is
         // thin too, its address or null for `.None`.
+        let address = self.box_address(r)?;
+        let (word, flag) = self.unique_mark(r);
+        self.f.get(address);
+        self.f.u32(0);
+        self.unique_test(address, word, flag, true);
+        self.f.op(I::Select);
+        self.store(i)
+    }
+
+    /// The address of the object the `*T` at `r` refers to, in a new local.
+    fn box_address(&mut self, r: u32) -> StageResult<u32> {
         let address = self.f.local(Val::I32);
         self.comp(r, 0)?;
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.set(address);
-        // The passes' marks count only box copies as second owners; a
-        // weak reference's upgrade makes one too, so a module that links
-        // weak references runs every test.
+        Ok(address)
+    }
+
+    /// The passes' mark on a uniqueness test's argument `Ref` `r`
+    /// (`own::unique_test`), and a sticky test's flag local, which every
+    /// test of its place shares. The marks count only box copies as second
+    /// owners; a weak reference's upgrade makes one too, so a module that
+    /// links weak references runs every test.
+    fn unique_mark(&mut self, r: u32) -> (u32, Option<u32>) {
         let weak = self.m.uses_weak || self.m.open_world;
         let word = if self.b.tags.get(r as usize) == Some(&Tag::Ref) && !weak {
             self.b.data[r as usize][1]
         } else {
             0
         };
-        // A sticky test shares one flag with every test of its place.
         let flag = (word & ref_word::STICKY != 0).then(|| {
             let key = self.b.record(self.b.data[r as usize][0]).to_vec();
             if let Some(&(_, l)) = self.unique_flags.iter().find(|(k, _)| *k == key) {
@@ -4058,40 +4077,76 @@ impl Em<'_, '_, '_> {
             self.unique_flags.push((key, l));
             l
         });
-        self.f.get(address);
-        self.f.u32(0);
+        (word, flag)
+    }
+
+    /// Pushes whether the object at `address` has one counted reference
+    /// and no weak side entry: 1 with no load for a `UNIQUE` mark; a
+    /// sticky test reads its flag first and, with `tee`, sets it from the
+    /// load. A static object's zero count reads as shared.
+    fn unique_test(&mut self, address: u32, word: u32, flag: Option<u32>, tee: bool) {
         if word & ref_word::UNIQUE != 0 {
             self.f.u32(1);
+            return;
+        }
+        if let Some(flag) = flag {
+            self.f.get(flag);
+            self.f
+                .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+            self.f.u32(1);
+            self.f.op(I::Else);
+        }
+        self.f.get(address);
+        self.f.u32(8);
+        self.f.op(I::I32Sub);
+        if self.m.uses_weak || self.m.open_world {
+            self.f.op(I::I64Load(mem(HEAP, 0, 3)));
+            self.f.op(I::I64Const(
+                (u64::from(u32::MAX) | (u64::from(crate::module::WEAK) << 32)).cast_signed(),
+            ));
+            self.f.op(I::I64And);
+            self.f.op(I::I64Const(1));
+            self.f.op(I::I64Eq);
         } else {
-            if let Some(flag) = flag {
-                self.f.get(flag);
-                self.f
-                    .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
-                self.f.u32(1);
-                self.f.op(I::Else);
-            }
-            self.f.get(address);
-            self.f.u32(8);
-            self.f.op(I::I32Sub);
-            if weak {
-                self.f.op(I::I64Load(mem(HEAP, 0, 3)));
-                self.f.op(I::I64Const(
-                    (u64::from(u32::MAX) | (u64::from(crate::module::WEAK) << 32)).cast_signed(),
-                ));
-                self.f.op(I::I64And);
-                self.f.op(I::I64Const(1));
-                self.f.op(I::I64Eq);
-            } else {
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-                self.f.u32(1);
-                self.f.op(I::I32Eq);
-            }
-            if let Some(flag) = flag {
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.f.u32(1);
+            self.f.op(I::I32Eq);
+        }
+        if let Some(flag) = flag {
+            if tee {
                 self.f.op(I::LocalTee(flag));
-                self.f.op(I::End);
+            }
+            self.f.op(I::End);
+        }
+    }
+
+    /// A `make_unique(r, copy)` call `i` (`module.rt.make-unique`) of
+    /// instance `ct`: the object the `*T` at `r` refers to, lent for
+    /// writing. The count test runs here, as `unique_mut`'s; only a shared
+    /// box calls the std body, which stores a new box of the copy at `r`.
+    /// A `UNIQUE` mark (a fresh box, or a loop the passes hoisted the call
+    /// out of) leaves the box's address alone: no load of its count and no
+    /// call. Cost: constant per call; the copy runs only for a shared box.
+    fn make_unique(&mut self, i: u32, ct: &hd_mono::CallTarget, args: &[u32]) -> StageResult<()> {
+        let r = args[0];
+        let address = self.box_address(r)?;
+        let (word, flag) = self.unique_mark(r);
+        if word & ref_word::UNIQUE == 0 {
+            self.unique_test(address, word, flag, false);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+            self.call_instance(i, ct, args)?;
+            self.comp(r, 0)?;
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.f.set(address);
+            self.f.op(I::End);
+            // Either way the box is now unique.
+            if let Some(flag) = flag {
+                self.f.u32(1);
+                self.f.set(flag);
             }
         }
-        self.f.op(I::Select);
+        self.f.get(address);
         self.store(i)
     }
 

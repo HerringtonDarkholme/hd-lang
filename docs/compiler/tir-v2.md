@@ -1015,6 +1015,24 @@ reference's upgrade also makes a second owner, so the backend ignores
 both bits in a module that links weak references. Cost: one scan per body
 for tests, then one per tested place.
 
+**`make_unique` writes** (`module.rt.make-unique`, #1219). Std's
+test-and-copy of a box, `make_unique(&mut p, copy)`, is an ordinary std
+function with an hd body that the inliner never inlines (the known item
+`make_unique`). It stays a `Call`, for the reason `unique_mut` does, and
+`own::unique_test` marks it as it marks a test. The backend tests the
+count inline and calls the body only for a shared box. A loop whose
+every entered iteration makes `p` unique this way, that never stores
+`p`'s root, stores only new boxes into `p`, copies no place holding `p`,
+lends one only as a place's root, suspends nowhere and, for a place
+behind a parameter, calls nothing that may write, runs the call once
+before the loop instead: the pass puts `Ref mut local hoisted [p]`, the
+copy's item and the call before the loop, and marks every test of `p` in
+the loop `UNIQUE`, so the loop loads no count. The copy before the loop
+runs even when the loop runs no iteration, which costs one copy of a
+shared box. Cost: per loop with such a call, one scan of the loop per
+tested place, and one of the body for the uses of the references the
+loop takes.
+
 ### Why this order
 
 Insertion makes every count explicit. Borrow runs next, because each

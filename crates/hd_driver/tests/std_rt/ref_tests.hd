@@ -7,7 +7,7 @@
 # checked runtime counts allocations, so the runner also builds this file
 # checked in every mode (`STD_RT_CHECKED_TOO`); without it `allocated()`
 # stays 0, and the cases that compare it check nothing.
-use std.rt.memory.{pages, unique_mut}
+use std.rt.memory.{make_unique, pages, unique_mut}
 use std.rt.checked.{allocated, released, retained, live}
 use std.annotation.inline
 
@@ -164,6 +164,29 @@ fn add_upto(h: &mut CountHolder, n: i64) -> void:
             .Some(c) => c.n += i
             .None => h.store = box(Count { n: h.store.n + i })
         i += 1
+
+fn copy_count(c: &Count) -> Count:
+    Count { n: c.n }
+
+# Adds `0..n` to the holder's count through `make_unique`, which the loop
+# runs once before it.
+fn add_made(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        make_unique(&mut h.store, copy_count).n += i
+        i += 1
+
+# Each iteration shares the box before its write, so each write copies it;
+# the shared copies keep the counts before each write.
+fn add_shared(h: &mut CountHolder, n: i64) -> List[i64]:
+    let mut kept: List[i64] = []
+    let mut i: i64 = 0
+    while i < n:
+        keep := h.store
+        make_unique(&mut h.store, copy_count).n += 1
+        kept.push(keep.n)
+        i += 1
+    kept
 
 tests:
     use std.testing.{assert, it}
@@ -351,6 +374,35 @@ tests:
         add_upto(&mut h, 4)
         assert(allocated() - before <= 1, "one copy at most, then the copy is written in place")
         assert(h.store.n == 12 && keep.n == 6, "the shared box keeps its value")
+
+    it("make_unique writes an unshared box in place and copies a shared one"):
+        let mut p: *Count = box(Count { n: 1 })
+        before := allocated()
+        make_unique(&mut p, copy_count).n = 5
+        assert(allocated() == before, "an unshared box is written in place")
+        assert(p.n == 5, "the write reached the box")
+        q := p
+        make_unique(&mut p, copy_count).n = 7
+        assert(allocated() - before <= 1, "a shared box is copied once")
+        assert(p.n == 7 && q.n == 5, "the shared box keeps its value")
+
+    it("a make_unique loop copies a shared box once, before the loop"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        add_made(&mut h, 4)
+        assert(h.store.n == 6, "an unshared box is written in place")
+        keep := h.store
+        before := allocated()
+        add_made(&mut h, 4)
+        assert(allocated() - before <= 1, "one copy, then the copy is written in place")
+        assert(h.store.n == 12 && keep.n == 6, "the shared box keeps its value")
+        add_made(&mut h, 0)
+        assert(h.store.n == 12, "an empty loop writes nothing")
+
+    it("a loop that shares the box on each iteration copies it on each write"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        kept := add_shared(&mut h, 3)
+        assert(h.store.n == 3, "every write reached the box")
+        assert(kept == [0, 1, 2], "each shared copy keeps the count before its write")
 
     it("two tests of one place share the found-unique flag"):
         let mut h = CountHolder { store: box(Count { n: 0 }) }

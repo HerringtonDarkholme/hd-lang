@@ -35,8 +35,14 @@
 //! resolve the local references; bodies with no test do no work beyond
 //! the scan for one.
 
-use super::{OwnCx, operands};
-use crate::ir::{Body, Callee, DEREF, ReadMode, Ref, Root, Tag, local_flags, ref_word};
+use hd_base::SliceSort as _;
+
+use super::hoist::{entry_test, loop_statements, pure, unconditional_arm, writes};
+use super::{OwnCx, operands, splice};
+use crate::ir::{
+    Body, Callee, DEREF, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags,
+    place, ref_word, u32_of,
+};
 
 /// A place resolved through local references: its root local and steps
 /// (`PlaceView::push_steps` codes), and whether the value is a reference
@@ -259,7 +265,7 @@ fn fresh_part(b: &Body, mut v: u32, rest: &[u32]) -> bool {
 }
 
 /// Marks each `unique_mut` test's argument `UNIQUE` or `STICKY`.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx) {
+pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, edits: &mut splice::Tables) {
     let n = b.len();
     // (call, argument Ref) of each test.
     let mut tests: Vec<(usize, usize)> = Vec::new();
@@ -270,7 +276,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx) {
         let Some(c) = Callee::from_words(b.record(b.data[i][0])) else {
             continue;
         };
-        if !cx.is_unique_test(&c) {
+        if !cx.is_unique_test(&c) && !cx.is_make_unique(&c) {
             continue;
         }
         if let Some(a) = b.record(b.data[i][1]).first()
@@ -313,6 +319,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx) {
     let mut done: Vec<Canon> = Vec::new();
     let mut ops = Vec::new();
     let mut watched = vec![false; n];
+    let hoists = loop_hoists(b, topo, cx, &tests, &mut s, &mut watched, &mut ops);
     for &(_, arg) in &tests {
         let Some(t) = s.canon(b.data[arg][0], 0) else {
             continue;
@@ -406,35 +413,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx) {
                 _ => ok = false,
             }
         }
-        // Every use of a watched value is a place's root, a store into a
-        // local reference, an operator or a `Drop`.
-        for k in 0..n {
-            if !ok {
-                break;
-            }
-            operands(b, k, &mut ops);
-            for op in &ops {
-                let v = op.value as usize;
-                if v >= n || !watched[v] {
-                    continue;
-                }
-                let root = matches!(
-                    b.tags[k],
-                    Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
-                ) && b.view(b.data[k][0]).value() == Some(op.value);
-                let alias_store = b.tags[k] == Tag::Store
-                    && b.data[k][1] == op.value
-                    && b.view(b.data[k][0]).whole()
-                    && b.view(b.data[k][0])
-                        .local()
-                        .is_some_and(|l| s.alias_of(l, 0).is_some());
-                if !(root || alias_store || matches!(b.tags[k], Tag::Prim | Tag::Drop)) {
-                    ok = false;
-                    break;
-                }
-            }
-        }
-        if !ok {
+        if !ok || !watched_uses_ok(&mut s, &watched, &mut ops) {
             continue;
         }
         let word = if fresh {
@@ -449,6 +428,352 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx) {
     for (a, word) in marks {
         b.data[a][1] |= word;
     }
+    for h in hoists {
+        hoist_before(b, topo, edits, &h);
+    }
+}
+
+/// Whether every use of a watched value is a place's root, a store into a
+/// local reference, an operator or a `Drop`: no copy of the tested place
+/// leaves through a reference to it or to a place holding it.
+fn watched_uses_ok(s: &mut Places<'_>, watched: &[bool], ops: &mut Vec<super::Operand>) -> bool {
+    let b = s.b;
+    let n = b.len();
+    for k in 0..n {
+        operands(b, k, ops);
+        for op in ops.iter() {
+            let v = op.value as usize;
+            if v >= n || !watched[v] {
+                continue;
+            }
+            let root = matches!(
+                b.tags[k],
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
+            ) && b.view(b.data[k][0]).value() == Some(op.value);
+            let alias_store = b.tags[k] == Tag::Store
+                && b.data[k][1] == op.value
+                && b.view(b.data[k][0]).whole()
+                && b.view(b.data[k][0])
+                    .local()
+                    .is_some_and(|l| s.alias_of(l, 0).is_some());
+            if !(root || alias_store || matches!(b.tags[k], Tag::Prim | Tag::Drop)) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// A `make_unique` hoisted out of a loop: the loop, the place it makes
+/// unique, its first call there and the tests of that place in the loop.
+struct Hoist {
+    lp: u32,
+    place: Canon,
+    call: usize,
+    copy: u32,
+    tests: Vec<usize>,
+}
+
+/// The statements that run on every entered iteration of `Loop` `l`
+/// (`docs/compiler/tir-v2.md`, "Hoisting", rule 1): those of its
+/// iteration block behind a pure entry-test prefix, at any depth through
+/// scopes, unconditional match arms and the iteration blocks of inner
+/// loops.
+fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut Vec<u32>) {
+    out.clear();
+    let mut blocks = match entry_test(b, topo, l) {
+        Some(e) => {
+            let mut budget = b.len();
+            if loop_statements(b, l)
+                .take(e.prefix)
+                .all(|x| pure(b, cx, x, &mut budget))
+            {
+                vec![e.iteration]
+            } else {
+                Vec::new()
+            }
+        }
+        None => vec![b.data[l as usize][0]],
+    };
+    while let Some(blk) = blocks.pop() {
+        for &x in b.record(b.data[blk as usize][0]) {
+            match b.tags[x as usize] {
+                Tag::Loop => blocks
+                    .push(entry_test(b, topo, x).map_or(b.data[x as usize][0], |e| e.iteration)),
+                Tag::Scope => blocks.push(b.data[x as usize][0]),
+                Tag::Match => {
+                    if let Some(arm) = unconditional_arm(b, x as usize) {
+                        blocks.push(arm);
+                    }
+                }
+                _ => out.push(x),
+            }
+        }
+    }
+}
+
+/// The `make_unique` calls a loop may run once before it (owner,
+/// 2026-11-12, #1219): one that runs on every entered iteration, of a
+/// place `p` whose root the loop never stores, in a loop that copies no
+/// place holding `p`, stores only new boxes into `p`, lends `p` or a place
+/// holding it only as a place's root, suspends nowhere and, for a place
+/// behind a parameter, calls nothing that may write. Its function argument
+/// is an item, which the copy before the loop names again. Once the call
+/// before the loop leaves `p`'s box unique, nothing in the loop can share
+/// it, so every test of `p` there is true: the passes mark them `UNIQUE`.
+///
+/// Cost: per loop with a `make_unique` on every iteration, one scan of the
+/// loop per tested place, and one of the body for the uses of the
+/// references the loop takes.
+fn loop_hoists(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    tests: &[(usize, usize)],
+    s: &mut Places<'_>,
+    watched: &mut [bool],
+    ops: &mut Vec<super::Operand>,
+) -> Vec<Hoist> {
+    let mut out: Vec<Hoist> = Vec::new();
+    let makes = |i: usize| {
+        Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.is_make_unique(&c))
+    };
+    if !tests.iter().any(|&(c, _)| makes(c)) {
+        return out;
+    }
+    let mut loops: Vec<(u32, u32)> = (0..b.len())
+        .filter(|&i| b.tags[i] == Tag::Loop)
+        .map(|i| (topo.first[i], u32_of(i)))
+        .collect();
+    // Outermost first: an outer loop starts no later and ends later.
+    loops.sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
+    let mut every = Vec::new();
+    let mut hoisted = vec![false; b.len()];
+    for (lo, l) in loops {
+        every_iteration(b, topo, cx, l, &mut every);
+        for &x in &every {
+            let x = x as usize;
+            let Some(&(_, arg)) = tests.iter().find(|&&(c, _)| c == x) else {
+                continue;
+            };
+            if hoisted[x] || !makes(x) {
+                continue;
+            }
+            let Some(t) = s.canon(b.data[arg][0], 0) else {
+                continue;
+            };
+            let copy = b.record(b.data[x][1]).get(1).copied().unwrap_or(NONE);
+            let item = Ref(copy)
+                .as_inst()
+                .is_some_and(|c| b.tags[c.0 as usize] == Tag::ItemRef);
+            if t.refto || !item {
+                continue;
+            }
+            let Some(own) = leaves_alone(b, cx, tests, s, watched, ops, &t, lo, l) else {
+                continue;
+            };
+            for &a in &own {
+                hoisted[a] = true;
+            }
+            out.push(Hoist {
+                lp: l,
+                place: t,
+                call: x,
+                copy,
+                tests: own,
+            });
+        }
+    }
+    out
+}
+
+/// Whether loop `lo..=l` leaves place `t` alone ([`loop_hoists`]): the
+/// tests of `t` in the loop, each a call.
+#[allow(clippy::too_many_arguments)]
+fn leaves_alone(
+    b: &Body,
+    cx: &dyn OwnCx,
+    tests: &[(usize, usize)],
+    s: &mut Places<'_>,
+    watched: &mut [bool],
+    ops: &mut Vec<super::Operand>,
+    t: &Canon,
+    lo: u32,
+    l: u32,
+) -> Option<Vec<usize>> {
+    let x = t.root as usize;
+    let param = s.params[x];
+    let shape_ok = if param {
+        t.steps.first() == Some(&DEREF)
+            && t.steps[1..]
+                .iter()
+                .all(|&k| k != DEREF && k < crate::ir::VARIANT)
+            && cx.plain_reference(b.local_ty[x])
+    } else {
+        t.steps.iter().all(|&k| k < crate::ir::VARIANT)
+    };
+    if !shape_ok || s.captured[x] {
+        return None;
+    }
+    let mut own: Vec<usize> = Vec::new();
+    let mut args: Vec<usize> = Vec::new();
+    for &(c, a) in tests {
+        if (lo as usize..l as usize).contains(&c) && s.canon(b.data[a][0], 0).as_ref() == Some(t) {
+            own.push(c);
+            args.push(a);
+        }
+    }
+    for w in watched.iter_mut() {
+        *w = false;
+    }
+    for (j, w) in watched
+        .iter_mut()
+        .enumerate()
+        .take(l as usize)
+        .skip(lo as usize)
+    {
+        let tag = b.tags[j];
+        if is_suspension(tag) {
+            return None;
+        }
+        match tag {
+            Tag::Call | Tag::CallValue | Tag::CallHost | Tag::DefaultCall => {
+                // A callee may reach what a parameter refers to through
+                // another path.
+                if param && !own.contains(&j) && writes(b, cx, j) {
+                    return None;
+                }
+                continue;
+            }
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique => {}
+            _ => continue,
+        }
+        let p = b.view(b.data[j][0]);
+        if tag == Tag::Store
+            && p.whole()
+            && let Some(lc) = p.local()
+            && s.alias_of(lc, 0).is_some()
+        {
+            continue;
+        }
+        let Some(c) = s.canon(b.data[j][0], 0) else {
+            continue;
+        };
+        match (tag, relate(&c, t.root, &t.steps)) {
+            (_, Rel::Apart) => {}
+            (Tag::Read, Rel::Above { through_ref: true }) => *w = true,
+            (Tag::Read, _) if b.data[j][1] == ReadMode::Copy as u32 => return None,
+            (Tag::Read, _) if b.data[j][1] == ReadMode::Move as u32 => {}
+            (Tag::Read, _) => *w = true,
+            // Only a new box replaces `p`'s; the loop never stores its root,
+            // which the copy before the loop reads.
+            (Tag::Store, Rel::Equal) if fresh_box(b, b.data[j][1]) => {}
+            (Tag::Ref, Rel::Equal) if args.contains(&j) => {}
+            (Tag::Ref, _) => *w = true,
+            (Tag::Drop, _) => {}
+            _ => return None,
+        }
+    }
+    watched_uses_ok(s, watched, ops).then_some(own)
+}
+
+/// Puts hoist `h`'s `make_unique` before its loop, and marks its tests
+/// there `UNIQUE`: `Ref mut local hoisted [p]`, the copy's item again, and
+/// the call over them.
+fn hoist_before(b: &mut Body, topo: &Topology, edits: &mut splice::Tables, h: &Hoist) {
+    let n = u32_of(b.len());
+    let call = h.call;
+    let arg = b.record(b.data[call][1])[0] as usize;
+    for &c in &h.tests {
+        if let Some(&a) = b.record(b.data[c][1]).first() {
+            b.data[a as usize][1] |= ref_word::UNIQUE;
+        }
+    }
+    let word = place_word(b, &h.place);
+    let (blk, pos) = (topo.blk[h.lp as usize], topo.pos[h.lp as usize]);
+    let r = edits.insert(
+        blk,
+        pos,
+        Tag::Ref,
+        [word, ref_word::MUT | ref_word::LOCAL | ref_word::HOISTED],
+        b.ty[arg],
+        b.syn[arg],
+    );
+    let ci = h.copy as usize;
+    let copy = edits.insert(blk, pos, Tag::ItemRef, b.data[ci], b.ty[ci], b.syn[ci]);
+    let rec: Vec<u32> = b.record(b.data[call][1]).to_vec();
+    let at = u32_of(b.extra.len());
+    b.extra.push(u32_of(rec.len()));
+    for (k, &w) in rec.iter().enumerate() {
+        b.extra.push(match k {
+            0 => n + r,
+            1 => n + copy,
+            _ => w,
+        });
+    }
+    let made = edits.insert(
+        blk,
+        pos,
+        Tag::Call,
+        [b.data[call][0], at],
+        b.ty[call],
+        b.syn[call],
+    );
+    // Its result is unused, and the loan ends with the call.
+    let result = u32_of(b.extra.len());
+    b.extra.extend([2, place::ROOT_VALUE, n + made]);
+    edits.insert(
+        blk,
+        pos,
+        Tag::Drop,
+        [result, super::reason::LAST_USE],
+        hd_types::Ty::VOID,
+        b.syn[call],
+    );
+    let lent = u32_of(b.extra.len());
+    b.extra.extend([2, place::ROOT_VALUE, n + r]);
+    edits.insert(
+        blk,
+        pos,
+        Tag::LoanEnd,
+        [lent, NONE],
+        hd_types::Ty::VOID,
+        b.syn[arg],
+    );
+    // The item's value drops as the loop's does: after the call, unless
+    // the call takes it.
+    let drops = (call..h.lp as usize)
+        .any(|j| b.tags[j] == Tag::Drop && b.view(b.data[j][0]).value() == Some(h.copy));
+    if drops {
+        let dropped = u32_of(b.extra.len());
+        b.extra.extend([2, place::ROOT_VALUE, n + copy]);
+        edits.insert(
+            blk,
+            pos,
+            Tag::Drop,
+            [dropped, super::reason::LAST_USE],
+            hd_types::Ty::VOID,
+            b.syn[ci],
+        );
+    }
+}
+
+/// A place record for `c`: its root local, then its steps.
+fn place_word(b: &mut Body, c: &Canon) -> u32 {
+    if c.steps.is_empty() {
+        return c.root | place::BARE_LOCAL;
+    }
+    let at = u32_of(b.extra.len());
+    b.extra.push(2 + u32_of(c.steps.len()));
+    b.extra.extend([place::ROOT_LOCAL, c.root]);
+    for &s in &c.steps {
+        b.extra.push(if s == DEREF {
+            place::PROJ_DEREF
+        } else {
+            place::PROJ_FIELD | s
+        });
+    }
+    at
 }
 
 fn fill_false(v: &mut [bool]) {

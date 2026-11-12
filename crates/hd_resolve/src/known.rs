@@ -153,6 +153,10 @@ pub struct KnownItems {
     /// `std.rt.memory.Ptr`, an address that may point into what a
     /// reference reaches (`module.rt.ptr.as-ref`).
     pub ptr: DefId,
+    /// `std.rt.memory.make_unique`, the copy-on-write write of a box
+    /// (`module.rt.make-unique`): the passes hoist it out of loops and the
+    /// backend tests the count inline, calling it only for a shared box.
+    pub make_unique: DefId,
     /// `std.rt.Drop`, whose implementation a value's release glue calls
     /// before releasing its fields (`module.rt.drop.glue`).
     pub drop_trait: DefId,
@@ -272,6 +276,7 @@ impl KnownItems {
             map: item("std.core", "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),
+            make_unique: item("std.rt.memory", "make_unique"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
             function_module: module("std.function"),

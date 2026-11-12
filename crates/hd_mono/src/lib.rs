@@ -148,6 +148,11 @@ pub trait ProgramEnv: LayoutEnv {
     /// The compiler-known `std.rt.Drop` trait and its one method. `None`
     /// lets a partial environment omit std's runtime declaration.
     fn drop_items(&self) -> Option<(DefId, DefId)>;
+    /// `std.rt.memory.make_unique` (`module.rt.make-unique`), whose calls
+    /// the backend tests inline, calling it only for a shared box.
+    fn make_unique_item(&self) -> Option<DefId> {
+        None
+    }
     /// Whether `impl_` is a `@derive` implementation on a nominal
     /// newtype: its methods forward to the base type's implementation,
     /// so with erased newtypes calls use the base method directly and

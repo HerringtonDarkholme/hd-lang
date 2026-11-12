@@ -1,0 +1,31 @@
+# @dump: wat
+# @build: v8 release std
+# `make_unique` (module.rt.make-unique): a loop that copies the box keeps
+# the count test in the loop, and calls the copy only when the box is
+# shared.
+use std.rt.memory.make_unique
+use std.collections.UniqList
+use std.annotation.inline
+
+struct L:
+    store: *UniqList[i64]
+
+fn copied(u: &UniqList[i64]) -> UniqList[i64]:
+    let mut c = UniqList::[i64].with_capacity(u.len())
+    for i in 0..u.len():
+        c.push(u[i])
+    c
+
+impl L:
+    @inline
+    fn set(&mut self, i: usize, v: i64) -> void:
+        make_unique(&mut self.store, copied)[i] = v
+
+fn copies_the_box(xs: &mut L, n: usize) -> usize:
+    let mut kept: usize = 0
+    # subject
+    for i in 0..n:
+        ys := L { store: xs.store }
+        xs.set(i, 5)
+        kept += ys.store.len()
+    kept

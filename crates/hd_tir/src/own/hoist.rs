@@ -202,7 +202,7 @@ fn loop_test_with(
 }
 
 /// The arm of a match whose decision binds values and takes one edge.
-fn unconditional_arm(b: &Body, i: usize) -> Option<u32> {
+pub(crate) fn unconditional_arm(b: &Body, i: usize) -> Option<u32> {
     let [decision, arm] = *b.record(b.data[i][1]) else {
         return None;
     };
@@ -439,7 +439,7 @@ fn changes(op: Option<IntrinsicOp>) -> bool {
 /// before its loop, as the guard of what hoists there (rule 1): a copy of
 /// a value with no counted leaf, a `borrow` and its kept `Drop`, a
 /// primitive, a scalar coercion, a length, or `and` and `or` of such.
-fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
+pub(crate) fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
     if *budget == 0 {
         return false;
     }

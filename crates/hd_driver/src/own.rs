@@ -504,6 +504,10 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("unique_mut"))
     }
 
+    fn is_make_unique(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if *def == self.run.known.make_unique)
+    }
+
     fn counted(&self, ty: Ty) -> bool {
         // A generic body's open type may count in an instance.
         self.is_open(ty) || self.layout_facts(ty).0
@@ -1750,6 +1754,11 @@ impl InlineEnv for Env<'_> {
     }
 
     fn inline_hint(&self, def: DefId) -> InlineHint {
+        // The backend tests a `make_unique` call's count inline and calls
+        // its body only for a shared box; the passes hoist the call itself.
+        if def == self.run.known.make_unique {
+            return InlineHint::Never;
+        }
         self.p
             .items
             .get(def)
