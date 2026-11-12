@@ -3,7 +3,6 @@
   (import "fixture" "impl[T < ?Copy & PartialOrd] PartialOrd for T?.partial_cmp[string]" (func $"impl[T < ?Copy & PartialOrd] PartialOrd for T?.partial_cmp[string]" (param i32 i32) (result i32)))
   (import "fixture" "string_order" (func $string_order (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < ?Copy & Tuple] PartialOrd for T by Structure.partial_cmp[(string, i64)]" (func $"impl[T < ?Copy & Tuple] PartialOrd for T by Structure.partial_cmp[(string, i64)]" (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T < PartialOrd] PartialOrd for List[T].partial_cmp[string]" (func $"impl[T < PartialOrd] PartialOrd for List[T].partial_cmp[string]" (param i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -160,28 +159,6 @@
     local.get $a
     local.get $b
     call $"impl[T < ?Copy & Tuple] PartialOrd for T by Structure.partial_cmp[(string, i64)]"
-    local.set $t1
-    local.get $a
-    if
-      local.get $a
-      i32.load $heap
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-    end
-    local.get $b
-    if
-      local.get $b
-      i32.load $heap
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-    end
-    local.get $t1
     i32.const 2
     i32.eq
     if (result i32)

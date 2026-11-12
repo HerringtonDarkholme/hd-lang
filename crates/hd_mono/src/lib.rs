@@ -30,6 +30,9 @@ use hd_types::solver::{
 };
 use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
+mod type_depth;
+pub use type_depth::type_argument_depth;
+
 pub use crate::layout::Sub;
 use crate::layout::{
     A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, StdKind, canon, instance_key,
@@ -1759,60 +1762,7 @@ impl Cx<'_> {
     /// The nesting depth of `t`: 1 for a type with no type parts, else one
     /// more than its deepest part. A row counts its keys as parts.
     fn depth_of(&mut self, t: Ty) -> u32 {
-        if let Some(&d) = self.depths.get(&t) {
-            return d;
-        }
-        let pool = self.pool;
-        let mut parts: Vec<Ty> = Vec::new();
-        let row_keys = |r: hd_types::RowId, parts: &mut Vec<Ty>| {
-            parts.extend(pool.row_data(r).keys);
-        };
-        match pool.get(t) {
-            TyData::Adt { args, .. } => parts.extend(pool.list_items(args)),
-            TyData::Opaque { args, bound, .. } => {
-                parts.extend(pool.list_items(args));
-                parts.push(bound);
-            }
-            TyData::Tuple { elems, rest } => {
-                parts.extend(pool.list_items(elems));
-                parts.extend(rest);
-            }
-            TyData::Union(members) => parts.extend(pool.list_items(members)),
-            TyData::Ref { inner: i, .. } => parts.push(i),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => {
-                parts.extend(pool.list_items(params));
-                parts.push(result);
-                row_keys(row, &mut parts);
-            }
-            TyData::TraitValue { args, bindings, .. } => {
-                parts.extend(pool.list_items(args));
-                parts.extend(bindings.into_iter().map(|(_, b)| b));
-            }
-            TyData::Assoc { self_ty, args, .. } => {
-                parts.push(self_ty);
-                parts.extend(pool.list_items(args));
-            }
-            TyData::Row(r) | TyData::Context(r) => row_keys(r, &mut parts),
-            TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Param(_)
-            | TyData::Const(_)
-            | TyData::Infer(_)
-            | TyData::Canon(_) => {}
-        }
-        let d = 1 + parts
-            .into_iter()
-            .map(|p| self.depth_of(p))
-            .max()
-            .unwrap_or(0);
-        self.depths.insert(t, d);
-        d
+        type_argument_depth(self.pool, &mut self.depths, t)
     }
 
     /// Records the stop at a limit (`crates/hd_mono/DESIGN.md` §13.4): the request of
@@ -2276,6 +2226,14 @@ impl Cx<'_> {
                 ret: subst(self.pool, self.env, def, args, ret),
                 kind: TargetKind::Instance,
             });
+        }
+        // Specialization may leave direct calls to a supplied family's
+        // factories after removing the traversal that registered them.
+        if !self.env.has_body(def)
+            && let Some((&self_ty, own)) = self.pool.list_items(args).split_first()
+            && let Some(target) = self.supplied_target(def, self_ty, own, parent)?
+        {
+            return Ok(target);
         }
         // A body-less inherent method is an intrinsic method of std
         // (`trait.impl.intrinsic`), such as `f64.sqrt`: the backend lowers
@@ -3257,8 +3215,10 @@ impl Cx<'_> {
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
         // An item's root instance asks for its body; each closure's code
-        // instance shares its parent's, which made its environment.
-        if supplied.is_none()
+        // instance shares its parent's, which made its environment. An
+        // intrinsic's source body is a placeholder; its generated supplied
+        // body must remain authoritative instead of owning that placeholder.
+        if env.intrinsic(item).is_none()
             && sub == Sub::Body(0)
             && !self.out.instance_bodies.contains_key(&id)
             && let Some(body) = self.item_body(item, args)?

@@ -34,6 +34,7 @@ use hd_types::{Ty, TyData, TyList};
 
 use super::{Env, LazyBody, ProgramTables, Run, lock};
 
+mod effects;
 mod program;
 
 thread_local! {
@@ -67,10 +68,13 @@ pub(super) struct Summaries {
     /// members reads the component's fixed point
     /// ([`Env::component_borrows`]).
     cycle: std::sync::Mutex<HashMap<Node, Node>>,
-    /// Whether each walked body may write memory its caller can reach
-    /// (`hd_tir::own::writes`), known before the passes run over its
-    /// component: `OwnCx::may_write` reads it for a call of the body.
-    writes: std::sync::Mutex<HashMap<Node, bool>>,
+    /// Complete external/parameter write effects, known before the passes
+    /// run over the component. Calls map the parameter mask through their
+    /// actual reference roots; unknown external effects remain conservative.
+    memory: std::sync::Mutex<HashMap<Node, hd_tir::own::memory_effects::Writes>>,
+    effect_indices:
+        std::sync::Mutex<HashMap<(DefId, Ty), std::sync::Arc<hd_tir::own::EffectIndex>>>,
+    effect_depths: std::sync::Mutex<HashMap<Ty, u32>>,
     /// Per summarized instance, the value parameters its summary lends
     /// ([`Env::lent_mask`]), once recorded; a recursive component's
     /// member's are its fixed point. After collection, what each receives
@@ -291,10 +295,29 @@ impl Env<'_> {
         }
     }
 
-    /// [`OwnCx::may_write`] from the declarations alone, without a
-    /// release summary: only the compiler's code of an intrinsic that
-    /// reads its arguments writes nothing.
+    /// [`OwnCx::may_write`] without a release summary: declarations and
+    /// the generator's cached proof of a whole factory family. No query
+    /// recursively owns another body.
     fn declared_may_write(&self, callee: &Callee) -> bool {
+        if let Callee::Item { def, targs } = *callee
+            && matches!(
+                hd_structure::generated_body(&self.run.names(), def),
+                Some(hd_structure::GeneratedBody::Handle(_))
+            )
+            && let Some(&target) = self.run.pool.list_items(targs).first()
+            && !self.is_open(target)
+            && let Ok(Some(family)) = self.raw_supplied_family(def, target)
+            && family.index.contains_key(&def)
+            && family.factories_read_only
+        {
+            return false;
+        }
+        self.intrinsic_may_write(callee)
+    }
+
+    /// The base declaration policy, also used while proving generated
+    /// families. It does not enter another generated-family query.
+    fn intrinsic_may_write(&self, callee: &Callee) -> bool {
         // The compiler's scalar square root reaches nothing but its
         // argument (`list.rs`'s loop proofs allow it the same way), and
         // the byte reads of a string only read it ([`PURE_INTRINSICS`]).
@@ -711,16 +734,30 @@ impl OwnCx for Env<'_> {
     }
 
     fn may_write(&self, callee: &Callee) -> bool {
-        // Release: the walked body's own answer, unless the compiler
-        // supplies the code of the call (an intrinsic).
-        if let Some(all) = &self.run.summaries
-            && let Some(node) = self.callee_node(callee)
-            && self.intrinsic(node.0).is_none()
-            && let Some(&w) = lock(&all.writes).get(&node)
-        {
-            return w;
+        self.call_writes(callee).any()
+    }
+
+    fn call_writes(&self, callee: &Callee) -> hd_tir::own::memory_effects::Writes {
+        use hd_tir::own::memory_effects::Writes;
+        let node = self.callee_node(callee);
+        // A cold constructor and its later poll/frame cleanup do not have
+        // the same effects. Do not discharge deferred parameter writes at
+        // the construction call using an ordinary body's summary.
+        if node.is_some_and(|node| ProgramEnv::suspends(self, node.0)) {
+            return Writes::EXTERNAL;
         }
-        self.declared_may_write(callee)
+        if let Some(all) = &self.run.summaries
+            && let Some(node) = node
+            && self.intrinsic(node.0).is_none()
+            && let Some(&effects) = lock(&all.memory).get(&node)
+        {
+            return effects;
+        }
+        if self.declared_may_write(callee) {
+            Writes::EXTERNAL
+        } else {
+            Writes::default()
+        }
     }
 
     fn call_memory(&self, callee: &Callee) -> CallMemory {
@@ -945,6 +982,94 @@ impl Env<'_> {
             })
         })
     }
+}
+
+/// Internal calls compose as read-only only when every generated factory
+/// has no external write. Each helper's TIR is inspected once; no recursive
+/// query or fixpoint is needed for this conservative group proof.
+fn read_only_factories(
+    pool: &hd_types::InternPool,
+    target: Ty,
+    bodies: &[Body],
+    index: &HashMap<DefId, usize>,
+    external_writes: &dyn Fn(&Callee) -> bool,
+) -> bool {
+    bodies
+        .iter()
+        .filter(|body| body.kind == hd_tir::ir::BodyKind::Handle)
+        .all(|body| {
+            let internal = |callee: &Callee| {
+                matches!(*callee, Callee::Item { def, targs }
+                if index.get(&def).is_some_and(|&i| bodies[i].kind == hd_tir::ir::BodyKind::Handle)
+                    && pool.list_items(targs).first() == Some(&target))
+            };
+            let policy = |callee: &Callee| !internal(callee) && external_writes(callee);
+            let structural = hd_tir::own::EffectIndex::new(body);
+            let effects = hd_tir::own::WriteEffects::indexed(body, &structural);
+            let writes = effects.in_range(0..body.len(), &policy);
+            !writes
+        })
+}
+
+#[test]
+fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
+-> Result<(), String> {
+    use hd_tir::ir::{BodyKind, Providers, TirBuilder, TirSink};
+    let pool = hd_types::InternPool::new();
+    let target = Ty::I32;
+    let helper = |def: u32, callee: Option<(u32, Ty)>| {
+        let mut b = TirBuilder::new(DefId::from_raw(def), BodyKind::Handle);
+        let root = b.open_block();
+        if let Some((called, target)) = callee {
+            b.call(
+                &Callee::Item {
+                    def: DefId::from_raw(called),
+                    targs: pool.list(&[target]),
+                },
+                &[],
+                Providers::None,
+                Ty::VOID,
+                hd_base::NodeIdx::NONE,
+            );
+        }
+        let root = b.close_block(root, None, Ty::VOID, hd_base::NodeIdx::NONE);
+        b.finish(root, &[]).map_err(|errors| format!("{errors:?}"))
+    };
+    let index = [(DefId::from_raw(1), 0), (DefId::from_raw(2), 1)]
+        .into_iter()
+        .collect();
+    let static_family = [helper(1, Some((2, target)))?, helper(2, None)?];
+    assert!(read_only_factories(
+        &pool,
+        target,
+        &static_family,
+        &index,
+        &|_| true
+    ));
+    let effectful = [helper(1, Some((2, target)))?, helper(2, Some((3, target)))?];
+    assert!(!read_only_factories(
+        &pool,
+        target,
+        &effectful,
+        &index,
+        &|_| true
+    ));
+    assert!(read_only_factories(
+        &pool,
+        target,
+        &effectful,
+        &index,
+        &|_| false
+    ));
+    let other_target = [helper(1, Some((2, Ty::BOOL)))?, helper(2, None)?];
+    assert!(!read_only_factories(
+        &pool,
+        target,
+        &other_target,
+        &index,
+        &|_| true
+    ));
+    Ok(())
 }
 
 /// Whether a value of type `t` may hold a reference: a reference type,
@@ -1474,6 +1599,95 @@ impl Env<'_> {
         });
     }
 
+    /// Generate a traversal and its handle family once per concrete target.
+    /// Both specialization and collection reuse this query. The family index
+    /// makes direct factory recovery independent of the eliminated call.
+    pub(super) fn raw_supplied_family(
+        &self,
+        method: DefId,
+        self_ty: Ty,
+    ) -> StageResult<Option<std::sync::Arc<super::SuppliedFamily>>> {
+        if let Some(cell) = lock(&self.p.supplied_families)
+            .get(&(method, self_ty))
+            .cloned()
+            && let Some(result) = cell.get()
+        {
+            return result.clone();
+        }
+        let names = self.run.names();
+        let cx = hd_structure::Cx {
+            names: &names,
+            items: self.p,
+            stage: Stage::Collect,
+        };
+        let Some(root) = hd_structure::supplied_root(&cx, method) else {
+            return Ok(None);
+        };
+        let cell = lock(&self.p.supplied_families)
+            .entry((root, self_ty))
+            .or_default()
+            .clone();
+        if method != root {
+            lock(&self.p.supplied_families)
+                .entry((method, self_ty))
+                .or_insert_with(|| cell.clone());
+        }
+        cell.get_or_init(|| {
+            let Some(target) = hd_structure::dbg_target(&cx, self_ty) else {
+                return Ok(None);
+            };
+            let Some(generated) = hd_structure::supplied(&cx, &target, root)? else {
+                return Ok(None);
+            };
+            {
+                let mut rets = lock(&self.p.supplied_rets);
+                for item in &generated.helpers.items {
+                    if let Some(sig) = item.sig() {
+                        let ret = self.low(sig.ret);
+                        if let Some(old) = rets.insert(item.def, ret) {
+                            // ruled out: supplied factory signatures are templates
+                            // over their explicit target and member arguments.
+                            debug_assert_eq!(
+                                old, ret,
+                                "a supplied factory's return template is stable"
+                            );
+                        }
+                    }
+                }
+            }
+            // Hash the traversal once. Serializing the full target type in
+            // every individual factory would multiply work for wide tuples.
+            let bytes = hd_tir::wire::write_body(
+                &generated.body,
+                &self.run.pool,
+                &self.run.paths,
+                &self.run.syms,
+            )?;
+            let hash = hd_tir::wire::tir_hash(&bytes);
+            let inlineable = hd_opt::inline::bounded_inline_metadata(&generated.body).is_some();
+            let mut bodies = Vec::with_capacity(1 + generated.helpers.bodies.len());
+            let mut index = HashMap::default();
+            for body in std::iter::once(generated.body).chain(generated.helpers.bodies) {
+                index.insert(body.item, bodies.len());
+                bodies.push(body);
+            }
+            // Prove factories from their actual bodies, including user
+            // metadata initializers. A generated name is never a purity fact.
+            let factories_read_only =
+                read_only_factories(&self.run.pool, self_ty, &bodies, &index, &|callee| {
+                    self.intrinsic_may_write(callee)
+                });
+            Ok(Some(std::sync::Arc::new(super::SuppliedFamily {
+                bodies,
+                index,
+                hash,
+                inlineable,
+                factories_read_only,
+            })))
+        })
+        .clone()
+    }
+
     /// A body collection generates (a supplied method's, a `dbg` body),
     /// after the ownership passes. Its places are rooted at their locals
     /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
@@ -1706,6 +1920,16 @@ impl InlineEnv for Env<'_> {
 }
 
 impl StructureEnv for Env<'_> {
+    fn supplied_structure_walk(&self, callee: &Callee) -> Option<(Body, Hash128, TyList)> {
+        let (def, args) = self.supplied_walk_node(callee)?;
+        let family = self.supplied_walk_family((def, args))?;
+        if !family.inlineable {
+            return None;
+        }
+        let body = family.bodies.get(*family.index.get(&def)?)?;
+        Some((body.clone(), family.hash, args))
+    }
+
     fn generated_structure_walk(&self, def: DefId) -> bool {
         hd_structure::is_generated_walk(&self.run.names(), def)
     }
@@ -2029,13 +2253,89 @@ impl Env<'_> {
         (def, hd_mono::rowless(&self.run.pool, self, def, args))
     }
 
+    fn supplied_walk_node(&self, callee: &Callee) -> Option<Node> {
+        let Callee::TraitMethod {
+            trait_,
+            method,
+            self_ty,
+            targs,
+            choice: (ChoiceKind::Builtin | ChoiceKind::Bound, _),
+        } = *callee
+        else {
+            return None;
+        };
+        if trait_ != self.run.known.structure || self.is_open(self_ty) {
+            return None;
+        }
+        let names = self.run.names();
+        if names.paths.segment(hd_base::PathId::from_raw(method.raw())) != "walk" {
+            return None;
+        }
+        let types = self.run.pool.types();
+        let (universe, global) = self.solving();
+        let mut cx = SolveCx {
+            pool: types,
+            env: &ParamEnv::default(),
+            universe,
+            impls: self.impls,
+            decls: self,
+            body_memo: &mut BodyMemo::default(),
+            global,
+        };
+        let tref = TraitRef {
+            trait_,
+            self_ty,
+            args: TyList::EMPTY,
+        };
+        if !matches!(
+            TableSolver.select(&mut cx, ConcreteTraitRef(tref)).ok()?,
+            Selection::Builtin(_)
+        ) {
+            return None;
+        }
+        let args = self
+            .run
+            .pool
+            .list(&[&[self_ty], self.run.pool.list_items(targs)].concat());
+        Some(self.node(method, args))
+    }
+
+    fn supplied_walk_family(
+        &self,
+        (def, args): Node,
+    ) -> Option<std::sync::Arc<super::SuppliedFamily>> {
+        let names = self.run.names();
+        let path = hd_base::PathId::from_raw(def.raw());
+        if names.paths.parent(path).raw() != self.run.known.structure.raw()
+            || names.paths.segment(path) != "walk"
+        {
+            return None;
+        }
+        let items = self.run.pool.list_items(args);
+        let &target = items.first()?;
+        self.supplied_walk_node(&Callee::TraitMethod {
+            trait_: self.run.known.structure,
+            method: def,
+            self_ty: target,
+            targs: self.run.pool.list(&items[1..]),
+            choice: (ChoiceKind::Builtin, 0),
+        })?;
+        let family = self.raw_supplied_family(def, target).ok()??;
+        (family.bodies.first()?.item == def).then_some(family)
+    }
+
     /// The instance a call runs, where the call names one: a direct
     /// call's callee at its type arguments, or a trait call's impl method
     /// where the call is chosen as an impl.
     fn callee_node(&self, callee: &Callee) -> Option<Node> {
         let (def, args) = match *callee {
             Callee::Item { def, targs } => (def, targs),
-            Callee::TraitMethod { .. } => self.impl_target(callee)?,
+            Callee::TraitMethod { .. } => {
+                if let Some(node) = self.supplied_walk_node(callee) {
+                    return Some(node);
+                }
+                self.impl_target(callee)?
+            }
         };
         Some(self.node(def, args))
     }
@@ -2064,14 +2364,19 @@ impl Env<'_> {
             return None;
         }
         let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
-        let (raw, hash) = if dev {
-            self.generic_inlined(def)?
+        let supplied = self.supplied_walk_family((def, args));
+        let (mut body, hash) = if let Some(family) = &supplied {
+            (family.bodies[0].clone(), family.hash)
         } else {
-            self.run
-                .lazy_body(self.p, def)
-                .and_then(|b| self.run.decode(b))?
+            let (raw, hash) = if dev {
+                self.generic_inlined(def)?
+            } else {
+                self.run
+                    .lazy_body(self.p, def)
+                    .and_then(|b| self.run.decode(b))?
+            };
+            (raw.clone(), *hash)
         };
-        let mut body = raw.clone();
         if args != TyList::EMPTY {
             let pool = &self.run.pool;
             let ty = |t: Ty| hd_mono::subst(pool, self, def, args, t);
@@ -2090,9 +2395,14 @@ impl Env<'_> {
             });
         }
         if dev {
-            return Some((body, *hash));
+            return Some((body, hash));
         }
-        let hash = self.fold_and_inline(&mut body, *hash);
+        let hash = if supplied.is_some() || StructureEnv::generated_structure_walk(self, def) {
+            hd_opt::structure_specialize::specialize_shared_walk(self, &mut body, hash)
+        } else {
+            hash
+        };
+        let hash = self.fold_and_inline(&mut body, hash);
         Some((body, hash))
     }
 
@@ -2194,12 +2504,16 @@ impl Env<'_> {
             }
         }
         if let (Some(all), Some(mut s)) = (&self.run.summaries, summary) {
-            s.writes = lock(&all.writes).get(&node) != Some(&false);
+            s.writes = lock(&all.memory)
+                .get(&node)
+                .is_none_or(|effects| effects.any());
             // The passes add no write the walk before them missed.
             if !s.writes && (self.run.checked() || cfg!(debug_assertions)) {
                 let path = self.run.names().path(body.item);
                 assert!(
-                    !hd_tir::own::writes(&body, self),
+                    // Recheck the same conditional generated-handle effects
+                    // after ownership has inserted explicit operations.
+                    !effects::writes_after_ownership(self, &body, node),
                     "{path}: writes after the passes"
                 );
             }
@@ -2465,7 +2779,8 @@ impl Env<'_> {
             };
             if let Some(n) = node
                 && self.intrinsic(n.0).is_none()
-                && self.run.lazy_body(self.p, n.0).is_some()
+                && (self.run.lazy_body(self.p, n.0).is_some()
+                    || self.supplied_walk_family(n).is_some())
                 && !self
                     .run
                     .pool
@@ -2628,7 +2943,7 @@ impl Run<'_> {
             let inlined = RefCell::new(HashMap::default());
             let mut callees = |n: Node| {
                 let Some((body, hash)) = env.inlined_instance(n) else {
-                    return Vec::new();
+                    return env.borrowed_effect_callees(n);
                 };
                 let out = env.summarized_callees(&body);
                 inlined.borrow_mut().insert(n, (body, hash));
@@ -2650,38 +2965,59 @@ impl Run<'_> {
                 (names.path(n.0), args.finish())
             };
             let mut own = |members: &mut Vec<Node>, recursive: bool| {
+                use hd_tir::own::memory_effects::{Call, Equation, Writes};
                 members.sort_stable_by_cached_key(&mut order);
-                // Writes, before the passes read them: the least fixed
-                // point over the component, from every member writing
-                // nothing (a member with no inlined body writes).
+                // Complete write effects are monotone. A reverse-edge worklist
+                // transfers each of 64 parameter bits/external once per call,
+                // rather than rechecking every body after every callee change.
                 let bodies = inlined.borrow();
-                // One structural index per immutable body, not one per
-                // summary iteration. Call effects still read this round.
-                let effects: Vec<_> = members
+                let indices: HashMap<_, _> = members
                     .iter()
-                    .map(|m| {
-                        bodies
-                            .get(m)
-                            .map(|(body, _)| hd_tir::own::WriteEffects::new(body))
+                    .copied()
+                    .enumerate()
+                    .map(|(i, n)| (n, i))
+                    .collect();
+                let equations: Vec<_> = members
+                    .iter()
+                    .map(|member| {
+                        let effects = if let Some((body, _)) = bodies.get(member) {
+                            env.conditional_equation(body)
+                        } else {
+                            env.borrowed_equation(*member).unwrap_or_else(|| {
+                                hd_tir::own::memory_effects::BodyEffects {
+                                    direct: Writes::EXTERNAL,
+                                    calls: Vec::new(),
+                                }
+                            })
+                        };
+                        let mut equation = Equation {
+                            direct: effects.direct,
+                            calls: Vec::new(),
+                        };
+                        for call in effects.calls {
+                            let target = env.callee_node(&call.callee);
+                            if target.is_some_and(|node| ProgramEnv::suspends(env, node.0)) {
+                                equation.direct.join(call.transfer.apply(Writes::EXTERNAL));
+                            } else if let Some(callee) =
+                                target.and_then(|n| indices.get(&n).copied())
+                            {
+                                equation.calls.push(Call {
+                                    callee,
+                                    transfer: call.transfer,
+                                });
+                            } else {
+                                equation
+                                    .direct
+                                    .join(call.transfer.apply(env.call_writes(&call.callee)));
+                            }
+                        }
+                        equation
                     })
                     .collect();
-                let mut writes = lock(&all.writes);
-                for m in members.iter() {
-                    writes.insert(*m, !bodies.contains_key(m));
+                let effects = hd_tir::own::memory_effects::solve(&equations);
+                for (&member, effects) in members.iter().zip(effects) {
+                    lock(&all.memory).insert(member, effects);
                 }
-                drop(writes);
-                let mut grew = true;
-                while grew {
-                    grew = false;
-                    for (m, effects) in members.iter().zip(&effects) {
-                        let known = lock(&all.writes)[m];
-                        if !known && effects.as_ref().is_none_or(|effects| effects.writes(env)) {
-                            lock(&all.writes).insert(*m, true);
-                            grew = true;
-                        }
-                    }
-                }
-                drop(effects);
                 drop(bodies);
                 if recursive {
                     for &m in members.iter() {

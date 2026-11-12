@@ -316,6 +316,16 @@ pub trait OwnCx {
     /// false only for the few std functions known pure. The borrow pass
     /// and hoisting read it.
     fn may_write(&self, callee: &Callee) -> bool;
+    /// A complete effect summary. The default preserves the existing unknown
+    /// call policy; a parameter-only answer must account for every write.
+    fn call_writes(&self, callee: &Callee) -> memory_effects::Writes {
+        if self.may_write(callee) {
+            memory_effects::Writes::EXTERNAL
+        } else {
+            memory_effects::Writes::default()
+        }
+    }
+
     /// The raw-memory relation of a compiler-supplied call. The default is
     /// none so a target that supplies no such calls stays conservative.
     fn call_memory(&self, callee: &Callee) -> CallMemory {
@@ -446,6 +456,8 @@ pub trait OwnCx {
 pub fn scoped_provider_transfers(b: &Body, topo: &Topology) -> Vec<(u32, u32, u32)> {
     call_row::transfers(b, topo)
 }
+
+pub mod memory_effects;
 
 pub use crate::ir::{Loc, Role};
 
@@ -1482,26 +1494,34 @@ pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
 }
 
 /// Indexes of one immutable body, shared by promotion's small range
-/// queries and interprocedural summary rounds. Building is O(N + P);
+/// queries and interprocedural summaries. Building is O(N + P + L);
 /// a query visits only its range and its projection/operand words.
 /// Rebuild after changing the body. No call effect is cached: each query
 /// reads the current policy, including a recursive component's summaries.
-pub struct WriteEffects<'a> {
-    body: &'a Body,
+pub struct EffectIndex {
     places: effect_places::Places,
     suspends: bool,
-    promotion: std::cell::OnceCell<promote::Census>,
-    element_calls: std::cell::OnceCell<readonly_elements::Calls>,
-    pinned: std::cell::OnceCell<Vec<bool>>,
+    element_calls: std::sync::OnceLock<readonly_elements::Calls>,
+    aliases: std::sync::OnceLock<Vec<memory_effects::ValueSource>>,
+    pinned: std::sync::OnceLock<Vec<bool>>,
 }
 
-impl<'a> WriteEffects<'a> {
+impl EffectIndex {
     #[must_use]
-    pub fn new(body: &'a Body) -> Self {
+    pub fn new(body: &Body) -> Self {
         Self::new_with(body, |_| {})
     }
 
-    fn new_with(body: &'a Body, mut measure: impl FnMut(usize)) -> Self {
+    /// The same body's cached transparent value identities, in SSA order.
+    pub fn value_sources(&self, body: &Body) -> &[memory_effects::ValueSource] {
+        self.aliases.get_or_init(|| {
+            (0..body.len())
+                .map(|i| self.places.value_source(body, i))
+                .collect()
+        })
+    }
+
+    fn new_with(body: &Body, mut measure: impl FnMut(usize)) -> Self {
         let places = effect_places::Places::new_with(body, &mut measure);
         let suspends = body.tags.iter().any(|&tag| {
             measure(1);
@@ -1510,29 +1530,201 @@ impl<'a> WriteEffects<'a> {
             crate::ir::is_suspension(tag)
         });
         Self {
-            body,
             places,
             suspends,
+            element_calls: std::sync::OnceLock::new(),
+            aliases: std::sync::OnceLock::new(),
+            pinned: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+enum EffectIndexRef<'a> {
+    Owned(Box<EffectIndex>),
+    Shared(&'a EffectIndex),
+}
+
+pub struct WriteEffects<'a> {
+    body: &'a Body,
+    index: EffectIndexRef<'a>,
+    promotion: std::cell::OnceCell<promote::Census>,
+}
+
+impl std::ops::Deref for WriteEffects<'_> {
+    type Target = EffectIndex;
+    fn deref(&self) -> &EffectIndex {
+        match &self.index {
+            EffectIndexRef::Owned(index) => index,
+            EffectIndexRef::Shared(index) => index,
+        }
+    }
+}
+
+impl<'a> WriteEffects<'a> {
+    #[must_use]
+    pub fn new(body: &'a Body) -> Self {
+        Self::new_with(body, |_| {})
+    }
+
+    fn new_with(body: &'a Body, measure: impl FnMut(usize)) -> Self {
+        Self {
+            body,
+            index: EffectIndexRef::Owned(Box::new(EffectIndex::new_with(body, measure))),
             promotion: std::cell::OnceCell::new(),
-            element_calls: std::cell::OnceCell::new(),
-            pinned: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// Shares structural indexes of this exact immutable body across concrete
+    /// summary contexts. No body or index vectors are cloned.
+    #[must_use]
+    pub fn indexed(body: &'a Body, index: &'a EffectIndex) -> Self {
+        Self {
+            body,
+            index: EffectIndexRef::Shared(index),
+            promotion: std::cell::OnceCell::new(),
         }
     }
 
     #[must_use]
     pub fn writes(&self, cx: &dyn OwnCx) -> bool {
-        let readonly = self
+        self.equation(cx)
+            .evaluate(|callee| cx.call_writes(callee))
+            .any()
+    }
+
+    /// One structural equation for a component's effect worklist. Call facts
+    /// remain edges; immutable-element lending keeps its conditional call edge.
+    #[must_use]
+    pub fn equation(&self, cx: &dyn OwnCx) -> memory_effects::BodyEffects {
+        self.equation_in(cx, &[], &[])
+    }
+
+    /// A sparse concrete view: unreachable rows and independently proved
+    /// read-only calls need no body rewrite. Empty views preserve all rows.
+    #[must_use]
+    pub fn equation_in(
+        &self,
+        cx: &dyn OwnCx,
+        active: &[bool],
+        read_only_calls: &[bool],
+    ) -> memory_effects::BodyEffects {
+        use memory_effects::{BodyEffects, CallEffect, Transfer, Writes};
+        let b = self.body;
+        let lending = self
             .element_calls
-            .get_or_init(|| readonly_elements::Calls::new(self.body))
-            .elements(self.body, cx);
-        writes_with(
-            self,
-            0..self.body.len(),
-            &|c| cx.may_write(c),
-            Some(cx),
-            Some(&readonly),
-            || {},
-        )
+            .get_or_init(|| readonly_elements::Calls::new(b))
+            .lending(b, cx);
+        let mut origins = Some(AllocationOrigins::new(b, cx));
+        let mut out = BodyEffects {
+            direct: Writes::default(),
+            calls: Vec::new(),
+        };
+        for (i, &consumer) in lending.iter().enumerate() {
+            if active.get(i) == Some(&false) || read_only_calls.get(i) == Some(&true) {
+                continue;
+            }
+            #[cfg(test)]
+            effect_places::work(1);
+            let [a, _] = b.data[i];
+            if b.tags[i] == Tag::Call {
+                if let Some(callee) = Callee::from_words(b.record(a)) {
+                    if cx.call_memory(&callee) == CallMemory::None {
+                        let arguments = b.record(b.data[i][1]);
+                        let arguments = arguments[..arguments.len().saturating_sub(3)]
+                            .iter()
+                            .take(64)
+                            .map(|&value| self.places.reference_source(value))
+                            .collect();
+                        out.calls.push(CallEffect {
+                            instruction: crate::ir::u32_of(i),
+                            callee,
+                            transfer: Transfer::Arguments(arguments),
+                        });
+                    } else if write_at(self, i, &|_| true, None, &mut origins) {
+                        out.direct.join(Writes::EXTERNAL);
+                    }
+                } else {
+                    out.direct.join(Writes::EXTERNAL);
+                }
+                continue;
+            }
+            if !write_at(self, i, &|_| true, None, &mut origins) {
+                continue;
+            }
+            let mut writes = match b.tags[i] {
+                Tag::Store
+                | Tag::IsUnique
+                | Tag::FlagSet
+                | Tag::FlagClear
+                | Tag::Read
+                | Tag::Ref => self.places.source_at(b, a, i).writes(),
+                Tag::Intrinsic
+                    if !matches!(IntrinsicOp::from_u32(a), None | Some(IntrinsicOp::Item)) =>
+                {
+                    let mut writes = Writes::default();
+                    for (_, value) in changed(b, i) {
+                        if let Some(read) = Ref(value)
+                            .as_inst()
+                            .filter(|r| b.tags[r.0 as usize] == Tag::Read)
+                        {
+                            let mut changed = self
+                                .places
+                                .source_at(b, b.data[read.0 as usize][0], i)
+                                .writes();
+                            // Collection mutation may release a replaced value.
+                            // Keep its destruction external until it is modeled.
+                            let ty = b.ty[read.0 as usize];
+                            if changed.parameters != 0
+                                && (cx.counted(ty) || cx.holds_drop(ty) != Tri::No)
+                            {
+                                changed = Writes::EXTERNAL;
+                            }
+                            writes.join(changed);
+                        } else {
+                            writes.join(Writes::EXTERNAL);
+                        }
+                    }
+                    writes
+                }
+                _ => Writes::EXTERNAL,
+            };
+            // Releasing the previous counted/Drop-bearing value can run
+            // external destruction even when its slot is private. Its
+            // replacement has the destination's checked type.
+            if b.tags[i] == Tag::Store && writes.parameters != 0 {
+                let value = Ref(b.data[i][1]);
+                let ty = value.as_inst().map_or_else(
+                    || {
+                        b.consts
+                            .get((value.0 & !Ref::CONST_BIT) as usize)
+                            .map_or(Ty::POISON, |v| v.0)
+                    },
+                    |v| b.ty[v.0 as usize],
+                );
+                if cx.counted(ty) || cx.holds_drop(ty) != Tri::No {
+                    writes = Writes::EXTERNAL;
+                }
+            }
+            if b.tags[i] == Tag::Ref
+                && consumer != NONE
+                && read_only_calls.get(consumer as usize) == Some(&true)
+            {
+                continue;
+            }
+            if b.tags[i] == Tag::Ref
+                && consumer != NONE
+                && let Some(callee) = Callee::from_words(b.record(b.data[consumer as usize][0]))
+            {
+                out.calls.push(CallEffect {
+                    instruction: consumer,
+                    callee,
+                    transfer: Transfer::Any(writes),
+                });
+            } else {
+                out.direct.join(writes);
+            }
+        }
+        out
     }
 
     #[must_use]
@@ -1564,6 +1756,22 @@ fn writes_with(
     readonly: Option<&[bool]>,
     mut visit: impl FnMut(),
 ) -> bool {
+    let mut origins = cx.map(|cx| AllocationOrigins::new(effects.body, cx));
+    range.any(|i| {
+        visit();
+        #[cfg(test)]
+        effect_places::work(1);
+        write_at(effects, i, may_write, readonly, &mut origins)
+    })
+}
+
+fn write_at(
+    effects: &WriteEffects<'_>,
+    i: usize,
+    may_write: &dyn Fn(&Callee) -> bool,
+    readonly: Option<&[bool]>,
+    origins: &mut Option<AllocationOrigins<'_>>,
+) -> bool {
     let b = effects.body;
     let place = |word| effects.places.get(b, word);
     let read = |v: u32| {
@@ -1571,78 +1779,72 @@ fn writes_with(
             .as_inst()
             .filter(|i| b.tags[i.0 as usize] == Tag::Read)
     };
-    let mut origins = cx.map(|cx| AllocationOrigins::new(b, cx));
-    range.any(|i| {
-        visit();
-        #[cfg(test)]
-        effect_places::work(1);
-        let [a, w] = b.data[i];
-        match b.tags[i] {
-            Tag::Store | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
-                !place(a).0
-                    && !origins
-                        .as_mut()
-                        .is_some_and(|origins| origins.owns_pointer_place(a, i))
-            }
-            // A move out of a place the body does not own; before the
-            // passes, a read of a pointer's target is one too, since
-            // `Ptr.read` moves its value out (`module.rt.ptr.read`).
-            Tag::Read => {
-                (w == ReadMode::Move as u32
-                    || (w == ReadMode::Use as u32 && matches!(b.view(a).root, Root::Ptr(_))))
-                    && !place(a).0
-                    && !origins
-                        .as_mut()
-                        .is_some_and(|origins| origins.owns_pointer_place(a, i))
-            }
-            Tag::Ref => {
-                let writes = matches!(place(a), (false, elem) if elem || w & crate::ir::ref_word::MUT != 0)
-                    && !origins
-                        .as_mut()
-                        .is_some_and(|origins| origins.owns_pointer_place(a, i));
-                if !writes || w & crate::ir::ref_word::MUT != 0 {
-                    return writes;
-                }
-                if readonly.is_some_and(|elements| elements[i]) {
-                    return false;
-                }
-                let pinned = effects.pinned.get_or_init(|| {
-                    let mut elements = Vec::new();
-                    insert::pinned_elements(b, &Topology::new(b), &mut elements);
-                    elements
-                });
-                !pinned[i]
-            }
-            Tag::Intrinsic => {
-                matches!(IntrinsicOp::from_u32(a), None | Some(IntrinsicOp::Item))
-                    || changed(b, i)
-                        .any(|(_, v)| read(v).is_none_or(|r| !place(b.data[r.0 as usize][0]).0))
-            }
-            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|callee| {
-                let Some(origins) = origins.as_mut() else {
-                    return may_write(&callee);
-                };
-                match origins.cx.call_memory(&callee) {
-                    CallMemory::Allocate | CallMemory::Derive(_) => false,
-                    CallMemory::Write(k) => !origins
-                        .call_args(i)
-                        .get(k as usize)
-                        .copied()
-                        .is_some_and(|v| origins.fresh_before(v, i)),
-                    CallMemory::None => may_write(&callee),
-                }
-            }),
-            Tag::CallValue
-            | Tag::CallHost
-            | Tag::DefaultCall
-            | Tag::Hook
-            | Tag::ProviderGet
-            | Tag::With
-            | Tag::ContextNew
-            | Tag::ContextFor => true,
-            t => crate::ir::is_suspension(t),
+    let [a, w] = b.data[i];
+    match b.tags[i] {
+        Tag::Store | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
+            !place(a).0
+                && !origins
+                    .as_mut()
+                    .is_some_and(|origins| origins.owns_pointer_place(a, i))
         }
-    })
+        // A move out of a place the body does not own; before the
+        // passes, a read of a pointer's target is one too, since
+        // `Ptr.read` moves its value out (`module.rt.ptr.read`).
+        Tag::Read => {
+            (w == ReadMode::Move as u32
+                || (w == ReadMode::Use as u32 && matches!(b.view(a).root, Root::Ptr(_))))
+                && !place(a).0
+                && !origins
+                    .as_mut()
+                    .is_some_and(|origins| origins.owns_pointer_place(a, i))
+        }
+        Tag::Ref => {
+            let writes = matches!(place(a), (false, elem) if elem || w & crate::ir::ref_word::MUT != 0)
+                && !origins
+                    .as_mut()
+                    .is_some_and(|origins| origins.owns_pointer_place(a, i));
+            if !writes || w & crate::ir::ref_word::MUT != 0 {
+                return writes;
+            }
+            if readonly.is_some_and(|elements| elements[i]) {
+                return false;
+            }
+            let pinned = effects.pinned.get_or_init(|| {
+                let mut elements = Vec::new();
+                insert::pinned_elements(b, &Topology::new(b), &mut elements);
+                elements
+            });
+            !pinned[i]
+        }
+        Tag::Intrinsic => {
+            matches!(IntrinsicOp::from_u32(a), None | Some(IntrinsicOp::Item))
+                || changed(b, i)
+                    .any(|(_, v)| read(v).is_none_or(|r| !place(b.data[r.0 as usize][0]).0))
+        }
+        Tag::Call => Callee::from_words(b.record(a)).is_none_or(|callee| {
+            let Some(origins) = origins.as_mut() else {
+                return may_write(&callee);
+            };
+            match origins.cx.call_memory(&callee) {
+                CallMemory::Allocate | CallMemory::Derive(_) => false,
+                CallMemory::Write(k) => !origins
+                    .call_args(i)
+                    .get(k as usize)
+                    .copied()
+                    .is_some_and(|v| origins.fresh_before(v, i)),
+                CallMemory::None => may_write(&callee),
+            }
+        }),
+        Tag::CallValue
+        | Tag::CallHost
+        | Tag::DefaultCall
+        | Tag::Hook
+        | Tag::ProviderGet
+        | Tag::With
+        | Tag::ContextNew
+        | Tag::ContextFor => true,
+        t => crate::ir::is_suspension(t),
+    }
 }
 
 /// The summary of `b` after [`run`] over it, from the borrow pass's tables

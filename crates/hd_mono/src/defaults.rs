@@ -802,6 +802,144 @@ pub fn value_given(body: &Body, calls: &dyn Fn(usize) -> Option<Value>) -> Optio
     Values::new(body, &[], calls)?.word(body, root)
 }
 
+/// Reachable instructions under independently proved call results, without
+/// copying or rewriting the body. Known results never erase their producers.
+/// Values and normal completion are computed once in topological order; an
+/// explicit worklist marks each reachable instruction and its operand edges.
+#[must_use]
+pub fn reachable_given(body: &Body, calls: &dyn Fn(usize) -> Option<Value>) -> Vec<bool> {
+    reachable_given_with(body, calls, &mut || {})
+}
+
+fn reachable_given_with(
+    body: &Body,
+    calls: &dyn Fn(usize) -> Option<Value>,
+    visit: &mut impl FnMut(),
+) -> Vec<bool> {
+    let Some(values) = Values::new(body, &[], calls) else {
+        return vec![true; body.len()];
+    };
+    let chosen = |i: usize| match body.tags[i] {
+        Tag::If | Tag::Match => values.chosen(body, i),
+        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => values.switched(body, i),
+        _ => None,
+    };
+    let mut finishes = vec![true; body.len()];
+    for i in 0..body.len() {
+        visit();
+        finishes[i] = if let Some(block) = chosen(i) {
+            block == NONE || finishes.get(block as usize).copied().unwrap_or(true)
+        } else if body.tags[i] == Tag::Block {
+            let [members, tail] = body.data[i];
+            let mut end = true;
+            for &member in body.record(members) {
+                visit();
+                if body.tags[member as usize] != Tag::Block && !finishes[member as usize] {
+                    end = false;
+                    break;
+                }
+            }
+            end && (tail == NONE || Ref(tail).as_inst().is_none_or(|v| finishes[v.0 as usize]))
+        } else {
+            body.ty[i] != Ty::NEVER
+        };
+    }
+    let mut live = vec![false; body.len()];
+    let mut work = body
+        .sub_root
+        .first()
+        .copied()
+        .into_iter()
+        .collect::<Vec<_>>();
+    while let Some(word) = work.pop() {
+        visit();
+        let Some(at) = Ref(word).as_inst().filter(|v| (v.0 as usize) < body.len()) else {
+            continue;
+        };
+        let i = at.0 as usize;
+        if live[i] {
+            continue;
+        }
+        live[i] = true;
+        let [a, b] = body.data[i];
+        if body.tags[i] == Tag::Block {
+            let mut end = true;
+            for &member in body.record(a) {
+                visit();
+                if body.tags[member as usize] == Tag::Block {
+                    continue;
+                }
+                work.push(member);
+                if !finishes[member as usize] {
+                    end = false;
+                    break;
+                }
+            }
+            if end {
+                work.push(b);
+            }
+            continue;
+        }
+        if let Some(block) = chosen(i) {
+            work.push(a);
+            work.push(block);
+            continue;
+        }
+        if matches!(body.tags[i], Tag::And | Tag::Or)
+            && let Some(Value::Scalar(value)) = values.word(body, a)
+            && ((body.tags[i] == Tag::And && value == 0) || (body.tags[i] == Tag::Or && value != 0))
+        {
+            work.push(a);
+            continue;
+        }
+        if body.tags[i] == Tag::Closure
+            && let Some(&root) = body.sub_root.get(a as usize)
+        {
+            work.push(root);
+        }
+        if let Some(arguments) = body.value_operands(i) {
+            work.extend(arguments);
+        }
+        if matches!(body.tags[i], Tag::If | Tag::Match) {
+            work.push(a);
+            work.extend_from_slice(body.record(b));
+            continue;
+        }
+        if matches!(
+            body.tags[i],
+            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr
+        ) {
+            work.push(a);
+            work.extend(body.record(b).iter().skip(1).take(2));
+            continue;
+        }
+        for (op, word) in [body.tags[i].operands().0, body.tags[i].operands().1]
+            .into_iter()
+            .zip([a, b])
+        {
+            match op {
+                Op::Value => work.push(word),
+                Op::Block => {
+                    if body.tags.get(word as usize) == Some(&Tag::Block) {
+                        work.push(word);
+                    }
+                }
+                Op::Blocks => work.extend_from_slice(body.record(word)),
+                // Value lists were visited by value_operands; metadata,
+                // identities and places do not select a control-flow block.
+                Op::None
+                | Op::Inst
+                | Op::Label
+                | Op::Meta
+                | Op::Values
+                | Op::Record
+                | Op::Place => {}
+            }
+        }
+    }
+    live
+}
+
 /// `body` as one instruction that makes `value` ([`collapse`]'s copy);
 /// `None` for a body already that small.
 #[must_use]
@@ -1411,5 +1549,48 @@ mod tests {
             key(plain, &[], &[(0, Value::Scalar(0))]),
             key(plain, &[], &[(1, Value::Scalar(0))])
         );
+    }
+    #[test]
+    fn known_call_result_keeps_its_producer_and_stops_after_a_returning_arm() -> Result<(), String>
+    {
+        use hd_tir::ir::{BodyKind, Callee, Providers, TirBuilder, TirSink};
+        use hd_types::TyList;
+        let mut b = TirBuilder::new(DefId::from_raw(20), BodyKind::Fn);
+        let root = b.open_block();
+        let condition = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(21),
+                targs: TyList::EMPTY,
+            },
+            &[],
+            Providers::None,
+            Ty::BOOL,
+            NodeIdx::NONE,
+        );
+        let yes = b.open_block();
+        let unit = b.const_value(Ty::VOID, 0);
+        b.emit(Tag::Return, unit.0, NONE, Ty::NEVER, NodeIdx::NONE);
+        let yes = b.close_block(yes, None, Ty::NEVER, NodeIdx::NONE);
+        let arms = b.refs_record(&[yes, Ref(NONE)]);
+        b.emit(Tag::If, condition.0, arms, Ty::VOID, NodeIdx::NONE);
+        let later = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(22),
+                targs: TyList::EMPTY,
+            },
+            &[],
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let root = b.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        let known = reachable_given(&body, &|i| {
+            (i == condition.0 as usize).then_some(Value::Scalar(1))
+        });
+        assert!(known[condition.0 as usize]);
+        assert!(!known[later.0 as usize]);
+        assert!(reachable_given(&body, &|_| None)[later.0 as usize]);
+        Ok(())
     }
 }

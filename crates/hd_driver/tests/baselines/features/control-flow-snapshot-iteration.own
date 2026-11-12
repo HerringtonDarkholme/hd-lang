@@ -130,4 +130,4 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   %40 = SwitchTag %17 [#0 %37 %39] : never
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $3 slot
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]

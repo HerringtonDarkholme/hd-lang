@@ -155,4 +155,4 @@ pub fn run(steps: i64) -> f64:
 >   %30 = Drop [$1] : ()
 >   %29 finds [$1] full
 >   storage sub 0: $1 slot
->   summary kept [] writes
+>   summary kept []

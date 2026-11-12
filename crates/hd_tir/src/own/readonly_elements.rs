@@ -36,8 +36,24 @@ impl Calls {
     /// number of addresses or coercion depth. Call policy is deliberately
     /// queried afresh: recursive-component summaries can change.
     pub(super) fn elements(&self, b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
+        self.lending(b, cx)
+            .into_iter()
+            .map(|call| {
+                #[cfg(test)]
+                super::effect_places::work(1);
+                call != NONE
+                    && Callee::from_words(b.record(b.data[call as usize][0]))
+                        .is_some_and(|callee| !cx.may_write(&callee))
+            })
+            .collect()
+    }
+
+    /// Structural loans with their policy-dependent consumer call. The effect
+    /// equations retain this dependency instead of freezing an SCC's current
+    /// optimistic call policy into the structural index.
+    pub(super) fn lending(&self, b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
         let calls = derive::local_lending_calls(b, cx, &self.counts, &self.last);
-        let mut out = vec![false; b.len()];
+        let mut out = vec![NONE; b.len()];
         for block in 0..b.len() {
             #[cfg(test)]
             super::effect_places::work(1);
@@ -51,9 +67,7 @@ impl Calls {
                 let i = word as usize;
                 match b.tags[i] {
                     Tag::Call => {
-                        endpoint = if Callee::from_words(b.record(b.data[i][0]))
-                            .is_some_and(|callee| !cx.may_write(&callee))
-                        {
+                        endpoint = if Callee::from_words(b.record(b.data[i][0])).is_some() {
                             word
                         } else {
                             NONE
@@ -64,7 +78,7 @@ impl Calls {
                             && calls[i] == endpoint
                             && b.data[i][1] & ref_word::MUT == 0 =>
                     {
-                        out[i] = true;
+                        out[i] = endpoint;
                     }
                     // A read, scalar operation or same-value coercion cannot
                     // change the buffer. Pointer reads may move their target.

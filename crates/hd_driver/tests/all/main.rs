@@ -182,3 +182,5 @@ mod owned_adapter_calls;
 
 mod map_seed_runtime;
 mod trait_reference_coverage;
+
+mod supplied_tuple_specialize;

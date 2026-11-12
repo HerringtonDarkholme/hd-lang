@@ -200,7 +200,7 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   %38 = Drop [$1] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 cell
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn length_across_write(text: string) -> usize:
 > app/main/length_across_write
@@ -241,4 +241,4 @@ fn length_across_write(text: string) -> usize:
 >   %21 = Intrinsic ListLen [%20] : usize
 >   %22 = Drop [%20] : ()
 >   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [$0]

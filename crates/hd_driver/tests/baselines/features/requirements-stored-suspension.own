@@ -142,7 +142,7 @@ fn discard(key: string) -> usize:
 >   %3 = Drop [%2] : ()
 >   %4 = Block 0:usize : usize
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] writes
     0
 
 fn bound!(s: string) -> usize:
