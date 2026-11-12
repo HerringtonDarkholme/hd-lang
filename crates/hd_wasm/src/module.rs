@@ -2090,6 +2090,10 @@ impl Module {
                     crate::opt::locals(f, &arity);
                 }
             }
+            if crate::opt::fold_local_constants(f) {
+                crate::opt::locals(f, &arity);
+                crate::opt::blocks(f, &arity);
+            }
             crate::opt::coalesce(f);
             if crate::opt::drops(f) {
                 crate::opt::locals(f, &arity);
