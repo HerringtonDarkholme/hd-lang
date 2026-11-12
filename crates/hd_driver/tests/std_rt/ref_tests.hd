@@ -146,6 +146,16 @@ fn write_unique(r: &mut *Count, v: i64) -> bool:
             true
         .None => false
 
+# Two tests of one place: the second finds the box unique once the first
+# copied it.
+fn set_twice(h: &mut CountHolder, a: i64, b: i64) -> void:
+    match unique_mut(&mut h.store):
+        .Some(c) => c.n = a
+        .None => h.store = box(Count { n: a })
+    match unique_mut(&mut h.store):
+        .Some(c) => c.n += b
+        .None => h.store = box(Count { n: h.store.n + b })
+
 # Adds `0..n` to the holder's count, copying a shared box once first.
 fn add_upto(h: &mut CountHolder, n: i64) -> void:
     let mut i: i64 = 0
@@ -341,3 +351,9 @@ tests:
         add_upto(&mut h, 4)
         assert(allocated() - before <= 1, "one copy at most, then the copy is written in place")
         assert(h.store.n == 12 && keep.n == 6, "the shared box keeps its value")
+
+    it("two tests of one place share the found-unique flag"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        keep := h.store
+        set_twice(&mut h, 3, 4)
+        assert(h.store.n == 7 && keep.n == 0, "the first test copies, the second writes the copy")

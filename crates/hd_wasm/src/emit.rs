@@ -4032,16 +4032,13 @@ impl Em<'_, '_, '_> {
     /// A static object's zero count reads as shared. Cost: constant per
     /// call; `own::unique_test` drops the load for a fresh box.
     fn unique_mut(&mut self, i: u32, r: u32) -> StageResult<()> {
-        // The `*T`'s words at `r`, as many as the `(&mut T)?` has (a
-        // reference's niche is its null address): the object's address,
-        // then a trait value's vtable.
-        let words = self.vals(self.ty(i))?.len();
-        let ls: Vec<u32> = (0..words).map(|_| self.f.local(Val::I32)).collect();
-        for (k, &l) in ls.iter().enumerate() {
-            self.comp(r, 0)?;
-            self.f.op(I::I32Load(mem(HEAP, 4 * k as u64, 2)));
-            self.f.set(l);
-        }
+        // The object's address, the `*T`'s one word at `r`: `T` is never a
+        // trait descriptor (`cannot-infer-type`), so the `(&mut T)?` is
+        // thin too, its address or null for `.None`.
+        let address = self.f.local(Val::I32);
+        self.comp(r, 0)?;
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.set(address);
         // The passes' marks count only box copies as second owners; a
         // weak reference's upgrade makes one too, so a module that links
         // weak references runs every test.
@@ -4051,7 +4048,6 @@ impl Em<'_, '_, '_> {
         } else {
             0
         };
-        let same = self.f.local(Val::I32);
         // A sticky test shares one flag with every test of its place.
         let flag = (word & ref_word::STICKY != 0).then(|| {
             let key = self.b.record(self.b.data[r as usize][0]).to_vec();
@@ -4062,6 +4058,8 @@ impl Em<'_, '_, '_> {
             self.unique_flags.push((key, l));
             l
         });
+        self.f.get(address);
+        self.f.u32(0);
         if word & ref_word::UNIQUE != 0 {
             self.f.u32(1);
         } else {
@@ -4072,7 +4070,7 @@ impl Em<'_, '_, '_> {
                 self.f.u32(1);
                 self.f.op(I::Else);
             }
-            self.f.get(ls[0]);
+            self.f.get(address);
             self.f.u32(8);
             self.f.op(I::I32Sub);
             if weak {
@@ -4093,23 +4091,8 @@ impl Em<'_, '_, '_> {
                 self.f.op(I::End);
             }
         }
-        self.f.set(same);
-        if let [address] = ls[..] {
-            // A thin `(&mut T)?` is its address, null for `.None`.
-            self.f.get(address);
-            self.f.u32(0);
-            self.f.get(same);
-            self.f.op(I::Select);
-            return self.store(i);
-        }
-        self.f.get(same);
-        self.f.op(I::If(BlockType::Empty));
-        self.ctl.push(Ctl::Plain);
-        self.new_variant(i, 1, &[value::Src::Locals(ls)])?;
-        self.f.op(I::Else);
-        self.new_variant(i, 0, &[])?;
-        self.close();
-        Ok(())
+        self.f.op(I::Select);
+        self.store(i)
     }
 
     /// A `Read` or a `Store` of the place `[ptr %p]`, the `T` at the

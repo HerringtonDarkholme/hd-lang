@@ -989,6 +989,32 @@ boundaries discard the facts. An element-reference drop ends its loan
 without changing the header. A shared short loan can omit its preceding
 uniqueness check, so it discards these facts.
 
+**`unique_mut` tests** (`module.rt.unique`, #1219). Std's test of a box,
+`unique_mut(&mut p)`, stays a `Call`: it has a result and changes no
+collection buffer, which `IsUnique` does. After hoisting,
+`own::unique_test` classifies each tested place `p` over the whole body
+and marks the `Ref` argument of every test of `p` with one of two bits of
+`Ref`'s word, which invariant 22 refuses before the passes:
+
+- `ref_word::UNIQUE` (4), **fresh**: `p` is in a local that is no
+  parameter and that no closure captures, every store that sets `p` (or
+  a struct literal holding it) stores a new box, and nothing copies `p`.
+  Its box always has one owner, so the backend emits no load: the test is
+  true.
+- `ref_word::STICKY` (128): the same, except that `p` may start with a
+  box from outside, behind a `&mut` parameter (an inlined `self`
+  included), and the body calls nothing else that could reach it. Once a
+  test finds the box unique it stays so, so the backend keeps one flag
+  per place and loads the count only until a test sets it: a loop loads
+  it once.
+
+"Nothing copies `p`" resolves places through the local references the
+body stores, and allows a read through the box, a move, a `Drop`, a test's
+argument, and a borrow or reference used only as a place's root. A weak
+reference's upgrade also makes a second owner, so the backend ignores
+both bits in a module that links weak references. Cost: one scan per body
+for tests, then one per tested place.
+
 ### Why this order
 
 Insertion makes every count explicit. Borrow runs next, because each

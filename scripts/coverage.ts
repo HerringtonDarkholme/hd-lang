@@ -42,10 +42,10 @@
 // and by the time a run ends main has usually moved on, so the counts gate's
 // automatic refresh (which yields to a newer main) would rarely apply.
 //
-// The full conformance suites run on CI only. Outside CI a conformance or
-// cli-conformance set needs HD_CONFORMANCE_ONLY naming its cases, and
-// `std-rt-checked` (which HD_CONFORMANCE_ONLY doesn't narrow) is refused; a
-// narrow local run is, for example:
+// The full conformance suites run on CI only. Outside CI a conformance,
+// std-rt-checked or cli-conformance set needs HD_CONFORMANCE_ONLY naming its
+// cases (a std runtime file matches by path, as `ref_tests`); a narrow local
+// run is, for example:
 //   HD_CONFORMANCE_ONLY=a,b node scripts/coverage.ts --only hd_opt,conformance --jobs 2
 // On macOS, set LLVM_COV and LLVM_PROFDATA to `xcrun --find llvm-cov` and
 // `xcrun --find llvm-profdata`: Homebrew's LLVM can't read rustc's profiles.
@@ -99,14 +99,14 @@ type Run = {
   args: string[];
   env: Record<string, string>;
   // Narrowed by HD_CONFORMANCE_ONLY; undefined when the run isn't conformance.
-  conformance?: "filtered" | "whole";
+  conformance?: "filtered";
 };
 
 const conformance = (name: string, test: string, env: Record<string, string>): Run => ({
   name,
   args: [...DRIVER, "--test", "conformance", "--", "--exact", test],
   env,
-  conformance: test === SUITE ? "filtered" : "whole",
+  conformance: "filtered",
 });
 
 const RUNS: Run[] = [
@@ -190,7 +190,7 @@ function guardLocalRuns(runs: Run[]): void {
   }
   const filtered = Boolean(process.env.HD_CONFORMANCE_ONLY);
   for (const run of runs) {
-    if (run.conformance === "whole" || (run.conformance === "filtered" && !filtered)) {
+    if (run.conformance === "filtered" && !filtered) {
       fail(
         `${run.name} runs the whole suite, which runs on CI only; ` +
           "name cases with HD_CONFORMANCE_ONLY, or leave the set out with --only",

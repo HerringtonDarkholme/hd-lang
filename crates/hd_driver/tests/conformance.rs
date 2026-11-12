@@ -2043,6 +2043,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt_tests/ref_tests.hd", include_str!("std_rt/ref_tests.hd")),
     (
+        "rt_tests/unique_tests.hd",
+        include_str!("std_rt/unique_tests.hd"),
+    ),
+    (
         "rt_tests/task_tests.hd",
         include_str!("std_rt/task_tests.hd"),
     ),

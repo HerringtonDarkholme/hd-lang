@@ -6,7 +6,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $copied_box (param $v i64) (result i64) (local $p i32) (local $t0 i32) (local $q i32) (local $c i32) (local $t1 i32)
+  (func $copied_box (param $v i64) (result i64) (local $p i32) (local $t0 i32) (local $q i32) (local $c i32)
     ;; 37 |     let mut p: *Cell = box(Cell { n: 0 })
     global.get $locals
     global.get $locals_base
@@ -72,15 +72,13 @@
     local.get $p
     i32.load $heap
     local.tee $c
+    i32.const 0
+    local.get $c
     i32.const 8
     i32.sub
     i32.load $heap
     i32.const 1
     i32.eq
-    local.set $t1
-    local.get $c
-    i32.const 0
-    local.get $t1
     select
     local.set $c
     block
@@ -176,7 +174,7 @@
     i32.add
     global.set $locals
   )
-  (func $set_all (param $h i32) (param $n i64) (local $i i64) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $set_all (param $h i32) (param $n i64) (local $i i64) (local $t0 i32) (local $t1 i32)
     ;; 46 |     while i < n:
     block
       loop
@@ -188,7 +186,8 @@
     ;; 47 |         h.set(i)
         local.get $h
         i32.load $heap
-        local.set $t0
+        local.tee $t0
+        i32.const 0
         local.get $t1
         if (result i32)
           i32.const 1
@@ -201,10 +200,6 @@
           i32.eq
           local.tee $t1
         end
-        local.set $t2
-        local.get $t0
-        i32.const 0
-        local.get $t2
         select
         local.set $t0
         block
@@ -259,20 +254,18 @@
       end
     end
   )
-  (func $test_once (param $r i32) (result i32) (local $t0 i32)
+  (func $test_once (param $r i32) (result i32)
     ;; 23 |     match unique_mut(r):
     local.get $r
     i32.load $heap
     local.tee $r
+    i32.const 0
+    local.get $r
     i32.const 8
     i32.sub
     i32.load $heap
     i32.const 1
     i32.eq
-    local.set $t0
-    local.get $r
-    i32.const 0
-    local.get $t0
     select
     local.set $r
     block
@@ -437,20 +430,18 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Holder.set" (param $self i32) (param $v i64) (local $c i32) (local $t0 i32)
+  (func $"impl Holder.set" (param $self i32) (param $v i64) (local $c i32)
     ;; 18 |         match unique_mut(&mut self.store):
     local.get $self
     i32.load $heap
     local.tee $c
+    i32.const 0
+    local.get $c
     i32.const 8
     i32.sub
     i32.load $heap
     i32.const 1
     i32.eq
-    local.set $t0
-    local.get $c
-    i32.const 0
-    local.get $t0
     select
     local.set $c
     block

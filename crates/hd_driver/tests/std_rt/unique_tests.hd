@@ -1,0 +1,31 @@
+# The hd tests of `unique_mut` (spec 10 `module.rt.unique`) in a module that
+# links weak references: a weak entry makes a box read as shared, so the
+# backend tests the count and descriptor words together. Only std may use a
+# runtime module, so the conformance runner adds this file to std as
+# `std.rt_tests.unique_tests`.
+use std.rt.memory.unique_mut
+use std.weak.weak
+
+struct Count:
+    n: i64
+
+# Writes `v` through `r` when its box is unshared.
+fn write_unique(r: &mut *Count, v: i64) -> bool:
+    match unique_mut(r):
+        .Some(c) =>
+            c.n = v
+            true
+        .None => false
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a weak reference makes a box read as shared"):
+        let mut p: *Count = box(Count { n: 1 })
+        assert(write_unique(&mut p, 2), "an unshared box is lent")
+        w := weak(&*p)
+        assert(!write_unique(&mut p, 3), "a box a weak reference names is shared")
+        assert(p.n == 2, "the shared box is unchanged")
+        match w:
+            .Some(_) => pass
+            .None => assert(false, "the box is a counted allocation")
