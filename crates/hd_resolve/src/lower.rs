@@ -1920,6 +1920,11 @@ struct Lower<'a, 'r, 'x> {
     /// named `Self` (`names.local-type.refs`), since `Self` there is the
     /// eventual implementing type.
     outer_takes_self: bool,
+    /// The chain edges of this folder's `@track_caller` functions: a
+    /// function, and a function of this folder its body may call, which it
+    /// passes its call site on to (`fn.caller.chain`). [`caller_arg_chains`]
+    /// follows them once every module is lowered.
+    chains: Vec<(DefId, DefId)>,
 }
 
 impl Lower<'_, '_, '_> {
@@ -6222,6 +6227,104 @@ impl Lower<'_, '_, '_> {
         crate::assoc::assoc_decls(pool, self.r, tr, args, self_ty, self.names.text(name))
     }
 
+    /// Whether the body `block` of the `@track_caller` function `def`
+    /// reads its call's argument texts (`fn.caller.record.args`): it names
+    /// `caller_args`, or it may call a `@track_caller` function of another
+    /// folder whose records hold them (`fn.caller.chain`). A function of
+    /// this folder it may call becomes a chain edge instead, which
+    /// [`caller_arg_chains`] follows once every module is lowered.
+    ///
+    /// A name counts when the module scope binds it to an item, or when it
+    /// heads a module path whose segment names an exported function. A
+    /// name that something local shadows still counts: a record with texts
+    /// nobody reads costs static data only, while a missed chain loses them.
+    ///
+    /// Cost: one pass over the body's tokens, one scope lookup per name,
+    /// and one interface lookup per distinct function of another folder.
+    fn caller_reads_args(&mut self, def: DefId, block: NodeRef<'_>) -> bool {
+        let src = self.src;
+        let tokens: Vec<TokenIdx> = src.tokens(block).collect();
+        let is_name =
+            |t: TokenIdx| matches!(src.tkind(t), Some(TokenKind::Ident | TokenKind::RawIdent));
+        let is_dot = |t: TokenIdx| src.tkind(t) == Some(TokenKind::Dot);
+        let mut seen: HashSet<DefId> = HashSet::default();
+        let mut i = 0;
+        while i < tokens.len() {
+            let t = tokens[i];
+            i += 1;
+            if !is_name(t) {
+                continue;
+            }
+            if src.text(t) == "caller_args" {
+                return true;
+            }
+            // A name after `.` is a field or a method, or a module path's
+            // segment, which its head reads below.
+            if i >= 2 && is_dot(tokens[i - 2]) {
+                continue;
+            }
+            let target = match self.scope.lookup(self.sym_token(t)) {
+                Some(Binding {
+                    kind: BindingKind::Item | BindingKind::Prelude,
+                    value,
+                }) => Some(DefId::from_raw(value)),
+                // `m.f(...)` or `m.child.f(...)`: the first segment that
+                // names an exported function.
+                Some(Binding {
+                    kind: BindingKind::Module,
+                    value,
+                }) => {
+                    let Some(mut module) = self.scope.modules.get(value as usize).cloned() else {
+                        continue;
+                    };
+                    let mut found = None;
+                    while i + 1 < tokens.len() && is_dot(tokens[i]) && is_name(tokens[i + 1]) {
+                        let seg = tokens[i + 1];
+                        i += 2;
+                        if src.text(seg) == "caller_args" {
+                            return true;
+                        }
+                        if let Ok((d, HeadKind::Fn)) = self.r.export(&module, self.sym_token(seg)) {
+                            found = Some(d);
+                            break;
+                        }
+                        module.push('.');
+                        module.push_str(src.text(seg));
+                    }
+                    found
+                }
+                // An ambiguous or a poisoned name calls nothing; the
+                // checker reports it.
+                Some(Binding {
+                    kind: BindingKind::Ambiguous | BindingKind::Poison,
+                    ..
+                })
+                | None => None,
+            };
+            let Some(d) = target.filter(|&d| d != def && seen.insert(d)) else {
+                continue;
+            };
+            let names = &self.r.cx.names;
+            if self
+                .r
+                .cx
+                .world
+                .module_folder_node(names, names.module_node(d))
+                == Some(self.r.cx.folder)
+            {
+                self.chains.push((def, d));
+            } else if self
+                .r
+                .item(d)
+                .and_then(|it| it.fn_attrs().copied())
+                .is_some_and(|a| a.track_caller && a.reads_args)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     fn item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
         // The local declarations in scope are those visible where this one
@@ -6250,7 +6353,7 @@ impl Lower<'_, '_, '_> {
                 };
                 let attrs = FnAttrs {
                     reads_args: attrs.track_caller
-                        && block.is_some_and(|b| names_in(&self.src, b, |t| t == "caller_args")),
+                        && block.is_some_and(|b| self.caller_reads_args(h.def, b)),
                     ..attrs
                 };
                 out.push(Item::new(h.def, h.name, h.public, ItemData::Fn(sig, attrs)));
@@ -6682,6 +6785,7 @@ fn lower_aliases(
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
+                chains: Vec::new(),
             };
             let scan = match h.kind {
                 HeadKind::Alias => Some(h.node),
@@ -6751,6 +6855,7 @@ fn lower_aliases(
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
+                chains: Vec::new(),
             };
             if alias {
                 low.alias_item(h, cyclic, &mut out[mi]);
@@ -7273,64 +7378,47 @@ fn has_cfg(src: &Src<'_>, node: NodeRef<'_>) -> bool {
         .any(|(name, _)| name == "cfg")
 }
 
-/// Whether some identifier token in `n` has a text `hit` accepts.
-fn names_in(src: &Src<'_>, n: NodeRef<'_>, hit: impl Fn(&str) -> bool) -> bool {
-    src.tokens(n).any(|t| {
-        matches!(src.tkind(t), Some(TokenKind::Ident | TokenKind::RawIdent)) && hit(src.text(t))
-    })
-}
-
-/// `fn.caller.record.args` through a chain: a `@track_caller` function
-/// whose body names another `@track_caller` function of the same module
-/// that reads its arguments' texts reads them too, since it passes its
-/// call site on. A fixpoint over the module's `@track_caller` functions.
-/// Cost: at most one pass per such function, each scanning the tokens of
-/// their bodies; no other function is read.
-fn caller_arg_chains(names: &Names<'_>, src: &Src<'_>, hs: &[Head<'_>], items: &mut [Item]) {
-    let tracked = |items: &[Item], def: DefId| {
-        items
-            .iter()
-            .find(|i| i.def == def)
-            .and_then(|i| match &i.data {
-                ItemData::Fn(_, a) if a.track_caller => Some(*a),
-                _ => None,
-            })
-    };
-    let heads: Vec<&Head<'_>> = hs
-        .iter()
-        .filter(|h| h.kind == HeadKind::Fn && tracked(items, h.def).is_some())
-        .collect();
-    if heads.len() < 2 {
-        return;
+/// `fn.caller.record.args` through a chain, across the folder's modules:
+/// a `@track_caller` function that may call one of the folder whose
+/// records hold argument texts passes its call site on, so its own records
+/// hold them too. A chain into another folder was settled while lowering
+/// ([`Lower::caller_reads_args`]), from that folder's interface. `fns` are
+/// the folder's functions; the result counts the edges followed.
+///
+/// Cost: linear in the functions and the chain edges, whatever the chains'
+/// width or depth: each function is marked at most once, and each edge is
+/// followed once, from its callee.
+fn caller_arg_chains<'i>(
+    fns: impl IntoIterator<Item = (DefId, &'i mut FnAttrs)>,
+    edges: &[(DefId, DefId)],
+) -> usize {
+    if edges.is_empty() {
+        return 0;
     }
-    loop {
-        let readers: HashSet<&str> = heads
-            .iter()
-            .filter(|h| tracked(items, h.def).is_some_and(|a| a.reads_args))
-            .map(|h| names.text(h.name))
-            .collect();
-        let mut changed = false;
-        for h in &heads {
-            if tracked(items, h.def).is_some_and(|a| a.reads_args) {
-                continue;
-            }
-            let Some(block) = Src::child(h.node, SyntaxKind::Block) else {
-                continue;
-            };
-            if names_in(src, block, |t| readers.contains(t))
-                && let Some(ItemData::Fn(_, a)) = items
-                    .iter_mut()
-                    .find(|i| i.def == h.def)
-                    .map(|i| &mut i.data)
+    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::default();
+    for &(caller, callee) in edges {
+        callers.entry(callee).or_default().push(caller);
+    }
+    let mut attrs: HashMap<DefId, &mut FnAttrs> =
+        fns.into_iter().filter(|(_, a)| a.track_caller).collect();
+    let mut work: Vec<DefId> = attrs
+        .iter()
+        .filter(|(_, a)| a.reads_args)
+        .map(|(d, _)| *d)
+        .collect();
+    let mut followed = 0;
+    while let Some(callee) = work.pop() {
+        for caller in callers.get(&callee).into_iter().flatten() {
+            followed += 1;
+            if let Some(a) = attrs.get_mut(caller)
+                && !a.reads_args
             {
                 a.reads_args = true;
-                changed = true;
+                work.push(*caller);
             }
         }
-        if !changed {
-            return;
-        }
     }
+    followed
 }
 
 /// Validates configured callable pairs after both signatures have been
@@ -8219,6 +8307,7 @@ pub fn build_folder(
     cut_supertrait_cycles(&mut r, &all_heads);
     let (alias_items, alias_gap) = lower_aliases(&r, mods, &all_heads, &mut scopes, diags);
     let mut unsupported = alias_gap;
+    let mut chain_edges: Vec<(DefId, DefId)> = Vec::new();
     for (((m, hs), s), mut items) in mods.iter().zip(&all_heads).zip(scopes).zip(alias_items) {
         let ModScopes {
             scope,
@@ -8257,6 +8346,7 @@ pub fn build_folder(
                     outer_lists: Vec::new(),
                     outer_self: None,
                     outer_takes_self: false,
+                    chains: Vec::new(),
                 };
                 // The aliases are lowered already (`lower_aliases`).
                 for h in hs
@@ -8265,13 +8355,13 @@ pub fn build_folder(
                 {
                     low.item(h, &mut items);
                 }
+                chain_edges.append(&mut low.chains);
                 if unsupported.is_none() {
                     unsupported = low.unsupported.take();
                 }
             }
         }
         configured_pairs(names, &m.src, hs, &mut items, diags, r.frozen.is_none());
-        caller_arg_chains(names, &m.src, hs, &mut items);
         {
             let not_copy = r.not_copy.borrow();
             for it in items.iter_mut().filter(|i| not_copy.contains(&i.def)) {
@@ -8357,6 +8447,16 @@ pub fn build_folder(
     }
     drop_extra_methods(&r, &mut out.modules);
     delegations(&r, &mut out.modules);
+    caller_arg_chains(
+        out.modules
+            .iter_mut()
+            .flat_map(|m| m.items.iter_mut())
+            .filter_map(|i| match &mut i.data {
+                ItemData::Fn(_, a) => Some((i.def, a)),
+                _ => None,
+            }),
+        &chain_edges,
+    );
     if r.frozen.is_none() {
         supertrait_cycles(&r, mods, &all_heads, diags);
         let items: HashMap<DefId, &Item> = out
@@ -8387,6 +8487,7 @@ pub fn build_folder(
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
+                chains: Vec::new(),
             };
             low.check_module_decorators(&items);
         }
@@ -8528,6 +8629,7 @@ fn own_trait_generics(
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
+                chains: Vec::new(),
             };
             low.enter(h);
             let (_, _, generics) = low.trait_generics(h);
@@ -8807,6 +8909,7 @@ fn own_trait_supers(
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
+                chains: Vec::new(),
             };
             low.enter(h);
             let (self_ty, gn, _) = low.trait_generics(h);
@@ -8858,6 +8961,48 @@ pub fn body_nodes<'t>(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod caller_chain_tests {
+    use super::caller_arg_chains;
+    use crate::FnAttrs;
+    use hd_base::DefId;
+
+    fn tracked(reads_args: bool) -> FnAttrs {
+        FnAttrs {
+            track_caller: true,
+            reads_args,
+            ..FnAttrs::default()
+        }
+    }
+
+    /// A chain 1000 deep and a fan of 1000 callers: every caller reads
+    /// the texts, and each edge is followed once.
+    #[test]
+    fn chains_mark_each_function_once_at_any_width_and_depth() {
+        let def = |i: u32| DefId::from_raw(i + 1);
+        let n = 1000;
+        // Depth: function i calls i + 1, and the last one reads.
+        let mut deep: Vec<FnAttrs> = (0..n).map(|i| tracked(i == n - 1)).collect();
+        let edges: Vec<_> = (0..n - 1).map(|i| (def(i), def(i + 1))).collect();
+        let followed = caller_arg_chains((0..n).map(def).zip(deep.iter_mut()), &edges);
+        assert!(deep.iter().all(|a| a.reads_args));
+        assert_eq!(followed, edges.len());
+        // Width: every function calls the reader 0, and 20 calls of each
+        // other function lead nowhere new.
+        let mut wide: Vec<FnAttrs> = (0..n).map(|i| tracked(i == 0)).collect();
+        let mut edges: Vec<_> = (1..n).map(|i| (def(i), def(0))).collect();
+        edges.extend((1..n).flat_map(|i| (1..=20).map(move |k| (def(i), def((i + k) % n)))));
+        let followed = caller_arg_chains((0..n).map(def).zip(wide.iter_mut()), &edges);
+        assert!(wide.iter().all(|a| a.reads_args));
+        assert!(followed <= edges.len(), "{followed} > {}", edges.len());
+        // A function without `@track_caller` passes nothing on.
+        let mut plain = [tracked(true), FnAttrs::default()];
+        let [reader, untracked] = &mut plain;
+        caller_arg_chains([(def(0), reader), (def(1), untracked)], &[(def(1), def(0))]);
+        assert!(!plain[1].reads_args);
+    }
 }
 
 #[cfg(test)]

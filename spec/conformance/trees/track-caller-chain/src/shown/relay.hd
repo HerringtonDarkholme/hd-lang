@@ -1,0 +1,5 @@
+use pkg.shown.texts
+
+@track_caller
+pub fn relay(x: i32) -> void $ Console:
+    texts.show_args(x, x)

@@ -1,0 +1,8 @@
+use std.debug.Location
+
+@track_caller
+pub fn show_args(x: i32, y: i32) -> void $ Console:
+    let shown = ""
+    for arg in Location::caller_args():
+        shown = shown + "[${arg.text} @${arg.start.line}:${arg.start.column}]"
+    println(shown)

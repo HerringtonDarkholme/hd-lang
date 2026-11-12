@@ -1,0 +1,19 @@
+# test: a @track_caller chain across modules and folders keeps the outer call's argument texts
+# Spec lang/07 Call-Site Locations: fn.caller.record.args, fn.caller.chain.
+# The tree's src/shown/texts.hd declares `show_args`, which prints
+# `Location::caller_args()`; src/shown/relay.hd, another module of that
+# folder, passes its call site on to it through a module path.
+# fixture-package-tree: track-caller-chain/src/main.hd
+# expect-stdout: [a * 2 @18:13]
+# expect-stdout: [a + 1 @19:11]
+use pkg.shown.relay.{relay}
+
+# Another folder's chain: `relay` reads the texts only through `show_args`.
+@track_caller
+fn forward(x: i32) -> void $ Console:
+    relay(x)
+
+pub fn main() -> void $ Console:
+    a := +2
+    forward(a * 2)
+    relay(a + 1)
