@@ -1,0 +1,19 @@
+# Outside a package, a diagnostic names FILE as written on the command
+# line (`cli.json.diagnostic.file`): in text output as in JSON, whether
+# `hd FILE`, `hd check FILE` or `hd test FILE` reads it.
+run: hd x/greet.hd
+exit: 101
+stderr: error: x/greet.hd:2:5: type-mismatch: in result: expected i32, found string
+run: hd ./x/greet.hd
+exit: 101
+stderr: error: ./x/greet.hd:2:5: type-mismatch: in result: expected i32, found string
+run: hd check x/greet.hd
+exit: 101
+stderr: error: x/greet.hd:2:5: type-mismatch: in result: expected i32, found string
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd test x/greet.hd
+exit: 101
+stderr: error: x/greet.hd:2:5: type-mismatch: in result: expected i32, found string
+run: hd test --format json x/greet.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","file":"x/greet.hd","line":2},{"kind":"summary","errors":1,"status":101}]

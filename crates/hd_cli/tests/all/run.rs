@@ -217,9 +217,13 @@ fn errors_print_severity_location_code_and_message_without_unused_advice() {
         .expect("run hd");
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
+    // The file as written on the command line (`cli.json.diagnostic.file`).
     assert_eq!(
         err,
-        "error: mixed.hd:6:10: argument-count: `add` takes 2 arguments\n"
+        format!(
+            "error: {}:6:10: argument-count: `add` takes 2 arguments\n",
+            file.display()
+        )
     );
 }
 

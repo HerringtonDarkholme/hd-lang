@@ -50,6 +50,7 @@ exe-unselected-main	cli.exe.unselected-main.lint
 doc-broken-link	cli.doc.link.broken.lint,cli.doc.link.form,cli.doc.link.scope
 doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
 json-file-single	cli.json.diagnostic.file,cli.file.check-test
+file-diagnostic-written-path	cli.json.diagnostic.file,cli.file.run,cli.file.check-test
 release-wraps	cli.profile.release,cli.profile.test,cli.exit.test-failure,cli.profile.default,cli.profile.pipeline.release,cli.profile.pipeline.unobservable,cli.profile.pipeline.limits,cli.profile.pipeline.one
 release-test-checked	cli.profile.release.file,cli.profile.test.release,cli.profile.release.commands,cli.exit.test-failure,cli.profile.pipeline.release,cli.profile.pipeline.limits,cli.profile.pipeline.one
 dep-missing-sum	cli.dep.missing-sum,cli.dep.no-sum-write,cli.dep.remove,cli.json.lines.build,cli.exit.hd-failure,cli.dep.verify,cli.dep.missing-sum.manifest,cli.dep.verify.manifest,cli.dep.no-prompt,cli.dep.edit

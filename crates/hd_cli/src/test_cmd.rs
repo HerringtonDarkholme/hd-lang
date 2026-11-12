@@ -601,9 +601,14 @@ fn test_one(
     // `cli.file.check-test`, `cli.package.no-root`: a FILE outside any
     // package or under no root is tested as a single-file program, which
     // may use only std and whose declarations print under the file's stem
-    // (`trait.typeid.name.single-file`), in its frames too.
+    // (`trait.typeid.name.single-file`), in its frames too. Its
+    // diagnostics name FILE as written (`cli.json.diagnostic.file`), not
+    // the canonical path its root comes from.
     let load = || match file.filter(|_| alone) {
-        Some(f) => disk::load_file(&root.join(f)),
+        Some(f) => disk::load_file(&root.join(f)).map(|mut p| {
+            p.as_written = o.file.as_ref().map(|w| w.to_string_lossy().into_owned());
+            p
+        }),
         None => disk::load_package(root, "main"),
     };
     let mut program = load().map_err(|e| rep.fail(&e))?;
@@ -866,8 +871,14 @@ fn stored_build(
         ..program.packages()
     };
     let key = hd_driver::result_key(&host, &program.package, &packages, &Goal::CheckTests)?;
-    let mut client = hd_base::StableHasher::new("cli-test-build-v1");
-    for part in [file, member, o.filter.as_deref()] {
+    let mut client = hd_base::StableHasher::new("cli-test-build-v2");
+    // The stored diagnostics name a single file as written.
+    for part in [
+        file,
+        member,
+        o.filter.as_deref(),
+        program.as_written.as_deref(),
+    ] {
         match part {
             Some(text) => {
                 client.u8(1);
@@ -1127,7 +1138,7 @@ fn prepare(
         };
         let mut out = hd_driver::build_packages(&host, package, &packages, &goal);
         crate::note_built(&out);
-        let mut found = report::from_output(&out, None);
+        let mut found = report::from_output(&out, program.as_written.as_deref());
         found.extend(crate::caps::required(program, &out));
         // `cli.test.program`: the program of a doc test or an integration
         // test file, else one per module of the unit-test program.

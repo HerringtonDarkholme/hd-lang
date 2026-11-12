@@ -521,8 +521,7 @@ fn build_goal_through(
         return Err(rep.finish(HD_FAILURE));
     }
     let out = build_output(program, goal, settings, doc_scopes, store);
-    let as_written = program.as_written.as_deref().filter(|_| rep.json);
-    let mut diags = report::from_output(&out, as_written);
+    let mut diags = report::from_output(&out, program.as_written.as_deref());
     diags.extend(caps::required(program, &out));
     report::relocate(&mut diags, |f| program.sources.display(f));
     if rep.diags(&diags) {

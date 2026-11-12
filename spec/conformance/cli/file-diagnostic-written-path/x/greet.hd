@@ -1,0 +1,2 @@
+fn greet(name: string) -> i32:
+    "hello, $name"
