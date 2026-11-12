@@ -58,27 +58,24 @@ fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
 > app/main/tuple_gt
 >   local $0 a: (string, i64) [param read captured] place
 >   local $1 b: (string, i64) [param read captured] place
->   %0 = Retain %16 Entry local $0 #0 : ()
->   %1 = Retain %16 Entry local $1 #0 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
+>   %1 = Release %14 Exit local $1 #2 : ()
     a > b
 >   %2 = Ref local frame [$0] : &(string, i64)
 >   %3 = Ref local frame [$1] : &(string, i64)
 >   %4 = Call std/cmp/PartialOrd.partial_cmp for (string, i64) [] via Impl (%2, %3) : Ordering?
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Drop [$0] : ()
->   %8 = Drop [$1] : ()
->   %9 = Read copy [%4 as #1 .0] : Ordering
->   %10 = Block 1:bool : bool
->   %11 = Block 0:bool : bool
->   %12 = SwitchTag %9 [#2 %10 %11] : bool
->   %13 = Block %12 : bool
->   %14 = Block 0:bool : bool
->   %15 = SwitchTag %4 [#1 %13 %14] : bool
->   %16 = Block %15 : bool
->   exit sub 0 drops [$0 $1]
+>   %7 = Read copy [%4 as #1 .0] : Ordering
+>   %8 = Block 1:bool : bool
+>   %9 = Block 0:bool : bool
+>   %10 = SwitchTag %7 [#2 %8 %9] : bool
+>   %11 = Block %10 : bool
+>   %12 = Block 0:bool : bool
+>   %13 = SwitchTag %4 [#1 %11 %12] : bool
+>   %14 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
->   summary kept [$0 $1] writes
+>   summary kept [] borrows [$0 $1]
 
 fn opt_ge(a: string?, b: string?) -> bool:
 > app/main/opt_ge

@@ -87,7 +87,7 @@ fn user_cursor(words: Words) -> usize:
 >   %35 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn twice(xs: List[string]) -> usize:
 > app/main/twice
@@ -184,4 +184,4 @@ fn twice(xs: List[string]) -> usize:
 >   %76 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot, $5 slot
->   summary kept [$0] writes
+>   summary kept [$0]

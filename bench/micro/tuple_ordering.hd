@@ -1,0 +1,23 @@
+# #1379: small generated tuple comparisons, with non-inlined value-parameter calls.
+# Four activations print checksum and guest milliseconds; discard the first.
+use std.annotation.cold
+use std.time.{Clock, elapsed, monotonic}
+
+@cold
+fn label(n: usize) -> string:
+    "tuple-$n"
+
+@cold
+fn ordered(left: (string, usize), right: (string, usize)) -> bool:
+    left < right
+
+pub fn main() -> void $ Console + Clock:
+    text := label(12345)
+    for _ in 0..4:
+        start := monotonic()
+        let sum: u64 = 0
+        for i in 0..4000000:
+            value := i % 7
+            if ordered((text, value), (text, value + 1)):
+                sum += 1
+        println("$sum ${elapsed(start).as_milliseconds()}")

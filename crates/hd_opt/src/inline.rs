@@ -1522,7 +1522,18 @@ fn copy_metadata_fits(body: &Body) -> bool {
     copy_metadata_fits_with(body, || {})
 }
 
-fn copy_metadata_fits_with(body: &Body, mut visit: impl FnMut()) -> bool {
+fn copy_metadata_fits_with(body: &Body, visit: impl FnMut()) -> bool {
+    bounded_inline_metadata_with(body, visit).is_some()
+}
+
+/// Existing copy-metadata budget, exposed for generated traversal hook copies.
+/// Vector lengths reject overbudget bodies before reading their elements.
+#[must_use]
+pub fn bounded_inline_metadata(body: &Body) -> Option<usize> {
+    bounded_inline_metadata_with(body, || {})
+}
+
+fn bounded_inline_metadata_with(body: &Body, mut visit: impl FnMut()) -> Option<usize> {
     let mut remaining = 16 * AUTO_INLINE_LIMIT;
     for len in [
         body.len(),
@@ -1540,19 +1551,15 @@ fn copy_metadata_fits_with(body: &Body, mut visit: impl FnMut()) -> bool {
         body.inlined_capture_origins.len().saturating_mul(3),
     ] {
         visit();
-        let Some(next) = remaining.checked_sub(len) else {
-            return false;
-        };
+        let next = remaining.checked_sub(len)?;
         remaining = next;
     }
     for text in &body.strings {
         visit();
-        let Some(next) = remaining.checked_sub(text.len().div_ceil(4).max(1)) else {
-            return false;
-        };
+        let next = remaining.checked_sub(text.len().div_ceil(4).max(1))?;
         remaining = next;
     }
-    true
+    Some(16 * AUTO_INLINE_LIMIT - remaining)
 }
 
 /// Appends a record of `words` to `body`'s `extra`; its offset.

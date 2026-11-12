@@ -810,12 +810,23 @@ struct CheckOut {
     has_init: bool,
 }
 
+/// One cached generated traversal and its immutable handle dependencies.
+struct SuppliedFamily {
+    bodies: Vec<Body>,
+    index: HashMap<DefId, usize>,
+    hash: Hash128,
+    inlineable: bool,
+    factories_read_only: bool,
+}
+type SuppliedFamilyCell = Arc<OnceLock<StageResult<Option<Arc<SuppliedFamily>>>>>;
+
 /// The program as `Collect` decoded it.
 struct ProgramTables {
     items: ProgramItems,
     /// Supplied tuple factories have no checked declaration. Their generic
     /// return templates serve collection and emission; bodies live in Collected.
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
+    supplied_families: Mutex<HashMap<(DefId, Ty), SuppliedFamilyCell>>,
     dbg_structure: OnceLock<Option<(DefId, DefId, DefId)>>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
@@ -9163,6 +9174,7 @@ impl Run<'_> {
         let _ = self.program.set(ProgramTables {
             items,
             supplied_rets: Mutex::new(HashMap::default()),
+            supplied_families: Mutex::new(HashMap::default()),
             dbg_structure: OnceLock::new(),
             bodies: Bodies {
                 all: bodies,
@@ -12788,50 +12800,20 @@ impl ProgramEnv for Env<'_> {
         self
     }
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>> {
-        // Reuse the ordinary derivation generator for tuples and the private
-        // dbg template's raw declaration metadata; no solver impl is added.
-        let names = self.run.names();
-        let Some(target) = hd_structure::dbg_target(
-            &hd_structure::Cx {
-                names: &names,
-                items: self.p,
-                stage: Stage::Collect,
-            },
-            self_ty,
-        ) else {
+        let Some(family) = self.raw_supplied_family(method, self_ty)? else {
             return Ok(None);
         };
-        let cx = hd_structure::Cx {
-            names: &names,
-            items: self.p,
-            stage: Stage::Collect,
-        };
-        let Some(generated) = hd_structure::supplied(&cx, &target, method)? else {
+        if !family.index.contains_key(&method) {
             return Ok(None);
-        };
-        // Register signatures before ownership processing any body; generated
-        // callers can refer to factories from the same family.
-        {
-            let mut rets = lock(&self.p.supplied_rets);
-            for item in &generated.helpers.items {
-                if let Some(sig) = item.sig() {
-                    let ret = self.low(sig.ret);
-                    if let Some(old) = rets.insert(item.def, ret) {
-                        debug_assert_eq!(
-                            old, ret,
-                            "a supplied factory's return template is stable"
-                        );
-                    }
-                }
-            }
         }
-        let mut bodies = Vec::with_capacity(1 + generated.helpers.bodies.len());
-        bodies.push(self.owned_generated(generated.body)?);
-        for body in generated.helpers.bodies {
-            bodies.push(self.owned_generated(body)?);
-        }
-        Ok(Some(bodies))
+        family
+            .bodies
+            .iter()
+            .map(|body| self.owned_generated(body.clone()))
+            .collect::<StageResult<Vec<_>>>()
+            .map(Some)
     }
+
     fn map_key_items(&self) -> Option<(DefId, DefId)> {
         let known = &self.run.known;
         Some((known.key_equal, known.map_key_hash))

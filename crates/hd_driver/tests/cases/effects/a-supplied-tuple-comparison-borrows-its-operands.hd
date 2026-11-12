@@ -1,0 +1,9 @@
+# @dump: own counts wat
+# @build: v8 release
+# generated tuple comparisons borrow their operands, with no
+# count operations; nested tuples preserve the same field-by-field rule.
+fn ordered(left: (string, i64), right: (string, i64)) -> bool:
+    left > right
+
+fn nested(left: ((string, i64), string), right: ((string, i64), string)) -> bool:
+    left <= right

@@ -53,7 +53,7 @@ pub use dbg::{
     printer_body as dbg_printer_body, target as dbg_target, values_body as dbg_values_body,
 };
 
-use hd_base::{DefId, LocalId, NodeIdx, Stage, StageResult};
+use hd_base::{DefId, HashSet, LocalId, NodeIdx, Stage, StageResult};
 use hd_intern::PathKind;
 use hd_resolve::{CallAttrs, FnSig, Generic, Item, ItemData, Lookup, Names};
 use hd_tir::Body;
@@ -443,7 +443,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
     let names = cx.names;
     let st = names.known.structure;
     let mut out = Generated::default();
-    let mut handles: Vec<Handle> = Vec::new();
+    let mut handles = UniqueWorklist::default();
     for (name, sdef, trait_sig) in structure_methods(cx) {
         let def = hidden_method(names, owner, &name);
         let sig = subst_sig(names, &trait_sig, &|p: ParamRef| {
@@ -471,13 +471,9 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
             },
         ));
         out.bodies.push(body);
-        for h in wanted {
-            if !handles.contains(&h) {
-                handles.push(h);
-            }
-        }
+        handles.extend(wanted);
     }
-    let helpers = handle_bodies(cx, target, Handles::Methods(owner), handles)?;
+    let helpers = handle_bodies(cx, target, Handles::Methods(owner), handles.rows)?;
     out.items.extend(helpers.items);
     out.bodies.extend(helpers.bodies);
     Ok(out)
@@ -494,7 +490,7 @@ fn handle_bodies(
     cx: &Cx<'_, '_>,
     target: &Target,
     mode: Handles,
-    mut handles: Vec<Handle>,
+    handles: Vec<Handle>,
 ) -> StageResult<Generated> {
     let names = cx.names;
     let owner = mode.owner(names);
@@ -502,8 +498,9 @@ fn handle_bodies(
     // Each handle or metadata directory has its own once-cell body.
     // Directory factories can request field/variant factories, so drain
     // the deduplicated worklist to include their dependencies too.
+    let mut handles = UniqueWorklist::from_rows(handles);
     let mut next = 0;
-    while let Some(h) = handles.get(next).copied() {
+    while let Some(h) = handles.rows.get(next).copied() {
         next += 1;
         let mut g = Gen::new(cx, target.ty, h.def, mode);
         g.b = TirBuilder::new(h.def, BodyKind::Handle);
@@ -519,11 +516,7 @@ fn handle_bodies(
         };
         let root = g.b.close_block(blk, Some(x), h.ty, SYN);
         let (body, wanted) = g.finish(root)?;
-        for h in wanted {
-            if !handles.contains(&h) {
-                handles.push(h);
-            }
-        }
+        handles.extend(wanted);
         out.items.push(Item::new(
             h.def,
             names.syms.intern("handle"),
@@ -582,6 +575,39 @@ pub fn supplied(cx: &Cx<'_, '_>, target: &Target, method: DefId) -> StageResult<
     Ok(Some(Supplied { body, helpers }))
 }
 
+/// The traversal whose generated family contains `method`. Hidden tuple
+/// factories remain addressable after specialization removes that traversal.
+/// Protocol methods are a fixed-size list; handle requests never search members.
+#[must_use]
+pub fn supplied_root(cx: &Cx<'_, '_>, method: DefId) -> Option<DefId> {
+    let names = cx.names;
+    let parent = names
+        .paths
+        .parent(hd_base::PathId::from_raw(method.raw()))
+        .raw();
+    if parent == names.known.structure.raw() {
+        return structure_methods(cx)
+            .into_iter()
+            .find_map(|(_, def, _)| (def == method).then_some(def));
+    }
+    let owner = hidden_method(names, names.known.structure, "tuple");
+    if parent != owner.raw() {
+        return None;
+    }
+    let name = match generated_body(names, method)? {
+        GeneratedBody::Handle(GeneratedHandle::Variant { .. } | GeneratedHandle::Field { .. }) => {
+            "walk"
+        }
+        GeneratedBody::Handle(GeneratedHandle::Members { .. } | GeneratedHandle::Choices) => {
+            "build"
+        }
+        _ => return None,
+    };
+    structure_methods(cx)
+        .into_iter()
+        .find_map(|(n, def, _)| (n == name).then_some(def))
+}
+
 /// A type parameter of `owner`.
 fn param(names: &Names<'_>, owner: DefId, index: u16) -> Ty {
     names
@@ -629,6 +655,42 @@ impl Handles {
     }
 }
 
+/// Deterministic discovery order with expected constant-time membership.
+/// Shared by traversal requests and the directory dependency worklist.
+struct UniqueWorklist<T> {
+    rows: Vec<T>,
+    seen: HashSet<T>,
+}
+
+impl<T> Default for UniqueWorklist<T> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            seen: HashSet::default(),
+        }
+    }
+}
+
+impl<T: Copy + Eq + std::hash::Hash> UniqueWorklist<T> {
+    fn from_rows(rows: Vec<T>) -> Self {
+        let mut out = Self::default();
+        out.extend(rows);
+        out
+    }
+
+    fn insert(&mut self, value: T) {
+        if self.seen.insert(value) {
+            self.rows.push(value);
+        }
+    }
+
+    fn extend(&mut self, rows: impl IntoIterator<Item = T>) {
+        for value in rows {
+            self.insert(value);
+        }
+    }
+}
+
 /// One generated body under construction.
 struct Gen<'a, 'n> {
     cx: &'a Cx<'a, 'n>,
@@ -638,14 +700,14 @@ struct Gen<'a, 'n> {
     target: Ty,
     handles: Handles,
     /// The handle methods this body calls, built by their own bodies.
-    wanted: Vec<Handle>,
+    wanted: UniqueWorklist<Handle>,
 }
 
 /// One handle of a derivation (`annot.handle.constants`): a hidden method
 /// of the `Structure`'s owner with no parameter that builds it once per
 /// owner instance, so every walker and every traversal gets the same
 /// value.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum HandleKind {
     Variant,
     Field(usize),
@@ -653,7 +715,7 @@ enum HandleKind {
     Choices,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Handle {
     var: usize,
     kind: HandleKind,
@@ -673,7 +735,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             b: TirBuilder::new(def, BodyKind::DeriveInstance),
             target,
             handles,
-            wanted: Vec::new(),
+            wanted: UniqueWorklist::default(),
         }
     }
 
@@ -692,9 +754,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 _ => vec![self.target],
             },
         };
-        if !self.wanted.contains(&h) {
-            self.wanted.push(h);
-        }
+        self.wanted.insert(h);
         self.b.call(
             &Callee::Item {
                 def: h.def,
@@ -1509,7 +1569,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     fn finish(self, root: Ref) -> StageResult<(Body, Vec<Handle>)> {
-        let wanted = self.wanted;
+        let wanted = self.wanted.rows;
         let stage = self.cx.stage;
         let mut body = self
             .b
@@ -1882,6 +1942,67 @@ impl<'a, 'n> Gen<'a, 'n> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Count the membership operations themselves, so a linear Vec scan
+    /// would fail the same test even if its outer worklist stayed iterative.
+    #[test]
+    fn generated_handle_dependencies_have_linear_width_and_depth_work() {
+        #[derive(Clone, Copy)]
+        struct Key<'a> {
+            column: usize,
+            depth: usize,
+            work: &'a std::cell::Cell<usize>,
+        }
+        impl PartialEq for Key<'_> {
+            fn eq(&self, other: &Self) -> bool {
+                self.work.set(self.work.get() + 1);
+                (self.column, self.depth) == (other.column, other.depth)
+            }
+        }
+        impl Eq for Key<'_> {}
+        impl std::hash::Hash for Key<'_> {
+            fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
+                self.work.set(self.work.get() + 1);
+                std::hash::Hash::hash(&self.column, hasher);
+                std::hash::Hash::hash(&self.depth, hasher);
+            }
+        }
+        let run = |width, depth| {
+            let work = std::cell::Cell::new(0);
+            let mut queue = UniqueWorklist::default();
+            for column in 0..width {
+                queue.insert(Key {
+                    column,
+                    depth: 0,
+                    work: &work,
+                });
+            }
+            let mut next = 0;
+            while let Some(key) = queue.rows.get(next).copied() {
+                next += 1;
+                queue.insert(key);
+                if key.depth + 1 < depth {
+                    let child = Key {
+                        depth: key.depth + 1,
+                        ..key
+                    };
+                    queue.insert(child);
+                    queue.insert(child);
+                }
+            }
+            assert_eq!(queue.rows.len(), width * depth);
+            assert!(
+                work.get() <= 32 * width * depth,
+                "width={width} depth={depth} work={}",
+                work.get()
+            );
+            work.get()
+        };
+        let small = run(100, 20);
+        let large = run(1000, 20);
+        assert!(large <= 12 * small, "100: {small}, 1000: {large}");
+        run(20, 1000);
+    }
 
     /// `annot.tuple.members`, `.rest`, `.variant`, `.name`.
     #[test]

@@ -380,7 +380,7 @@ impl ChoiceKind {
 }
 
 /// A callee record in `extra`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Callee {
     Item {
         def: DefId,

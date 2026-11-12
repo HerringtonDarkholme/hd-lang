@@ -1,0 +1,42 @@
+# @dump: own counts
+# @build: v8 release
+# A supplied traversal over the caller-copy budget stays shared. Its
+# writes to private walker state do not make the comparison write.
+# both operands borrowed, no writes and no count operations.
+type Words = (
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+)
+
+fn ordered(left: Words, right: Words) -> bool:
+    left < right

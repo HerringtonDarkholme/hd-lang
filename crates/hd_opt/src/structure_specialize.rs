@@ -13,6 +13,10 @@ use crate::inline::{InlineEnv, InlineHint};
 /// The generator facts needed by this pass, supplied by the driver so
 /// `hd_opt` remains independent of `hd_structure`.
 pub trait StructureEnv: InlineEnv {
+    /// A compiler-supplied traversal, with the same generated family used
+    /// by collection. User Structure implementations do not satisfy this.
+    fn supplied_structure_walk(&self, callee: &Callee) -> Option<(Body, Hash128, TyList)>;
+
     /// Whether `def` is the hidden `walk` body emitted by `hd_structure`.
     fn generated_structure_walk(&self, def: DefId) -> bool;
 
@@ -58,6 +62,25 @@ enum StructureAccessor {
     Holds,
 }
 
+/// Specializes hooks in one shared concrete generated traversal. The caller
+/// admission budget remains unchanged: an overbudget walk stays a call. Only
+/// bounded individual hooks are copied here, through three fixed stages.
+pub fn specialize_shared_walk(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) -> Hash128 {
+    if env.memo().is_none() {
+        return hash;
+    }
+    let mut hashes = inline_data_walker_methods(env, body, true);
+    hashes.extend(inline_walker_methods(env, body, true));
+    hashes.extend(inline_always_methods(env, body, true));
+    fold_handle_accessors(env, body);
+    let mut key = StableHasher::new("shared-structure-walk-hooks-v1");
+    key.hash(hash);
+    for hash in hashes {
+        key.hash(hash);
+    }
+    key.finish()
+}
+
 /// Copies every closed generated `Structure.walk` call into `body`, after
 /// substituting its concrete instance and reselecting trait implementations.
 /// Open targets and custom `Structure` implementations never satisfy the
@@ -72,22 +95,31 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         let Some(callee) = hd_tir::inline::known_call(body, call) else {
             continue;
         };
-        let (def, targs) = match callee {
-            Callee::Item { def, targs } => (def, targs),
-            callee @ Callee::TraitMethod { .. } => {
-                let Some(target) = env.impl_target(&callee) else {
-                    continue;
-                };
-                target
+        let supplied = env.supplied_structure_walk(&callee);
+        let (def, targs) = if let Some((copy, _, args)) = &supplied {
+            (copy.item, *args)
+        } else {
+            match callee {
+                Callee::Item { def, targs } => (def, targs),
+                callee @ Callee::TraitMethod { .. } => {
+                    let Some(target) = env.impl_target(&callee) else {
+                        continue;
+                    };
+                    target
+                }
             }
         };
-        let walk = env.generated_structure_walk(def);
+        let walk = supplied.is_some() || env.generated_structure_walk(def);
         let build = env.generated_structure_build(def);
         let describe = env.generated_structure_describe(def);
         if (!walk && !build && !describe) || !closed(env, targs) {
             continue;
         }
-        let Some((mut copy, copy_hash)) = instance(env, def, targs) else {
+        let instance = match supplied {
+            Some((copy, hash, _)) => instantiate(env, copy, hash, def, targs),
+            None => instance(env, def, targs),
+        };
+        let Some((mut copy, copy_hash)) = instance else {
             continue;
         };
         // A data walk first reaches Walker's default `data_*` bridge. Inline
@@ -95,9 +127,9 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         // expose. Two bounded passes avoid turning recursive user methods
         // into an inlining fixpoint.
         let nested_hashes = if walk {
-            let mut hashes = inline_data_walker_methods(env, &mut copy);
-            hashes.extend(inline_walker_methods(env, &mut copy));
-            hashes.extend(inline_always_methods(env, &mut copy));
+            let mut hashes = inline_data_walker_methods(env, &mut copy, false);
+            hashes.extend(inline_walker_methods(env, &mut copy, false));
+            hashes.extend(inline_always_methods(env, &mut copy, false));
             fold_handle_accessors(env, &mut copy);
             hashes
         } else if describe {
@@ -191,10 +223,10 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
         };
         match (accessor, handle, args) {
             (StructureAccessor::Get, GeneratedHandle::Field { field, .. }, [_, target]) => {
-                let Some((def, targs)) = adt_of_ref(body, *target, env) else {
+                let Some(target_ty) = target_of_ref(body, *target, env) else {
                     continue;
                 };
-                if env.enum_variants(def, targs).is_some() {
+                if !single_variant(env, target_ty) {
                     // The handle's variant is not a proof about `target`:
                     // user walkers may call `get` with another enum value.
                     continue;
@@ -211,10 +243,10 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
                 body.data[call] = [place, 0];
             }
             (StructureAccessor::Holds, GeneratedHandle::Variant { .. }, [_, target]) => {
-                let Some((def, targs)) = adt_of_ref(body, *target, env) else {
+                let Some(target_ty) = target_of_ref(body, *target, env) else {
                     continue;
                 };
-                if env.enum_variants(def, targs).is_some() {
+                if !single_variant(env, target_ty) {
                     continue;
                 }
                 let constant = u32::try_from(body.consts.len()).expect("constants");
@@ -294,7 +326,7 @@ fn source_handle(
     env.generated_structure_handle(def)
 }
 
-fn adt_of_ref(body: &Body, value: u32, env: &dyn StructureEnv) -> Option<(DefId, TyList)> {
+fn target_of_ref(body: &Body, value: u32, env: &dyn StructureEnv) -> Option<Ty> {
     let ty = if value & Ref::CONST_BIT != 0 {
         body.consts
             .get((value & !Ref::CONST_BIT) as usize)
@@ -306,9 +338,42 @@ fn adt_of_ref(body: &Body, value: u32, env: &dyn StructureEnv) -> Option<(DefId,
     let TyData::Ref { inner, .. } = pool.get(ty) else {
         return None;
     };
-    match pool.get(inner) {
-        TyData::Adt { def, args } => Some((def, args)),
-        _ => None,
+    Some(inner)
+}
+
+/// The result of the existing single-variant accessor proof. This is
+/// conditional on actual generated-handle provenance, not its nominal type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccessorProof {
+    ReadOnly,
+    True,
+}
+
+#[must_use]
+pub fn generated_accessor_proof(
+    env: &dyn StructureEnv,
+    method: DefId,
+    target: Ty,
+) -> Option<AccessorProof> {
+    if !single_variant(env, target) {
+        return None;
+    }
+    if method == env.field_get() {
+        Some(AccessorProof::ReadOnly)
+    } else if method == env.variant_holds() {
+        Some(AccessorProof::True)
+    } else {
+        None
+    }
+}
+
+/// Both named data and compiler-supplied tuples have one proved variant.
+/// User enums retain their dynamic check until the active arm is known.
+fn single_variant(env: &dyn StructureEnv, target: Ty) -> bool {
+    match env.pool().get(target) {
+        TyData::Tuple { .. } => true,
+        TyData::Adt { def, args } => env.enum_variants(def, args).is_none(),
+        _ => false,
     }
 }
 
@@ -324,28 +389,35 @@ fn push_record(body: &mut Body, words: &[u32]) -> u32 {
 /// These methods take `&mut self`, which deliberately keeps them out of the
 /// general inliner; here the generated traversal and closed receiver prove
 /// the narrower copy safe.
-fn inline_walker_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
-    inline_selected_methods(
+fn inline_walker_methods(env: &dyn StructureEnv, body: &mut Body, shared: bool) -> Vec<Hash128> {
+    inline_selected_methods_with(
         env,
         body,
+        shared,
         &|callee| matches!(callee, Callee::TraitMethod { trait_, .. } if *trait_ == env.walker_trait()),
     )
 }
 
-fn inline_data_walker_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
+fn inline_data_walker_methods(
+    env: &dyn StructureEnv,
+    body: &mut Body,
+    shared: bool,
+) -> Vec<Hash128> {
     let variant = env.walker_data_variant();
     let member = env.walker_data_member();
-    inline_selected_methods(
+    inline_selected_methods_with(
         env,
         body,
+        shared,
         &|callee| matches!(callee, Callee::TraitMethod { method, .. } if *method == variant || *method == member),
     )
 }
 
-fn inline_always_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
-    inline_selected_methods(
+fn inline_always_methods(env: &dyn StructureEnv, body: &mut Body, shared: bool) -> Vec<Hash128> {
+    inline_selected_methods_with(
         env,
         body,
+        shared,
         &|callee| matches!(callee, Callee::TraitMethod { method, .. } if env.inline_hint(*method) == InlineHint::Always),
     )
 }
@@ -355,8 +427,30 @@ fn inline_selected_methods(
     body: &mut Body,
     selected: &dyn Fn(&Callee) -> bool,
 ) -> Vec<Hash128> {
+    inline_selected_methods_with(env, body, false, selected)
+}
+
+fn inline_selected_methods_with(
+    env: &dyn StructureEnv,
+    body: &mut Body,
+    shared: bool,
+    selected: &dyn Fn(&Callee) -> bool,
+) -> Vec<Hash128> {
     let mut sites = Vec::new();
     let mut hashes = Vec::new();
+    // A shared generated instance is built once, rather than copied into
+    // callers. Each hook copy still has the existing fixed metadata bound;
+    // three fixed hook stages cost O(K^3*N), K<=1024, independent of callers.
+    let mut remaining = if shared {
+        0
+    } else {
+        let Some(remaining) = crate::inline::bounded_inline_metadata(body)
+            .and_then(|used| (16 * crate::inline::AUTO_INLINE_LIMIT).checked_sub(used))
+        else {
+            return hashes;
+        };
+        remaining
+    };
     for call in (0..body.len()).rev() {
         let Some(callee @ Callee::TraitMethod { .. }) = hd_tir::inline::known_call(body, call)
         else {
@@ -368,6 +462,19 @@ fn inline_selected_methods(
         let Some((def, args)) = env.impl_target(&callee) else {
             continue;
         };
+        let Some((raw, _)) = env.checked_body(def) else {
+            continue;
+        };
+        let Some(cost) = crate::inline::bounded_inline_metadata(raw) else {
+            continue;
+        };
+        let Some(left) = (if shared {
+            Some(0)
+        } else {
+            remaining.checked_sub(cost)
+        }) else {
+            continue;
+        };
         let Some((mut copy, hash)) = instance(env, def, args) else {
             continue;
         };
@@ -375,6 +482,7 @@ fn inline_selected_methods(
         if !fits_call(env, body, call, &mut copy) {
             continue;
         }
+        remaining = left;
         sites.push(Site {
             call,
             copy,
@@ -445,8 +553,20 @@ fn closed(env: &dyn StructureEnv, args: TyList) -> bool {
 }
 
 fn instance(env: &dyn StructureEnv, def: DefId, args: TyList) -> Option<(Body, Hash128)> {
-    let hash = env.checked_body(def)?.1;
-    let mut copy = env.fresh_body(def)?;
+    let (raw, hash) = env.checked_body(def)?;
+    crate::inline::bounded_inline_metadata(raw)?;
+    let hash = *hash;
+    let copy = env.fresh_body(def)?;
+    instantiate(env, copy, hash, def, args)
+}
+
+fn instantiate(
+    env: &dyn StructureEnv,
+    mut copy: Body,
+    hash: Hash128,
+    def: DefId,
+    args: TyList,
+) -> Option<(Body, Hash128)> {
     let pool = env.pool();
     let ty = |t: Ty| hd_mono::subst(pool, env, def, args, t);
     let list = |l| {

@@ -1,0 +1,55 @@
+# @dump: own
+# @build: v8 release
+# the callback's external write is preserved; private walker
+# state is not permission to mark the whole traversal read-only.
+let comparisons = +0
+
+struct Observed:
+    value: i32
+
+impl Eq for Observed:
+    fn eq(&self, other: &Observed) -> bool:
+        self.value == other.value
+
+impl PartialOrd for Observed:
+    fn partial_cmp(&self, other: &Observed) -> Ordering?:
+        comparisons += 1
+        self.value.partial_cmp(&other.value)
+
+type Values = (
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+    Observed,
+)
+
+fn ordered(left: Values, right: Values) -> bool:
+    left < right
