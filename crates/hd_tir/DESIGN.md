@@ -1311,9 +1311,19 @@ with its per-item interface hash), for code keys.
   bytes and hash are as before. An owned body (after the ownership
   passes) adds the owned section after the locations, for a cache of
   std's owned bodies across builds (#1423). An ownership statement's IDs
-  are its place's; a count record holds none. A record that no
-  instruction reaches any more, such as an inlined call's callee record,
-  is still copied with the writer's IDs.
+  are its place's; a count record holds none.
+- **Reached records only.** `extra` is written with only the records
+  the body reaches, in first-reach order, every pointer renumbered
+  (`compact`). A rebuild leaves records nothing reaches, such as an
+  inlined call's callee record, whose IDs no remapping sees; dropping
+  them makes the bytes a function of the body's content, the same for
+  every run and thread count. One enumeration (`references`) lists how
+  a word reaches a record: a data word by its `Op`, the `ProviderGet`
+  and `ItemRef` meta records, a closure's `sub_params` record (the
+  root's only when it has parameters), `SuspRow::scopes` and
+  `stable_lists`; the ID remapper and the compaction both read it. A
+  debug build decodes every written body and checks that it encodes
+  back to the same bytes.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on
   every run and thread count. A module pays for this stability by

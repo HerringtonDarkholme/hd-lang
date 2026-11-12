@@ -123,7 +123,7 @@ pub fn go() -> usize:
 >   %43 = Drop [%15] : ()
         line("ab")
 >   %17 = Store [$6] "ab" : ()
->   %18 = ProviderGet #111 : Sink
+>   %18 = ProviderGet #80 : Sink
 >   %19 = Coerce %18 [ProviderAsRef -] : &mut dyn Sink
 >   %20 = Store [$7] %19 : ()
 >   %21 = Read borrow [*$7] : Sink

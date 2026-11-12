@@ -100,7 +100,7 @@ fn demo(a: string, b: string) -> usize:
 >   %41 = With [Recorder %14] %40 : ()
 >   %42 = Drop [%14] : ()
         _ := tick(a)
->   %16 = ProviderGet #161 : Recorder
+>   %16 = ProviderGet #121 : Recorder
 >   %17 = Coerce %16 [ProviderAsRef -] : &mut dyn Recorder
 >   %18 = Store [$8] %17 : ()
 >   %19 = Read borrow [*$8] : Recorder
@@ -114,7 +114,7 @@ fn demo(a: string, b: string) -> usize:
 >   %27 = Scope %26 [] : usize
 >   %40 = Block - : ()
         _ := tick(b)
->   %28 = ProviderGet #81 : Recorder
+>   %28 = ProviderGet #60 : Recorder
 >   %29 = Coerce %28 [ProviderAsRef -] : &mut dyn Recorder
 >   %30 = Store [$6] %29 : ()
 >   %31 = Read borrow [*$6] : Recorder

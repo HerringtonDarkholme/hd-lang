@@ -137,7 +137,7 @@ fn nested(a: string, b: string) -> usize:
 >   %71 = Block %69 : usize
 >   %7 finds [$10] full
         outer := read_tag()
->   %17 = ProviderGet #190 : Tag
+>   %17 = ProviderGet #182 : Tag
 >   %18 = Coerce %17 [ProviderAsRef -] : &dyn Tag
 >   %19 = Read borrow [*%18] : Tag
 >   %20 = Drop [%18] : ()
@@ -309,7 +309,7 @@ fn unrelated_provider(s: string) -> usize:
 >   %49 = Drop [$1] : ()
 >   %8 finds [$6] full
         read_tag() + f()
->   %18 = ProviderGet #96 : Tag
+>   %18 = ProviderGet #88 : Tag
 >   %19 = Coerce %18 [ProviderAsRef -] : &dyn Tag
 >   %20 = Read borrow [*%19] : Tag
 >   %21 = Drop [%19] : ()

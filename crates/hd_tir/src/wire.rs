@@ -7,8 +7,10 @@
 //!
 //! Remapping knows the ID-carrying words of each tag. A tag whose words
 //! are not mapped yet is refused with a structured error, never written
-//! with run IDs.
+//! with run IDs. Only the `extra` records a body reaches are written
+//! ([`compact`]), so a record a rebuild orphaned carries none either.
 
+use hd_base::SliceSort as _;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{
     DefId, Hash128, LocalId, NodeIdx, NotImplemented, Range32, Stage, StageResult, SubId, Symbol,
@@ -31,7 +33,7 @@ const KINDS: [BodyKind; 7] = [
 ];
 
 /// Where a word of `extra` holds an ID.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum IdWord {
     Def(usize),
     Ty(usize),
@@ -46,88 +48,180 @@ impl IdWord {
     }
 }
 
+/// Where a word that points into `extra` sits ([`Reach::Span`]).
+#[derive(Clone, Copy, Debug)]
+enum Holder {
+    /// Data word `k` of instruction `i`.
+    Data(usize, usize),
+    /// A sub-body's parameter record (`Body::sub_params`).
+    SubParams(usize),
+    /// A suspension row's scope list (`SuspRow::scopes`).
+    Susp(usize),
+    /// A stable list's place word (`Body::stable_lists`).
+    StableList(usize),
+}
+
+/// One reference of a body into `extra` ([`references`]).
+#[derive(Clone, Copy, Debug)]
+enum Reach {
+    /// The word at `at` points at `start`, and the words `start..end` are
+    /// what it reaches: a record with its length word, or a range.
+    Span { at: Holder, start: u32, end: u32 },
+    /// A word of a reached record that holds an ID.
+    Id(IdWord),
+}
+
 /// The ID words of one instruction's records, as `extra` positions: those
 /// of its place operands, then its tag's.
 pub(crate) fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
     let mut out = Vec::new();
-    append_place_id_words(b, i, &mut out);
-    append_tag_id_words(b, i, &mut out)?;
+    inst_refs(b, i, &mut |r| {
+        if let Reach::Id(w) = r {
+            out.push(w);
+        }
+    })?;
     Ok(out)
 }
 
-/// Appends the IDs of instruction `i`'s place operands ([`Op::Place`]): a
-/// global root's `DefId` and `Ty`, `[len, 1, def, ty, ...]`.
-fn append_place_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) {
-    let (oa, ob) = b.tags[i].operands();
-    for (word, op) in [(b.data[i][0], oa), (b.data[i][1], ob)] {
-        if op == Op::Place
-            && word & place::BARE_LOCAL == 0
-            && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL)
-        {
-            out.extend([
-                IdWord::Def(word as usize + 2),
-                IdWord::Ty(word as usize + 3),
-            ]);
+/// Every reference of `b` into `extra`, in first-reach order: each
+/// instruction's place operands, then its records and their ID words,
+/// then the columns that point into `extra`. The one enumeration of how a
+/// word reaches a record: the ID remapper ([`body_id_words`]) and the
+/// compaction ([`compact`]) both read it. A tag or record whose
+/// references are not known is refused.
+fn references(b: &Body, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
+    for i in 0..b.len() {
+        inst_refs(b, i, f)?;
+    }
+    for (s, r) in b.sub_params.iter().enumerate() {
+        // `[len, local...]`. A closure's (`s > 0`) is a record that
+        // readers take whole (`Body::record`, as `hd_opt::value_flow` and
+        // `own::hoist` do). The root's is read as `r.len` words only, so
+        // one with none reaches nothing: a copy's root is
+        // `Range32::default()`, whose offset 0 names an unrelated record.
+        if s > 0 {
+            record_span(b, Holder::SubParams(s), r.start, f)?;
+        } else if r.len > 0 {
+            f(Reach::Span {
+                at: Holder::SubParams(s),
+                start: r.start,
+                end: bounded(b, r.start, r.len + 1)?,
+            });
         }
     }
+    for (s, row) in b.susp.iter().enumerate() {
+        // A range of scope instructions, with no length word.
+        if row.scopes.len > 0 {
+            f(Reach::Span {
+                at: Holder::Susp(s),
+                start: row.scopes.start,
+                end: bounded(b, row.scopes.start, row.scopes.len)?,
+            });
+        }
+    }
+    for (r, &(_, word)) in b.stable_lists.iter().enumerate() {
+        if word & place::BARE_LOCAL == 0 {
+            place_refs(b, Holder::StableList(r), word, f)?;
+        }
+    }
+    Ok(())
 }
 
-/// Every ID word of a body, in instruction order, each position once:
-/// instructions may share a place record, whose IDs are remapped once.
-fn body_id_words(b: &Body) -> StageResult<Vec<IdWord>> {
-    let mut seen = vec![false; b.extra.len()];
-    let mut out = Vec::new();
-    for i in 0..b.len() {
-        let start = out.len();
-        append_place_id_words(b, i, &mut out);
-        append_tag_id_words(b, i, &mut out)?;
-        // Compact just the appended words, retaining their first-seen
-        // order without allocating a temporary vector for the instruction.
-        let mut write = start;
-        for read in start..out.len() {
-            let word = out[read];
-            let keep = match seen.get_mut(word.at()) {
-                Some(s) if *s => false,
-                Some(s) => {
-                    *s = true;
-                    true
-                }
-                // Out of range: the caller's lookup refuses it.
-                None => true,
-            };
-            if keep {
-                out[write] = word;
-                write += 1;
+/// `start + len`, when the words `start..start + len` are in `extra`.
+fn bounded(b: &Body, start: u32, len: u32) -> StageResult<u32> {
+    start
+        .checked_add(len)
+        .filter(|&end| end as usize <= b.extra.len())
+        .ok_or_else(|| NotImplemented::bug(Stage::ModuleFinish, "a TIR record past `extra`"))
+}
+
+/// The record at `at`, `[len, words...]`, held by `holder`.
+fn record_span(b: &Body, holder: Holder, at: u32, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
+    let len = *b
+        .extra
+        .get(at as usize)
+        .ok_or_else(|| NotImplemented::bug(Stage::ModuleFinish, "a TIR record past `extra`"))?;
+    f(Reach::Span {
+        at: holder,
+        start: at,
+        end: bounded(b, at, len.saturating_add(1))?,
+    });
+    Ok(())
+}
+
+/// A place record: its span, and a global root's `DefId` and `Ty`,
+/// `[len, 1, def, ty, ...]`.
+fn place_refs(b: &Body, holder: Holder, word: u32, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
+    record_span(b, holder, word, f)?;
+    if b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL) {
+        f(Reach::Id(IdWord::Def(word as usize + 2)));
+        f(Reach::Id(IdWord::Ty(word as usize + 3)));
+    }
+    Ok(())
+}
+
+/// Instruction `i`'s references: its place operands' records and IDs,
+/// then its other records, then their ID words.
+fn inst_refs(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
+    let tag = b.tags[i];
+    let (oa, ob) = tag.operands();
+    let sides = [(0, b.data[i][0], oa), (1, b.data[i][1], ob)];
+    for (k, word, op) in sides {
+        if op == Op::Place && word & place::BARE_LOCAL == 0 {
+            place_refs(b, Holder::Data(i, k), word, f)?;
+        }
+    }
+    for (k, word, op) in sides {
+        // `ProviderGet` and `ItemRef` keep their IDs in one-word records
+        // their meta word points at.
+        let record = matches!(op, Op::Record | Op::Values | Op::Blocks)
+            || (k == 0 && matches!(tag, Tag::ProviderGet | Tag::ItemRef));
+        if record && word != crate::ir::NONE {
+            record_span(b, Holder::Data(i, k), word, f)?;
+        }
+    }
+    tag_ids(b, i, f)
+}
+
+/// The ID words of instruction `i`'s tag-specific records.
+fn tag_ids(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
+    let [a, _] = b.data[i];
+    let mut id = |w| f(Reach::Id(w));
+    match b.tags[i] {
+        Tag::Call | Tag::Await => {
+            call_ids(b, a as usize + 1, &mut id)?;
+            // `Providers::Pairs` points at a range of its own; nothing
+            // builds one, so its words are not mapped yet.
+            let args = b.data[i][1] as usize;
+            let n = b.extra.get(args).copied().unwrap_or(0) as usize;
+            if n >= 3 && b.extra.get(args + 1 + n - 3) == Some(&1) {
+                return Err(NotImplemented::bug(
+                    Stage::ModuleFinish,
+                    "wire form of a call's provider pairs",
+                ));
             }
         }
-        out.truncate(write);
-    }
-    Ok(out)
-}
-
-/// Appends the ID words of one instruction's tag-specific records.
-fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult<()> {
-    let [a, _] = b.data[i];
-    match b.tags[i] {
-        Tag::Call => return append_id_words_call(b, a as usize + 1, out),
-        Tag::Await => return append_id_words_call(b, a as usize + 1, out),
-        // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
-        Tag::ProviderGet => out.push(IdWord::Ty(a as usize + 1)),
+        Tag::ProviderGet => id(IdWord::Ty(a as usize + 1)),
         // `With` and `ContextNew`: (key type, provider) pairs.
         Tag::With | Tag::ContextNew => {
             let n = b.extra.get(a as usize).copied().unwrap_or(0) as usize;
-            out.extend((0..n / 2).map(|k| IdWord::Ty(a as usize + 1 + 2 * k)));
+            for k in 0..n / 2 {
+                id(IdWord::Ty(a as usize + 1 + 2 * k));
+            }
         }
-        Tag::DefaultCall => out.extend([IdWord::Def(a as usize + 1), IdWord::List(a as usize + 2)]),
+        Tag::DefaultCall => {
+            id(IdWord::Def(a as usize + 1));
+            id(IdWord::List(a as usize + 2));
+        }
         // A generic local function's instantiation: its type arguments
         // are the record's fourth word (`sub_flags::GENERIC`).
-        Tag::Closure if b.is_instantiation(i) => out.push(IdWord::List(b.data[i][1] as usize + 4)),
-        Tag::ItemRef => out.extend([
-            IdWord::Def(a as usize + 1),
-            IdWord::List(b.data[i][1] as usize + 1),
-        ]),
+        Tag::Closure if b.is_instantiation(i) => id(IdWord::List(b.data[i][1] as usize + 4)),
+        Tag::ItemRef => {
+            id(IdWord::Def(a as usize + 1));
+            id(IdWord::List(b.data[i][1] as usize + 1));
+        }
         Tag::RefDyn | Tag::RefIdentity => {}
-        // A global root's IDs are the place's ([`append_place_id_words`]).
+        // A global root's IDs are the place's ([`place_refs`]).
         Tag::Read | Tag::Store | Tag::Ref => {}
         // The ownership statements of an owned body (`write_body`): a
         // place's IDs are its own, and a count's record names a part of
@@ -185,23 +279,24 @@ fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult
     Ok(())
 }
 
-/// Appends the ID words of a callee record starting at `at`.
-fn append_id_words_call(b: &Body, at: usize, out: &mut Vec<IdWord>) -> StageResult<()> {
+/// The ID words of a callee record starting at `at`.
+fn call_ids(b: &Body, at: usize, id: &mut dyn FnMut(IdWord)) -> StageResult<()> {
     match b.extra.get(at) {
-        Some(0) => out.extend([IdWord::Def(at + 1), IdWord::List(at + 2)]),
+        Some(0) => {
+            id(IdWord::Def(at + 1));
+            id(IdWord::List(at + 2));
+        }
         Some(1) => {
-            out.extend([
-                IdWord::Def(at + 1),
-                IdWord::Def(at + 2),
-                IdWord::Ty(at + 3),
-                IdWord::List(at + 4),
-            ]);
+            id(IdWord::Def(at + 1));
+            id(IdWord::Def(at + 2));
+            id(IdWord::Ty(at + 3));
+            id(IdWord::List(at + 4));
             // An impl choice and a trait-value choice carry the item's ID.
             if matches!(
                 b.extra.get(at + 5),
                 Some(&k) if k == ChoiceKind::Impl as u32 || k == ChoiceKind::TraitValue as u32
             ) {
-                out.push(IdWord::Def(at + 6));
+                id(IdWord::Def(at + 6));
             }
         }
         _ => {
@@ -214,6 +309,85 @@ fn append_id_words_call(b: &Body, at: usize, out: &mut Vec<IdWord>) -> StageResu
     Ok(())
 }
 
+/// Every ID word of a body, in first-reach order, each position once:
+/// instructions may share a place record, whose IDs are remapped once.
+fn body_id_words(b: &Body) -> StageResult<Vec<IdWord>> {
+    let mut seen = vec![false; b.extra.len()];
+    let mut out = Vec::new();
+    references(b, &mut |r| {
+        // A word out of range is kept: the caller's lookup refuses it.
+        if let Reach::Id(w) = r
+            && !seen.get(w.at()).is_some_and(|&s| s)
+        {
+            if let Some(s) = seen.get_mut(w.at()) {
+                *s = true;
+            }
+            out.push(w);
+        }
+    })?;
+    Ok(out)
+}
+
+/// `b` with only the `extra` words its references reach ([`references`]),
+/// laid out in first-reach order and every pointer renumbered. A rebuild
+/// leaves records nothing reaches, such as an inlined call's callee
+/// record, whose IDs no remapping sees; dropping them makes the wire form
+/// a function of the body's content (#1423). Overlapping spans, a record
+/// shared or a range inside one, move together.
+fn compact(b: &Body) -> StageResult<std::borrow::Cow<'_, Body>> {
+    let mut spans: Vec<(Holder, u32, u32)> = Vec::new();
+    references(b, &mut |r| {
+        if let Reach::Span { at, start, end } = r {
+            spans.push((at, start, end));
+        }
+    })?;
+    // The reached intervals, by start: (start, end, first reach).
+    let mut by_start: Vec<usize> = (0..spans.len()).collect();
+    by_start.sort_stable_by_key(|&k| spans[k].1);
+    let mut runs: Vec<(u32, u32, usize)> = Vec::new();
+    for k in by_start {
+        let (_, start, end) = spans[k];
+        match runs.last_mut() {
+            Some(run) if start < run.1 => {
+                run.1 = run.1.max(end);
+                run.2 = run.2.min(k);
+            }
+            _ => runs.push((start, end, k)),
+        }
+    }
+    // Each interval's new start, in first-reach order.
+    let mut order: Vec<usize> = (0..runs.len()).collect();
+    order.sort_stable_by_key(|&r| runs[r].2);
+    let mut base = vec![0; runs.len()];
+    let mut extra = Vec::with_capacity(b.extra.len());
+    let mut next = 0;
+    for &r in &order {
+        let (start, end, _) = runs[r];
+        base[r] = next;
+        next += end - start;
+        extra.extend_from_slice(&b.extra[start as usize..end as usize]);
+    }
+    if extra == b.extra {
+        return Ok(std::borrow::Cow::Borrowed(b));
+    }
+    let moved = |p: u32| {
+        let r = runs.partition_point(|run| run.0 <= p) - 1;
+        base[r] + (p - runs[r].0)
+    };
+    let mut out = b.clone();
+    out.extra = extra;
+    for (at, start, _) in spans {
+        let to = moved(start);
+        match at {
+            Holder::Data(i, k) => out.data[i][k] = to,
+            Holder::SubParams(s) => out.sub_params[s].start = to,
+            Holder::Susp(s) => out.susp[s].scopes.start = to,
+            Holder::StableList(r) => out.stable_lists[r].1 = to,
+        }
+    }
+    Ok(std::borrow::Cow::Owned(out))
+}
+
 fn u32s(w: &mut Writer, v: impl ExactSizeIterator<Item = u32>) {
     w.u32(u32::try_from(v.len()).expect("column"));
     for x in v {
@@ -221,8 +395,29 @@ fn u32s(w: &mut Writer, v: impl ExactSizeIterator<Item = u32>) {
     }
 }
 
-/// Encodes a body: tables, then columns.
+/// Encodes a body: tables, then columns, with only the `extra` records
+/// it reaches ([`compact`]). A debug build decodes the bytes and checks
+/// that they encode back the same.
 pub fn write_body(
+    b: &Body,
+    pool: &InternPool,
+    paths: &PathTable,
+    syms: &ShardedInterner,
+) -> StageResult<Vec<u8>> {
+    let out = encode(compact(b)?.as_ref(), pool, paths, syms)?;
+    if cfg!(debug_assertions) {
+        let again = read_body(&out, pool, paths, syms).map(|back| encode(&back, pool, paths, syms));
+        assert!(
+            matches!(&again, Some(Ok(again)) if *again == out),
+            "item {}: a decoded body encodes differently",
+            b.item.raw()
+        );
+    }
+    Ok(out)
+}
+
+/// [`write_body`] of a compacted body.
+fn encode(
     b: &Body,
     pool: &InternPool,
     paths: &PathTable,
@@ -722,7 +917,7 @@ mod tests {
         body.unwind_drops = vec![(1, 2)];
         body.live = vec![(1, vec![3, 4]), (2, vec![])];
         body.full_cells = vec![(0, 0)];
-        body.stable_lists = vec![(2, 5)];
+        body.stable_lists = vec![(2, crate::ir::place::BARE_LOCAL)];
         body.anchors = vec![0, crate::ir::NONE, 2];
         body.inlined = vec![[3, 2, g.raw(), 1]];
         body.inlined_origins = vec![[4, 1]];
@@ -759,6 +954,88 @@ mod tests {
         // A checker's body reads back with no pass column.
         let plain = read_body(&checked, &pool2, &paths2, &syms2).expect("read");
         assert!(plain.anchors.is_empty() && plain.inlined.is_empty());
+    }
+
+    /// A record nothing reaches, such as an inlined call's callee record,
+    /// is not written: two runs that intern paths in another order write
+    /// the same bytes, and the reached records move with their pointers.
+    #[test]
+    fn an_unreached_record_is_not_written() {
+        let encode = |earlier: usize| {
+            let (pool, paths, syms) = (
+                InternPool::new(),
+                PathTable::new(),
+                ShardedInterner::default(),
+            );
+            for k in 0..earlier {
+                paths.item("app", "other", &format!("x{k}"));
+            }
+            let f = paths.item("app", "main", "f");
+            let g = paths.item("app", "main", "g");
+            let mut b = TirBuilder::new(f, BodyKind::Fn);
+            let n = NodeIdx::from_raw(0);
+            let blk = b.open_block();
+            let x = b.local(Ty::I32, syms.intern("x"), local_flags::PARAM, n);
+            let get = b.get(x, Ty::I32, n);
+            let call = b.call(
+                &Callee::Item {
+                    def: g,
+                    targs: pool.list(&[]),
+                },
+                &[get],
+                Providers::None,
+                Ty::I32,
+                n,
+            );
+            b.emit(Tag::Return, call.0, crate::ir::NONE, Ty::NEVER, n);
+            let root = b.close_block(blk, None, Ty::NEVER, n);
+            let mut body = b.finish(root, &[]).expect("verifies");
+            // A dead callee record in front of every live one.
+            let dead = paths.item("app", "main", "dead").raw();
+            let shift = 4;
+            for i in 0..body.len() {
+                let (oa, ob) = body.tags[i].operands();
+                for (k, op) in [oa, ob].into_iter().enumerate() {
+                    let w = body.data[i][k];
+                    let pointer = matches!(
+                        op,
+                        crate::ir::Op::Record | crate::ir::Op::Values | crate::ir::Op::Blocks
+                    ) || (op == crate::ir::Op::Place
+                        && w & crate::ir::place::BARE_LOCAL == 0);
+                    if pointer && w != crate::ir::NONE {
+                        body.data[i][k] = w + shift;
+                    }
+                }
+            }
+            // A suspension row's scope range and a root with a parameter
+            // record point into `extra` too.
+            let list = u32::try_from(body.extra.len()).expect("extra");
+            body.extra.extend([5, 1, 0]);
+            body.susp = vec![crate::ir::SuspRow {
+                inst: 0,
+                scopes: hd_base::Range32::new(list, 1),
+                hook_site: crate::ir::NONE,
+            }];
+            body.sub_params[0] = hd_base::Range32::new(list + 1, 1);
+            body.extra.splice(0..0, [3, 0, dead, 0]);
+            for r in &mut body.sub_params {
+                r.start += shift;
+            }
+            body.susp[0].scopes.start += shift;
+            let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
+            let back = read_body(&bytes, &pool, &paths, &syms).expect("read");
+            assert_eq!(back.extra.len() + 4, body.extra.len());
+            assert_eq!(back.extra[back.susp[0].scopes.start as usize], 5);
+            assert_eq!(back.record(back.sub_params[0].start), &[0]);
+            let words = back.record(back.data[call.0 as usize][0]);
+            assert_eq!(
+                words[1],
+                g.raw(),
+                "the live callee record moved with its call"
+            );
+            bytes
+        };
+        assert_eq!(encode(0), encode(3));
     }
 
     /// `counter.count += 1` on a top-level binding: a `Read` and a `Store`
