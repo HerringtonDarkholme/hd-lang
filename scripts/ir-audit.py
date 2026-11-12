@@ -45,7 +45,7 @@ DESCRIBE = {
     # IR
     "ir-ref-drop": "a Drop of a reference type: the link folds it in a view-free module, so it predicts no time or size (#1399 20a: byte-identical with it gone); it matters only to #1360 and #1448",
     "ir-copy-only-lends": "a counted Read copy whose only uses lend it, then a Drop: one retain and one release",
-    "ir-store-then-read": "a Store to a local straight before a Read of it",
+    "ir-store-then-read": "a Store to a local straight before a Read of it: TIR shape only. On 2026-11-12, 133 of its 171 files dump WAT and only 3 of those show a set-then-get there, so it predicts no Wasm time or size",
     "ir-unused-read": "a counted Read that nothing uses",
     "ir-conservative": "a count the compiler could not name a reason for",
     "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts: describes TIR text, emits nothing, so it predicts no time or size",
@@ -335,7 +335,8 @@ def audit_own(text, emit):
                     tags = [t for _, t in used]
                     if "Drop" in tags and all(t in ("Drop", "Call", "CallValue", "CallDyn") for t in tags):
                         emit("ir-copy-only-lends", func, f"%{n} {rest[:60]}")
-                if not used and not rest.startswith("borrow"):
+                # The body's last value is its result, a use the dump doesn't print.
+                if not used and not rest.startswith("borrow") and n != order[-1]:
                     emit("ir-unused-read", func, f"%{n} {rest[:60]}")
             if tag == "Store" and k + 1 < len(order):
                 next_tag, next_rest = body[order[k + 1]]

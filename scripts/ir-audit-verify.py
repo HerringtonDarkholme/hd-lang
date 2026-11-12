@@ -115,7 +115,18 @@ def main():
         regex["empty-if"] += len(re.findall(r"^if[^\n]*\nend$", text, re.M))
         regex["empty-else"] += len(re.findall(r"^else\nend$", text, re.M))
         regex["empty-block"] += len(re.findall(r"^block\nend$", text, re.M))
-        regex["br-to-end"] += len(re.findall(r"^br 0\nend$", text, re.M))
+        # `br 0` before `end` falls through only in a block or an if; in a
+        # loop it is a continue. A plain regex counted 151 loop continues.
+        regex["br-to-end"] += 0
+        opened = []
+        for i, line in enumerate(code):
+            op = line.split()[0]
+            if op in ("block", "loop", "if"):
+                opened.append(op)
+            elif op == "end" and opened:
+                opened.pop()
+            if line == "br 0" and code[i + 1 : i + 2] == ["end"] and opened and opened[-1] != "loop":
+                regex["br-to-end"] += 1
         regex["const-branch"] += len(re.findall(r"^i(?:32|64)\.const [^\n]*\n(?:if|br_if)", text, re.M))
         tool.update(run(params, body, sigs))
     for k in sorted(regex):
