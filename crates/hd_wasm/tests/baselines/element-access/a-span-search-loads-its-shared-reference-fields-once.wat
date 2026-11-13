@@ -67,103 +67,191 @@
           local.tee $t11
           i32.load $heap offset=4
           local.set $t12
-          block
-            loop
-              local.get $t10
-              i32.const 4
-              i32.add
-              local.get $t2
-              i32.le_u
-              i32.eqz
-              br_if 1
-              local.get $t10
-              local.get $t12
-              i32.ge_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t11
-              local.get $t10
-              i32.add
-              i32.load8_u $heap offset=16
-              local.get $t8
-              i32.eq
-              br_if 1
-              local.get $t10
-              i32.const 1
-              i32.add
-              local.tee $t13
-              local.get $t12
-              i32.ge_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t11
-              local.get $t13
-              i32.add
-              i32.load8_u $heap offset=16
-              local.get $t8
-              i32.eq
-              if
+          local.get $t10
+          local.get $t2
+          i32.le_u
+          local.get $t2
+          i32.const -5
+          i32.le_u
+          i32.and
+          local.get $t2
+          local.get $t12
+          i32.le_u
+          i32.and
+          if
+            block
+              loop
+                local.get $t10
+                i32.const 4
+                i32.add
+                local.get $t2
+                i32.le_u
+                i32.eqz
+                br_if 1
+                local.get $t11
+                local.get $t10
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                br_if 1
                 local.get $t10
                 i32.const 1
                 i32.add
-                local.set $t10
-                br 2
-              end
-              local.get $t10
-              i32.const 2
-              i32.add
-              local.tee $t13
-              local.get $t12
-              i32.ge_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t11
-              local.get $t13
-              i32.add
-              i32.load8_u $heap offset=16
-              local.get $t8
-              i32.eq
-              if
+                local.set $t13
+                local.get $t11
+                local.get $t13
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                if
+                  local.get $t10
+                  i32.const 1
+                  i32.add
+                  local.set $t10
+                  br 2
+                end
                 local.get $t10
                 i32.const 2
                 i32.add
-                local.set $t10
-                br 2
-              end
-              local.get $t10
-              i32.const 3
-              i32.add
-              local.tee $t13
-              local.get $t12
-              i32.ge_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t11
-              local.get $t13
-              i32.add
-              i32.load8_u $heap offset=16
-              local.get $t8
-              i32.eq
-              if
+                local.set $t13
+                local.get $t11
+                local.get $t13
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                if
+                  local.get $t10
+                  i32.const 2
+                  i32.add
+                  local.set $t10
+                  br 2
+                end
                 local.get $t10
                 i32.const 3
                 i32.add
+                local.set $t13
+                local.get $t11
+                local.get $t13
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                if
+                  local.get $t10
+                  i32.const 3
+                  i32.add
+                  local.set $t10
+                  br 2
+                end
+                local.get $t10
+                i32.const 4
+                i32.add
                 local.set $t10
-                br 2
+                br 0
               end
-              local.get $t10
-              i32.const 4
-              i32.add
-              local.set $t10
-              br 0
+            end
+          else
+            block
+              loop
+                local.get $t10
+                i32.const 4
+                i32.add
+                local.get $t2
+                i32.le_u
+                i32.eqz
+                br_if 1
+                local.get $t10
+                local.get $t12
+                i32.ge_u
+                if
+                  call $rt:panic
+                  unreachable
+                end
+                local.get $t11
+                local.get $t10
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                br_if 1
+                local.get $t10
+                i32.const 1
+                i32.add
+                local.tee $t13
+                local.get $t12
+                i32.ge_u
+                if
+                  call $rt:panic
+                  unreachable
+                end
+                local.get $t11
+                local.get $t13
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                if
+                  local.get $t10
+                  i32.const 1
+                  i32.add
+                  local.set $t10
+                  br 2
+                end
+                local.get $t10
+                i32.const 2
+                i32.add
+                local.tee $t13
+                local.get $t12
+                i32.ge_u
+                if
+                  call $rt:panic
+                  unreachable
+                end
+                local.get $t11
+                local.get $t13
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                if
+                  local.get $t10
+                  i32.const 2
+                  i32.add
+                  local.set $t10
+                  br 2
+                end
+                local.get $t10
+                i32.const 3
+                i32.add
+                local.tee $t13
+                local.get $t12
+                i32.ge_u
+                if
+                  call $rt:panic
+                  unreachable
+                end
+                local.get $t11
+                local.get $t13
+                i32.add
+                i32.load8_u $heap offset=16
+                local.get $t8
+                i32.eq
+                if
+                  local.get $t10
+                  i32.const 3
+                  i32.add
+                  local.set $t10
+                  br 2
+                end
+                local.get $t10
+                i32.const 4
+                i32.add
+                local.set $t10
+                br 0
+              end
             end
           end
           local.get $t0
@@ -345,7 +433,7 @@
     local.get $t14
   )
   (func $find (param $hay i32) (param $needle.items i32) (param $needle.start i32) (param $needle.end i32) (result i32 i32)
-    ;; 8 |     hay.index_of_span(needle)
+    ;; 9 |     hay.index_of_span(needle)
     local.get $hay
     local.get $needle.items
     local.get $needle.start

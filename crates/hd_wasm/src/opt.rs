@@ -82,6 +82,12 @@
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
 
+mod bounds;
+
+/// Select a checked or range-proven copy of an innermost counted loop.
+pub(crate) fn version_loop_bounds(f: &mut Func) -> bool {
+    bounds::run(f)
+}
 mod constant;
 mod empty_loops;
 

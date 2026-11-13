@@ -1,0 +1,35 @@
+# test: counted reads preserve a zero trip and an early exit before a later out-of-range access
+use std.annotation.inline
+
+@inline(.Never)
+fn scan[T < Eq](items: List[T], start: usize, end: usize, needle: T) -> usize:
+    let at = start
+    while at + 4 <= end:
+        if items[at] == needle:
+            break
+        if items[at + 1] == needle:
+            at += 1
+            break
+        if items[at + 2] == needle:
+            at += 2
+            break
+        if items[at + 3] == needle:
+            at += 3
+            break
+        at += 4
+    at
+
+tests:
+    use std.testing.assert_equal
+
+    it("a counted scan works at a nonzero start"):
+        assert_equal(scan([+0, 1, 2, 3, 4, 5, 6, 7], 4, 8, +6), 6)
+
+    it("the range proof works for counted element types too"):
+        assert_equal(scan(["zero", "one", "two", "three"], 0, 4, "three"), 3)
+
+    it("a larger bound does not preempt an early match"):
+        assert_equal(scan([+7], 0, 8, +7), 0)
+
+    it("a zero trip reads no element despite a larger bound"):
+        assert_equal(scan([], 0, 1, +7), 0)

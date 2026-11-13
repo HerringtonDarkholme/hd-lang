@@ -1,0 +1,22 @@
+# test: a counted scan still checks an out-of-range access reached before its bound
+use std.annotation.inline
+
+@inline(.Never)
+fn scan[T < Eq](items: List[T], start: usize, end: usize, needle: T) -> usize:
+    let at = start
+    while at + 4 <= end:
+        if items[at] == needle:
+            break
+        if items[at + 1] == needle:
+            at += 1
+            break
+        if items[at + 2] == needle:
+            at += 2
+            break
+        if items[at + 3] == needle:
+            at += 3
+            break
+        at += 4
+    at
+
+scan([+7], 0, 8, +9) # panic: index-out-of-bounds

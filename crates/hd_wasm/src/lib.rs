@@ -804,6 +804,7 @@ fn link(
     m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     m.init_insts.clone_from(&input.collected.inits);
     m.release = input.release;
+    m.optimized = input.optimized;
     m.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
