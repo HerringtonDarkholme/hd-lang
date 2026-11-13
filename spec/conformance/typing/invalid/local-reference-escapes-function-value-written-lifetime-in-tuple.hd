@@ -1,0 +1,8 @@
+# test: a call through a function type in a tuple passes the argument at the lifetime it writes
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+fn in_tuple['a, T](t: (fn(&'a Point) -> T, i32), p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (t._0)(&q) # diagnostic: local-reference-escapes

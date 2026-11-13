@@ -5810,7 +5810,12 @@ typing/invalid/local-reference-escapes-function-value-written-lifetime-literal.h
 typing/invalid/local-reference-escapes-function-value-written-lifetime-payload.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/invalid/local-reference-escapes-function-value-written-lifetime-variant.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/invalid/local-reference-escapes-function-value-written-lifetime-method-result.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-in-tuple.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-in-list-element.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-in-optional.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/valid/function-value-written-lifetime-sources.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/valid/function-value-written-lifetime-nested-type.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
 runtime/valid/function-value-written-lifetime-sources.hd	runtime	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/valid/function-type-result-param-written-lifetime.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.result.param
 typing/invalid/local-reference-escapes-function-type-result-param.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.result.param

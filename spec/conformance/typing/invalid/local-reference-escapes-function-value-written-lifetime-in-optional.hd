@@ -1,0 +1,10 @@
+# test: a call through a function type in an optional passes the argument at the lifetime it writes
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+fn in_option['a, T](o: (fn(&'a Point) -> T)?, p: &'a Point, d: T) -> T:
+    q := Point { x: 1 }
+    match o:
+        .Some(g) => g(&q) # diagnostic: local-reference-escapes
+        .None => d

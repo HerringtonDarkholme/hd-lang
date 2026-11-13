@@ -1,0 +1,8 @@
+# test: a call through a function type in a function-typed parameter's result passes the argument at the lifetime it writes
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+fn nested['a, T](f: fn(&'a Point) -> fn(&'a Point) -> T, p: &'a Point) -> T:
+    q := Point { x: 1 }
+    f(p)(&q) # diagnostic: local-reference-escapes

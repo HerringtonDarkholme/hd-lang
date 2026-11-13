@@ -1,0 +1,8 @@
+# test: a call through a function type in a `List` element passes the argument at the lifetime it writes
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+fn in_list['a, T](fs: &List[fn(&'a Point) -> T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    fs[0](&q) # diagnostic: local-reference-escapes

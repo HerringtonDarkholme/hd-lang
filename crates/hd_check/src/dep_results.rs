@@ -1892,6 +1892,7 @@ impl Ck<'_, '_> {
                 let TyData::Fn { result, .. } = pool.get(sig.params[p].1) else {
                     continue;
                 };
+                let lts = own_inputs(pool, sig.params[p].1, lts);
                 for q in bare_parts(pool, result).0 {
                     for &l in lts.iter().filter(|&&l| l != 0) {
                         if !fn_held.contains(&(q, u32::from(l))) {
@@ -2036,6 +2037,9 @@ impl Ck<'_, '_> {
         } else if let Some(sig) = &sig {
             let n = sig.params.len();
             for (p, lts) in sig.fn_lifetimes.iter().take(n).enumerate() {
+                // A function type nested in the parameter's type is
+                // matched to no part of the argument.
+                let lts = own_inputs(ls.pool, sig.params[p].1, lts);
                 let Some(a) = (lts.iter().any(|&l| l != 0))
                     .then(|| source_arg(b, i, p))
                     .flatten()
@@ -2093,12 +2097,12 @@ impl Ck<'_, '_> {
         // so a depth cap traced nothing past it (#1777). Values lead to
         // earlier values, and each local's part is traced once (`seen`),
         // which ends a cycle through a binding.
-        let mut seen: HashSet<(u32, Vec<Proj>)> = HashSet::default();
+        let mut seen: HashSet<(u32, Vec<Part>)> = HashSet::default();
         let mut stack: Vec<Trace> = vec![Trace::Value(v, Vec::new())];
         while let Some(t) = stack.pop() {
             match t {
                 Trace::Value(v, path) => {
-                    self.trace_value(b, (v, path), &mut stack, &mut |k, var| {
+                    self.trace_value(ls, b, (v, path), &mut stack, &mut |k, var| {
                         push(&mut out, k, var);
                     });
                 }
@@ -2117,8 +2121,9 @@ impl Ck<'_, '_> {
     /// writes itself goes to `push`, the parts it is made of to `stack`.
     fn trace_value(
         &self,
+        ls: &Layouts<'_>,
         b: &Body,
-        (v, path): (u32, Vec<Proj>),
+        (v, path): (u32, Vec<Part>),
         stack: &mut Vec<Trace>,
         push: &mut dyn FnMut(usize, Var),
     ) {
@@ -2128,16 +2133,17 @@ impl Ck<'_, '_> {
         }
         // A named function's value writes no lifetime of the body's in its
         // inputs, nor does a value of no function type. A closure literal
-        // that writes one, and a function type nested in another type, as
-        // a call through a value returns, are not traced: no record keeps
-        // their written lifetimes.
+        // that writes one is not traced: no record keeps its written
+        // lifetimes.
         let tag = b.tags[i];
         if tag == Tag::Coerce {
             stack.push(Trace::Value(b.data[i][0], path));
         } else if tag == Tag::Read
             && let Some(place) = b.decode_place(b.data[i][0])
         {
-            let full: Vec<Proj> = place.proj.iter().chain(&path).copied().collect();
+            let full: Vec<Part> = (place.proj.iter().map(|&p| Part::Proj(p)))
+                .chain(path)
+                .collect();
             match place.root {
                 PlaceRoot::Local(l) => stack.push(Trace::Local(l.raw(), full)),
                 PlaceRoot::Value(r) => stack.push(Trace::Value(r.0, full)),
@@ -2147,13 +2153,17 @@ impl Ck<'_, '_> {
                 PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => {}
             }
         } else if tag == Tag::NewStruct
-            && let [Proj::Field(j), rest @ ..] = path.as_slice()
+            && let [Part::Proj(Proj::Field(j)), rest @ ..] = path.as_slice()
             && let Some(&f) = b.record(b.data[i][1]).get(*j as usize)
         {
             // A struct literal's field is the value it was given.
             stack.push(Trace::Value(f, rest.to_vec()));
+        } else if tag == Tag::CallValue {
+            // A call through a function value returns part of that value's
+            // type: `f(p)(&q)` calls the function type in `f`'s result.
+            let full = std::iter::once(Part::Result).chain(path).collect();
+            stack.push(Trace::Value(b.data[i][0], full));
         } else if matches!(tag, Tag::Call | Tag::Await)
-            && path.is_empty()
             && let Some(sig) = (Callee::from_words(b.record(b.data[i][0])))
                 .map(|c| match c {
                     Callee::Item { def, .. } => def,
@@ -2162,13 +2172,115 @@ impl Ck<'_, '_> {
                 .and_then(|def| self.cx.lookup.item(def)?.sig())
         {
             // A call's result is at the call's own lifetimes.
-            let ret = sig.fn_lifetimes.get(sig.params.len());
-            for (k, &l) in ret.into_iter().flatten().enumerate() {
-                if l != 0 {
-                    push(k, Var::At(v, u32::from(l)));
+            let rec = sig.fn_lifetimes.get(sig.params.len());
+            match fn_spot(self.cx, ls.pool, sig.ret, &path) {
+                Some(Spot::Fn(lo, n)) => {
+                    let lts = rec.and_then(|r| r.get(lo..lo + n)).unwrap_or(&[]);
+                    for (k, &l) in lts.iter().enumerate().filter(|x| *x.1 != 0) {
+                        push(k, Var::At(v, u32::from(l)));
+                    }
                 }
+                Some(Spot::Field(at)) => {
+                    let dep = DepSig::new(ls, &sig.params, |_| false, sig.ret, &sig.lifetimes);
+                    for (k, slot) in self
+                        .field_inputs(ls, sig.ret, &path, at)
+                        .unwrap_or_default()
+                    {
+                        if let Some(Some(l)) = dep.outs.get(slot) {
+                            push(k, Var::At(v, *l));
+                        }
+                    }
+                }
+                None => {}
             }
         }
+    }
+
+    /// The input slots of a function type declared in a struct's or
+    /// variant's field, which a step of `path` at or after `from` reads
+    /// in a value of type `ty`, each with the slot of `ty`'s layout that
+    /// holds the struct's lifetime it writes (`Field::fn_lifetimes`): the
+    /// field whose own declared type holds the function type the rest of
+    /// the path reaches. `None` when a step before it leaves the slots
+    /// `ty`'s layout tracks.
+    fn field_inputs(
+        &self,
+        ls: &Layouts<'_>,
+        mut ty: Ty,
+        path: &[Part],
+        from: usize,
+    ) -> Option<Vec<(usize, usize)>> {
+        let pool = ls.pool;
+        // The slots of `ty` the part reached so far lies in, as
+        // [`constraints::Gen::project`] walks them.
+        let mut slots: Vec<usize> = (0..ls.of(ty).slots.len()).collect();
+        let mut variant = None;
+        for (i, step) in path.iter().enumerate() {
+            match *step {
+                Part::Proj(Proj::Deref) => {
+                    let (counted, _) = local_ref(pool, ty)?;
+                    if !counted {
+                        slots = slots.get(1..)?.to_vec();
+                    }
+                    ty = referent(pool, ty);
+                }
+                Part::Proj(Proj::Variant(k)) => variant = Some(k),
+                Part::Proj(Proj::Field(j)) => {
+                    if i >= from
+                        && let Some(found) = self.field_record(ls, ty, variant, j, &path[i + 1..])
+                    {
+                        return found
+                            .into_iter()
+                            .map(|(k, s)| Some((k, *slots.get(s)?)))
+                            .collect();
+                    }
+                    let (child, map) = ls.field_slots(self.cx, ty, variant.take(), j)?;
+                    slots = map?
+                        .iter()
+                        .map(|&k| slots.get(k).copied())
+                        .collect::<Option<_>>()?;
+                    ty = child;
+                }
+                Part::Proj(Proj::Elem(_)) | Part::Result => return None,
+            }
+        }
+        None
+    }
+
+    /// When field `j` of struct or enum type `ty` (variant `variant`)
+    /// declares the function type `rest` reaches in it: each of that
+    /// function type's input slots that writes a struct lifetime, with
+    /// the slot of `ty`'s layout that lifetime is at.
+    fn field_record(
+        &self,
+        ls: &Layouts<'_>,
+        ty: Ty,
+        variant: Option<u32>,
+        j: u32,
+        rest: &[Part],
+    ) -> Option<Vec<(usize, usize)>> {
+        let pool = ls.pool;
+        let TyData::Adt { def, args } = pool.get(ty) else {
+            return None;
+        };
+        let item = self.cx.lookup.item(def)?;
+        let fields = match (&item.data, variant) {
+            (ItemData::Struct(fs, _), None) => fs,
+            (ItemData::Enum { variants, .. }, Some(k)) => &variants.get(k as usize)?.fields,
+            _ => return None,
+        };
+        let field = fields.get(j as usize)?;
+        let Some(Spot::Fn(lo, n)) = fn_spot(self.cx, pool, field.ty, rest) else {
+            return None;
+        };
+        let argv = pool.list_items(args);
+        let mut out = Vec::new();
+        for (k, &l) in field.fn_lifetimes.get(lo..lo + n)?.iter().enumerate() {
+            if l != 0 {
+                out.push((k, ls.lifetime_slot(&item.generics, argv, l)?));
+            }
+        }
+        Some(out)
     }
 
     /// [`Ck::written_inputs`] of the part `path` of local `l`: a
@@ -2180,7 +2292,7 @@ impl Ck<'_, '_> {
         ls: &Layouts<'_>,
         b: &Body,
         values: &FnValues<'_>,
-        (l, path): (u32, &[Proj]),
+        (l, path): (u32, &[Part]),
         stack: &mut Vec<Trace>,
         out: &mut Vec<(usize, Var)>,
     ) {
@@ -2194,80 +2306,50 @@ impl Ck<'_, '_> {
         }
         let at = stack.len();
         for &s in values.stores(l) {
-            let place = b.decode_place(b.data[s as usize][0]);
-            if let Some(rest) = place.and_then(|p| path.strip_prefix(p.proj.as_slice())) {
-                stack.push(Trace::Value(b.data[s as usize][1], rest.to_vec()));
+            let Some(place) = b.decode_place(b.data[s as usize][0]) else {
+                continue;
+            };
+            let n = place.proj.len();
+            let into =
+                path.len() >= n && (place.proj.iter().zip(path)).all(|(&q, &p)| p == Part::Proj(q));
+            if into {
+                stack.push(Trace::Value(b.data[s as usize][1], path[n..].to_vec()));
             }
         }
         stack[at..].reverse();
     }
 
-    /// [`Ck::written_inputs`] of the part `path` of parameter `p`: its own
-    /// function type's ([`hd_resolve::FnSig::fn_lifetimes`]), or a
-    /// function-typed field's ([`hd_resolve::Field::fn_lifetimes`]) at the
-    /// lifetime the parameter's type gives that struct's lifetime.
+    /// [`Ck::written_inputs`] of the part `path` of parameter `p`: a
+    /// function type in its declared type
+    /// ([`hd_resolve::FnSig::fn_lifetimes`]), or one in a struct's field
+    /// ([`hd_resolve::Field::fn_lifetimes`]) at the lifetime the
+    /// parameter's type gives that struct's lifetime.
     fn trace_param(
         &self,
         ls: &Layouts<'_>,
         sig: &hd_resolve::FnSig,
         values: &FnValues<'_>,
-        (p, path): (usize, &[Proj]),
+        (p, path): (usize, &[Part]),
         out: &mut Vec<(usize, Var)>,
     ) -> Option<()> {
-        let pool = ls.pool;
         let mut push = |k: usize, var: Var| {
             if !out.contains(&(k, var)) {
                 out.push((k, var));
             }
         };
-        let Some((&Proj::Field(j), steps)) = path.split_last() else {
-            let lts = sig.fn_lifetimes.get(p).into_iter().flatten();
-            for (k, &l) in lts.enumerate().filter(|x| *x.1 != 0) {
-                push(k, Var::Own(u32::from(l)));
-            }
-            return Some(());
-        };
-        let &(mut ty, ref ids) = values.mine?.params.get(p)?;
-        // The parameter's slots the part reached so far lies in, as
-        // [`constraints::Gen::project`] walks them.
-        let mut at: Vec<usize> = (0..ls.of(ty).slots.len()).collect();
-        let mut variant = None;
-        for step in steps {
-            match *step {
-                Proj::Deref => {
-                    let (counted, _) = local_ref(pool, ty)?;
-                    if !counted {
-                        at = at.get(1..)?.to_vec();
-                    }
-                    ty = referent(pool, ty);
+        match fn_spot(self.cx, ls.pool, sig.params.get(p)?.1, path)? {
+            Spot::Fn(lo, n) => {
+                let lts = sig.fn_lifetimes.get(p)?.get(lo..lo + n)?;
+                for (k, &l) in lts.iter().enumerate().filter(|x| *x.1 != 0) {
+                    push(k, Var::Own(u32::from(l)));
                 }
-                Proj::Variant(k) => variant = Some(k),
-                Proj::Field(j) => {
-                    let (child, map) = ls.field_slots(self.cx, ty, variant.take(), j)?;
-                    at = map?
-                        .iter()
-                        .map(|&k| at.get(k).copied())
-                        .collect::<Option<_>>()?;
-                    ty = child;
-                }
-                Proj::Elem(_) => return None,
             }
-        }
-        // The function-typed field, at its struct's lifetimes.
-        let TyData::Adt { def, args } = pool.get(ty) else {
-            return None;
-        };
-        let item = self.cx.lookup.item(def)?;
-        let fields = match (&item.data, variant) {
-            (ItemData::Struct(fs, _), None) => fs,
-            (ItemData::Enum { variants, .. }, Some(k)) => &variants.get(k as usize)?.fields,
-            _ => return None,
-        };
-        let field = fields.get(j as usize)?;
-        let argv = pool.list_items(args);
-        for (k, &l) in field.fn_lifetimes.iter().enumerate().filter(|x| *x.1 != 0) {
-            let s = ls.lifetime_slot(&item.generics, argv, l)?;
-            push(k, Var::Own(*ids.get(*at.get(s)?)?));
+            Spot::Field(at) => {
+                let &(ty, ref ids) = values.mine?.params.get(p)?;
+                for (k, slot) in self.field_inputs(ls, ty, path, at)? {
+                    push(k, Var::Own(*ids.get(slot)?));
+                }
+            }
         }
         Some(())
     }
@@ -3634,8 +3716,104 @@ fn returned(b: &Body, root: u32) -> Vec<u32> {
 /// A part [`Ck::written_inputs`] traces: part `path` of a value or of a
 /// local.
 enum Trace {
-    Value(u32, Vec<Proj>),
-    Local(u32, Vec<Proj>),
+    Value(u32, Vec<Part>),
+    Local(u32, Vec<Part>),
+}
+
+/// One step into a value [`Ck::written_inputs`] traces: a place
+/// projection, or the result of calling a function value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Part {
+    Proj(Proj),
+    Result,
+}
+
+/// Where a part of a value lies in its declared type's record of
+/// written input lifetimes (`FnSig::fn_lifetimes`), as [`fn_spot`]
+/// finds it.
+enum Spot {
+    /// The function type whose inputs write the record's slots
+    /// `lo..lo + n`.
+    Fn(usize, usize),
+    /// The part lies under the struct or variant field the path's step
+    /// at this index reads, whose declared type is not a type parameter:
+    /// the field's own record ([`hd_resolve::Field::fn_lifetimes`]) holds
+    /// what its function types write.
+    Field(usize),
+}
+
+/// The record slots of function type `t`'s own inputs, when `rec` is
+/// the record of a whole type `t`: the last ones, after those of the
+/// function types in its inputs and result.
+fn own_inputs<'r>(pool: Types<'_>, t: Ty, rec: &'r [u16]) -> &'r [u16] {
+    let TyData::Fn { params, .. } = pool.get(t) else {
+        return &[];
+    };
+    let n: usize = pool
+        .list_items(params)
+        .iter()
+        .map(|&a| pool.ref_slots(a))
+        .sum();
+    rec.get(rec.len().saturating_sub(n)..).unwrap_or(&[])
+}
+
+/// Where part `path` of a value of declared type `t` lies among the
+/// written input slots of `t`'s function types, in
+/// [`Types::fn_input_slots`] order: a tuple element, a reference's
+/// referent, a list element, a call's result, and a field whose declared
+/// type is one of its type's parameters each step into the matching part
+/// of `t`. `None` for a part no function type's inputs hold.
+fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spot> {
+    let slots = |ts: &[Ty]| ts.iter().map(|&a| pool.fn_input_slots(a)).sum::<usize>();
+    let (mut ty, mut base, mut variant) = (t, 0, None);
+    for (i, part) in path.iter().enumerate() {
+        match (*part, pool.get(ty)) {
+            (Part::Proj(Proj::Deref), TyData::Ref { inner, .. }) => ty = inner,
+            (Part::Proj(Proj::Variant(k)), _) => variant = Some(k),
+            (Part::Proj(Proj::Elem(_)), TyData::Adt { def, args })
+                if def == cx.names.known.list =>
+            {
+                ty = *pool.list_items(args).first()?;
+            }
+            (Part::Result, TyData::Fn { params, result, .. }) => {
+                base += slots(pool.list_items(params));
+                ty = result;
+            }
+            (Part::Proj(Proj::Field(j)), TyData::Tuple { elems, rest }) => {
+                let items: Vec<Ty> = pool.list_items(elems).iter().copied().chain(rest).collect();
+                let j = j as usize;
+                base += slots(items.get(..j)?);
+                ty = *items.get(j)?;
+            }
+            (Part::Proj(Proj::Field(j)), TyData::Adt { def, args }) => {
+                let fields = match (&cx.lookup.item(def)?.data, variant.take()) {
+                    (ItemData::Struct(fs, _), None) => fs,
+                    (ItemData::Enum { variants, .. }, Some(k)) => &variants.get(k as usize)?.fields,
+                    _ => return None,
+                };
+                let TyData::Param(pr) = pool.get(fields.get(j as usize)?.ty) else {
+                    return Some(Spot::Field(i));
+                };
+                let argv = pool.list_items(args);
+                let k = usize::from(pr.index);
+                if pr.owner != def {
+                    return None;
+                }
+                base += slots(argv.get(..k)?);
+                ty = *argv.get(k)?;
+            }
+            _ => return None,
+        }
+    }
+    let TyData::Fn { params, .. } = pool.get(ty) else {
+        return None;
+    };
+    let n: usize = pool
+        .list_items(params)
+        .iter()
+        .map(|&a| pool.ref_slots(a))
+        .sum();
+    Some(Spot::Fn(base + pool.fn_input_slots(ty) - n, n))
 }
 
 /// The innermost part of value `v` whose origins hold `o`, as `has`
