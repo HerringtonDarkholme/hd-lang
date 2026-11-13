@@ -168,6 +168,13 @@ impl Gen<'_, '_> {
     /// the instance (`dir.0`) or stores into it (`dir.1`).
     fn field(&mut self, v: &View, ty: Ty, at: Option<Vec<usize>>, dir: (bool, bool)) -> View {
         let (lc, n) = (self.s.ls.of(ty), self.width(ty) as usize);
+        // A field of a value held whole, with no slot of its own, is part
+        // of that whole ([`super::Slot::whole`]).
+        if let [whole] = v.0[..]
+            && self.s.ls.of(v.1).slots.is_empty()
+        {
+            return (vec![whole; n], ty);
+        }
         // A top slot that is no one slot of the instance takes all of them.
         let at = at.filter(|at| at.len() == n && lc.tops.iter().all(|&k| at[k] < v.0.len()));
         let mut fresh: Split = Default::default();
@@ -1133,9 +1140,10 @@ impl Gen<'_, '_> {
     }
 
     /// Whether slot `j` of parameter `q`, a place the caller owns, may take
-    /// `o`: the run of its referent's top slot has one lifetime, and a
-    /// result of that lifetime may depend on `o` (`ref.lifetime.store`). A
-    /// capture slot takes nothing (`fn.capture.local-store`).
+    /// `o`: the run of its referent's top slot, or its whole slot, has one
+    /// lifetime, and a result of that lifetime may depend on `o`
+    /// (`ref.lifetime.store`). A capture slot takes nothing
+    /// (`fn.capture.local-store`).
     fn takes(&self, q: u32, j: usize, o: Origin) -> bool {
         let (pool, ls) = (self.s.pool, self.s.ls);
         let Some(own) = self.s.own else { return false };
@@ -1148,6 +1156,10 @@ impl Gen<'_, '_> {
         };
         if lay.slots.get(j).is_none_or(|x| x.fun) {
             return false;
+        }
+        // A referent held whole is at its one lifetime ([`super::Slot::whole`]).
+        if lay.slots[j].whole {
+            return ids.get(j).is_some_and(|&l| own.allows(ls, o, l));
         }
         let k = j - s0 - 1;
         let inner = ls.of(referent(pool, lay.slots[s0].ty));

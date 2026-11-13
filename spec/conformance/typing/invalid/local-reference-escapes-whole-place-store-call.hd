@@ -1,0 +1,18 @@
+# test: a call that stores into a `&mut` place with no slot of its own keeps the stored value's origins
+# Spec 13 Generic Calls: ref.generic.store; Lifetime Stores:
+# ref.lifetime.store.call. `d`'s referent `S::Item` has no slot of its own
+# but is a place the caller owns at `'a`, and `set` stores into it the
+# `s.make(&q)` that holds `q`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn set[T](dst: &mut T, x: T) -> void:
+    *dst = x
+
+fn bad['a, S < Shelf['a]](s: &S, d: &mut S::Item, p: &'a Point) -> void:
+    q := Point { x: 1 }
+    set(d, s.make(&q)) # diagnostic: local-reference-escapes

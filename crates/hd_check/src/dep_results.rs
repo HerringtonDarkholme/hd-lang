@@ -23,7 +23,8 @@
 //!
 //! A value's slots are its reference slots and its function types'
 //! capture slots at the top, outside another reference ([`Layout`]), and
-//! the slots behind a reference are its referent's. Where a projection or
+//! the slots behind a reference are its referent's, or one for the whole
+//! of a referent with none that still holds origins, as `S::Item`. Where a projection or
 //! a construction cannot be lined up with the slots, each slot takes the
 //! union of all of them through one region, which only adds origins.
 
@@ -185,10 +186,17 @@ impl DepSig {
         let outs = (ls.of(ret).slots.iter())
             .map(|s| {
                 let &Slot {
-                    ty: st, fun, hold, ..
+                    ty: st,
+                    fun,
+                    hold,
+                    whole,
+                    ..
                 } = s;
                 if hold {
                     return next_held().or(held);
+                }
+                if whole {
+                    return None;
                 }
                 if fun {
                     return match capture_elided {
@@ -269,10 +277,17 @@ impl DepSig {
         let outs = (ls.of(result).slots.iter())
             .filter_map(|s| {
                 let &Slot {
-                    ty: st, fun, hold, ..
+                    ty: st,
+                    fun,
+                    hold,
+                    whole,
+                    ..
                 } = s;
                 if hold {
                     return Some(held);
+                }
+                if whole {
+                    return Some(None);
                 }
                 if fun {
                     return Some(match capture_elided {
@@ -535,7 +550,9 @@ fn slot_ids(
             if s.hold {
                 return held().unwrap_or(own);
             }
-            if s.fun {
+            // A whole slot writes no lifetime: [`Ck::with_wholes`] gives
+            // it its referent's.
+            if s.fun || s.whole {
                 return own;
             }
             *ref_at += 1;
@@ -656,7 +673,7 @@ fn proj_holds(pool: Types<'_>, proj: Ty, p: hd_types::ParamRef) -> bool {
 fn ref_ids_of<T: Copy>(ls: &Layouts<'_>, t: Ty, ids: &[T]) -> Vec<T> {
     (ls.of(t).slots.iter())
         .zip(ids)
-        .filter(|(s, _)| !s.fun)
+        .filter(|(s, _)| !s.fun && !s.whole)
         .map(|(_, &id)| id)
         .collect()
 }
@@ -769,7 +786,41 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                 },
             ) => {
                 decl(st, 1);
-                walk(ls, a, b, st, d1)
+                let ok = walk(ls, a, b, st, d1);
+                // The whole slot of each side's referent ([`Slot::whole`]):
+                // the declared one, or what a type parameter there stands
+                // for whole, its slot 0, as a call passes it
+                // ([`Ck::call_sig`]).
+                let whole = |r: Ty| ls.of(r).slots.get(1).is_some_and(|s| s.whole);
+                let bare = || bare_parts(pool, a).0.first().copied();
+                // The first projection of a type parameter there, as
+                // `Self::Item` of a trait with no lifetimes.
+                let param_proj = |a: Ty| {
+                    let mut stack = vec![a];
+                    let mut each = std::iter::from_fn(|| {
+                        let x = stack.pop()?;
+                        pool.children(x, &mut stack);
+                        Some(x)
+                    });
+                    each.find_map(|x| match pool.get(x) {
+                        TyData::Assoc { self_ty, .. } => Some((param(self_ty)?, x)),
+                        _ => None,
+                    })
+                };
+                match (ok, whole(d), whole(t)) {
+                    (false, ..) | (_, false, false) => {}
+                    (_, true, true) => decl(st, 1),
+                    (_, false, true) if let Some(p) = bare() => st.1.push(Key::Param(p, 0)),
+                    (_, false, true)
+                        if st.2
+                            && let Some((p, proj)) = param_proj(a) =>
+                    {
+                        st.1.push(Key::AllOf(p, proj));
+                    }
+                    (_, true, false) => st.0 += 1,
+                    (_, false, true) => st.1.push(Key::None),
+                }
+                ok
             }
             (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
             (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
@@ -835,13 +886,20 @@ struct Slot {
     /// Whether a `*mut` holds it: every copy of the counted reference
     /// shares it, so it is related both ways, as behind a `&mut`.
     shared_mut: bool,
+    /// Whether it is the one origin set of a referent with no slot of its
+    /// own that holds origins, as `S::Item` behind `&mut S::Item`
+    /// ([`whole_referent`]): a place the referent's value is stored into
+    /// whole, and no reference slot.
+    whole: bool,
 }
 
 /// The origin slots of a type in pre-order (`ref.dep.position`): each
 /// local reference type outside function types, through counted
 /// references, as in [`Types::ref_slots`], each borrowing opaque type, each function type
-/// outside another function type, and each suspension after its
-/// result's slots, as a struct's lifetime. [`Layouts`] makes each once.
+/// outside another function type, each suspension after its
+/// result's slots, as a struct's lifetime, and one whole slot for a
+/// referent with no slot of its own that holds origins
+/// ([`Slot::whole`]). [`Layouts`] makes each once.
 struct Layout {
     slots: Vec<Slot>,
     /// The top slots.
@@ -854,7 +912,7 @@ struct Layout {
 impl Layout {
     fn new(pool: Types<'_>, suspend: DefId, lifetimed: Lifetimed<'_>, t: Ty) -> Layout {
         let mut slots = Vec::new();
-        Self::walk(pool, suspend, t, true, 0, &mut slots);
+        Self::walk(pool, suspend, lifetimed, t, true, 0, &mut slots);
         for k in 0..slots.len() {
             let fun = slots[k].fun && !slots[k].hold;
             slots[k].written = fun
@@ -875,13 +933,21 @@ impl Layout {
 
     /// Pushes the slots of `t` onto `out`. Any type may hold a suspension,
     /// so only depth stops the walk.
-    fn walk(pool: Types<'_>, suspend: DefId, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
+    fn walk(
+        pool: Types<'_>,
+        suspend: DefId,
+        lifetimed: Lifetimed<'_>,
+        t: Ty,
+        top: bool,
+        depth: u32,
+        out: &mut Vec<Slot>,
+    ) {
         if depth > 32 {
             return;
         }
         let d = depth + 1;
         let walk = |t: Ty, top: bool, out: &mut Vec<Slot>| {
-            Self::walk(pool, suspend, t, top, d, out);
+            Self::walk(pool, suspend, lifetimed, t, top, d, out);
         };
         let hold = matches!(pool.get(t), TyData::Adt { def, .. } if def == suspend);
         let slot = Slot {
@@ -892,6 +958,7 @@ impl Layout {
             end: out.len() + 1,
             written: false,
             shared_mut: false,
+            whole: false,
         };
         match pool.get(t) {
             TyData::Ref {
@@ -902,6 +969,17 @@ impl Layout {
                 let k = out.len();
                 out.push(slot);
                 walk(inner, false, out);
+                // A referent with no slot of its own that holds origins is
+                // one place, which a store fills whole.
+                if out.len() == k + 1 && whole_referent(pool, lifetimed, inner) {
+                    out.push(Slot {
+                        ty: inner,
+                        top: false,
+                        end: k + 2,
+                        whole: true,
+                        ..slot
+                    });
+                }
                 out[k].end = out.len();
             }
             TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
@@ -1164,6 +1242,18 @@ fn lifetimed<'l>(lookup: &'l hd_resolve::Lookup<'_>) -> impl Fn(DefId) -> bool +
             .item(d)
             .is_some_and(|it| it.generics.iter().any(|g| g.lifetime))
     }
+}
+
+/// Whether a referent `t` with no slot of its own still holds origins
+/// as a whole, so a reference to it has one slot for them: a projection,
+/// or a type holding one, as `S::Item` or `(S::Item, i32)` with
+/// `S < Shelf['a]` (`ref.lifetime.trait.bound-argument`), a trait's own
+/// projection where the trait has lifetimes ([`own_proj`]) included. A
+/// trait value's origins are its reference's (`ref.dep.trait`).
+fn whole_referent(pool: Types<'_>, lifetimed: Lifetimed<'_>, t: Ty) -> bool {
+    pool.has_assoc(t)
+        && !is_dyn(pool, t)
+        && (holds_local_ref(pool, t) || own_proj(pool, lifetimed, t))
 }
 
 /// What reference type `t` refers to.
@@ -1618,11 +1708,25 @@ impl Ck<'_, '_> {
             let outlives = (def.zip(sig.as_ref()))
                 .and_then(|(d, sig)| outlives_field(pool, d, &sig.generics, *decl));
             let written = ls.of(*decl);
+            // Through a bound, the trait's own projection, as `Self::Item`
+            // of `Mk[V]` with `S < Mk[&'a Point]`, is at the lifetimes of
+            // the caller's projection it stands for, the caller's own
+            // (`ref.lifetime.trait.bound-argument`).
+            let own_whole =
+                |actual: Ty| (self.whole_lifetimes(ls, actual).first().copied()).map(Var::Own);
             let slots = (keys.into_iter().zip(&ls.of(t).slots))
                 .map(|(k, s)| {
                     let var = match k {
                         Key::Decl(j) => Var::Life(ids.get(j).copied().unwrap_or(NO_SOURCE)),
                         Key::None => Var::Life(NO_SOURCE),
+                        Key::AllOf(p, _)
+                            if s.whole
+                                && through_bound
+                                && trait_ == Some(p.owner)
+                                && let Some(v) = own_whole(s.ty) =>
+                        {
+                            v
+                        }
                         // Each slot of a projection takes each lifetime its
                         // bounds write (`ref.lifetime.trait.bound-argument`).
                         Key::AllOf(_, proj) => {
@@ -1665,6 +1769,12 @@ impl Ck<'_, '_> {
             let mut vs: Vec<Var> = Vec::new();
             if slots.is_empty() && ls.holds(t) {
                 vs.extend(self.whole_lifetimes(ls, *decl).into_iter().map(Var::Life));
+                if through_bound
+                    && let Some(tr) = trait_
+                    && own_proj(pool, &|d| d == tr, *decl)
+                {
+                    vs.extend(own_whole(t));
+                }
                 for q in bare_parts(pool, *decl).0 {
                     let v = own(q, 0).unwrap_or(Var::Param(q, 0));
                     took.push((Key::Param(q, 0), v));
@@ -1881,11 +1991,23 @@ impl Ck<'_, '_> {
     /// its projections' lifetimes alone, as Rust's projection outlives rule
     /// has it, not on a receiver it was not built from.
     fn with_wholes(&self, ls: &Layouts<'_>, mut dep: DepSig) -> DepSig {
+        // The first of a whole slot's lifetimes ([`Slot::whole`]).
+        let first = |s: &Slot| (s.whole).then(|| self.whole_lifetimes(ls, s.ty).first().copied());
         for (t, ids) in &mut dep.params {
             if ids.is_empty()
                 && let Some(&l) = self.whole_lifetimes(ls, *t).first()
             {
                 ids.push(l);
+            }
+            for (id, s) in ids.iter_mut().zip(&ls.of(*t).slots) {
+                if let Some(Some(l)) = first(s) {
+                    *id = l;
+                }
+            }
+        }
+        for (o, s) in dep.outs.iter_mut().zip(&ls.of(dep.ret).slots) {
+            if let Some(l) = first(s) {
+                *o = l;
             }
         }
         let (projs, other) = wholes(ls, dep.ret);

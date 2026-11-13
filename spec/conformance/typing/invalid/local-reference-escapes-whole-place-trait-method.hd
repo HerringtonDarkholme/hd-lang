@@ -1,0 +1,16 @@
+# test: a trait method that stores into a `&mut Self::Item` place takes values at the bound's lifetimes
+# Spec 13 Lifetime Stores: ref.lifetime.store.call; Lifetime Traits:
+# ref.lifetime.trait.bound-argument. Through `S < Mk[&'a Point]`, `fill`'s
+# `Self::Item` stands for the caller's `S::Item` at `'a`, and
+# `s.make(&q)` holds `q`.
+struct Point:
+    x: i32
+
+trait Mk[V]:
+    type Item
+    fn make(&self, v: V) -> Self::Item
+    fn fill(&self, d: &mut Self::Item, x: Self::Item) -> void
+
+fn bad['a, S < Mk[&'a Point]](s: &S, d: &mut S::Item, p: &'a Point) -> void:
+    q := Point { x: 1 }
+    s.fill(d, s.make(&q)) # diagnostic: local-reference-escapes

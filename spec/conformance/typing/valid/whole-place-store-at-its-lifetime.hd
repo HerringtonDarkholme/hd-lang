@@ -1,0 +1,70 @@
+# test: a `&mut` place with no slot of its own takes values at its projection's lifetimes
+# Spec 13 Lifetime Stores: ref.lifetime.store.call; Generic Calls:
+# ref.generic.store. `*d` is the caller's `S::Item` place at `'a`: a value
+# built from `p: &'a Point` or given as an `S::Item` may go there, by a
+# call, by an assignment, into a field, through a trait method, and in a
+# trait's default body. A caller passes its own `Keep['c]` place.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+    fn fill(&self, d: &mut Self::Item, p: &'b Point) -> void:
+        *d = self.make(p)
+
+trait Mk[V]:
+    type Item
+    fn make(&self, v: V) -> Self::Item
+    fn put(&self, d: &mut Self::Item, x: Self::Item) -> void
+
+fn set[T](dst: &mut T, x: T) -> void:
+    *dst = x
+
+fn by_call['a, S < Shelf['a]](s: &S, d: &mut S::Item, p: &'a Point) -> void:
+    set(d, s.make(p))
+
+fn by_assign['a, S < Shelf['a]](s: &S, d: &mut S::Item, p: &'a Point) -> void:
+    *d = s.make(p)
+
+fn given['a, S < Shelf['a]](d: &mut S::Item, x: S::Item) -> void:
+    set(d, x)
+
+fn into_field['a, S < Shelf['a]](s: &S, d: &mut (S::Item, i32), p: &'a Point) -> void:
+    d._0 = s.make(p)
+    set(&mut d._0, s.make(p))
+
+fn by_method['a, S < Mk[&'a Point]](s: &S, d: &mut S::Item, p: &'a Point) -> void:
+    s.put(d, s.make(p))
+
+struct Keep['a]:
+    last: &'a Point
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+fn caller['c](d: &mut Keep['c], p: &'c Point) -> void:
+    s := Sh { n: 1 }
+    by_assign(&s, d, p)
+
+fn relay['a, S < Shelf['a]](s: &S, d: &mut S::Item, p: &'a Point) -> void:
+    by_assign(s, d, p)
+
+fn peek['a, S < Shelf['a]](d: &S::Item) -> &S::Item:
+    d
+
+fn look['a, S < Shelf['a]](f: fn(&S::Item) -> &S::Item, d: &S::Item) -> &S::Item:
+    f(d)
+
+trait Pair[V]:
+    type Item
+    fn make(&self, v: V) -> Self::Item
+    fn put_first(&self, d: &mut (Self::Item, i32), x: Self::Item) -> void
+
+fn by_pair['a, S < Pair[&'a Point]](s: &S, d: &mut (S::Item, i32), p: &'a Point) -> void:
+    s.put_first(d, s.make(p))

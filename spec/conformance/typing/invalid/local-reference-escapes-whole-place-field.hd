@@ -1,0 +1,14 @@
+# test: a field of a `&mut` place with no slot of its own is part of that place
+# Spec 13 Lifetime Stores: ref.lifetime.store; Lifetime Traits:
+# ref.lifetime.trait.bound-argument. `d._0` lies in the caller's
+# `(S::Item, i32)` place at `'a`, and `s.make(&q)` holds `q`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn bad['a, S < Shelf['a]](s: &S, d: &mut (S::Item, i32), p: &'a Point) -> void:
+    q := Point { x: 1 }
+    d._0 = s.make(&q) # diagnostic: local-reference-escapes
