@@ -464,29 +464,31 @@ impl Ck<'_, '_> {
 /// `target` inline: through struct fields, enum payloads, tuple elements,
 /// optionals and newtypes, but not through a reference, a data type, a
 /// collection, a trait value or a function (`data.struct.contains`,
-/// `data.struct.no-recursion`, `data.enum.no-recursion`). `seen` holds the
-/// types already searched.
+/// `data.struct.no-recursion`, `data.enum.no-recursion`).
 pub(crate) fn holds_value(
     pool: hd_types::Types<'_>,
     lookup: &hd_resolve::Lookup<'_>,
     t: Ty,
     target: DefId,
-    seen: &mut Vec<Ty>,
 ) -> bool {
-    walk_values(pool, lookup, t, seen, &mut |d| d == target)
+    walk_values(pool, lookup, t, &mut HashSet::default(), &mut |d| {
+        d == target
+    })
 }
 
 /// The declarations whose values a value of type `t` holds inline, as
 /// [`holds_value`] searches them, each once, in the order first reached.
+/// `seen` holds the types already searched, across calls.
 pub(crate) fn held_values(
     pool: hd_types::Types<'_>,
     lookup: &hd_resolve::Lookup<'_>,
     t: Ty,
-    seen: &mut Vec<Ty>,
+    seen: &mut HashSet<Ty>,
     out: &mut Vec<DefId>,
 ) {
+    let mut held: HashSet<DefId> = out.iter().copied().collect();
     walk_values(pool, lookup, t, seen, &mut |d| {
-        if !out.contains(&d) {
+        if held.insert(d) {
             out.push(d);
         }
         false
@@ -494,18 +496,25 @@ pub(crate) fn held_values(
 }
 
 /// Visits each declaration whose value `t` holds inline, stopping at the
-/// first for which `found` is true; whether one was.
+/// first for which `found` is true; whether one was. Declarations are
+/// reached in the order a left-to-right depth-first search takes.
+///
+/// A work stack, each type once (`seen`), with no cap on how many: a
+/// cycle of 300 declarations held inline was missed past a cap of 256
+/// types (#1777). Only a type deeper than `hd_base::limits::TYPE_DEPTH`
+/// is not entered. Distinct types grow that deep only along a path that
+/// comes back to its own declaration with growing arguments
+/// (`struct S[T]: x: S[(T, T)]`), and that declaration holds itself, so
+/// it is `recursive-value-type` and the program is already rejected.
+/// Cost: one visit per type held inline, per call; a chain of `n`
+/// declarations held inline costs `n` per item that holds its head.
 fn walk_values(
     pool: hd_types::Types<'_>,
     lookup: &hd_resolve::Lookup<'_>,
     t: Ty,
-    seen: &mut Vec<Ty>,
+    seen: &mut HashSet<Ty>,
     found: &mut dyn FnMut(DefId) -> bool,
 ) -> bool {
-    if seen.contains(&t) || seen.len() > 256 {
-        return false;
-    }
-    seen.push(t);
     let field_tys = |def: DefId, args: hd_types::TyList, tys: &mut Vec<Ty>| {
         let argv = pool.list_items(args);
         let sub = |f: Ty| {
@@ -546,42 +555,47 @@ fn walk_values(
             | hd_resolve::ItemData::AssocType { .. } => {}
         }
     };
+    let mut stack = vec![t];
     let mut inner = Vec::new();
-    match pool.get(t) {
-        TyData::Adt { def, args } => {
-            if found(def) {
-                return true;
+    while let Some(t) = stack.pop() {
+        if pool.depth(t) > hd_base::limits::TYPE_DEPTH || !seen.insert(t) {
+            continue;
+        }
+        match pool.get(t) {
+            TyData::Adt { def, args } => {
+                if found(def) {
+                    return true;
+                }
+                field_tys(def, args, &mut inner);
             }
-            field_tys(def, args, &mut inner);
+            // A union holds its members inline, as an enum its payloads
+            // (`types.union.representation`, `data.struct.contains`).
+            TyData::Tuple { elems: parts, .. } | TyData::Union(parts) => {
+                inner.extend_from_slice(pool.list_items(parts));
+            }
+            // Containment ends at a reference, a trait value and a function
+            // value (`data.struct.contains.ends`); the rest hold no
+            // declaration's value: a parameter, a primitive, a projection or
+            // opaque type, whose value the instance decides, and a goal in
+            // error or still open.
+            TyData::Ref { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Fn { .. }
+            | TyData::Param(_)
+            | TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Opaque { .. }
+            | TyData::Assoc { .. }
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
-        // A union holds its members inline, as an enum its payloads
-        // (`types.union.representation`, `data.struct.contains`).
-        TyData::Tuple { elems: parts, .. } | TyData::Union(parts) => {
-            inner.extend_from_slice(pool.list_items(parts));
-        }
-        // Containment ends at a reference, a trait value and a function
-        // value (`data.struct.contains.ends`); the rest hold no
-        // declaration's value: a parameter, a primitive, a projection or
-        // opaque type, whose value the instance decides, and a goal in
-        // error or still open.
-        TyData::Ref { .. }
-        | TyData::TraitValue { .. }
-        | TyData::Fn { .. }
-        | TyData::Param(_)
-        | TyData::Prim(_)
-        | TyData::Never
-        | TyData::Poison
-        | TyData::Opaque { .. }
-        | TyData::Assoc { .. }
-        | TyData::Const(_)
-        | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Row(_)
-        | TyData::Context(_) => {}
+        stack.extend(inner.drain(..).rev());
     }
-    inner
-        .into_iter()
-        .any(|i| walk_values(pool, lookup, i, seen, found))
+    false
 }
 
 #[cfg(test)]

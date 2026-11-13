@@ -1,0 +1,8 @@
+# test: a local reference returned from one `if` arm is reported at that arm, not at the `if`
+# Spec 13 Dependent Results: ref.dep.return, ref.dep.return.message.
+fn pick(c: bool, p: &i32) -> &i32:
+    x := 1
+    if c:
+        p
+    else:
+        &x # diagnostic: local-reference-escapes

@@ -1,0 +1,901 @@
+# test: 300 structs that hold one another inline in a cycle hold themselves; a cap of 256 types missed it (#1777)
+# Spec 8 Data: data.struct.no-recursion.
+struct C0:
+    next: C1 # diagnostic: recursive-value-type
+
+struct C1:
+    next: C2
+
+struct C2:
+    next: C3
+
+struct C3:
+    next: C4
+
+struct C4:
+    next: C5
+
+struct C5:
+    next: C6
+
+struct C6:
+    next: C7
+
+struct C7:
+    next: C8
+
+struct C8:
+    next: C9
+
+struct C9:
+    next: C10
+
+struct C10:
+    next: C11
+
+struct C11:
+    next: C12
+
+struct C12:
+    next: C13
+
+struct C13:
+    next: C14
+
+struct C14:
+    next: C15
+
+struct C15:
+    next: C16
+
+struct C16:
+    next: C17
+
+struct C17:
+    next: C18
+
+struct C18:
+    next: C19
+
+struct C19:
+    next: C20
+
+struct C20:
+    next: C21
+
+struct C21:
+    next: C22
+
+struct C22:
+    next: C23
+
+struct C23:
+    next: C24
+
+struct C24:
+    next: C25
+
+struct C25:
+    next: C26
+
+struct C26:
+    next: C27
+
+struct C27:
+    next: C28
+
+struct C28:
+    next: C29
+
+struct C29:
+    next: C30
+
+struct C30:
+    next: C31
+
+struct C31:
+    next: C32
+
+struct C32:
+    next: C33
+
+struct C33:
+    next: C34
+
+struct C34:
+    next: C35
+
+struct C35:
+    next: C36
+
+struct C36:
+    next: C37
+
+struct C37:
+    next: C38
+
+struct C38:
+    next: C39
+
+struct C39:
+    next: C40
+
+struct C40:
+    next: C41
+
+struct C41:
+    next: C42
+
+struct C42:
+    next: C43
+
+struct C43:
+    next: C44
+
+struct C44:
+    next: C45
+
+struct C45:
+    next: C46
+
+struct C46:
+    next: C47
+
+struct C47:
+    next: C48
+
+struct C48:
+    next: C49
+
+struct C49:
+    next: C50
+
+struct C50:
+    next: C51
+
+struct C51:
+    next: C52
+
+struct C52:
+    next: C53
+
+struct C53:
+    next: C54
+
+struct C54:
+    next: C55
+
+struct C55:
+    next: C56
+
+struct C56:
+    next: C57
+
+struct C57:
+    next: C58
+
+struct C58:
+    next: C59
+
+struct C59:
+    next: C60
+
+struct C60:
+    next: C61
+
+struct C61:
+    next: C62
+
+struct C62:
+    next: C63
+
+struct C63:
+    next: C64
+
+struct C64:
+    next: C65
+
+struct C65:
+    next: C66
+
+struct C66:
+    next: C67
+
+struct C67:
+    next: C68
+
+struct C68:
+    next: C69
+
+struct C69:
+    next: C70
+
+struct C70:
+    next: C71
+
+struct C71:
+    next: C72
+
+struct C72:
+    next: C73
+
+struct C73:
+    next: C74
+
+struct C74:
+    next: C75
+
+struct C75:
+    next: C76
+
+struct C76:
+    next: C77
+
+struct C77:
+    next: C78
+
+struct C78:
+    next: C79
+
+struct C79:
+    next: C80
+
+struct C80:
+    next: C81
+
+struct C81:
+    next: C82
+
+struct C82:
+    next: C83
+
+struct C83:
+    next: C84
+
+struct C84:
+    next: C85
+
+struct C85:
+    next: C86
+
+struct C86:
+    next: C87
+
+struct C87:
+    next: C88
+
+struct C88:
+    next: C89
+
+struct C89:
+    next: C90
+
+struct C90:
+    next: C91
+
+struct C91:
+    next: C92
+
+struct C92:
+    next: C93
+
+struct C93:
+    next: C94
+
+struct C94:
+    next: C95
+
+struct C95:
+    next: C96
+
+struct C96:
+    next: C97
+
+struct C97:
+    next: C98
+
+struct C98:
+    next: C99
+
+struct C99:
+    next: C100
+
+struct C100:
+    next: C101
+
+struct C101:
+    next: C102
+
+struct C102:
+    next: C103
+
+struct C103:
+    next: C104
+
+struct C104:
+    next: C105
+
+struct C105:
+    next: C106
+
+struct C106:
+    next: C107
+
+struct C107:
+    next: C108
+
+struct C108:
+    next: C109
+
+struct C109:
+    next: C110
+
+struct C110:
+    next: C111
+
+struct C111:
+    next: C112
+
+struct C112:
+    next: C113
+
+struct C113:
+    next: C114
+
+struct C114:
+    next: C115
+
+struct C115:
+    next: C116
+
+struct C116:
+    next: C117
+
+struct C117:
+    next: C118
+
+struct C118:
+    next: C119
+
+struct C119:
+    next: C120
+
+struct C120:
+    next: C121
+
+struct C121:
+    next: C122
+
+struct C122:
+    next: C123
+
+struct C123:
+    next: C124
+
+struct C124:
+    next: C125
+
+struct C125:
+    next: C126
+
+struct C126:
+    next: C127
+
+struct C127:
+    next: C128
+
+struct C128:
+    next: C129
+
+struct C129:
+    next: C130
+
+struct C130:
+    next: C131
+
+struct C131:
+    next: C132
+
+struct C132:
+    next: C133
+
+struct C133:
+    next: C134
+
+struct C134:
+    next: C135
+
+struct C135:
+    next: C136
+
+struct C136:
+    next: C137
+
+struct C137:
+    next: C138
+
+struct C138:
+    next: C139
+
+struct C139:
+    next: C140
+
+struct C140:
+    next: C141
+
+struct C141:
+    next: C142
+
+struct C142:
+    next: C143
+
+struct C143:
+    next: C144
+
+struct C144:
+    next: C145
+
+struct C145:
+    next: C146
+
+struct C146:
+    next: C147
+
+struct C147:
+    next: C148
+
+struct C148:
+    next: C149
+
+struct C149:
+    next: C150
+
+struct C150:
+    next: C151
+
+struct C151:
+    next: C152
+
+struct C152:
+    next: C153
+
+struct C153:
+    next: C154
+
+struct C154:
+    next: C155
+
+struct C155:
+    next: C156
+
+struct C156:
+    next: C157
+
+struct C157:
+    next: C158
+
+struct C158:
+    next: C159
+
+struct C159:
+    next: C160
+
+struct C160:
+    next: C161
+
+struct C161:
+    next: C162
+
+struct C162:
+    next: C163
+
+struct C163:
+    next: C164
+
+struct C164:
+    next: C165
+
+struct C165:
+    next: C166
+
+struct C166:
+    next: C167
+
+struct C167:
+    next: C168
+
+struct C168:
+    next: C169
+
+struct C169:
+    next: C170
+
+struct C170:
+    next: C171
+
+struct C171:
+    next: C172
+
+struct C172:
+    next: C173
+
+struct C173:
+    next: C174
+
+struct C174:
+    next: C175
+
+struct C175:
+    next: C176
+
+struct C176:
+    next: C177
+
+struct C177:
+    next: C178
+
+struct C178:
+    next: C179
+
+struct C179:
+    next: C180
+
+struct C180:
+    next: C181
+
+struct C181:
+    next: C182
+
+struct C182:
+    next: C183
+
+struct C183:
+    next: C184
+
+struct C184:
+    next: C185
+
+struct C185:
+    next: C186
+
+struct C186:
+    next: C187
+
+struct C187:
+    next: C188
+
+struct C188:
+    next: C189
+
+struct C189:
+    next: C190
+
+struct C190:
+    next: C191
+
+struct C191:
+    next: C192
+
+struct C192:
+    next: C193
+
+struct C193:
+    next: C194
+
+struct C194:
+    next: C195
+
+struct C195:
+    next: C196
+
+struct C196:
+    next: C197
+
+struct C197:
+    next: C198
+
+struct C198:
+    next: C199
+
+struct C199:
+    next: C200
+
+struct C200:
+    next: C201
+
+struct C201:
+    next: C202
+
+struct C202:
+    next: C203
+
+struct C203:
+    next: C204
+
+struct C204:
+    next: C205
+
+struct C205:
+    next: C206
+
+struct C206:
+    next: C207
+
+struct C207:
+    next: C208
+
+struct C208:
+    next: C209
+
+struct C209:
+    next: C210
+
+struct C210:
+    next: C211
+
+struct C211:
+    next: C212
+
+struct C212:
+    next: C213
+
+struct C213:
+    next: C214
+
+struct C214:
+    next: C215
+
+struct C215:
+    next: C216
+
+struct C216:
+    next: C217
+
+struct C217:
+    next: C218
+
+struct C218:
+    next: C219
+
+struct C219:
+    next: C220
+
+struct C220:
+    next: C221
+
+struct C221:
+    next: C222
+
+struct C222:
+    next: C223
+
+struct C223:
+    next: C224
+
+struct C224:
+    next: C225
+
+struct C225:
+    next: C226
+
+struct C226:
+    next: C227
+
+struct C227:
+    next: C228
+
+struct C228:
+    next: C229
+
+struct C229:
+    next: C230
+
+struct C230:
+    next: C231
+
+struct C231:
+    next: C232
+
+struct C232:
+    next: C233
+
+struct C233:
+    next: C234
+
+struct C234:
+    next: C235
+
+struct C235:
+    next: C236
+
+struct C236:
+    next: C237
+
+struct C237:
+    next: C238
+
+struct C238:
+    next: C239
+
+struct C239:
+    next: C240
+
+struct C240:
+    next: C241
+
+struct C241:
+    next: C242
+
+struct C242:
+    next: C243
+
+struct C243:
+    next: C244
+
+struct C244:
+    next: C245
+
+struct C245:
+    next: C246
+
+struct C246:
+    next: C247
+
+struct C247:
+    next: C248
+
+struct C248:
+    next: C249
+
+struct C249:
+    next: C250
+
+struct C250:
+    next: C251
+
+struct C251:
+    next: C252
+
+struct C252:
+    next: C253
+
+struct C253:
+    next: C254
+
+struct C254:
+    next: C255
+
+struct C255:
+    next: C256
+
+struct C256:
+    next: C257
+
+struct C257:
+    next: C258
+
+struct C258:
+    next: C259
+
+struct C259:
+    next: C260
+
+struct C260:
+    next: C261
+
+struct C261:
+    next: C262
+
+struct C262:
+    next: C263
+
+struct C263:
+    next: C264
+
+struct C264:
+    next: C265
+
+struct C265:
+    next: C266
+
+struct C266:
+    next: C267
+
+struct C267:
+    next: C268
+
+struct C268:
+    next: C269
+
+struct C269:
+    next: C270
+
+struct C270:
+    next: C271
+
+struct C271:
+    next: C272
+
+struct C272:
+    next: C273
+
+struct C273:
+    next: C274
+
+struct C274:
+    next: C275
+
+struct C275:
+    next: C276
+
+struct C276:
+    next: C277
+
+struct C277:
+    next: C278
+
+struct C278:
+    next: C279
+
+struct C279:
+    next: C280
+
+struct C280:
+    next: C281
+
+struct C281:
+    next: C282
+
+struct C282:
+    next: C283
+
+struct C283:
+    next: C284
+
+struct C284:
+    next: C285
+
+struct C285:
+    next: C286
+
+struct C286:
+    next: C287
+
+struct C287:
+    next: C288
+
+struct C288:
+    next: C289
+
+struct C289:
+    next: C290
+
+struct C290:
+    next: C291
+
+struct C291:
+    next: C292
+
+struct C292:
+    next: C293
+
+struct C293:
+    next: C294
+
+struct C294:
+    next: C295
+
+struct C295:
+    next: C296
+
+struct C296:
+    next: C297
+
+struct C297:
+    next: C298
+
+struct C298:
+    next: C299
+
+struct C299:
+    next: C0

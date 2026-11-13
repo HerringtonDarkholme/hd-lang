@@ -1594,15 +1594,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let holding: Vec<usize> = fields
             .iter()
             .enumerate()
-            .filter(|(_, f)| {
-                crate::value::holds_value(
-                    self.pool(),
-                    self.cx.lookup,
-                    f.ty,
-                    it.def,
-                    &mut Vec::new(),
-                )
-            })
+            .filter(|(_, f)| crate::value::holds_value(self.pool(), self.cx.lookup, f.ty, it.def))
             .map(|(i, _)| i)
             .collect();
         let Some(&first) = holding.first() else {
@@ -1668,7 +1660,7 @@ impl<'a> ItemCheck<'_, 'a> {
             )
         };
         let mut held = Vec::new();
-        let mut seen = Vec::new();
+        let mut seen = hd_base::HashSet::default();
         for f in fields {
             crate::value::held_values(pool, lookup, f.ty, &mut seen, &mut held);
         }
@@ -1688,7 +1680,7 @@ impl<'a> ItemCheck<'_, 'a> {
             key(y) < mine
                 && own
                     .into_iter()
-                    .any(|t| crate::value::holds_value(pool, lookup, t, def, &mut Vec::new()))
+                    .any(|t| crate::value::holds_value(pool, lookup, t, def))
         })
     }
 

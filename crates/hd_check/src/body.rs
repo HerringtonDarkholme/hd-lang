@@ -2640,9 +2640,12 @@ impl Ck<'_, '_> {
     /// argument, a function parameter or a function result that converts
     /// only by trait-value construction or optional injection
     /// (`types.variance.no-insertion`).
+    ///
+    /// It walks the types' structure, so it stops at
+    /// `hd_base::limits::TYPE_DEPTH`, past which a type is `type-too-large`.
     fn repr_change(&mut self, got: Ty, want: Ty, depth: u32) -> bool {
         let pool = self.pool();
-        if depth > 8 {
+        if depth > hd_base::limits::TYPE_DEPTH {
             return false;
         }
         let got = self.norm_ty(got);

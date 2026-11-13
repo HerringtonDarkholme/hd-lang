@@ -1,0 +1,222 @@
+# test: a value moved out through 70 nested `if` arms is moved, and its later use is an error (#1777)
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Token:
+    id: i32
+
+impl !Copy for Token
+
+fn take(t: Token) -> i32: t.id
+
+fn pick(t: Token, c: bool) -> i32:
+    y := if c:
+        if c:
+            if c:
+                if c:
+                    if c:
+                        if c:
+                            if c:
+                                if c:
+                                    if c:
+                                        if c:
+                                            if c:
+                                                if c:
+                                                    if c:
+                                                        if c:
+                                                            if c:
+                                                                if c:
+                                                                    if c:
+                                                                        if c:
+                                                                            if c:
+                                                                                if c:
+                                                                                    if c:
+                                                                                        if c:
+                                                                                            if c:
+                                                                                                if c:
+                                                                                                    if c:
+                                                                                                        if c:
+                                                                                                            if c:
+                                                                                                                if c:
+                                                                                                                    if c:
+                                                                                                                        if c:
+                                                                                                                            if c:
+                                                                                                                                if c:
+                                                                                                                                    if c:
+                                                                                                                                        if c:
+                                                                                                                                            if c:
+                                                                                                                                                if c:
+                                                                                                                                                    if c:
+                                                                                                                                                        if c:
+                                                                                                                                                            if c:
+                                                                                                                                                                if c:
+                                                                                                                                                                    if c:
+                                                                                                                                                                        if c:
+                                                                                                                                                                            if c:
+                                                                                                                                                                                if c:
+                                                                                                                                                                                    if c:
+                                                                                                                                                                                        if c:
+                                                                                                                                                                                            if c:
+                                                                                                                                                                                                if c:
+                                                                                                                                                                                                    if c:
+                                                                                                                                                                                                        if c:
+                                                                                                                                                                                                            if c:
+                                                                                                                                                                                                                if c:
+                                                                                                                                                                                                                    if c:
+                                                                                                                                                                                                                        if c:
+                                                                                                                                                                                                                            if c:
+                                                                                                                                                                                                                                if c:
+                                                                                                                                                                                                                                    if c:
+                                                                                                                                                                                                                                        if c:
+                                                                                                                                                                                                                                            if c:
+                                                                                                                                                                                                                                                if c:
+                                                                                                                                                                                                                                                    if c:
+                                                                                                                                                                                                                                                        if c:
+                                                                                                                                                                                                                                                            if c:
+                                                                                                                                                                                                                                                                if c:
+                                                                                                                                                                                                                                                                    if c:
+                                                                                                                                                                                                                                                                        if c:
+                                                                                                                                                                                                                                                                            if c:
+                                                                                                                                                                                                                                                                                if c:
+                                                                                                                                                                                                                                                                                    if c:
+                                                                                                                                                                                                                                                                                        if c:
+                                                                                                                                                                                                                                                                                            t
+                                                                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                                                                    else:
+                                                                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                                                                else:
+                                                                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                                                            else:
+                                                                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                                                    else:
+                                                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                                                else:
+                                                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                                            else:
+                                                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                                    else:
+                                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                                else:
+                                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                            else:
+                                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                    else:
+                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                else:
+                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                            else:
+                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                    else:
+                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                else:
+                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                            else:
+                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                        else:
+                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                    else:
+                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                else:
+                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                            else:
+                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                        else:
+                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                    else:
+                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                else:
+                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                            else:
+                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                        else:
+                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                    else:
+                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                else:
+                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                            else:
+                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                        else:
+                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                    else:
+                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                else:
+                                                                                                                                                    Token { id: 0 }
+                                                                                                                                            else:
+                                                                                                                                                Token { id: 0 }
+                                                                                                                                        else:
+                                                                                                                                            Token { id: 0 }
+                                                                                                                                    else:
+                                                                                                                                        Token { id: 0 }
+                                                                                                                                else:
+                                                                                                                                    Token { id: 0 }
+                                                                                                                            else:
+                                                                                                                                Token { id: 0 }
+                                                                                                                        else:
+                                                                                                                            Token { id: 0 }
+                                                                                                                    else:
+                                                                                                                        Token { id: 0 }
+                                                                                                                else:
+                                                                                                                    Token { id: 0 }
+                                                                                                            else:
+                                                                                                                Token { id: 0 }
+                                                                                                        else:
+                                                                                                            Token { id: 0 }
+                                                                                                    else:
+                                                                                                        Token { id: 0 }
+                                                                                                else:
+                                                                                                    Token { id: 0 }
+                                                                                            else:
+                                                                                                Token { id: 0 }
+                                                                                        else:
+                                                                                            Token { id: 0 }
+                                                                                    else:
+                                                                                        Token { id: 0 }
+                                                                                else:
+                                                                                    Token { id: 0 }
+                                                                            else:
+                                                                                Token { id: 0 }
+                                                                        else:
+                                                                            Token { id: 0 }
+                                                                    else:
+                                                                        Token { id: 0 }
+                                                                else:
+                                                                    Token { id: 0 }
+                                                            else:
+                                                                Token { id: 0 }
+                                                        else:
+                                                            Token { id: 0 }
+                                                    else:
+                                                        Token { id: 0 }
+                                                else:
+                                                    Token { id: 0 }
+                                            else:
+                                                Token { id: 0 }
+                                        else:
+                                            Token { id: 0 }
+                                    else:
+                                        Token { id: 0 }
+                                else:
+                                    Token { id: 0 }
+                            else:
+                                Token { id: 0 }
+                        else:
+                            Token { id: 0 }
+                    else:
+                        Token { id: 0 }
+                else:
+                    Token { id: 0 }
+            else:
+                Token { id: 0 }
+        else:
+            Token { id: 0 }
+    else:
+        Token { id: 0 }
+    take(y) + t.id # diagnostic: use-of-moved-value

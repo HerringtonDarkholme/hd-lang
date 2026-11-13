@@ -1360,7 +1360,7 @@ impl Gen<'_, '_> {
             let at = self.sites.get(&(e.from, e.to, e.inst)).copied();
             match e.cat {
                 Category::Result if returns.insert(e.inst) => {
-                    let at = site(b, &has, e.inst, o, 0);
+                    let at = site(b, &has, e.inst, o);
                     match results[&e.to] {
                         (None, ids) => v.results.push((at, o, *ids.first().unwrap_or(&NO_SOURCE))),
                         (Some(_), _) => v.closures.push((at, o)),

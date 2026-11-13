@@ -183,6 +183,17 @@ fn local_of(b: &Body, word: u32) -> Option<(LocalId, bool)> {
     }
 }
 
+/// What a consuming use does with a value it is given
+/// (`Ck::consume_moves`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Consumed {
+    Moves,
+    /// A store or construction that reborrows a `&mut`.
+    Stays,
+    /// A store to a whole hidden local: its reads decide.
+    Hidden(LocalId),
+}
+
 /// What [`Ck::moves`] follows a value through.
 struct Uses<'x> {
     copied: &'x [bool],
@@ -474,7 +485,7 @@ impl Ck<'_, '_> {
                 || link[i]
                 || !a.exact
                 || field_copies
-                || !self.moves(&cx, w(i), 0)
+                || !self.moves(&cx, w(i))
             {
                 continue;
             }
@@ -491,7 +502,7 @@ impl Ck<'_, '_> {
                 && acc[i].as_ref().is_some_and(|a| a.exact)
                 && !link[i]
                 && is_mut_ref(pool, b.ty[i])
-                && self.reborrows(&cx, w(i), 0)
+                && self.reborrows(&cx, w(i))
             {
                 facts.reborrows.insert(w(i));
             }
@@ -557,14 +568,24 @@ impl Ck<'_, '_> {
     /// `let`, an assignment, or a field or payload declared `&mut`
     /// (`ref.move.reborrow.typed`). A call's reborrow ends when it
     /// returns, and a hidden local's value is its reads'.
-    fn reborrows(&self, cx: &Uses<'_>, v: u32, depth: u32) -> bool {
+    ///
+    /// A work stack over the coercions `v` passes through, each value
+    /// once: a body's value graph is as deep as its program, so a depth
+    /// cap answered "does not reborrow" past it (#1777).
+    fn reborrows(&self, cx: &Uses<'_>, v: u32) -> bool {
         let (pool, b) = (self.pool(), cx.b);
-        depth <= 64
-            && cx.users[v as usize].iter().any(|&(u, role)| {
+        let mut stack: Vec<u32> = Vec::new();
+        let mut seen: HashSet<u32> = HashSet::default();
+        let mut next = Some(v);
+        while let Some(v) = next.take().or_else(|| stack.pop()) {
+            for &(u, role) in &cx.users[v as usize] {
                 let i = u as usize;
-                match (b.tags[i], role) {
+                let found = match (b.tags[i], role) {
                     (Tag::Coerce, _) => {
-                        is_mut_ref(pool, b.ty[i]) && self.reborrows(cx, u, depth + 1)
+                        if is_mut_ref(pool, b.ty[i]) && seen.insert(u) {
+                            stack.push(u);
+                        }
+                        false
                     }
                     (Tag::Store, Role::Consume)
                         if local_of(b, b.data[i][0])
@@ -575,76 +596,115 @@ impl Ck<'_, '_> {
                     (
                         Tag::Store | Tag::NewStruct | Tag::NewVariant | Tag::CopyStruct,
                         Role::Consume,
-                    ) => !self.consume_moves(cx, i, v, depth),
+                    ) => self.consume_moves(cx, i, v) == Consumed::Stays,
                     _ => false,
+                };
+                if found {
+                    return true;
                 }
-            })
+            }
+        }
+        false
     }
 
     /// Whether value `v`, which is not copied, moves where it is used
     /// (`ref.move.sites`, `ref.move.reborrow`).
-    fn moves(&self, cx: &Uses<'_>, v: u32, depth: u32) -> bool {
-        if depth > 64 {
-            return false;
-        }
+    ///
+    /// A work stack over the values `v` passes on to (coercions, a
+    /// block's owner, a hidden local's reads), each once, which also ends
+    /// a cycle through a hidden local: a body's value graph is as deep as
+    /// its program, so a depth cap answered "does not move" past it, and
+    /// a moved value's later use went unreported (#1777).
+    fn moves(&self, cx: &Uses<'_>, v: u32) -> bool {
         let b = cx.b;
-        cx.users[v as usize].iter().any(|&(u, role)| {
-            let i = u as usize;
-            if b.tags[i] == Tag::Coerce {
-                // A coercion to `&T` reborrows; one that keeps a type
-                // that is not copied passes the value on.
-                return !cx.copied[i] && self.moves(cx, u, depth + 1);
+        let mut stack: Vec<u32> = Vec::new();
+        let mut seen: HashSet<u32> = HashSet::default();
+        let mut pass = |u: u32, stack: &mut Vec<u32>| {
+            if seen.insert(u) {
+                stack.push(u);
             }
-            match role {
-                Role::Consume => self.consume_moves(cx, i, v, depth),
-                Role::Arg(k) => !self.param_is_mut(b, i, k as usize),
-                // A block's value is its owner's. A sub-body's root block
-                // gives its result to the caller ([`Uses::root_result_moves`]).
-                Role::Tail => {
-                    let owner = cx.topo.owner[i];
-                    if owner == NONE {
-                        cx.root_result_moves
-                    } else {
-                        self.moves(cx, owner, depth + 1)
+        };
+        let mut next = Some(v);
+        while let Some(v) = next.take().or_else(|| stack.pop()) {
+            for &(u, role) in &cx.users[v as usize] {
+                let i = u as usize;
+                if b.tags[i] == Tag::Coerce {
+                    // A coercion to `&T` reborrows; one that keeps a type
+                    // that is not copied passes the value on.
+                    if !cx.copied[i] {
+                        pass(u, &mut stack);
                     }
+                    continue;
                 }
-                _ => false,
+                let found = match role {
+                    Role::Consume => match self.consume_moves(cx, i, v) {
+                        Consumed::Moves => true,
+                        Consumed::Stays => false,
+                        Consumed::Hidden(h) => {
+                            for &r in cx.hidden_reads.get(&h).into_iter().flatten() {
+                                pass(r, &mut stack);
+                            }
+                            false
+                        }
+                    },
+                    Role::Arg(k) => !self.param_is_mut(b, i, k as usize),
+                    // A block's value is its owner's. A sub-body's root block
+                    // gives its result to the caller ([`Uses::root_result_moves`]).
+                    Role::Tail => {
+                        let owner = cx.topo.owner[i];
+                        if owner == NONE {
+                            cx.root_result_moves
+                        } else {
+                            pass(owner, &mut stack);
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+                if found {
+                    return true;
+                }
             }
-        })
+        }
+        false
     }
 
     /// Whether instruction `i`, which consumes value `v`, moves it: a
     /// store or a construction reborrows where a `&mut` type is expected
-    /// (`ref.move.sites`, `ref.move.reborrow.typed`).
-    fn consume_moves(&self, cx: &Uses<'_>, i: usize, v: u32, depth: u32) -> bool {
+    /// (`ref.move.sites`, `ref.move.reborrow.typed`). A store to a whole
+    /// hidden local passes the value on to its reads (`Hidden`).
+    fn consume_moves(&self, cx: &Uses<'_>, i: usize, v: u32) -> Consumed {
         let (pool, b) = (self.pool(), cx.b);
         let tag = b.tags[i];
+        let moves = |m: bool| if m { Consumed::Moves } else { Consumed::Stays };
         match tag {
             Tag::Store => {
                 let Some(p) = b.decode_place(b.data[i][0]) else {
-                    return true;
+                    return Consumed::Moves;
                 };
                 let (PlaceRoot::Local(h), true) = (p.root, p.proj.is_empty()) else {
-                    return !self.place_is_mut(b, &p);
+                    return moves(!self.place_is_mut(b, &p));
                 };
                 // A hidden local passes the value on to its reads.
                 if cx.hidden[h.idx()] {
-                    return (cx.hidden_reads.get(&h))
-                        .is_some_and(|rs| rs.iter().any(|&r| self.moves(cx, r, depth + 1)));
+                    return Consumed::Hidden(h);
                 }
                 // An assignment, or a `let` that writes the type, expects
                 // the binding's `&mut` type; `:=` and a bare `let` do not.
                 // Only a `&mut` reborrows (`ref.move.reborrow.typed`).
                 if !is_mut_ref(pool, b.local_ty[h.idx()]) {
-                    return true;
+                    return Consumed::Moves;
                 }
                 let at = b.syn[i];
                 if at == hd_base::NodeIdx::NONE {
-                    return true;
+                    return Consumed::Moves;
                 }
                 let n = self.cx.src.parse.tree.node(at);
-                !(n.kind() == SyntaxKind::AssignmentStmt
-                    || n.kind() == SyntaxKind::LetStmt && n.children().any(|c| c.kind().is_type()))
+                moves(
+                    !(n.kind() == SyntaxKind::AssignmentStmt
+                        || n.kind() == SyntaxKind::LetStmt
+                            && n.children().any(|c| c.kind().is_type())),
+                )
             }
             Tag::NewStruct | Tag::NewVariant | Tag::CopyStruct => {
                 let rec = b.record(b.data[i][1]);
@@ -653,10 +713,12 @@ impl Ck<'_, '_> {
                     _ => rec.iter().position(|&x| x == v).map(w),
                 };
                 let variant = (tag == Tag::NewVariant).then(|| b.data[i][0]);
-                !(j.and_then(|j| self.field_decl(b.ty[i], variant, j)))
-                    .is_some_and(|t| is_mut_ref(pool, t))
+                moves(
+                    !(j.and_then(|j| self.field_decl(b.ty[i], variant, j)))
+                        .is_some_and(|t| is_mut_ref(pool, t)),
+                )
             }
-            _ => true,
+            _ => Consumed::Moves,
         }
     }
 

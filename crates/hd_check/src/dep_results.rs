@@ -2083,31 +2083,49 @@ impl Ck<'_, '_> {
         values: &FnValues<'_>,
     ) -> Vec<(usize, Var)> {
         let mut out = Vec::new();
-        let mut seen = HashSet::default();
-        self.trace_value(ls, b, values, (v, &[], 0), &mut seen, &mut out);
-        out
-    }
-
-    /// [`Ck::written_inputs`] of the part `path` of value `v`.
-    fn trace_value(
-        &self,
-        ls: &Layouts<'_>,
-        b: &Body,
-        values: &FnValues<'_>,
-        (v, path, depth): (u32, &[Proj], u32),
-        seen: &mut HashSet<(u32, Vec<Proj>)>,
-        out: &mut Vec<(usize, Var)>,
-    ) {
-        let i = v as usize;
-        if depth > 32 || v & hd_tir::ir::Ref::CONST_BIT != 0 || i >= b.tags.len() {
-            return;
-        }
-        let d = depth + 1;
-        let mut push = |k: usize, var: Var| {
+        let push = |out: &mut Vec<(usize, Var)>, k: usize, var: Var| {
             if !out.contains(&(k, var)) {
                 out.push((k, var));
             }
         };
+        // A work stack of the parts to trace, in the order a recursive
+        // walk takes them: a body's value graph is as deep as its program,
+        // so a depth cap traced nothing past it (#1777). Values lead to
+        // earlier values, and each local's part is traced once (`seen`),
+        // which ends a cycle through a binding.
+        let mut seen: HashSet<(u32, Vec<Proj>)> = HashSet::default();
+        let mut stack: Vec<Trace> = vec![Trace::Value(v, Vec::new())];
+        while let Some(t) = stack.pop() {
+            match t {
+                Trace::Value(v, path) => {
+                    self.trace_value(b, (v, path), &mut stack, &mut |k, var| {
+                        push(&mut out, k, var);
+                    });
+                }
+                Trace::Local(l, path) => {
+                    if !seen.contains(&(l, path.clone())) {
+                        seen.insert((l, path.clone()));
+                        self.trace_local(ls, b, values, (l, &path), &mut stack, &mut out);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// [`Ck::written_inputs`] of the part `path` of value `v`: what it
+    /// writes itself goes to `push`, the parts it is made of to `stack`.
+    fn trace_value(
+        &self,
+        b: &Body,
+        (v, path): (u32, Vec<Proj>),
+        stack: &mut Vec<Trace>,
+        push: &mut dyn FnMut(usize, Var),
+    ) {
+        let i = v as usize;
+        if v & hd_tir::ir::Ref::CONST_BIT != 0 || i >= b.tags.len() {
+            return;
+        }
         // A named function's value writes no lifetime of the body's in its
         // inputs, nor does a value of no function type. A closure literal
         // that writes one, and a function type nested in another type, as
@@ -2115,29 +2133,25 @@ impl Ck<'_, '_> {
         // their written lifetimes.
         let tag = b.tags[i];
         if tag == Tag::Coerce {
-            self.trace_value(ls, b, values, (b.data[i][0], path, d), seen, out);
+            stack.push(Trace::Value(b.data[i][0], path));
         } else if tag == Tag::Read
             && let Some(place) = b.decode_place(b.data[i][0])
         {
-            let full: Vec<Proj> = place.proj.iter().chain(path).copied().collect();
+            let full: Vec<Proj> = place.proj.iter().chain(&path).copied().collect();
             match place.root {
-                PlaceRoot::Local(l) => {
-                    self.trace_local(ls, b, values, (l.raw(), &full, d), seen, out);
-                }
-                PlaceRoot::Value(r) => {
-                    self.trace_value(ls, b, values, (r.0, &full, d), seen, out);
-                }
+                PlaceRoot::Local(l) => stack.push(Trace::Local(l.raw(), full)),
+                PlaceRoot::Value(r) => stack.push(Trace::Value(r.0, full)),
                 // A top-level binding's type names no lifetime of the
                 // body's, and the frame and pointer roots hold no
                 // function value the checker built.
                 PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => {}
             }
         } else if tag == Tag::NewStruct
-            && let [Proj::Field(j), rest @ ..] = path
+            && let [Proj::Field(j), rest @ ..] = path.as_slice()
             && let Some(&f) = b.record(b.data[i][1]).get(*j as usize)
         {
             // A struct literal's field is the value it was given.
-            self.trace_value(ls, b, values, (f, rest, d), seen, out);
+            stack.push(Trace::Value(f, rest.to_vec()));
         } else if matches!(tag, Tag::Call | Tag::Await)
             && path.is_empty()
             && let Some(sig) = (Callee::from_words(b.record(b.data[i][0])))
@@ -2159,19 +2173,17 @@ impl Ck<'_, '_> {
 
     /// [`Ck::written_inputs`] of the part `path` of local `l`: a
     /// parameter's by its declared type, a binding's by what each store
-    /// into it, or into the part read, puts there.
+    /// into it, or into the part read, puts there (to `stack`, first
+    /// store on top).
     fn trace_local(
         &self,
         ls: &Layouts<'_>,
         b: &Body,
         values: &FnValues<'_>,
-        (l, path, depth): (u32, &[Proj], u32),
-        seen: &mut HashSet<(u32, Vec<Proj>)>,
+        (l, path): (u32, &[Proj]),
+        stack: &mut Vec<Trace>,
         out: &mut Vec<(usize, Var)>,
     ) {
-        if !seen.insert((l, path.to_vec())) {
-            return;
-        }
         let param = b.kind == BodyKind::Fn
             && (b.local_flags.get(l as usize))
                 .is_some_and(|f| f & hd_tir::ir::local_flags::PARAM != 0);
@@ -2180,19 +2192,14 @@ impl Ck<'_, '_> {
             self.trace_param(ls, sig, values, (l as usize, path), out);
             return;
         }
+        let at = stack.len();
         for &s in values.stores(l) {
             let place = b.decode_place(b.data[s as usize][0]);
             if let Some(rest) = place.and_then(|p| path.strip_prefix(p.proj.as_slice())) {
-                self.trace_value(
-                    ls,
-                    b,
-                    values,
-                    (b.data[s as usize][1], rest, depth),
-                    seen,
-                    out,
-                );
+                stack.push(Trace::Value(b.data[s as usize][1], rest.to_vec()));
             }
         }
+        stack[at..].reverse();
     }
 
     /// [`Ck::written_inputs`] of the part `path` of parameter `p`: its own
@@ -2373,12 +2380,16 @@ impl Ck<'_, '_> {
     /// (`ref.lifetime.trait.bound-unnamed`). Through a supertrait, its
     /// written lifetimes name the bound's lifetime arguments and its type
     /// parameters the bound's arguments. Empty where no bound writes one.
+    ///
+    /// `depth` counts the projections it is inside, one type level each:
+    /// it stops at `hd_base::limits::TYPE_DEPTH`, past which a type is
+    /// `type-too-large`.
     fn bound_ids(&self, ls: &Layouts<'_>, self_ty: Ty, trait_: DefId, depth: u32) -> Vec<Vec<u32>> {
-        if depth > 8 {
+        if depth > hd_base::limits::TYPE_DEPTH {
             return Vec::new();
         }
         match ls.pool.get(self_ty) {
-            TyData::Param(p) => self.param_bound_ids(ls, p, trait_, depth),
+            TyData::Param(p) => self.param_bound_ids(ls, p, trait_),
             TyData::Assoc {
                 assoc,
                 trait_: owner,
@@ -2395,7 +2406,6 @@ impl Ck<'_, '_> {
         ls: &Layouts<'_>,
         p: hd_types::ParamRef,
         trait_: DefId,
-        depth: u32,
     ) -> Vec<Vec<u32>> {
         let Some(it) = self.cx.lookup.item(p.owner) else {
             return Vec::new();
@@ -2404,7 +2414,7 @@ impl Ck<'_, '_> {
         // trait over its own parameters, lifetimes 1 and on in its scope.
         let k = usize::from(p.index);
         let k = match it.data {
-            ItemData::Trait(_) if k == 0 => return self.self_bound_ids(ls, it, trait_, depth),
+            ItemData::Trait(_) if k == 0 => return self.self_bound_ids(ls, it, trait_),
             ItemData::Trait(_) => k - 1,
             _ => k,
         };
@@ -2428,7 +2438,7 @@ impl Ck<'_, '_> {
                 args,
                 &lts.iter().map(|&l| u32::from(l)).collect::<Vec<_>>(),
             );
-            if let Some(found) = self.reach(ls, (def, args), ids, trait_, depth) {
+            if let Some(found) = self.reach(ls, (def, args), ids, trait_) {
                 return found;
             }
         }
@@ -2442,7 +2452,6 @@ impl Ck<'_, '_> {
         ls: &Layouts<'_>,
         tr: &hd_resolve::Item,
         trait_: DefId,
-        depth: u32,
     ) -> Vec<Vec<u32>> {
         if !tr.generics.iter().any(|g| g.lifetime) {
             return Vec::new();
@@ -2465,7 +2474,7 @@ impl Ck<'_, '_> {
                 args.push(t);
             }
         }
-        self.reach(ls, (tr.def, &args), ids, trait_, depth)
+        self.reach(ls, (tr.def, &args), ids, trait_)
             .unwrap_or_default()
     }
 
@@ -2507,7 +2516,7 @@ impl Ck<'_, '_> {
             else {
                 continue;
             };
-            if let Some(found) = self.reach(ls, (def, &bargs), bids, trait_, depth + 1) {
+            if let Some(found) = self.reach(ls, (def, &bargs), bids, trait_) {
                 return found;
             }
         }
@@ -2516,37 +2525,52 @@ impl Ck<'_, '_> {
 
     /// The slot lifetimes of `target`'s arguments, reached from trait
     /// `def` whose arguments' slots have lifetimes `ids`: `def` itself, or
-    /// one of its supertraits.
+    /// one of its supertraits, the first a left-to-right depth-first
+    /// search reaches.
+    ///
+    /// A work stack, each trait entered once: a supertrait chain is as
+    /// long as the program's, so a depth cap of 8 answered "no lifetimes"
+    /// past it (#1777). Whether `target` lies above a trait does not
+    /// depend on the lifetimes it is reached with, so a trait entered
+    /// once and left without it is not entered again. One that writes
+    /// no lifetime, reached with none, is skipped and not marked: all it
+    /// could give is no lifetimes.
     fn reach(
         &self,
         ls: &Layouts<'_>,
         (def, args): (DefId, &[Ty]),
         ids: Vec<Vec<u32>>,
         target: DefId,
-        depth: u32,
     ) -> Option<Vec<Vec<u32>>> {
-        if def == target {
-            return Some(ids);
-        }
-        let it = self.cx.lookup.item(def)?;
-        let ItemData::Trait(td) = &it.data else {
-            return None;
-        };
-        if depth > 8 || td.super_lifetimes.is_empty() && ids.iter().flatten().all(|&l| l == 0) {
-            return None;
-        }
-        let lifetimes = trait_lifetimes(&it.generics, &ids);
+        let mut stack = vec![(def, args.to_vec(), ids)];
+        let mut entered: HashSet<DefId> = HashSet::default();
         let none = Vec::new();
-        for (k, &sup) in td.supers.iter().enumerate() {
-            let lts = td.super_lifetimes.get(k).unwrap_or(&none);
-            let Some((sdef, sids, sargs)) =
-                Self::bound_in(ls, (def, args), &ids, &lifetimes, sup, lts)
-            else {
+        while let Some((def, args, ids)) = stack.pop() {
+            if def == target {
+                return Some(ids);
+            }
+            let Some(ItemData::Trait(td)) = self.cx.lookup.item(def).map(|it| &it.data) else {
                 continue;
             };
-            if let Some(found) = self.reach(ls, (sdef, &sargs), sids, target, depth + 1) {
-                return Some(found);
+            if td.super_lifetimes.is_empty() && ids.iter().flatten().all(|&l| l == 0)
+                || !entered.insert(def)
+            {
+                continue;
             }
+            let Some(it) = self.cx.lookup.item(def) else {
+                continue;
+            };
+            let lifetimes = trait_lifetimes(&it.generics, &ids);
+            let at = stack.len();
+            for (k, &sup) in td.supers.iter().enumerate() {
+                let lts = td.super_lifetimes.get(k).unwrap_or(&none);
+                if let Some((sdef, sids, sargs)) =
+                    Self::bound_in(ls, (def, &args), &ids, &lifetimes, sup, lts)
+                {
+                    stack.push((sdef, sargs, sids));
+                }
+            }
+            stack[at..].reverse();
         }
         None
     }
@@ -3607,36 +3631,48 @@ fn returned(b: &Body, root: u32) -> Vec<u32> {
     out
 }
 
+/// A part [`Ck::written_inputs`] traces: part `path` of a value or of a
+/// local.
+enum Trace {
+    Value(u32, Vec<Proj>),
+    Local(u32, Vec<Proj>),
+}
+
 /// The innermost part of value `v` whose origins hold `o`, as `has`
 /// says, for the diagnostic's position: an arm, a block's value, a
-/// construction's part.
-fn site(b: &Body, has: &dyn Fn(u32, Origin) -> bool, v: u32, o: Origin, depth: u32) -> NodeIdx {
-    let here = b.syn.get(v as usize).copied().unwrap_or(NodeIdx::NONE);
-    if depth > 64 || v & hd_tir::ir::Ref::CONST_BIT != 0 {
-        return here;
-    }
-    let mut inner = None;
-    if matches!(b.tags[v as usize], Tag::Coerce) {
-        inner = Some(b.data[v as usize][0]);
-    } else if !matches!(
-        b.tags[v as usize],
-        Tag::Read | Tag::Ref | Tag::Call | Tag::Await | Tag::CallDyn
-    ) {
-        slots(b, v as usize, |_, w, word| {
-            if inner.is_none()
-                && matches!(word, Word::Block | Word::Value(Role::Tail | Role::Consume))
-                && has(w, o)
-            {
-                inner = Some(w);
-            }
-        });
-    }
-    match inner {
-        Some(w) => {
-            let at = site(b, has, w, o, depth + 1);
-            if at == NodeIdx::NONE { here } else { at }
+/// construction's part. A loop down the body's tree, which ends at a
+/// leaf: each step goes to a part of the value before it.
+fn site(b: &Body, has: &dyn Fn(u32, Origin) -> bool, v: u32, o: Origin) -> NodeIdx {
+    let mut at = NodeIdx::NONE;
+    let mut v = v;
+    loop {
+        let here = b.syn.get(v as usize).copied().unwrap_or(NodeIdx::NONE);
+        if here != NodeIdx::NONE {
+            at = here;
         }
-        None => here,
+        if v & hd_tir::ir::Ref::CONST_BIT != 0 {
+            return at;
+        }
+        let mut inner = None;
+        if matches!(b.tags[v as usize], Tag::Coerce) {
+            inner = Some(b.data[v as usize][0]);
+        } else if !matches!(
+            b.tags[v as usize],
+            Tag::Read | Tag::Ref | Tag::Call | Tag::Await | Tag::CallDyn
+        ) {
+            slots(b, v as usize, |_, w, word| {
+                if inner.is_none()
+                    && matches!(word, Word::Block | Word::Value(Role::Tail | Role::Consume))
+                    && has(w, o)
+                {
+                    inner = Some(w);
+                }
+            });
+        }
+        match inner {
+            Some(w) => v = w,
+            None => return at,
+        }
     }
 }
 
