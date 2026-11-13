@@ -1,13 +1,15 @@
 # Live Execution: REPL, Journal And Replay
 
-Part of the [compiler design](../compiler/ARCHITECTURE.md).
+Part of the [compiler design](ARCHITECTURE.md).
 
-Status: built (#17). Sections 2, 4, 5, 7, 8 and 9 describe the shipped
-design, and the code cites them by number. Durable resume (#18) and hot reload
-(#182) are parked; their designs are in those issues. Journal checkpoints
-(#646) are decided (owner, 2026-10-25): an initialized base module with
-extension modules, using a memory snapshot inside it; built after the
-HTTP and CLI work.
+Status: built (#17); design record, may lag the code. Sections 2, 4, 5,
+7, 8 and 9 describe the shipped design, and the code cites them by
+number (some citations still name this file's old path under
+future-work, as it was at 7ccbb4ea8). Journal checkpoints (#646, owner 2026-10-25: an
+initialized base module with extension modules, using a memory snapshot
+inside it) are built (`hd_run_wasmtime/src/session.rs`, `Checkpoint`).
+Durable resume (#18) and hot reload (#182) are parked; their designs are
+indexed by #833.
 
 ## Summary
 

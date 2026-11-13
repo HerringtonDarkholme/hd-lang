@@ -2,7 +2,7 @@
 
 Status: accepted design, 2026-11-02; domain: runtime and host; not built.
 Nothing here is in the specification until a spec pass applies it.
-This reviews [Host Embedding](HOST_EMBEDDING.md),
+This reviews [Package Host Capabilities](../compiler/package-host-capabilities.md),
 [`module.host.package.*`](../../spec/lang/10-modules.md#package-host-traits), and
 [`cli.host.package.*`](../../spec/cli/command-line.md#package-host-bindings).
 
@@ -273,7 +273,7 @@ registration are internal. `hd_run::Instance` already exposes `init`, `poll`,
 `wake`, and `completed`, so a GUI can own the driving loop after instantiation.
 
 JavaScript generation in `hd_host_abi` already uses the checked contract and
-the value mappings summarized in [Host Embedding](HOST_EMBEDDING.md#generated-glue-for-js-hosts).
+the value mappings summarized in [Package Host Capabilities](../compiler/package-host-capabilities.md#generated-glue-for-js-hosts).
 The native design extends that source of truth; it does not change hd source.
 
 Parse log: the one `text` block parses with

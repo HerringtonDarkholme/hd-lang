@@ -127,5 +127,9 @@ Tools and front ends:
 - [ownership.md](ownership.md): counts per instance, pointer loans
   (model A) and raw buffers.
 
-Open designs stay in [`docs/future-work/`](../future-work/README.md), such as
-[live execution](../future-work/live-execution.md).
+- [live-execution.md](live-execution.md): the REPL, the execution journal
+  and replay.
+- [package-host-capabilities.md](package-host-capabilities.md): `@host`
+  traits an SDK maps to JavaScript providers, consent and generated glue.
+
+Open designs stay in [`docs/future-work/`](../future-work/README.md).

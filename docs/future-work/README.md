@@ -20,7 +20,6 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 ### Application and host
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
-- [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
 - [Native Package Host Bindings](NATIVE_PACKAGE_HOST_BINDINGS.md): accepted design, not built: generated Rust traits, codecs, two-key consent, and Wasmtime registration for package host capabilities (#1191).
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
 
@@ -33,7 +32,6 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 ### Tooling
 
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
-- [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
 
 ### Memory model and performance
 
@@ -50,4 +48,6 @@ raw buffers are [docs/compiler/ownership.md](../compiler/ownership.md),
 the lifetime solver is
 [crates/hd_check/DESIGN.md §15](../../crates/hd_check/DESIGN.md#15-lifetimes-one-region-solver),
 the enum layout decisions are [crates/hd_wasm/DESIGN.md §23.14](../../crates/hd_wasm/DESIGN.md#2314-inline-aggregate-layouts),
-and release summaries are [crates/hd_opt/DESIGN.md §9](../../crates/hd_opt/DESIGN.md#9-release-summaries).
+release summaries are [crates/hd_opt/DESIGN.md §9](../../crates/hd_opt/DESIGN.md#9-release-summaries),
+the REPL and its journal are [docs/compiler/live-execution.md](../compiler/live-execution.md),
+and package host capabilities are [docs/compiler/package-host-capabilities.md](../compiler/package-host-capabilities.md).
