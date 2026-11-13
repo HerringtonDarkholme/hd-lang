@@ -263,7 +263,7 @@ explicit references; no enum value is boxed implicitly (`data.enum.recursive`,
   large struct passed by value is the price the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §3
   accepts. A signature too wide for Wasm values passes through the
   shadow stack (§23.29).
-- **Niches** (`layout::Niche`, `docs/future-work/ENUM-LAYOUT.md`). A
+- **Niches** (`layout::Niche`; owner decisions 2 and 3 under "Enums"). A
   `bool`'s valid values are 0 and 1, a `char`'s 0 to `0x10FFFF`, a tag's
   its inhabited variants', and an address's every value but 0 (a thin
   reference, a boxed cell, a list's or a map's buffer, a string's bytes,
@@ -574,7 +574,21 @@ lowers their instructions.
   source's values and the replacements. The checker writes a struct's
   field as a copy-update of the place (§15.2), so nothing stores into a
   struct value.
-- **Enums** (`docs/future-work/ENUM-LAYOUT.md`, #1422). In memory, the
+- **Enum layout decisions** (owner, 2026-11-08, #1422: "how rust is
+  doing this, do no worse"; "i32?? should be 8, not 12. this is
+  general"). hd lays an enum out as rustc's `layout_of_enum` does on
+  wasm32. (1) Struct and payload fields are ordered as `univariant`
+  orders them: largest alignment first, the largest niche at an edge.
+  (2) The only address niche is 0, Rust's rule, on every target; unused
+  addresses below `STATIC_BASE` are not a niche. (3) Niche values always
+  extend the valid range upward from its end: no prefer-zero, no -1, no
+  `bool` exception. Sizes match rustc; some niche values differ (`char?`'s
+  `None` is `0x110000`, where rustc 1.97 uses -1). (4) Locals hold one
+  value per leaf, the rule below. (5) Order of the work: payload as a
+  struct, then the views' deletion (#1448), then niches. The design
+  record, with rustc's algorithm and walkthroughs of `i32??`, is in git
+  history at 7ccbb4ea8, `docs/future-work/ENUM-LAYOUT.md`.
+- **Enums** (#1422). In memory, the
   tag, then each variant's payload as one struct at one offset
   (`layout::Flat`), as rustc lays out a tagged enum: a `&` or `&mut` to a
   payload field is the enum's address plus the field's offset. In locals,

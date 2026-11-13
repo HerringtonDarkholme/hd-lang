@@ -70,7 +70,7 @@ Planned, not built: instance-unit passes. `use_counts`, `inline_plan`,
 `escape` and `scalar_replace` are declaration markers;
 `summaries` is declared, and the driver does that work: it owns bodies
 callees first, in `inline::bottom_up`'s order, and records their release
-summaries (docs/future-work/RELEASE_INTERPROC.md); the inliner
+summaries ([§9](#9-release-summaries)); the inliner
 (`inline.rs`) runs before the ownership passes, outside the pass table;
 `liveness` is declared, and suspension lowering does that work. No build
 runs an instance pass.
@@ -255,6 +255,47 @@ suite Wasm, so the larger budget buys nothing. 32/1 loses most of A2's
 gain. So every target keeps `max_insts` 64 and `max_depth` 2, and the
 table keeps one shared `OPTIMIZED` row. A test in `hd_driver::pipeline`
 retunes one row and checks that only that row's key moves.
+
+## 9. Release Summaries
+
+Interprocedural facts are release only (owner, 2026-10-24, #702: "plan
+interproc optimization, but it will be only enabled in release
+pipeline"). Built 2026-10-25: per-instance summaries over the call
+graph's SCCs, which tell a caller which arguments it may lend
+(binary_trees 133 to 88 ms then). Further slices (trait-method meets,
+escape facts for frame slots) measured no gain and were not merged
+(#681 closed; numbers on #165). The design record is in git history at
+7ccbb4ea8, `docs/future-work/RELEASE_INTERPROC.md`.
+
+- **What a summary says** (`hd_tir::own::Summary`): facts of a body's
+  code, never of its signature, which type checking never reads. `kept`
+  marks the parameters the body may keep past the call; `borrows` the
+  value parameters that may hold a count and that the body keeps none
+  of, so a caller passes them borrowed with no count on either side
+  (#1289); `returns` the parameter every result is, unchanged; `writes`
+  whether the body may write memory its caller can reach. Parameters
+  past 63 are always kept; a suspending body has no summary.
+- **Where they are computed** (`hd_driver/src/own.rs`, `Summaries`).
+  The driver owns bodies callees first. A recursive component's members
+  borrow by a fixed point (`Env::component_borrows`, Lean 4's borrow
+  inference): each starts borrowing every value parameter that may hold
+  a count, and one a member keeps leaves the assumption until none does.
+  Complete write effects per instance are known before the passes run
+  over a component (`hd_tir::own::memory_effects`).
+- **Who reads them.** A direct call and an impl call chosen statically
+  read the callee's summary; a call through a bound, a trait value, a
+  function value or a bang call keeps the declared convention. Every
+  caller and the callee agree through one answer per instance and
+  parameter, and the first answer read stays (`Summaries::read`).
+- **Returned parameters** (#681). When `returns` names a lent
+  parameter, the callee takes no count of its result, and the caller
+  holds the result as a borrow of that argument; a stored or returned
+  result gets its copy right after the call.
+- **Caching and determinism.** The program's `link` key already covers
+  every body's TIR, so summaries add no key. A summary is a function of
+  the body and its callees' summaries, so the result does not depend on
+  the order collection demands bodies. Dev computes and reads none, and
+  its output is byte-identical without them.
 
 # Calling Known Closures Directly (#53)
 

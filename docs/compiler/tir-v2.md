@@ -89,7 +89,7 @@ see [As built](#as-built-2026-11-13).
   into callers before the passes in every build (`hd_opt/src/inline.rs`).
   Release adds per-instance summaries with a fixed point over recursive
   groups, exclusive copies of bodies with reference parameters and
-  argument promotion (RELEASE_INTERPROC.md). Pointer-loan elision is a
+  argument promotion ([crates/hd_opt/DESIGN.md §9](../../crates/hd_opt/DESIGN.md#9-release-summaries)). Pointer-loan elision is a
   whole-program link pass in every build (`hd_tir/src/own/pointer.rs`).
   The owner allowed whole-program and cross-function analysis on
   2026-11-12 (docs/audit/review-2026-11-12.md §13, "Owner Answers").

@@ -12,7 +12,7 @@ marked **[V]** (verified in code, by a run, or by a measurement) or
 | Source | local `main` at `a45fdfc17`; §5.3 at `101151bf0` |
 | Binary | the installed `hd` (`~/.cargo/bin/hd`), default engine |
 | Machine | Apple arm64, macOS 26 |
-| Layout record | `crates/hd_wasm/DESIGN.md` §15 and §23.1 to §23.14, `docs/future-work/ENUM-LAYOUT.md` |
+| Layout record | `crates/hd_wasm/DESIGN.md` §15 and §23.1 to §23.14, `docs/future-work/ENUM-LAYOUT.md` (git history at 7ccbb4ea8; its decisions are now in §23.14) |
 | Layout code | `crates/hd_wasm/src/layout.rs` (outline and enum parts), `lib/std/rt/alloc.hd` (in full), `rt.rs` `list_buf`, `list_grow` and the string append path |
 | WAT snapshots | the 483 `.wat` baselines under `crates/hd_wasm/tests/baselines/` and `crates/hd_driver/tests/baselines/`, reviewed by one agent; its top claims rechecked by me (§4) |
 
