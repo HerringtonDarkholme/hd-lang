@@ -59,7 +59,7 @@ program may call.
 Any primitive not in these tables needs the owner's approval.
 
 **Representation.** These read or build the run-time layout of a string,
-a `char`, or a list.
+a `char`, a list or a map, or are one machine operation on a number.
 
 | Primitive | Signature | Why it is a primitive |
 | --- | --- | --- |
@@ -72,9 +72,14 @@ a `char`, or a list.
 | `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
 | `f64_to_bits`, `f64_from_bits` | `(value: f64) -> u64`, `(bits: u64) -> f64` | the bit cast between an `f64` and its IEEE 754 pattern, one reinterpret instruction; hd has no other way to read a NaN's sign, which [`std-num.float-bits.to`](num.md#r-std-num.float-bits.to) and `total_cmp` need |
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
+| `int_min`, `int_max` | `[N < Integer]() -> N` | each integer type's bounds as constants, which a generic body over `Integer` cannot name otherwise |
+| `int_wrapping_add`, `int_wrapping_sub`, `int_wrapping_mul` | the methods `wrapping_add`, `wrapping_sub`, `wrapping_mul` of `impl[N < Integer] N`: `(self, other: N) -> N` | one machine instruction that wraps in every profile, where `+`, `-` and `*` panic on overflow in a debug or test build |
+| `int_count_ones`, `int_leading_zeros`, `int_trailing_zeros` | the methods `count_ones`, `leading_zeros`, `trailing_zeros` of `impl[N < Integer] N`: `(self) -> u32` | one machine instruction (`popcnt`, `clz`, `ctz`) at the type's width |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at` and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void` | appends `other`'s elements to the list `items` refers to with one capacity check and one copy of all of them, where `push` in a loop checks and may grow once per element; `List.extend` is this call. `other` may be the list itself |
 | `list_reserve` | `[T](items: &mut List[T], count: usize) -> void` | makes room in the list `items` refers to for at least `count` more elements with at most one new buffer, where pushing and truncating elements would grow it once per doubling; `count` 0 does nothing. `list_extend` and `List.reserve` reuse it. |
+| `map_probe` | the body of `Map.get_or_insert(&mut self, key: K, default: V) -> &mut V` | finds or inserts a key's entry in one probe of the map's table and returns a reference into it ([`module.map.probe.get-or-insert.decl`](../lang/10-modules.md#r-module.map.probe.get-or-insert.decl)) |
+| `map_steps` | `[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V))?` | the step function of a map cursor: from entry number `at` on, the first live entry and its number, or `.None` past the last; it reads the table's entry order, which only the compiler lays out |
 
 **Scans.** These search the bytes of a string or a byte list. Each has an hd reference body
 that defines its result, and an implementation may supply a faster body
@@ -102,6 +107,11 @@ raises with a category other than `explicit-panic`.
 | --- | --- |
 | `facts_of` | the compiler builds each call's facts value ([Function Facts](../lang/14-annotations.md#function-facts)) |
 | `task_race_frame`, `task_all_frame` | the polling frames of `race!` and homogeneous task-list driving, which are compiler intrinsics ([`req.combinator.intrinsic`](../lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic)) |
+| `task_idle_hook` | `std.rt.wait.idle_hook(hook: fn() -> void)` installs the function a driver runs when every task waits on the host; the driver's loop is compiler-supplied |
+| `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`: a call through a function value's code and environment, whose layout only the compiler knows ([`fn.trait.decl`](../lang/07-functions.md#r-fn.trait.decl), [`fn.trait.mut.decl`](../lang/07-functions.md#r-fn.trait.mut.decl)) |
+| `ref_identity` | the identity of a reference's place, which `deep_equal` keys its visited pairs by; the checker reads it from the reference |
+| `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()` in `std.debug`: the call site of the enclosing `@track_caller` function, which only the compiler knows ([`fn.caller.location`](../lang/07-functions.md#r-fn.caller.location)) |
+| `descriptor_glue_mask` | the checked report's mask of a block descriptor's glue bits, which the compiler lays out |
 
 **Runtime.** The memory intrinsics of `std.rt.memory` and its typed
 memory are language tier, because the compiler knows them by name, so
@@ -209,7 +219,7 @@ file of its own.
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of`; the stable hasher `Fnv1a` |
-| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or`, `counts`, `Set`, `Deque`, and `Heap` |
+| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or_insert`, `counts`, `Set`, `Deque`, and `Heap` |
 | [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, and `read_line!` and `read_all!` |
 | [`contract.md`](contract.md) | `std.contract` | `std-contract` | the always-checked precondition helper `require` |
 | [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args`, `Env`, and `Sys`, the helpers `args` and `env`, the providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, `HostError`, and the rules every host operation follows |

@@ -73,16 +73,28 @@ others are private to the one module that calls them.
 | `string_to_bytes` | the intrinsic method `string.to_utf8(self) -> List[u8]`, in `core/mod.hd`, which `Hasher.write_str` calls | compiler |
 | `char_scalar` | `(value: char) -> u32`, in `rt/bytes.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `rt/bytes.hd` | compiler |
+| `f64_to_bits`, `f64_from_bits`, `f32_to_bits`, `f32_from_bits` | `(value: f64) -> u64` and its inverse, the same for `f32` and `u32`, in `num.hd` | compiler |
+| `int_min`, `int_max` | `[N < Integer]() -> N`, in `num.hd` | compiler |
+| `int_wrapping_add`, `int_wrapping_sub`, `int_wrapping_mul` | the methods `wrapping_add`, `wrapping_sub`, `wrapping_mul` of `impl[N < Integer] N`, in `num.hd` | compiler |
+| `int_count_ones`, `int_leading_zeros`, `int_trailing_zeros` | the methods `count_ones`, `leading_zeros`, `trailing_zeros` of `impl[N < Integer] N`, in `num.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
-| `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` and `bytes_append` call too | compiler |
-| `bytes_append` | `(bytes: &mut List[u8], text: string) -> void`, in `rt/bytes.hd`, under `StringBuilder.push`; `text` is lent | compiler |
+| `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` calls too | compiler |
+| `map_probe` | the body of `Map.get_or_insert`, in `collections.hd` | compiler |
+| `map_steps` | `[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V))?`, in `iter.hd`, the step function of a map cursor | compiler |
+| `map_hash_seed` | `() -> u64`, in `rt/mod.hd`; the compiler mixes the `hd:rt` `hash_seed` import with a per-run counter | compiler |
+| `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`, in `function.hd` | compiler |
+| `ref_identity` | `identity_of[T](target: &T) -> RefIdentity`, in `cmp.hd` | compiler |
+| `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()`, in `debug.hd` | compiler |
+| `descriptor_glue_mask` | `() -> usize`, in `rt/checked_report/mod.hd` | compiler |
+| `snapshot_update` | `(site: string) -> bool`, in `testing.hd` | host primitive |
 | `panic` | `panic_with(category: string, message: string) -> void`, in `rt/bytes.hd`; `rt/alloc.hd` and `rt/checked/mod.hd` keep private copies that return `never` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
-| `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame`, `task_wait_cell`, `task_wait_frame`, `task_wait_signal` | `task.hd` | compiler |
+| `block_on`, `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame`, `task_wait_frame` | `task.hd`; `time.hd` declares `task_wait_frame` too | compiler |
+| `task_wait_cell`, `task_wait_signal`, `task_idle_hook` | `rt/wait.hd` | compiler |
 | `debug_texts`, `dbg_printer`, `dbg_write`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `entry_write` | seeded items and `rt/entry/mod.hd` | compiler |
 | `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler; only std can use these runtime memory intrinsics |

@@ -76,7 +76,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 | `take` | `fn take(self, count: usize) -> Take[Self, T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
 | `enumerate` | `fn enumerate(self) -> Enumerate[Self, T]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
 | `map` | `fn map[U < ?Copy, F < FnMut(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]` | a new iterator over `transform(item)` for each item of `self`, in order |
-| r[std-iter.adapter.fold.value] `fold` | `fn fold[A, R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
+| r[std-iter.adapter.fold.value] `fold` | `fn fold[A, $ R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
 | r[std-iter.adapter.collect.value-target] `collect` | `fn collect[C < ?Copy & FromIterator[T]](self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
 1. r[std-iter.adapter.filter.borrow-fn-mut] The `filter` default method stores its callback type with signature `fn filter[F < FnMut(&T) -> bool](self, keep: F) -> Filter[Self, T, F]`; `Filter[I, T, F < FnMut(&T) -> bool = fn(&T) -> bool]` defaults `F` for written type annotations.
