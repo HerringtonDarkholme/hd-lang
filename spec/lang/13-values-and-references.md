@@ -894,6 +894,15 @@ impl[T, 'src] Source[T, 'src] for Parser[T, 'src]:
 1. r[ref.lifetime.trait] Each lifetime argument of a trait instantiates that lifetime in its methods for implementations, bounds, and trait values.
 2. r[ref.lifetime.trait.impl-target] A trait implementation's target may write lifetimes which the implementation passes as the trait's lifetime arguments.
 3. r[ref.lifetime.trait.position] A trait value holds one reference position for each lifetime argument, after the positions of its type arguments.
+4. r[ref.lifetime.trait.bound-argument] A bound's trait arguments may write `&'a T` or `&'a mut T` with a lifetime in scope, as in `S < Store[&'a Point]`. Such an argument is no escape to a trait argument.
+5. r[ref.lifetime.trait.bound-unnamed] A `&T` or `&mut T` that writes no lifetime in a bound's trait arguments escapes to a trait argument, as [`ref.local.escape.trait-argument`](#r-ref.local.escape.trait-argument) states. A type parameter's bound, a supertrait, and an associated type's bound are each a bound. Error: `local-reference-escapes`.
+6. r[ref.lifetime.trait.impl-argument] A trait implementation's trait arguments may write `&'a T` or `&'a mut T` with a lifetime the implementation declares, as in `impl['a] Store[&'a Point] for Tally`. Such an argument is no escape to a trait argument.
+7. r[ref.lifetime.trait.impl-unnamed] A `&T` or `&mut T` that writes no lifetime there has a fresh lifetime parameter of the implementation, so `impl Store[&Point] for Tally` means `impl['a] Store[&'a Point] for Tally`. It is no escape to a trait argument either.
+
+> **Why.** This is Rust's rule. A bound states what a caller passes, so an
+> unnamed reference there would say nothing about how long it lives. An
+> implementation's header holds for every lifetime, so an unnamed reference
+> there is general.
 
 See also: [Generic Traits](09-traits.md#generic-traits),
 [Lifetime Parameters](04-type-system.md#lifetime-parameters).

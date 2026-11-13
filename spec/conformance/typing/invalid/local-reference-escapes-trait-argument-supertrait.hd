@@ -1,0 +1,11 @@
+# test: a reference that writes no lifetime in a supertrait's argument is an error
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-unnamed. A supertrait
+# list is a bound.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf < Store[&Point]: # diagnostic: local-reference-escapes
+    fn size(&self) -> i32

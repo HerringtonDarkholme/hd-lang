@@ -1,0 +1,11 @@
+# test: a reference that writes no lifetime inside a bound's trait argument is an error
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-unnamed. A tuple holds
+# what its elements hold, so the `&` inside it is the bound's argument too.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+fn count[S < Store[(i32, &mut Point)]](s: &mut S) -> i32: # diagnostic: local-reference-escapes
+    0

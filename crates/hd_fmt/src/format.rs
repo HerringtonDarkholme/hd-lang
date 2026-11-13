@@ -818,10 +818,17 @@ impl<'s, 'p> Analysis<'s, 'p> {
         } else {
             last
         };
+        // A bound list's own `<` and `&` join its bounds; a `&` inside a
+        // bound's type arguments is a reference type's.
+        let direct: Vec<usize> = if node.kind() == S::BoundList {
+            node.direct_tokens().map(hd_base::TokenIdx::idx).collect()
+        } else {
+            Vec::new()
+        };
         for index in first..=header_end {
             let kind = tokens.kind[index];
             let spaced = match node.kind() {
-                S::BoundList => matches!(kind, T::Lt | T::Amp),
+                S::BoundList => matches!(kind, T::Lt | T::Amp) && direct.contains(&index),
                 // `N < const usize`: its `<` is the parameter's own token.
                 S::ConstParameter => kind == T::Lt,
                 S::RequirementRow => kind == T::Plus,

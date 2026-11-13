@@ -37,6 +37,9 @@ pub(crate) enum Escape {
     Result,
     Capture,
     TypeArgument,
+    /// A trait's type argument in a bound, where only a reference that
+    /// names its lifetime may stand (`ref.lifetime.trait.bound-unnamed`).
+    BoundArgument,
     /// A position that expects a counted reference
     /// (`ref.local.escape.counted`).
     Counted,
@@ -56,6 +59,7 @@ impl Escape {
             Escape::Result => "a function value's result, which has no source for it",
             Escape::Capture => "a closure capture",
             Escape::TypeArgument => "a type argument",
+            Escape::BoundArgument => "a bound's type argument; name its lifetime, as in `&'a T`",
             Escape::Counted => "a counted reference",
             Escape::CountedSelf => "a counted reference, as this `*self` call takes one",
         }
@@ -102,7 +106,10 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 /// (`ref.local.escape.field`, `.top-level`, `.trait-argument`): one
 /// error per `&`. A parameter, a local binding, an impl's target, a
 /// function's result and a function type's parameters and result may be
-/// local references. A function type's result that holds one needs one
+/// local references. So may an impl's trait arguments, where an unnamed
+/// `&` has a fresh lifetime of the impl
+/// (`ref.lifetime.trait.impl-unnamed`), and a bound's, with a named
+/// lifetime (`ref.lifetime.trait.bound-argument`). A function type's result that holds one needs one
 /// source (`fn.type.lifetime.elide`); a function's is the resolver's
 /// (`ref.dep.elide`).
 pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
@@ -180,6 +187,16 @@ fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, next: &mut Vec<Task<'t>>) {
                 }
             }
         }
+        // A bound's traits, a type parameter's, a supertrait's or an
+        // associated type's: their type arguments may hold a reference
+        // only with a named lifetime (`ref.lifetime.trait.bound-argument`,
+        // `.bound-unnamed`). Its `?`, `&` and lifetime bounds are tokens,
+        // so its only other node would be a parse error's.
+        SyntaxKind::BoundList => {
+            for c in n.children().filter(|c| c.kind().is_type()) {
+                next.push(Task::Ty(c, Some(Escape::BoundArgument)));
+            }
+        }
         // A function's written result's source is the resolver's
         // (`ref.dep.elide`); a local function's is a closure's.
         SyntaxKind::FnDecl => {
@@ -217,8 +234,10 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
         SyntaxKind::RefType => {
             let amp = n.direct_token(&src.parse.tokens, TokenKind::Amp);
             // `ref.lifetime.struct.field`: a field's `&'a T` names a
-            // lifetime of its declaration, which the resolver checks.
-            let named = at == Some(Escape::Field)
+            // lifetime of its declaration, and a bound's a lifetime in
+            // scope (`ref.lifetime.trait.bound-argument`), which the
+            // resolver checks.
+            let named = matches!(at, Some(Escape::Field | Escape::BoundArgument))
                 && n.direct_token(&src.parse.tokens, TokenKind::Lifetime)
                     .is_some();
             if let (Some(_), Some(at), false) = (amp, at, named) {

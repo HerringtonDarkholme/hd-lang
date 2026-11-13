@@ -1,0 +1,27 @@
+# test: an implementation's trait argument that writes no lifetime has a fresh lifetime of the implementation
+# Spec 13 Lifetime Traits: ref.lifetime.trait.impl-unnamed. `Store[&Point]`
+# here is `impl['a] Store[&'a Point] for Tally`, so a bound with any named
+# lifetime finds it.
+# expect-stdout: 5
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Tally:
+    sum: i32
+
+impl Store[&Point] for Tally:
+    fn put(&mut self, value: &Point) -> void:
+        self.sum = self.sum + value.x
+
+fn fill['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+    s.put(p)
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { sum: 1 }
+    p := Point { x: 2 }
+    fill(&mut tally, &p)
+    println(tally.sum)

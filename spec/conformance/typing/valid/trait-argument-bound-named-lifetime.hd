@@ -1,0 +1,13 @@
+# test: a bound's trait argument may be a reference that names a lifetime in scope
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+fn fill['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+fn fill_mut['a, S < Store[&'a mut Point]](s: &mut S, p: &'a mut Point) -> void:
+    s.put(p)

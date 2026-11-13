@@ -228,6 +228,13 @@ fn negative_impls_and_relaxed_bounds_keep_their_markers() {
 }
 
 #[test]
+fn a_reference_in_a_bounds_type_argument_keeps_its_ampersand_tight() {
+    // Only the bound list's own `&` joins two bounds.
+    let source = "fn fill['a, S < Store[&'a Point] & Eq](s: &mut S):\n    pass\ntrait Shelf < Store[(i32, &mut Point)]:\n    fn size(&self) -> i32\n";
+    assert_eq!(formatted(source), source);
+}
+
+#[test]
 fn a_closure_holding_a_trailing_block_keeps_its_suite_inside_brackets() {
     // A one-line closure cannot hold a trailing callback block, and inside
     // a call's brackets the parser rejects the collapsed form

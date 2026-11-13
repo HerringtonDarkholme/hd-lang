@@ -5436,6 +5436,13 @@ typing/invalid/local-reference-escapes-trait-argument.hd	type	reject:local-refer
 typing/invalid/local-reference-escapes-trait-argument-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
 typing/invalid/local-reference-escapes-trait-argument-impl-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
 typing/invalid/local-reference-escapes-trait-argument-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
+typing/invalid/local-reference-escapes-trait-argument-bound.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-unnamed
+typing/invalid/local-reference-escapes-trait-argument-bound-nested.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-unnamed
+typing/invalid/local-reference-escapes-trait-argument-supertrait.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-unnamed
+typing/invalid/local-reference-escapes-trait-argument-associated-bound.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-unnamed
+typing/valid/trait-argument-bound-named-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/valid/trait-argument-impl-named-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
+runtime/valid/trait-argument-impl-unnamed-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-unnamed
 typing/valid/list-and-map-of-local-references-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.argument
 typing/valid/dependent-result-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
 typing/valid/dependent-result-one-position.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide

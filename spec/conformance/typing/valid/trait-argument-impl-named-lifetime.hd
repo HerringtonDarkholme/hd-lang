@@ -1,0 +1,15 @@
+# test: an implementation's trait argument may name a lifetime the implementation declares
+# Spec 13 Lifetime Traits: ref.lifetime.trait.impl-argument. The target
+# need not write the lifetime.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Tally:
+    sum: i32
+
+impl['a] Store[&'a Point] for Tally:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.sum = self.sum + value.x

@@ -1,0 +1,11 @@
+# test: a reference that writes no lifetime in an associated type's bound is an error
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-unnamed. An associated
+# type's bound is a bound.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf:
+    type Item < Store[&Point] # diagnostic: local-reference-escapes
