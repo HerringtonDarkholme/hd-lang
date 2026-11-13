@@ -30,6 +30,7 @@
 //! scalar. A copied/moved capture is walked as a value. An ordinary `fn`
 //! field remains open and capable: no callee/capture summary is inferred.
 
+use crate::cycle_graph::{Facts, Graph, Ranks, Shape};
 use hd_base::HashSet;
 use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
@@ -44,15 +45,59 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
+thread_local! {
+    static ANALYSIS: std::cell::RefCell<Option<Analysis>> = const { std::cell::RefCell::new(None) };
+}
+
+#[derive(Default)]
+struct Analysis {
+    graph: Graph,
+    ranks: Ranks,
+}
+
+fn facts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Facts {
+    let t = strip(pool, env, t);
+    let classify = |ty, ranks: &mut Ranks| {
+        let (parts, value_open, object_open) = match holds(pool, env, ty) {
+            Holds::Parts(parts) => (parts, false, false),
+            Holds::Ref(target) => (vec![target], writable(pool, env, target), false),
+            Holds::Open => (vec![], true, true),
+        };
+        Shape {
+            parts: parts.into_iter().map(|t| strip(pool, env, t)).collect(),
+            value_open,
+            object_open,
+            rank: ranks.get(pool, ty),
+            declaration: match pool.get(ty) {
+                TyData::Adt { def, .. } => Some(def),
+                _ => None,
+            },
+        }
+    };
+    ANALYSIS.with(|analysis| {
+        let mut analysis = analysis.borrow_mut();
+        if let Some(Analysis { graph, ranks }) = analysis.as_mut() {
+            graph.get(t, UNFOLDS, |ty| classify(ty, ranks))
+        } else {
+            let mut ranks = Ranks::default();
+            Graph::default().get(t, UNFOLDS, |ty| classify(ty, &mut ranks))
+        }
+    })
+}
+
 /// Sets the closed-world mutation fact until the returned guard drops.
 pub(crate) fn mutation_targets(targets: Option<HashSet<Ty>>) -> impl Drop {
-    struct Reset(Option<HashSet<Ty>>);
+    struct Reset(Option<HashSet<Ty>>, Option<Analysis>);
     impl Drop for Reset {
         fn drop(&mut self) {
             MUTATION_TARGETS.set(self.0.take());
+            ANALYSIS.set(self.1.take());
         }
     }
-    Reset(MUTATION_TARGETS.replace(targets))
+    Reset(
+        MUTATION_TARGETS.replace(targets),
+        ANALYSIS.replace(Some(Analysis::default())),
+    )
 }
 
 fn writable(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
@@ -67,36 +112,15 @@ fn writable(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
 
 /// Whether a counted object of type `t` can participate in a reference cycle.
 pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    let t = strip(pool, env, t);
-    reaches(pool, env, &contents(pool, env, t))
+    facts(pool, env, t).object
 }
 
-/// Whether releasing an object of type `t` can recursively reach another
-/// object with the same release glue. This is independent of whether the
-/// objects participate in cycle collection. An open value is an edge the
-/// walk cannot follow; it adds none.
+/// Whether release may reach the same glue again. This is independent of
+/// cycle collection. Open values add no known edge; a growing family that
+/// reaches the unfolding bound stays conservative, never proving that a
+/// recursion-safe release path is unnecessary.
 pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    let root = strip(pool, env, t);
-    let mut walk = Walk::new(contents(pool, env, root));
-    while let Some((t, parent)) = walk.next(pool, env) {
-        if t == root {
-            return true;
-        }
-        let parts = match holds(pool, env, t) {
-            Holds::Parts(parts) => parts,
-            Holds::Ref(target) => vec![target],
-            Holds::Open => continue,
-        };
-        // A declaration that reaches itself at growing arguments
-        // (`E[T?]` in `E[T]`) past the unfolding bound is one finite
-        // release-glue edge per concrete type, not recursion back to
-        // this glue.
-        if walk.unfolds(pool, parent, t) >= UNFOLDS {
-            continue;
-        }
-        walk.push(pool, t, parent, parts);
-    }
-    false
+    facts(pool, env, t).recursive
 }
 
 /// Whether an object holding values of `parts` takes part, when only
@@ -104,7 +128,7 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
 /// cell, a trait value's or an open value's box, an iterator's
 /// environment.
 pub fn holding(pool: &InternPool, env: &dyn ProgramEnv, parts: &[Ty]) -> bool {
-    reaches(pool, env, parts)
+    parts.iter().any(|&t| facts(pool, env, t).value)
 }
 
 /// What a value of a stripped type holds, one rule for every type form:
@@ -147,148 +171,7 @@ fn holds(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Holds {
     }
 }
 
-/// The types an object of type `t` holds; an open `t` is its own content,
-/// which [`reaches`] decides as open.
-fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
-    match holds(pool, env, t) {
-        Holds::Parts(parts) => parts,
-        Holds::Ref(target) => vec![target],
-        Holds::Open => vec![t],
-    }
-}
-
-/// How many times one declaration may be re-entered at arguments that are
-/// not part of an ancestor's before a walk stops unfolding it: polymorphic
-/// recursion (`E[T?]` in `E[T]`) re-enters at growing arguments forever,
-/// and may expose a reference only in a deeper instance.
+/// The unfolding guard is indexed by declaration and structural type height.
+/// Proper argument/member descent strictly lowers that rank. A family cannot
+/// descend forever; non-decreasing re-entries reach this fixed bound.
 const UNFOLDS: usize = 4;
-
-/// A walk over the types values hold, each concrete type visited once.
-/// Each data or reference type it expands is a node with its parent's
-/// index, so the ancestors of a type are read back without copying a path.
-///
-/// Cost: one visit per distinct type reached. A visit reads its ancestors
-/// (at most the walk's depth) and, for each one of the same declaration,
-/// searches that ancestor's arguments once ([`occurs`]).
-struct Walk {
-    nodes: Vec<(Ty, usize)>,
-    work: Vec<(Ty, usize)>,
-    seen: HashSet<Ty>,
-}
-
-const NO_PARENT: usize = usize::MAX;
-
-impl Walk {
-    fn new(start: Vec<Ty>) -> Self {
-        Walk {
-            nodes: Vec::new(),
-            work: start.into_iter().map(|t| (t, NO_PARENT)).collect(),
-            seen: HashSet::default(),
-        }
-    }
-
-    /// The next type not visited yet, stripped, and its parent node.
-    fn next(&mut self, pool: &InternPool, env: &dyn ProgramEnv) -> Option<(Ty, usize)> {
-        while let Some((t, parent)) = self.work.pop() {
-            let t = strip(pool, env, t);
-            if self.seen.insert(t) {
-                return Some((t, parent));
-            }
-        }
-        None
-    }
-
-    /// How many ancestors of `t` (from node `parent` up) are instances of
-    /// `t`'s declaration that `t` is not part of. A type found inside an
-    /// ancestor's arguments (`W[E]` in `W[W[E]]`) is smaller than it, so
-    /// re-entering at it is finite and costs nothing; any other
-    /// re-entry counts. Along an endless chain of distinct types some
-    /// declaration recurs without shrinking, so the count bounds the walk.
-    fn unfolds(&self, pool: &InternPool, mut parent: usize, t: Ty) -> usize {
-        let TyData::Adt { def, .. } = pool.get(t) else {
-            return 0;
-        };
-        let mut n = 0;
-        while parent != NO_PARENT {
-            let (ancestor, up) = self.nodes[parent];
-            if matches!(pool.get(ancestor), TyData::Adt { def: seen, .. } if seen == def)
-                && !occurs(pool, t, ancestor)
-            {
-                n += 1;
-            }
-            parent = up;
-        }
-        n
-    }
-
-    /// Queues `parts`, the types `t` holds, under `t`'s node when `t` is a
-    /// data or reference type.
-    fn push(&mut self, pool: &InternPool, t: Ty, parent: usize, parts: Vec<Ty>) {
-        let at = if matches!(pool.get(t), TyData::Adt { .. } | TyData::Ref { .. }) {
-            self.nodes.push((t, parent));
-            self.nodes.len() - 1
-        } else {
-            parent
-        };
-        self.work.extend(parts.into_iter().map(|p| (p, at)));
-    }
-}
-
-/// Whether `needle` occurs inside `hay`'s arguments, members or operands
-/// (a proper part of it), each distinct part searched once.
-fn occurs(pool: &InternPool, needle: Ty, hay: Ty) -> bool {
-    let mut seen: HashSet<Ty> = HashSet::default();
-    let mut stack = vec![hay];
-    while let Some(t) = stack.pop() {
-        let parts: Vec<Ty> = match pool.get(t) {
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                pool.list_items(args).to_vec()
-            }
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().copied().chain(rest).collect()
-            }
-            TyData::Union(members) => pool.list_items(members).to_vec(),
-            TyData::Ref { inner, .. } => vec![inner],
-            TyData::Fn { params, result, .. } => pool
-                .list_items(params)
-                .iter()
-                .copied()
-                .chain([result])
-                .collect(),
-            _ => Vec::new(),
-        };
-        for part in parts {
-            if part == needle {
-                return true;
-            }
-            if seen.insert(part) {
-                stack.push(part);
-            }
-        }
-    }
-    false
-}
-
-/// Whether a walk from `start` over the types they hold meets a reference
-/// that may be written, or an open value. Each concrete type is visited
-/// once. A declaration re-entered [`UNFOLDS`] times at arguments not part
-/// of an earlier instance's is conservatively capable, because
-/// polymorphic recursion can expose a reference only in a deeper instance;
-/// nesting that shrinks (`W[W[E]]` to `W[E]`) is walked exactly, for every
-/// declaration alike.
-fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
-    let mut walk = Walk::new(start.to_vec());
-    while let Some((t, parent)) = walk.next(pool, env) {
-        let parts = match holds(pool, env, t) {
-            Holds::Open => return true,
-            Holds::Ref(target) if writable(pool, env, target) => return true,
-            Holds::Ref(target) => vec![target],
-            Holds::Parts(parts) => parts,
-        };
-        if walk.unfolds(pool, parent, t) >= UNFOLDS {
-            return true;
-        }
-        walk.push(pool, t, parent, parts);
-    }
-    false
-}
