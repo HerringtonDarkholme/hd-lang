@@ -156,11 +156,11 @@ Rules that shape runtime work, from the performance roadmap of
 
 - An API that forces a cost no implementation can remove is a design
   bug, not a tuning task.
-- Strings follow Go: immutable UTF-8 bytes, text built with
-  `StringBuilder` or `join`, and `+` copies.
-- Intrinsics stay low-level, one machine operation each; algorithms are
-  std hd code. Where hd is slow, the fix is the missing low-level
-  primitive, not moving the algorithm into the compiler.
+- Strings are immutable UTF-8 values. `StringBuilder` and `join` build
+  text linearly; `+` may reuse a uniquely held left allocation.
+- Prefer ordinary hd, then optimizer support for the general pattern.
+  Add an intrinsic only when neither suffices, with the owner's approval;
+  never special-case a benchmark, function or type.
 - A speed fix never grows hello.wasm. It may grow programs that use the
   feature when it gains at least 5% speed for each 10% of size.
 - Float text and Unicode case mapping stay host primitives until a

@@ -89,7 +89,7 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 | `tokens` | each token's kind and text |
 | `tree` | the largest syntax nodes inside the subject |
 | `tir` | the subject's TIR instructions, locals by name, type and flags (`[param read]`), fields by name |
-| `own` | the subject's TIR after the ownership passes: read modes (`Read copy [$1]`), `Drop`, `IsUnique` and `Pin` statements, and the body's exit set |
+| `own` | the subject's TIR after the ownership passes: read modes (`Read copy [$1]`), `Drop` and `IsUnique` statements, and the body's exit set |
 | `wat` | the Wasm instructions that came from the subject: calls by name (`rt:retain_known`, `identity[i32]`, `println`), locals by source name or field path (`bodies`, `b.vx`), temporaries `t0`, `t1`... |
 | `counts` | only the retains, releases, frees and uniqueness checks inside the subject, with what they count and why (`last use`, `conservative: copy read`) |
 | `layout` | a type's fields, offsets, sizes, counted parts and cycle-capable bit |
@@ -132,7 +132,7 @@ special-casing the pattern in the emitter; fix the cause.
 Tiered checks only, for the paths the change touches. **Never run the
 full suite locally**: CI runs it after the merge, and the orchestrator
 fixes forward. Grep each whole log for `FAILED|panicked`; the count must
-be 0. Use `nice` and `-j 4`, with the dev profile.
+be 0. Use `nice` and `-j 2`, with the dev profile.
 
 - `cargo fmt --check`, and `cargo clippy -p <touched crate> --all-targets
   -- -D warnings`.
@@ -204,8 +204,8 @@ only).
 
 Every perf change reports the same table, so results compare across jobs.
 
-- **Every program, hd only, base and head:** the 11 study programs plus
-  every one in `bench/runtime/progs` (20 in all today; count the directory). Use
+- **Every program, hd only, base and head:** every study program plus
+  every one in `bench/runtime/progs` (count both directories). Use
   `node bench/study/run.ts --no-refs` in release mode with `--engines node`,
   or interleaved runs of the two compilers' modules. Give each program's
   ms before and after, the geometric mean of head/base, and the machine

@@ -390,12 +390,12 @@ pin is gone: no `Pin` statement, no eager copy in `coll_copy`, and no
 owner-word test in `rt:list_unique`, `rt:map_unique` or a push. A
 `Buffer`'s room keeps no count (#1321).
 
-Two counts remain on references. A `&dyn` reference's data address takes
-a page-table count, as a trait value does. And a suspending function's
-frame owns its reference parameters: its cold constructor takes a
-page-table count of each one's object, which the frame releases at its
-end or when it is dropped, so a frame kept past its call still reaches
-it.
+A borrowed `&dyn` reference counts nothing too (#1354); an owned trait
+value still releases the counted value it owns, as described above.
+A suspending function's frame can keep reference parameters alive: its
+cold constructor takes the required object counts and releases them when
+that frame ends or is dropped. These keepalive counts do not make an
+ordinary local reference or a `Buffer` room reference counted.
 
 ## Raw Buffers
 
