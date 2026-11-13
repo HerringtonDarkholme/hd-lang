@@ -3087,7 +3087,8 @@ impl Solver for TableSolver {
 /// it (`trait.assoc.projection.cycle`): `trait-resolution-depth`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ProjectionTooDeep {
-    /// The projection the chain starts at, its base normalized.
+    /// The projection of the type asked about that the chain starts at,
+    /// its base normalized.
     pub head: Ty,
 }
 
@@ -3144,16 +3145,26 @@ fn norm_concrete(
             let s = norm_concrete(pool, impls, self_ty, depth, reads)?;
             let a = norm_list(pool, impls, args, depth, reads)?;
             if let Some(x) = project_concrete(pool, impls, assoc, trait_, s, a, reads) {
-                if depth >= hd_base::limits::PROJECTION_DEPTH {
-                    let head = pool.intern_ty(&TyData::Assoc {
+                let head = || {
+                    pool.intern_ty(&TyData::Assoc {
                         assoc,
                         trait_,
                         self_ty: s,
                         args: a,
-                    });
-                    return Err(ProjectionTooDeep { head });
+                    })
+                };
+                if depth >= hd_base::limits::PROJECTION_DEPTH {
+                    return Err(ProjectionTooDeep { head: head() });
                 }
-                return norm_concrete(pool, impls, x, depth + 1, reads);
+                // The chain is named by the projection of `t` it starts
+                // at, which a message can point to, not by its 65th step.
+                return norm_concrete(pool, impls, x, depth + 1, reads).map_err(|e| {
+                    if depth == 0 {
+                        ProjectionTooDeep { head: head() }
+                    } else {
+                        e
+                    }
+                });
             }
             TyData::Assoc {
                 assoc,
@@ -4601,10 +4612,12 @@ mod tests {
             normalize_concrete(p, impls, list),
             Ok(adt(p, DefId::from_raw(24), &[Ty::STRING]))
         );
+        // The error names the projection the chain starts at.
         let past = proj(boxes(p, boxed, PROJECTION_DEPTH as usize));
-        assert!(normalize_concrete(p, impls, past).is_err());
+        let named = |head| Err(super::ProjectionTooDeep { head });
+        assert_eq!(normalize_concrete(p, impls, past), named(past));
         let past_inside = adt(p, DefId::from_raw(24), &[past]);
-        assert!(normalize_concrete(p, impls, past_inside).is_err());
+        assert_eq!(normalize_concrete(p, impls, past_inside), named(past));
         // The first child past the limit is the error; a later one is not
         // walked.
         let two_past = adt(p, DefId::from_raw(25), &[past, proj(lp)]);

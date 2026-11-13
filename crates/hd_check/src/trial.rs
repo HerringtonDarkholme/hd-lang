@@ -46,6 +46,8 @@ pub(crate) enum BodyUndo {
     BoundEscape(u32),
     /// A projection's cycle or depth error first reported by this trial.
     NormReported(Ty),
+    /// A use's `trait-resolution-depth` first reported by this trial.
+    DepthAt(u32, u32),
 }
 
 /// Everything a trial may change, as lengths and a mark in the undo log
@@ -188,6 +190,9 @@ impl Ck<'_, '_> {
                 }
                 BodyUndo::NormReported(t) => {
                     self.norm_reported.remove(&t);
+                }
+                BodyUndo::DepthAt(lo, hi) => {
+                    self.depth_at.remove(&(lo, hi));
                 }
                 BodyUndo::Call(d) => {
                     self.facts.calls.remove(&d);

@@ -423,6 +423,22 @@ impl<'a> ItemCheck<'_, 'a> {
         });
     }
 
+    /// `trait-resolution-depth` once per use, an item's slot: a type past
+    /// a depth limit fails each proof and each projection that reaches
+    /// it, and the first of them tells the cause. A projection chain of n
+    /// bindings needs a proof n deep, so the two come together.
+    /// Cost: a scan of this item's findings, on an error only.
+    fn report_depth(&mut self, slot: u32, message: String) {
+        let item = self.item;
+        if (self.out.iter().rev())
+            .take_while(|f| f.item == item)
+            .any(|f| f.slot == slot && f.code == Code::TraitResolutionDepth)
+        {
+            return;
+        }
+        self.report(slot, Code::TraitResolutionDepth, message);
+    }
+
     fn item(&mut self, it: &Item) -> StageResult<()> {
         let exposed = self.exposed(it);
         if exposed {
@@ -1134,7 +1150,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 (Ok(got), Ok(want)) => (got, want),
                 (Err(e), _) | (_, Err(e)) => {
                     let message = crate::value::projection_too_deep(&self.show(e.head));
-                    self.report(0, Code::TraitResolutionDepth, message);
+                    self.report_depth(0, message);
                     continue;
                 }
             };
@@ -1298,7 +1314,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.show(t),
                 self.cx.names.display_name(def)
             );
-            self.report(slot, Code::TraitResolutionDepth, message);
+            self.report_depth(slot, message);
         }
         if matches!(answer, Answer::OutOfFuel) {
             self.too_complex = true;
@@ -1353,7 +1369,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     self.show(self_ty),
                     self.cx.names.display_name(trait_)
                 );
-                self.report(0, Code::TraitResolutionDepth, message);
+                self.report_depth(0, message);
                 Ok(false)
             }
             Answer::OutOfFuel => {
@@ -1462,7 +1478,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle".to_owned()),
                 Ok(Some(crate::value::Unsized::TooDeep(head))) => {
                     let message = crate::value::projection_too_deep(&self.show(head));
-                    self.report(slot, Code::TraitResolutionDepth, message);
+                    self.report_depth(slot, message);
                 }
                 Err(()) => {
                     self.too_complex = true;

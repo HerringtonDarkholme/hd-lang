@@ -4566,7 +4566,7 @@ impl Ck<'_, '_> {
         let msg = format!(
             "`{name}` needs a proof that its receiver implements {what}, and that proof needs more than 64 nested bounds"
         );
-        self.err(Code::TraitResolutionDepth, n, &msg);
+        self.depth_err(self.cx.src.span(n), &msg);
     }
 
     /// The trait methods named `sym` of a concrete type: the
@@ -5542,7 +5542,7 @@ impl Ck<'_, '_> {
                 hi: self.at,
             },
         };
-        self.diags.error(Code::TraitResolutionDepth, span, &msg);
+        self.depth_err(span, &msg);
     }
 
     /// `t` with its projections normalized as far as inference allows;
@@ -5687,9 +5687,10 @@ impl Ck<'_, '_> {
         };
         let answer = self.solve(tref)?;
         let stalled = matches!(answer, Answer::Stalled { .. });
-        // A rejected trait has no associated value. Its bound reports the
-        // error; consumers of this projection must not add follow-ons.
-        if matches!(answer, Answer::Fails(_)) {
+        // A rejected trait has no associated value, nor has one whose proof
+        // is past its depth. Its bound reports the error; consumers of
+        // this projection must not add follow-ons.
+        if matches!(answer, Answer::Fails(_) | Answer::Overflow) {
             return Ok(Ty::POISON);
         }
         if let hd_types::solver::Answer::Holds {

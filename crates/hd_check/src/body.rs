@@ -542,6 +542,13 @@ pub(crate) struct Ck<'a, 'c> {
     pub norm_stack: Vec<Ty>,
     /// The projections whose cycle or depth limit this body reported.
     pub norm_reported: HashSet<Ty>,
+    /// The function's parameter types and written result type, which its
+    /// header check walked (`trait.assoc.projection.depth`,
+    /// `trait.assoc.projection.cycle`).
+    pub header_tys: Vec<Ty>,
+    /// The spans, as offsets, with a `trait-resolution-depth` error
+    /// ([`Ck::depth_err`]).
+    pub depth_at: HashSet<(u32, u32)>,
     /// The stack depth a failed normalization poisons down to: each
     /// frame at or above it returns poison.
     pub norm_cut: Option<usize>,
@@ -782,6 +789,8 @@ pub(crate) fn new_ck<'a, 'c>(
         user_locals: Vec::new(),
         norm_stack: Vec::new(),
         norm_reported: HashSet::default(),
+        depth_at: HashSet::default(),
+        header_tys: Vec::new(),
         norm_cut: None,
         pre_args: Vec::new(),
         open_params: Vec::new(),
@@ -1409,8 +1418,13 @@ fn fn_body_steps(
     for (name, ty) in sig.params.clone() {
         let ty = ck.norm_ty(ty);
         ck.declared_tys.insert(ty);
+        ck.header_tys.push(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
+    }
+    if !infer.ret {
+        let ret = ck.norm_ty(sig.ret);
+        ck.header_tys.push(ret);
     }
     // `fn.caller.site-argument`: the call site's record, after the written
     // parameters, when the function reads it.
@@ -1544,6 +1558,18 @@ impl Ck<'_, '_> {
     pub(crate) fn err(&mut self, code: Code, n: NodeRef<'_>, msg: &str) {
         let span = self.cx.src.span(n);
         self.diags.error(code, span, msg);
+    }
+
+    /// `trait-resolution-depth` once per use, a span: a type past a depth
+    /// limit fails each proof and each projection that reaches it, and
+    /// the first of them tells the cause. A projection chain of n
+    /// bindings needs a proof n deep, so the two come together.
+    /// Cost: one set lookup, on an error only.
+    pub(crate) fn depth_err(&mut self, span: Span, msg: &str) {
+        if self.depth_at.insert((span.lo, span.hi)) {
+            self.log_undo(crate::trial::BodyUndo::DepthAt(span.lo, span.hi));
+            self.diags.error(Code::TraitResolutionDepth, span, msg);
+        }
     }
 
     /// `t` as a message names it. A literal inside a larger type shows the
@@ -3194,7 +3220,14 @@ impl Ck<'_, '_> {
                 Ok(Some(evidence))
             }
             Answer::Fails(_) => {
-                if self.has_poisoned_impl(tref.self_ty) {
+                // A trait argument in error, as a projection whose proof is
+                // past its depth leaves, was reported where it failed.
+                if self.has_poisoned_impl(tref.self_ty)
+                    || pool
+                        .list_items(tref.args)
+                        .iter()
+                        .any(|&a| pool.has_poison(a))
+                {
                     return Ok(Some(Evidence::Poison));
                 }
                 // The default `Copy` bound adds no second error where a
@@ -3240,7 +3273,7 @@ impl Ck<'_, '_> {
             self.show(tref.self_ty),
             self.cx.names.display_name(tref.trait_)
         );
-        self.err(Code::TraitResolutionDepth, at, &msg);
+        self.depth_err(self.cx.src.span(at), &msg);
     }
 
     pub(crate) fn solve(&mut self, tref: TraitRef) -> StageResult<Answer> {
@@ -5109,6 +5142,13 @@ impl Ck<'_, '_> {
             .locals
             .iter()
             .any(|l| l.kind == hd_resolve::HeadKind::Impl);
+        // The header check walked the function's written types under the
+        // same impls, and reported what they hold.
+        if !local_impls {
+            for &t in &self.header_tys {
+                cycles.checked_elsewhere(t);
+            }
+        }
         for i in 0..n {
             let syn = self.b.body().syn[i];
             if local_impls && syn != hd_base::NodeIdx::NONE {
@@ -5139,7 +5179,7 @@ impl Ck<'_, '_> {
                         "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle"),
                     Ok(Some(crate::value::Unsized::TooDeep(head))) => {
                         let message = crate::value::projection_too_deep(&self.show(head));
-                        self.err(Code::TraitResolutionDepth, node, &message);
+                        self.depth_err(self.cx.src.span(node), &message);
                     }
                     Err(()) => return out_of_fuel(),
                     Ok(None) => {}

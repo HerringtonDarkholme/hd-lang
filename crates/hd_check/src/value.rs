@@ -222,6 +222,12 @@ impl ProjectionCycles {
         Ok(None)
     }
 
+    /// Marks `t` and its parts as checked: the header's walk reported
+    /// what they hold.
+    pub(crate) fn checked_elsewhere(&mut self, t: Ty) {
+        self.checked.insert(t);
+    }
+
     /// Written type components, separate from containment edges: a reference
     /// ends containment but its referent must still be a well-formed type.
     /// Used after body inference settles, outside speculative trials.

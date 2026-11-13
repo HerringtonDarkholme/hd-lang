@@ -3,9 +3,9 @@
 # @fuel: 7
 # fn.limit.complexity.error: an item whose checking runs out of steps is
 # one item-too-complex on that item, whichever solver step spends the
-# last of its fuel. Seven steps run out in each `add` and in `grow`,
-# which spends its last on the literal operand's choice between the two
-# `Add` impls.
+# last of its fuel. Seven steps run out in the `f64` `add`, which
+# converts its operand, and in `grow`, which spends its last on the
+# literal operand's choice between the two `Add` impls.
 use std.ops.Add
 
 struct V:
@@ -21,6 +21,5 @@ impl Add[f64] for V:
 
 fn grow(v: V) -> V:
     v + 1 + 2 + 3 + 4 + 5.0
-> error: main.hd:404..434: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:502..532: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:563..582: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:536..566: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:597..616: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items

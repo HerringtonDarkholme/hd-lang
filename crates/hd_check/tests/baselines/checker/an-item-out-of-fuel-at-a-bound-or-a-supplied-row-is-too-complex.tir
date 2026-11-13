@@ -17,6 +17,5 @@ fn call[T < Named](x: T) -> string:
 
 fn keep(t: (i32, string)) -> *mut (i32, string):
     box(t)
-> error: main.hd:400..437: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
 > error: main.hd:452..487: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
 > error: main.hd:503..551: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
