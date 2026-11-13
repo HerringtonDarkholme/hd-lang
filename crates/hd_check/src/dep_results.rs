@@ -350,15 +350,19 @@ impl DepSig {
     /// lifetime `impl_outs` when the target has it
     /// (`ref.lifetime.impl-target.assoc`), or for a projection of `Self`
     /// when it is one of the lifetimes `proj` gives that projection
-    /// (`ref.lifetime.trait.bound-argument`).
+    /// (`ref.lifetime.trait.bound-argument`). A slot of a trait type
+    /// argument takes the lifetime the implementation's header writes there,
+    /// `arg_lifetimes` by argument and slot, as `Self`'s takes the target's
+    /// (`ref.lifetime.trait.impl-argument`), and a result slot it fills
+    /// may take that lifetime, or for a projection of `Self` that of a
+    /// trait argument it holds.
     fn align_trait_impl(
         self,
         ls: &Layouts<'_>,
         params: &[(hd_base::Symbol, Ty)],
         (ret, impl_outs, proj): (Ty, &[Option<u32>], ProjLifetimes<'_>),
         trait_: DefId,
-        trait_lifetimes: &[u16],
-        self_lifetimes: &[u16],
+        (trait_lifetimes, self_lifetimes, arg_lifetimes): (&[u16], &[u16], &[Vec<u32>]),
         impl_lifetime_count: usize,
     ) -> DepSig {
         let remap = |id: u32| {
@@ -389,8 +393,24 @@ impl DepSig {
                          outs: Option<&[Option<u32>]>|
          -> Option<Vec<Option<u32>>> {
             let target = |p: hd_types::ParamRef, s: usize| {
-                let l = *self_lifetimes.get(s).filter(|_| is_self(p))?;
-                (l != 0).then_some(u32::from(l))
+                let l = match usize::from(p.index).checked_sub(1) {
+                    _ if p.owner != trait_ => return None,
+                    None => u32::from(*self_lifetimes.get(s)?),
+                    Some(k) => *arg_lifetimes.get(k)?.get(s)?,
+                };
+                (l != 0).then_some(l)
+            };
+            // A lifetime the header writes in a trait argument a
+            // projection of `Self` holds ([`proj_holds`]).
+            let held = |t: Ty, id: u32| {
+                (arg_lifetimes.iter().enumerate()).any(|(k, lts)| {
+                    let index = u16::try_from(k + 1).unwrap_or(u16::MAX);
+                    let p = hd_types::ParamRef {
+                        owner: trait_,
+                        index,
+                    };
+                    lts.contains(&id) && proj_holds(ls.pool, t, p)
+                })
             };
             let keys = line_up_in(ls, d, t, outs.is_some())?;
             (keys.into_iter().enumerate())
@@ -399,7 +419,10 @@ impl DepSig {
                     _ if outs.is_some() && filled(k) => {
                         let out = outs.and_then(|o| o.get(at).copied().flatten());
                         let named = |id: u32| match k {
-                            Key::AllOf(_, t) => proj(t).into_iter().any(|l| remap(l) == id),
+                            Key::AllOf(_, t) => {
+                                proj(t).into_iter().any(|l| remap(l) == id) || held(t, id)
+                            }
+                            Key::Param(p, s) => target(p, s) == Some(id),
                             _ => false,
                         };
                         Some(out.filter(|&id| of_self(id) || named(id)))
@@ -1413,9 +1436,8 @@ impl Ck<'_, '_> {
         &self,
         tsig: &hd_resolve::FnSig,
         sig: &hd_resolve::FnSig,
-        trait_: DefId,
-        trait_lifetimes: &[u16],
-        self_lifetimes: &[u16],
+        (trait_, trait_args): (DefId, hd_types::TyList),
+        (trait_lifetimes, self_lifetimes, trait_slots): (&[u16], &[u16], &[u16]),
         impl_lifetime_count: usize,
     ) -> hd_types::FnDeps {
         let pool = self.pool();
@@ -1432,13 +1454,14 @@ impl Ck<'_, '_> {
         let impl_outs = DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
             .with_paths(ls, &sig.paths)
             .outs;
+        let slots: Vec<u32> = trait_slots.iter().map(|&l| u32::from(l)).collect();
+        let arg_lifetimes = arg_ids(ls, pool.list_items(trait_args), &slots);
         dep.align_trait_impl(
             ls,
             &sig.params,
             (sig.ret, &impl_outs, &|t| self.proj_lifetimes(ls, t)),
             trait_,
-            trait_lifetimes,
-            self_lifetimes,
+            (trait_lifetimes, self_lifetimes, &arg_lifetimes),
             impl_lifetime_count,
         )
         .to_fn(ls, 0)
@@ -1470,6 +1493,8 @@ impl Ck<'_, '_> {
         if !holds {
             return None;
         }
+        // Links of the slots of one implementation lifetime.
+        let mut impl_links: Vec<(Var, Var)> = Vec::new();
         let (def, trait_, self_slots) = match tag {
             Tag::Call | Tag::Await => match Callee::from_words(b.record(b.data[i][0]))? {
                 Callee::Item { def, .. } => (Some(def), None, Vec::new()),
@@ -1477,13 +1502,17 @@ impl Ck<'_, '_> {
                     trait_,
                     method,
                     self_ty,
+                    targs,
                     choice,
-                    ..
                 } => {
                     let slots = match choice {
-                        (ChoiceKind::Impl, imp) => self.impl_trait_self_slots(DefId::from_raw(imp)),
+                        (ChoiceKind::Impl, imp) => {
+                            let targs = pool.list_items(targs);
+                            let imp = DefId::from_raw(imp);
+                            self.impl_trait_slots(ls, imp, targs, &mut impl_links)
+                        }
                         (ChoiceKind::TraitValue, _) => {
-                            self.trait_value_self_slots(ls, trait_, self_ty)
+                            vec![self.trait_value_self_slots(ls, trait_, self_ty)]
                         }
                         (ChoiceKind::Bound, _) => {
                             bound_ids = self.bound_ids(ls, self_ty, trait_, 0);
@@ -1506,7 +1535,7 @@ impl Ck<'_, '_> {
                 (
                     Some(method),
                     Some(*owner),
-                    self.trait_value_self_slots(ls, *owner, t),
+                    vec![self.trait_value_self_slots(ls, *owner, t)],
                 )
             }
             Tag::CallValue => (None, None, Vec::new()),
@@ -1547,7 +1576,10 @@ impl Ck<'_, '_> {
                 .map(Var::Own)
         };
         let target = |p: hd_types::ParamRef, s: usize| {
-            (is_trait_self(p).then(|| self_slots.get(s).copied().flatten())).flatten()
+            let k = usize::from(p.index);
+            (trait_ == Some(p.owner))
+                .then(|| self_slots.get(k)?.get(s).copied().flatten())
+                .flatten()
         };
         // Where a capture slot a type parameter adds is kept.
         let declared = def.and_then(|d| Some((d, self.cx.lookup.item(d)?.sig()?)));
@@ -1755,6 +1787,7 @@ impl Ck<'_, '_> {
             _ => Vec::new(),
         };
         links.append(&mut proj_links);
+        links.append(&mut impl_links);
         // A call through a bound passes at the trait's lifetimes the ones
         // the bound writes, the caller's own: `s.put(&q)` with
         // `S < Store['a]` stores at `'a` (`ref.lifetime.trait.bound-argument`).
@@ -2252,19 +2285,74 @@ impl Ck<'_, '_> {
         out
     }
 
-    /// For each reference slot an implementation gives the trait's
-    /// abstract `Self`, the trait lifetime it instantiates there.
-    fn impl_trait_self_slots(&self, imp: DefId) -> Vec<Option<u32>> {
+    /// For the trait's abstract `Self` and then each trait argument, as a
+    /// call through implementation `imp` instantiates them with `targs`,
+    /// the trait lifetime each slot's implementation lifetime is
+    /// (`ref.lifetime.trait`). The slots of one implementation lifetime
+    /// that is no trait lifetime are one variable, pushed to `links`: with
+    /// `impl['b] Put[&'b Point] for Cell['b]`, `put(&mut self, v: V)`
+    /// stores `v` in the target's `'b` slot (`ref.lifetime.trait.impl-argument`).
+    fn impl_trait_slots(
+        &self,
+        ls: &Layouts<'_>,
+        imp: DefId,
+        targs: &[Ty],
+        links: &mut Vec<(Var, Var)>,
+    ) -> Vec<Vec<Option<u32>>> {
         let Some(ItemData::Impl {
+            trait_,
+            trait_args,
             trait_lifetimes: t,
             self_lifetimes,
+            trait_slots,
             ..
         }) = self.cx.lookup.item(imp).map(|i| &i.data)
         else {
             return Vec::new();
         };
-        let at = |l: &u16| t.iter().position(|x| x == l && *l != 0).map(|k| w(k + 1));
-        self_lifetimes.iter().map(at).collect()
+        let pool = ls.pool;
+        let mut lts: Vec<Vec<u32>> = vec![self_lifetimes.iter().map(|&l| u32::from(l)).collect()];
+        if !trait_slots.is_empty() {
+            let args = pool.list_items(*trait_args);
+            let written: Vec<u32> = trait_slots.iter().map(|&l| u32::from(l)).collect();
+            for (&a, ids) in args.iter().zip(arg_ids(ls, args, &written)) {
+                let inst = targs.get(lts.len() - 1).copied().unwrap_or(a);
+                let keys = line_up(ls, a, inst).unwrap_or_default();
+                let mine = keys.into_iter().map(|k| match k {
+                    Key::Decl(j) => ids.get(j).copied().unwrap_or(0),
+                    _ => 0,
+                });
+                lts.push(mine.collect());
+            }
+        }
+        let at = |l: u32| {
+            t.iter()
+                .position(|&x| u32::from(x) == l && l != 0)
+                .map(|k| w(k + 1))
+        };
+        let mut first: Vec<(u32, Var)> = Vec::new();
+        for (g, slots) in lts.iter().enumerate() {
+            let index = u16::try_from(g).unwrap_or(u16::MAX);
+            for (s, &l) in slots.iter().enumerate() {
+                if l == 0 || at(l).is_some() {
+                    continue;
+                }
+                let v = Var::Param(
+                    hd_types::ParamRef {
+                        owner: *trait_,
+                        index,
+                    },
+                    s,
+                );
+                match first.iter().find(|x| x.0 == l) {
+                    Some(&(_, f)) => links.push((f, v)),
+                    None => first.push((l, v)),
+                }
+            }
+        }
+        (lts.iter())
+            .map(|slots| slots.iter().map(|&l| at(l)).collect())
+            .collect()
     }
 
     /// The hidden lifetime-argument slots of a trait value, numbered as

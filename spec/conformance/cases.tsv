@@ -5485,6 +5485,10 @@ typing/invalid/local-reference-escapes-trait-default-store.hd	type	reject:local-
 typing/invalid/local-reference-escapes-bound-lifetime-argument-store.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/trait-default-own-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/valid/trait-argument-impl-named-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
+typing/valid/trait-argument-impl-written-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
+typing/invalid/local-reference-escapes-trait-argument-impl-written-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
+typing/invalid/local-reference-escapes-trait-argument-impl-store.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
+runtime/valid/trait-argument-impl-written-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
 runtime/valid/trait-argument-impl-unnamed-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-unnamed
 typing/valid/list-and-map-of-local-references-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.argument
 typing/valid/dependent-result-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide

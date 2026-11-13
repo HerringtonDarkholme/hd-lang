@@ -1,0 +1,19 @@
+# test: a caller of an implementation whose trait type argument writes a lifetime returns a local reference
+# Spec 13 Lifetime Traits: ref.lifetime.trait.impl-argument. `get` returns
+# its `v`, here `&q`.
+struct Point:
+    x: i32
+
+trait Id[V]:
+    fn get(&self, v: V) -> V
+
+struct Sh:
+    n: i32
+
+impl['b] Id[&'b Point] for Sh:
+    fn get(&self, v: &'b Point) -> &'b Point:
+        v
+
+fn bad['c](s: &Sh, p: &'c Point) -> &'c Point:
+    q := Point { x: 1 }
+    s.get(&q) # diagnostic: local-reference-escapes

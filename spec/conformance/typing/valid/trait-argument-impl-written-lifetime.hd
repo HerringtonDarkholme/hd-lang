@@ -1,0 +1,54 @@
+# test: an implementation returns a value at a lifetime its trait type argument writes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.impl-argument; Spec 09:
+# trait.impl.lifetime.subtype. With `impl['b] Id[&'b Point] for Sh`, `V`
+# is `&'b Point`, so `get` may return `v`, and `make`'s `Self::Item`,
+# which holds what `V` holds, may be built from it. A trait argument
+# written twice at one lifetime makes them one, and a slot the
+# implementation's own type parameter adds keeps what its argument gives.
+struct Point:
+    x: i32
+
+trait Id[V]:
+    fn get(&self, v: V) -> V
+
+trait Mk[V]:
+    type Item
+    fn make(&self, v: V) -> Self::Item
+
+trait Pair[A]:
+    fn left(&self, a: A) -> A
+
+trait Two[A, B]:
+    fn cross(&self, a: A) -> B
+
+struct Keep['a]:
+    last: &'a Point
+
+struct Sh:
+    n: i32
+
+impl['b] Id[&'b Point] for Sh:
+    fn get(&self, v: &'b Point) -> &'b Point:
+        v
+
+impl['b] Mk[&'b Point] for Sh:
+    type Item = Keep['b]
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+impl['b] Two[&'b Point, &'b Point] for Sh:
+    fn cross(&self, a: &'b Point) -> &'b Point:
+        a
+
+impl['b, T] Pair[(&'b Point, T)] for Sh:
+    fn left(&self, a: (&'b Point, T)) -> (&'b Point, T):
+        a
+
+fn paired['c](s: &Sh, p: &'c Point, r: &'c Point) -> (&'c Point, &'c Point):
+    s.left((p, r))
+
+fn ok['c](s: &Sh, p: &'c Point) -> &'c Point:
+    s.get(p)
+
+fn kept['c](s: &Sh, p: &'c Point) -> Keep['c]:
+    s.make(p)

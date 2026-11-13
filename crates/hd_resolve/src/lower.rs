@@ -5342,6 +5342,7 @@ impl Lower<'_, '_, '_> {
                 trait_args: TyList::EMPTY,
                 trait_lifetimes: vec![],
                 self_lifetimes: vec![],
+                trait_slots: vec![],
                 self_ty,
                 methods: vec![],
                 assoc: vec![],
@@ -5430,8 +5431,14 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
-        let (trait_, trait_args, trait_lifetimes, header_bindings) = match trait_node {
-            None => (DefId::NONE, TyList::EMPTY, Vec::new(), Vec::new()),
+        let (trait_, trait_args, trait_lifetimes, trait_slots, header_bindings) = match trait_node {
+            None => (
+                DefId::NONE,
+                TyList::EMPTY,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            ),
             Some(tn) => {
                 let segs = self.segments(tn);
                 if segs
@@ -5474,7 +5481,13 @@ impl Lower<'_, '_, '_> {
                     } => {
                         let k = self.r.lifetime_count(def);
                         let from = trait_slots.len().saturating_sub(k);
-                        (def, args, trait_slots[from..].to_vec(), bindings)
+                        let lifetimes = trait_slots[from..].to_vec();
+                        // Each slot of the trait arguments, where they write
+                        // a lifetime (`ref.lifetime.trait.impl-argument`).
+                        let written = trait_slots.iter().any(|&l| l != 0)
+                            && trait_slots.len() == pool.types().ref_slots(tv);
+                        let slots = if written { trait_slots } else { Vec::new() };
+                        (def, args, lifetimes, slots, bindings)
                     }
                     _ => return,
                 }
@@ -5645,6 +5658,7 @@ impl Lower<'_, '_, '_> {
                 trait_args,
                 trait_lifetimes,
                 self_lifetimes: gn.self_slots.clone(),
+                trait_slots,
                 self_ty,
                 methods,
                 assoc,
@@ -5919,6 +5933,7 @@ impl Lower<'_, '_, '_> {
                         trait_args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(self_ty)),
                         trait_lifetimes: vec![],
                         self_lifetimes: vec![],
+                        trait_slots: vec![],
                         self_ty,
                         methods: vec![],
                         assoc: vec![],
@@ -6144,6 +6159,7 @@ impl Lower<'_, '_, '_> {
                     trait_args,
                     trait_lifetimes: vec![],
                     self_lifetimes: vec![],
+                    trait_slots: vec![],
                     self_ty,
                     methods,
                     assoc: vec![],

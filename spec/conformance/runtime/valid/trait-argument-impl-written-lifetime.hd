@@ -1,0 +1,39 @@
+# test: an implementation returns and stores a value at a lifetime its trait type argument writes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.impl-argument. `get` returns
+# its `v` and `put` keeps it in the target's `'b` slot.
+# expect-stdout: 3
+# expect-stdout: 5
+struct Point:
+    x: i32
+
+trait Id[V]:
+    fn get(&self, v: V) -> V
+
+trait Put[V]:
+    fn put(&mut self, v: V) -> void
+
+struct Sh:
+    n: i32
+
+impl['b] Id[&'b Point] for Sh:
+    fn get(&self, v: &'b Point) -> &'b Point:
+        v
+
+struct Cell['b]:
+    last: &'b Point
+
+impl['b] Put[&'b Point] for Cell['b]:
+    fn put(&mut self, v: &'b Point) -> void:
+        self.last = v
+
+fn outlive['c](p: &'c Point) -> &'c Point:
+    s := Sh { n: 1 }
+    s.get(p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    println(outlive(&p).x)
+    q := Point { x: 5 }
+    let mut c = Cell { last: &p }
+    c.put(&q)
+    println(c.last.x)

@@ -634,6 +634,11 @@ pub enum ItemData {
         trait_lifetimes: Vec<u16>,
         /// The implementation lifetime of each reference slot of `self_ty`.
         self_lifetimes: Vec<u16>,
+        /// The implementation lifetime of each reference slot of
+        /// `trait_args`, in [`hd_types::Types::ref_slots`] order, 0 where none is
+        /// written; empty when none writes one
+        /// (`ref.lifetime.trait.impl-argument`).
+        trait_slots: Vec<u16>,
         self_ty: Ty,
         methods: Vec<(Symbol, DefId)>,
         assoc: Vec<(DefId, Ty)>,
@@ -1561,6 +1566,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             trait_args,
             trait_lifetimes,
             self_lifetimes,
+            trait_slots,
             self_ty,
             methods,
             assoc,
@@ -1582,6 +1588,10 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             }
             w.len_of(self_lifetimes);
             for l in self_lifetimes {
+                w.u32(u32::from(*l));
+            }
+            w.len_of(trait_slots);
+            for l in trait_slots {
                 w.u32(u32::from(*l));
             }
             w.u32(t.ty(*self_ty)?);
@@ -1694,6 +1704,10 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
             for _ in 0..r.count() {
                 self_lifetimes.push(u16::try_from(r.u32()).ok()?);
             }
+            let mut trait_slots = Vec::new();
+            for _ in 0..r.count() {
+                trait_slots.push(u16::try_from(r.u32()).ok()?);
+            }
             let self_ty = t.ty(r.u32())?;
             let methods = get_pairs(r, t)?;
             let mut assoc = Vec::new();
@@ -1710,6 +1724,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 trait_args,
                 trait_lifetimes,
                 self_lifetimes,
+                trait_slots,
                 self_ty,
                 methods,
                 assoc,

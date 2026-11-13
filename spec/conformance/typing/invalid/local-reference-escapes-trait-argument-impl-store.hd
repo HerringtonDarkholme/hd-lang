@@ -1,0 +1,21 @@
+# test: a caller of an implementation stores a local reference at a lifetime its trait argument and target share
+# Spec 13 Lifetime Traits: ref.lifetime.trait.impl-argument; Lifetime
+# Stores: ref.lifetime.store.call. With `impl['b] Put[&'b Point] for
+# Cell['b]`, `put` keeps `v` in the target's `'b` slot, the caller's
+# `Cell['c]`, past `bad`'s return.
+struct Point:
+    x: i32
+
+trait Put[V]:
+    fn put(&mut self, v: V) -> void
+
+struct Cell['b]:
+    last: &'b Point
+
+impl['b] Put[&'b Point] for Cell['b]:
+    fn put(&mut self, v: &'b Point) -> void:
+        self.last = v
+
+fn bad['c](s: &mut Cell['c]) -> void:
+    q := Point { x: 1 }
+    s.put(&q) # diagnostic: local-reference-escapes

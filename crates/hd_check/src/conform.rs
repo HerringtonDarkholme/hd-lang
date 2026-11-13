@@ -167,6 +167,7 @@ impl Ck<'_, '_> {
             trait_args,
             trait_lifetimes,
             self_lifetimes,
+            trait_slots,
             self_ty,
             kind,
             ..
@@ -174,7 +175,6 @@ impl Ck<'_, '_> {
         else {
             return Ok(());
         };
-        let impl_lifetime_count = impl_item.generics.iter().filter(|g| g.lifetime).count();
         if *trait_ == DefId::NONE || !matches!(kind, ImplKind::Written | ImplKind::Delegated) {
             return Ok(());
         }
@@ -284,10 +284,9 @@ impl Ck<'_, '_> {
             self.trait_fn_deps(
                 tsig,
                 sig,
-                trait_,
-                trait_lifetimes,
-                self_lifetimes,
-                impl_lifetime_count,
+                (trait_, *trait_args),
+                (trait_lifetimes, self_lifetimes, trait_slots),
+                impl_item.generics.iter().filter(|g| g.lifetime).count(),
             ),
         ) {
             // `trait.impl.lifetime.subtype`: an implementation may depend
