@@ -738,6 +738,8 @@ runtime/panic/explicit-panic.hd	runtime	panic:explicit-panic	lang/06-control-flo
 runtime/panic/integer-add-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 runtime/panic/invalid-shift.hd	runtime	panic:invalid-shift	lang/05-expressions.md#unary-and-binary-operators
 runtime/panic/list-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing
+runtime/valid/counted-index-guards-preserve-early-exits.hd	runtime	accept	lang/05-expressions.md#indexing
+runtime/panic/counted-index-guards-keep-out-of-range-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing
 runtime/panic/integer-negation-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 runtime/panic/list-set-out-of-bounds.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing
 typing/invalid/duplicate-generic-embedded-name.hd	type	reject:duplicate-embedded-field	lang/08-data-and-enums.md#data-embedding

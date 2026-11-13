@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# expected: one nontrapping range guard selects an unchecked fast loop;
+# the fallback keeps checks for a larger bound, and zero trips and early exits stay valid.
+fn scan(items: List[i32], start: usize, end: usize, needle: i32) -> usize:
+    let at = start
+    while at + 4 <= end:
+        if items[at] == needle:
+            break
+        if items[at + 1] == needle:
+            at += 1
+            break
+        if items[at + 2] == needle:
+            at += 2
+            break
+        if items[at + 3] == needle:
+            at += 3
+            break
+        at += 4
+    at

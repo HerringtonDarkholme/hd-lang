@@ -1191,6 +1191,8 @@ pub struct Module {
     /// A release build: its function names go in `hd.names`, not `name`
     /// (`crates/hd_wasm/DESIGN.md` §15.9).
     pub release: bool,
+    /// The optimized pipeline, including checked optimized builds.
+    pub optimized: bool,
     /// Set by [`Module::finish`] when no object of the program takes part
     /// in cycle collection: the helpers then call the runtime's releases
     /// without collector hooks and never collect, so `std.rt.cycle` is not
@@ -1292,6 +1294,7 @@ impl Module {
             binding_slots: BTreeMap::default(),
             stored: BTreeMap::default(),
             release: Default::default(),
+            optimized: Default::default(),
             acyclic: Default::default(),
             cycle_insts: BTreeSet::default(),
             std_insts: BTreeSet::default(),
@@ -2067,6 +2070,10 @@ impl Module {
                 crate::opt::blocks(f, &arity);
             }
             crate::opt::coalesce(f);
+            if self.optimized && crate::opt::version_loop_bounds(f) {
+                crate::opt::locals(f, &arity);
+                crate::opt::coalesce(f);
+            }
             if crate::opt::drops(f) {
                 crate::opt::locals(f, &arity);
             }
