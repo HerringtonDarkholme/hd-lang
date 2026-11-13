@@ -1,0 +1,25 @@
+# scan_steps is injected by allocator_init.rs only in this test's std source.
+use std.rt.alloc.{alloc, free, scan_steps}
+use std.rt.memory.{load_u32, store_u32}
+
+fn measured(size: usize, count: usize) -> usize:
+    before := scan_steps()
+    let last: usize = 0
+    for i in 0..count:
+        block := alloc(size)
+        store_u32(block, u32(last))
+        last = block
+    steps := scan_steps() - before
+    while last != 0:
+        previous := usize(load_u32(last))
+        free(last)
+        last = previous
+    steps
+
+pub fn main() -> void $ Console:
+    for size in [65536, 131072]:
+        small := measured(size, 1000)
+        large := measured(size, 10000)
+        println("$size $small $large")
+        if small > 4000 || large > 40000 || large > 12 * (small + 1000):
+            panic("the page search rescans occupied prefixes")
