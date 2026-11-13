@@ -1628,15 +1628,59 @@ fn pure_push(i: &Ins) -> bool {
 
 /// Rule 4: moves each copy into a local read once to its read.
 fn forward(f: &mut Func, np: u32) -> bool {
-    let (reads, writes) = counts(f);
+    forward_with(f, np, || {})
+}
+
+/// O(instructions + locals + globals): index uses once, carry the next
+/// clobber/control edge while walking backwards, then compact once.
+fn forward_with(f: &mut Func, np: u32, mut visit: impl FnMut()) -> bool {
+    let end = f.body.len();
+    if end < 2 {
+        return false;
+    }
+    let (reads, writes) = counts_with(f, &mut visit);
+    let mut read_at = vec![end; reads.len()];
+    for (i, ins) in f.body.iter().enumerate() {
+        visit();
+        if let Ins::Op(I::LocalGet(local)) = ins {
+            read_at[*local as usize] = i;
+        }
+    }
+    // The prefix is still intact at each reverse step. Removing its last
+    // push/set pair links the preceding position directly to the suffix.
+    // The same links answer adjacency at a moved read across earlier holes.
+    let mut next: Vec<_> = (1..=end).collect();
+    let mut next_write = vec![end; reads.len()];
+    let mut global_writes = hd_base::HashMap::default();
+    let (mut call, mut boundary, mut hard_boundary, mut empty_block) = (end, end, end, end);
     let mut changed = false;
-    // Last to first: a moved copy can be what let an earlier one reach its
-    // read, so this order clears a chain in one walk, not one walk per copy.
-    for k in (0..f.body.len().saturating_sub(1)).rev() {
-        let Ins::Op(I::LocalSet(t)) = f.body[k + 1] else {
+    for k in (0..end).rev() {
+        visit();
+        let p = f.body[k];
+        if let Ins::Op(I::LocalSet(local) | I::LocalTee(local)) = p {
+            next_write[local as usize] = k;
+        }
+        if let Ins::GlobalSet(global) = p {
+            global_writes.insert(global, k);
+        }
+        if matches!(p, Ins::Call(_) | Ins::CallIndirect(_)) {
+            call = k;
+        }
+        if ends_run(&p) {
+            boundary = k;
+            if matches!(p, Ins::Op(I::Block(wasm_encoder::BlockType::Empty))) {
+                empty_block = k;
+            } else {
+                hard_boundary = k;
+            }
+        }
+        let set = next[k];
+        if set >= end {
+            continue;
+        }
+        let Ins::Op(I::LocalSet(t)) = f.body[set] else {
             continue;
         };
-        let p = f.body[k];
         let pure = matches!(
             p,
             Ins::Op(
@@ -1651,44 +1695,73 @@ fn forward(f: &mut Func, np: u32) -> bool {
         if !pure || t < np || reads[t as usize] != 1 || writes[t as usize] != 1 {
             continue;
         }
-        let mut found = None;
-        let mut crossed_block = false;
-        for j in k + 2..f.body.len() {
-            let i = &f.body[j];
-            if matches!(i, Ins::Op(I::LocalGet(u)) if *u == t) {
-                found = Some(j);
-                break;
-            }
-            // Inlining wraps a callee in empty blocks. Entering one cannot
-            // skip this store or change a literal bulk width.
-            let constant_block = matches!(p, Ins::Op(I::I32Const(_)))
-                && matches!(i, Ins::Op(I::Block(wasm_encoder::BlockType::Empty)));
-            crossed_block |= constant_block;
-            if clobbers(&p, i) || (ends_run(i) && !constant_block) {
-                break;
-            }
+        visit();
+        let j = read_at[t as usize];
+        if j <= set || j >= end {
+            continue;
         }
-        if let Some(j) = found {
-            // Exposing a width enables bulk lowering to choose scalar or
-            // native memory operations. Moving unrelated constants into
-            // blocks has no such benefit and can change engine inlining.
-            if crossed_block
-                && !matches!(
-                    f.body.get(j + 1),
-                    Some(Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_)))
+        // Only an i32 literal may cross an empty block, and only to expose
+        // a bulk-memory width. All other control edges remain barriers.
+        let literal = matches!(p, Ins::Op(I::I32Const(_)));
+        let stop = if literal { hard_boundary } else { boundary };
+        if stop < j {
+            continue;
+        }
+        let clobber = match p {
+            Ins::Op(I::LocalGet(local)) => next_write[local as usize],
+            Ins::GlobalGet(global) => global_writes.get(&global).copied().unwrap_or(end).min(call),
+            _ => end,
+        };
+        if set < clobber && clobber < j {
+            continue;
+        }
+        if literal && empty_block < j {
+            let after = next[j];
+            if after >= end
+                || !matches!(
+                    f.body[after],
+                    Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_))
                 )
             {
                 continue;
             }
-            f.body[j] = p;
-            if let Some(origins) = &mut f.origins {
-                origins[j] = origins[k].or(origins[k + 1]).or(origins[j]);
-            }
-            f.drain(k..k + 2);
-            changed = true;
+        }
+        f.body[j] = p;
+        if let Some(origins) = &mut f.origins {
+            origins[j] = origins[k].or(origins[set]).or(origins[j]);
+        }
+        read_at[t as usize] = end;
+        if let Ins::Op(I::LocalGet(local)) = p
+            && reads[local as usize] == 1
+        {
+            read_at[local as usize] = j;
+        }
+        // This destination had exactly one write, which is now gone.
+        next_write[t as usize] = end;
+        let after = next[set];
+        next[k] = usize::MAX;
+        next[set] = usize::MAX;
+        if k > 0 {
+            next[k - 1] = after;
+        }
+        changed = true;
+    }
+    if !changed {
+        return false;
+    }
+    let body = std::mem::take(&mut f.body);
+    let mut out = Vec::with_capacity(body.len());
+    let mut origins = Remap::new(f.origins.as_deref());
+    for (i, ins) in body.into_iter().enumerate() {
+        visit();
+        if next[i] != usize::MAX {
+            out.push(ins);
+            origins.copy(i..i + 1);
         }
     }
-    changed
+    f.body = out;
+    origins.finish(f);
+    true
 }
 
 /// Rule 7: folds the constants of each window of instructions.
@@ -4079,6 +4152,146 @@ mod origin_tests {
                 i,
                 Ins::Call(_) | Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_))
             )));
+        }
+    }
+
+    #[test]
+    fn forwarding_work_is_linear_at_width_1000_depth_20() -> Result<(), String> {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for width in [1usize, 1000] {
+            for depth in [1usize, 20] {
+                let local = |lane: usize, level: usize| {
+                    u32::try_from(1 + lane * (depth + 1) + level).map_err(|e| e.to_string())
+                };
+                let mut body = Vec::new();
+                for lane in 0..width {
+                    for level in 0..=depth {
+                        let source = if level == 0 {
+                            0
+                        } else {
+                            local(lane, level - 1)?
+                        };
+                        body.push(op(I::LocalGet(source)));
+                        body.push(op(I::LocalSet(local(lane, level)?)));
+                    }
+                }
+                for lane in 0..width {
+                    body.push(op(I::LocalGet(local(lane, depth)?)));
+                    body.push(op(I::Drop));
+                }
+                let n = body.len();
+                let mut f = tracked(&symbols, 1, width * (depth + 1), body);
+                let mut work = 0;
+                assert!(forward_with(&mut f, 1, || work += 1));
+                // Four instruction walks and at most one query per position.
+                // Long-distance uses and copy-chain depth add no rescans.
+                assert!(
+                    work <= 5 * n,
+                    "{width} x {depth}: {work} visits / {n} instructions"
+                );
+                assert_eq!(f.body.len(), 2 * width);
+                for chunk in f.body.chunks_exact(2) {
+                    assert!(matches!(chunk, [Ins::Op(I::LocalGet(0)), Ins::Op(I::Drop)]));
+                }
+                let origins = spans(&f);
+                for lane in 0..width {
+                    assert_eq!(
+                        origins[2 * lane],
+                        10 + u32::try_from(2 * lane * (depth + 1)).map_err(|e| e.to_string())?
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn forwarding_relinks_newly_adjacent_copies() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                3,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Const(3)),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalSet(2)),
+                    op(I::LocalSet(3)),
+                    op(I::LocalGet(2)),
+                    op(I::Drop),
+                    op(I::LocalGet(3)),
+                    op(I::Drop),
+                ],
+            ),
+            |f| {
+                assert!(forward(f, 1));
+            },
+        );
+        assert!(matches!(
+            f.body.as_slice(),
+            [
+                Ins::Op(I::I32Const(3)),
+                Ins::Op(I::Drop),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::Drop)
+            ]
+        ));
+        assert_eq!(spans(&f), [11, 17, 10, 19]);
+    }
+
+    #[test]
+    fn forwarding_preserves_local_and_global_clobbers() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let global = symbols.intern_global(Global::HashSeed);
+        let other = symbols.intern_global(Global::Forbid);
+        let effect = call(
+            &symbols,
+            Sym::Import(crate::module::Import::new("test", "change", &[], &[])),
+        );
+        for (source, between, allowed) in [
+            (
+                op(I::LocalGet(0)),
+                vec![op(I::I32Const(9)), op(I::LocalSet(0))],
+                false,
+            ),
+            (
+                op(I::LocalGet(0)),
+                vec![op(I::I32Const(9)), op(I::LocalSet(2))],
+                true,
+            ),
+            (
+                Ins::GlobalGet(global),
+                vec![op(I::I32Const(9)), Ins::GlobalSet(global)],
+                false,
+            ),
+            (
+                Ins::GlobalGet(global),
+                vec![op(I::I32Const(9)), Ins::GlobalSet(other)],
+                true,
+            ),
+            (Ins::GlobalGet(global), vec![effect], false),
+        ] {
+            let mut body = vec![source, op(I::LocalSet(1))];
+            body.extend(between);
+            body.extend([op(I::LocalGet(1)), op(I::Drop)]);
+            let original = format!("{body:?}");
+            let mut f = tracked(&symbols, 1, 2, body);
+            assert_eq!(forward(&mut f, 1), allowed);
+            if allowed {
+                assert!(matches!(f.body.last(), Some(Ins::Op(I::Drop))));
+                assert_eq!(
+                    format!("{:?}", f.body[f.body.len() - 2]),
+                    format!("{source:?}")
+                );
+            } else {
+                assert_eq!(format!("{:?}", f.body), original);
+            }
         }
     }
 

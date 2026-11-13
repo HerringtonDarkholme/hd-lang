@@ -848,13 +848,6 @@ impl Func {
         }
     }
 
-    pub fn drain(&mut self, range: std::ops::Range<usize>) {
-        if let Some(origins) = &mut self.origins {
-            origins.drain(range.clone());
-        }
-        self.body.drain(range);
-    }
-
     pub fn remove(&mut self, index: usize) {
         if let Some(origins) = &mut self.origins {
             origins.remove(index);
