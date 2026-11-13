@@ -26,6 +26,7 @@ mod opt;
 mod origins;
 mod rt;
 mod scan;
+mod static_data;
 mod tables;
 mod task;
 pub mod views;

@@ -549,6 +549,9 @@ pub struct Func {
     pub origin_args: Vec<String>,
     /// With origins: the static data addresses the body pushes.
     pub statics: Option<BTreeSet<u32>>,
+    /// Static allocation dependencies survive local folding. Only functions
+    /// still reached at final link keep them; init constants are roots too.
+    pub data_refs: Vec<u32>,
     count_origin_base: Option<u32>,
     count_origins: Vec<crate::views::CountOrigin>,
     count_sites: u32,
@@ -751,9 +754,9 @@ impl Func {
         }
     }
 
-    /// Records that the body pushes `at` as a static data address, when
-    /// development tools track it.
+    /// Records a static allocation dependency and its optional source label.
     pub fn mark_static(&mut self, at: u32) {
+        self.data_refs.push(at);
         if let Some(statics) = &mut self.statics {
             statics.insert(at);
         }
@@ -778,6 +781,7 @@ impl Func {
         if base.is_none() {
             for ins in &mut self.body {
                 if let Ins::Static(at) = *ins {
+                    self.data_refs.push(at);
                     *ins = Ins::Op(Instruction::I32Const(at.cast_signed()));
                 }
             }
@@ -1124,6 +1128,8 @@ pub struct Module {
     /// Static data from [`STATIC_BASE`], deduplicated by content.
     data: Vec<u8>,
     data_at: BTreeMap<Vec<u8>, u32>,
+    data_chunks: Vec<crate::static_data::Chunk>,
+    data_roots: Vec<u32>,
     /// Static vtables: each one's slots, then the vtables of its direct
     /// supertraits, then async and blocking drive slots (§23.39), after the data.
     vtables: Vec<VTable>,
@@ -1267,6 +1273,8 @@ impl Module {
             inst_order: Vec::default(),
             data: Vec::default(),
             data_at: BTreeMap::default(),
+            data_chunks: Vec::new(),
+            data_roots: Vec::new(),
             vtables: Vec::default(),
             vtable_at: hd_base::HashMap::default(),
             #[cfg(test)]
@@ -1414,7 +1422,14 @@ impl Module {
             self.data.push(0);
         }
         let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        let start = self.data.len();
         self.data.extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            self.data_chunks.push(crate::static_data::Chunk {
+                range: start..self.data.len(),
+                live: false,
+            });
+        }
         self.data_at.insert(bytes.to_vec(), at);
         if self.track_origins {
             self.static_labels
@@ -1916,8 +1931,17 @@ impl Module {
             f.rebuild_callees();
         }
         self.reach();
-        for f in self.funcs.iter_mut().flatten() {
+        let init_keys: hd_base::HashSet<_> = self.init_insts.iter().copied().collect();
+        for (id, f) in self.funcs.iter_mut().enumerate() {
+            let Some(f) = f else { continue };
             f.resolve_statics(previous.map(|_| Global::SessionData));
+            // Constant storage can forward an init's address to another
+            // function and delete the init. Keep its literal dependencies.
+            // ruled out: every function was registered under a u32 SymId.
+            let id = crate::emit::required(u32::try_from(id).ok(), "function symbol fits u32");
+            if matches!(&*self.symbols.get(SymId(id)), Sym::Inst(key) if init_keys.contains(key)) {
+                self.data_roots.extend_from_slice(&f.data_refs);
+            }
         }
         let mut arity = vec![None; self.symbols.len()];
         for (k, f) in self.funcs.iter().enumerate() {
@@ -2855,18 +2879,32 @@ impl Module {
             }
         }
         manifest.table_len = table_start + u32::try_from(slots.len()).expect("table");
-        let mut data = DataSection::new();
-        if !self.data.is_empty() {
-            data.active(
-                HEAP,
-                &if previous.is_some() {
-                    ConstExpr::global_get(gindex[&Global::SessionData])
-                } else {
-                    ConstExpr::i32_const(STATIC_BASE.cast_signed())
-                },
-                self.data.iter().copied(),
-            );
+        // O(R log A) for R retained static references and A allocations.
+        // Addresses remain fixed; only unreachable initialization bytes go.
+        for at in self
+            .data_roots
+            .iter()
+            .chain(self.funcs.iter().flatten().flat_map(|f| &f.data_refs))
+        {
+            crate::static_data::mark(&mut self.data_chunks, *at);
         }
+        let data = if session {
+            let mut data = DataSection::new();
+            if !self.data.is_empty() {
+                data.active(
+                    HEAP,
+                    &if previous.is_some() {
+                        ConstExpr::global_get(gindex[&Global::SessionData])
+                    } else {
+                        ConstExpr::i32_const(STATIC_BASE.cast_signed())
+                    },
+                    self.data.iter().copied(),
+                );
+            }
+            data
+        } else {
+            crate::static_data::section(&self.data, &self.data_chunks, &mut || {})
+        };
         let mut module = wasm_encoder::Module::new();
         if !self.package_contract.interfaces.is_empty() {
             self.package_contract
@@ -2918,7 +2956,7 @@ impl Module {
             module.section(&elements);
         }
         module.section(&code);
-        if !self.data.is_empty() {
+        if !data.is_empty() {
             module.section(&data);
         }
         if !lines.is_empty() {
