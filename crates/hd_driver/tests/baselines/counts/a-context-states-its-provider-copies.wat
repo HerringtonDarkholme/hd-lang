@@ -35,7 +35,7 @@
     local.get $first.0
     i32.store $heap offset=24
     local.get $first.1
-    i32.const 236 ;; &vtable[func66]
+    i32.const 236 ;; &vtable[func67]
     i32.store $heap offset=28
     local.get $t0
     if
@@ -139,7 +139,7 @@
     local.get $t0
     i32.store $heap offset=24
     local.get $label.0
-    i32.const 236 ;; &vtable[func66]
+    i32.const 236 ;; &vtable[func67]
     i32.store $heap offset=28
     local.get $label.0
   )
@@ -164,7 +164,7 @@
     local.get $ctx
     i32.store $heap offset=24
     local.get $label.0
-    i32.const 236 ;; &vtable[func66]
+    i32.const 236 ;; &vtable[func67]
     i32.store $heap offset=28
     local.get $label.0
   )

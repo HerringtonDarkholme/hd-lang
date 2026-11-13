@@ -757,7 +757,7 @@
     call $rt:forbid_check
     i32.const 0
     local.get $t1
-    i32.const 508 ;; &vtable[func102, func104]
+    i32.const 508 ;; &vtable[func103, func105]
     local.get $reader
     local.get $provider0
     local.get $provider0.vtable

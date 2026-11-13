@@ -59,7 +59,7 @@
     i32.store $heap offset=16
     local.get $t1
     ;; 35 |     name = [Mark { label: "mark" }]
-    i32.const 516 ;; &vtable[func71]
+    i32.const 516 ;; &vtable[func72]
     ;; 31 | struct Record:
     i32.store $heap offset=20
     local.get $t1
