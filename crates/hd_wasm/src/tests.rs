@@ -1662,3 +1662,126 @@ fn a_folded_initializer_keeps_its_forwarded_literal() -> Result<(), String> {
     assert!(found);
     Ok(())
 }
+
+/// Session mode disables both quiet-init elision and acyclic init filtering.
+/// Identical init lists/flags therefore reuse one helper over shared globals.
+#[test]
+fn session_entry_init_reuses_keyed_initializers_and_forbid_flags() -> Result<(), String> {
+    use crate::module::Global;
+    use crate::op::Op as I;
+    let trace = Global::Storage(Hash128(8010), 0, Val::I32);
+    let first = Hash128(8011);
+    let second = Hash128(8012);
+    let define = |m: &mut Module| {
+        for (key, digit) in [(first, 1), (second, 2)] {
+            let mut f = m.func("record_init", vec![], vec![]);
+            f.global_get(trace);
+            f.i32(100);
+            f.op(I::I32Mul);
+            f.i32(digit);
+            f.op(I::I32Add);
+            f.global_get(Global::Forbid);
+            f.i32(10);
+            f.op(I::I32Mul);
+            f.op(I::I32Add);
+            f.global_set(trace);
+            m.define(Sym::Inst(key), f);
+            m.init_insts.push(key);
+            m.std_insts.insert(key);
+        }
+    };
+    let entry = |flipped: bool| {
+        Sym::Helper(Helper::EntryInit {
+            inits: vec![(first, !flipped), (second, flipped)],
+        })
+    };
+    let mut base = Module::default();
+    define(&mut base);
+    base.cycle_insts.insert(first);
+    base.export("hd.init", entry(false));
+    let mut read = base.func("read_trace", vec![], vec![Val::I32]);
+    read.global_get(trace);
+    let read_key = Sym::Inst(Hash128(8013));
+    base.define(read_key.clone(), read);
+    base.export("read", read_key);
+    let mut reset = base.func("reset_trace", vec![], vec![]);
+    reset.i32(0);
+    reset.global_set(trace);
+    let reset_key = Sym::Inst(Hash128(8014));
+    base.define(reset_key.clone(), reset);
+    base.export("reset", reset_key);
+    let (base, manifest) = base.finish_session(true).map_err(|e| format!("{e:?}"))?;
+    let mut reuse = Module::default();
+    define(&mut reuse);
+    reuse.cycle_insts.insert(second);
+    reuse.export("hd.init", entry(false));
+    let (reuse, next) = reuse
+        .finish_extension(&manifest)
+        .map_err(|e| format!("{e:?}"))?;
+    let mut changed = Module::default();
+    define(&mut changed);
+    changed.export("hd.init", entry(true));
+    let (changed, _) = changed
+        .finish_extension(&next)
+        .map_err(|e| format!("{e:?}"))?;
+    for wasm in [&base.wasm, &reuse.wasm, &changed.wasm] {
+        validate(wasm);
+    }
+    let imported_init = |wasm: &[u8]| -> Result<bool, String> {
+        let mut functions = 0;
+        let mut init = None;
+        for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+            let payload = payload.map_err(|e| e.to_string())?;
+            if let wasmparser::Payload::ImportSection(section) = payload {
+                for import in section.into_imports() {
+                    if matches!(
+                        import.map_err(|e| e.to_string())?.ty,
+                        wasmparser::TypeRef::Func(_)
+                    ) {
+                        functions += 1;
+                    }
+                }
+            } else if let wasmparser::Payload::ExportSection(section) = payload {
+                for export in section {
+                    let export = export.map_err(|e| e.to_string())?;
+                    if export.name == "hd.init" {
+                        init = Some(export.index);
+                    }
+                }
+            }
+        }
+        Ok(init.ok_or("missing hd.init")? < functions)
+    };
+    assert!(
+        imported_init(&reuse.wasm)?,
+        "identical session init must be imported"
+    );
+    assert!(
+        !imported_init(&changed.wasm)?,
+        "changed forbid flags need a new helper"
+    );
+    let script = format!(
+        r"
+const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?}))).exports;
+base['hd.init']();
+if (base.read() !== 1102) throw Error('base init order or forbid flag');
+const reuse = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({reuse:?})), {{
+  'hd:session:0': base,
+  'hd:session': {{data: new WebAssembly.Global({{value:'i32', mutable:false}}, 4096)}},
+}}).exports;
+base.reset(); reuse['hd.init']();
+if (base.read() !== 1102) throw Error('reused init missed shared state or flags');
+const changed = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({changed:?})), {{
+  'hd:session:0': base, 'hd:session:1': reuse,
+  'hd:session': {{data: new WebAssembly.Global({{value:'i32', mutable:false}}, 8192)}},
+}}).exports;
+base.reset(); changed['hd.init']();
+if (base.read() !== 112) throw Error('new init flags were not applied');
+",
+        base = base.wasm,
+        reuse = reuse.wasm,
+        changed = changed.wasm
+    );
+    run_session_node(&script);
+    Ok(())
+}

@@ -1590,10 +1590,9 @@ impl Module {
     fn import_session(&mut self, previous: &Session) -> StageResult<()> {
         let mut imports = BTreeMap::new();
         for (symbol, export) in &previous.functions {
-            // Every extension emits its own entry init.
-            if matches!(symbol, Sym::Helper(Helper::EntryInit { .. })) {
-                continue;
-            }
+            // EntryInit is reusable too: sessions force cyclic support and
+            // disable quiet-init elision. Its calls and forbid updates then
+            // depend only on the init list and flags already in its key.
             let id = self.symbols.intern(symbol.clone());
             if let Some(Some(f)) = self.funcs.get(id.idx())
                 && (f.params != export.params || f.results != export.results)
