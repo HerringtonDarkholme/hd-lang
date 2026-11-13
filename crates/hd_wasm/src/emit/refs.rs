@@ -1504,7 +1504,18 @@ impl Em<'_, '_, '_> {
             (Some(_), [Proj::Deref, Proj::Elem(_), ..]) => Some(1),
             _ => None,
         };
-        let lead_cache = lead.and_then(|e| cached(self, e == 1).map(|c| (c, e)));
+        let prefix_cache = self
+            .headers
+            .place_hoisted
+            .get(&i)
+            .copied()
+            .filter(|&(elem, _)| {
+                elem < steps.len()
+                    && self.b.decode_place(self.b.data[i as usize][0]).as_ref() == Some(p)
+            });
+        let lead_cache = prefix_cache
+            .map(|(elem, cache)| (cache, elem))
+            .or_else(|| lead.and_then(|e| cached(self, e == 1).map(|c| (c, e))));
         if let Some((_, elem, header)) = self.walked_store.filter(|&(store, elem, _)| {
             store == i
                 && elem < steps.len()

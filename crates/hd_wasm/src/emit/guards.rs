@@ -24,12 +24,16 @@
 //!    (#1706), the same holds of the loop's writes alone, and of a local
 //!    in a cell as of a parameter's referent: no store into the cell or
 //!    move out of it, and a `Ptr` store goes into a room, never a cell.
-//!    The object of a thin `*T` held in such a root's field is a root too
-//!    ([`BOX`]): the object is no room and no cell, the only places a
-//!    write that keeps a root may reach, so whatever keeps the holder's
-//!    root keeps the object while the field holds the box. A dereference
-//!    of a value read from the field names that object only when the read
+//!    An unaddressed by-value parameter whose inline words are never
+//!    stored or moved is unchanged too: a call cannot reach its locals.
+//!    The referent of a thin shared reference held in a root's field is a root too
+//!    ([`BOX`]): a counted referent is no room or cell, the only places a
+//!    write that keeps a root may reach. An ordinary `&T` may name a cell,
+//!    but its shared lifetime excludes writes there. A dereference
+//!    of a value read from the field names that referent only when the read
 //!    is a `borrow`, which the field keeps while the value lives.
+//!    A dereference folded into a place reads the field there, under the
+//!    same no-write proof. This includes ordinary `&T` fields.
 //! 2. **Values by their source.** A read of a local with one dominating
 //!    store is the stored value; an identity or weakening coercion, and a
 //!    block whose one break carries a value, are that value.
@@ -76,9 +80,11 @@
 //! the nesting depth. The loop summaries take one pass that adds each
 //! write to its innermost loop, then a merge of each loop into the one
 //! around it, deepest first, at most [`READS`] rooms and cells each; a
-//! read's hoist loop walks out at most the nesting depth. No fixpoint.
+//! read's hoist loop walks out at most [`DEPTH`] enclosing loops. Folded
+//! element prefixes share that proof and cache their buffer and length.
+//! No fixpoint.
 
-use hd_base::{HashMap, SliceSort as _, StageResult};
+use hd_base::{HashMap, StageResult};
 use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{NONE, PrimOp, Proj, ReadMode, Ref, Root, Tag, local_flags};
 use hd_types::Ty;
@@ -123,31 +129,32 @@ pub(super) struct HeaderFacts {
     /// Each read of a hoisted field, with the local its loop's start
     /// loaded the field into.
     pub(super) hoisted: HashMap<u32, u32>,
-    /// The box roots ([`BOX`]): each one's holder field and its `*T` type.
+    /// An element place's invariant prefix and its cached buffer/length.
+    pub(super) place_hoisted: HashMap<u32, (usize, super::list::ListCache)>,
+    /// Field referent roots ([`BOX`]): holder field and thin shared reference type.
     boxes: Vec<(u32, Path, Ty)>,
 }
 
-/// A header field that loop reads but does not write: the root that
-/// holds it, its field path, and the copy reads of it in the loop.
+/// An invariant header field and its scalar reads or folded element prefixes.
 pub(super) struct Hoist {
     root: u32,
     path: Path,
     reads: Vec<u32>,
+    prefixes: Vec<(u32, usize)>,
 }
 
-/// The root bit of a local's own storage, in a cell: `c | OWN` names the
-/// value in local `c`'s cell, as `p` names the referent of the reference
+/// The root bit of a local's own inline storage: `c | OWN` names the
+/// value in local `c`, as `p` names the referent of the reference
 /// that parameter `p` holds.
 const OWN: u32 = 1 << 31;
 
-/// The root bit of a box's object: `k | BOX` names the object of the `*T`
-/// in entry `k` of the box table, a field of another root. The object is
-/// no room and no cell, the only places a write that keeps a root may
-/// reach, so while that field holds the box, whatever keeps the holder's
-/// root keeps it.
+/// The root bit of a field reference's referent: `k | BOX` names the referent
+/// in entry `k` of the reference table, a field of another root. A counted
+/// referent is no room or cell; a local shared reference's lifetime excludes
+/// writes to its referent. Keeping the holder keeps the pointer used here.
 const BOX: u32 = 1 << 30;
 
-/// The most box roots a body names.
+/// The most field referent roots a body names, and the root-load depth bound.
 const BOXES: usize = 64;
 
 /// A value by its source. A root is a reference parameter `p` that the
@@ -240,9 +247,12 @@ struct Proof<'e, 'x, 'a, 'm> {
     /// a raw store included (`module.rt.ptr.write.shared`,
     /// `module.rt.memory.store.shared`).
     shared: Vec<bool>,
-    /// Locals in a cell that no closure shares, and that hold no
-    /// reference: each one's cell value is a root (`c | OWN`).
+    /// Cells and by-value parameters that no closure shares, and that hold no
+    /// reference: each one's inline value is a root (`c | OWN`).
     own: Vec<bool>,
+    /// By-value parameters whose inline words cannot change: no address,
+    /// capture, store or move. Calls cannot reach native parameter locals.
+    private_values: Vec<bool>,
     /// Roots whose value no write of the body reaches.
     unchanged: Vec<bool>,
     /// What the body's writes may reach.
@@ -250,6 +260,8 @@ struct Proof<'e, 'x, 'a, 'm> {
     /// What each loop's writes, its inner loops' included, may reach.
     loops: HashMap<u32, Writes>,
     keys: HashMap<u32, Key>,
+    /// Substituted fields, once per aggregate type rather than per access.
+    field_types: HashMap<Ty, Vec<Ty>>,
     /// Statements that run whenever their block runs to them: no earlier
     /// statement of the block can leave it and go on elsewhere.
     clear: Vec<bool>,
@@ -351,10 +363,12 @@ impl Em<'_, '_, '_> {
             fixed: vec![false; n],
             shared: vec![false; n],
             own: vec![false; n],
+            private_values: vec![false; n],
             unchanged: vec![false; n],
             body: Writes::default(),
             loops: HashMap::default(),
             keys: HashMap::default(),
+            field_types: HashMap::default(),
             clear: Vec::new(),
             rising: HashMap::default(),
             falling: HashMap::default(),
@@ -392,6 +406,7 @@ impl Em<'_, '_, '_> {
                             root,
                             path,
                             reads: Vec::new(),
+                            prefixes: Vec::new(),
                         });
                         group.len() - 1
                     });
@@ -399,6 +414,26 @@ impl Em<'_, '_, '_> {
                 } else if unchanged && before.len() < READS {
                     before.push(x);
                 }
+            }
+            if matches!(b.tags[i], Tag::Read | Tag::Ref)
+                && b.view(b.data[i][0])
+                    .steps(b)
+                    .skip(1)
+                    .any(|step| step == Proj::Deref)
+                && let Some((key @ Key::Field(root, path), Some(elem))) = p.place_key(x, 0)
+                && let Some(l) = p.hoist_loop(root, x)
+            {
+                let group = facts.hoists.entry(l).or_default();
+                let k = *hoists.entry((l, key)).or_insert_with(|| {
+                    group.push(Hoist {
+                        root,
+                        path,
+                        reads: Vec::new(),
+                        prefixes: Vec::new(),
+                    });
+                    group.len() - 1
+                });
+                group[k].prefixes.push((x, elem));
             }
             let Some((index, len)) = p.guard(x) else {
                 continue;
@@ -436,8 +471,24 @@ impl Em<'_, '_, '_> {
         };
         for h in groups {
             if let Some(kept) = self.hoisted_load(&h)? {
-                for r in h.reads {
+                for &r in &h.reads {
                     self.headers.hoisted.insert(r, kept);
+                }
+            }
+            if !h.prefixes.is_empty()
+                && let Some(buffer) = self.root_load(h.root, h.path, Val::I32)?
+            {
+                let len = self.f.local(Val::I32);
+                self.f.get(buffer);
+                self.f.op(crate::op::Op::I32Load(crate::module::mem(
+                    crate::module::HEAP,
+                    crate::rt::LIST_LEN,
+                    2,
+                )));
+                self.f.set(len);
+                let cache = super::list::ListCache { buffer, len };
+                for (r, elem) in h.prefixes {
+                    self.headers.place_hoisted.insert(r, (elem, cache));
                 }
             }
         }
@@ -449,7 +500,10 @@ impl Em<'_, '_, '_> {
     /// one value, or of a cell that may not be made yet.
     fn hoisted_load(&mut self, h: &Hoist) -> StageResult<Option<u32>> {
         // A group starts with its first read.
-        let ty = self.ty(h.reads[0]);
+        let Some(&first) = h.reads.first() else {
+            return Ok(None);
+        };
+        let ty = self.ty(first);
         let vals = self.vals(ty)?;
         let &[val] = &vals[..] else {
             return Ok(None);
@@ -461,7 +515,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Loads the one scalar leaf of type `val` at `path` in root `root`'s
-    /// value into a new local; a box root first loads its holder's `*T`.
+    /// value into a new local; a field referent root first loads its holder's reference.
     /// `None` for a field of more than one value, or of a cell that may
     /// not be made yet. A box's holder comes before it in the box table,
     /// so the holders end within [`BOXES`] steps.
@@ -470,6 +524,17 @@ impl Em<'_, '_, '_> {
         let (pool, env) = (self.pool(), self.env());
         let (leaves, address) = if root & OWN != 0 {
             let c = (root & !OWN) as usize;
+            if !self.is_cell(c) {
+                let (_, part) = self.fold_path(self.sub(self.b.local_ty[c]), &path)?;
+                let values = self.local_value(root & !OWN)?;
+                let Some(&source) = values.get(part.first).filter(|_| part.count == 1) else {
+                    return Ok(None);
+                };
+                let kept = self.f.local(val);
+                self.f.get(source);
+                self.f.set(kept);
+                return Ok(Some(kept));
+            }
             let (m, _) = self.cell_mem(c)?;
             let (_, part) = self.fold_path(self.sub(self.b.local_ty[c]), &path)?;
             let leaves = m.leaves[part.first..part.first + part.count].to_vec();
@@ -633,11 +698,18 @@ impl Proof<'_, '_, '_, '_> {
             self.addressed[l] = em.is_cell(l) || b.local_flags[l] & shared_flags != 0;
         }
         let mut captured = hd_base::HashSet::default();
+        let mut modified = vec![false; b.local_ty.len()];
         for local in &b.cap_local {
             self.addressed[local.idx()] = true;
             captured.insert(local.idx());
         }
         for i in 0..b.len() {
+            if (b.tags[i] == Tag::Store
+                || (b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Move as u32))
+                && let Root::Local(l) = b.view(b.data[i][0]).root
+            {
+                modified[l as usize] = true;
+            }
             if let Some(l) = super::shape::ref_local(b, i) {
                 self.addressed[l] = true;
             }
@@ -650,7 +722,7 @@ impl Proof<'_, '_, '_, '_> {
                     .or_insert(value);
             }
         }
-        for l in 0..b.local_ty.len() {
+        for (l, &changed) in modified.iter().enumerate() {
             let ty = em.sub(b.local_ty[l]);
             let target = em.ref_target(ty);
             self.fixed[l] = b.local_flags[l] & local_flags::PARAM != 0
@@ -660,7 +732,13 @@ impl Proof<'_, '_, '_, '_> {
             self.shared[l] = self.fixed[l] && !crate::layout::ref_mutable(em.pool(), em.env(), ty);
             // A cell's flags may say captured where only a `Ref` takes
             // it; a closure's capture list names those it shares.
-            self.own[l] = em.is_cell(l) && !captured.contains(&l) && target.is_none();
+            self.own[l] = (em.is_cell(l) || b.local_flags[l] & local_flags::PARAM != 0)
+                && !captured.contains(&l)
+                && target.is_none();
+            self.private_values[l] = self.own[l]
+                && b.local_flags[l] & local_flags::PARAM != 0
+                && !self.addressed[l]
+                && !changed;
         }
         if !self.fixed.contains(&true) && !self.own.contains(&true) {
             return false;
@@ -678,21 +756,9 @@ impl Proof<'_, '_, '_, '_> {
                 self.loops.entry(l).or_default().add(w);
             }
         }
-        // An inner loop's writes are its outer loop's too: deepest first.
-        let depth = |mut l: u32| {
-            let mut d = 0u32;
-            while l != NONE {
-                l = em.topo.loop_of[l as usize];
-                d += 1;
-            }
-            d
-        };
-        let mut loops: Vec<(std::cmp::Reverse<u32>, u32)> = loops
-            .into_iter()
-            .map(|l| (std::cmp::Reverse(depth(l)), l))
-            .collect();
-        loops.sort_stable_by_key(|&(d, _)| d);
-        for (_, l) in loops {
+        // Postorder puts each inner loop before its owner. Merge once in
+        // that order, without computing every ancestor path or sorting.
+        for l in loops {
             let outer = em.topo.loop_of[l as usize];
             if outer != NONE
                 && let Some(w) = self.loops.get(&l).cloned()
@@ -714,9 +780,7 @@ impl Proof<'_, '_, '_, '_> {
         true
     }
 
-    /// The root that holds root `root`: a box root's holder's, through
-    /// boxes in boxes; any other root is its own. A box's object changes
-    /// only while its holder's root does ([`BOX`]).
+    /// The inline storage holding `root`'s reference chain ([`BOX`]).
     fn base(&self, mut root: u32) -> u32 {
         while root & (OWN | BOX) == BOX {
             root = self.boxes[(root & !BOX) as usize].0;
@@ -727,25 +791,30 @@ impl Proof<'_, '_, '_, '_> {
     /// Whether no write of the body reaches root `root`'s value.
     fn unchanged(&self, root: u32) -> bool {
         let root = self.base(root);
-        root & OWN == 0 && self.unchanged[root as usize]
+        if root & OWN != 0 {
+            self.private_values[(root & !OWN) as usize]
+        } else {
+            self.unchanged[root as usize]
+        }
     }
 
     /// Whether no write of loop `l` reaches root `root`'s value.
     fn kept_in(&self, root: u32, l: u32) -> bool {
         let root = self.base(root);
-        (root & OWN == 0 && self.shared[root as usize])
+        (root & OWN != 0 && self.private_values[(root & !OWN) as usize])
+            || (root & OWN == 0 && self.shared[root as usize])
             || self.loops.get(&l).is_none_or(|w| w.keeps(root))
     }
 
     /// The root that dereferencing value `k` reaches, of type `ty`, and
     /// the path in it: a reference to a root or its field, or a field
-    /// that holds a thin `*T` ([`BOX`]), named in the box table, when
+    /// that holds a thin shared reference ([`BOX`]), named in the table, when
     /// the value is `current`: still the box the field holds.
     fn deref_root(&mut self, k: Key, ty: Ty, current: bool) -> Option<(u32, Path)> {
         match k {
             Key::Ref(p) => Some((p, Path::default())),
             Key::FieldRef(p, path) => Some((p, path)),
-            Key::Field(holder, path) if current && self.is_box(ty) => {
+            Key::Field(holder, path) if current && self.is_shared_ref(ty) => {
                 let entry = (holder, path, ty);
                 let k = match self.boxes.iter().position(|b| *b == entry) {
                     Some(k) => k,
@@ -785,33 +854,27 @@ impl Proof<'_, '_, '_, '_> {
         }
     }
 
-    /// Whether `ty` is a thin `*T`: a counted reference that lends no
-    /// writes, to no trait value. A `*mut T` lends them to every holder.
-    fn is_box(&self, ty: Ty) -> bool {
+    /// Whether `ty` is a thin shared `&T` or `*T`: neither permits writes
+    /// through it, and neither is a fat reference to a trait value.
+    fn is_shared_ref(&self, ty: Ty) -> bool {
         let em = self.em;
         let (pool, env) = (em.pool(), em.env());
         matches!(
             pool.get(crate::layout::strip(pool, env, ty)),
-            hd_types::TyData::Ref {
-                counted: true,
-                mutable: false,
-                ..
-            }
+            hd_types::TyData::Ref { mutable: false, .. }
         ) && matches!(em.ref_target(ty), Some((_, false)))
     }
 
-    /// The outermost loop around `x` whose writes do not reach root
+    /// The outermost of at most `DEPTH` loops around `x` whose writes do not reach root
     /// `root`'s value. A loop's writes hold its inner loops', so the walk
     /// out stops at the first loop that may write it. At most the
-    /// nesting depth.
+    /// `DEPTH` steps keep many reads in deeply nested loops linear in their count.
     fn hoist_loop(&self, root: u32, x: u32) -> Option<u32> {
-        let mut l = self.em.topo.loop_of[x as usize];
-        let mut found = None;
-        while l != NONE && self.kept_in(root, l) {
-            found = Some(l);
-            l = self.em.topo.loop_of[l as usize];
-        }
-        found
+        hoist_loop_from(
+            self.em.topo.loop_of[x as usize],
+            |l| self.em.topo.loop_of[l as usize],
+            |l| self.kept_in(root, l),
+        )
     }
 
     /// Whether root `root`'s fields hold one value at `a` and at `b`: no
@@ -1025,56 +1088,124 @@ impl Proof<'_, '_, '_, '_> {
         if let Some(next) = self.follow(r) {
             return self.key(next, depth + 1);
         }
-        if matches!(b.tags[i], Tag::Read | Tag::Ref) {
-            let v = b.view(b.data[i][0]);
-            let mut steps = v.steps(b).peekable();
-            let (root, mut path) = if steps.peek() == Some(&Proj::Deref) {
-                steps.next();
-                let (root, ty) = match v.root {
-                    Root::Value(x) => (self.key(x, depth + 1), x),
-                    Root::Local(l) if self.fixed[l as usize] => (Key::Ref(l), NONE),
-                    Root::Local(l) => match self.single_store(l as usize, r) {
-                        Some(x) => (self.key(x, depth + 1), x),
-                        None => return Key::Val(r),
-                    },
-                    _ => return Key::Val(r),
-                };
-                let (ty, current) = if ty == NONE {
-                    (Ty::VOID, false)
-                } else {
-                    (em_ty(self.em, ty), self.borrowed(ty, 0))
-                };
-                match self.deref_root(root, ty, current) {
-                    Some(at) => at,
-                    None => return Key::Val(r),
-                }
-            } else {
-                // A cell root's own fields, read or referred to in place.
-                match v.root {
-                    Root::Local(c) if self.own[c as usize] => (c | OWN, Path::default()),
-                    _ => return Key::Val(r),
-                }
-            };
-            for step in steps {
-                let Proj::Field(k) = step else {
-                    return Key::Val(r);
-                };
-                let Some(longer) = path.push(k) else {
-                    return Key::Val(r);
-                };
-                path = longer;
-            }
-            return match (b.tags[i], path == Path::default()) {
-                (Tag::Ref, true) => Key::Ref(root),
-                (Tag::Ref, false) => Key::FieldRef(root, path),
-                // A whole referent, as `*value` of a `&u32`; a cell's whole
-                // value is the local's own read.
-                (_, true) if root & OWN == 0 => Key::Field(root, path),
-                (_, true) => Key::Val(r),
-                (_, false) => Key::Field(root, path),
-            };
+        if matches!(b.tags[i], Tag::Read | Tag::Ref)
+            && b.view(b.data[i][0])
+                .steps(b)
+                .any(|step| matches!(step, Proj::Elem(_)))
+        {
+            return Key::Val(r);
         }
-        Key::Val(r)
+        self.place_key(r, depth)
+            .and_then(|(key, elem)| elem.is_none().then_some(key))
+            .unwrap_or(Key::Val(r))
+    }
+
+    /// A place's invariant field source, stopping at its first list element.
+    /// Dereferences in a folded place still read the holder's current field;
+    /// references copied into earlier values retain `deref_root`'s borrow proof.
+    fn place_key(&mut self, r: u32, depth: u32) -> Option<(Key, Option<usize>)> {
+        let b = self.em.b;
+        let i = Ref(r).as_inst()?.0 as usize;
+        if depth > DEPTH || !matches!(b.tags[i], Tag::Read | Tag::Ref) {
+            return None;
+        }
+        let v = b.view(b.data[i][0]);
+        let mut steps = v.steps(b).enumerate().peekable();
+        if b.tags[i] == Tag::Read && steps.peek().is_none() {
+            return None;
+        }
+        let (mut root, mut path) = if steps.peek().is_some_and(|(_, step)| *step == Proj::Deref) {
+            steps.next();
+            let (key, ty, current) = match v.root {
+                Root::Value(x) => (
+                    self.key(x, depth + 1),
+                    self.em.ty_of(x),
+                    self.borrowed(x, 0),
+                ),
+                Root::Local(l) if self.fixed[l as usize] => (Key::Ref(l), Ty::VOID, false),
+                Root::Local(l) => {
+                    let x = self.single_store(l as usize, r)?;
+                    (
+                        self.key(x, depth + 1),
+                        self.em.ty_of(x),
+                        self.borrowed(x, 0),
+                    )
+                }
+                _ => return None,
+            };
+            self.deref_root(key, ty, current)?
+        } else {
+            match v.root {
+                Root::Local(l) if self.own[l as usize] => (l | OWN, Path::default()),
+                _ => return None,
+            }
+        };
+        let mut crossed_reference = false;
+        for (at, step) in steps {
+            match step {
+                Proj::Field(k) => path = path.push(k)?,
+                Proj::Deref => {
+                    let ty = self.field_ty(root, path)?;
+                    (root, path) = self.deref_root(Key::Field(root, path), ty, true)?;
+                    crossed_reference = true;
+                }
+                Proj::Elem(_)
+                    if crossed_reference
+                        && crate::layout::coll_kind(
+                            self.em.pool(),
+                            self.em.env(),
+                            self.field_ty(root, path)?,
+                        ) == Some(hd_mono::layout::StdKind::List) =>
+                {
+                    return Some((Key::Field(root, path), Some(at)));
+                }
+                _ => return None,
+            }
+        }
+        let key = match (b.tags[i], path == Path::default()) {
+            (Tag::Ref, true) => Key::Ref(root),
+            (Tag::Ref, false) => Key::FieldRef(root, path),
+            (_, true) if root & OWN != 0 => return None,
+            _ => Key::Field(root, path),
+        };
+        Some((key, None))
+    }
+
+    /// Resolve types only where a folded dereference needs its field type.
+    /// Ordinary scalar field keys need just the packed path.
+    fn field_ty(&mut self, root: u32, path: Path) -> Option<Ty> {
+        let mut ty = if root & OWN != 0 {
+            self.em.sub(self.em.b.local_ty[(root & !OWN) as usize])
+        } else {
+            let reference = if root & BOX != 0 {
+                self.boxes[(root & !BOX) as usize].2
+            } else {
+                self.em.sub(self.em.b.local_ty[root as usize])
+            };
+            let (target, false) = self.em.ref_target(reference)? else {
+                return None;
+            };
+            target
+        };
+        for field in path.fields() {
+            let em = self.em;
+            let fields = self.field_types.entry(ty).or_insert_with(|| {
+                if let hd_types::TyData::Adt { def, args } = em.pool().get(ty)
+                    && let Some(base) = em.env().newtype_base(def)
+                {
+                    vec![hd_mono::subst(em.pool(), em.env(), def, args, base)]
+                } else if em.tuple(ty) {
+                    crate::layout::tuple_members(
+                        em.pool(),
+                        crate::layout::strip(em.pool(), em.env(), ty),
+                    )
+                } else {
+                    em.struct_fields(ty)
+                }
+            });
+            ty = *fields.get(field as usize)?;
+        }
+        Some(ty)
     }
 
     /// Where value `r` points ([`Origin`]).
@@ -1411,6 +1542,23 @@ impl Proof<'_, '_, '_, '_> {
     }
 }
 
+/// A bounded ancestor query; stopping earlier only chooses a nearer safe loop.
+fn hoist_loop_from(
+    mut loop_at: u32,
+    mut parent: impl FnMut(u32) -> u32,
+    mut kept: impl FnMut(u32) -> bool,
+) -> Option<u32> {
+    let mut found = None;
+    for _ in 0..DEPTH {
+        if loop_at == NONE || !kept(loop_at) {
+            break;
+        }
+        found = Some(loop_at);
+        loop_at = parent(loop_at);
+    }
+    found
+}
+
 /// Clear statements depend on the represented block graph, not every
 /// instruction column being reachable from a sub-body root.
 fn clear_statements(b: &hd_tir::ir::Body, t: &hd_tir::ir::Topology) -> Vec<bool> {
@@ -1547,6 +1695,34 @@ mod tests {
     use super::*;
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_tir::ir::{Body, BodyKind, TirBuilder, TirSink, Topology};
+
+    #[test]
+    fn hoist_search_work_is_bounded_at_width_1000_depth_20() {
+        for width in [1, 1000] {
+            for depth in [1u32, 20] {
+                let parents: Vec<_> = (0..depth)
+                    .map(|at| if at == 0 { super::NONE } else { at - 1 })
+                    .collect();
+                let mut visits = 0;
+                for _ in 0..width {
+                    let found = super::hoist_loop_from(
+                        depth - 1,
+                        |l| parents[l as usize],
+                        |_| {
+                            visits += 1;
+                            true
+                        },
+                    );
+                    assert_eq!(found, Some(depth - depth.min(super::DEPTH)));
+                }
+                assert_eq!(visits, width * depth.min(super::DEPTH));
+                assert_eq!(
+                    super::hoist_loop_from(depth - 1, |_| super::NONE, |_| false),
+                    None
+                );
+            }
+        }
+    }
 
     #[test]
     fn detached_control_transfers_do_not_clear_live_statements() -> Result<(), String> {
