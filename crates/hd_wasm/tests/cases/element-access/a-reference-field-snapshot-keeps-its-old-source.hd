@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# A copied reference keeps the old referent when its holder changes before the loop.
+struct Header['a]:
+    items: &'a List[usize]
+
+fn replaced['a](header: &mut Header['a], next: &'a List[usize], n: usize) -> usize:
+    old := header.items
+    header.items = next
+    let total = 0
+    for i in 0..n:
+        total += old[i]
+    total

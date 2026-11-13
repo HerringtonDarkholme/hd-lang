@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/collections/impl[T < Eq, 'a] Span[T, 'a].index_of_span
+# expected: each shared list header reached through a Span field loads before its search loop.
+use std.collections.Span
+
+fn find['a, 'b](hay: &Span[u8, 'a], needle: Span[u8, 'b]) -> usize?:
+    hay.index_of_span(needle)
