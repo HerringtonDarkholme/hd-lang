@@ -1957,43 +1957,48 @@ pub fn bottom_up<N: Copy + Eq + std::hash::Hash>(
     if done(root) {
         return;
     }
-    // Per node: its index, its low link, and whether it is on the stack.
-    let mut index: HashMap<N, (u32, u32, bool)> = HashMap::default();
-    let (mut stack, mut next) = (Vec::new(), 0);
-    let mut work: Vec<(N, Option<Vec<N>>, usize)> = vec![(root, None, 0)];
-    while let Some((n, edges, at)) = work.last_mut() {
-        let n = *n;
-        let edges = edges.get_or_insert_with(|| {
-            index.insert(n, (next, next, true));
-            next += 1;
-            stack.push(n);
-            callees(n)
-        });
+    // A name is resolved only at an edge. Frames and the active stack carry
+    // dense visit indices: (name, low link, on stack) in discovery order.
+    let mut index: HashMap<N, usize> = HashMap::from_iter([(root, 0)]);
+    let mut nodes = vec![(root, 0, true)];
+    let mut stack = vec![0];
+    // Per frame: visit index, edges, next edge, stack length before entry.
+    // A component root owns the suffix starting at its saved boundary;
+    // completed child components have already removed their own suffixes.
+    let mut work = vec![(0, callees(root), 0, 0)];
+    while let Some((v, edges, at, base)) = work.last_mut() {
+        let v = *v;
         if let Some(&c) = edges.get(*at) {
             *at += 1;
-            match index.get(&c) {
-                None if !done(c) => work.push((c, None, 0)),
-                Some(&(ci, _, true)) => {
-                    let low = &mut index.get_mut(&n).expect("visited").1;
-                    *low = (*low).min(ci);
+            if let Some(&ci) = index.get(&c) {
+                if nodes[ci].2 {
+                    nodes[v].1 = nodes[v].1.min(ci);
                 }
-                _ => {}
+            } else if !done(c) {
+                let ci = nodes.len();
+                let base = stack.len();
+                index.insert(c, ci);
+                nodes.push((c, ci, true));
+                stack.push(ci);
+                work.push((ci, callees(c), 0, base));
             }
             continue;
         }
-        let calls_itself = edges.contains(&n);
+        let calls_itself = edges.contains(&nodes[v].0);
+        let base = *base;
+        let low = nodes[v].1;
         work.pop();
-        let (i, low, _) = index[&n];
         if let Some(&(parent, ..)) = work.last() {
-            let up = &mut index.get_mut(&parent).expect("visited").1;
-            *up = (*up).min(low);
+            nodes[parent].1 = nodes[parent].1.min(low);
         }
-        if i == low {
-            let from = stack.iter().rposition(|&m| m == n).expect("on the stack");
-            let mut members: Vec<N> = stack.drain(from..).collect();
-            for m in &members {
-                index.get_mut(m).expect("visited").2 = false;
-            }
+        if v == low {
+            let mut members: Vec<N> = stack
+                .drain(base..)
+                .map(|m| {
+                    nodes[m].2 = false;
+                    nodes[m].0
+                })
+                .collect();
             let recursive = members.len() > 1 || calls_itself;
             scc(&mut members, recursive);
         }
@@ -2413,6 +2418,99 @@ mod tests {
         assert!(!first.contains_key(&6));
         for roots in [&[5, 4, 0][..], &[3, 5, 1, 4, 0], &[2, 0, 5, 4]] {
             assert_eq!(first, walk(&edges, roots), "roots {roots:?}");
+        }
+    }
+
+    /// Nested recursion groups keep active ancestors while completed child
+    /// groups leave the stack. A callback may reorder or consume its list.
+    #[test]
+    fn component_boundaries_keep_active_ancestors() {
+        let edges = [
+            vec![1, 4, 6, 7],
+            vec![2],
+            vec![1, 3],
+            vec![3],
+            vec![5, 1],
+            vec![0],
+            vec![],
+        ];
+        let completed = RefCell::new(hd_base::HashSet::from_iter([7]));
+        let mut reads = vec![0; edges.len()];
+        let mut components = Vec::new();
+        bottom_up(
+            0,
+            &|n| completed.borrow().contains(&n),
+            &mut |n| {
+                reads[n] += 1;
+                edges[n].clone()
+            },
+            &mut |members, recursive| {
+                completed.borrow_mut().extend(members.iter().copied());
+                components.push((members.clone(), recursive));
+                members.clear();
+            },
+        );
+        assert_eq!(
+            components,
+            vec![
+                (vec![3], true),
+                (vec![1, 2], true),
+                (vec![6], false),
+                (vec![0, 4, 5], true),
+            ]
+        );
+        assert_eq!(reads, vec![1; edges.len()]);
+    }
+
+    /// Width counts members of a recursion group; depth counts groups
+    /// nested through outgoing calls. Each body/edge is discovered once,
+    /// and each group is completed once, even with duplicate/skipped edges.
+    #[test]
+    fn component_work_is_linear_at_width_1000_depth_20() {
+        for (width, depth) in [(1usize, 1usize), (1000, 1), (1, 20), (1000, 20)] {
+            let size = width * depth;
+            let edges: Vec<Vec<usize>> = (0..size)
+                .map(|n| {
+                    let level = n / width;
+                    let next = level * width + (n + 1) % width;
+                    let mut edges = vec![next, next, size];
+                    if level + 1 < depth {
+                        edges.push(n + width);
+                    }
+                    edges
+                })
+                .collect();
+            let completed = RefCell::new(vec![false; size]);
+            let mut reads = vec![0; size];
+            let mut edge_reads = 0;
+            let mut member_visits = 0;
+            let mut components = 0;
+            bottom_up(
+                0,
+                &|n| n == size || completed.borrow()[n],
+                &mut |n| {
+                    reads[n] += 1;
+                    edge_reads += edges[n].len();
+                    edges[n].clone()
+                },
+                &mut |members, recursive| {
+                    assert!(recursive);
+                    assert_eq!(members.len(), width);
+                    let level = depth - 1 - components;
+                    let mut completed = completed.borrow_mut();
+                    for &n in members.iter() {
+                        assert_eq!(n / width, level);
+                        assert!(!completed[n]);
+                        completed[n] = true;
+                        member_visits += 1;
+                    }
+                    components += 1;
+                },
+            );
+            assert_eq!(reads, vec![1; size]);
+            assert_eq!(edge_reads, 3 * size + width * (depth - 1));
+            assert_eq!(member_visits, size);
+            assert_eq!(components, depth);
         }
     }
 
