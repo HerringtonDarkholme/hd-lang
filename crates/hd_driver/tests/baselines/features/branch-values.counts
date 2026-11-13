@@ -12,10 +12,6 @@ fn pick(c: bool, a: string, b: string) -> string:
 
 fn pick_len(c: bool, a: string, b: string) -> usize:
     s := if c: a else: b
-> app/main/pick_len
->   release string (last use)
->   release string (last use)
->   release string (last use)
     s.len()
 
 fn pick_match(k: i64, a: string, b: string) -> string:

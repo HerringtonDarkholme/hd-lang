@@ -34,32 +34,28 @@ fn pick_len(c: bool, a: string, b: string) -> usize:
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %7 consume last
+>     uses $2: entry -> %6 consume last
 >   local $3 s: string [:= read assigned] value
->     uses $3: %11 -> %12 lend last
->   %0 = Retain %18 Entry local $1 #0 : ()
->   %1 = Retain %18 Entry local $2 #0 : ()
+>     uses $3: %9 -> %10 lend last
+>   %0 = Release %15 Exit local $1 #2 : ()
+>   %1 = Release %15 Exit local $2 #2 : ()
     s := if c: a else: b
 >   %2 = Read copy [$0] : bool
->   %3 = Read move [$1] : string
+>   %3 = Read borrow [$1] : string
 >   %4 = Coerce %3 [Identity -] : string
->   %5 = Drop [$2] : ()
->   %6 = Block %4 : string
->   %7 = Read move [$2] : string
->   %8 = Drop [$1] : ()
->   %9 = Block %7 : string
->   %10 = If %2 [%6 %9] : string
->   %11 = Store [$3] %10 : ()
->   %18 = Block %16 : usize
+>   %5 = Block %4 : string
+>   %6 = Read borrow [$2] : string
+>   %7 = Block %6 : string
+>   %8 = If %2 [%5 %7] : string
+>   %9 = Store [$3] %8 : ()
+>   %15 = Block %14 : usize
     s.len()
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$3] : ()
->   exit sub 0 drops [$1 $2]
->   summary kept [$1 $2]
+>   %10 = Read borrow [$3] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   summary kept [] borrows [$1 $2]
 
 fn pick_match(k: i64, a: string, b: string) -> string:
 > app/main/pick_match

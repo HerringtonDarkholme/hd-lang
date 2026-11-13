@@ -1298,6 +1298,140 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
+struct ParameterJoin {
+    local: u32,
+    reads: Vec<u32>,
+    sources: Vec<(u32, bool)>,
+}
+
+/// Build each incidence once, enqueue it once, and remove each group once.
+/// A bad parameter invalidates its consumers once; depth never retries the body.
+fn retain_join_groups(
+    kept: &[u32],
+    sources: &[Vec<(u32, bool)>],
+    mut visit: impl FnMut(),
+) -> Vec<bool> {
+    let mut by_param = vec![Vec::new(); kept.len()];
+    let mut credited = vec![0u32; kept.len()];
+    for (group, inputs) in sources.iter().enumerate() {
+        for &(p, owned) in inputs {
+            visit();
+            by_param[p as usize].push(group);
+            credited[p as usize] += u32::from(owned);
+        }
+    }
+    let mut active = vec![true; sources.len()];
+    let mut rejected = vec![false; kept.len()];
+    let mut queue = Vec::new();
+    for (p, &credit) in credited.iter().enumerate() {
+        visit();
+        if credit < kept[p] {
+            rejected[p] = true;
+            queue.extend_from_slice(&by_param[p]);
+        }
+    }
+    while let Some(group) = queue.pop() {
+        visit();
+        if !std::mem::replace(&mut active[group], false) {
+            continue;
+        }
+        for &(p, owned) in &sources[group] {
+            visit();
+            let p = p as usize;
+            credited[p] -= u32::from(owned);
+            if !rejected[p] && credited[p] < kept[p] {
+                rejected[p] = true;
+                queue.extend_from_slice(&by_param[p]);
+            }
+        }
+    }
+    active
+}
+
+/// A conditional selection that only lends its stored value can borrow
+/// unchanged whole parameters. These sources live for the entire call;
+/// unlike a general place loan they need no per-alternative source walk.
+/// Reject connected candidates with another owned use by a worklist: each
+/// candidate and parameter edge is removed once, with no retry by depth.
+fn parameter_joins(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
+    if !cx.summarizes() || cx.suspending(b.item) {
+        return;
+    }
+    let mut groups = Vec::new();
+    for i in 0..b.len() {
+        let f = t.v[i];
+        // A closure's suspension and parameter ABI are separate from the
+        // enclosing function's. Its own later body can prove its loans.
+        if topo.sub[i] != 0 || f.stored == NONE || f.uses != 1 || f.keeps {
+            continue;
+        }
+        let Some(local) = t.binding(b, f.stored) else {
+            continue;
+        };
+        if t.l[local as usize].kept != 0 {
+            continue;
+        }
+        let Some(reads) = b.parameter_join_with(u32_of(i), |v| t.v[v as usize].uses <= 1) else {
+            continue;
+        };
+        let eligible = reads.iter().all(|&r| {
+            let Some(p) = b.view(b.data[r as usize][0]).local() else {
+                return false;
+            };
+            let p = t.l[p as usize];
+            p.stores == 0
+                && !p.captured
+                && !p.reached
+                && !p.changed
+                && cx.counted(b.ty[r as usize])
+                && cx.copies(b.ty[r as usize]) == Tri::Yes
+                && cx.holds_drop(b.ty[r as usize]) == Tri::No
+        });
+        if !eligible {
+            continue;
+        }
+        let sources = reads
+            .iter()
+            .filter_map(|&r| {
+                let f = t.v[r as usize];
+                let p = b.view(b.data[r as usize][0]).local()?;
+                let owned = !f.borrows && (f.keeps || f.moves || t.store_of(r as usize) != NONE);
+                Some((p, owned))
+            })
+            .collect();
+        groups.push(ParameterJoin {
+            local,
+            reads,
+            sources,
+        });
+    }
+    if groups.is_empty() {
+        return;
+    }
+    let kept: Vec<_> = t.l.iter().map(|p| p.kept).collect();
+    let sources: Vec<_> = groups
+        .iter_mut()
+        .map(|g| std::mem::take(&mut g.sources))
+        .collect();
+    let active = retain_join_groups(&kept, &sources, || {});
+    for ((group, sources), yes) in groups.into_iter().zip(sources).zip(active) {
+        if !yes {
+            continue;
+        }
+        t.l[group.local as usize].unowned = true;
+        for r in group.reads {
+            t.v[r as usize].borrows = true;
+            t.v[r as usize].moves = false;
+        }
+        for (p, owned) in sources {
+            t.l[p as usize].kept -= u32::from(owned);
+            if t.l[p as usize].kept == 0 {
+                t.l[p as usize].unowned = true;
+            }
+        }
+    }
+}
+
 /// The counted reads that may keep a count, into `t.takers`.
 fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     t.takers.clear();
@@ -1358,6 +1492,7 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables)
     t.suite_roots = roots;
     t.back = back;
     solve(b, topo, cx, t);
+    parameter_joins(b, topo, cx, t);
 }
 
 /// Applies a derivation to `b`: the modes, the rooted reads, the exit rows,
@@ -1373,6 +1508,9 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splic
                         let bit = t.v[v as usize].bit;
                         t.v[v as usize].borrows
                             || bit != NONE && t.v[t.bits[bit as usize].read as usize].borrows
+                            || b.parameter_join_reads(v).is_some_and(|reads| {
+                                reads.into_iter().all(|r| t.v[r as usize].borrows)
+                            })
                     }
                     Root::Local(l) => t.l[l as usize].unowned,
                     _ => false,
@@ -1675,6 +1813,102 @@ mod lending_tests {
             wrappers(&b, &mut t);
             assert_eq!(t.wrapper[0], NONE);
             assert_eq!(&t.wrapper[1..], &expected[1..]);
+        }
+    }
+
+    #[test]
+    fn parameter_join_rejection_work_is_linear_at_width_1000_depth_20() {
+        for width in [1usize, 1000] {
+            for depth in [1usize, 20] {
+                let mut inputs = Vec::new();
+                let mut kept = vec![0; width * (depth + 1) + 1];
+                for chain in 0..width {
+                    let base = chain * (depth + 1);
+                    for edge in 0..depth {
+                        let a = base + edge;
+                        let b = a + 1;
+                        inputs.push(vec![(u32_of(a), true), (u32_of(b), true)]);
+                        kept[a] += 1;
+                        kept[b] += 1;
+                    }
+                    // One extra owned use rejects the entire connected chain.
+                    kept[base + depth] += 1;
+                }
+                let control = kept.len() - 1;
+                kept[control] = 1;
+                inputs.push(vec![(u32_of(control), true)]);
+                let mut work = 0;
+                let active = super::retain_join_groups(&kept, &inputs, || work += 1);
+                assert!(active[..width * depth].iter().all(|active| !active));
+                assert_eq!(active.last(), Some(&true));
+                assert_eq!(work, width * (7 * depth + 1) + 2);
+            }
+        }
+    }
+
+    #[test]
+    fn parameter_join_queries_bound_width_and_depth_without_recursion() {
+        let mut per_chain = 0;
+        for width in [1, 1000] {
+            let mut b = Body::new(DefId::from_raw(4), BodyKind::Fn);
+            b.local_flags = vec![local_flags::PARAM; 2];
+            let mut work = 0;
+            for _ in 0..width {
+                let mut value = u32_of(b.len());
+                b.tags.push(Tag::Read);
+                b.data
+                    .push([crate::ir::place::BARE_LOCAL, ReadMode::Copy as u32]);
+                b.ty.push(Ty::STRING);
+                for _ in 0..20 {
+                    let left = u32_of(b.len());
+                    b.tags.push(Tag::Block);
+                    b.data.push([0, value]);
+                    b.ty.push(Ty::STRING);
+                    let read = u32_of(b.len());
+                    b.tags.push(Tag::Read);
+                    b.data
+                        .push([crate::ir::place::BARE_LOCAL | 1, ReadMode::Copy as u32]);
+                    b.ty.push(Ty::STRING);
+                    let right = u32_of(b.len());
+                    b.tags.push(Tag::Block);
+                    b.data.push([0, read]);
+                    b.ty.push(Ty::STRING);
+                    let arms = u32_of(b.extra.len());
+                    b.extra.extend([2, left, right]);
+                    value = u32_of(b.len());
+                    b.tags.push(Tag::If);
+                    b.data.push([0, arms]);
+                    b.ty.push(Ty::STRING);
+                    let mut visits = 0;
+                    let _ = b.parameter_join_with(value, |_| {
+                        visits += 1;
+                        true
+                    });
+                    assert!(visits <= 16);
+                    work += visits;
+                }
+                for _ in 0..20 {
+                    let coercion = u32_of(b.extra.len());
+                    b.extra
+                        .extend([2, crate::ir::Coercion::Identity as u32, NONE]);
+                    let next = u32_of(b.len());
+                    b.tags.push(Tag::Coerce);
+                    b.data.push([value, coercion]);
+                    b.ty.push(Ty::STRING);
+                    value = next;
+                    let mut visits = 0;
+                    let _ = b.parameter_join_with(value, |_| {
+                        visits += 1;
+                        true
+                    });
+                    assert!(visits <= 32);
+                    work += visits;
+                }
+            }
+            if width == 1 {
+                per_chain = work;
+            }
+            assert_eq!(work, width * per_chain);
         }
     }
 

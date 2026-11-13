@@ -1,0 +1,70 @@
+use std.annotation.inline
+
+struct Holder:
+    name: string
+
+@inline(.Never)
+fn fresh(n: usize) -> string:
+    "value=$n"
+
+@inline(.Never)
+fn selected(c: bool, a: string, b: string) -> usize:
+    value := if c: a else: b
+    value.len()
+
+@inline(.Never)
+fn after_call(c: bool, a: string, b: string, tick: fn() -> void) -> usize:
+    value := if c: a else: b
+    tick()
+    if value.starts_with("value="): value.len() else: 0
+
+@inline(.Never)
+fn selected_list(c: bool, a: List[string], b: List[string]) -> usize:
+    value := if c: a else: b
+    value[0].len()
+
+@inline(.Never)
+fn make_owned(s: string) -> List[string]:
+    [s]
+
+@inline(.Never)
+fn connected(c: bool, a: string, b: string, d: string) -> usize:
+    x := if c: a else: b
+    y := if c: b else: d
+    kept := make_owned(d)
+    x.len() + y.len() + kept[0].len()
+
+tests:
+    use std.testing.{assert_equal, it}
+
+    it("a read-only selection borrows either string"):
+        for i in 0..16:
+            a := "left=$i"
+            b := "right=$i"
+            assert_equal(selected(true, a, b), a.len())
+            assert_equal(selected(false, a, b), b.len())
+            assert_equal(a, "left=$i")
+            assert_equal(b, "right=$i")
+
+    it("a callback replacing the source keeps the selected value snapshot"):
+        a := box(Holder { name: fresh(17) })
+        b := box(Holder { name: fresh(31) })
+        assert_equal(after_call(false, a.name, b.name, fn(): b.name = "new"), 8)
+        assert_equal(a.name, "value=17")
+        assert_equal(b.name, "new")
+
+    it("a selection of collection values keeps both sources"):
+        a := ["left=${17}"]
+        b := ["right=${31}"]
+        assert_equal(selected_list(true, a, b), 7)
+        assert_equal(selected_list(false, a, b), 8)
+        assert_equal(a[0], "left=17")
+        assert_equal(b[0], "right=31")
+
+    it("another owned use preserves the counts of connected selections"):
+        a := "left=${17}"
+        b := "right=${31}"
+        d := "tail=${43}"
+        assert_equal(connected(true, a, b, d), 22)
+        assert_equal(connected(false, a, b, d), 22)
+        assert_equal(d, "tail=43")

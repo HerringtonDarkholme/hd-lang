@@ -1210,7 +1210,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
     }
     for i in 0..b.len() {
-        if b.tags[i] != Tag::Store || b.loan_read(b.data[i][1]).is_none() {
+        if b.tags[i] != Tag::Store || b.loan_value(b.data[i][1]).is_none() {
             continue;
         }
         match &cx.places[i] {
@@ -1276,7 +1276,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
         let what = match b.tags[i] {
             Tag::Store if lent[l.idx()] => "a store into",
-            Tag::Store if b.loan_read(b.data[i][1]).is_none() => "an owned value stored into",
+            Tag::Store if b.loan_value(b.data[i][1]).is_none() => "an owned value stored into",
             Tag::Drop => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
@@ -1357,7 +1357,7 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let mut holds = vec![NONE; b.local_ty.len()];
     for i in 0..n {
         if b.tags[i] == Tag::Store
-            && b.loan_read(b.data[i][1]).is_some()
+            && b.loan_value(b.data[i][1]).is_some()
             && let Some(Place {
                 root: PlaceRoot::Local(l),
                 proj,
@@ -1649,6 +1649,19 @@ impl Backward for Live<'_> {
                 x = r;
                 continue;
             }
+            if let Some(reads) = b.parameter_join_reads(x)
+                && reads.iter().all(|&r| b.is_borrow(r))
+            {
+                // These reads are whole parameters, so they depend on no
+                // binding local or other value. Mark every alternative.
+                for r in reads {
+                    let k = self.bit[r as usize];
+                    if k != NONE {
+                        s.set(live, k, true);
+                    }
+                }
+                return;
+            }
             let Some(&k) = self.bit.get(x as usize) else {
                 return;
             };
@@ -1903,7 +1916,7 @@ impl<'a> Balance<'a> {
         match b.tags[x as usize] {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
-            Tag::Store if b.loan_read(w).is_none() => {
+            Tag::Store if b.loan_value(w).is_none() => {
                 // Into the local itself: one through it, into what it
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {

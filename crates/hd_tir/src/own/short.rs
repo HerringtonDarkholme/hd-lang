@@ -433,7 +433,7 @@ impl Pass<'_> {
             }
             if self.b.tags[k] == Tag::Store
                 && let w = self.b.data[k][1]
-                && (self.b.loan_read(w).is_some()
+                && (self.b.loan_value(w).is_some()
                     || (crate::ir::Ref(w).as_inst().is_some()
                         && (self.loans.contains(&w) || self.cx.loan_value(w))))
             {

@@ -597,7 +597,7 @@ fn holds_borrow(b: &Body, l: u32) -> bool {
     (0..b.len()).any(|i| {
         b.tags[i] == Tag::Store && {
             let p = b.view(b.data[i][0]);
-            p.local() == Some(l) && p.whole() && b.loan_read(b.data[i][1]).is_some()
+            p.local() == Some(l) && p.whole() && b.loan_value(b.data[i][1]).is_some()
         }
     })
 }
