@@ -660,6 +660,10 @@ pub enum ItemData {
     AssocType {
         owner: DefId,
         bounds: Vec<Ty>,
+        /// For each of `bounds`, the owning trait's lifetime each local
+        /// reference slot writes, as [`TraitData::super_lifetimes`]. Empty
+        /// when none writes one.
+        bound_lifetimes: Vec<Vec<u16>>,
     },
     Alias {
         body: Ty,
@@ -1617,10 +1621,15 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             }
             put_type_attrs(w, t, attrs)?;
         }
-        ItemData::AssocType { owner, bounds } => {
+        ItemData::AssocType {
+            owner,
+            bounds,
+            bound_lifetimes,
+        } => {
             w.u8(6);
             w.u32(t.def(*owner));
             put_tys(w, t, bounds)?;
+            put_lifetime_lists(w, bound_lifetimes);
         }
         ItemData::Alias { body, lifetimes } => {
             w.u8(7);
@@ -1742,7 +1751,12 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         6 => {
             let owner = t.def(r.u32())?;
             let bounds = get_tys(r, t)?;
-            ItemData::AssocType { owner, bounds }
+            let bound_lifetimes = get_lifetime_lists(r)?;
+            ItemData::AssocType {
+                owner,
+                bounds,
+                bound_lifetimes,
+            }
         }
         7 => {
             let body = t.ty(r.u32())?;

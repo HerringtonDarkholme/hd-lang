@@ -1,0 +1,18 @@
+# test: passing a projection to a bound that writes a lifetime relates the two lifetimes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `fill`'s `'c`
+# is `bad`'s `'a` here, through `S::Item`'s bound, so `&q` escapes.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+
+fn fill['c, X < Store[&'c Point]](x: &mut X, p: &'c Point) -> void:
+    x.put(p)
+
+fn bad['a, S < Shelf['a]](s: &mut S::Item, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    fill(s, &q) # diagnostic: local-reference-escapes

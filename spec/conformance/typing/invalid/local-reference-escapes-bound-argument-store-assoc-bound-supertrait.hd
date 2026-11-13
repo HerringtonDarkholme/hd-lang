@@ -1,0 +1,19 @@
+# test: a call through a supertrait of an associated type's bound stores a local reference at its lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `Item`'s bound
+# `Put2[&'b Point]` has the supertrait `Store[&'b Point]`, and `put` is
+# `Store`'s.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Put2[U] < Store[U]:
+    fn tag(&self) -> i32
+
+trait Shelf['b]:
+    type Item < Put2[&'b Point]
+
+fn bad['a, S < Shelf['a]](s: &mut S::Item, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    s.put(&q) # diagnostic: local-reference-escapes

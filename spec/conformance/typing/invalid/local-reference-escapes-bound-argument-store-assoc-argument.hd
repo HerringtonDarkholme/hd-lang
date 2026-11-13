@@ -1,0 +1,16 @@
+# test: an associated type's bound over a trait argument that writes a lifetime stores a local reference at it
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `V` is
+# `&'a Point` in `Shelf[&'a Point]`, so `S::Item`'s bound is
+# `Store[&'a Point]`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf[V]:
+    type Item < Store[V]
+
+fn bad['a, S < Shelf[&'a Point]](s: &mut S::Item, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    s.put(&q) # diagnostic: local-reference-escapes

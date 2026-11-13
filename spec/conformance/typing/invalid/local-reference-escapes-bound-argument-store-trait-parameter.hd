@@ -1,0 +1,13 @@
+# test: a trait's type parameter's bound that writes a lifetime holds in the trait's own method
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. A trait's
+# parameters follow its `Self`; `T`'s bound is `Store[&'b Point]`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Foo['b, T < Store[&'b Point]]:
+    fn go(&self, s: &mut T, p: &'b Point) -> void:
+        q := Point { x: 7 }
+        s.put(&q) # diagnostic: local-reference-escapes

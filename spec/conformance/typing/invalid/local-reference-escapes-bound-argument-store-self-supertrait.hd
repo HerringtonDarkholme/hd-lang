@@ -1,0 +1,13 @@
+# test: a trait's own method stores a local reference through its supertrait's lifetime argument
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `Self` is
+# bounded by `Sub['c]`, whose supertrait is `Store[&'c Point]`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Sub['c] < Store[&'c Point]:
+    fn go(&mut self, p: &'c Point) -> void:
+        q := Point { x: 7 }
+        self.put(&q) # diagnostic: local-reference-escapes

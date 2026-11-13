@@ -371,7 +371,7 @@ impl DepSig {
         let mut fresh: Vec<Key> = Vec::new();
         let is_self = |p: hd_types::ParamRef| p.owner == trait_ && p.index == 0;
         let filled = |k: Key| match k {
-            Key::AllOf(p) => is_self(p),
+            Key::AllOf(p, _) => is_self(p),
             Key::Param(p, _) => p.owner == trait_ && p.index > 0,
             _ => false,
         };
@@ -393,8 +393,8 @@ impl DepSig {
                         let out = outs.and_then(|o| o.get(at).copied().flatten());
                         Some(out.filter(|&id| of_self(id)))
                     }
-                    Key::AllOf(_) if outs.is_some() => None,
-                    Key::None | Key::AllOf(_) => Some(None),
+                    Key::AllOf(..) if outs.is_some() => None,
+                    Key::None | Key::AllOf(..) => Some(None),
                     Key::Param(p, s) => Some(Some(target(p, s).unwrap_or_else(|| {
                         let at = fresh.iter().position(|&x| x == k).unwrap_or_else(|| {
                             fresh.push(k);
@@ -509,7 +509,6 @@ fn slot_ids(
     ids
 }
 
-/// The entries of `ids`, one per slot of `t`, at its reference slots.
 /// Splits `lts`, one lifetime per reference slot of `args` in
 /// [`Types::ref_slots`] order, into each argument's [`Layout`] slots; 0
 /// for each slot of an argument whose layout has other slots too.
@@ -530,6 +529,16 @@ fn arg_ids(ls: &Layouts<'_>, args: &[Ty], lts: &[u32]) -> Vec<Vec<u32>> {
         .collect()
 }
 
+/// A trait's `k`-th lifetime parameter's lifetime, where `ids` are the
+/// slot lifetimes of its arguments: the one its argument's slot names.
+fn trait_lifetimes(generics: &[hd_resolve::Generic], ids: &[Vec<u32>]) -> Vec<u32> {
+    (generics.iter().enumerate())
+        .filter(|(_, g)| g.lifetime)
+        .map(|(k, _)| ids.get(k).and_then(|x| x.first()).copied().unwrap_or(0))
+        .collect()
+}
+
+/// The entries of `ids`, one per slot of `t`, at its reference slots.
 fn ref_ids_of<T: Copy>(ls: &Layouts<'_>, t: Ty, ids: &[T]) -> Vec<T> {
     (ls.of(t).slots.iter())
         .zip(ids)
@@ -568,9 +577,10 @@ enum Key {
     /// Slot `s` of what type parameter `p` stands for, a function type's
     /// capture slot included.
     Param(hd_types::ParamRef, usize),
-    /// A slot of a projection of type parameter `p`, as `P::Out`: any slot
-    /// of what `p` stands for ([`line_up_call`] only).
-    AllOf(hd_types::ParamRef),
+    /// A slot of projection `t` of type parameter `p`, as `P::Out`: any
+    /// slot of what `p` stands for, and any lifetime the projection's
+    /// bounds write ([`line_up_call`] only).
+    AllOf(hd_types::ParamRef, Ty),
     /// A slot of an opaque type that does not borrow.
     None,
 }
@@ -627,7 +637,7 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
             }
             (TyData::Assoc { self_ty, .. }, _) if st.2 && param(self_ty).is_some() => {
                 let p = param(self_ty).expect("a type parameter");
-                st.1.extend(std::iter::repeat_n(Key::AllOf(p), ls.of(t).slots.len()));
+                st.1.extend(std::iter::repeat_n(Key::AllOf(p, d), ls.of(t).slots.len()));
                 true
             }
             (
@@ -1306,7 +1316,8 @@ impl Ck<'_, '_> {
         let (mut holds, mut held) = (ls.holds(b.ty[i]), false);
         let receiver = (tag == Tag::CallDyn).then(|| b.data[i][0]);
         // The caller's own lifetime of each slot of each trait argument, by
-        // the bound a call through a type parameter's bound uses.
+        // the bound a call through a type parameter's or an associated
+        // type's bound uses.
         let mut bound_ids: Vec<Vec<u32>> = Vec::new();
         slots(b, i, |_, v, word| {
             let arg = matches!(word, Word::Value(Role::Arg(_)));
@@ -1333,8 +1344,8 @@ impl Ck<'_, '_> {
                         (ChoiceKind::TraitValue, _) => {
                             self.trait_value_self_slots(ls, trait_, self_ty)
                         }
-                        (ChoiceKind::Bound, _) if let TyData::Param(p) = pool.get(self_ty) => {
-                            bound_ids = self.bound_arg_ids(ls, p, trait_);
+                        (ChoiceKind::Bound, _) => {
+                            bound_ids = self.bound_ids(ls, self_ty, trait_, 0);
                             Vec::new()
                         }
                         _ => Vec::new(),
@@ -1417,6 +1428,10 @@ impl Ck<'_, '_> {
         // The variables each slot a type parameter adds to the parameters
         // took, which its result slots take (`ref.generic.call`).
         let mut took: Vec<(Key, Var)> = Vec::new();
+        // Each projection's first lifetime its bounds write, and the
+        // variables it makes one with the others.
+        let mut projs: Vec<(Ty, Option<u32>)> = Vec::new();
+        let mut proj_links: Vec<(Var, Var)> = Vec::new();
         let mut params = Vec::with_capacity(dep.params.len());
         for (p, (decl, ids)) in dep.params.iter().enumerate() {
             let at = source_arg(b, i, p).and_then(|a| call_arg_ty(pool, b, a, *decl));
@@ -1430,7 +1445,22 @@ impl Ck<'_, '_> {
                 .map(|(k, s)| {
                     let var = match k {
                         Key::Decl(j) => Var::Life(ids.get(j).copied().unwrap_or(NO_SOURCE)),
-                        Key::None | Key::AllOf(_) => Var::Life(NO_SOURCE),
+                        Key::None => Var::Life(NO_SOURCE),
+                        // Each slot of a projection takes each lifetime its
+                        // bounds write (`ref.lifetime.trait.bound-argument`).
+                        Key::AllOf(_, proj) => {
+                            let known = projs.iter().find(|x| x.0 == proj).map(|x| x.1);
+                            let first = known.unwrap_or_else(|| {
+                                let lts = self.proj_lifetimes(ls, proj);
+                                let first = lts.first().copied();
+                                proj_links.extend(first.into_iter().flat_map(|a| {
+                                    (lts[1..].iter()).map(move |&l| (Var::Life(a), Var::Life(l)))
+                                }));
+                                projs.push((proj, first));
+                                first
+                            });
+                            Var::Life(first.unwrap_or(NO_SOURCE))
+                        }
                         Key::Param(q, s) => own(q, s).unwrap_or_else(|| {
                             (target(q, s).or(outlives.map(u32::from)))
                                 .map_or(Var::Param(q, s), Var::Life)
@@ -1473,7 +1503,11 @@ impl Ck<'_, '_> {
                 }
                 None => from(&|x| x == k),
             },
-            Key::AllOf(q) => from(&|x| matches!(x, Key::Param(p, _) if p == q)),
+            Key::AllOf(q, proj) => {
+                let mut vs = from(&|x| matches!(x, Key::Param(p, _) if p == q));
+                vs.extend(self.proj_lifetimes(ls, proj).into_iter().map(Var::Life));
+                vs
+            }
         };
         // A suspension, the result of a bang call made without `!`, holds
         // what its arguments hold in a slot of its own, and its result's
@@ -1514,10 +1548,11 @@ impl Ck<'_, '_> {
             Some(sig) if !sig.paths.is_empty() => self.call_paths(ls, b, i, sig, &dep),
             _ => Vec::new(),
         };
-        let links = match (tag, &sig) {
+        let mut links = match (tag, &sig) {
             (Tag::Call | Tag::Await, Some(sig)) => self.call_links(ls, b, i, sig),
             _ => Vec::new(),
         };
+        links.append(&mut proj_links);
         Some(CallSig {
             links,
             paths,
@@ -1534,6 +1569,30 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// The lifetimes the bounds of projection `proj` write, in its scope's
+    /// numbering, sorted: each slot of what it stands for takes them all,
+    /// as a type parameter's slots take its bounds'.
+    fn proj_lifetimes(&self, ls: &Layouts<'_>, proj: Ty) -> Vec<u32> {
+        let pool = ls.pool;
+        let TyData::Assoc { assoc, .. } = pool.get(proj) else {
+            return Vec::new();
+        };
+        let Some(ItemData::AssocType { bounds, .. }) =
+            self.cx.lookup.item(assoc).map(|it| &it.data)
+        else {
+            return Vec::new();
+        };
+        let mut out: Vec<u32> = (bounds.iter())
+            .filter_map(|&b| pool.trait_value(b))
+            .flat_map(|(tr, _)| self.bound_ids(ls, proj, tr, 0))
+            .flatten()
+            .filter(|&l| l != 0)
+            .collect();
+        out.sort_stable();
+        out.dedup();
+        out
+    }
+
     /// The generics of `owner`: a function's or a method's signature's,
     /// or a type's, a trait's or an implementation's own.
     fn generics_of(&self, owner: DefId) -> Option<&[hd_resolve::Generic]> {
@@ -1541,21 +1600,54 @@ impl Ck<'_, '_> {
         Some(it.sig().map_or(&it.generics[..], |s| &s.generics[..]))
     }
 
-    /// For a call through type parameter `p`'s bound on `trait_`, the
-    /// lifetime the bound writes for each slot of each of the trait's
-    /// arguments, in the numbering of `p`'s scope; 0 where it writes none
-    /// (`ref.lifetime.trait.bound-argument`). Through a supertrait, its
+    /// For a call through a bound of `self_ty` on `trait_`, the lifetime
+    /// the bound writes for each slot of each of the trait's arguments, in
+    /// the numbering of the calling body's scope; 0 where it writes none
+    /// (`ref.lifetime.trait.bound-argument`). The bound is a type
+    /// parameter's, or an associated type's, whose trait's lifetimes are
+    /// the ones the bounds of its projection's base give that trait
+    /// (`ref.lifetime.trait.bound-unnamed`). Through a supertrait, its
     /// written lifetimes name the bound's lifetime arguments and its type
     /// parameters the bound's arguments. Empty where no bound writes one.
-    fn bound_arg_ids(
+    fn bound_ids(&self, ls: &Layouts<'_>, self_ty: Ty, trait_: DefId, depth: u32) -> Vec<Vec<u32>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+        match ls.pool.get(self_ty) {
+            TyData::Param(p) => self.param_bound_ids(ls, p, trait_, depth),
+            TyData::Assoc {
+                assoc,
+                trait_: owner,
+                self_ty: base,
+                args,
+            } => self.assoc_bound_ids(ls, assoc, (owner, base, args), trait_, depth),
+            _ => Vec::new(),
+        }
+    }
+
+    /// [`Ck::bound_ids`] of type parameter `p`.
+    fn param_bound_ids(
         &self,
         ls: &Layouts<'_>,
         p: hd_types::ParamRef,
         trait_: DefId,
+        depth: u32,
     ) -> Vec<Vec<u32>> {
-        let Some(g) = self
-            .generics_of(p.owner)
-            .and_then(|g| g.get(usize::from(p.index)))
+        let Some(it) = self.cx.lookup.item(p.owner) else {
+            return Vec::new();
+        };
+        // A trait's parameters follow its `Self`, which is bounded by the
+        // trait over its own parameters, lifetimes 1 and on in its scope.
+        let k = usize::from(p.index);
+        let k = match it.data {
+            ItemData::Trait(_) if k == 0 => return self.self_bound_ids(ls, it, trait_, depth),
+            ItemData::Trait(_) => k - 1,
+            _ => k,
+        };
+        let Some(g) = it
+            .sig()
+            .map_or(&it.generics[..], |s| &s.generics[..])
+            .get(k)
         else {
             return Vec::new();
         };
@@ -1572,7 +1664,86 @@ impl Ck<'_, '_> {
                 args,
                 &lts.iter().map(|&l| u32::from(l)).collect::<Vec<_>>(),
             );
-            if let Some(found) = self.reach(ls, (def, args), ids, trait_, 0) {
+            if let Some(found) = self.reach(ls, (def, args), ids, trait_, depth) {
+                return found;
+            }
+        }
+        Vec::new()
+    }
+
+    /// [`Ck::bound_ids`] of trait `tr`'s `Self`: `tr` over its own
+    /// parameters, whose lifetimes are the first of its scope.
+    fn self_bound_ids(
+        &self,
+        ls: &Layouts<'_>,
+        tr: &hd_resolve::Item,
+        trait_: DefId,
+        depth: u32,
+    ) -> Vec<Vec<u32>> {
+        if !tr.generics.iter().any(|g| g.lifetime) {
+            return Vec::new();
+        }
+        let pool = ls.pool;
+        let mut n = 0;
+        let (mut args, mut ids) = (Vec::new(), Vec::new());
+        for (k, g) in tr.generics.iter().enumerate() {
+            if g.lifetime {
+                n += 1;
+                args.push(hd_resolve::lifetime_arg(pool));
+                ids.push(vec![n]);
+            } else {
+                let index = u16::try_from(k + 1).unwrap_or(u16::MAX);
+                let t = pool.intern_ty(&TyData::Param(hd_types::ParamRef {
+                    owner: tr.def,
+                    index,
+                }));
+                ids.push(vec![0; ls.of(t).slots.len()]);
+                args.push(t);
+            }
+        }
+        self.reach(ls, (tr.def, &args), ids, trait_, depth)
+            .unwrap_or_default()
+    }
+
+    /// [`Ck::bound_ids`] of the projection of `assoc` on `owner[args]`
+    /// over `base`: each bound of `assoc`, written in `owner`'s scope, over
+    /// the lifetimes `base`'s bounds give `owner`'s arguments.
+    fn assoc_bound_ids(
+        &self,
+        ls: &Layouts<'_>,
+        assoc: DefId,
+        (owner, base, args): (DefId, Ty, hd_types::TyList),
+        trait_: DefId,
+        depth: u32,
+    ) -> Vec<Vec<u32>> {
+        let Some(ItemData::AssocType {
+            bounds,
+            bound_lifetimes,
+            ..
+        }) = self.cx.lookup.item(assoc).map(|it| &it.data)
+        else {
+            return Vec::new();
+        };
+        let ids = self.bound_ids(ls, base, owner, depth + 1);
+        if ids.iter().flatten().all(|&l| l == 0) {
+            return Vec::new();
+        }
+        let Some(it) = self.cx.lookup.item(owner) else {
+            return Vec::new();
+        };
+        let (args, lifetimes) = (
+            ls.pool.list_items(args),
+            trait_lifetimes(&it.generics, &ids),
+        );
+        let none = Vec::new();
+        for (k, &b) in bounds.iter().enumerate() {
+            let lts = bound_lifetimes.get(k).unwrap_or(&none);
+            let Some((def, bids, bargs)) =
+                Self::bound_in(ls, (owner, args), &ids, &lifetimes, b, lts)
+            else {
+                continue;
+            };
+            if let Some(found) = self.reach(ls, (def, &bargs), bids, trait_, depth + 1) {
                 return found;
             }
         }
@@ -1600,66 +1771,78 @@ impl Ck<'_, '_> {
         if depth > 8 || td.super_lifetimes.is_empty() && ids.iter().flatten().all(|&l| l == 0) {
             return None;
         }
+        let lifetimes = trait_lifetimes(&it.generics, &ids);
+        let none = Vec::new();
+        for (k, &sup) in td.supers.iter().enumerate() {
+            let lts = td.super_lifetimes.get(k).unwrap_or(&none);
+            let Some((sdef, sids, sargs)) =
+                Self::bound_in(ls, (def, args), &ids, &lifetimes, sup, lts)
+            else {
+                continue;
+            };
+            if let Some(found) = self.reach(ls, (sdef, &sargs), sids, target, depth + 1) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    /// A bound `bound` written in trait `def`'s scope (a supertrait or an
+    /// associated type's bound), over `def`'s arguments `args` whose slots
+    /// have lifetimes `ids` and whose `k`-th lifetime is `lifetimes[k]`:
+    /// its trait, the lifetime of each slot of its arguments, and its
+    /// arguments. Each slot the bound writes takes its lifetime, and each
+    /// slot of a type parameter of `def` the argument's (`lts`, one per
+    /// reference slot, as [`hd_resolve::TraitData::super_lifetimes`]).
+    fn bound_in(
+        ls: &Layouts<'_>,
+        (def, args): (DefId, &[Ty]),
+        ids: &[Vec<u32>],
+        lifetimes: &[u32],
+        bound: Ty,
+        lts: &[u16],
+    ) -> Option<(DefId, Vec<Vec<u32>>, Vec<Ty>)> {
         let pool = ls.pool;
-        // The trait's `k`-th lifetime: the one its argument's slot names.
-        let lifetimes: Vec<u32> = (it.generics.iter().enumerate())
-            .filter(|(_, g)| g.lifetime)
-            .map(|(k, _)| ids.get(k).and_then(|x| x.first()).copied().unwrap_or(0))
-            .collect();
+        let (sdef, sargs) = pool.trait_value(bound)?;
         let named = |l: &u16| {
             let l = usize::from(*l).checked_sub(1);
             l.and_then(|l| lifetimes.get(l)).copied().unwrap_or(0)
         };
-        // A supertrait's argument over the bound's arguments.
+        // The bound's argument over `def`'s arguments.
         let inst = |t: Ty| {
             pool.subst(t, &|p: hd_types::ParamRef| {
                 let k = usize::from(p.index).checked_sub(1)?;
                 (p.owner == def).then(|| args.get(k).copied()).flatten()
             })
         };
-        let none = Vec::new();
-        for (k, &sup) in td.supers.iter().enumerate() {
-            let Some((sdef, sargs)) = pool.trait_value(sup) else {
-                continue;
+        let (mut at, sargs) = (0, pool.list_items(sargs));
+        let mut sids = Vec::with_capacity(sargs.len());
+        let mut iargs = Vec::with_capacity(sargs.len());
+        for &a in sargs {
+            let n = pool.ref_slots(a);
+            let written: Vec<u32> = (lts.get(at..at + n).unwrap_or_default().iter())
+                .map(named)
+                .collect();
+            at += n;
+            let decl = arg_ids(ls, &[a], &written).pop().unwrap_or_default();
+            let t = inst(a);
+            let x = match line_up(ls, a, t) {
+                Some(keys) => (keys.into_iter())
+                    .map(|key| match key {
+                        Key::Decl(j) => decl.get(j).copied().unwrap_or(0),
+                        Key::Param(q, s) if q.owner == def && q.index > 0 => {
+                            let k = usize::from(q.index) - 1;
+                            ids.get(k).and_then(|x| x.get(s)).copied().unwrap_or(0)
+                        }
+                        _ => 0,
+                    })
+                    .collect(),
+                None => vec![0; ls.of(t).slots.len()],
             };
-            let lts = td.super_lifetimes.get(k).unwrap_or(&none);
-            let (mut at, sargs) = (0, pool.list_items(sargs));
-            let mut sids = Vec::with_capacity(sargs.len());
-            let mut iargs = Vec::with_capacity(sargs.len());
-            for &a in sargs {
-                let n = pool.ref_slots(a);
-                let written: Vec<u32> = lts
-                    .get(at..at + n)
-                    .unwrap_or_default()
-                    .iter()
-                    .map(named)
-                    .collect();
-                at += n;
-                // Each slot the argument writes takes its lifetime, and each
-                // slot of a type parameter of the trait the bound's argument's.
-                let decl = arg_ids(ls, &[a], &written).pop().unwrap_or_default();
-                let t = inst(a);
-                let x = match line_up(ls, a, t) {
-                    Some(keys) => (keys.into_iter())
-                        .map(|key| match key {
-                            Key::Decl(j) => decl.get(j).copied().unwrap_or(0),
-                            Key::Param(q, s) if q.owner == def && q.index > 0 => {
-                                let k = usize::from(q.index) - 1;
-                                ids.get(k).and_then(|x| x.get(s)).copied().unwrap_or(0)
-                            }
-                            _ => 0,
-                        })
-                        .collect(),
-                    None => vec![0; ls.of(t).slots.len()],
-                };
-                sids.push(x);
-                iargs.push(t);
-            }
-            if let Some(found) = self.reach(ls, (sdef, &iargs), sids, target, depth + 1) {
-                return Some(found);
-            }
+            sids.push(x);
+            iargs.push(t);
         }
-        None
+        Some((sdef, sids, iargs))
     }
 
     /// The variables the bounds that write lifetimes of call `i`'s callee
@@ -1708,9 +1891,9 @@ impl Ck<'_, '_> {
     /// The variables a callee's bounds that write lifetimes make one
     /// (`ref.lifetime.trait.bound-argument`): each slot of what such a
     /// type parameter of `owner` stands for and each lifetime its bounds
-    /// write, and where it stands for a type parameter of the caller's
-    /// with a bound on the same trait, each lifetime with the caller's
-    /// own of the same slot.
+    /// write, and where it stands for a type parameter or an associated
+    /// type projection of the caller's with a bound on the same trait,
+    /// each lifetime with the caller's own of the same slot.
     fn bound_links(
         &self,
         ls: &Layouts<'_>,
@@ -1737,16 +1920,16 @@ impl Ck<'_, '_> {
             for s in 0..ls.of(t).slots.len() {
                 links.extend(written.iter().map(|&l| (Var::Param(q, s), Var::Life(l))));
             }
-            let TyData::Param(p) = pool.get(t) else {
+            if !matches!(pool.get(t), TyData::Param(_) | TyData::Assoc { .. }) {
                 continue;
-            };
+            }
             for (b, lts) in g.bounds.iter().zip(&g.bound_lifetimes) {
                 let Some((tr, args)) = pool.trait_value(*b) else {
                     continue;
                 };
                 let lts: Vec<u32> = lts.iter().map(|&l| u32::from(l)).collect();
                 let theirs = arg_ids(ls, pool.list_items(args), &lts);
-                let mine = self.bound_arg_ids(ls, p, tr);
+                let mine = self.bound_ids(ls, t, tr, 0);
                 for (x, y) in theirs.iter().zip(&mine).filter(|(x, y)| x.len() == y.len()) {
                     let pairs = x.iter().zip(y).filter(|(a, b)| **a != 0 && **b != 0);
                     links.extend(pairs.map(|(&a, &b)| (Var::Life(a), Var::Own(b))));

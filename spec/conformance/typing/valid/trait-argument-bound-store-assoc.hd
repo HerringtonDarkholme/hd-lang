@@ -1,0 +1,63 @@
+# test: a call through an associated type's bound may store a reference of the lifetime the bound writes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `p` is at
+# `'a`, which each form of `S::Item`'s bound gives `put`, and `'c` is the
+# lifetime `Self`'s bound gives it in `Keeper`. A projection whose bounds
+# write two lifetimes makes them one at a call, so `pair` passes `p` at both.
+# A projection whose base's bound writes no lifetime takes none.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Put2[U] < Store[U]:
+    fn tag(&self) -> i32
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+    type Other < Put2[&'b Point]
+    fn go(&self, s: &mut Self::Item, p: &'b Point) -> void:
+        s.put(p)
+
+trait Sub['c] < Shelf['c]:
+    fn tag(&self) -> i32
+
+trait Keeper['c, U] < Store[&'c Point]:
+    fn go(&mut self, p: &'c Point) -> void:
+        self.put(p)
+
+trait Arg[V]:
+    type Item < Store[V]
+
+fn fill['c, X < Store[&'c Point]](x: &mut X, p: &'c Point) -> void:
+    x.put(p)
+
+fn direct['a, S < Shelf['a]](s: &mut S::Item, p: &'a Point) -> void:
+    s.put(p)
+
+fn through['a, S < Sub['a]](s: &mut S::Other, p: &'a Point) -> void:
+    s.put(p)
+
+fn argument['a, S < Arg[&'a Point]](s: &mut S::Item, p: &'a Point) -> void:
+    s.put(p)
+
+fn passed['a, S < Shelf['a]](s: &mut S::Item, p: &'a Point) -> void:
+    fill(s, p)
+
+trait Shown[T]:
+    fn show(&self, value: T) -> i32
+
+trait Two['b, 'd]:
+    type Item < Store[&'b Point] & Shown[&'d Point]
+
+fn two['a, 'e, S < Two['a, 'e]](s: &mut S::Item, p: &'a Point, r: &'e Point) -> void:
+    s.put(p)
+
+fn pair['a, S < Two['a, 'a]](s: &mut S::Item, p: &'a Point) -> void:
+    two::[S](s, p, p)
+
+trait Plain:
+    type Item < Store[i32]
+
+fn plain[S < Plain](s: &mut S::Item) -> void:
+    s.put(1)

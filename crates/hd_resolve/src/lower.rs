@@ -1759,7 +1759,9 @@ fn prelude(
 /// An associated type declared in a trait or bound in an impl body.
 /// An associated type member: its name, its def, its value in an
 /// implementation, and its bounds in a trait (`trait.assoc.bound-decl`).
-type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>);
+/// An associated type's name, definition, value and bounds, with each
+/// bound's written lifetimes as [`Lower::with_slots`] records them.
+type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>, Vec<Vec<u16>>);
 
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
@@ -5128,15 +5130,17 @@ impl Lower<'_, '_, '_> {
                     let text = self.src.text(t).to_owned();
                     let def = self.names.member(owner, PathKind::Member, &text);
                     let ty = Src::type_child(f).map(|c| self.ty(Some(c), gn));
-                    let mut bounds = Vec::new();
+                    let (mut bounds, mut written) = (Vec::new(), Vec::new());
                     if let Some(bl) = Src::child(f, SyntaxKind::BoundList) {
                         for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
-                            if let Some(t) = self.trait_value(b, gn, gn.self_ty) {
+                            let (t, lts) = self.with_slots(|me| me.trait_value(b, gn, gn.self_ty));
+                            if let Some(t) = t {
                                 bounds.push(t);
+                                written.push(lts);
                             }
                         }
                     }
-                    assoc.push((self.sym_token(t), def, ty, bounds));
+                    assoc.push((self.sym_token(t), def, ty, bounds, written));
                 }
                 // ruled out: a match on a syntax kind; the trait's other members are not methods or associated types.
                 _ => {}
@@ -5623,7 +5627,7 @@ impl Lower<'_, '_, '_> {
             self.impl_variance(h.def, &generics, (self_ty, &mut gn), b);
         }
         let mut assoc: Vec<(DefId, Ty)> = header_bindings;
-        for (name, _, ty, _) in assoc_decls {
+        for (name, _, ty, ..) in assoc_decls {
             if trait_ != DefId::NONE {
                 assoc.push((
                     self.names
@@ -6541,7 +6545,8 @@ impl Lower<'_, '_, '_> {
                 // A trait's associated type takes no value
                 // (`grammar.trait.associated-type.bound`); the parser
                 // rejects one, so its type is not lowered.
-                for (name, def, _, bounds) in assoc_decls {
+                for (name, def, _, bounds, written) in assoc_decls {
+                    let bound_lifetimes = self.slot_lists(&bounds, written);
                     out.push(Item::new(
                         def,
                         name,
@@ -6549,6 +6554,7 @@ impl Lower<'_, '_, '_> {
                         ItemData::AssocType {
                             owner: h.def,
                             bounds,
+                            bound_lifetimes,
                         },
                     ));
                     assoc.push((name, def));

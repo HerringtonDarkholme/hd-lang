@@ -1,0 +1,35 @@
+# test: a reference stored through an associated type's bound that outlives the store is valid
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `S::Item` is
+# `Keep['a]` for `Sh`, and `main`'s `k` outlives neither `p` nor `q`.
+# expect-stdout: 2
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+
+fn fill['a, S < Shelf['a]](s: &mut S::Item, p: &'a Point) -> void:
+    s.put(p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1 }
+    q := Point { x: 2 }
+    let mut k = Keep { last: &p }
+    fill::[Sh](&mut k, &q)
+    println(k.last.x)
