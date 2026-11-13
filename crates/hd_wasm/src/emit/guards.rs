@@ -65,7 +65,7 @@
 //! block in turn runs first.
 //!
 //! Cost per body: one pass over the instructions for the stores, breaks
-//! and the header check, and one walk up from each break for `clear`;
+//! and the header check; postorder jump summaries and block prefixes for `clear`;
 //! one pass over the `If`s for the tests that show a field above zero;
 //! each value's source is memoized, so resolving is
 //! linear in instructions times a depth bound of [`DEPTH`]; each guard
@@ -1414,37 +1414,69 @@ impl Proof<'_, '_, '_, '_> {
 /// Clear statements depend on the represented block graph, not every
 /// instruction column being reachable from a sub-body root.
 fn clear_statements(b: &hd_tir::ir::Body, t: &hd_tir::ir::Topology) -> Vec<bool> {
+    clear_statements_counted(b, t, &mut || {})
+}
+
+/// Structured labels target enclosing instructions. Since children precede
+/// their owners, the greatest target is the outermost escaping jump. Join
+/// that summary once at each parent, stopping before the target's owner.
+/// O(N + S) work/storage for instructions and block-list entries; no ancestor
+/// walk, fixpoint or native recursion. Each instruction is visited twice.
+fn clear_statements_counted(
+    b: &hd_tir::ir::Body,
+    t: &hd_tir::ir::Topology,
+    visit: &mut impl FnMut(),
+) -> Vec<bool> {
     let n = b.len();
     let inside = |x: usize, s: usize| (t.first[s] as usize) <= x && x <= s;
+    let mut escaped = vec![NONE; n];
     let mut leaves = vec![false; n];
     for i in 0..n {
-        if !matches!(b.tags[i], Tag::Break | Tag::Continue) {
+        visit();
+        if matches!(b.tags[i], Tag::Break | Tag::Continue) {
+            let target = b.label_inst[b.data[i][0] as usize];
+            escaped[i] = if escaped[i] == NONE {
+                target
+            } else {
+                escaped[i].max(target)
+            };
+        }
+        let target = escaped[i];
+        if target == NONE || inside(target as usize, i) {
             continue;
         }
-        let target = b.label_inst[b.data[i][0] as usize] as usize;
-        let mut s = i;
-        while !inside(target, s) {
-            leaves[s] = true;
-            if b.tags[s] == Tag::Block && t.owner[s] != NONE {
-                leaves[t.owner[s] as usize] = true;
-            }
-            // A detached instruction has no enclosing block. It can
-            // remain in a Body's columns without being executed.
-            let blk = t.blk[s];
-            if blk == NONE {
-                break;
-            }
-            s = blk as usize;
+        leaves[i] = true;
+        // A body block is executed by its owner, not where its definition
+        // happens to be listed. In particular a loop's own break stops at
+        // the Loop before that Loop is marked as leaving its parent.
+        let parent = if t.owner[i] == NONE {
+            t.blk[i]
+        } else {
+            t.owner[i]
+        };
+        if parent != NONE {
+            let slot = &mut escaped[parent as usize];
+            *slot = if *slot == NONE {
+                target
+            } else {
+                (*slot).max(target)
+            };
         }
     }
     let mut clear = vec![false; n];
     for blk in 0..n {
+        visit();
         if b.tags[blk] != Tag::Block {
             continue;
         }
         for &s in b.record(b.data[blk][0]) {
+            visit();
             clear[s as usize] = true;
-            if leaves[s as usize] {
+            // An owned block is a definition: its owner executes the jump.
+            // Unowned blocks retain the old conservative prefix barrier.
+            if (b.tags[s as usize] != Tag::Block || t.owner[s as usize] == NONE)
+                && leaves[s as usize]
+            {
                 break;
             }
         }
@@ -1536,6 +1568,91 @@ mod tests {
             let clear = clear_statements(&body, &topo);
             assert!(!clear[detached.0 as usize]);
             assert!(clear[loop_inst.0 as usize]);
+        }
+        Ok(())
+    }
+
+    fn nested_jumps(
+        width: usize,
+        depth: usize,
+        external: bool,
+        tag: Tag,
+    ) -> Result<(Body, Vec<u32>, u32), String> {
+        let mut build = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
+        let zero = build.const_value(Ty::I32, 0);
+        let root = build.open_block();
+        let outer = build.open_loop();
+        let outer_label = outer.0.raw();
+        let outer_body = build.open_block();
+        let mut loops = Vec::new();
+        for _ in 0..depth {
+            let mark = build.open_loop();
+            let body = build.open_block();
+            loops.push((mark, body));
+        }
+        let label = if external {
+            outer_label
+        } else {
+            loops.last().map_or(outer_label, |(mark, _)| mark.0.raw())
+        };
+        let own_label = loops.last().map_or(outer_label, |(mark, _)| mark.0.raw());
+        for jump in 0..width {
+            let target = if external && jump % 2 == 0 {
+                label
+            } else {
+                own_label
+            };
+            build.emit(tag, target, NONE, Ty::NEVER, NodeIdx::NONE);
+        }
+        let mut later = Vec::new();
+        while let Some((mark, body)) = loops.pop() {
+            let body = build.close_block(body, None, Ty::VOID, NodeIdx::NONE);
+            build.close_loop(mark, body, Ty::VOID, NodeIdx::NONE);
+            later.push(
+                build
+                    .prim(PrimOp::Add as u32, &[zero, zero], Ty::I32, NodeIdx::NONE)
+                    .0,
+            );
+        }
+        let outer_body = build.close_block(outer_body, None, Ty::VOID, NodeIdx::NONE);
+        build.close_loop(outer, outer_body, Ty::VOID, NodeIdx::NONE);
+        let after = build
+            .prim(PrimOp::Add as u32, &[zero, zero], Ty::I32, NodeIdx::NONE)
+            .0;
+        let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        Ok((
+            build.finish(root, &[]).map_err(|e| format!("{e:?}"))?,
+            later,
+            after,
+        ))
+    }
+
+    #[test]
+    fn self_jumps_keep_later_statements_clear_but_outer_jumps_do_not() -> Result<(), String> {
+        for tag in [Tag::Break, Tag::Continue] {
+            for external in [false, true] {
+                let (body, later, after) = nested_jumps(1, 2, external, tag)?;
+                let clear = clear_statements(&body, &Topology::new(&body));
+                assert!(later.iter().all(|s| clear[*s as usize] != external));
+                assert!(clear[after as usize]);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn jump_summary_work_is_linear_at_width_1000_depth_20() -> Result<(), String> {
+        for width in [1, 1000] {
+            let (body, later, after) = nested_jumps(width, 20, true, Tag::Break)?;
+            let entries: usize = (0..body.len())
+                .filter(|i| body.tags[*i] == Tag::Block)
+                .map(|i| body.record(body.data[i][0]).len())
+                .sum();
+            let mut visits = 0;
+            let clear = clear_statements_counted(&body, &Topology::new(&body), &mut || visits += 1);
+            assert!(visits <= 2 * body.len() + entries);
+            assert!(later.iter().all(|s| !clear[*s as usize]));
+            assert!(clear[after as usize]);
         }
         Ok(())
     }
