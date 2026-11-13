@@ -217,6 +217,12 @@ pub trait OwnCx {
         let _ = callee;
         false
     }
+    /// Whether this compiler-known call only reads storage: no allocation,
+    /// COW reuse, callbacks or writes. Unknown source calls are conservative.
+    fn call_reads_storage_only(&self, _callee: &Callee) -> bool {
+        false
+    }
+
     /// Whether a cursor stores a copy of its map operand in its environment.
     fn copies_map_snapshot(&self, callee: &Callee) -> bool {
         let _ = callee;
@@ -1054,8 +1060,19 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         self_store::run(b, cx, &scratch.topo, &mut scratch.splice);
         splice::apply(b, &scratch.topo, &mut scratch.splice)?;
     }
-    plain::loan_ends(b, cx);
     scratch.topo.build(b);
+    scratch.splice.clear();
+    if derive::lend_copied_parameters(
+        b,
+        cx,
+        &scratch.topo,
+        &mut scratch.derive,
+        &mut scratch.splice,
+    ) {
+        splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+        scratch.topo.build(b);
+    }
+    plain::loan_ends(b, cx);
     scratch.splice.clear();
     overwrites::plan(b, cx, &scratch.topo, &mut scratch.splice);
     retains::run(b, cx, &scratch.topo, &mut scratch.splice)?;

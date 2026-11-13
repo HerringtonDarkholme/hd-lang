@@ -34,17 +34,15 @@ fn map_index_take(m: Map[string, string], k: string) -> string:
 >     uses $0: entry -> %2 lend, %5 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = Release %7 Exit local $1 #2 : ()
->   %1 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
+>   %1 = Release %6 Exit local $1 #2 : ()
     m[k]
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Read borrow [$1] : string
 >   %4 = Intrinsic MapEntry [%2 %3] : usize
 >   %5 = Read copy [$0 [%4]] : string
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : string
->   exit sub 0 drops [$0]
->   summary kept [$0] borrows [$1]
+>   %6 = Block %5 : string
+>   summary kept [] borrows [$0 $1]
 
 fn string_byte(s: string, i: usize) -> u8:
 > app/main/string_byte

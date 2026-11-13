@@ -232,78 +232,48 @@
     local.get $t3
     local.get $t2
   )
-  (func $check (param $xs i32) (param $at i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $check (param $xs i32) (param $at i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     if at >= xs.len():
-    block
-      local.get $at
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
+    local.get $at
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
     ;; 31 |         return unexpected(at)
-        local.get $at
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32 i32)
-        local.set $t0
-        local.set $at
-        br 1
+      local.get $at
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32 i32)
+      return
     ;; 30 |     if at >= xs.len():
-      end
+    end
     ;; 32 |     xs[at]
-      local.get $at
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $xs
-      local.get $at
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $at
-      i32.load $heap offset=16
-      local.get $at
-      i32.load $heap offset=20
-      local.set $t0
-      local.tee $at
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-    ;; 30 |     if at >= xs.len():
-      local.get $xs
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      i32.const 0
-      local.set $xs
+    local.get $at
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
     local.get $xs
-    local.tee $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-    end
     local.get $at
-    local.get $t0
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $xs
+    i32.load $heap offset=16
+    local.get $xs
+    i32.load $heap offset=20
+    local.set $at
+    local.tee $xs
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    ;; 30 |     if at >= xs.len():
+    local.get $xs
+    local.get $at
   )
   (func $checksum'2 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
     ;; 16 |     for x in xs:

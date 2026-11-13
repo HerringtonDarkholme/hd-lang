@@ -488,6 +488,13 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
     }
 
+    fn call_reads_storage_only(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if matches!(self.intrinsic(*def).as_deref(),
+            Some("sqrt" | "ptr_offset" | "mem_string_bytes" | "ptr_size_of" | "ptr_ref" | "ptr_mut"
+                | "type_id_of" | "bytes_len" | "bytes_at" | "bytes_index"
+                | "bytes_index_pair" | "bytes_mismatch" | "utf8_valid_len" | "char_scalar" | "char_from_scalar")))
+    }
+
     fn copies_map_snapshot(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_steps"))
     }

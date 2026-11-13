@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
@@ -10,7 +10,6 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
@@ -40,7 +39,7 @@
     local.tee $i
     if
       local.get $i
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $xs
     local.get $s.0
@@ -243,7 +242,7 @@
     ;; 33 |     match xs.get_mut(i):
     end
   )
-  (func $list_take (param $xs i32) (param $i i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $list_take (param $xs i32) (param $i i32) (result i32 i32) (local $t0 i32)
     ;; 14 |     xs[i]
     local.get $i
     local.get $xs
@@ -258,31 +257,19 @@
     i32.const 8
     i32.mul
     i32.add
-    local.tee $i
+    local.tee $xs
     i32.load $heap offset=16
-    local.get $i
+    local.get $xs
     i32.load $heap offset=20
-    local.set $t0
-    local.tee $i
-    local.tee $t1
+    local.set $i
+    local.tee $xs
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
     local.get $xs
-    local.tee $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-    end
     local.get $i
-    local.get $t0
   )
   (func $list_read (param $xs i32) (param $i i32) (result i32)
     ;; 11 |     xs[i].len()

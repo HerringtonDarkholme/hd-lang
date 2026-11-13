@@ -54,7 +54,7 @@
       end
     end
   )
-  (func $pick (param $xs i32) (param $i i32) (result i32) (local $t0 i32)
+  (func $pick (param $xs i32) (param $i i32) (result i32)
     ;; 16 |     xs[i]
     local.get $i
     local.get $xs
@@ -70,31 +70,19 @@
     i32.mul
     i32.add
     i32.load $heap offset=16
+    local.tee $xs
     local.tee $i
-    local.tee $t0
     if
-      local.get $t0
+      local.get $i
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $i
         call $rt:retain_known
       end
     end
     local.get $xs
-    local.tee $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-    end
-    local.get $i
   )
   (func $deref_store (param $r i32) (param $s.0 i32) (param $s.1 i32)
     ;; 22 |     *r = s

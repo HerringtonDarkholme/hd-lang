@@ -37,7 +37,7 @@ fn discard(s: string) -> usize:
 >     uses $0: entry -> %1 consume, %20 consume, %43 lend last
 >   local $2 s: string [read captured] place
 >   local $3 s: string [read captured] place
->   %0 = Retain %49 Entry local $0 #0 : ()
+>   %0 = Release %48 Exit local $0 #2 : ()
     _ := save(s)
 >   %1 = Read copy [$0] : string
 >   %2 = Store [$3] %1 : ()
@@ -58,7 +58,7 @@ fn discard(s: string) -> usize:
 >   %17 = Scope %16 [] : Result[string, SaveError]
 >   %18 = Drop [%17] : ()
 >   %19 = Drop [$3] : ()
->   %49 = Block %47 : usize
+>   %48 = Block %47 : usize
 >   %3 finds [$3] full
 >   %7 finds [$3] full
     let _ = save(s)
@@ -92,10 +92,8 @@ fn discard(s: string) -> usize:
 >   %45 = Break L0 %44 : never
 >   %46 = Block - : usize
 >   %47 = Scope %46 [] : usize
->   %48 = Drop [$0] : ()
->   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot, $3 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn unused(s: string) -> usize:
 > app/main/unused

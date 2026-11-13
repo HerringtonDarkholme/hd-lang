@@ -161,21 +161,6 @@
     local.get $value
     i32.load $heap offset=8
     i32.add
-    ;; 38 |     step := capture(value)
-    local.get $value
-    local.tee $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-    end
   )
   (func $"later[*Point]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 28 |     fn() -> T: value
