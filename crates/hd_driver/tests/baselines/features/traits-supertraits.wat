@@ -70,7 +70,7 @@
     local.get $t2
     i32.store $heap offset=4
     local.get $p
-    i32.const 168 ;; &vtable[func24]
+    i32.const 200 ;; &vtable[func24]
     call $widen
     local.get $p
     i32.load $heap

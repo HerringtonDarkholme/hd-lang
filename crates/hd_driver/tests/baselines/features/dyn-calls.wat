@@ -64,7 +64,7 @@
     local.get $t2
     i32.store $heap offset=4
     local.get $d
-    i32.const 160 ;; &vtable[func20]
+    i32.const 192 ;; &vtable[func20]
     call $call_dyn
     local.set $t1
     local.get $d

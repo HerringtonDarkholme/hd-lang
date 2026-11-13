@@ -79,7 +79,7 @@
     local.get $t1
     i32.store $heap
     local.get $t2
-    i32.const 204 ;; &vtable[rt:handle_slot]
+    i32.const 236 ;; &vtable[rt:handle_slot]
     local.get $t2
     call $rt:retain
     call $"host_provider[Node]"
