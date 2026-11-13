@@ -105,8 +105,7 @@
     local.get $t5
     local.get $t2
     i32.add
-    i32.const 65 ;; &":"
-    i32.load8_u $heap
+    i32.const 58
     i32.store8 $heap
     local.get $n
     local.get $t5

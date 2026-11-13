@@ -24,8 +24,7 @@
       local.get $t2
       local.get $path.1
       i32.add
-      i32.const 65 ;; &"/"
-      i32.load8_u $heap
+      i32.const 47
       i32.store8 $heap
       i32.const 0
     else
@@ -80,8 +79,7 @@
       local.get $t2
       local.get $path.1
       i32.add
-      i32.const 65 ;; &"/"
-      i32.load8_u $heap
+      i32.const 47
       i32.store8 $heap
       i32.const 0
     else
@@ -134,8 +132,7 @@
       local.get $t2
       local.get $path.1
       i32.add
-      i32.const 65 ;; &"/"
-      i32.load8_u $heap
+      i32.const 47
       i32.store8 $heap
       local.get $path.0
       local.tee $path.0

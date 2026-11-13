@@ -66,7 +66,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $must (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t.1 i32) (local $t.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $must (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t.1 i32) (local $t.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |     t := s + "!"
     local.get $s.1
     i32.const 1
@@ -81,8 +81,7 @@
     local.get $t0
     local.get $s.1
     i32.add
-    i32.const 65 ;; &"!"
-    i32.load8_u $heap
+    i32.const 33
     i32.store8 $heap
     ;; 19 |     if n < 0:
     local.get $n
@@ -105,17 +104,11 @@
         local.set $s.1
       end
       local.get $s.1
-      i32.const 66 ;; &"negative: "
-      local.set $t1
-      local.tee $t2
-      local.get $t1
-      i64.load $heap align=1
-      local.set $t3
-      local.get $t1
-      i32.load16_u $heap offset=8 align=1
+      local.tee $t1
+      i32.const 8250
       i32.store16 $heap offset=8 align=1
-      local.get $t2
-      local.get $t3
+      local.get $t1
+      i64.const 7311146993653867886
       i64.store $heap align=1
     ;; 19 |     if n < 0:
       local.get $s.1
@@ -193,8 +186,7 @@
     local.get $t3
     local.get $s.1
     i32.add
-    i32.const 76 ;; &"?"
-    i32.load8_u $heap
+    i32.const 63
     i32.store8 $heap
     local.get $t0
     i64.const 0

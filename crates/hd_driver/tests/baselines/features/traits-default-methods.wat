@@ -23,8 +23,7 @@
     call $rt:str
     local.tee $t2
     local.tee $t3
-    i32.const 16 ;; &"* "
-    i32.load16_u $heap align=1
+    i32.const 8234
     i32.store16 $heap align=1
     local.get $t3
     i32.const 2
@@ -44,8 +43,7 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 16 ;; &"* "
-    i32.load16_u $heap align=1
+    i32.const 8234
     i32.store16 $heap align=1
     local.get $t2
     i32.const 2
@@ -112,8 +110,7 @@
     call $rt:str
     local.tee $t4
     local.tee $t5
-    i32.const 16 ;; &"* "
-    i32.load16_u $heap align=1
+    i32.const 8234
     i32.store16 $heap align=1
     local.get $t5
     i32.const 2
@@ -156,8 +153,7 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 16 ;; &"* "
-    i32.load16_u $heap align=1
+    i32.const 8234
     i32.store16 $heap align=1
     local.get $t2
     i32.const 2

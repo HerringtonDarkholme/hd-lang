@@ -24,7 +24,7 @@ pub fn fill(memory: u32) -> Ins {
 
 /// Lower after constant propagation, and again for a wide frame's generated
 /// fill, before discovering the requested helpers. Their fallbacks are final.
-pub fn lower(f: &mut Func) -> bool {
+pub fn lower<'a>(f: &mut Func, static_bytes: impl Fn(u32, u32) -> Option<&'a [u8]>) -> bool {
     if !f.body.iter().enumerate().any(|(k, i)| {
         matches!(i, Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_)))
             && !matches!(k.checked_sub(1).and_then(|p| f.body.get(p)),
@@ -56,7 +56,22 @@ pub fn lower(f: &mut Func) -> bool {
             && (0..=SMALL).contains(&n)
         {
             f.remove(f.body.len() - 1);
-            inline(f, &mut scratch, n.cast_unsigned(), source, dest, copying);
+            let bytes = if copying && source == crate::module::HEAP && n > 0 {
+                match f.body.last() {
+                    Some(Ins::Op(I::I32Const(at))) => {
+                        static_bytes(at.cast_unsigned(), n.cast_unsigned())
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            if let Some(bytes) = bytes {
+                f.remove(f.body.len() - 1);
+                constant_copy(f, &mut scratch, bytes, n.cast_unsigned(), dest);
+            } else {
+                inline(f, &mut scratch, n.cast_unsigned(), source, dest, copying);
+            }
         } else {
             f.helper(if copying {
                 Helper::MemoryCopy { source, dest }
@@ -204,6 +219,34 @@ fn literal_pattern(f: &mut Func, byte: u8, width: u32) {
         f.op(I::I64Const(u64::from_le_bytes([byte; 8]).cast_signed()));
     } else {
         f.i32(u32::from_le_bytes([byte; 4]).cast_signed());
+    }
+}
+
+// Immutable source bytes need no runtime loads. Write the highest chunk first,
+// preserving the short-copy lowering's destination trap atomicity.
+fn constant_copy(f: &mut Func, scratch: &mut Scratch, bytes: &[u8], n: u32, dest: u32) {
+    let chunks = if n > 16 { halves(n) } else { widths(n) };
+    let to = (chunks.len() > 1).then(|| {
+        let to = scratch.local(f, 4, 1);
+        f.op(I::LocalTee(to));
+        to
+    });
+    for (k, (offset, width)) in chunks.into_iter().rev().enumerate() {
+        if k != 0
+            && let Some(to) = to
+        {
+            f.get(to);
+        }
+        let mut word = [0; 8];
+        let start = offset as usize;
+        word[..width.bytes() as usize]
+            .copy_from_slice(&bytes[start..start + width.bytes() as usize]);
+        if width == Width::W8 {
+            f.op(I::I64Const(i64::from_le_bytes(word)));
+        } else {
+            f.i32(i32::from_le_bytes([word[0], word[1], word[2], word[3]]));
+        }
+        store(f, dest, offset, width);
     }
 }
 
@@ -503,6 +546,64 @@ mod tests {
     use crate::module::{BUF, Sym};
     use hd_base::Hash128;
     use std::io::Write;
+
+    #[test]
+    fn immutable_copies_fold_all_short_widths_and_preserve_traps() {
+        let mut m = Module::default();
+        let data: Vec<u8> = (0u8..40)
+            .map(|i| i.wrapping_mul(37).wrapping_add(129))
+            .collect();
+        let at = m.static_bytes(&data, 1);
+        for n in 1..=31 {
+            let mut f = m.func("constant", vec![Val::I32], vec![]);
+            f.get(0);
+            f.u32(at + 3);
+            f.u32(n);
+            f.push(copy(crate::module::HEAP, BUF));
+            assert!(lower(&mut f, |address, len| {
+                let start = address.checked_sub(at)? as usize;
+                data.get(start..start + len as usize)
+            }));
+            assert!(!f.body.iter().any(|i| matches!(
+                i,
+                Ins::Op(I::I32Load(_) | I::I64Load(_) | I::I32Load8U(_) | I::I32Load16U(_))
+            )));
+            let symbol = Sym::Inst(Hash128(u128::from(n)));
+            m.define(symbol.clone(), f);
+            m.export(format!("copy{n}"), symbol);
+        }
+        let bytes = m.finish().expect("link constant copies");
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(&bytes)
+            .expect("validate constant copies");
+        // cost: one Node process covers all 31 fixed widths, independent of repository size.
+        let mut child = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", r"
+                import assert from 'node:assert/strict';
+                const chunks=[]; for await(const c of process.stdin) chunks.push(c);
+                const {instance:{exports:e}}=await WebAssembly.instantiate(Buffer.concat(chunks));
+                const bytes=new Uint8Array(e['hd.x'].buffer), end=bytes.length;
+                for(let n=1;n<=31;n++) {
+                    bytes.fill(37);
+                    e['copy'+n](64);
+                    assert.deepEqual(bytes.slice(64,64+n),Uint8Array.from({length:n},(_,i)=>((i+3)*37+129)&255));
+                    for(const to of [end-n+1,0xffffffff]) {
+                        bytes.fill(37); const before=bytes.slice();
+                        assert.throws(()=>e['copy'+n](to),WebAssembly.RuntimeError);
+                        assert.deepEqual(bytes,before,'failed constant copy writes no bytes');
+                    }
+                }
+            "])
+            // cost: the same single process runs the bounded byte and trap checks above.
+            .stdin(std::process::Stdio::piped()).spawn().expect("start node");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(&bytes)
+            .expect("write wasm");
+        assert!(child.wait().expect("run constant copies").success());
+    }
 
     #[test]
     fn lowered_copies_and_fills_preserve_bytes_overlap_and_trap_atomicity() {

@@ -2092,14 +2092,26 @@ impl Module {
             }
         }
         for f in self.funcs.iter_mut().flatten() {
-            crate::bulk::lower(f);
+            crate::bulk::lower(f, |at, len| {
+                if session {
+                    None
+                } else {
+                    crate::static_data::bytes(&self.data, &self.data_chunks, at, len)
+                }
+            });
         }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)? || session;
         // Wide storage introduces a frame fill after the ordinary lowering.
         // Its only new scalar scratch is bounded; all earlier scratch locals
         // participate in wide lowering with the body's other locals.
         for f in self.funcs.iter_mut().flatten() {
-            crate::bulk::lower(f);
+            crate::bulk::lower(f, |at, len| {
+                if session {
+                    None
+                } else {
+                    crate::static_data::bytes(&self.data, &self.data_chunks, at, len)
+                }
+            });
         }
         #[cfg(feature = "checked-report")]
         let mut count_sites = hd_base::wire::Writer::default();

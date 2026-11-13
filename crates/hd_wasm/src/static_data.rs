@@ -13,6 +13,16 @@ pub(crate) struct Chunk {
     pub live: bool,
 }
 
+/// Read only within one immutable allocation; mutable slots and padding have
+/// no chunk. Binary search costs O(log A), and callers copy at most 31 bytes.
+pub(crate) fn bytes<'a>(data: &'a [u8], chunks: &[Chunk], at: u32, len: u32) -> Option<&'a [u8]> {
+    let start = at.checked_sub(STATIC_BASE)? as usize;
+    let end = start.checked_add(len as usize)?;
+    let next = chunks.partition_point(|chunk| chunk.range.start <= start);
+    let chunk = chunks.get(next.checked_sub(1)?)?;
+    (end <= chunk.range.end).then(|| &data[start..end])
+}
+
 /// A pointer into a chunk keeps the complete allocation. At an allocation
 /// boundary, keep both neighbors: an empty payload can point past its header.
 /// Numeric constants never act as pointers unless emission marks them.
@@ -101,6 +111,27 @@ mod tests {
         let mut bytes = Vec::new();
         section.encode(&mut bytes);
         bytes
+    }
+
+    #[test]
+    fn constants_do_not_read_mutable_slots_padding_or_allocation_boundaries() {
+        let data: Vec<u8> = (0..32).collect();
+        let chunks = [
+            Chunk {
+                range: 4..12,
+                live: false,
+            },
+            Chunk {
+                range: 16..24,
+                live: false,
+            },
+        ];
+        assert_eq!(bytes(&data, &chunks, STATIC_BASE + 6, 3), Some(&data[6..9]));
+        for (at, len) in [(0, 1), (3, 2), (11, 2), (12, 1), (15, 2), (23, 2), (24, 1)] {
+            assert!(bytes(&data, &chunks, STATIC_BASE + at, len).is_none());
+        }
+        assert!(bytes(&data, &chunks, STATIC_BASE - 1, 1).is_none());
+        assert!(bytes(&data, &chunks, u32::MAX, 31).is_none());
     }
 
     #[test]

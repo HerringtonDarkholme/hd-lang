@@ -3,7 +3,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $owner (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64) (local $t6 i64) (local $t7 i64)
+  (func $owner (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 8 |     "the account owner is named " + name
     i32.const 27
     local.get $name.1
@@ -12,29 +12,17 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 16 ;; &"the account owner is named "
-    local.set $t3
-    local.tee $t4
-    local.get $t3
-    i64.load $heap align=1
-    local.set $t5
-    local.get $t3
-    i64.load $heap offset=8 align=1
-    local.set $t6
-    local.get $t3
-    i64.load $heap offset=11 align=1
-    local.set $t7
-    local.get $t3
-    i64.load $heap offset=19 align=1
+    local.tee $t3
+    i64.const 2334102027345207411
     i64.store $heap offset=19 align=1
-    local.get $t4
-    local.get $t7
+    local.get $t3
+    i64.const 7575180353207758624
     i64.store $heap offset=11 align=1
-    local.get $t4
-    local.get $t6
+    local.get $t3
+    i64.const 7308910564438470261
     i64.store $heap offset=8 align=1
-    local.get $t4
-    local.get $t5
+    local.get $t3
+    i64.const 8026368229710850164
     i64.store $heap align=1
     local.get $t2
     i32.const 27

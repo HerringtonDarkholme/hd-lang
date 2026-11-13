@@ -183,7 +183,7 @@
     drop
     local.get $value
   )
-  (func $takes_temporary (result i32 i32) (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i64) (local $t9 i64)
+  (func $takes_temporary (result i32 i32) (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 47 |     ident("a longer heap string ${41 + 1}")
     i64.const 42
     local.tee $t0
@@ -202,29 +202,17 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 65 ;; &"a longer heap string "
-    local.set $t5
-    local.tee $t6
-    local.get $t5
-    i64.load $heap align=1
-    local.set $t7
-    local.get $t5
-    i64.load $heap offset=8 align=1
-    local.set $t8
-    local.get $t5
-    i64.load $heap offset=5 align=1
-    local.set $t9
-    local.get $t5
-    i64.load $heap offset=13 align=1
+    local.tee $t5
+    i64.const 2334956330985747232
     i64.store $heap offset=13 align=1
-    local.get $t6
-    local.get $t9
+    local.get $t5
+    i64.const 8097865102884234599
     i64.store $heap offset=5 align=1
-    local.get $t6
-    local.get $t8
+    local.get $t5
+    i64.const 8391086197763827744
     i64.store $heap offset=8 align=1
-    local.get $t6
-    local.get $t7
+    local.get $t5
+    i64.const 8243108416984981601
     i64.store $heap align=1
     local.get $t0
     local.get $t4

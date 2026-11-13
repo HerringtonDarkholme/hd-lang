@@ -4150,7 +4150,7 @@ mod origin_tests {
                 ),
                 |f| {
                     assert!(forward(f, 2));
-                    assert!(crate::bulk::lower(f));
+                    assert!(crate::bulk::lower(f, |_, _| None));
                 },
             );
             assert!(f.body.iter().any(|i| matches!(i, Ins::Op(I::I32Store8(_)))));

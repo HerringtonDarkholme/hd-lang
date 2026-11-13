@@ -102,8 +102,7 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 66 ;; &"n"
-    i32.load8_u $heap
+    i32.const 110
     i32.store8 $heap
     local.get $t0
     local.get $t4
@@ -155,8 +154,7 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 65 ;; &"x"
-    i32.load8_u $heap
+    i32.const 120
     i32.store8 $heap
     local.get $t0
     local.get $t4

@@ -3,7 +3,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $label (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $label (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 7 |     "id " + name
     i32.const 3
     local.get $name.1
@@ -12,17 +12,11 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 65 ;; &"id "
-    local.set $t3
-    local.tee $t4
-    local.get $t3
-    i32.load16_u $heap align=1
-    local.set $t5
-    local.get $t3
-    i32.load8_u $heap offset=2
+    local.tee $t3
+    i32.const 32
     i32.store8 $heap offset=2
-    local.get $t4
-    local.get $t5
+    local.get $t3
+    i32.const 25705
     i32.store16 $heap align=1
     local.get $t2
     i32.const 3

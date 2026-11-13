@@ -273,8 +273,7 @@
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $trail
     i32.add
-    i32.const 152 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t5
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
@@ -289,8 +288,7 @@
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $t7
     i32.add
-    i32.const 152 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t6
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }

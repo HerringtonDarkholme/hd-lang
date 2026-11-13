@@ -57,8 +57,7 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 113 ;; &"held"
-    i32.load $heap align=1
+    i32.const 1684825448
     i32.store $heap align=1
     local.get $t0
     local.get $t4

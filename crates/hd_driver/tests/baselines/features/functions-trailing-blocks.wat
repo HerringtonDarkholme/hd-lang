@@ -22,8 +22,7 @@
     local.get $t3
     local.get $s.1
     i32.add
-    i32.const 66 ;; &"!"
-    i32.load8_u $heap
+    i32.const 33
     i32.store8 $heap
     local.get $t2
     local.tee $s.0

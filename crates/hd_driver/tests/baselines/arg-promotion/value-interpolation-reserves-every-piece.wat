@@ -22,8 +22,7 @@
       local.set $t3
     end
     local.get $t3
-    i32.const 65 ;; &"w"
-    i32.load8_u $heap
+    i32.const 119
     i32.store8 $heap
     local.get $n
     local.get $t3

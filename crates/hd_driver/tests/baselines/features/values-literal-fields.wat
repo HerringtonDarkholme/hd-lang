@@ -304,8 +304,7 @@
     ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $h
     i32.add
-    i32.const 113 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t4
     ;; 31 |     let mut h = histogram()
@@ -320,8 +319,7 @@
     ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t5
     i32.add
-    i32.const 113 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t6
     ;; 31 |     let mut h = histogram()

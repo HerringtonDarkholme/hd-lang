@@ -22,7 +22,7 @@
     local.get $g.1
     call $"impl dyn Greet.twice"
   )
-  (func $"impl Greet for User.greet" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $"impl Greet for User.greet" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 21 |         "hi " + self.name
     local.get $self
     i32.load $heap
@@ -37,17 +37,11 @@
     call $rt:str
     local.tee $t2
     local.tee $t3
-    i32.const 65 ;; &"hi "
-    local.set $t4
-    local.tee $t5
-    local.get $t4
-    i32.load16_u $heap align=1
-    local.set $t6
-    local.get $t4
-    i32.load8_u $heap offset=2
+    local.tee $t4
+    i32.const 32
     i32.store8 $heap offset=2
-    local.get $t5
-    local.get $t6
+    local.get $t4
+    i32.const 26984
     i32.store16 $heap align=1
     local.get $t3
     i32.const 3
