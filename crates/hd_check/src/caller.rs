@@ -1,8 +1,8 @@
 //! Call-site locations (spec/lang/07-functions.md "Call-Site Locations").
 //!
-//! A `@track_caller` function's body has one hidden parameter after its
-//! written ones, `$site`, a `string`: the call site's record. Each direct
-//! call passes it: a constant the checker writes from the call's syntax, or,
+//! A `@track_caller` function that reads its call site's record
+//! (`FnAttrs::reads_site`) has one hidden parameter after its written ones,
+//! `$site`, a `string`: the call site's record. Each direct call passes it: a constant the checker writes from the call's syntax, or,
 //! inside another `@track_caller` function, that function's own `$site`
 //! (`fn.caller.chain`). `Location::caller()` and `Location::caller_args()`
 //! read `$site` through ordinary `std.debug` decoders.
@@ -33,11 +33,12 @@ pub(crate) const SITE: &str = "$site";
 pub const SEPARATOR: char = '\u{1f}';
 
 impl Ck<'_, '_> {
-    /// The attributes of `def` when it is a `@track_caller` function:
-    /// whether its records hold argument texts.
+    /// The attributes of `def` when it is a `@track_caller` function that
+    /// takes its call site's record (`fn.caller.site-argument`): whether its
+    /// records hold argument texts. One that reads no record takes none.
     pub(crate) fn tracked_caller(&self, def: DefId) -> Option<bool> {
         let a = self.cx.lookup.item(def)?.fn_attrs()?;
-        a.track_caller.then_some(a.reads_args)
+        a.takes_site().then_some(a.reads_args)
     }
 
     /// The 1-based line and column, in characters, of byte `at`.

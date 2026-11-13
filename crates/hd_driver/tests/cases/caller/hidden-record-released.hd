@@ -1,6 +1,8 @@
 # @dump: own
-# expected: a `@track_caller` body releases its owned parameters at exit, the hidden
-# call-site record included, as the plain body releases its one; the caller releases nothing.
+# expected: a `@track_caller` body that reads no call-site record takes none
+# (fn.caller.site-argument), so it releases its one owned parameter at exit as the
+# plain body does, and its call passes only the written argument; the caller
+# releases nothing.
 @track_caller
 fn take(text: string) -> void:
     _ := text.len()

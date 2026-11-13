@@ -1179,8 +1179,8 @@ fn holds_ref(pool: &hd_types::InternPool, ptr: DefId, t: Ty, depth: u32) -> bool
 
 impl Env<'_> {
     /// How many value parameters a body of `def` has: its signature's, and
-    /// the hidden call-site record of a `@track_caller` function
-    /// (`fn.caller.hidden`), which each call passes after the written
+    /// the hidden call-site record of a `@track_caller` function that reads
+    /// it (`fn.caller.site-argument`), which each call passes after the written
     /// arguments. Cost: one item lookup.
     fn arity(&self, def: DefId, sig: &hd_resolve::FnSig) -> usize {
         let hidden = self
@@ -1188,7 +1188,7 @@ impl Env<'_> {
             .items
             .get(def)
             .and_then(hd_resolve::Item::fn_attrs)
-            .is_some_and(|a| a.track_caller);
+            .is_some_and(hd_resolve::FnAttrs::takes_site);
         sig.params.len() + usize::from(hidden)
     }
 
@@ -1820,7 +1820,7 @@ impl InlineEnv for Env<'_> {
                     .items
                     .get(d)
                     .and_then(hd_resolve::Item::fn_attrs)
-                    .is_some_and(|a| a.track_caller)
+                    .is_some_and(hd_resolve::FnAttrs::takes_site)
             });
         }
         Some(fresh)

@@ -1917,7 +1917,7 @@ struct Lower<'a, 'r, 'x> {
     outer_takes_self: bool,
     /// The chain edges of this folder's `@track_caller` functions: a
     /// function, and a function of this folder its body may call, which it
-    /// passes its call site on to (`fn.caller.chain`). [`caller_arg_chains`]
+    /// passes its call site on to (`fn.caller.chain`). [`caller_chains`]
     /// follows them once every module is lowered.
     chains: Vec<(DefId, DefId)>,
 }
@@ -6230,27 +6230,42 @@ impl Lower<'_, '_, '_> {
         crate::assoc::assoc_decls(pool, self.r, tr, args, self_ty, self.names.text(name))
     }
 
-    /// Whether the body `block` of the `@track_caller` function `def`
-    /// reads its call's argument texts (`fn.caller.record.args`): it names
-    /// `caller_args`, or it may call a `@track_caller` function of another
-    /// folder whose records hold them (`fn.caller.chain`). A function of
+    /// What the body `block` of the `@track_caller` function `def` reads
+    /// of its call site's record, as [`SiteReads`]: the record when it
+    /// names `caller` (`Location::caller()`, `fn.caller.reads`), the
+    /// argument texts too when it names `caller_args`
+    /// (`fn.caller.record.args`), and what a `@track_caller` function of
+    /// another folder it may call reads (`fn.caller.chain`). A function of
     /// this folder it may call becomes a chain edge instead, which
-    /// [`caller_arg_chains`] follows once every module is lowered.
+    /// [`caller_chains`] follows once every module is lowered.
     ///
     /// A name counts when the module scope binds it to an item, or when it
     /// heads a module path whose segment names an exported function. A
-    /// name that something local shadows still counts: a record with texts
-    /// nobody reads costs static data only, while a missed chain loses them.
+    /// name that something local shadows still counts, and so does any
+    /// `caller`: a record nobody reads costs one argument and static data,
+    /// while a missed read loses the call site.
     ///
     /// Cost: one pass over the body's tokens, one scope lookup per name,
-    /// and one interface lookup per distinct function of another folder.
-    fn caller_reads_args(&mut self, def: DefId, block: NodeRef<'_>) -> bool {
+    /// and one interface lookup per distinct function of another folder;
+    /// in a frozen folder, one interface lookup.
+    fn caller_reads(&mut self, def: DefId, block: NodeRef<'_>) -> SiteReads {
+        // A frozen folder's interface holds what its chains settled, while
+        // the modules lowered now may leave out a chain's callee.
+        if self.r.frozen.is_some()
+            && let Some(a) = self.r.item(def).and_then(|it| it.fn_attrs().copied())
+        {
+            return SiteReads {
+                site: a.reads_site,
+                args: a.reads_args,
+            };
+        }
         let src = self.src;
         let tokens: Vec<TokenIdx> = src.tokens(block).collect();
         let is_name =
             |t: TokenIdx| matches!(src.tkind(t), Some(TokenKind::Ident | TokenKind::RawIdent));
         let is_dot = |t: TokenIdx| src.tkind(t) == Some(TokenKind::Dot);
         let mut seen: HashSet<DefId> = HashSet::default();
+        let mut reads = SiteReads::default();
         let mut i = 0;
         while i < tokens.len() {
             let t = tokens[i];
@@ -6258,9 +6273,11 @@ impl Lower<'_, '_, '_> {
             if !is_name(t) {
                 continue;
             }
-            if src.text(t) == "caller_args" {
-                return true;
+            let text = src.text(t);
+            if text == "caller_args" {
+                return SiteReads::ARGS;
             }
+            reads.site |= text == "caller";
             // A name after `.` is a field or a method, or a module path's
             // segment, which its head reads below.
             if i >= 2 && is_dot(tokens[i - 2]) {
@@ -6318,16 +6335,19 @@ impl Lower<'_, '_, '_> {
                 == Some(self.r.cx.folder)
             {
                 self.chains.push((def, d));
-            } else if self
+            } else if let Some(a) = self
                 .r
                 .item(d)
                 .and_then(|it| it.fn_attrs().copied())
-                .is_some_and(|a| a.track_caller && a.reads_args)
+                .filter(FnAttrs::takes_site)
             {
-                return true;
+                if a.reads_args {
+                    return SiteReads::ARGS;
+                }
+                reads.site = true;
             }
         }
-        false
+        reads
     }
 
     fn item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
@@ -6354,11 +6374,19 @@ impl Lower<'_, '_, '_> {
                     })
                     .is_empty(),
                     track_caller: self.track_caller(n),
+                    reads_site: false,
                     reads_args: false,
                 };
+                // `fn.caller.site-argument`: a body the compiler writes may read
+                // the record, as `debug_texts`'s does.
+                let reads = match block {
+                    Some(b) if attrs.track_caller => self.caller_reads(h.def, b),
+                    _ => SiteReads::default(),
+                };
                 let attrs = FnAttrs {
-                    reads_args: attrs.track_caller
-                        && block.is_some_and(|b| self.caller_reads_args(h.def, b)),
+                    reads_site: attrs.track_caller
+                        && (reads.site || attrs.call.intrinsic.is_some()),
+                    reads_args: reads.args,
                     ..attrs
                 };
                 out.push(Item::new(h.def, h.name, h.public, ItemData::Fn(sig, attrs)));
@@ -7383,17 +7411,35 @@ fn has_cfg(src: &Src<'_>, node: NodeRef<'_>) -> bool {
         .any(|(name, _)| name == "cfg")
 }
 
-/// `fn.caller.record.args` through a chain, across the folder's modules:
-/// a `@track_caller` function that may call one of the folder whose
-/// records hold argument texts passes its call site on, so its own records
-/// hold them too. A chain into another folder was settled while lowering
-/// ([`Lower::caller_reads_args`]), from that folder's interface. `fns` are
-/// the folder's functions; the result counts the edges followed.
+/// What a `@track_caller` function's body reads of its call site's record
+/// ([`Lower::caller_reads`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct SiteReads {
+    /// The record (`fn.caller.reads`).
+    site: bool,
+    /// The argument texts too (`fn.caller.record.args`).
+    args: bool,
+}
+
+impl SiteReads {
+    const ARGS: Self = Self {
+        site: true,
+        args: true,
+    };
+}
+
+/// `fn.caller.reads` and `fn.caller.record.args` through a chain, across
+/// the folder's modules: a `@track_caller` function that may call one of
+/// the folder that reads its record passes its call site on, so it reads
+/// its own record too, and its records hold argument texts when the
+/// callee's do. A chain into another folder was settled while lowering
+/// ([`Lower::caller_reads`]), from that folder's interface. `fns` are the
+/// folder's functions; the result counts the edges followed.
 ///
 /// Cost: linear in the functions and the chain edges, whatever the chains'
-/// width or depth: each function is marked at most once, and each edge is
-/// followed once, from its callee.
-fn caller_arg_chains<'i>(
+/// width or depth: each function gains each of its two bits at most once,
+/// and each edge is followed once per bit its callee gains.
+fn caller_chains<'i>(
     fns: impl IntoIterator<Item = (DefId, &'i mut FnAttrs)>,
     edges: &[(DefId, DefId)],
 ) -> usize {
@@ -7406,20 +7452,33 @@ fn caller_arg_chains<'i>(
     }
     let mut attrs: HashMap<DefId, &mut FnAttrs> =
         fns.into_iter().filter(|(_, a)| a.track_caller).collect();
-    let mut work: Vec<DefId> = attrs
+    // Each entry is a callee and the bits its callers take from it.
+    let mut work: Vec<(DefId, SiteReads)> = attrs
         .iter()
-        .filter(|(_, a)| a.reads_args)
-        .map(|(d, _)| *d)
+        .filter(|(_, a)| a.reads_site)
+        .map(|(d, a)| {
+            let reads = SiteReads {
+                site: true,
+                args: a.reads_args,
+            };
+            (*d, reads)
+        })
         .collect();
     let mut followed = 0;
-    while let Some(callee) = work.pop() {
+    while let Some((callee, reads)) = work.pop() {
         for caller in callers.get(&callee).into_iter().flatten() {
             followed += 1;
-            if let Some(a) = attrs.get_mut(caller)
-                && !a.reads_args
-            {
-                a.reads_args = true;
-                work.push(*caller);
+            let Some(a) = attrs.get_mut(caller) else {
+                continue;
+            };
+            let gained = SiteReads {
+                site: !a.reads_site,
+                args: reads.args && !a.reads_args,
+            };
+            if gained != SiteReads::default() {
+                a.reads_site = true;
+                a.reads_args |= reads.args;
+                work.push((*caller, gained));
             }
         }
     }
@@ -8452,7 +8511,7 @@ pub fn build_folder(
     }
     drop_extra_methods(&r, &mut out.modules);
     delegations(&r, &mut out.modules);
-    caller_arg_chains(
+    caller_chains(
         out.modules
             .iter_mut()
             .flat_map(|m| m.items.iter_mut())
@@ -8970,43 +9029,69 @@ pub fn body_nodes<'t>(
 
 #[cfg(test)]
 mod caller_chain_tests {
-    use super::caller_arg_chains;
+    use super::caller_chains;
     use crate::FnAttrs;
     use hd_base::DefId;
 
-    fn tracked(reads_args: bool) -> FnAttrs {
+    /// A `@track_caller` function that reads its record when `site`, and
+    /// the argument texts too when `args`.
+    fn tracked(site: bool, args: bool) -> FnAttrs {
         FnAttrs {
             track_caller: true,
-            reads_args,
+            reads_site: site || args,
+            reads_args: args,
             ..FnAttrs::default()
         }
     }
 
     /// A chain 1000 deep and a fan of 1000 callers: every caller reads
-    /// the texts, and each edge is followed once.
+    /// the record and the texts, and each edge is followed at most once
+    /// per bit.
     #[test]
     fn chains_mark_each_function_once_at_any_width_and_depth() {
         let def = |i: u32| DefId::from_raw(i + 1);
         let n = 1000;
         // Depth: function i calls i + 1, and the last one reads.
-        let mut deep: Vec<FnAttrs> = (0..n).map(|i| tracked(i == n - 1)).collect();
+        let mut deep: Vec<FnAttrs> = (0..n).map(|i| tracked(false, i == n - 1)).collect();
         let edges: Vec<_> = (0..n - 1).map(|i| (def(i), def(i + 1))).collect();
-        let followed = caller_arg_chains((0..n).map(def).zip(deep.iter_mut()), &edges);
-        assert!(deep.iter().all(|a| a.reads_args));
+        let followed = caller_chains((0..n).map(def).zip(deep.iter_mut()), &edges);
+        assert!(deep.iter().all(|a| a.reads_site && a.reads_args));
         assert_eq!(followed, edges.len());
         // Width: every function calls the reader 0, and 20 calls of each
         // other function lead nowhere new.
-        let mut wide: Vec<FnAttrs> = (0..n).map(|i| tracked(i == 0)).collect();
+        let mut wide: Vec<FnAttrs> = (0..n).map(|i| tracked(false, i == 0)).collect();
         let mut edges: Vec<_> = (1..n).map(|i| (def(i), def(0))).collect();
         edges.extend((1..n).flat_map(|i| (1..=20).map(move |k| (def(i), def((i + k) % n)))));
-        let followed = caller_arg_chains((0..n).map(def).zip(wide.iter_mut()), &edges);
-        assert!(wide.iter().all(|a| a.reads_args));
+        let followed = caller_chains((0..n).map(def).zip(wide.iter_mut()), &edges);
+        assert!(wide.iter().all(|a| a.reads_site && a.reads_args));
         assert!(followed <= edges.len(), "{followed} > {}", edges.len());
+        // The same fan, where 0 reads only the location and 1 the texts:
+        // a function may gain the record first and the texts later, so an
+        // edge is followed at most twice.
+        let mut mixed: Vec<FnAttrs> = (0..n).map(|i| tracked(i == 0, i == 1)).collect();
+        let followed = caller_chains((0..n).map(def).zip(mixed.iter_mut()), &edges);
+        assert!(mixed.iter().all(|a| a.reads_site));
+        assert!(!mixed[0].reads_args && mixed[2..].iter().all(|a| a.reads_args));
+        assert!(
+            followed <= 2 * edges.len(),
+            "{followed} > 2 * {}",
+            edges.len()
+        );
+        // The same fan where nothing reads: no function takes a record.
+        let mut none: Vec<FnAttrs> = (0..n).map(|_| tracked(false, false)).collect();
+        let followed = caller_chains((0..n).map(def).zip(none.iter_mut()), &edges);
+        assert!(none.iter().all(|a| !a.reads_site && !a.takes_site()));
+        assert_eq!(followed, 0);
+        // A reader of the location alone gives its callers no texts.
+        let mut site = [tracked(true, false), tracked(false, false)];
+        let [reader, relay] = &mut site;
+        caller_chains([(def(0), reader), (def(1), relay)], &[(def(1), def(0))]);
+        assert!(site[1].reads_site && !site[1].reads_args);
         // A function without `@track_caller` passes nothing on.
-        let mut plain = [tracked(true), FnAttrs::default()];
+        let mut plain = [tracked(true, true), FnAttrs::default()];
         let [reader, untracked] = &mut plain;
-        caller_arg_chains([(def(0), reader), (def(1), untracked)], &[(def(1), def(0))]);
-        assert!(!plain[1].reads_args);
+        caller_chains([(def(0), reader), (def(1), untracked)], &[(def(1), def(0))]);
+        assert!(!plain[1].reads_site && !plain[1].reads_args);
     }
 }
 

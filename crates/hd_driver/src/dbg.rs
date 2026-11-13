@@ -13,7 +13,8 @@ pub(crate) fn key(original: Hash128) -> Hash128 {
 }
 
 /// `fn.caller.root-package`: clears the root-package bit of each call-site
-/// record this fetched body passes to a `@track_caller` callee (`tracked`),
+/// record this fetched body passes to a `@track_caller` callee that takes
+/// one (`tracked`),
 /// so `Location::in_root_package()` answers false for its call sites. A
 /// record a body receives as its own `$site` came from its caller and is
 /// left alone. Cost: one pass over the body's instructions.

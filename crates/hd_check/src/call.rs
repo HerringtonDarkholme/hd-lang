@@ -3213,7 +3213,7 @@ impl Ck<'_, '_> {
                 return (self.b.emit(tag, word, w, ty, n.index()), ty);
             }
         }
-        // `fn.caller.hidden`: a `@track_caller` callee takes the call
+        // `fn.caller.site-argument`: a `@track_caller` callee takes the call
         // site's record after its written arguments.
         let with_site;
         let refs = match c {

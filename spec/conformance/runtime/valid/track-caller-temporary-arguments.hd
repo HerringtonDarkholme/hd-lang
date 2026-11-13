@@ -1,5 +1,5 @@
 # test: a @track_caller call frees the temporaries it is passed, through a chain and a function value
-# Spec lang/07 Call-Site Locations: fn.caller.hidden, fn.caller.chain, fn.caller.value.
+# Spec lang/07 Call-Site Locations: fn.caller.site-argument, fn.caller.chain, fn.caller.value.
 # expect-stdout: 2
 # expect-stdout: 3
 # expect-stdout: 2

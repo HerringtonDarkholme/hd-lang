@@ -1,0 +1,12 @@
+use std.debug.Location
+
+# Reads only its call's location, so its records hold no argument texts.
+@track_caller
+pub fn show_site() -> void $ Console:
+    at := Location::caller()
+    println("${at.line}:${at.column}")
+
+# Reads nothing, so it takes no record.
+@track_caller
+pub fn bump(x: i32) -> i32:
+    x + 1

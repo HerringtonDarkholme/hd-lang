@@ -518,14 +518,30 @@ pub struct FnAttrs {
     /// Decorators attach values: `facts_of` of the function reads its facts
     /// body (`annot.facts-of.result.compiler-decorators.v2`).
     pub has_facts: bool,
-    /// The compiler decorator `@track_caller` (`fn.caller.decorator`): every
-    /// direct call passes a hidden call-site record.
+    /// The compiler decorator `@track_caller` (`fn.caller.decorator`): a
+    /// panic's frame list leaves out its frames (`fn.caller.frames`).
     pub track_caller: bool,
+    /// A `@track_caller` function that reads its call site's record: its
+    /// body names `Location::caller()` or `Location::caller_args()`, the
+    /// compiler writes its body, or it passes its call site on to a
+    /// function that reads it. Only such a function takes the hidden
+    /// record, and only its direct calls pass one (`fn.caller.reads`,
+    /// `fn.caller.site-argument`).
+    pub reads_site: bool,
     /// A `@track_caller` function whose body calls `Location::caller_args()`,
     /// or passes its call site on to a function that does
     /// (`fn.caller.record.args`): its call sites' records hold the argument
-    /// texts.
+    /// texts. It implies `reads_site`.
     pub reads_args: bool,
+}
+
+impl FnAttrs {
+    /// Whether the function takes the hidden call-site record, and each
+    /// direct call passes one (`fn.caller.site-argument`).
+    #[must_use]
+    pub fn takes_site(&self) -> bool {
+        self.track_caller && self.reads_site
+    }
 }
 
 /// What a struct's or enum's declaration says beyond its members.
@@ -1482,7 +1498,8 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 u8::from(a.auto_closing) << 2
                     | u8::from(a.has_facts) << 3
                     | u8::from(a.track_caller) << 4
-                    | u8::from(a.reads_args) << 5,
+                    | u8::from(a.reads_args) << 5
+                    | u8::from(a.reads_site) << 6,
             );
             w.u8(a.literal_fn);
         }
@@ -1602,6 +1619,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                     has_facts: flags & 8 != 0,
                     track_caller: flags & 16 != 0,
                     reads_args: flags & 32 != 0,
+                    reads_site: flags & 64 != 0,
                     literal_fn: r.u8(),
                 },
             )
@@ -3040,6 +3058,7 @@ mod tests {
             auto_closing: true,
             has_facts: true,
             track_caller: true,
+            reads_site: true,
             reads_args: true,
         };
         let item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig, attrs));
@@ -3073,7 +3092,7 @@ mod tests {
         assert!(back_attrs.call.configured && back[0].configured());
         assert_eq!(back_attrs.literal_fn, LITERAL_SUFFIX);
         assert!(back_attrs.auto_closing && back_attrs.has_facts);
-        assert!(back_attrs.track_caller && back_attrs.reads_args);
+        assert!(back_attrs.track_caller && back_attrs.reads_site && back_attrs.reads_args);
         assert_eq!(back[0].intrinsic().map(|k| n2.text(k)), Some("first"));
         assert!(sig.generics[0].anonymous);
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);

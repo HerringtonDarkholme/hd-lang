@@ -5798,7 +5798,9 @@ typing/invalid/auto-closing-result-not-marker.hd	type	reject:unsatisfied-trait-b
 typing/invalid/auto-closing-missing-disposal-protocol.hd	type	reject:missing-supertrait-implementation	lang/06-control-flow.md#r-flow.auto-closing.protocol
 runtime/valid/track-caller-location.hd	runtime	accept	lang/07-functions.md#r-fn.caller.chain
 runtime/valid/track-caller-chain-across-modules.hd	runtime	accept	lang/07-functions.md#r-fn.caller.record.args
-runtime/valid/track-caller-temporary-arguments.hd	runtime	accept	lang/07-functions.md#r-fn.caller.hidden
+runtime/valid/track-caller-temporary-arguments.hd	runtime	accept	lang/07-functions.md#r-fn.caller.site-argument
+runtime/valid/track-caller-no-record.hd	runtime	accept	lang/07-functions.md#r-fn.caller.reads
+runtime/valid/track-caller-site-chain-across-folders.hd	runtime	accept	lang/07-functions.md#r-fn.caller.chain
 typing/valid/track-caller-caller-in-a-closure.hd	type	accept	lang/07-functions.md#r-fn.caller.accessor.inside
 typing/invalid/track-caller-caller-outside.hd	type	reject:caller-outside-track-caller	lang/07-functions.md#r-fn.caller.accessor.inside
 typing/invalid/track-caller-on-a-method.hd	type	reject:decorator-target-kind	lang/07-functions.md#r-fn.caller.target

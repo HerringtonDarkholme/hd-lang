@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# `@track_caller` (fn.caller.site-argument): a function whose body reads neither
+# `Location::caller()` nor `Location::caller_args()`, directly or through a
+# chain, takes no record, so its call passes only the written arguments.
+use std.annotation.inline
+
+@track_caller
+@inline(.Never)
+fn twice(x: i32) -> i32:
+    x * 2
+
+pub fn main() -> void $ Console:
+    println(twice(+3))
+    #       ^^^^^^^^^

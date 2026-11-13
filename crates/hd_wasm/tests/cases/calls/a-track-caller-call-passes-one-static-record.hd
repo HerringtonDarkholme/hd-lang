@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release
-# `@track_caller` (fn.caller.hidden): each direct call passes one more
+# `@track_caller` (fn.caller.site-argument): each direct call passes one more
 # argument, the address of its call site's static record; nothing is
 # allocated until `Location::caller()` decodes it.
 use std.debug.Location

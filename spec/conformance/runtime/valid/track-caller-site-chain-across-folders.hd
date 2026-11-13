@@ -1,0 +1,23 @@
+# test: a @track_caller chain into another folder takes a record only when the callee reads one
+# Spec lang/07 Call-Site Locations: fn.caller.site-argument, fn.caller.chain.
+# The tree's src/shown/site.hd declares `show_site`, which prints
+# `Location::caller()`, and `bump`, which reads nothing.
+# fixture-package-tree: track-caller-chain/src/main.hd
+# expect-stdout: 22:5
+# expect-stdout: 4
+use pkg.shown.site.{bump, show_site}
+
+# Reads the location only through `show_site`, of another folder.
+@track_caller
+fn forward() -> void $ Console:
+    show_site()
+
+# Calls only `bump`, of another folder, so it reads nothing.
+@track_caller
+fn bumped(x: i32) -> i32:
+    bump(x) + 1
+
+pub fn main() -> void $ Console:
+    a := +2
+    forward()
+    println(bumped(a))

@@ -1412,20 +1412,21 @@ pub fn main() -> void:
 1. r[fn.caller.decorator] `track_caller` is a compiler-known prefix decorator. It is not a value, needs no import, and attaches no fact.
 2. r[fn.caller.target] A bare `@track_caller` line precedes only a module-level function. Any other spelling or target is an error. Error: `decorator-target-kind`.
 3. r[fn.caller.duplicate] A module-level function has at most one `@track_caller` line. Error: `duplicate-fact`.
-4. r[fn.caller.hidden] Each direct call of a `@track_caller` function passes one hidden argument after the written ones: one pointer to its call site's record. The function's type does not show it.
-5. r[fn.caller.record] A call site's record is static data. It holds the call's location, whether the call site is in the user's own code, and the argument texts when the callee reads them.
-6. r[fn.caller.record.args] A record holds argument texts only when its callee calls `Location::caller_args()`, directly or through a chain of `@track_caller` functions.
-7. r[fn.caller.chain] Inside a `@track_caller` function, a direct call of another `@track_caller` function passes the outer call's record on. So both accessors describe the outermost call.
-8. r[fn.caller.value] A `@track_caller` function used as a value binds the record of the place where the value is created, with no argument texts. A call through a function value passes no hidden argument.
-9. r[fn.caller.accessor.location] `std.debug` declares `@intrinsic pub fn caller() -> Location` on `Location`. It returns the location of the call whose record the function received.
-10. r[fn.caller.location] A `Location` holds the file as diagnostics name it, and the 1-based line and column where the call begins. The column counts characters.
-11. r[fn.caller.accessor.args] `std.debug` declares `@intrinsic pub fn caller_args() -> List[CallArg]` on `Location`. It returns one `CallArg` for each argument of that call, in order, with its source text, `start`, and `end`.
-12. r[fn.caller.accessor.args.complete] The argument texts are known for a call with no spread and no trailing block, its named arguments included. For any other call, the list is empty.
-13. r[fn.caller.accessor.args.name] The list holds the call's arguments in source order, positional and named. A `CallArg`'s `name` is the parameter name of a named argument, and none for a positional one. Its text and span are the argument's value, without the name.
-14. r[fn.caller.accessor.args.end] A `CallArg`'s `end` is the location just after the argument's last character.
-15. r[fn.caller.accessor.inside] Either accessor is valid only lexically inside a `@track_caller` function, the closures it contains included. Error: `caller-outside-track-caller`.
-16. r[fn.caller.root-package] `Location::in_root_package()` is true when the call site is in the user's own code, as [`module.dbg.own-code`](10-modules.md#r-module.dbg.own-code) defines it. It is tested at run time, and no call is compiled out.
-17. r[fn.caller.frames] A panic report's frame list leaves out each frame in the body of a `@track_caller` function, the closures it contains included. So the list names the caller where the function was called.
+4. r[fn.caller.reads] A `@track_caller` function reads its record when its body calls `Location::caller()` or `Location::caller_args()`. It reads it too when its body makes a direct call of a `@track_caller` function that reads its record. The closures it contains count as its body.
+5. r[fn.caller.site-argument] A `@track_caller` function that reads its record takes one hidden argument after its written ones: a pointer to the call site's record. Each direct call of it passes one. A call of one that does not read its record passes none. The function's type does not show it.
+6. r[fn.caller.record] A call site's record is static data. It holds the call's location, whether the call site is in the user's own code, and the argument texts when the callee reads them.
+7. r[fn.caller.record.args] A record holds argument texts only when its callee calls `Location::caller_args()`, directly or through a chain of `@track_caller` functions.
+8. r[fn.caller.chain] Inside a `@track_caller` function, a direct call of another `@track_caller` function passes the outer call's record on. So both accessors describe the outermost call.
+9. r[fn.caller.value] A `@track_caller` function used as a value binds the record of the place where the value is created, with no argument texts. A call through a function value passes no hidden argument.
+10. r[fn.caller.accessor.location] `std.debug` declares `@intrinsic pub fn caller() -> Location` on `Location`. It returns the location of the call whose record the function received.
+11. r[fn.caller.location] A `Location` holds the file as diagnostics name it, and the 1-based line and column where the call begins. The column counts characters.
+12. r[fn.caller.accessor.args] `std.debug` declares `@intrinsic pub fn caller_args() -> List[CallArg]` on `Location`. It returns one `CallArg` for each argument of that call, in order, with its source text, `start`, and `end`.
+13. r[fn.caller.accessor.args.complete] The argument texts are known for a call with no spread and no trailing block, its named arguments included. For any other call, the list is empty.
+14. r[fn.caller.accessor.args.name] The list holds the call's arguments in source order, positional and named. A `CallArg`'s `name` is the parameter name of a named argument, and none for a positional one. Its text and span are the argument's value, without the name.
+15. r[fn.caller.accessor.args.end] A `CallArg`'s `end` is the location just after the argument's last character.
+16. r[fn.caller.accessor.inside] Either accessor is valid only lexically inside a `@track_caller` function, the closures it contains included. Error: `caller-outside-track-caller`.
+17. r[fn.caller.root-package] `Location::in_root_package()` is true when the call site is in the user's own code, as [`module.dbg.own-code`](10-modules.md#r-module.dbg.own-code) defines it. It is tested at run time, and no call is compiled out.
+18. r[fn.caller.frames] A panic report's frame list leaves out each frame in the body of a `@track_caller` function, the closures it contains included. So the list names the caller where the function was called.
 
 ```hd
 use std.debug.Location

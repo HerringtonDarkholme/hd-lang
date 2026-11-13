@@ -9430,7 +9430,7 @@ impl Run<'_> {
     }
 
     /// [`Self::decode`] with the program's items, which say which callees
-    /// are `@track_caller` (`fn.caller.root-package`).
+    /// take a call-site record (`fn.caller.root-package`).
     fn decode_with<'p>(
         &self,
         b: &'p LazyBody,
@@ -9449,7 +9449,7 @@ impl Run<'_> {
                             items
                                 .get(def)
                                 .and_then(Item::fn_attrs)
-                                .is_some_and(|a| a.track_caller)
+                                .is_some_and(hd_resolve::FnAttrs::takes_site)
                         })
                     });
                     if sites {

@@ -1398,9 +1398,9 @@ fn fn_body_steps(
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
     }
-    // `fn.caller.hidden`: the call site's record, after the written
-    // parameters.
-    if item.fn_attrs().is_some_and(|a| a.track_caller) {
+    // `fn.caller.site-argument`: the call site's record, after the written
+    // parameters, when the function reads it.
+    if item.fn_attrs().is_some_and(hd_resolve::FnAttrs::takes_site) {
         let name = cx.names.syms.intern(crate::caller::SITE);
         let l =
             ck.b.local(Ty::STRING, name, local_flags::PARAM, node.index());

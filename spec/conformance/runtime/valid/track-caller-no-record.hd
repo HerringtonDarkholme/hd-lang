@@ -1,0 +1,58 @@
+# test: a @track_caller function that reads no record takes none, and a chain through one still reaches the outer call
+# Spec lang/07 Call-Site Locations: fn.caller.reads, fn.caller.site-argument,
+# fn.caller.chain, fn.caller.value, fn.caller.accessor.inside.
+# expect-stdout: 6
+# expect-stdout: 51:5
+# expect-stdout: 12
+# expect-stdout: 6
+# expect-stdout: 55:10
+# expect-stdout: 57:5
+# expect-stdout: 58:13
+# expect-stdout: 6
+use std.debug.Location
+
+# Reads nothing: its calls pass no record.
+@track_caller
+fn twice(x: i32) -> i32:
+    x * 2
+
+@track_caller
+fn here() -> void:
+    at := Location::caller()
+    println("${at.line}:${at.column}")
+
+# Reads the record only through `here`, so it takes one and passes it on.
+@track_caller
+fn relay() -> void:
+    here()
+
+# Calls only a function that reads nothing, so it reads nothing either.
+@track_caller
+fn twice_twice(x: i32) -> i32:
+    twice(x) + twice(x)
+
+# Reads the record inside a closure.
+@track_caller
+fn later() -> void:
+    show := fn() -> void:
+        at := Location::caller()
+        println("${at.line}:${at.column}")
+    show()
+
+# Reads the record, then calls a function that reads nothing.
+@track_caller
+fn here_then_twice(x: i32) -> i32:
+    here()
+    twice(x)
+
+pub fn main() -> void $ Console:
+    a := +3
+    println(twice(a))
+    relay()
+    println(twice_twice(a))
+    f := twice
+    println(f(a))
+    g := relay
+    g()
+    later()
+    println(here_then_twice(a))

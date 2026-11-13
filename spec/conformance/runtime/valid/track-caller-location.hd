@@ -1,5 +1,5 @@
 # test: a @track_caller function reads its call's location and argument texts
-# Spec lang/07 Call-Site Locations: fn.caller.hidden, fn.caller.location,
+# Spec lang/07 Call-Site Locations: fn.caller.site-argument, fn.caller.location,
 # fn.caller.chain, fn.caller.value, fn.caller.accessor.args,
 # fn.caller.accessor.args.name, fn.caller.accessor.args.complete.
 # expect-stdout: 45:5 root

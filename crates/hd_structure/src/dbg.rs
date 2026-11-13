@@ -193,7 +193,7 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
 
 /// The body of `debug_texts[args]` (`module.dbg.texts`): its parameters are
 /// the tuple `values`, the `columns` each element starts at, and the hidden
-/// call-site record `$site` (`fn.caller.hidden`). Each element's text is
+/// call-site record `$site` (`fn.caller.site-argument`). Each element's text is
 /// `dbg_layout` at its column with the printer selected for its type; a
 /// function's names the function its argument names
 /// (`module.dbg.value.function`); a runtime rest's items follow through
