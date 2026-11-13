@@ -1,0 +1,39 @@
+use std.annotation.inline
+
+struct Header['a]:
+    items: &'a List[usize]
+
+@inline(.Never)
+fn tick() -> usize:
+    1
+
+@inline(.Never)
+fn sum_value['a](header: Header['a], n: usize) -> usize:
+    let total = 0
+    for i in 0..n:
+        total += header.items[i] + tick()
+    total
+
+@inline(.Never)
+fn replaced['a](header: &mut Header['a], next: &'a List[usize], n: usize) -> usize:
+    old := header.items
+    header.items = next
+    let total = 0
+    for i in 0..n:
+        total += old[i]
+    total
+
+tests:
+    use std.testing.{assert_equal, it}
+
+    it("a by-value header keeps its shared reference across calls"):
+        items := [2, 3, 5]
+        assert_equal(sum_value(Header { items: &items }, 3), 13)
+
+    it("a copied reference keeps the source from before its holder changed"):
+        items := [2, 3, 5]
+        next := [20, 30, 50]
+        let mut header = Header { items: &items }
+        assert_equal(replaced(&mut header, &next, 3), 10)
+        assert_equal(header.items[0], 20)
+        assert_equal(items[0], 2)

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $j17 i32)
+  (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $j17 i32)
     ;; ...
     block
       loop
@@ -77,7 +77,7 @@
     ;; 48 |                                                                                     total
                                                                                 local.get $total
     ;; 49 |                                                                                     + items[j17]
-                                                                                local.get $items
+                                                                                local.get $t1
                                                                                 local.get $j17
                                                                                 i32.const 4
                                                                                 i32.mul
