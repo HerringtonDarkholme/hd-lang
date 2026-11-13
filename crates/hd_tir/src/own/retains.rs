@@ -17,6 +17,7 @@ pub(super) fn run(
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
     let results = results(b, cx, topo);
+    let returned = returned_ends(b, cx, topo, Tag::Drop);
     for (i, &retained) in results.iter().enumerate() {
         if !retained {
             continue;
@@ -25,7 +26,7 @@ pub(super) fn run(
         if block == NONE {
             return Err("a retained borrowed result outside a block".into());
         }
-        if let Some(drop) = handed(b, cx, topo, &results, i, Tag::Drop) {
+        if let Some(drop) = returned[i].or_else(|| handed(b, cx, topo, &results, i, Tag::Drop)) {
             b.tags[drop as usize] = Tag::LoanEnd;
             continue;
         }
@@ -57,6 +58,312 @@ pub(super) fn run(
         }
     }
     Ok(())
+}
+
+/// Cancel a read-only returned loan only when its whole source parameter
+/// stays unchanged and unaddressed for the entire frame. Index local and
+/// SSA uses once: O(instructions + locals + operand edges), with no body
+/// scan or lifetime search per call. Other sources take an explicit count.
+pub(crate) fn returned_ends(
+    b: &Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    end: Tag,
+) -> Vec<Option<u32>> {
+    returned_ends_with(b, cx, topo, end, || {})
+}
+
+fn returned_ends_with(
+    b: &Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    end: Tag,
+    mut visit: impl FnMut(),
+) -> Vec<Option<u32>> {
+    #[derive(Default)]
+    struct Local {
+        invalid: bool,
+        donor_invalid: bool,
+        stores: usize,
+        ends: usize,
+        end: Option<u32>,
+        source: Option<u32>,
+    }
+    let mut candidates = Vec::new();
+    for (i, &tag) in b.tags.iter().enumerate() {
+        visit();
+        if tag == Tag::Call
+            && let Some(callee) = Callee::from_words(b.record(b.data[i][0]))
+            && let Some(k) = cx.returned_loan(&callee)
+        {
+            candidates.push((i, usize::from(k)));
+        }
+    }
+    let mut answer = vec![None; b.len()];
+    if candidates.is_empty() || b.tags.iter().copied().any(crate::ir::is_suspension) {
+        return answer;
+    }
+    let mut locals: Vec<Local> = (0..b.local_ty.len()).map(|_| Local::default()).collect();
+    for l in &b.cap_local {
+        locals[l.idx()].invalid = true;
+        locals[l.idx()].donor_invalid = true;
+    }
+    let mut invalid = vec![false; b.len()];
+    let mut ends = vec![None; b.len()];
+    let mut stores = vec![None; b.len()];
+    let mut ops = Vec::new();
+    let mut heap_changed = false;
+    let mut breaks = vec![0usize; b.label_inst.len()];
+    for i in 0..b.len() {
+        visit();
+        let tag = b.tags[i];
+        if tag == Tag::Break {
+            breaks[b.data[i][0] as usize] += 1;
+        }
+        heap_changed |= match tag {
+            Tag::Call => {
+                Callee::from_words(b.record(b.data[i][0])).is_none_or(|c| cx.may_write(&c))
+            }
+            Tag::CallValue
+            | Tag::CallHost
+            | Tag::CallDyn
+            | Tag::DefaultCall
+            | Tag::Hook
+            | Tag::ProviderGet
+            | Tag::With
+            | Tag::ContextNew
+            | Tag::ContextFor => true,
+            Tag::Intrinsic => {
+                matches!(
+                    crate::ir::IntrinsicOp::from_u32(b.data[i][0]),
+                    None | Some(crate::ir::IntrinsicOp::Item)
+                ) || super::changed(b, i).next().is_some()
+            }
+            Tag::Ref if b.data[i][1] & ref_word::MUT != 0 => {
+                let p = b.view(b.data[i][0]);
+                !matches!(p.root, Root::Local(_) | Root::Value(_))
+                    || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+            }
+            Tag::Store | Tag::Drop | Tag::LoanEnd | Tag::IsUnique => {
+                let p = b.view(b.data[i][0]);
+                !matches!(p.root, Root::Local(_) | Root::Value(_))
+                    || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+            }
+            Tag::Read if b.data[i][1] == ReadMode::Move as u32 => {
+                let p = b.view(b.data[i][0]);
+                p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+            }
+            _ => false,
+        };
+        if tag.operands().0 == crate::ir::Op::Place {
+            let p = b.view(b.data[i][0]);
+            if let Root::Local(l) = p.root {
+                let info = &mut locals[l as usize];
+                match tag {
+                    Tag::Read if b.is_borrow(u32_of(i)) || !cx.counted(b.ty[i]) => {}
+                    Tag::Store if p.whole() => {
+                        info.stores += 1;
+                        info.source = Some(b.data[i][1]);
+                    }
+                    t if t == end && p.whole() => {
+                        info.ends += 1;
+                        info.end = Some(u32_of(i));
+                    }
+                    _ => {
+                        info.invalid = true;
+                        info.donor_invalid |= tag != Tag::Read;
+                    }
+                }
+            }
+        }
+        super::operands(b, i, &mut ops);
+        for op in &ops {
+            visit();
+            let v = op.value as usize;
+            if tag == end && whole_value(b, u32_of(i), op.value) {
+                if ends[v].replace(u32_of(i)).is_some() {
+                    invalid[v] = true;
+                }
+            } else if tag == Tag::Store && b.data[i][1] == op.value {
+                let local = b
+                    .view(b.data[i][0])
+                    .local()
+                    .filter(|_| b.view(b.data[i][0]).whole());
+                if local.is_none() || stores[v].replace(local).is_some() {
+                    invalid[v] = true;
+                }
+            } else if (tag != Tag::Retain && !returned_lending_use(b, cx, i, op))
+                || matches!(tag, Tag::Ref | Tag::Closure)
+            {
+                invalid[v] = true;
+            }
+        }
+    }
+    for &(i, k) in &candidates {
+        visit();
+        let Some(&arg) = b.record(b.data[i][1]).get(k) else {
+            continue;
+        };
+        let Some(source) = Ref(arg).as_inst().map(|r| r.0 as usize) else {
+            continue;
+        };
+        if b.tags[source] != Tag::Read || !b.is_borrow(arg) {
+            continue;
+        }
+        let p = b.view(b.data[source][0]);
+        let Some(l) = p.local() else { continue };
+        // Inline fields cannot change without addressing their holder.
+        // Heap projections additionally need an effect-free frame: calls
+        // and writes through another alias must not invalidate the loan.
+        if heap_changed && p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))) {
+            continue;
+        }
+        let info = &locals[l as usize];
+        if b.local_flags[l as usize] & local_flags::PARAM == 0
+            || info.invalid
+            || info.stores != 0
+            || info.ends != 0
+            || invalid[i]
+        {
+            continue;
+        }
+        answer[i] = match stores[i] {
+            Some(Some(l)) if ends[i].is_none() => {
+                let info = &locals[l as usize];
+                (!info.invalid && info.stores == 1 && info.ends == 1)
+                    .then_some(info.end)
+                    .flatten()
+            }
+            None => ends[i],
+            _ => None,
+        };
+    }
+    // A temporary's existing count can become the result's. Calls are in
+    // SSA definition order, so an earlier returned call either owns its
+    // result (a retain or handoff), or is a canceled read-only loan.
+    let mut owned: Vec<_> = b
+        .tags
+        .iter()
+        .map(|&t| t == Tag::Call || t == Tag::CallValue)
+        .collect();
+    for (i, k) in candidates {
+        visit();
+        if answer[i].is_some() {
+            owned[i] = false;
+            continue;
+        }
+        if let Some(next) = next_after(b, topo, i)
+            && b.tags[next as usize] == end
+            && whole_value(b, next, u32_of(i))
+        {
+            answer[i] = Some(next);
+            owned[i] = false;
+            continue;
+        }
+        let Some(&arg) = b.record(b.data[i][1]).get(k) else {
+            continue;
+        };
+        let Some(next) = next_after(b, topo, i) else {
+            continue;
+        };
+        if b.tags[next as usize] != end {
+            continue;
+        }
+        let drop = b.view(b.data[next as usize][0]);
+        let mut source = arg;
+        let donor = if whole_value(b, next, arg) {
+            true
+        } else if let Some(r) = Ref(arg).as_inst() {
+            if b.tags[r.0 as usize] == Tag::Read {
+                let read = b.view(b.data[r.0 as usize][0]);
+                read.whole() && drop.whole() && read.root == drop.root
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if !donor {
+            continue;
+        }
+        for _ in 0..16 {
+            visit();
+            let Some(r) = Ref(source).as_inst() else {
+                break;
+            };
+            let x = r.0 as usize;
+            let owns = match b.tags[x] {
+                Tag::Call | Tag::CallValue => owned[x],
+                // A fresh closure owns its environment; an empty or
+                // frame-local environment has no physical count to move.
+                Tag::Closure => true,
+                Tag::Ref => b.data[x][1] & ref_word::TAKES != 0,
+                _ => false,
+            };
+            if owns {
+                answer[i] = Some(next);
+                break;
+            }
+            if b.same_value_coercion(x) {
+                source = b.data[x][0];
+                continue;
+            }
+            if let Some(value) = b.wrapper_value(x) {
+                let block = b.data[x][0] as usize;
+                if let Some(&last) = b.record(b.data[block][0]).last()
+                    && breaks[b.data[last as usize][0] as usize] == 1
+                {
+                    source = value;
+                    continue;
+                }
+            }
+            if b.tags[x] == Tag::Read {
+                let p = b.view(b.data[x][0]);
+                if p.whole()
+                    && drop.whole()
+                    && p.root == drop.root
+                    && let Root::Value(value) = p.root
+                {
+                    source = value;
+                    continue;
+                }
+                if let Some(l) = p.local().filter(|_| p.whole())
+                    && (b.data[x][1] == ReadMode::Move as u32
+                        || drop.whole() && drop.root == p.root)
+                {
+                    let info = &locals[l as usize];
+                    if b.local_flags[l as usize] & local_flags::PARAM == 0
+                        && !info.donor_invalid
+                        && info.stores == 1
+                        && let Some(value) = info.source
+                    {
+                        source = value;
+                        continue;
+                    }
+                }
+            }
+            break;
+        }
+    }
+    answer
+}
+
+// Constant work per operand, including calls with many arguments. An
+// owned formal rejects the proof even when a default might lend it; that
+// narrower fallback avoids rescanning the argument list for each operand.
+fn returned_lending_use(b: &Body, cx: &dyn OwnCx, i: usize, op: &super::Operand) -> bool {
+    match op.role {
+        super::Role::Lend | super::Role::Dropped => true,
+        super::Role::Arg(k) if b.tags[i] == Tag::Call => Callee::from_words(b.record(b.data[i][0]))
+            .is_some_and(|c| {
+                cx.pass(
+                    &c,
+                    k as usize,
+                    b.record(b.data[i][1]).len().saturating_sub(3),
+                ) == super::Pass::Lent
+            }),
+        _ => false,
+    }
 }
 
 /// The statement of tag `end` (`Drop`, or `LoanEnd` once [`run`] has made it
@@ -170,7 +477,9 @@ fn owns_its_count(b: &Body, cx: &dyn OwnCx, results: &[bool], v: u32, depth: u32
         // A physical reference copied from a frame cell has its own count
         // from this pass's result retain. A Ref never hands off its source.
         Tag::Ref => b.data[i][1] & ref_word::TAKES != 0 || results[i],
-        Tag::Call | Tag::CallValue => true,
+        Tag::Call => Callee::from_words(b.record(b.data[i][0]))
+            .is_none_or(|c| cx.returned_loan(&c).is_none()),
+        Tag::CallValue => true,
         // A result that takes a count, stated or its source's.
         Tag::Coerce if result(b, cx, i) => true,
         Tag::Coerce => {
@@ -384,6 +693,130 @@ mod tests {
         fn retains_result(&self, c: &Callee) -> bool {
             matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
         }
+        fn returned_loan(&self, c: &Callee) -> Option<u8> {
+            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(8)).then_some(0)
+        }
+    }
+
+    #[test]
+    fn returned_loan_cancellation_requires_a_stable_whole_parameter() -> Result<(), String> {
+        for changed in [false, true] {
+            let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let node = NodeIdx::from_raw(1);
+            let block = builder.open_block();
+            let param = builder.local(Ty::STRING, hd_base::Symbol::NONE, local_flags::PARAM, node);
+            let value = builder.get(param, Ty::STRING, node);
+            let call = builder.call(
+                &Callee::Item {
+                    def: DefId::from_raw(8),
+                    targs: TyList::EMPTY,
+                },
+                &[value],
+                Providers::None,
+                Ty::STRING,
+                node,
+            );
+            if changed {
+                let replacement = builder.const_str("replacement");
+                builder.set(param, replacement, node);
+            }
+            builder.call(
+                &Callee::Item {
+                    def: DefId::from_raw(9),
+                    targs: TyList::EMPTY,
+                },
+                &[call],
+                Providers::None,
+                Ty::VOID,
+                node,
+            );
+            let place = builder.place(&crate::ir::Place {
+                root: crate::ir::PlaceRoot::Value(call),
+                proj: vec![],
+            });
+            let drop = builder.call(
+                &Callee::Item {
+                    def: DefId::from_raw(9),
+                    targs: TyList::EMPTY,
+                },
+                &[call],
+                Providers::None,
+                Ty::VOID,
+                node,
+            );
+            let root = builder.close_block(block, None, Ty::VOID, node);
+            let mut b = builder.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            b.tags[drop.0 as usize] = Tag::Drop;
+            b.data[drop.0 as usize] = [place, NONE];
+            b.data[value.0 as usize][1] = ReadMode::Borrow as u32;
+            let answer = returned_ends(&b, &Facts, &Topology::new(&b), Tag::Drop);
+            assert_eq!(answer[call.0 as usize], (!changed).then_some(drop.0));
+            // A canceled call cannot donate a count to another coercion.
+            let mut results = vec![false; b.len()];
+            results[call.0 as usize] = true;
+            assert!(!owns_its_count(&b, &Facts, &results, call.0, 8));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn returned_loan_handoff_work_is_bounded_at_width_1000_depth_20() -> Result<(), String> {
+        for width in [1, 1000] {
+            for depth in [1, 20] {
+                let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+                let node = NodeIdx::from_raw(1);
+                let block = builder.open_block();
+                let mut cases = Vec::new();
+                for _ in 0..width {
+                    let sink = Callee::Item {
+                        def: DefId::from_raw(9),
+                        targs: TyList::EMPTY,
+                    };
+                    let mut value = builder.call(&sink, &[], Providers::None, Ty::STRING, node);
+                    for _ in 0..depth {
+                        value = builder.coerce(Coercion::Identity, NONE, value, Ty::STRING, node);
+                    }
+                    let call = builder.call(
+                        &Callee::Item {
+                            def: DefId::from_raw(8),
+                            targs: TyList::EMPTY,
+                        },
+                        &[value],
+                        Providers::None,
+                        Ty::STRING,
+                        node,
+                    );
+                    let place = builder.place(&crate::ir::Place {
+                        root: crate::ir::PlaceRoot::Value(value),
+                        proj: vec![],
+                    });
+                    // Finish checks raw TIR first; the test then supplies the
+                    // post-insertion end in this statement's existing slot.
+                    let drop = builder.call(&sink, &[value], Providers::None, Ty::VOID, node);
+                    builder.call(&sink, &[call], Providers::None, Ty::VOID, node);
+                    cases.push((call.0, drop.0, place));
+                }
+                let root = builder.close_block(block, None, Ty::VOID, node);
+                let mut b = builder.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                for &(_, drop, place) in &cases {
+                    b.tags[drop as usize] = Tag::Drop;
+                    b.data[drop as usize] = [place, NONE];
+                }
+                let mut work = 0;
+                let answer =
+                    returned_ends_with(&b, &Facts, &Topology::new(&b), Tag::Drop, || work += 1);
+                for (call, drop, _) in cases {
+                    assert_eq!(answer[call as usize], (depth < 16).then_some(drop));
+                }
+                // Two visits per instruction, depth+3 operand edges per
+                // chain, two candidate visits and at most 16 donor steps.
+                assert_eq!(
+                    work,
+                    2 * b.len() + (depth + 5 + (depth + 1).min(16)) * width
+                );
+            }
+        }
+        Ok(())
     }
 
     fn body() -> Body {

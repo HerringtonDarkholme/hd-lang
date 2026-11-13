@@ -10,7 +10,7 @@ fn word(i: i32) -> string:
     "held$i"
 
 @cold
-fn same[T](value: T) -> T:
+fn same[T < ?Copy](value: T) -> T:
     value
 
 @cold
@@ -45,7 +45,7 @@ pub fn main() -> void:
     assert_equal(shared.text, "held7")
     let mut items = UniqList::[i32].new()
     items.push(7)
-    moved := unique(items)
+    moved := unique(same(items))
     assert_equal(moved.len(), 1)
     assert_equal(moved[0], 7)
     assert_equal(original, "held7")

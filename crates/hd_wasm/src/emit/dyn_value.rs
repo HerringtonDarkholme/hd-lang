@@ -231,6 +231,11 @@ impl Em<'_, '_, '_> {
                 slots.push(Helper::RuntimeType(parts));
                 continue;
             }
+            let retained_result = if env.return_loan_parameter(t.item, t.args).is_some() {
+                walk(self.pool(), env, t.ret)
+            } else {
+                None
+            };
             slots.push(if traps {
                 let mut all = vec![Val::I32];
                 all.extend(params);
@@ -241,6 +246,7 @@ impl Em<'_, '_, '_> {
             } else if let (SlotRecv::ReadThrough, Some(read)) = (recv, &read) {
                 Helper::DynRead {
                     target: t.key,
+                    retained_result: retained_result.clone(),
                     read: read.clone(),
                     params,
                     results,
@@ -251,6 +257,7 @@ impl Em<'_, '_, '_> {
             } else {
                 Helper::DynSlot {
                     target: t.key,
+                    retained_result: retained_result.clone(),
                     leaves: leaves.map(<[Leaf]>::to_vec),
                     params,
                     results,

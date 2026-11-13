@@ -7147,3 +7147,4 @@ typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
+runtime/valid/a-returned-parameter-keeps-its-callers-lifetime.hd	runtime	accept	lang/07-functions.md#function-types-and-values
