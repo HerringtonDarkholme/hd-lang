@@ -2,8 +2,8 @@
 
 Accepted 2026-11-03; domain: runtime, ownership pass, `std.rt`,
 `std.collections`. The raw-buffer, drop-hook and verifier phases are
-implemented. Moving the counted copy-on-write layers into hd remains
-tracked by #1219 and #1220; #1205's performance gate is complete.
+implemented. The counted `List` and `Map` stay compiler built-ins (owner,
+2026-11-12; #1219 and #1220 closed).
 
 ## The Proposal
 
@@ -19,8 +19,8 @@ check. What changes is the storage under them:
 - `UniqList[T]` is a buffer plus a length. It moves elements in and out
   through `at(i)`, gives element references, and drops its first `len`
   elements before its buffer frees the memory. `UniqMap` is the same over
-  a buffer of slots. `List[T]` is the counted copy-on-write layer over
-  the same storage (#1219).
+  a buffer of slots. `List[T]` and `Map` stay compiler built-ins with
+  their own counted storage (owner, 2026-11-12).
 - One invariant holds in every build: **no value of a non-copyable type
   is ever copied**. The ownership pass never chooses a copy for one, and
   a verifier checks it after the pass.

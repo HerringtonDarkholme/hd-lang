@@ -10,7 +10,8 @@ type a meaning of its own is listed once, in seven kinds, with a verdict:
 - **hd later**: hd can already express it, but the hd version is slower
   because of how hd memory code compiles (#180, #514). #1205's gate is
   met: `UniqMap` runs its benchmark within 1.06x of `Map` since #1711.
-  Replace it through #1219 (`List`) and #1220 (`Map`).
+  `List` and `Map` stay compiler built-ins (owner, 2026-11-12), so their
+  rows are keep; only the string kernels remain hd later.
 - **hd now**: hd can express it today at no known cost. Replace it.
 - **review**: the compiler knows a std name it may not need; find out why
   before choosing.
@@ -27,25 +28,25 @@ wrapper in hd. The tables below retain the dated audit snapshot.
 
 | Kind                                                        |     Count | keep | hd later | hd now | review |
 | ----------------------------------------------------------- | --------: | ---: | -------: | -----: | -----: |
-| 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`)       |   93 keys |   74 |       13 |      0 |      6 |
-| 2. Compiler-emitted runtime helpers (`hd_wasm::rt::Helper`) |       145 |  110 |       33 |      2 |      0 |
-| 3. Built-in types                                           |  34 forms |   32 |        2 |      0 |      0 |
-| 4. Built-in methods (spec ch. 10)                           |        17 |    6 |       11 |      0 |      0 |
-| 5. Known std items (`hd_resolve::KnownItems`)               |       102 |   76 |        9 |      0 |     17 |
+| 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`)       |   93 keys |   79 |        8 |      0 |      6 |
+| 2. Compiler-emitted runtime helpers (`hd_wasm::rt::Helper`) |       145 |  135 |        8 |      2 |      0 |
+| 3. Built-in types                                           |  34 forms |   34 |        0 |      0 |      0 |
+| 4. Built-in methods (spec ch. 10)                           |        17 |   17 |        0 |      0 |      0 |
+| 5. Known std items (`hd_resolve::KnownItems`)               |       102 |   85 |        0 |      0 |     17 |
 | 6. Host capabilities (`hd_host_abi` tables)                 | 17 traits |   17 |        0 |      0 |      0 |
 | 7. Compiler-interpreted annotations                         |        13 |   13 |        0 |      0 |      0 |
 
-The two big "hd later" groups are the same code seen from two sides: the
-`List`/`Map` built-ins (two types, eleven methods, five intrinsics and
-25 runtime helpers) and the string kernels (eight intrinsics and eight
-helpers).
+The `List`/`Map` built-ins (two types, eleven methods, five intrinsics,
+25 runtime helpers and nine known items) are keep since the owner closed
+#1219 and #1220 on 2026-11-12. The one "hd later" group left is the string
+kernels (eight intrinsics and eight helpers).
 The original gate was hd-level memory code compiling as well as the
 compiler's hand-emitted helpers. #1205 closed on 2026-11-12: at
 `71aa383a6`, `UniqMap` measured 51 ms against `Map`'s 48 ms (1.06x,
 15 interleaved V8 release runs), meeting its 1.1x target. This is the
 [recorded result](https://github.com/HerringtonDarkholme/hd-lang/issues/1205#issuecomment-6814901613),
-not a new measurement of every kernel. The remaining collection moves
-are #1219 and #1220; the inventory below remains the dated snapshot.
+not a new measurement of every kernel. `List` and `Map` stay built-in
+(owner, 2026-11-12); the inventory below remains the dated snapshot.
 
 ## 1. `@intrinsic` Functions
 
@@ -59,7 +60,7 @@ primitives in the last rows.
 | String layout (6)                | `bytes_len`, `bytes_at`, `string_from_bytes`, `string_to_bytes`, `char_scalar`, `char_from_scalar`                                                                                                             | keep     | they read and build the string representation itself                                                                                                                                     |
 | String kernels (8)               | `bytes_slice`, `bytes_index`, `bytes_index_pair`, `bytes_index_set`, `bytes_mismatch`, `utf8_valid_len`, `bytes_append`, `format_int`                                                                          | hd later | loops over bytes; the hd versions measured 1.14x to 1.34x slower (#514)                                                                                                                  |
 | Machine operations (12)          | `int_wrapping_add`, `_sub`, `_mul`, `int_count_ones`, `int_leading_zeros`, `int_trailing_zeros`, `int_min`, `int_max`, `f64_to_bits`, `f64_from_bits`, `f32_to_bits`, `f32_from_bits`                          | keep     | one Wasm instruction or a per-width constant                                                                                                                                             |
-| Collections (5)                  | `list_truncate`, `list_extend`, `list_reserve`, `map_probe`, `map_steps`                                                                                                                                       | hd later | `List`/`Map` internals; they go with the built-in types (kind 3)                                                                                                                         |
+| Collections (5)                  | `list_truncate`, `list_extend`, `list_reserve`, `map_probe`, `map_steps`                                                                                                                                       | keep     | `List`/`Map` internals; the built-in types stay (owner, 2026-11-12)                                                                                                                         |
 | Panics and boxes (3)             | `panic`, `panic_message`, `box`                                                                                                                                                                                | keep     | the trap and the counted allocation                                                                                                                                                      |
 | Type information (6)             | `type_id_of`, `downcast_ref`, `downcast_mut`, `facts_of`, `ref_identity`, `descriptor_glue_mask`                                                                                                               | keep     | only the compiler knows types, descriptors and addresses                                                                                                                                 |
 | Suspension (10)                  | `block_on`, `task_all`, `task_all_frame`, `task_race_frame`, `task_cleanup_frame`, `task_pending_frame`, `task_abandon`, `task_wait_cell`, `task_wait_frame`, `task_wait_signal`                               | keep     | the suspension runtime's frames                                                                                                                                                          |
@@ -81,7 +82,7 @@ into each module on demand.
 | Suspension, wakers, cancellation, host calls (47) | `CanCancel`, `CancellationRoot`, `PollCheck`, `CancelCheck`, `CancelEnter`, `CancelLeave`, `WakeMark`, `WakeTake`, `WakeSlot`, `WakeRegister`, `WakeRemove`, `WakeSignal`, `WakerNew`, `WakerParent`, `WakerSlot`, `WakerLive`, `WakerDrop`, `WakeLink`, `WakeNotify`, `EntryCancel`, `EntryCall`, `ChildDrop`, `CleanupCold`, `CleanupPoll`, `CleanupCancel`, `PendingCold`, `PendingPoll`, `PendingCancel`, `WaitCell`, `WaitCold`, `WaitPoll`, `WaitSignal`, `Race`, `RaceDrop`, `All`, `OpenFrame`, `Frame`, `Drive`, `HostDrive`, `HostPoll`, `HostCancel`, `HostCold`, `HostCall`, `HostPrim`, `ForbidCheck`, `CtxFind`, `CtxNew` | keep                                                                                                                                                               |
 | Host ABI encoding (7)                             | `Fit`, `LebPut`, `LebGet`, `Enc`, `Dec`, `HandleSlot`, `PackageHandleRelease`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | keep                                                                                                                                                               |
 | Panics (3)                                        | `Panic`, `PanicStr`, `PanicWith`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | keep                                                                                                                                                               |
-| Collections (25)                                  | `ListBuf`, `ListClone`, `ListUnique`, `ListCopy`, `ListGrow`, `ListTruncate`, `ListReserve`, `ListExtend`, `CopyElems`, `DropElems`, `CollCopy`, `ToBuf`, `MapTable`, `DropEntries`, `MapHash`, `MapFind`, `MapPut`, `MapGrow`, `MapUnique`, `MapClone`, `MapSlotNext`, `MapStep`, `DynSlot`, `DynRead`, `BytesAppend`                                                                                                                                                                                                                                                                                                                  | hd later (with kind 3)                                                                                                                                             |
+| Collections (25)                                  | `ListBuf`, `ListClone`, `ListUnique`, `ListCopy`, `ListGrow`, `ListTruncate`, `ListReserve`, `ListExtend`, `CopyElems`, `DropElems`, `CollCopy`, `ToBuf`, `MapTable`, `DropEntries`, `MapHash`, `MapFind`, `MapPut`, `MapGrow`, `MapUnique`, `MapClone`, `MapSlotNext`, `MapStep`, `DynSlot`, `DynRead`, `BytesAppend`                                                                                                                                                                                                                                                                                                                  | keep (with kind 3)                                                                                                                                                 |
 | String kernels (10)                               | `StrFromBytes`, `StrToBytes`, `FmtInt`, `StrEq`, `StrCmp`, `BytesIndexSet`, `BytesIndex`, `BytesIndexPair`, `BytesMismatch`, `Utf8ValidLen`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | hd later, except `StrFromBytes`/`StrToBytes` (keep: layout)                                                                                                        |
 | Float math (2)                                    | `PowF64`, `RemF64`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | hd now: Wasm has no `pow` or `fmod` instruction, so these are already ordinary code the backend writes; an hd version in `std.num` is the same code in the library |
 
@@ -97,7 +98,7 @@ into each module on demand.
 | `T?`                                                                       | keep                                                                         |
 | `Suspend[T]`                                                               | keep: the suspension runtime                                                 |
 | `Any`, `AnyVal`, `AnyRef`, `'static`, `Copy`                               | keep: markers only the compiler can answer                                   |
-| `List[T]`, `Map[K, V]`                                                     | hd later: #180 and #1205; `UniqList`/`UniqMap` already show the design in hd |
+| `List[T]`, `Map[K, V]`                                                     | keep (owner, 2026-11-12: `List` and `Map` stay built-in; #1219 and #1220 closed) |
 
 `Result`, `Range`, `Buffer` and `Ordering` are std declarations the
 compiler recognizes (kind 5), not compiler-supplied types.
@@ -110,8 +111,8 @@ spec/lang/10-modules.md, Built-In Methods.
 | ----------- | ------------------------------------------------------------ | --------------------- |
 | `string`    | `len`, `chars`, `char_indices`, `bytes`, `slice`             | keep (string layout)  |
 | `Display`   | `to_string`                                                  | keep (interpolation)  |
-| `List[T]`   | `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | hd later, with `List` |
-| `Map[K, V]` | `len`, `get`, `iter`, `remove`                               | hd later, with `Map`  |
+| `List[T]`   | `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | keep, with `List`     |
+| `Map[K, V]` | `len`, `get`, `iter`, `remove`                               | keep, with `Map`      |
 
 ## 5. Known Std Items
 
@@ -128,10 +129,10 @@ spec/lang/10-modules.md, Built-In Methods.
 | Suspension             | `suspend`, `block_on`, `race`, `all`, `all_list`                                                                                                                                                              | keep                                                                                                                                               |
 | Derivation and facts   | `structure`, `walker`, `walker_data_variant`, `walker_data_member`, `field`, `field_get`, `variant_holds`, `describer`, `source`, `fills_defaults`, `skips`, `facts`, `facts_find`, `inspectable`, `annotate` | keep: the `Structure` walk that std derives over                                                                                                   |
 | Formatting             | `display`, `debug`, `dbg`                                                                                                                                                                                     | keep: interpolation and `dbg`                                                                                                                      |
-| Hashing                | `hash`, `map_key_hash`, `key_equal`, `map_integer_hash`, `map_string_hash`                                                                                                                                    | hd later: `Map` codegen selects ordinary `std.hash` foldhash functions through these known-item slots; `UniqMap` calls the same functions directly |
+| Hashing                | `hash`, `map_key_hash`, `key_equal`, `map_integer_hash`, `map_string_hash`                                                                                                                                    | keep: `Map` codegen selects ordinary `std.hash` foldhash functions through these known-item slots; `UniqMap` calls the same functions directly |
 | Testing                | `check_equal`, `it_each`, `it_prop`, `it_prop_with`, `each_case`, `prop_case`, `prop_with_case`, `test_runner`, `property_runner`                                                                             | review: which of these need the compiler (source spans, test registration) and which are plain std                                                 |
 | Output and serde       | `println`, `serialize`, `deserialize`, `serializer_begin_data`, `serializer_end_data`                                                                                                                         | `println` goes (#1236); the serde boundaries inline by hint (#1237). std.json picks its fast path in hd with `Serialize.regular()` (#1445)         |
-| Collections            | `list`, `list_is_empty`, `map`, `buffer`                                                                                                                                                                      | hd later, with kind 3                                                                                                                              |
+| Collections            | `list`, `list_is_empty`, `map`, `buffer`                                                                                                                                                                      | keep, with kind 3                                                                                                                                  |
 | Code-generation hints  | `inline`, `cold`                                                                                                                                                                                              | keep                                                                                                                                               |
 
 ## 6. Host Capabilities
@@ -156,13 +157,7 @@ own imports (`hd:rt` `block`, `abort`, `stderr`, `stdout`, `panic`,
 
 ## Next
 
-The work is tracked in #1206 and its sub-issues, in dependency order.
-The #1205 WAT diff named the original memory-code costs (#1227 to #1232);
-its benchmark gate is now met. #1219 started on 2026-11-12, after its
-ownership prerequisite (#1364) closed. Its counted copy-on-write layer
-tests whether a `*T` is the only reference before a write. No hd code
-can read a counted reference's count or address today, so the `List` and
-`Map` rows of kinds 1 to 5 are not yet "hd can already express it".
-#1220 follows #1219. String-kernel
-pricing remains separate (#514). Review rows report findings on their
-issue, and the owner decides each one.
+`List` and `Map` stay compiler built-ins (owner, 2026-11-12): #1206,
+#1219, #1220, #1223 and #1350 are closed, and their rows above are keep.
+String-kernel pricing remains separate (#514). Review rows report findings
+on their issue, and the owner decides each one.
