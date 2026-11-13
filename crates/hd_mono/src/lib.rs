@@ -105,21 +105,13 @@ pub trait ProgramEnv: LayoutEnv {
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
     /// Whether the selected parameter representation uses the owned cold ABI.
-    fn cold_transfers(&self, _def: DefId, _ty: Ty) -> bool {
-        false
-    }
+    fn cold_transfers(&self, def: DefId, ty: Ty) -> bool;
     /// Concrete Copy classification for the function-value input convention.
-    /// Unknown environments conservatively keep value ownership transferring.
-    fn function_value_copies(&self, _ty: Ty) -> bool {
-        false
-    }
+    fn function_value_copies(&self, ty: Ty) -> bool;
     /// Whether a function-value parameter receives its owner. Copy values
     /// and reference-variance inputs are lent; the concrete adapter or closure
-    /// entry takes any count its body needs. Environments without Copy facts
-    /// transfer other values conservatively.
-    fn function_value_transfers(&self, _ty: Ty) -> bool {
-        true
-    }
+    /// entry takes any count its body needs. Other values transfer ownership.
+    fn function_value_transfers(&self, ty: Ty) -> bool;
     /// Whether a function reference uses an owned call-body adapter for
     /// its target's selected cold convention.
     fn cold_transfer_adapter(&self, def: DefId) -> bool {
@@ -130,9 +122,7 @@ pub trait ProgramEnv: LayoutEnv {
     }
     /// A selected convention needs a normal owned call body to perform
     /// ownership cleanup that a raw argument-count bridge cannot express.
-    fn transfer_adapter(&self, def: DefId, _args: TyList) -> bool {
-        self.cold_transfer_adapter(def)
-    }
+    fn transfer_adapter(&self, def: DefId, args: TyList) -> bool;
     /// Whether the function is a method with an `&self` or `&mut self`
     /// receiver, as whether that receiver is mutable.
     fn local_ref_receiver(&self, def: DefId) -> Option<bool>;
@@ -255,15 +245,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn lends(&self, _item: DefId, _args: TyList) -> u64;
     /// The checked body forwards only this parameter to its result. A
     /// structural fact, independent of ownership-summary processing order.
-    fn pass_through_parameter(&self, _item: DefId) -> Option<u8> {
-        None
-    }
+    fn pass_through_parameter(&self, item: DefId) -> Option<u8>;
     /// That pass-through's concrete layout can support a borrowed result:
     /// count-bearing Copy data with no Drop and a materialized body.
     /// This fact alone does not change a call's result convention.
-    fn return_loan_parameter(&self, _item: DefId, _args: TyList) -> Option<u8> {
-        None
-    }
+    fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8>;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
     /// The private `DbgStructural` template's method, the `Structure` trait,
