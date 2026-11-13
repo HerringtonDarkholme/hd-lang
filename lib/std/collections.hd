@@ -2421,52 +2421,94 @@ impl[T, 'a] Span[T, 'a]:
         Span { items: self.items, start: self.start + range.start, end: self.start + stop }
 
 impl[T < Eq, 'a] Span[T, 'a]:
-    # Morris-Pratt (r-std-collections.span.index-of-span): `border[j]` is the
-    # length of the longest proper prefix of `needle[0..=j]` that is also its
-    # suffix, so the scan never steps back and the search is
-    # O(len + needle.len()) comparisons, with no table for a needle of one
-    # element. Cost: one table of `needle.len()` offsets per call.
+    # Morris-Pratt (r-std-collections.span.index-of-span) with a skip loop:
+    # while nothing is matched, the scan looks for the needle's first
+    # element alone, four elements a round, as Go's `bytes.Index` and
+    # MoonBit's `find` look for the first byte. Each comparison either
+    # advances the scan or shortens the match, so the search makes at most
+    # 2 * len comparisons, plus 2 * needle.len() for the border table.
+    # `border[j]` is the length of the longest proper prefix of
+    # `needle[0..=j]` that is also its suffix. It is built only when a
+    # match of two or more elements fails, so most searches allocate
+    # nothing. Cost per call: no allocation until such a failure, then one
+    # table of `needle.len()` offsets.
     ## Returns the offset of the first occurrence of `needle` in the span, or `.None`. An empty needle is at 0.
     ## See [std-collections.span.index-of-span](../../spec/std/collections.md#r-std-collections.span.index-of-span).
     pub fn index_of_span['b](&self, needle: Span[T, 'b]) -> usize?:
-        size := self.len()
+        start := self.start
+        end := self.end
         count := needle.len()
         if count == 0:
             return .Some(0)
-        if count > size:
+        if count > end - start:
             return .None
-        first := needle.items[needle.start]
-        if count == 1:
-            let at: usize = 0
-            while at < size:
-                if self.items[self.start + at] == first:
-                    return .Some(at)
-                at += 1
-            return .None
+        items := self.items
+        pattern := needle.items
+        from := needle.start
+        first := pattern[from]
+        # A match starts before `last`.
+        last := end - count + 1
         let mut border: List[usize] = []
-        border.push(0)
+        let at = start
         let matched: usize = 0
-        let j: usize = 1
-        while j < count:
-            value := needle.items[needle.start + j]
-            while matched > 0 && value != needle.items[needle.start + matched]:
-                matched = border[matched - 1]
-            if value == needle.items[needle.start + matched]:
+        while true:
+            if matched == 0:
+                while at + 4 <= last:
+                    if items[at] == first:
+                        break
+                    if items[at + 1] == first:
+                        at += 1
+                        break
+                    if items[at + 2] == first:
+                        at += 2
+                        break
+                    if items[at + 3] == first:
+                        at += 3
+                        break
+                    at += 4
+                while at < last && items[at] != first:
+                    at += 1
+                if at >= last:
+                    return .None
+                matched = 1
+                at += 1
+            else if at - matched >= last:
+                return .None
+            else if items[at] == pattern[from + matched]:
                 matched += 1
-            border.push(matched)
-            j += 1
-        matched = 0
-        let at: usize = 0
-        while at < size:
-            value := self.items[self.start + at]
-            while matched > 0 && value != needle.items[needle.start + matched]:
+                at += 1
+            else if matched == 1:
+                matched = 0
+                continue
+            else:
+                if border.is_empty():
+                    border = borders(needle)
                 matched = border[matched - 1]
-            if value == needle.items[needle.start + matched]:
-                matched += 1
-                if matched == count:
-                    return .Some(at + 1 - count)
-            at += 1
+                continue
+            if matched == count:
+                return .Some(at - count - start)
         .None
+
+# The Morris-Pratt border table of `needle`: entry `j` is the length of the
+# longest proper prefix of `needle[0..=j]` that is also its suffix. At most
+# 2 * needle.len() comparisons.
+fn borders[T < Eq, 'b](needle: Span[T, 'b]) -> List[usize]:
+    pattern := needle.items
+    from := needle.start
+    count := needle.len()
+    let mut border = List::[usize].with_capacity(count)
+    border.push(0)
+    let matched: usize = 0
+    let j: usize = 1
+    while j < count:
+        value := pattern[from + j]
+        while matched > 0 && value != pattern[from + matched]:
+            matched = border[matched - 1]
+        if value == pattern[from + matched]:
+            matched += 1
+        border.push(matched)
+        j += 1
+    border
 
 impl[T, 'a] Index[usize] for Span[T, 'a]:
     type Out = T

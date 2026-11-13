@@ -1,0 +1,67 @@
+# expect-stdout: 0 none 4 9 none
+# expect-stdout: 1 none 0
+# expect-stdout: 0 mismatches in 2232 searches
+# test: index_of_span skips to the needle's first element and falls back to the border table after a longer partial match
+# Spec std/collections Spans: std-collections.span.index-of-span, std-collections.span.index-of-span.empty, std-collections.span.index-of-span.cost.
+# Line 1: an empty needle, an absent one-element needle, a one-element
+# needle past the four-element skip rounds, a repeated prefix `a a a b`
+# found after `a a a a` fails at its fourth element, and a needle that
+# would run past the end. Line 2: the same in a slice that starts at 3, and
+# strings. Line 3: every needle of one to six elements over `0 1 2` taken
+# from a pseudo-random span, and some absent ones, against a direct search
+# in every slice.
+use std.collections.Span
+
+fn show(at: usize?) -> string:
+    match at:
+        .Some(i) => "${i}"
+        .None => "none"
+
+fn find(haystack: &List[u8], needle: &List[u8]) -> usize?:
+    haystack.span().index_of_span(needle.span())
+
+# The first match by trying every start, which the search must agree with.
+fn direct(hay: &List[u8], from: usize, needle: &List[u8], to: usize, count: usize) -> usize?:
+    let at = from
+    while at + count <= hay.len():
+        let k: usize = 0
+        while k < count && hay[at + k] == needle[to + k]:
+            k += 1
+        if k == count:
+            return .Some(at - from)
+        at += 1
+    .None
+
+pub fn main() -> void $ Console:
+    let empty: List[u8] = []
+    let bytes: List[u8] = [7, 7, 7, 7, 9, 1, 1, 1, 1, 1, 1, 1, 2, 5]
+    let prefix: List[u8] = [1, 1, 1, 2]
+    println(
+        "${show(find(&bytes, &empty))} ${show(find(&bytes, &[3]))} ${show(find(&bytes, &[9]))} ${show(find(&bytes, &prefix))} ${show(find(&bytes, &[2, 5, 6]))}",
+    )
+    tail := bytes.span().slice(3..14)
+    let words: List[string] = ["x", "a", "b", "a", "a", "b", "c"]
+    let pair: List[string] = ["a", "b", "c"]
+    println(
+        "${show(tail.index_of_span(bytes.span().slice(4..5)))} ${show(tail.index_of_span(bytes.span().slice(0..2)))} ${show(words.span().slice(4..7).index_of_span(pair.span().slice(0..2)))}",
+    )
+    let mut hay: List[u8] = []
+    let seed: u64 = 12345
+    for _ in 0..48:
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        hay.push(u8((seed >> 16) % 3))
+    let wrong: usize = 0
+    let searches: usize = 0
+    for count in 1..7:
+        for to in 0..50 - count:
+            for from in [0, 1, 5, 17]:
+                # A needle from the span, then one with an element no span holds.
+                for absent in [false, true]:
+                    let mut needle: List[u8] = []
+                    for k in 0..count:
+                        needle.push(if absent && k == count - 1: u8(3) else: hay[(to + k) % 48])
+                    found := hay.span().slice(from..48).index_of_span(needle.span())
+                    if found != direct(&hay, from, &needle, 0, count):
+                        wrong += 1
+                    searches += 1
+    println("$wrong mismatches in $searches searches")

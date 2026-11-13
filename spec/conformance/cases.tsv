@@ -6694,6 +6694,7 @@ typing/invalid/a-dyn-widening-across-a-cut-supertrait-edge-is-no-second-error.hd
 typing/valid/a-chain-of-two-hundred-named-constants-evaluates.hd	type	accept	lang/04-type-system.md#r-types.generic.const.named-cycle
 runtime/valid/char-to-u32.hd	runtime	accept	std/text.md#r-std-text.char.to-u32
 runtime/valid/span-index-of-span.hd	runtime	accept	std/collections.md#r-std-collections.span.index-of-span
+runtime/valid/span-index-of-span-skip.hd	runtime	accept	std/collections.md#r-std-collections.span.index-of-span.cost
 runtime/valid/a-local-trait-and-a-trait-default-name-their-enclosing-parameters.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 typing/valid/a-named-constant-reads-its-module-names-not-the-uses.hd	type	accept	lang/04-type-system.md#r-types.generic.const.named-scope
 typing/invalid/a-row-argument-key-is-an-invariant-position.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.variance.row
