@@ -4605,6 +4605,22 @@ mod tests {
         assert!(normalize_concrete(p, impls, past).is_err());
         let past_inside = adt(p, DefId::from_raw(24), &[past]);
         assert!(normalize_concrete(p, impls, past_inside).is_err());
+        // The first child past the limit is the error; a later one is not
+        // walked.
+        let two_past = adt(p, DefId::from_raw(25), &[past, proj(lp)]);
+        assert_eq!(
+            normalize_concrete(p, impls, two_past).map_err(|e| e.head == proj(lp)),
+            Err(false)
+        );
+        // An opaque type keeps its projections, even one past the limit.
+        let opaque = p.intern_ty(&TyData::Opaque {
+            owner: DefId::from_raw(26),
+            site: 0,
+            borrows: false,
+            args: p.list(&[past]),
+            bound: Ty::I32,
+        });
+        assert_eq!(normalize_concrete(p, impls, opaque), Ok(opaque));
         assert_eq!(
             normalize_concrete(p, impls, proj(lp)),
             Err(super::ProjectionTooDeep { head: proj(lp) })

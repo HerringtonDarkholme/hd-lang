@@ -593,8 +593,10 @@ impl Containment {
         let mut kids = vec![t];
         let mut path: Vec<Frame> = Vec::new();
         loop {
+            // The next kid of the last frame, or none when its kids are
+            // done and the frame ends.
             let base = path.last().map_or(0, |f| f.kids);
-            if kids.len() == base {
+            let Some(t) = (kids.len() > base).then(|| kids.pop()).flatten() else {
                 let Some(done) = path.pop() else {
                     return false;
                 };
@@ -604,9 +606,6 @@ impl Containment {
                     parent.open = true;
                 }
                 continue;
-            }
-            let Some(t) = kids.pop() else {
-                return false;
             };
             if self.finite.contains(&t) {
                 continue;

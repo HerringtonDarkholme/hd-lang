@@ -106,3 +106,52 @@ fn a_file_at_the_size_limit_checks_and_one_byte_more_is_too_large() {
     let past = format!("{at}x");
     assert_eq!(codes(&past), ["file-too-large"]);
 }
+
+/// The codes of `text` checked with a body fuel of `fuel`, under the
+/// default `Fuel::BODY_DEFAULT`.
+fn codes_with_fuel(text: &str, fuel: u64) -> Vec<String> {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", text);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Pool(2),
+    };
+    let packages = hd_driver::Packages {
+        body_fuel: Some(fuel),
+        ..hd_driver::Packages::default()
+    };
+    let out = hd_driver::build_packages(&host, "app", &packages, &Goal::Analyze);
+    out.diags
+        .code
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect()
+}
+
+/// A body whose fuel left is under `MATCH_WORK` stops at its fuel, as
+/// `item-too-complex`, not `match-too-complex`: in a match's checks, and
+/// in a `let` pattern's refutability question.
+#[test]
+fn a_match_or_pattern_past_the_body_fuel_is_item_too_complex() {
+    let fuel = 20_000;
+    assert_eq!(
+        codes_with_fuel(&match_of_work(1_000), fuel),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        codes_with_fuel(&match_of_work(40_000), fuel),
+        ["item-too-complex"]
+    );
+    let n = 400;
+    let mut s = String::from("fn split(t: (");
+    s.push_str(&vec!["i32"; n].join(", "));
+    s.push_str(")) -> i32:\n    let (");
+    s.push_str(&vec!["_"; n].join(", "));
+    s.push_str(") = t\n    0\n");
+    assert_eq!(codes_with_fuel(&s, 1_000_000), Vec::<String>::new());
+    assert_eq!(codes_with_fuel(&s, 300), ["item-too-complex"]);
+}

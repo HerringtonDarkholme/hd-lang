@@ -769,3 +769,67 @@ fn flat_addition_parses_with_linear_token_count() {
     };
     assert_eq!(work(10_000) - work(2500), 2 * (10_000 - 2500));
 }
+
+// Checker: #1777, a projection past `PROJECTION_DEPTH` bindings
+// (`trait.assoc.projection.depth`). `impl[T < Walk] Walk for S[T]: type
+// Out = T::Out` takes one binding per `S`, so `S^70[A]::Out` needs 71.
+// Each use of a type holding it reports `trait-resolution-depth`: a
+// header type, a supertrait's binding, a body value's type and a goal's
+// argument. The proof that `S^70[A]` implements `Walk` is past its own
+// depth too, so each also reports that.
+/// The chain's declarations, then `rest`, where `$S` stands for `S^70[A]`.
+fn projection_chain(rest: &str) -> String {
+    let deep = (0..70).fold(String::from("A"), |t, _| format!("S[{t}]"));
+    let head = "trait Walk:\n    type Out\n\nstruct A:\n    x: i32\n\nimpl Walk for A:\n    type Out = i32\n\nstruct S[T]:\n    x: i32\n\nimpl[T < Walk] Walk for S[T]:\n    type Out = T::Out\n\nstruct W[T < Walk]:\n    v: T::Out\n\n";
+    format!("{head}{}", rest.replace("$S", &deep))
+}
+
+/// Each `trait-resolution-depth` error's line and message, in content
+/// order.
+fn errors_of(source: &str) -> Vec<(usize, String)> {
+    let out = compile(source, &Goal::Analyze);
+    let mut errors: Vec<(usize, String)> = (out.diags.content_order().into_iter())
+        .filter(|&i| out.diags.code[i] == hd_diag::Code::TraitResolutionDepth)
+        .map(|i| {
+            let (_, line, _) = out.locate(out.diags.primary[i]);
+            (line, out.diags.get_text(out.diags.message[i]).to_owned())
+        })
+        .collect();
+    errors.dedup();
+    errors
+}
+
+#[test]
+fn a_projection_past_the_binding_limit_is_reported_where_each_type_is_used() {
+    let past =
+        "normalizing `S[S[S[S[S[S[A]]]]]]::Out` needs more than 64 nested associated-type bindings";
+    let proof = |line: usize, errors: &[(usize, String)]| {
+        errors
+            .iter()
+            .any(|(l, m)| *l == line && m.starts_with("the proof that S[S["))
+    };
+    // A header type: the projection-cycle walk of a parameter's type.
+    let header = errors_of(&projection_chain("fn h(x: W[$S]) -> void:\n    pass\n"));
+    assert!(header.contains(&(19, past.to_owned())), "{header:?}");
+    assert!(proof(19, &header), "{header:?}");
+    // A supertrait's binding that the implementation must match.
+    let sup = errors_of(&projection_chain(
+        "trait Sub < Walk[Out = i32]:\n    fn m(&self) -> i32\n\nimpl Sub for $S:\n    fn m(&self) -> i32:\n        0\n",
+    ));
+    assert!(sup.contains(&(22, past.to_owned())), "{sup:?}");
+    // A body value's type.
+    let body = errors_of(&projection_chain(
+        "fn h(x: *W[$S]) -> void:\n    y := x\n    pass\n",
+    ));
+    assert!(body.contains(&(20, past.to_owned())), "{body:?}");
+    // A goal whose trait argument holds the projection overflows.
+    let goal = errors_of(&projection_chain(
+        "trait Layer[X]:\n    fn m(&self) -> i32\n\nfn f[I < Walk, O < Layer[I::Out]](i: I, o: O) -> i32:\n    0\n\nfn g(i: $S, o: i32) -> i32:\n    f(i, o)\n",
+    ));
+    assert!(proof(26, &goal), "{goal:?}");
+    assert!(
+        goal.iter().any(|(l, m)| *l == 26
+            && m == "the proof that i32 implements Layer needs more than 64 nested bounds"),
+        "{goal:?}"
+    );
+}
