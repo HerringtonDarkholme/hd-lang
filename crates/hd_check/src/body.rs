@@ -69,6 +69,8 @@ pub struct BodyCx<'a> {
     /// The fuel of each body this context checks: `Fuel::BODY_DEFAULT`,
     /// or a smaller budget a test sets to reach `item-too-complex` fast.
     pub fuel: u64,
+    /// Run the checked-body invariant verifier, selected once per compiler run.
+    pub verify_tir: bool,
 }
 
 /// A module's `tests:` block, when its items are checked: its extent (a
@@ -142,7 +144,7 @@ pub(crate) fn too_complex(
     at: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
-    poisoned((item, kind), at, cx.src.span(at), diags)
+    poisoned((item, kind), at, cx.src.span(at), diags, cx.verify_tir)
 }
 
 /// [`too_complex`] for a function body, reported on the function's
@@ -155,7 +157,13 @@ pub(crate) fn fn_too_complex(
     at: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
-    poisoned((item, BodyKind::Fn), at, cx.src.head_span(at), diags)
+    poisoned(
+        (item, BodyKind::Fn),
+        at,
+        cx.src.head_span(at),
+        diags,
+        cx.verify_tir,
+    )
 }
 
 fn poisoned(
@@ -163,9 +171,10 @@ fn poisoned(
     at: NodeRef<'_>,
     span: Span,
     diags: &mut DiagBuf,
+    verify_tir: bool,
 ) -> StageResult<Body> {
     diags.error(Code::ItemTooComplex, span, TOO_COMPLEX);
-    let mut b = TirBuilder::new(item, kind);
+    let mut b = TirBuilder::new(item, kind).with_verification(verify_tir);
     let blk = b.open_block();
     let p = b.emit(Tag::Poison, NONE, NONE, Ty::POISON, at.index());
     let root = b.close_block(blk, Some(p), Ty::POISON, at.index());
@@ -662,7 +671,7 @@ pub(crate) fn new_ck<'a, 'c>(
         comparison_tys: Vec::new(),
         open_integer_writes: Vec::new(),
         open_coercions: Vec::new(),
-        b: TirBuilder::new(item, kind),
+        b: TirBuilder::new(item, kind).with_verification(cx.verify_tir),
         infer: InferTable::default(),
         scopes: vec![HashMap::default()],
         env: ParamEnv::default(),

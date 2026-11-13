@@ -129,6 +129,14 @@ cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
 
 ## Tests And Stage Cases
 
+The checked-body TIR verifier runs in debug compilers and allocation/count
+audit builds (`Packages::checked`). Set `HD_VERIFY=1` for native CLI builds
+with debug assertions disabled; CI's conformance job does this. Embedders
+request the same check with `Packages::verify_tir`. The policy is captured
+once per run and follows forked contexts and generated methods. Explicit
+verification bypasses the whole-result cache and uses distinct module
+check keys, so it cannot reuse an unchecked result.
+
 - Unit tests live beside each crate's source. Integration tests live under
   `crates/*/tests/`.
 - Compiler output is tested with stage cases: a plain `.hd` file under

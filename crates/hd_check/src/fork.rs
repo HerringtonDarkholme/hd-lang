@@ -37,6 +37,7 @@ pub struct BodyFork<'a> {
     tests: Option<TestsView<'a>>,
     session: &'a [hd_base::PathId],
     fuel: u64,
+    verify_tir: bool,
     collect_source_facts: bool,
 }
 
@@ -80,6 +81,7 @@ impl<'a> BodyCx<'a> {
             tests: self.tests,
             session: self.session,
             fuel: self.fuel,
+            verify_tir: self.verify_tir,
             collect_source_facts: self.source_facts.is_some(),
         }
     }
@@ -142,6 +144,7 @@ impl<'a> BodyFork<'a> {
             tests: self.tests,
             session: self.session,
             fuel: self.fuel,
+            verify_tir: self.verify_tir,
         }
     }
 }
