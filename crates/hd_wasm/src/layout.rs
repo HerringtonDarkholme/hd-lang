@@ -532,7 +532,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     INPUT_BORROWED.set(Some(hd_base::HashMap::default()));
     INPUT_OWNED.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
-    link()
+    crate::emit::ref_slots::cached(link)
 }
 
 /// [`cached`], unless a cache is in place already, which `link` then

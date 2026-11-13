@@ -737,6 +737,8 @@ runtime/valid/for-loop-snapshot-push.hd	runtime	accept	lang/06-control-flow.md#r
 runtime/panic/explicit-panic.hd	runtime	panic:explicit-panic	lang/06-control-flow.md#runtime-panics
 runtime/panic/integer-add-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 runtime/panic/invalid-shift.hd	runtime	panic:invalid-shift	lang/05-expressions.md#unary-and-binary-operators
+runtime/panic/deep-reference-holders-keep-their-loans.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/valid/deep-reference-holders-end-their-loans.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/list-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing
 runtime/valid/counted-index-guards-preserve-early-exits.hd	runtime	accept	lang/05-expressions.md#indexing
 runtime/panic/counted-index-guards-keep-out-of-range-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing

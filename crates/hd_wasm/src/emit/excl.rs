@@ -247,51 +247,45 @@ pub(super) fn call_info(
 /// slot's reference type. Struct and tuple fields retain their layout
 /// positions; a nullable `Option[&T]` uses its payload's sole slot.
 fn ref_slots(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<(usize, Ty)> {
-    ref_slots_at(pool, env, t, 0)
-}
-
-fn ref_slots_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: usize) -> Vec<(usize, Ty)> {
-    if depth > 32 {
-        return Vec::new();
-    }
-    let t = strip(pool, env, t);
-    if matches!(
-        kind(pool, env, t),
-        Kind::Ref {
-            whole: false,
-            fat: false,
-            ..
+    use super::ref_slots::{Shape, for_type};
+    for_type(strip(pool, env, t), |t| {
+        if matches!(
+            kind(pool, env, t),
+            Kind::Ref {
+                whole: false,
+                fat: false,
+                ..
+            }
+        ) {
+            return Shape::Leaf;
         }
-    ) {
-        return vec![(0, t)];
-    }
-    if let Some(inner) = pool.sole_arg(t, env.option()) {
-        let Ok(Some(flat)) = flat(pool, env, t) else {
-            return Vec::new();
+        if let Some(inner) = pool.sole_arg(t, env.option()) {
+            let positions = flat(pool, env, t).ok().flatten().and_then(|flat| {
+                flat.positions
+                    .get(1)?
+                    .first()
+                    .map(|slots| slots.iter().map(|&slot| slot as usize).collect())
+            });
+            return positions.map_or_else(
+                || Shape::Fields(Vec::new()),
+                |slots| Shape::Mapped(strip(pool, env, inner), slots),
+            );
+        }
+        if !matches!(kind(pool, env, t), Kind::Value) || variants(pool, env, t).is_some() {
+            return Shape::Fields(Vec::new());
+        }
+        let fields = value_parts(pool, env, t);
+        let Ok((_, parts)) = payload_mem(pool, env, &fields) else {
+            return Shape::Fields(Vec::new());
         };
-        return ref_slots_at(pool, env, inner, depth + 1)
-            .into_iter()
-            .filter_map(|(slot, ty)| {
-                Some((*flat.positions.get(1)?.first()?.get(slot)? as usize, ty))
-            })
-            .collect();
-    }
-    if !matches!(kind(pool, env, t), Kind::Value) || variants(pool, env, t).is_some() {
-        return Vec::new();
-    }
-    let fields = value_parts(pool, env, t);
-    let Ok((_, parts)) = payload_mem(pool, env, &fields) else {
-        return Vec::new();
-    };
-    fields
-        .into_iter()
-        .zip(parts)
-        .flat_map(|(field, part)| {
-            ref_slots_at(pool, env, field, depth + 1)
+        Shape::Fields(
+            fields
                 .into_iter()
-                .map(move |(slot, ty)| (part.first + slot, ty))
-        })
-        .collect()
+                .zip(parts)
+                .map(|(field, part)| (part.first, strip(pool, env, field)))
+                .collect(),
+        )
+    })
 }
 
 /// For a projection that stays within a value's flattened locals, the
