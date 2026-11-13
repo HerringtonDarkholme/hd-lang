@@ -1,6 +1,7 @@
 # Server Applications
 
 Status: design record, 2026-10-24; direction decided (#806, #266).
+Remaining work is parked in [#1821](https://github.com/HerringtonDarkholme/hd-lang/issues/1821) (owner, 2026-11-13): hosted acceptance, slice 9 (the JSPI driver) and slice 10 (the queue and cron adapters).
 
 Implemented: readiness, joined SDK workers, synchronous host turns and lease-owned I/O. Fetch transport, admission, bounded cleanup, Node supervision and request-associated logs are also implemented. The installed SDK carries its portable runtime.
 
