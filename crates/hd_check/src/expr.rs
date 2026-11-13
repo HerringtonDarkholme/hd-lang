@@ -3416,8 +3416,10 @@ impl Ck<'_, '_> {
                     refs.push(this.coerce(vr, vt, v, ve, "map value", ExpectPosition::General));
                 }
                 // A key type an expected map type did not fix meets the key
-                // bound here (types.map-key.declared-bound).
-                if !kids.is_empty() && kw.is_none() {
+                // bound here (types.map-key.declared-bound). The key of an
+                // empty `{}` is not known yet, so its bound waits for the
+                // end of the body, as `m[1.5] = 1` decides it.
+                if kw.is_none() {
                     this.check_map_key(k, n)?;
                 }
                 if kw.is_none() {

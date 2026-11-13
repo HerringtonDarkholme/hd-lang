@@ -1,0 +1,4 @@
+# test: `unique` from `impl[T < Eq & Hash] List[T]` on float literals is an unmet bound at the call
+# Spec 03 Method Lookup: names.method-lookup.inherent.bounds; f64 does not implement Hash.
+pub fn distinct() -> List[f64]:
+    [1.5, 1.5].unique() # diagnostic: unsatisfied-trait-bound

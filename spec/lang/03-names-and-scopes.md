@@ -891,6 +891,7 @@ method, then the candidates, and reports an error when neither applies.
 
 1. r[names.method-lookup.inherent] If `S` has a visible inherent method named `name`, it is selected; it wins over every trait method.
 2. r[names.method-lookup.inherent.by-name] Selection is by name alone, whatever the method's arity or parameter types. A visible inherent method with the wrong signature is still selected, and the call is then checked against it.
+3. r[names.method-lookup.inherent.bounds] The bounds of the implementation that declares the selected method hold for the receiver's type arguments, including an argument that inference decides after the call, as in `[1.5, 0.5].sorted()` from `impl[T < Ord] List[T]`, whose element type is `f64`. The same holds for an associated function such as `Heap::new()` and for a method reference. Error: `unsatisfied-trait-bound`.
 
 ```hd
 struct Counter:

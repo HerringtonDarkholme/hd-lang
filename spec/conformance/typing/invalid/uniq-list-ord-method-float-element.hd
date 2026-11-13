@@ -1,0 +1,8 @@
+# test: `binary_search` from `impl[T < ?Copy & Ord] UniqList[T]` on a list of float literals is an unmet bound at the call
+# Spec 03 Method Lookup: names.method-lookup.inherent.bounds; Spec 09 Traits: trait.cmp.float-ord.
+use std.collections.UniqList
+
+pub fn find() -> bool:
+    let mut values = UniqList::new()
+    values.push(1.5)
+    values.binary_search(&1.5).is_ok() # diagnostic: unsatisfied-trait-bound

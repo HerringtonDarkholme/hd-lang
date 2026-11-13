@@ -1,0 +1,6 @@
+# test: `sum` from `impl[T < Num] List[T]` on a list whose element type is fixed after the call is an unmet bound at the call
+# Spec 03 Method Lookup: names.method-lookup.inherent.bounds; std/collections: std-collections.helper.sum.
+pub fn joined() -> void:
+    let mut words = []
+    _ := words.sum() # diagnostic: unsatisfied-trait-bound
+    words.push("a")

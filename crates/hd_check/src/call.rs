@@ -3855,6 +3855,7 @@ impl Ck<'_, '_> {
             self.row_argument_vars(impl_def, &impl_args, n);
             self.open_call_params(method, &vars, &refs, n);
             self.bounds_of(&sig, &vars, &inst, n)?;
+            self.impl_bounds_of(impl_def, &impl_args, n)?;
             self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n);
             let mut targs = impl_args.clone();
             targs.extend(&vars);
@@ -4086,6 +4087,48 @@ impl Ck<'_, '_> {
         for (i, g) in sig.generics.iter().enumerate() {
             for b in &g.bounds {
                 self.check_bindings(vars[i], inst(*b), n)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The bounds of the impl that supplies a selected inherent method,
+    /// at the call `n` (`names.method-lookup.inherent.bounds`). Lookup
+    /// proved each bound whose type it knew, so only a bound on a type
+    /// that still holds inference variables is required here, and it waits
+    /// for the end of the body: in `[1.5, 0.5].sorted()` the element class
+    /// settles to `f64` only then, and fails `impl[T < Ord] List[T]`.
+    pub(crate) fn impl_bounds_of(
+        &mut self,
+        impl_def: DefId,
+        impl_args: &[Ty],
+        n: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let generics = self
+            .cx
+            .lookup
+            .item(impl_def)
+            .map_or(&[][..], |i| &i.generics[..]);
+        for (g, &arg) in generics.iter().zip(impl_args) {
+            if g.bounds.is_empty() {
+                continue;
+            }
+            let arg = self.infer.resolve(pool, arg);
+            if !pool.has_infer(arg) {
+                continue;
+            }
+            let traits = g
+                .bounds
+                .iter()
+                .filter_map(|b| pool.trait_value(subst_owner(pool, impl_def, impl_args, *b)));
+            for (trait_, args) in traits {
+                let tref = TraitRef {
+                    trait_,
+                    self_ty: arg,
+                    args,
+                };
+                self.require_ref(tref, n)?;
             }
         }
         Ok(())
@@ -4866,6 +4909,7 @@ impl Ck<'_, '_> {
                 } else {
                     self.bounds_of(&sig, &vars, &inst, n)?;
                 }
+                self.impl_bounds_of(impl_def, &impl_args, n)?;
                 self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n);
                 let mut targs = impl_args.clone();
                 targs.extend(&vars);

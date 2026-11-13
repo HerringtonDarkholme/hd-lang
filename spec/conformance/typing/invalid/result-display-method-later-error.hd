@@ -1,0 +1,11 @@
+# test: `expect` from `impl[T, E < Display] Result[T, E]` on a result whose error type is fixed after the call is an unmet bound at the call
+# Spec 03 Method Lookup: names.method-lookup.inherent.bounds; std/result: std-result.expect.bound.
+struct Plain:
+    n: i32
+
+pub fn value(flag: bool) -> i32:
+    let mut r = Result::Ok(1)
+    v := r.expect("no") # diagnostic: unsatisfied-trait-bound
+    if flag:
+        r = .Err(Plain { n: 1 })
+    v

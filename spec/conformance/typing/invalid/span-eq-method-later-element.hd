@@ -1,0 +1,10 @@
+# test: `index_of_span` from `impl[T < Eq, 'a] Span[T, 'a]` on a list whose element type is fixed after the call is an unmet bound at the call
+# Spec 03 Method Lookup: names.method-lookup.inherent.bounds.
+struct Plain:
+    n: i32
+
+pub fn find() -> usize?:
+    let mut xs = []
+    found := xs.span().index_of_span(xs.span()) # diagnostic: unsatisfied-trait-bound
+    xs.push(Plain { n: 1 })
+    found

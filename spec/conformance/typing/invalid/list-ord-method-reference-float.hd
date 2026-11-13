@@ -1,0 +1,6 @@
+# test: a bound reference to a method of `impl[T < Ord] List[T]` on float literals is an unmet bound at the reference
+# Spec 03 Method Lookup: names.method-lookup.inherent.bounds; Spec 07 Functions: fn.ref.lookup.
+pub fn later() -> List[f64]:
+    values := box([1.5, 0.5])
+    sort_them := values::sorted # diagnostic: unsatisfied-trait-bound
+    sort_them()

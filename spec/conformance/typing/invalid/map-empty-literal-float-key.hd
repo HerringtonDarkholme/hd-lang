@@ -1,0 +1,6 @@
+# test: an empty map literal whose key settles to f64 later fails the key bound at the literal
+# Spec 04 Map Keys: types.map-key.declared-bound; f64 does not implement Hash.
+pub fn count() -> usize:
+    let mut m = {} # diagnostic: unsatisfied-trait-bound
+    m[1.5] = 1
+    m.len()

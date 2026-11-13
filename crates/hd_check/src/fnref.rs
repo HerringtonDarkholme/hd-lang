@@ -685,6 +685,9 @@ impl Ck<'_, '_> {
             *choice = Some(self.call_choice(tref, m.def, n)?);
         }
         let m = &*m;
+        if let Owner::Impl { def, args } = &m.owner {
+            self.impl_bounds_of(*def, args, n)?;
+        }
         let inst = |x: Ty| inst(pool, m, x);
         self.bounds_of(&m.sig, &m.vars, &inst, n)
     }
