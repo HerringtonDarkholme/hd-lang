@@ -1174,3 +1174,5 @@ says that the check covered syntax only.
 
 | 2026-11-12 | #1313 focused WAT | api | `use std.ops.Drop` | ``unknown-import: module 'std.ops' declares no 'Drop'``; ``unknown-method: no method `drop` on UniqList[i32]; `Drop` supplies it but is not available here, add a `use` for it``; ``unknown-method: no method `drop` on UniqList[string]; `Drop` supplies it but is not available here, add a `use` for it`` | partly: diagnostic identified the trait; std source supplied its module | `use std.rt.Drop` | GPT-6 (Codex) |
 | 2026-11-12 | #1313 focused WAT | api | `use std.rt.Drop` in a user stage case | ``std-only-use: `std.rt.Drop` is a runtime module, which only the standard library may use`` | yes | Inspect the destructor in a std stage case with `# @build: v8 release std` | GPT-6 (Codex) |
+
+| 2026-11-12 | #1737 | api | `tests: it("an early loop exit copies no shared buffer"):` in an injected std runtime module without testing imports | ``invalid-test-statement: a `tests:` block holds only test registrations`` | no | Import `std.testing.{assert, assert_equal, it}` inside `tests:`, as other injected std modules do. | GPT-6 |
