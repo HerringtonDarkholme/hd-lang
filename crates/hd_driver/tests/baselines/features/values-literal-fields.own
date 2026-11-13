@@ -133,7 +133,7 @@ pub fn main() -> void $ Console:
 >   %3 = Block - : Histogram
 >   %4 = Scope %3 [] : Histogram
 >   %5 = Store [$0] %4 : ()
->   %199 = Block - : ()
+>   %200 = Block - : ()
     for i in 0..8:
 >   %6 = NewStruct [0:usize 8:usize 0:bool] : Range[usize]
 >   %7 = Read copy [%6 .start] : usize
@@ -333,8 +333,9 @@ pub fn main() -> void $ Console:
 >   %194 = Break L1 - : never
 >   %195 = Block - : ()
 >   %196 = Scope %195 [] : ()
->   %197 = Read move [%113] : string
->   %198 = Call std/console/println[string] (%197) : ()
+>   %197 = Call std/console/println[string] (%113) : ()
+>   %198 = Retain %197 Operation operand 0 #0 : ()
+>   %199 = Drop [%113] : ()
 >   %41 finds [$0] full
 >   %62 finds [$5] full
 >   storage sub 0: $0 slot, $5 slot

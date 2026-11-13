@@ -41,29 +41,27 @@ fn direct(l: Logger) -> usize:
 >   local $0 l: Logger [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %11 -> %12 lend last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>     uses $1: %10 -> %11 lend last
+>   %0 = Release %17 Exit local $0 #2 : ()
     l.headline().len()
->   %1 = Read move [$0] : Logger
->   %2 = Read move [%1 .name] : string
+>   %1 = Read borrow [$0] : Logger
+>   %2 = Read borrow [%1 .name] : string
 >   %3 = Break L1 %2 : never
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
 >   %6 = Intrinsic StrConcat ["* " %5] : string
->   %7 = Drop [%5] : ()
->   %8 = Break L2 %6 : never
->   %9 = Block - : string
->   %10 = Scope %9 [] : string
->   %11 = Store [$1] %10 : ()
->   %12 = Read borrow [$1] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$1] : ()
->   %18 = Block %16 : usize
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   %7 = Break L2 %6 : never
+>   %8 = Block - : string
+>   %9 = Scope %8 [] : string
+>   %10 = Store [$1] %9 : ()
+>   %11 = Read borrow [$1] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Drop [$1] : ()
+>   %17 = Block %15 : usize
+>   summary kept [] borrows [$0]
 
 fn generic[T < Describe](x: T) -> usize:
 > app/main/generic
@@ -123,35 +121,33 @@ fn qualified(l: Logger) -> usize:
 > app/main/qualified
 >   local $0 l: Logger [param read captured] place
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %17 -> %18 lend last
+>     uses $1: %15 -> %16 lend last
 >   local $3 self: &Logger [read] value
 >     uses $3: %3 -> %4 lend last
->   %0 = Retain %24 Entry local $0 #0 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
     Describe::headline(&l).len()
 >   %1 = Ref local frame [$0] : &Logger
 >   %2 = Coerce %1 [Weaken -] : &Logger
 >   %3 = Store [$3] %2 : ()
->   %4 = Read copy [$3] : &Logger
->   %5 = Read copy [*%4 .name] : string
+>   %4 = Read borrow [$3] : &Logger
+>   %5 = Read borrow [*%4 .name] : string
 >   %6 = Break L1 %5 : never
 >   %7 = Block - : string
 >   %8 = Scope %7 [] : string
->   %9 = LoanEnd [%4] : ()
->   %10 = Intrinsic StrConcat ["* " %8] : string
->   %11 = Drop [%8] : ()
->   %12 = Break L2 %10 : never
->   %13 = Block - : string
->   %14 = Scope %13 [] : string
->   %15 = LoanEnd [$3] : ()
->   %16 = Drop [$0] : ()
->   %17 = Store [$1] %14 : ()
->   %18 = Read borrow [$1] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L0 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Drop [$1] : ()
->   %24 = Block %22 : usize
+>   %9 = Intrinsic StrConcat ["* " %8] : string
+>   %10 = Break L2 %9 : never
+>   %11 = Block - : string
+>   %12 = Scope %11 [] : string
+>   %13 = LoanEnd [$3] : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Store [$1] %12 : ()
+>   %16 = Read borrow [$1] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Drop [$1] : ()
+>   %22 = Block %20 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0]

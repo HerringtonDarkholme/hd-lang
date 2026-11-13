@@ -70,10 +70,10 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >     uses $1: entry -> %2 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %6 -> %7 lend last
->   %0 = Release %13 Exit local $0 #2 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
+>   %0 = Release %12 Exit local $0 #2 : ()
+>   %1 = Release %12 Exit local $1 #2 : ()
     j.tagged(s).len()
->   %2 = Read move [$1] : string
+>   %2 = Read borrow [$1] : string
 >   %3 = Break L1 %2 : never
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
@@ -83,7 +83,5 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
->   %12 = Drop [$2] : ()
->   %13 = Block %11 : usize
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0]
+>   %12 = Block %11 : usize
+>   summary kept [] borrows [$0 $1]

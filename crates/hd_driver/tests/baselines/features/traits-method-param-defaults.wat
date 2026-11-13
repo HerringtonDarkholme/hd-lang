@@ -96,11 +96,6 @@
   )
   (func $generic_method (param $j i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 21 |     j.tagged(s).len()
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref'1
-    end
     local.get $s.1
   )
 )

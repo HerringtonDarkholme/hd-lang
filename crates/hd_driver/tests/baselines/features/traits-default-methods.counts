@@ -11,12 +11,6 @@ trait Describe:
 
     fn headline(&self) -> string:
         "* " + self.describe()
-> app/main/Describe.headline
->   retain string (stored)
->   release string (last use)
-> app/main/Describe.headline
->   retain string (stored)
->   release string (last use)
 
 struct Logger:
     name: string
@@ -31,7 +25,6 @@ fn direct(l: Logger) -> usize:
     l.headline().len()
 > app/main/direct
 >   release string (last use)
->   release string (last use)
 
 fn generic[T < Describe](x: T) -> usize:
     x.headline().len()
@@ -45,7 +38,5 @@ fn use_generic(l: Logger) -> usize:
 fn qualified(l: Logger) -> usize:
     Describe::headline(&l).len()
 > app/main/qualified
->   retain string (stored)
->   release string (last use)
 >   release app.main.Logger [name.0] (last use)
 >   release string (last use)

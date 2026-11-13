@@ -25,7 +25,6 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
     pick(xs, 0).name = s
 > app/main/call_receiver
 >   retain *mut app.main.Node (stored)
->   release List[*mut app.main.Node] (last use)
 >   release counted reference (overwritten)
 >   release *mut app.main.Node (last use)
 

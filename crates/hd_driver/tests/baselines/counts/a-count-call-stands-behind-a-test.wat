@@ -2,10 +2,9 @@
 (module
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $copied (param $xs i32) (result i32) (local $t0 i32)
@@ -36,7 +35,7 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
     ;; 23 |     ys._0.len() + ys._1.len()
@@ -78,40 +77,19 @@
       i32.or
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
     local.get $t1
   )
-  (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 17 |     ys := known(xs)
     local.get $xs
     ;; 19 |     ys.len() + t.len()
     i32.load $heap offset=4
-    local.set $t0
-    ;; 17 |     ys := known(xs)
-    local.get $xs
-    if
-      local.get $xs
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $xs
-        call $rt:release_ref'1
-      end
-    end
-    local.get $s.0
-    local.tee $xs
-    if
-      local.get $xs
-      call $rt:release_ref'2
-    end
-    ;; 19 |     ys.len() + t.len()
-    local.get $t0
+    ;; 18 |     t := other(s)
     local.get $s.1
+    ;; 19 |     ys.len() + t.len()
     i32.add
   )
   (func $other (param $s.0 i32) (param $s.1 i32) (result i32 i32)

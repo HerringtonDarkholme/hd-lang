@@ -2,12 +2,13 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -179,7 +180,7 @@
         i32.load $heap
         if
           local.get $t2
-          call $rt:release_ref
+          call $rt:release_ref'1
         end
       end
     end
@@ -227,7 +228,7 @@
         i32.load $heap
         if
           local.get $t2
-          call $rt:release_ref
+          call $rt:release_ref'1
         end
       end
     end
@@ -330,14 +331,18 @@
     i32.add
     local.get $t2
     call $write_signed_sized
-    ;; 31 |     let mut h = histogram()
     local.get $t9
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t10
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 31 |     let mut h = histogram()
+    local.get $t9
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'2
+    end
     local.get $t0
     i32.const 32
     i32.add

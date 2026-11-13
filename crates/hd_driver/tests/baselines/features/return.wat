@@ -4,9 +4,8 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -67,7 +66,7 @@
     ;; 19 |     &r.name
     local.get $r
   )
-  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t4 i32) (local $t3 i32)
+  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32)
     ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
     global.get $locals
     global.get $locals_base
@@ -115,35 +114,13 @@
     local.get $r
     i32.load $heap offset=4
     local.set $t1
-    local.tee $t2
-    local.tee $t3
-    if
-      local.get $t3
-      call $retain
-    end
-    local.get $t2
-    local.tee $t3
-    if
-      local.get $t3
-      call $rt:release_ref
-    end
+    drop
     local.get $r
     i32.load $heap
     local.get $r
     i32.load $heap offset=4
     local.set $t2
-    local.tee $t4
-    local.tee $t3
-    if
-      local.get $t3
-      call $retain
-    end
-    local.get $t4
-    local.tee $t3
-    if
-      local.get $t3
-      call $rt:release_ref
-    end
+    drop
     local.get $t1
     local.get $t2
     i32.add
@@ -155,9 +132,9 @@
     if
       local.get $r
       i32.load $heap
-      local.tee $t3
+      local.tee $r
       if
-        local.get $t3
+        local.get $r
         call $rt:release_ref
       end
     end

@@ -22,6 +22,7 @@ pub fn main!() -> void $ Console + Clock:
 >   release app.main.Meter (last use)
 >   release *mut app.main.Counter (last use)
 >   release counted reference (last use)
+>   release string (last use)
 >   release counted reference (last use)
 >   release *mut app.main.Counter (last use)
 > app/main/main

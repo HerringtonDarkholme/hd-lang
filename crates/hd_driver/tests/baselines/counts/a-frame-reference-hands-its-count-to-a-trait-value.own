@@ -47,16 +47,16 @@ pub fn main!() -> void $ Console + Clock:
 >     uses $9: %42 -> %43 lend, %46 lend last
 >   local $10 count: i64 [read] value
 >     uses $10: %18 -> %19 lend last
->   %0 = Retain %82 Cold row #0 : ()
->   %1 = Retain %82 Materialize row #0 : ()
->   %2 = Release %82 FrameDrop row #2 : ()
->   %3 = Release %82 FrameDrop child #2 : ()
+>   %0 = Retain %83 Cold row #0 : ()
+>   %1 = Retain %83 Materialize row #0 : ()
+>   %2 = Release %83 FrameDrop row #2 : ()
+>   %3 = Release %83 FrameDrop child #2 : ()
 >   %4 = NewStruct [0:i32] : Counter
 >   %5 = Store [$0] %4 : ()
 >   %6 = Ref mut [$0] : *mut Counter
 >   %7 = Retain %6 Value #0 : ()
 >   %8 = Store [$1] %6 : ()
->   %82 = Block - : ()
+>   %83 = Block - : ()
 >   %6 finds [$0] full
     $.with(Meter=counter):
 >   %9 = Read copy [$1] : *mut Counter
@@ -133,8 +133,9 @@ pub fn main!() -> void $ Console + Clock:
 >   %77 = Break L0 - : never
 >   %78 = Block - : ()
 >   %79 = Scope %78 [] : ()
->   %80 = Read move [%64] : string
->   %81 = Call std/console/println[string] (%80) : ()
+>   %80 = Call std/console/println[string] (%64) : ()
+>   %81 = Retain %80 Operation operand 0 #0 : ()
+>   %82 = Drop [%64] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 cell
 >   summary none

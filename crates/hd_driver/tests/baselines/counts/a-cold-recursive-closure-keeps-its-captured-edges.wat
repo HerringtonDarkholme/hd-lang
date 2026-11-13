@@ -598,6 +598,13 @@
           local.get $provider0
           local.get $provider0.vtable
           call $"println[string]"
+    ;; 13 |     read := make("kept")
+          local.get $t11
+          local.tee $t14
+          if
+            local.get $t14
+            call $rt:release_ref'1
+          end
     ;; 15 |     text := generic("text")
           i32.const 117 ;; &"text"
           i32.const 4
@@ -974,6 +981,13 @@
         local.get $provider0
         local.get $provider0.vtable
         call $"println[string]"
+    ;; 13 |     read := make("kept")
+        local.get $t11
+        local.tee $t14
+        if
+          local.get $t14
+          call $rt:release_ref'1
+        end
     ;; 18 |     println(number!())
         local.get $number.0
         local.get $number.1

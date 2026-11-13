@@ -16,9 +16,6 @@ pub fn other(s: string) -> string:
 
 pub fn dropped(xs: List[string], s: string) -> usize:
     ys := known(xs)
-> app/main/dropped
->   release List[string] (last use)
->   release string (last use)
     t := other(s)
     ys.len() + t.len()
 

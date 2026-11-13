@@ -201,6 +201,9 @@ pub(crate) struct Tables {
     root_uses: Vec<(u32, u32)>,
     // The counted reads that may keep a count.
     takers: Vec<u32>,
+    // Per label: its wrapper `Scope` ([`wrappers`]), or `NONE`.
+    wrapper: Vec<u32>,
+    scope_of: Vec<u32>,
     back: Flow,
     ops: Vec<super::Operand>,
     stack: Vec<u32>,
@@ -532,6 +535,7 @@ impl Tables {
 /// The facts of each value and local: uses, drops, stores.
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
+    wrappers(b, t);
     let recursive = super::RecursiveBindings::new(b);
     let mut ops = std::mem::take(&mut t.ops);
     let mut through = super::promote::ReadThroughUses::default();
@@ -602,6 +606,17 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 Role::Consume if b.same_value_coercion(i) && t.v[v].alias == NONE => {
                     t.v[v].alias = u32_of(i);
                     false
+                }
+                Role::Consume
+                    if tag == Tag::Break && b.tags[v] == Tag::Read && t.v[v].alias == NONE =>
+                {
+                    let s = t.wrapper[b.data[i][0] as usize];
+                    if s == NONE {
+                        true
+                    } else {
+                        t.v[v].alias = s;
+                        false
+                    }
                 }
                 Role::Consume
                     if tag == Tag::Store && op.at == Loc::Data(1) && t.v[v].stored == NONE =>
@@ -697,6 +712,38 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 t.v[v as usize].keeps = true;
             }
         }
+    }
+}
+
+/// Each label's wrapper `Scope` in `t.wrapper`, `NONE` for none: a
+/// [`Body::wrapper_value`] whose block its last member's `Break` is the
+/// one way out of, as an inlined call's copy is. That `Scope`'s value is
+/// the `Break`'s operand, so a read there is used where the `Scope` is.
+fn wrappers(b: &Body, t: &mut Tables) {
+    wrappers_with(b, t, || {});
+}
+
+fn wrappers_with(b: &Body, t: &mut Tables, mut visit: impl FnMut()) {
+    let labels = b.label_inst.len();
+    fill(&mut t.wrapper, labels, 0);
+    fill(&mut t.scope_of, b.len(), NONE);
+    for i in 0..b.len() {
+        visit();
+        if b.tags[i] == Tag::Break
+            && let Some(c) = t.wrapper.get_mut(b.data[i][0] as usize)
+        {
+            *c += 1;
+        } else if b.wrapper_value(i).is_some() {
+            t.scope_of[b.data[i][0] as usize] = u32_of(i);
+        }
+    }
+    for l in 0..labels {
+        visit();
+        let blk = b.label_inst[l] as usize;
+        t.wrapper[l] = match t.scope_of.get(blk) {
+            Some(&s) if t.wrapper[l] == 1 => s,
+            _ => NONE,
+        };
     }
 }
 
@@ -1586,6 +1633,50 @@ mod lending_tests {
     use hd_types::{Ty, TyList};
 
     const LOCAL_REF: Ty = Ty(1_000_004);
+
+    #[test]
+    fn wrapper_work_is_linear_in_width_and_depth() {
+        for (width, depth) in [(1, 1), (1000, 1), (1, 20), (1000, 20)] {
+            let mut b = Body::new(DefId::from_raw(4), BodyKind::Fn);
+            // Only the instruction and label columns are queried by this
+            // index. Build nested single-exit scopes without a native walk.
+            let mut expected = Vec::new();
+            for _ in 0..width {
+                let mut value = u32_of(b.len());
+                b.tags.push(Tag::Read);
+                b.data.push([0, ReadMode::Borrow as u32]);
+                for _ in 0..depth {
+                    let label = u32_of(b.label_inst.len());
+                    let exit = u32_of(b.len());
+                    b.tags.push(Tag::Break);
+                    b.data.push([label, value]);
+                    let record = u32_of(b.extra.len());
+                    b.extra.extend([1, exit]);
+                    let block = u32_of(b.len());
+                    b.tags.push(Tag::Block);
+                    b.data.push([record, NONE]);
+                    b.label_inst.push(block);
+                    let empty = u32_of(b.extra.len());
+                    b.extra.push(0);
+                    value = u32_of(b.len());
+                    b.tags.push(Tag::Scope);
+                    b.data.push([block, empty]);
+                    expected.push(value);
+                }
+            }
+            let mut t = Tables::default();
+            let mut visits = 0;
+            wrappers_with(&b, &mut t, || visits += 1);
+            assert_eq!(t.wrapper, expected);
+            assert_eq!(visits, b.len() + b.label_inst.len());
+            // A second exit to a block invalidates that wrapper only.
+            b.tags.push(Tag::Break);
+            b.data.push([0, 0]);
+            wrappers(&b, &mut t);
+            assert_eq!(t.wrapper[0], NONE);
+            assert_eq!(&t.wrapper[1..], &expected[1..]);
+        }
+    }
 
     struct ReadOnly;
     impl OwnCx for ReadOnly {
