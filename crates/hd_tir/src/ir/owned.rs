@@ -109,9 +109,37 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Empties::new(&cx, own).walk(&mut errs);
     borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
+    borrowed_wrappers(b, &mut errs);
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// A wrapper `Scope` a borrow goes through ([`Body::borrowed_alias`]) has
+/// that borrow's `Break` as its one way out, so its value is that borrow.
+fn borrowed_wrappers(b: &Body, errs: &mut Vec<VerifyError>) {
+    // Per instruction: the `Break`s to the label it is, if any.
+    let mut breaks = vec![0u32; b.len()];
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Break
+            && let Some(&at) = b.label_inst.get(b.data[i][0] as usize)
+            && let Some(c) = breaks.get_mut(at as usize)
+        {
+            *c += 1;
+        }
+    }
+    for s in 0..b.len() {
+        if b.tags[s] == Tag::Scope
+            && b.borrowed_alias(u32_of(s)).is_some()
+            && breaks[b.data[s][0] as usize] != 1
+        {
+            err(
+                errs,
+                u32_of(s),
+                "a borrow leaves a block that another `Break` also leaves".into(),
+            );
+        }
+    }
 }
 
 /// Every owned borrowed result takes its count exactly once,
@@ -1551,8 +1579,8 @@ impl Backward for Live<'_> {
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
         let mut x = v;
         for _ in 0..b.len() {
-            if b.is_borrowed_coercion(x) {
-                x = b.data[x as usize][0];
+            if let Some(r) = b.borrowed_alias(x) {
+                x = r;
                 continue;
             }
             let Some(&k) = self.bit.get(x as usize) else {

@@ -32,5 +32,3 @@ fn delegated(s: Service) -> usize:
 
 fn explicit(s: Service) -> usize:
     s.Logger.describe().len()
-> app/main/explicit
->   release string (last use)

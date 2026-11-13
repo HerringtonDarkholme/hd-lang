@@ -2,11 +2,11 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $call_receiver (param $xs i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
+  (func $call_receiver (param $xs i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
     ;; 19 |     pick(xs, 0).name = s
     i32.const 0
     local.get $xs
@@ -18,50 +18,38 @@
     end
     local.get $xs
     i32.load $heap offset=16
+    local.tee $xs
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
     local.get $xs
-    local.tee $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-    end
-    local.get $t0
     i32.load $heap
-    local.get $t0
+    local.get $xs
     i32.load $heap offset=4
-    local.get $t0
+    local.get $xs
     local.get $s.0
     i32.store $heap
-    local.get $t0
+    local.get $xs
     local.get $s.1
     i32.store $heap offset=4
     call $rt:release
-    local.get $t0
-    local.tee $t1
+    local.get $xs
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end

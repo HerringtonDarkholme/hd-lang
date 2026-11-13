@@ -6,8 +6,9 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
@@ -122,9 +123,19 @@
     local.get $original.1
     i32.const 7
     call_indirect $table0 (param i32 i32) (result i32 i32)
+    local.set $t2
+    local.tee $shared
+    local.get $t2
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 39 |     original := word(7)
+    local.get $shared
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 41 |     println(same(+7))
     i32.const 7
     i32.const 8
@@ -149,6 +160,8 @@
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32 i32)
+    local.set $t3
+    local.tee $shared
     ;; 39 |     original := word(7)
     local.get $t2
     local.tee $t1
@@ -161,13 +174,21 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 42 |     println(keep(original)())
+    local.get $t3
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 39 |     original := word(7)
+    local.get $shared
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 43 |     call := make()
     i32.const 10
     call_indirect $table0 (result i32 i32)
@@ -180,6 +201,8 @@
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32)
+    local.set $t3
+    local.tee $shared
     ;; 39 |     original := word(7)
     local.get $t2
     local.tee $t1
@@ -192,13 +215,21 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 44 |     println(call(original))
+    local.get $t3
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 39 |     original := word(7)
+    local.get $shared
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 45 |     println(read(&original))
     local.get $original.0
     local.get $original.1
@@ -264,7 +295,7 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 47 |     println(same(shared).text)
@@ -273,6 +304,13 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 39 |     original := word(7)
+    local.get $t3
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 48 |     println(keep(shared)().text)
     local.get $shared
     local.tee $t1
@@ -308,7 +346,7 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 48 |     println(keep(shared)().text)
@@ -335,7 +373,7 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 48 |     println(keep(shared)().text)
@@ -344,6 +382,13 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    ;; 39 |     original := word(7)
+    local.get $t3
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 49 |     println(keep(+7)())
     i32.const 7
     i32.const 14
@@ -366,7 +411,7 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 49 |     println(keep(+7)())
@@ -391,6 +436,12 @@
     local.get $provider0.vtable
     call $"println[string]"
     ;; 39 |     original := word(7)
+    local.get $t2
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $shared
     local.tee $t1
     if
@@ -402,7 +453,7 @@
       i32.or
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 51 |     let mut items = UniqList::[i32].new()
@@ -559,7 +610,13 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
+    local.get $original.0
     ;; 39 |     original := word(7)
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.const 80
     i32.add

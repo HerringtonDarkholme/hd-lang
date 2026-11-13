@@ -34,6 +34,7 @@ pub fn main() -> void $ Console:
 >   release app.main.Trail [steps] (last use)
 >   release List[i64] (last use)
 >   release List[i64] (last use)
+>   release string (last use)
     for i in 0..4:
         trail.enter(i64(i))
     let mut local: List[i64] = [5, 6]

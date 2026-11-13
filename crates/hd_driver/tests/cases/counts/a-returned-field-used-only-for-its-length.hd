@@ -1,0 +1,15 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a returned field used only for its length needs no counted copy.
+struct Rec:
+    name: string
+
+fn field(r: Rec) -> string:
+    r.name
+
+# subject
+fn query(rows: &List[Rec], rounds: usize) -> usize:
+    let total = 0
+    for i in 0..rounds:
+        total += field(rows[i % rows.len()]).len()
+    total

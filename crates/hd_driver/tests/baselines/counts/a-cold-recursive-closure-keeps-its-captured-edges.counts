@@ -58,8 +58,10 @@ pub fn main!() -> void $ Console:
 > app/main/main
 >   release Suspend[string] (last use)
 >   release fn!(usize) -> string (last use)
+>   release string (last use)
 >   release Suspend[string] (last use)
 >   release fn!() -> string (last use)
+>   release string (last use)
 >   release Suspend[i32] (last use)
 >   release fn!() -> i32 (last use)
 >   release fn!() -> i32 (last use)

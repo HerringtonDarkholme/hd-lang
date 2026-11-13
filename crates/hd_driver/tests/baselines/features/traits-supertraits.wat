@@ -22,11 +22,6 @@
   )
   (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32)
     ;; 32 |     d.name().len() + d.bark().len()
-    local.get $d.name.0
-    if
-      local.get $d.name.0
-      call $rt:release_ref
-    end
     local.get $d.name.1
     i32.const 4
     i32.add
@@ -81,13 +76,21 @@
     i32.load $heap
     local.get $p
     i32.load $heap offset=4
+    local.set $t1
     local.get $p
     i32.const 0
     i32.store $heap
     local.get $p
     i32.const 0
     i32.store $heap offset=4
+    local.tee $t2
+    local.get $t1
     call $"loud[Pup]"
+    local.get $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
     i32.add
     local.get $t0
     i32.const 16

@@ -37,6 +37,7 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   release app.main.Histogram (last use)
 >   release app.main.Shelf (last use)
+>   release string (last use)
     for i in 0..8:
         h.add(i % 4)
     let mut s = shelf()
