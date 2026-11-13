@@ -26,7 +26,7 @@ sloppy-std-path	hd_resolve	27
 sloppy-std-path	hd_structure	4
 sloppy-std-path	hd_wasm	8
 sloppy-unreachable	hd_check	16
-sloppy-unreachable	hd_tir	2
+sloppy-unreachable	hd_tir	1
 sloppy-unreachable	hd_types	2
 sloppy-unreachable	hd_wasm	16
 sloppy-unwrap	hd_driver	4
