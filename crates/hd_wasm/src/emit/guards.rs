@@ -18,7 +18,9 @@
 //!    with no call nothing else runs while the body does. A shared `&T`
 //!    parameter's referent is unchanged whatever the body does: nothing
 //!    may write it while the reference lives (`ref.excl.shared`,
-//!    `ref.excl.alias.conflict`, `module.rt.ptr.as-ref`). In a loop
+//!    `ref.excl.alias.conflict`, `module.rt.ptr.as-ref`), not even std
+//!    through a `Ptr` or a raw store (`module.rt.ptr.write.shared`,
+//!    `module.rt.memory.store.shared`). In a loop
 //!    (#1706), the same holds of the loop's writes alone, and of a local
 //!    in a cell as of a parameter's referent: no store into the cell or
 //!    move out of it, and a `Ptr` store goes into a room, never a cell.
@@ -234,7 +236,9 @@ struct Proof<'e, 'x, 'a, 'm> {
     fixed: Vec<bool>,
     /// Those whose reference is shared, `&T`: nothing writes the referent
     /// while the body runs (`ref.excl.shared`, `ref.excl.alias.conflict`,
-    /// `module.rt.ptr.as-ref`), whatever the body does.
+    /// `module.rt.ptr.as-ref`), whatever the body does, a `Ptr` write or
+    /// a raw store included (`module.rt.ptr.write.shared`,
+    /// `module.rt.memory.store.shared`).
     shared: Vec<bool>,
     /// Locals in a cell that no closure shares, and that hold no
     /// reference: each one's cell value is a root (`c | OWN`).
