@@ -5456,6 +5456,10 @@ typing/invalid/local-reference-escapes-top-level.hd	type	reject:local-reference-
 typing/invalid/local-reference-escapes-capture.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
 typing/valid/function-parameter-captures-local-reference.hd	type	accept	lang/07-functions.md#r-fn.capture.local-parameter
 typing/invalid/function-parameter-capture-stored-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.capture.local-store
+typing/invalid/function-parameter-with-a-written-lifetime-stored-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.capture.local-store
+typing/invalid/function-parameter-stored-through-a-local-reference-then-a-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.capture.local-store
+typing/invalid/function-parameter-stored-through-a-reference-to-a-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.capture.local-store
+typing/valid/function-parameter-stored-in-a-local-through-a-reference.hd	type	accept	lang/07-functions.md#r-fn.capture.local-store
 typing/invalid/local-reference-escapes-trait-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
 typing/invalid/local-reference-escapes-trait-argument-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
 typing/invalid/local-reference-escapes-trait-argument-impl-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument

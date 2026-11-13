@@ -1,0 +1,13 @@
+# test: a function parameter stored into a local through a reference keeps its capture origins, so storing that local in a field is an error
+# Spec 07 Captures: fn.capture.local-store.
+struct Point:
+    x: i32
+
+struct Holder:
+    f: fn(&Point) -> i32
+
+fn keep(f: fn(&Point) -> i32) -> Holder:
+    let mut k = fn(q: &Point) -> i32: q.x
+    r := &mut k
+    *r = f
+    Holder { f: k } # diagnostic: local-reference-escapes

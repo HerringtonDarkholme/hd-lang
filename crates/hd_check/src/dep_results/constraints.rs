@@ -55,6 +55,9 @@ struct Gen<'s, 'a> {
     /// call of the function value it returned passes arguments at
     /// ([`Var::At`]), made before either call is visited.
     returned: HashMap<u32, Vec<(u32, Region)>>,
+    /// The value each `:=` local that is no parameter is bound to, indexed
+    /// once on first use ([`Gen::local_target`]).
+    shorts: std::cell::OnceCell<HashMap<u32, u32>>,
 }
 
 /// What the result checks need: the function's map with what each
@@ -784,10 +787,7 @@ impl Gen<'_, '_> {
             }
             Tag::Store => {
                 let [place, v] = b.data[iu];
-                let local = b
-                    .decode_place(place)
-                    .is_some_and(|p| matches!(p.root, PlaceRoot::Local(_)) && p.proj.is_empty());
-                if !local {
+                if !self.local_target(place) {
                     let held = self.field_drops_held(i, place);
                     kept.push((v, Category::FieldCapture, held));
                 }
@@ -835,6 +835,55 @@ impl Gen<'_, '_> {
                 self.checked(r, self.stat, cat, at);
             }
         }
+    }
+
+    /// Whether the place `word` is the whole of a local: the local itself,
+    /// or `*r` for a `:=` local `r` bound to `&mut k` of a local `k`. A
+    /// store there keeps a captured function value in the local, where
+    /// the walk follows it (`fn.capture.local-store` names no local).
+    fn local_target(&self, word: u32) -> bool {
+        let b = self.s.b;
+        let whole_local = |p: &Option<hd_tir::ir::Place>| {
+            (p.as_ref()).is_some_and(|p| p.proj.is_empty() && matches!(p.root, PlaceRoot::Local(_)))
+        };
+        let p = b.decode_place(word);
+        if whole_local(&p) {
+            return true;
+        }
+        // `*r`: a dereference of the read of a whole local `r`.
+        let read = (p.filter(|p| p.proj[..] == [Proj::Deref]))
+            .and_then(|p| {
+                if let PlaceRoot::Value(v) = p.root {
+                    self.read_of(v.0)
+                } else {
+                    None
+                }
+            })
+            .and_then(|v| b.decode_place(b.data[v as usize][0]));
+        let Some(PlaceRoot::Local(r)) = read.filter(|q| q.proj.is_empty()).map(|q| q.root) else {
+            return false;
+        };
+        let shorts = self.shorts.get_or_init(|| {
+            use hd_tir::ir::local_flags::{PARAM, SHORT};
+            let short = |l: u32| {
+                (b.local_flags.get(l as usize)).is_some_and(|f| f & (SHORT | PARAM) == SHORT)
+            };
+            (0..b.tags.len())
+                .filter(|&i| b.tags[i] == Tag::Store)
+                .filter_map(|i| Some((b.decode_place(b.data[i][0])?, b.data[i][1])))
+                .filter_map(|(q, v)| match q.root {
+                    PlaceRoot::Local(l) if q.proj.is_empty() && short(l.raw()) => {
+                        Some((l.raw(), v))
+                    }
+                    _ => None,
+                })
+                .collect()
+        });
+        shorts.get(&r.raw()).is_some_and(|&v| {
+            self.s.ty(v).is_some()
+                && b.tags[v as usize] == Tag::Ref
+                && whole_local(&b.decode_place(b.data[v as usize][0]))
+        })
     }
 
     /// Whether a store into the place `word` lands in a struct's field whose
@@ -1115,6 +1164,7 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         universal: HashMap::default(),
         owns: Vec::new(),
         returned: HashMap::default(),
+        shorts: std::cell::OnceCell::new(),
     };
     let widths: Vec<u32> = (b.local_ty.iter().map(|&t| g.width(t)))
         .chain((0..b.tags.len()).map(|i| g.width(b.ty[i]).max(u32::from(b.tags[i] == Tag::Ref))))
@@ -1347,6 +1397,19 @@ impl Gen<'_, '_> {
             let value = self.s.calls.get(&e.inst).is_some_and(|c| c.by_value);
             v.bounds.push((at, o, l, value));
         }
+        // A captured function value kept where it may not go is reported
+        // there, and not again where a value holding it is returned.
+        let kept = |e: &Edge| {
+            !matches!(
+                e.cat,
+                Category::Bound | Category::Result | Category::CallerPlace | Category::Flow
+            )
+        };
+        for x in violations.iter().filter(|x| kept(&x.edge)) {
+            let e = x.edge;
+            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
+            passed.extend(bad.map(|l| self.loans[l as usize]));
+        }
         for x in violations.iter().filter(|x| x.edge.cat != Category::Bound) {
             let e = x.edge;
             let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
@@ -1370,7 +1433,7 @@ impl Gen<'_, '_> {
                 Category::CallerPlace => v.stores.extend(at),
                 cat => v
                     .capture
-                    .extend(at.map(|at| (at, message(cat, b.tags[e.inst as usize])))),
+                    .extend(at.map(|at| (at, o, message(cat, b.tags[e.inst as usize])))),
             }
         }
         v.scope = scoped_uses(b, self.s.cx, r.skip, &|i| self.uses(sol, i));

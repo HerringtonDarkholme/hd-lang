@@ -1290,6 +1290,9 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
 
 // The messages of `local-reference-escapes` for a store into a place the
 // caller owns and for each destination of a captured function value.
+/// The start of each message of a captured function value but
+/// [`HELD_MSG`]'s.
+const CAPTURED: &str = "a local reference captured by this function value";
 const BOX_MSG: &str = "a local reference captured by this function value never escapes to a box";
 const STORE_FN_MSG: &str = "a local reference captured by this function value never escapes to a field, a top-level binding, or a place the caller owns";
 const STATIC_MSG: &str = "a local reference captured by this function value never escapes to a type parameter bounded by `'static`";
@@ -3378,8 +3381,8 @@ impl Ck<'_, '_> {
                 push(at, &|| self.passed_message(own, (o, l, value), fun));
             }
         }
-        for (at, msg) in v.capture {
-            push(at, &|| msg.to_owned());
+        for (at, o, msg) in v.capture {
+            push(at, &|| capture_message(body, self.cx, o, msg));
         }
         if let Some(own) = own {
             for (at, o, id) in v.results {
@@ -3595,6 +3598,21 @@ impl Ck<'_, '_> {
     }
 }
 
+/// The message of a captured function value kept where `msg` says it may
+/// not go, holding `o`. A function parameter's capture slot holds what a
+/// closure the caller supplied for it captured, so the message names the
+/// parameter (`fn.capture.local-store`).
+fn capture_message(b: &Body, cx: &BodyCx<'_>, o: Origin, msg: &str) -> String {
+    let fn_param = |p: u32| b.local_flags[p as usize] & hd_tir::ir::local_flags::PARAM != 0;
+    match (o, msg.strip_prefix(CAPTURED)) {
+        (Origin::Param(p, _), Some(rest)) if fn_param(p) => format!(
+            "`{}` is a function parameter, which may hold a closure that captures the caller's local references; it{rest}",
+            cx.names.text(b.local_name[p as usize])
+        ),
+        _ => msg.to_owned(),
+    }
+}
+
 /// `fn.closure.lifetime`: the message for a closure's returned value that
 /// depends on `o`.
 fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
@@ -3619,8 +3637,9 @@ fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
 struct Verdicts {
     /// Stores into a place the caller owns (`ref.dep.store`).
     stores: Vec<NodeIdx>,
-    /// Captured function values kept where they may not go.
-    capture: Vec<(NodeIdx, &'static str)>,
+    /// Captured function values kept where they may not go: the origin
+    /// that may not go there and the destination's message.
+    capture: Vec<(NodeIdx, Origin, &'static str)>,
     /// Returned values: the origin they may not depend on, the lifetime.
     results: Vec<(NodeIdx, Origin, u32)>,
     /// Call arguments passed at one of the body's own lifetimes that a

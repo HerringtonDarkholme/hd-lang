@@ -1,0 +1,23 @@
+# test: storing a function parameter into a local, directly or through a reference to it, keeps it in the callee, which may call it
+# Spec 07 Captures: fn.capture.local-store, fn.capture.local-uses.
+struct Point:
+    x: i32
+
+fn swap['a, T](f: fn(&'a Point) -> T, g: fn(&'a Point) -> T, p: &'a Point) -> T:
+    let mut k = g
+    r := &mut k
+    *r = f
+    k(p)
+
+fn pick(f: fn(&Point) -> i32, g: fn(&Point) -> i32) -> i32:
+    let mut k = fn(q: &Point) -> i32: q.x
+    r := &mut k
+    *r = f
+    k = g
+    p := Point { x: 1 }
+    k(&p)
+
+fn total(origin: &Point) -> i32:
+    n := pick(fn(q: &Point) -> i32: q.x + origin.x, fn(q: &Point) -> i32: q.x)
+    m := swap(fn(q: &Point) -> i32: q.x, fn(q: &Point) -> i32: q.x, origin)
+    n + m

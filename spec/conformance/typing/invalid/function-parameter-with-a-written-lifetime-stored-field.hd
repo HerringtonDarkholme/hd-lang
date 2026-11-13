@@ -1,0 +1,10 @@
+# test: a function parameter whose type writes a lifetime may still carry a closure's local capture origins, so it cannot be stored in a field
+# Spec 07 Captures: fn.capture.local-store.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn make['a, T](f: fn(&'a Point) -> T) -> Holder['a, T]:
+    Holder { f: f } # diagnostic: local-reference-escapes

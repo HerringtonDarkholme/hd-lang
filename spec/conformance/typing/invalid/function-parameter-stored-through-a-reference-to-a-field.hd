@@ -1,0 +1,13 @@
+# test: a store through a reference to a struct's field is a store in that field, so a function parameter may not go there
+# Spec 07 Captures: fn.capture.local-store.
+struct Point:
+    x: i32
+
+struct Holder:
+    f: fn(&Point) -> i32
+
+fn keep(f: fn(&Point) -> i32) -> Holder:
+    let mut h = Holder { f: fn(q: &Point) -> i32: q.x }
+    r := &mut h.f
+    *r = f # diagnostic: local-reference-escapes
+    h
