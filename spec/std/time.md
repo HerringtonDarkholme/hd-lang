@@ -37,10 +37,11 @@ nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
 2. r[std-time.duration.non-negative] A `Duration` is never negative: no call builds one below zero, and `Duration` holds zero milliseconds at the least. It is modeled on Rust's `std::time::Duration`.
 3. r[std-time.suffix.std.duration-api] The public API of `Duration` is `Duration::milliseconds(n: i64)`, `Duration::seconds(n: i64)`, `d.as_milliseconds() -> i64`, `d.checked_sub(rhs: Duration) -> Duration?`, and `d.saturating_sub(rhs: Duration) -> Duration`.
 4. r[std-time.duration.negative-count] `Duration::milliseconds(n)` and `Duration::seconds(n)` with a negative `n` panic at run time, in every build. Panic: `explicit-panic`.
-5. r[std-time.duration.no-neg] `Duration` does not implement `std.ops.Neg`, so `-5s`, which is `-(5s)`, is rejected by the type check: `type-mismatch`.
-6. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
-7. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
-8. r[std-time.duration.value] `Duration` is a struct, a value with private fields, so copying one copies its milliseconds.
+5. r[std-time.duration.seconds-overflow] `Duration::seconds(n)` whose milliseconds do not fit in `i64` panics at run time, in every build, as in `Duration::seconds(9223372036854776)`. Panic: `integer-overflow`.
+6. r[std-time.duration.no-neg] `Duration` does not implement `std.ops.Neg`, so `-5s`, which is `-(5s)`, is rejected by the type check: `type-mismatch`.
+7. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+8. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
+9. r[std-time.duration.value] `Duration` is a struct, a value with private fields, so copying one copies its milliseconds.
 
 ```text
 use std.time.{Duration, s}
@@ -73,7 +74,7 @@ fn later(start: Timestamp) -> Timestamp:
 3. r[std-time.duration.sub.underflow] `a - b` with `a` shorter than `b` panics at run time, in every build. Panic: `explicit-panic`.
 4. r[std-time.duration.checked-sub] `a.checked_sub(b)` is `.Some(a - b)` when `a` is not shorter than `b`, and `.None` otherwise. It never panics.
 5. r[std-time.duration.saturating-sub] `a.saturating_sub(b)` is `a - b` when `a` is not shorter than `b`, and zero otherwise. It never panics.
-6. r[std-time.duration.add-overflow] A sum that does not fit in `i64` milliseconds panics at run time. In a debug or test build this is checked `i64` arithmetic. Panic: `integer-overflow`. A release build wraps the sum, and the wrapped value is negative, so the result panics as [`std-time.duration.negative-count`](#r-std-time.duration.negative-count) says.
+6. r[std-time.duration.add-overflow] A sum that does not fit in `i64` milliseconds panics at run time, in every build. Panic: `integer-overflow`.
 7. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
 8. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
 
@@ -206,7 +207,7 @@ The standard library declares these suffixes in `std.time`:
 1. r[std-time.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
 2. r[std-time.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
 3. r[std-time.suffix.std.call-import] None is a prelude name; ordinary calls import them, as in `use std.time.{ms, s}`.
-4. r[std-time.suffix.std.call-overflow] A standard suffix call whose result does not fit in `i64` milliseconds panics at run time in a debug or test build, as in `h(10_000_000_000_000_000)`. It wraps in a release build, as `i64` arithmetic does. Panic: `integer-overflow`.
+4. r[std-time.suffix.std.call-overflow] A standard suffix call whose result does not fit in `i64` milliseconds panics at run time, in every build, as in `h(10_000_000_000_000_000)`. Panic: `integer-overflow`.
 
 ```text
 use std.time.{Duration, ms, s}

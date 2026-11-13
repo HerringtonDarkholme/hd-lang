@@ -1,4 +1,4 @@
-# test: Duration addition whose milliseconds do not fit in i64 panics, as checked i64 arithmetic does
+# test: Duration addition whose milliseconds do not fit in i64 panics with integer-overflow, in every build
 # Spec std/time Duration Arithmetic: std-time.duration.add-overflow (DURATION-OPS; task #221).
 use std.time.{Duration, ms}
 

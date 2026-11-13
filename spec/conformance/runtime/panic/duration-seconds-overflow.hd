@@ -1,0 +1,12 @@
+# test: Duration::seconds whose milliseconds do not fit in i64 panics with integer-overflow, so no count wraps to a negative duration
+# Spec std/time Duration: std-time.duration.seconds-overflow, std-time.duration.non-negative.
+use std.time.Duration
+use std.testing.assert_equal
+
+fn wait_for(count: i64) -> Duration:
+    Duration::seconds(count) # panic: integer-overflow
+
+tests:
+    it("panics one second past the longest duration"):
+        assert_equal(wait_for(9223372036854775).as_milliseconds(), 9223372036854775000)
+        _ := wait_for(9223372036854776)

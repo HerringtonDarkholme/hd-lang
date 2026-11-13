@@ -9,8 +9,9 @@
 # below zero. Its public API is
 # `milliseconds`, `seconds`, `as_milliseconds`, `checked_sub`, and
 # `saturating_sub` (r-std-time.suffix.std.duration-api); the `millis`
-# field is the prototype's own. Each suffix scales its literal by
-# checked `i64` multiplication, so an overflow panics (r-std-time.suffix.std.call-overflow).
+# field is the prototype's own. Each unit constructor and suffix checks its
+# scaling before it multiplies, so an overflow panics in every build
+# (r-std-time.duration.seconds-overflow, r-std-time.suffix.std.call-overflow).
 # Each suffix is a function marked `@num_suffix` (r-std-time.suffix.std.fn).
 # `Duration` has no `Neg`, so `-5s` is a type error (r-std-time.duration.no-neg).
 use std.format.DebugWriter
@@ -21,6 +22,7 @@ use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 use std.collections.Heap
 use std.ops.defer
 use std.rt.wait.{WaitCell, wait_cell, wait_signal, idle_hook}
+use std.rt.bytes.panic_with
 
 ## A distance in time, as a count of whole milliseconds, never negative.
 ## See [std-time.suffix.std.duration](../../spec/std/time.md#r-std-time.suffix.std.duration).
@@ -40,7 +42,7 @@ impl Duration:
     pub fn seconds(count: i64) -> Duration:
         if count < 0:
             panic("Duration::seconds with a negative count: ${count}")
-        Duration { millis: count * 1000 }
+        Duration { millis: unit_millis(count, 1000) }
 
     ## The duration minus `rhs`, or `.None` when `rhs` is the longer one.
     ## See [std-time.duration.checked-sub](../../spec/std/time.md#r-std-time.duration.checked-sub).
@@ -69,14 +71,25 @@ impl Parse for Duration:
     fn parse(text: string) -> Result[Duration, ParseTimeError]:
         parse_duration_text(text)
 
-# Checked `i64` arithmetic on the milliseconds, so an overflow panics
-# (r-std-time.duration.add, r-std-time.duration.add-overflow). A release build
-# wraps the sum below zero, and the constructor then panics, so a negative
-# `Duration` never exists.
+# `count` units of `unit` milliseconds each, for a `count` and a `unit`
+# that are not negative. A product past the `i64` range panics with integer
+# overflow in every build, where a release build's `*` would wrap it, maybe
+# below zero (r-std-time.duration.seconds-overflow).
+fn unit_millis(count: i64, unit: i64) -> i64:
+    if count > 9223372036854775807 / unit:
+        panic_with("integer-overflow", "integer overflow")
+    count * unit
+
+# The sum of the milliseconds, and a sum past the `i64` range panics with
+# integer overflow in every build (r-std-time.duration.add,
+# r-std-time.duration.add-overflow). Both sides are not negative, so the
+# bound `i64::MAX - self` never overflows.
 impl Add for Duration:
     type Out = Duration
     fn add(self, rhs: Duration) -> Duration:
-        Duration::milliseconds(self.millis + rhs.millis)
+        if rhs.millis > 9223372036854775807 - self.millis:
+            panic_with("integer-overflow", "integer overflow")
+        Duration { millis: self.millis + rhs.millis }
 
 # `-` panics when `rhs` is the longer duration, in every build, as Rust's
 # `Duration` does (r-std-time.duration.sub-difference).
@@ -165,13 +178,17 @@ pub fn s(count: i64) -> Duration:
 ## The `min` suffix: a `Duration` of that many minutes, as in `90min`.
 ## See [std-time.suffix.std.min](../../spec/std/time.md#r-std-time.suffix.std.min).
 pub fn min(count: i64) -> Duration:
-    Duration::seconds(count * 60)
+    if count < 0:
+        panic("min with a negative count: ${count}")
+    Duration { millis: unit_millis(count, 60000) }
 
 @num_suffix
 ## The `h` suffix: a `Duration` of that many hours, as in `2h`.
 ## See [std-time.suffix.std.h](../../spec/std/time.md#r-std-time.suffix.std.h).
 pub fn h(count: i64) -> Duration:
-    Duration::seconds(count * 3600)
+    if count < 0:
+        panic("h with a negative count: ${count}")
+    Duration { millis: unit_millis(count, 3600000) }
 
 # The host capability that reads time and waits (spec/std/time.md#clock).
 # `sleep!` takes `&mut self`, so a provider may advance its own time and

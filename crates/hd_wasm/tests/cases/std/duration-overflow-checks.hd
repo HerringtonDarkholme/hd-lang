@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: release
+# expected: `Duration + Duration` inlines as one compare of `rhs` with
+# `i64::MAX - self` that panics `integer-overflow`, then an unchecked
+# `i64.add`, so a release sum never wraps below zero (#1772).
+# `Duration::seconds` and `h` stay one call each; their bodies compare
+# the count with a constant before their `i64.mul`.
+use std.time.{Duration, h}
+
+pub fn seconds(count: i64) -> i64:
+    Duration::seconds(count).as_milliseconds()
+
+pub fn hours(count: i64) -> i64:
+    h(count).as_milliseconds()
+
+pub fn sum(a: Duration, b: Duration) -> i64:
+    (a + b).as_milliseconds()

@@ -245,6 +245,25 @@ fn release_keeps_the_checks_of_every_build() {
             "f::[i8](300)",
             "integer-overflow",
         ),
+        // A `Duration` never wraps below zero (`std-time.duration.non-negative`).
+        (
+            "duration-seconds",
+            "use std.time.Duration",
+            "Duration::seconds(9223372036854776).as_milliseconds()",
+            "integer-overflow",
+        ),
+        (
+            "duration-hours",
+            "use std.time.h",
+            "h(2562047788016).as_milliseconds()",
+            "integer-overflow",
+        ),
+        (
+            "duration-add",
+            "use std.time.Duration",
+            "(Duration::milliseconds(9223372036854775807) + Duration::milliseconds(1)).as_milliseconds()",
+            "integer-overflow",
+        ),
     ];
     let store = MemoryStore::default();
     for (name, items, call, category) in cases {
