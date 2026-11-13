@@ -2097,6 +2097,10 @@ impl Module {
                 crate::opt::locals(f, &arity);
                 crate::opt::blocks(f, &arity);
             }
+            if crate::opt::delete_empty_loops(f) {
+                crate::opt::locals(f, &arity);
+                crate::opt::blocks(f, &arity);
+            }
             crate::opt::coalesce(f);
             if crate::opt::drops(f) {
                 crate::opt::locals(f, &arity);

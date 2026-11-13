@@ -3,10 +3,10 @@
   (import "fixture" "make_unique[std.collections.UniqList[i64]]" (func $"make_unique[std.collections.UniqList[i64]]" (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $write_after_a_scan (param $xs i32) (param $n i32) (local $t0 i32) (local $i i32) (local $j i32) (local $t1 i64)
+  (func $write_after_a_scan (param $xs i32) (param $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
     ;; 26 |     for i in 0..n:
     i32.const 1
-    local.set $i
+    local.set $t0
     i32.const 0
     local.get $n
     i32.lt_u
@@ -21,7 +21,7 @@
       i32.eqz
       if
         local.get $xs
-        local.get $i
+        local.get $t0
         i32.const 0
         call $"make_unique[std.collections.UniqList[i64]]"
         drop
@@ -29,45 +29,24 @@
     end
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
-        local.set $i
-        local.get $t0
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
-    ;; 27 |         let mut j: usize = 0
-        i32.const 0
-        local.set $j
-    ;; 28 |         while j < i:
-        block
-          loop
-            local.get $j
-            local.get $i
-            i32.lt_u
-            i32.eqz
-            br_if 1
-    ;; 29 |             j += 1
-            local.get $j
-            i32.const 1
-            i32.add
-            local.set $j
-    ;; 28 |         while j < i:
-            br 0
-          end
-        end
+        local.set $t1
     ;; 30 |         xs.set(i, 5)
         local.get $xs
         i32.load $heap
-        local.set $j
-        local.get $i
+        local.set $t0
+        local.tee $t2
         i64.const 5
-        local.set $t1
-        local.get $j
+        local.set $t3
+        local.get $t0
         i32.load $heap offset=8
         i32.ge_u
         if
@@ -79,13 +58,13 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $j
+        local.get $t0
         i32.load $heap
-        local.get $i
+        local.get $t2
         i32.const 8
         i32.mul
         i32.add
-        local.get $t1
+        local.get $t3
         i64.store $heap
     ;; 26 |     for i in 0..n:
         br 0
