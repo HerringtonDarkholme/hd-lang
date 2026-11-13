@@ -19,7 +19,6 @@ fn construct(key: string) -> usize:
 > app/main/construct
 >   retain string (stored)
 >   release Suspend[string] (last use)
->   release string (last use)
     key.len()
 
 fn run_twice!(body: fn!() -> string) -> usize:

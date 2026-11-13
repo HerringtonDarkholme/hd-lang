@@ -44,7 +44,6 @@ fn live(value: *mut Point) -> i32:
 > app/main/live
 >   retain *mut app.main.Point (stored)
 >   release fn() -> i32 (last use)
->   release *mut app.main.Point (last use)
     step() + value.x
 
 fn borrowed(value: &Point) -> i32:

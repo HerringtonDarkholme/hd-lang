@@ -1,0 +1,48 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: target and list_copy borrow the source and keep the needed local copy.
+# only_copy and early copies keep the consuming ABI for temporary count donation.
+# take_payload preserves the returned payload's owner through the match.
+use std.annotation.inline
+
+@inline(.Never)
+fn target(a: string, b: string) -> usize:
+    let t = a
+    t += "x"
+    t.len() + a.len() + b.len()
+
+@inline(.Never)
+fn only_copy(a: string) -> usize:
+    let t = a
+    t += "x"
+    t.len()
+
+@inline(.Never)
+fn list_copy(a: List[usize]) -> usize:
+    let mut t = a
+    t.push(3)
+    t.len() + a.len()
+
+@inline(.Never)
+fn early_copy(a: string) -> usize:
+    let t = a
+    n := a.len()
+    t += "x"
+    n + t.len()
+
+@inline(.Never)
+fn early_list_copy(a: List[usize]) -> usize:
+    let mut t = a
+    n := a.len()
+    t.push(3)
+    n + t.len()
+
+enum Answer:
+    Good(value: string)
+    Bad
+
+@inline(.Never)
+fn take_payload(answer: Answer) -> string:
+    match answer:
+        .Good(value) => value
+        .Bad => "no answer"

@@ -59,11 +59,11 @@ fn build_while(s: string, k: usize) -> string:
 >     uses $1: entry -> %5 lend
 >   local $2 out: string [read assigned mutated] place
 >   local $3 i: usize [read assigned mutated] place
->   %0 = Retain %23 Entry local $0 #0 : ()
+>   %0 = Release %22 Exit local $0 #2 : ()
     let out = s
 >   %1 = Read copy [$0] : string
 >   %2 = Store [$2] %1 : ()
->   %23 = Block %22 : string
+>   %22 = Block %21 : string
     let i: usize = 0
 >   %3 = Store [$3] 0:usize : ()
     while i < k:
@@ -75,7 +75,6 @@ fn build_while(s: string, k: usize) -> string:
 >   %18 = If %6 [%15 %17] : ()
 >   %19 = Block - : ()
 >   %20 = Loop %19 - : ()
->   %21 = Drop [$0] : ()
         out += s
 >   %7 = Read borrow [$2] : string
 >   %8 = Read borrow [$0] : string
@@ -88,6 +87,5 @@ fn build_while(s: string, k: usize) -> string:
 >   %13 = Prim Add [%12 1:usize] : usize
 >   %14 = Store [$3] %13 : ()
     out
->   %22 = Read move [$2] : string
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   %21 = Read move [$2] : string
+>   summary kept [] borrows [$0]

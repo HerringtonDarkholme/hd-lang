@@ -31,9 +31,7 @@ fn use_first(xs: List[string]) -> usize:
 
 fn check(xs: List[string], at: usize) -> string:
     if at >= xs.len():
-> app/main/check
->   release List[string] (last use)
->   release List[string] (last use)
         return unexpected(at)
     xs[at]
+> app/main/check
 >   retain string (stored)

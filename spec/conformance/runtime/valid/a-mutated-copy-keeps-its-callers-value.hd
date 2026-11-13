@@ -1,0 +1,67 @@
+use std.annotation.inline
+use std.testing.assert_equal
+
+@inline(.Never)
+fn word(i: usize) -> string:
+    "a dynamically allocated source string number $i"
+
+@inline(.Never)
+fn copy_string(a: string, action: fn() -> void) -> usize:
+    let t = a
+    t += "x"
+    action()
+    t.len() + a.len()
+
+@inline(.Never)
+fn copy_list(a: List[usize]) -> usize:
+    let mut t = a
+    t.push(3)
+    t.len() + a.len()
+
+@inline(.Never)
+fn donate_list(a: List[usize]) -> usize:
+    let mut t = a
+    t.push(3)
+    t.len()
+
+@inline(.Never)
+fn early_copy(a: List[usize]) -> usize:
+    let mut t = a
+    n := a.len()
+    t.push(3)
+    n + t.len()
+
+struct Named:
+    name: string
+
+enum Answer:
+    Good(value: string)
+    Bad
+
+@inline(.Never)
+fn take_payload(answer: Answer) -> string:
+    match answer:
+        .Good(value) => value
+        .Bad => word(30)
+
+pub fn main() -> void:
+    original := word(7)
+    length := original.len()
+    assert_equal(copy_string(original, fn() -> void: ()), length * 2 + 1)
+    assert_equal(original, word(7))
+    values := [1usize, 2]
+    assert_equal(copy_list(values), 5)
+    assert_equal(values, [1usize, 2])
+    assert_equal(donate_list(values), 3)
+    assert_equal(values, [1usize, 2])
+    assert_equal(donate_list([1usize, 2]), 3)
+    assert_equal(early_copy(values), 5)
+    assert_equal(early_copy([1usize, 2]), 5)
+    let mut source = box(Named { name: word(8) })
+    let mut alias = source
+    action := fn() -> void: alias.name = word(9)
+    assert_equal(copy_string(source.name, action), word(8).len() * 2 + 1)
+    assert_equal(source.name, word(9))
+    answer := take_payload(.Good(word(31)))
+    assert_equal(answer, word(31))
+    assert_equal(take_payload(.Bad), word(30))

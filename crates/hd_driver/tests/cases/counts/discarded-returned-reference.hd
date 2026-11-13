@@ -1,8 +1,8 @@
 # @dump: counts
 # @build: v8 release
 # expected: `add` transfers its incoming counted `*mut` owner to its result
-# without retaining. `fill` copies its still-live receiver for each call and
-# releases the returned owner; its final exit releases its own receiver.
+# without retaining. `fill` borrows its receiver, copies it for each call,
+# and releases the returned owner.
 struct Tally:
     count: usize
 

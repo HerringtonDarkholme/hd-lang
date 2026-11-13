@@ -7,9 +7,9 @@ app/main/impl Probes.alias_write
   local $2 source: List[usize] [param read] value
     uses $2: entry -> %6 consume
   local $3 i: usize [read assigned mutated] place
-  %0 = Release %23 Exit local $0 #2 : ()
-  %1 = Release %23 Exit local $1 #2 : ()
-  %2 = Retain %23 Entry local $2 #0 : ()
+  %0 = Release %22 Exit local $0 #2 : ()
+  %1 = Release %22 Exit local $1 #2 : ()
+  %2 = Release %22 Exit local $2 #2 : ()
   %3 = Store [$3] 0:usize : ()
   %4 = Read copy [$3] : usize
   %5 = Prim Lt [%4 2:usize] : bool
@@ -29,10 +29,8 @@ app/main/impl Probes.alias_write
   %19 = If %5 [%16 %18] : ()
   %20 = Block - : ()
   %21 = Loop %20 - : ()
-  %22 = Drop [$2] : ()
-  %23 = Block - : ()
-  exit sub 0 drops [$2]
-  summary kept [$2] borrows [$0 $1] writes
+  %22 = Block - : ()
+  summary kept [] borrows [$0 $1 $2] writes
 app/main/impl Probes.clean
   local $0 items: &mut List[usize] [param read] value
     uses $0: entry -> %5 lend, %10 lend, %11 lend, %13 lend
@@ -126,9 +124,9 @@ app/main/impl Probes.writing_call
   local $2 source: List[usize] [param read] value
     uses $2: entry -> %7 consume
   local $3 i: usize [read assigned mutated] place
-  %0 = Release %24 Exit local $0 #2 : ()
-  %1 = Release %24 Exit local $1 #2 : ()
-  %2 = Retain %24 Entry local $2 #0 : ()
+  %0 = Release %23 Exit local $0 #2 : ()
+  %1 = Release %23 Exit local $1 #2 : ()
+  %2 = Release %23 Exit local $2 #2 : ()
   %3 = Store [$3] 0:usize : ()
   %4 = Read copy [$3] : usize
   %5 = Prim Lt [%4 2:usize] : bool
@@ -149,7 +147,5 @@ app/main/impl Probes.writing_call
   %20 = If %5 [%17 %19] : ()
   %21 = Block - : ()
   %22 = Loop %21 - : ()
-  %23 = Drop [$2] : ()
-  %24 = Block - : ()
-  exit sub 0 drops [$2]
-  summary kept [$2] borrows [$0 $1] writes
+  %23 = Block - : ()
+  summary kept [] borrows [$0 $1 $2] writes

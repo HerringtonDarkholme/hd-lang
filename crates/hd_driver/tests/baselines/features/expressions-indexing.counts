@@ -11,7 +11,6 @@ fn map_index_take(m: Map[string, string], k: string) -> string:
     m[k]
 > app/main/map_index_take
 >   retain string (stored)
->   release Map[string, string] (last use)
 
 fn string_byte(s: string, i: usize) -> u8:
     s[i]

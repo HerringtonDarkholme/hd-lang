@@ -15,7 +15,6 @@ fn list_take(xs: List[string], i: usize) -> string:
     xs[i]
 > app/main/list_take
 >   retain string (stored)
->   release List[string] (last use)
 
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
     xs[i] = s

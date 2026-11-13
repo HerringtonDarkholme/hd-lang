@@ -3,7 +3,6 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32)
     ;; 9 |     while i < xs.len():
@@ -51,12 +50,12 @@
     ;; 12 |     n
     local.get $n
   )
-  (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32) (local $t0 i32)
+  (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32)
     ;; 15 |     let out = s
     local.get $s.0
-    local.tee $t0
+    local.tee $out.0
     if
-      local.get $t0
+      local.get $out.0
       call $retain
     end
     local.get $s.0
@@ -87,13 +86,6 @@
     ;; 17 |     while i < k:
         br 0
       end
-    end
-    ;; 15 |     let out = s
-    local.get $s.0
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref
     end
     ;; 20 |     out
     local.get $out.0

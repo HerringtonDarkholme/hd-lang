@@ -142,12 +142,7 @@
       local.get $t0
       call $rt:release_ref
     end
-    local.get $s.0
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref
-    end
+    ;; 16 |     s.len()
     local.get $s.1
   )
 )

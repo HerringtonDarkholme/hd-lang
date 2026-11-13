@@ -65,18 +65,6 @@
         br 0
       end
     end
-    ;; 29 |         let i: usize = 0
-    local.get $source
-    if
-      local.get $source
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $source
-        call $rt:release_ref
-      end
-    end
   )
   (func $"impl Probes.alias_write" (param $items i32) (param $alias i32) (param $source i32) (local $i i32) (local $t0 i32) (local $t1 i32)
     ;; 38 |         while i < 2:
@@ -151,19 +139,6 @@
         local.set $i
     ;; 38 |         while i < 2:
         br 0
-      end
-    end
-    ;; 37 |         let i: usize = 0
-    local.get $source
-    local.tee $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref
       end
     end
   )

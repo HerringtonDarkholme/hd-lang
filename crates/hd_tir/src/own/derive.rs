@@ -1434,6 +1434,222 @@ fn parameter_joins(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
+/// A needed copy has its own count; it does not also need an owner for
+/// its unchanged source parameter. Run after move decisions so an input
+/// count actually donated to a consumer keeps the consuming ABI. In
+/// particular, a temporary can still move straight into a mutable local.
+pub(super) fn lend_copied_parameters(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) -> bool {
+    lend_copied_parameters_with(b, cx, topo, t, edits, || {})
+}
+
+fn lend_copied_parameters_with(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    mut visit: impl FnMut(),
+) -> bool {
+    if !matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance) || cx.suspending(b.item) {
+        return false;
+    }
+    let params = super::params(b);
+    let mut eligible = vec![false; b.local_ty.len()];
+    for &p in params.iter().take(64) {
+        visit();
+        let local = t.l[p as usize];
+        let ty = b.local_ty[p as usize];
+        eligible[p as usize] = !local.unowned
+            && local.stores == 0
+            && !local.captured
+            && !local.reached
+            && !local.changed
+            && cx.counted(ty)
+            && cx.copies(ty) == Tri::Yes
+            && cx.holds_drop(ty) == Tri::No;
+    }
+    if !eligible.iter().any(|&yes| yes) {
+        return false;
+    }
+    if b.tags.iter().enumerate().any(|(i, &tag)| {
+        visit();
+        is_suspension(tag)
+            || tag == Tag::Defer
+            || tag == Tag::Scope && !b.record(b.data[i][1]).is_empty()
+    }) {
+        return false;
+    }
+    // A cleanup after the input ends may still use its copies. Retain the
+    // consuming convention when an implicit local/resource cleanup could
+    // make a temporary input's earlier end useful.
+    if b.exit_drops.iter().any(|&(sub, l)| {
+        sub.raw() == 0
+            && (b.local_flags[l.idx()] & local_flags::PARAM == 0
+                || cx.holds_drop(b.local_ty[l.idx()]) != Tri::No)
+    }) {
+        return false;
+    }
+    // One operand census, including large calls. A move used only for
+    // reading and then dropped donates no count; a consuming use does.
+    // Do not rescan each call's argument list for default-argument reads:
+    // an owned formal conservatively counts as a possible donation.
+    let mut needed = vec![false; b.len()];
+    let mut last_mutation = None;
+    let mut ops = Vec::new();
+    for i in 0..b.len() {
+        visit();
+        let tag = b.tags[i];
+        let mut mutation = matches!(
+            tag,
+            Tag::Drop
+                | Tag::IsUnique
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Hook
+                | Tag::NewStruct
+                | Tag::NewTuple
+                | Tag::NewVariant
+                | Tag::NewList
+                | Tag::NewMap
+                | Tag::Closure
+        ) || tag == Tag::Intrinsic
+            && (super::changed(b, i).next().is_some()
+                || matches!(
+                    IntrinsicOp::from_u32(b.data[i][0]),
+                    None | Some(
+                        IntrinsicOp::Item
+                            | IntrinsicOp::StrConcat
+                            | IntrinsicOp::MapGet
+                            | IntrinsicOp::MapEntry
+                    )
+                ))
+            || tag == Tag::Call
+                && Callee::from_words(b.record(b.data[i][0]))
+                    .is_none_or(|c| !cx.call_reads_storage_only(&c));
+        operands(b, i, &mut ops);
+        for op in &ops {
+            visit();
+            let consumes = match op.role {
+                Role::Consume | Role::Tail => true,
+                // A place read, reference or match may move a field through
+                // a borrowed alias or an implicit pattern binding. Only an
+                // independent Copy read can supply that owner's count.
+                Role::Lend => matches!(tag, Tag::Read | Tag::Ref | Tag::Match | Tag::SwitchTag),
+                Role::Dropped => false,
+                Role::Arg(k) => match b.tags[i] {
+                    Tag::Call => Callee::from_words(b.record(b.data[i][0])).is_none_or(|c| {
+                        cx.pass(
+                            &c,
+                            k as usize,
+                            b.record(b.data[i][1]).len().saturating_sub(3),
+                        ) == Pass::Owned
+                            || cx.retains_result(&c)
+                    }),
+                    _ => true,
+                },
+            };
+            needed[op.value as usize] |= consumes;
+            mutation |= tag == Tag::Call && consumes && cx.counted(b.ty[op.value as usize]);
+        }
+        if mutation {
+            last_mutation = Some(i);
+        }
+    }
+    let mut copied = vec![false; b.local_ty.len()];
+    let mut moved_from = vec![NONE; b.len()];
+    for i in 0..b.len() {
+        visit();
+        if b.tags[i] == Tag::Read
+            && b.data[i][1] == ReadMode::Copy as u32
+            && needed[i]
+            && let Some(local) = b.view(b.data[i][0]).local()
+        {
+            copied[local as usize] = true;
+        }
+        if b.tags[i] == Tag::Read && b.data[i][1] != ReadMode::Copy as u32 {
+            let p = b.view(b.data[i][0]);
+            if let Some(local) = p.local().filter(|&l| eligible[l as usize]) {
+                if needed[i] || !p.whole() && b.data[i][1] == ReadMode::Move as u32 {
+                    eligible[local as usize] = false;
+                } else if b.data[i][1] == ReadMode::Move as u32 {
+                    moved_from[i] = local;
+                }
+            }
+        }
+        if b.tags[i] == Tag::Drop {
+            let p = b.view(b.data[i][0]);
+            let local = match p.root {
+                Root::Local(l) if p.whole() => Some(l),
+                Root::Value(v) if p.whole() && moved_from[v as usize] != NONE => {
+                    Some(moved_from[v as usize])
+                }
+                _ => None,
+            };
+            // Releasing an owned temporary input before a later COW
+            // operation can make its copy unique. A guaranteed input lives
+            // for the call, so preserve the consuming ABI in that case.
+            // A loop can run an earlier mutation again after this end.
+            if let Some(local) = local
+                && (topo.loop_of[i] != NONE || last_mutation.is_some_and(|last| i < last))
+            {
+                eligible[local as usize] = false;
+            }
+        }
+    }
+    // Change only owners duplicated by an independently needed copy.
+    // Borrowed-result calls may instead take over the input's count in
+    // the later retains pass, so the operand census preserves that donor.
+    for (yes, copied) in eligible.iter_mut().zip(copied) {
+        visit();
+        *yes &= copied;
+    }
+    if !eligible.iter().any(|&yes| yes) {
+        return false;
+    }
+    // Clear only the original parameter's owner. Each Read copy remains
+    // a copy and each owned local keeps its existing drop and COW check.
+    for i in 0..b.len() {
+        visit();
+        if moved_from[i] != NONE && eligible[moved_from[i] as usize] {
+            b.data[i][1] = ReadMode::Borrow as u32;
+        }
+        if b.tags[i] == Tag::Drop {
+            let p = b.view(b.data[i][0]);
+            if p.whole()
+                && match p.root {
+                    Root::Local(l) => eligible[l as usize],
+                    Root::Value(v) => {
+                        moved_from[v as usize] != NONE && eligible[moved_from[v as usize] as usize]
+                    }
+                    _ => false,
+                }
+            {
+                // Keep the original parameter words intact: a caller may
+                // still use the owned ABI, whose common-exit descriptor
+                // releases the incoming count. A LoanEnd would zero them.
+                edits.remove(u32_of(i));
+            }
+        }
+    }
+    b.exit_drops
+        .retain(|&(sub, l)| sub.raw() != 0 || !eligible[l.idx()]);
+    for p in params {
+        if eligible[p as usize] {
+            t.l[p as usize].unowned = true;
+            t.l[p as usize].kept = 0;
+        }
+    }
+    true
+}
+
 /// The counted reads that may keep a count, into `t.takers`.
 fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     t.takers.clear();
@@ -1912,6 +2128,225 @@ mod lending_tests {
             }
             assert_eq!(work, width * per_chain);
         }
+    }
+
+    struct CopyFacts {
+        copies: Tri,
+        drop: Tri,
+    }
+    impl OwnCx for CopyFacts {
+        fn temporary_owner_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn counted(&self, ty: Ty) -> bool {
+            ty == Ty::STRING
+        }
+        fn copies(&self, _: Ty) -> Tri {
+            self.copies
+        }
+        fn holds_drop(&self, _: Ty) -> Tri {
+            self.drop
+        }
+        fn pass(&self, c: &Callee, _: usize, _: usize) -> Pass {
+            if matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(88)) {
+                Pass::Owned
+            } else {
+                Pass::Lent
+            }
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
+            Pass::Owned
+        }
+        fn may_write(&self, _: &Callee) -> bool {
+            false
+        }
+        fn call_reads_storage_only(&self, c: &Callee) -> bool {
+            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            false
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+            Pass::Owned
+        }
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
+        }
+        fn suspending(&self, _: DefId) -> bool {
+            false
+        }
+        fn parameter_count(&self, _: DefId) -> Option<usize> {
+            Some(1)
+        }
+    }
+
+    fn copied_body(width: usize, depth: usize, read_again: bool) -> Result<(Body, u32), String> {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let block = b.open_block();
+        let p = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+        for _ in 0..width {
+            let mut value = b.get(p, Ty::STRING, n);
+            for _ in 0..depth {
+                value = b.coerce(Coercion::Identity, NONE, value, Ty::STRING, n);
+            }
+            call(&mut b, 88, &[value], Ty::VOID);
+        }
+        if read_again {
+            let value = b.get(p, Ty::STRING, n);
+            call(&mut b, 7, &[value], Ty::VOID);
+        }
+        let root = b.close_block(block, None, Ty::VOID, n);
+        Ok((b.finish(root, &[]).map_err(|e| format!("{e:?}"))?, p.raw()))
+    }
+
+    #[test]
+    fn a_needed_copy_does_not_also_own_its_source_parameter() -> Result<(), String> {
+        let facts = CopyFacts {
+            copies: Tri::Yes,
+            drop: Tri::No,
+        };
+        for read_again in [false, true] {
+            let (mut b, p) = copied_body(1, 0, read_again)?;
+            let mut scratch = super::super::OwnScratch::default();
+            super::super::run(&mut b, &facts, &mut scratch)?;
+            let errors = crate::ir::verify_owned(&b, &facts);
+            assert!(errors.is_empty(), "{errors:?}");
+            let source = b
+                .tags
+                .iter()
+                .enumerate()
+                .find(|(i, tag)| **tag == Tag::Read && b.view(b.data[*i][0]).local() == Some(p))
+                .map(|(i, _)| i)
+                .ok_or("source read")?;
+            assert_eq!(
+                b.data[source][1],
+                if read_again {
+                    ReadMode::Copy
+                } else {
+                    ReadMode::Move
+                } as u32
+            );
+            let summary = super::super::summary(&b, &facts, &scratch, None).ok_or("summary")?;
+            assert_eq!(
+                (summary.kept, summary.borrows),
+                if read_again { (0, 1) } else { (1, 0) }
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn ending_the_input_before_a_later_owned_call_preserves_count_donation() -> Result<(), String> {
+        let facts = CopyFacts {
+            copies: Tri::Yes,
+            drop: Tri::No,
+        };
+        let mut build = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let block = build.open_block();
+        let input = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+        let local = build.local(Ty::STRING, Symbol::NONE, 0, n);
+        let value = build.get(input, Ty::STRING, n);
+        build.set(local, value, n);
+        let value = build.get(input, Ty::STRING, n);
+        call(&mut build, 7, &[value], Ty::VOID);
+        let value = build.get(local, Ty::STRING, n);
+        call(&mut build, 88, &[value], Ty::VOID);
+        let root = build.close_block(block, None, Ty::VOID, n);
+        let mut b = build.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        let mut scratch = super::super::OwnScratch::default();
+        super::super::run(&mut b, &facts, &mut scratch)?;
+        assert_eq!(
+            super::super::summary(&b, &facts, &scratch, None)
+                .ok_or("summary")?
+                .kept,
+            1
+        );
+        let errors = crate::ir::verify_owned(&b, &facts);
+        assert!(errors.is_empty(), "{errors:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn copied_parameter_proof_rejects_mutation_capture_address_drop_and_donation()
+    -> Result<(), String> {
+        for control in 0..8 {
+            let (mut b, p) = copied_body(1, 0, true)?;
+            for i in 0..b.len() {
+                if b.tags[i] == Tag::Read {
+                    b.data[i][1] = ReadMode::Copy as u32;
+                }
+            }
+            let mut t = Tables::default();
+            t.reset(b.len(), b.local_ty.len());
+            t.l[p as usize].kept = 1;
+            let mut facts = CopyFacts {
+                copies: Tri::Yes,
+                drop: Tri::No,
+            };
+            match control {
+                0 => t.l[p as usize].captured = true,
+                1 => t.l[p as usize].reached = true,
+                2 => t.l[p as usize].stores = 1,
+                3 => t.l[p as usize].changed = true,
+                4 => facts.drop = Tri::Yes,
+                5 => facts.copies = Tri::No,
+                6 => b.data[0][1] = ReadMode::Move as u32,
+                7 => {}
+                _ => return Err("bad test control".into()),
+            }
+            let topo = Topology::new(&b);
+            assert_eq!(
+                lend_copied_parameters(
+                    &mut b,
+                    &facts,
+                    &topo,
+                    &mut t,
+                    &mut splice::Tables::default()
+                ),
+                control == 7
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn copied_parameter_work_is_linear_at_width_1000_depth_20() -> Result<(), String> {
+        for width in [1, 1000] {
+            for depth in [1, 20] {
+                let (mut b, p) = copied_body(width, depth, true)?;
+                for i in 0..b.len() {
+                    if b.tags[i] == Tag::Read {
+                        b.data[i][1] = ReadMode::Copy as u32;
+                    }
+                }
+                let mut t = Tables::default();
+                t.reset(b.len(), b.local_ty.len());
+                t.l[p as usize].kept = u32_of(width);
+                let facts = CopyFacts {
+                    copies: Tri::Yes,
+                    drop: Tri::No,
+                };
+                let mut work = 0;
+                let topo = Topology::new(&b);
+                assert!(lend_copied_parameters_with(
+                    &mut b,
+                    &facts,
+                    &topo,
+                    &mut t,
+                    &mut splice::Tables::default(),
+                    || work += 1
+                ));
+                // Four instruction visits, one parameter and each operand
+                // edge once. No body or coercion-chain retry.
+                assert_eq!(
+                    work,
+                    4 * b.len() + width * (depth + 1) + 2 + b.local_ty.len()
+                );
+            }
+        }
+        Ok(())
     }
 
     struct ReadOnly;
