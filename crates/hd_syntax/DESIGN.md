@@ -207,7 +207,10 @@ pass. `precede` wraps a finished node through `forward_parent`;
   `hd_sched::pool::WORKER_STACK`, which `hd` gives its command thread
   too. The browser build (`target_family = "wasm"`) limits a chain to
   500 links: its frames live on the engine's fixed stack, about 1 MiB
-  in V8, and the worst measured shape fails past 1,200.
+  in V8, and the worst measured shape fails past 1,200. A type's `?`
+  suffix builds the same left-deep tree in a loop, so `ty` counts its
+  marks against the same limit and skips the rest of a longer suffix
+  (#1827).
 - **Grammar checks.** A path-only alias such as `use a.b as c` parses.
   An associated type is only `type Name` in a trait or `type Name = Type`
   in an impl; `type Item < Eq = i32` is a `syntax-error`.

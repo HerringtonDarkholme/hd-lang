@@ -182,6 +182,10 @@ for (const [link, blocks, links] of [
   const past = chainCodes(chain(link, links + 1, blocks));
   assert.ok(past.includes("nesting-too-deep"), `${link} x ${links + 1}: ${past}`);
 }
+// A type's `?` suffix is a chain too (#1827).
+const suffix = (marks: number) => `fn f(x: i32${"?".repeat(marks)}) -> i32: 0\n`;
+assert.ok(!chainCodes(suffix(chainLimit)).includes("nesting-too-deep"));
+assert.ok(chainCodes(suffix(chainLimit + 1)).includes("nesting-too-deep"));
 console.log(`chains: ${chainLimit} links compile, ${chainLimit + 1} are nesting-too-deep`);
 
 // types.limit.type-size: a type 1,000 levels deep (`TYPE_DEPTH`) checks on

@@ -2,7 +2,10 @@
 
 use hd_diag::Code;
 
-use super::{Ctx, Done, Parser, REST_ELSEWHERE};
+use super::{Ctx, Done, MAX_CHAIN_LINKS, Parser, REST_ELSEWHERE};
+
+/// `grammar.limit.chain.error` on a type's `?` suffix.
+const SUFFIX_TOO_LONG: &str = "a type has more `?` suffixes than the implementation limit";
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -146,12 +149,38 @@ impl Parser<'_> {
             self.abandon(marker);
             self.ty_reference(rows)
         };
+        // grammar.limit.chain: each `?` of a type's suffix is a link of
+        // a left-deep tree that every later walk takes by recursion.
+        // Past `MAX_CHAIN_LINKS` the first `?` too many is
+        // `nesting-too-deep` and the rest of the suffix goes into an
+        // error node (#1827).
+        let mut links = 0;
         while self.at(TokenKind::Question) {
+            links += 1;
+            if links > MAX_CHAIN_LINKS {
+                return self.suffix_too_long(done);
+            }
             let marker = self.precede(done);
             self.bump();
             done = self.complete(marker, SyntaxKind::OptionalType);
         }
         done
+    }
+
+    /// The type `done` with more `?` than `MAX_CHAIN_LINKS` after it:
+    /// one `nesting-too-deep` at the first `?` past the limit, and the
+    /// suffix's other `?` skipped into an error node.
+    fn suffix_too_long(&mut self, done: Done) -> Done {
+        if !self.errors.iter().any(|e| e.code == Code::NestingTooDeep) {
+            let at = self.pos();
+            self.report(Code::NestingTooDeep, at, SUFFIX_TOO_LONG);
+        }
+        self.stmt_errored = true;
+        let marker = self.precede(done);
+        while self.at(TokenKind::Question) {
+            self.bump();
+        }
+        self.complete(marker, SyntaxKind::Error)
     }
 
     fn ty_reference(&mut self, rows: bool) -> Done {

@@ -298,6 +298,23 @@ fn a_chain_of_ten_thousand_links_parses_and_one_more_is_too_deep() {
 }
 
 #[test]
+fn a_type_suffix_of_ten_thousand_marks_parses_and_one_more_is_too_deep() {
+    // grammar.limit.chain: each `?` after a type is a link (#1827).
+    let suffix = |n: usize| format!("fn f(x: i32{}) -> i32: 0\n", "?".repeat(n));
+    assert!(too_deep(&suffix(10_000)).is_empty());
+    let past = suffix(10_001);
+    let first_past = u32::try_from("fn f(x: i32".len() + 10_000).unwrap();
+    assert_eq!(too_deep(&past), [(first_past, "nesting-too-deep")]);
+    // 100,000 overflowed the stack; the rest of the suffix is skipped.
+    assert_eq!(too_deep(&suffix(100_000)).len(), 1);
+    let typed = format!(
+        "fn f() -> i32:\n    let x: i32{} = 1\n    0\n",
+        "?".repeat(10_001)
+    );
+    assert_eq!(too_deep(&typed).len(), 1);
+}
+
+#[test]
 fn a_chain_counts_the_links_of_its_bracketed_operand() {
     // 5,000 links inside the parentheses and 5,001 after them: the
     // deepest path has 10,001.

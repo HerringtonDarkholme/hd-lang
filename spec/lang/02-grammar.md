@@ -43,8 +43,8 @@ top_level_statement = suite_statement
 6. r[grammar.suite.methods] Methods occur inside trait and implementation declarations through their dedicated grammar productions.
 7. r[grammar.limit.nesting] An implementation may limit how deeply brackets, suites, closures, and string interpolations nest within one another. The limit is implementation-defined.
 8. r[grammar.limit.nesting.error] Source that nests deeper than that limit is an error, reported on the first construct past it. Error: `nesting-too-deep`.
-9. r[grammar.limit.chain] An implementation may limit how many binary operators and postfix operations lie on one path from an expression down to an operand, brackets included. A call of a member or a path is one operation with its name. The limit is implementation-defined: `hd` allows 10,000, and the browser build of the compiler allows 500, because its engine's stack is fixed.
-10. r[grammar.limit.chain.error] An expression past that limit is an error, reported on the first operator or postfix operation past it, the 10,001st in `hd` and the 501st in the browser build. Error: `nesting-too-deep`.
+9. r[grammar.limit.chain] An implementation may limit how many binary operators and postfix operations lie on one path from an expression down to an operand, brackets included. A call of a member or a path is one operation with its name. The same limit applies to the `?` marks after one type. The limit is implementation-defined: `hd` allows 10,000, and the browser build of the compiler allows 500, because its engine's stack is fixed.
+10. r[grammar.limit.chain.error] An expression or a type suffix past that limit is an error, reported on the first operator, postfix operation or `?` past it, the 10,001st in `hd` and the 501st in the browser build. Error: `nesting-too-deep`.
 
 ### Error Recovery
 
