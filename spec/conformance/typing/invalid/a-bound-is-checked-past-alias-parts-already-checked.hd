@@ -1,0 +1,21 @@
+# test: a bound inside a type is checked though the alias parts around it were checked by earlier items
+# Spec 09 Bounds: trait.bound.no-implied; Spec 04 Transparent Aliases: types.alias.same.
+struct Plain:
+    value: i32
+
+struct Sorted[T < Ord]:
+    items: List[T]
+
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+type Level0 = List[i32]
+type Level1 = List[Level0]
+type Level2 = List[Level1]
+
+fn first(value: Level2) -> Level2: value
+
+fn reader(feed: &dyn Feed[Item = Level1]) -> i32: 0
+
+fn second(value: (Level2, List[Sorted[Plain]])) -> i32: 0 # diagnostic: unsatisfied-trait-bound

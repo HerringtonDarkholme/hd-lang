@@ -101,11 +101,14 @@ fn stage_b_over<'i>(
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     let mut cycles = crate::value::ProjectionCycles::default();
+    let mut clean = hd_base::HashSet::default();
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.cycles = cycles;
+        hc.clean = clean;
         hc.item(it)?;
         cycles = hc.cycles;
+        clean = hc.clean;
     }
     Ok(out)
 }
@@ -325,6 +328,15 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
     env
 }
 
+/// A step of [`ItemCheck::check_ty`]'s walk: a type to check; a
+/// requirement key, whose key rule is checked first; or the end of a
+/// closed type's walk, with the number of findings when it began.
+enum Work {
+    Ty(Ty, u32),
+    Key(Ty, u32),
+    Clean(Ty, usize),
+}
+
 /// One item's goals: its environment, memo and fuel.
 struct ItemCheck<'c, 'a> {
     cx: &'c HeaderCx<'a>,
@@ -337,6 +349,9 @@ struct ItemCheck<'c, 'a> {
     /// Whether the fuel ran out: `item-too-complex` is reported, and no
     /// further goal is asked.
     too_complex: bool,
+    /// The closed types whose check reported nothing, kept across the
+    /// items of one stage-B pass.
+    clean: hd_base::HashSet<Ty>,
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
@@ -369,6 +384,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             item: it.def,
             out,
             too_complex: false,
+            clean: hd_base::HashSet::default(),
         }
     }
 }
@@ -1343,15 +1359,6 @@ impl<'a> ItemCheck<'_, 'a> {
         }
     }
 
-    /// The keys of a row written in a header type.
-    fn check_row(&mut self, row: RowId, slot: u32) -> StageResult<()> {
-        for key in self.pool().row_data(row).keys {
-            self.check_key(key, slot);
-            self.check_ty(key, slot)?;
-        }
-        Ok(())
-    }
-
     /// A written bound: the types in its arguments and bindings are
     /// written types (`trait.bound.no-implied.positions`). Its own
     /// arguments may be left to defaults, so only they are checked.
@@ -1369,7 +1376,49 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// Written types against their declared bounds (`trait.bound.no-implied`).
+    /// The walk keeps its own stack, in the order a recursive walk would
+    /// take, so a type nested 20,000 deep checks. A closed type whose
+    /// walk reported nothing is remembered across the module's items
+    /// (`clean`): no environment changes its answer, so each alias of a
+    /// chain checks its own right-hand side, not the whole expansion.
     fn check_ty(&mut self, t: Ty, slot: u32) -> StageResult<()> {
+        let pool = self.pool();
+        let mut work = vec![Work::Ty(t, slot)];
+        let mut kids: Vec<Work> = Vec::new();
+        while let Some(w) = work.pop() {
+            let (t, slot) = match w {
+                Work::Clean(t, mark) => {
+                    if self.out.len() == mark && !self.too_complex {
+                        self.clean.insert(t);
+                    }
+                    continue;
+                }
+                Work::Key(k, slot) => {
+                    self.check_key(k, slot);
+                    (k, slot)
+                }
+                Work::Ty(t, slot) => (t, slot),
+            };
+            let closed = !(pool.has_param(t)
+                || pool.has_infer(t)
+                || pool.has_assoc(t)
+                || pool.has_opaque(t));
+            if closed {
+                if self.clean.contains(&t) {
+                    continue;
+                }
+                work.push(Work::Clean(t, self.out.len()));
+            }
+            crate::work::header_type();
+            self.check_ty_node(t, slot, &mut kids)?;
+            work.extend(kids.drain(..).rev());
+        }
+        Ok(())
+    }
+
+    /// One type of [`Self::check_ty`]'s walk: its own rules, and its
+    /// parts appended to `kids` in the order they are checked.
+    fn check_ty_node(&mut self, t: Ty, slot: u32, kids: &mut Vec<Work>) -> StageResult<()> {
         let pool = self.pool();
         if !self.too_complex {
             match self.cycles.check(pool, self.cx.lookup, Impls::Owned(self.cx.impls), t, &mut self.fuel) {
@@ -1382,6 +1431,14 @@ impl<'a> ItemCheck<'_, 'a> {
                 Ok(false) => {}
             }
         }
+        let keys = |row: RowId, kids: &mut Vec<Work>| {
+            kids.extend(
+                pool.row_data(row)
+                    .keys
+                    .into_iter()
+                    .map(|k| Work::Key(k, slot)),
+            );
+        };
         match pool.get(t) {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
@@ -1428,9 +1485,7 @@ impl<'a> ItemCheck<'_, 'a> {
                         missed = Some(i);
                     }
                 }
-                for &a in args_v {
-                    self.check_ty(a, slot)?;
-                }
+                kids.extend(args_v.iter().map(|&a| Work::Ty(a, slot)));
             }
             TyData::TraitValue { def, args, .. } => {
                 // A trait value type or requirement key keeps only the
@@ -1445,20 +1500,23 @@ impl<'a> ItemCheck<'_, 'a> {
                     );
                     self.report(slot, Code::PartialGenericArguments, message);
                 }
-                self.check_bound(t)?;
-            }
-            TyData::Ref { inner: i, .. } => {
-                self.check_ty(i, slot)?;
-            }
-            TyData::Tuple { elems, rest } => {
-                for e in pool.list_items(elems).iter().copied().chain(rest) {
-                    self.check_ty(e, slot)?;
+                if let TyData::TraitValue { args, bindings, .. } = pool.get(t) {
+                    kids.extend(pool.list_items(args).iter().map(|&a| Work::Ty(a, 0)));
+                    kids.extend(bindings.iter().map(|&(_, b)| Work::Ty(b, 0)));
                 }
+            }
+            TyData::Ref { inner: i, .. } => kids.push(Work::Ty(i, slot)),
+            TyData::Tuple { elems, rest } => {
+                kids.extend(
+                    pool.list_items(elems)
+                        .iter()
+                        .copied()
+                        .chain(rest)
+                        .map(|e| Work::Ty(e, slot)),
+                );
             }
             TyData::Union(members) => {
-                for &m in pool.list_items(members) {
-                    self.check_ty(m, slot)?;
-                }
+                kids.extend(pool.list_items(members).iter().map(|&m| Work::Ty(m, slot)));
             }
             TyData::Fn {
                 params,
@@ -1466,26 +1524,20 @@ impl<'a> ItemCheck<'_, 'a> {
                 row,
                 ..
             } => {
-                for e in pool.list_items(params).iter().copied() {
-                    self.check_ty(e, slot)?;
-                }
-                self.check_ty(result, slot)?;
-                self.check_row(row, slot)?;
+                kids.extend(pool.list_items(params).iter().map(|&e| Work::Ty(e, slot)));
+                kids.push(Work::Ty(result, slot));
+                keys(row, kids);
             }
-            TyData::Row(row) | TyData::Context(row) => self.check_row(row, slot)?,
+            TyData::Row(row) | TyData::Context(row) => keys(row, kids),
             // An opaque type's captured arguments and its bound, and a
             // projection's parts, are written types too.
             TyData::Opaque { args, bound, .. } => {
-                for &a in pool.list_items(args) {
-                    self.check_ty(a, slot)?;
-                }
-                self.check_ty(bound, slot)?;
+                kids.extend(pool.list_items(args).iter().map(|&a| Work::Ty(a, slot)));
+                kids.push(Work::Ty(bound, slot));
             }
             TyData::Assoc { self_ty, args, .. } => {
-                self.check_ty(self_ty, slot)?;
-                for &a in pool.list_items(args) {
-                    self.check_ty(a, slot)?;
-                }
+                kids.push(Work::Ty(self_ty, slot));
+                kids.extend(pool.list_items(args).iter().map(|&a| Work::Ty(a, slot)));
             }
             // No part and no bound to check.
             TyData::Param(_)

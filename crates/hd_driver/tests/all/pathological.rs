@@ -211,6 +211,36 @@ fn omitted_result_chains_check_once_per_function_at_depth_one() {
     }
 }
 
+// Checker: #1776, each alias of a chain checks its own right-hand side,
+// and the walk keeps its own stack.
+/// `type A1 = List[A0]`, `type A2 = List[A1]`, and so on, read by `f`.
+fn alias_chain(n: usize) -> String {
+    let mut s = String::from("type A0 = i32\n");
+    for i in 1..=n {
+        let _ = writeln!(s, "type A{i} = List[A{}]", i - 1);
+    }
+    let _ = writeln!(s, "fn f(x: A{n}) -> A{n}: x");
+    s
+}
+
+#[test]
+fn alias_chain_header_types_grow_linearly() {
+    let work = |n| {
+        let (out, types) =
+            hd_check::work::count_header_types(|| compile(&alias_chain(n), &Goal::Analyze));
+        assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
+        types
+    };
+    // The first build also checks the standard library's items.
+    work(1);
+    // 20,000 aborted after 33 s; 2,000 took 0.61 s.
+    let (small, large) = (work(2000), work(20_000));
+    assert!(
+        small > 0 && large <= 10 * small + 100,
+        "header types for 2,000 and 20,000 aliases: {small} and {large}",
+    );
+}
+
 /// Checker: fuel spent entering expressions and solving body obligations.
 fn check_fuel(generate: fn(usize) -> String, small: usize, large: usize) {
     let work = |n| {

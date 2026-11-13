@@ -31,7 +31,14 @@ pub struct TableWriter<'a> {
     row_index: HashMap<u32, u32>,
     sym_rows: Vec<Symbol>,
     sym_index: HashMap<Symbol, u32>,
+    /// How many [`TableWriter::ty`] calls are open.
+    depth: u32,
 }
+
+/// The nesting of [`TableWriter::ty`] calls past which a type's parts are
+/// written first with an explicit stack ([`TableWriter::parts_first`]).
+/// Shallower types keep the recursive order.
+const NATIVE_DEPTH: u32 = 64;
 
 /// Type-row tags.
 mod tag {
@@ -78,6 +85,7 @@ impl<'a> TableWriter<'a> {
             row_index: HashMap::default(),
             sym_rows: Vec::new(),
             sym_index: HashMap::default(),
+            depth: 0,
         }
     }
 
@@ -195,6 +203,87 @@ impl<'a> TableWriter<'a> {
         if let Some(&r) = self.ty_index.get(&t.0) {
             return Ok(r);
         }
+        if self.depth >= NATIVE_DEPTH {
+            self.parts_first(t)?;
+        }
+        self.depth += 1;
+        let row = self.ty_row(t);
+        self.depth -= 1;
+        row
+    }
+
+    /// The parts a type nests through, in the order [`Self::ty_row`]
+    /// writes them: not a row's keys or a trait value's bindings, which
+    /// it writes in a content order of their own.
+    fn nested_parts(&self, t: Ty, out: &mut Vec<Ty>) {
+        let items = |l: TyList| self.pool.list_items(l);
+        match self.pool.get(t) {
+            TyData::Adt { args, .. } | TyData::Union(args) | TyData::TraitValue { args, .. } => {
+                out.extend_from_slice(items(args));
+            }
+            TyData::Tuple { elems, rest } => {
+                out.extend_from_slice(items(elems));
+                out.extend(rest);
+            }
+            TyData::Opaque { args, bound, .. } => {
+                out.extend_from_slice(items(args));
+                out.push(bound);
+            }
+            TyData::Ref { inner, .. } => out.push(inner),
+            TyData::Fn { params, result, .. } => {
+                out.extend_from_slice(items(params));
+                out.push(result);
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                out.push(self_ty);
+                out.extend_from_slice(items(args));
+            }
+            // A leaf, or parts written in an order of their own.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Row(_)
+            | TyData::Context(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
+        }
+    }
+
+    /// Writes the parts of `t` that are not written yet, each after its
+    /// own parts, with an explicit stack: a type nested 20,000 deep, as
+    /// a chain of aliases makes, writes without native recursion. Each
+    /// part is visited once, so the cost is the parts not written yet.
+    fn parts_first(&mut self, t: Ty) -> StageResult<()> {
+        let mut stack = vec![(t, false)];
+        let mut parts = Vec::new();
+        while let Some((u, expanded)) = stack.pop() {
+            if self.ty_index.contains_key(&u.0) {
+                continue;
+            }
+            if expanded {
+                if u != t {
+                    self.ty_row(u)?;
+                }
+                continue;
+            }
+            stack.push((u, true));
+            parts.clear();
+            self.nested_parts(u, &mut parts);
+            stack.extend(
+                parts
+                    .iter()
+                    .rev()
+                    .filter(|p| !self.ty_index.contains_key(&p.0))
+                    .map(|&p| (p, false)),
+            );
+        }
+        Ok(())
+    }
+
+    /// The row of `t`, which is not written yet.
+    fn ty_row(&mut self, t: Ty) -> StageResult<u32> {
         let row = match self.pool.get(t) {
             TyData::Prim(p) => self.row(tag::PRIM, &[p as u32]),
             TyData::Never => self.row(tag::NEVER, &[]),
@@ -632,6 +721,79 @@ mod tests {
         assert_eq!(rewritten.ty(decoded_ty).expect("rewritten opaque"), row);
         let mut output = Writer::default();
         rewritten.write(&mut output);
+        assert_eq!(output.bytes, bytes.bytes);
+    }
+
+    /// A type nested 20,000 deep through every kind of part the writer
+    /// nests through writes on a test thread's stack, reads back to the
+    /// same type, and writes again to the same bytes.
+    #[test]
+    fn a_type_nested_twenty_thousand_deep_round_trips() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let list = paths.item("app", "values", "Box");
+        let view = paths.item("app", "values", "View");
+        let item = paths.item("app", "values", "Item");
+        let mut t = Ty::I32;
+        for level in 0..20_000 {
+            let data = match level % 8 {
+                0 => TyData::Adt {
+                    def: list,
+                    args: pool.list(&[t]),
+                },
+                1 => TyData::Tuple {
+                    elems: pool.list(&[Ty::BOOL, t]),
+                    rest: None,
+                },
+                2 => TyData::Union(pool.list(&[Ty::STRING, t])),
+                3 => TyData::Ref {
+                    inner: t,
+                    mutable: level % 16 == 3,
+                    counted: false,
+                },
+                4 => TyData::Fn {
+                    params: pool.list(&[t]),
+                    result: Ty::BOOL,
+                    row: crate::pool::RowId::EMPTY,
+                    suspends: false,
+                    inputs: crate::pool::Inputs::Fixed,
+                    deps: crate::pool::FnDeps::NONE,
+                },
+                5 => TyData::TraitValue {
+                    def: view,
+                    args: pool.list(&[t]),
+                    bindings: vec![],
+                },
+                6 => TyData::Assoc {
+                    assoc: item,
+                    trait_: view,
+                    self_ty: t,
+                    args: crate::pool::TyList::EMPTY,
+                },
+                _ => TyData::Opaque {
+                    owner: view,
+                    site: 3,
+                    borrows: false,
+                    args: pool.list(&[t]),
+                    bound: Ty::BOOL,
+                },
+            };
+            t = pool.intern_ty(&data);
+        }
+        let mut tables = TableWriter::new(&pool, &paths, &syms);
+        let row = tables.ty(t).expect("deep row");
+        let mut bytes = Writer::default();
+        tables.write(&mut bytes);
+        let decoded =
+            Tables::read(&mut Reader::new(&bytes.bytes), &pool, &paths, &syms).expect("tables");
+        assert_eq!(decoded.ty(row), Some(t));
+        let mut again = TableWriter::new(&pool, &paths, &syms);
+        assert_eq!(again.ty(t).expect("deep row again"), row);
+        let mut output = Writer::default();
+        again.write(&mut output);
         assert_eq!(output.bytes, bytes.bytes);
     }
 

@@ -2480,6 +2480,7 @@ runtime/valid/string-prefix-evaluation-order.hd	runtime	accept	lang/05-expressio
 runtime/valid/string-prefix-std.hd	runtime	accept	std/text.md#r-std-text.prefix.std.r.reference-values
 parse/invalid/row-alias-and-operator.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.type-decl.row-alias.no-and
 typing/invalid/alias-cycle.hd	type	reject:alias-cycle	lang/04-type-system.md#r-types.alias.cycle
+typing/invalid/a-bound-is-checked-past-alias-parts-already-checked.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.no-implied
 typing/invalid/row-alias-cycle.hd	type	reject:alias-cycle	lang/11-requirements-and-suspension.md#r-req.row.alias.cycle
 typing/invalid/ambiguous-row-pattern.hd	type	reject:ambiguous-row-pattern	lang/11-requirements-and-suspension.md#r-req.row.least.ambiguous
 typing/invalid/ambiguous-row-pattern-parameter-line.hd	type	reject:ambiguous-row-pattern	lang/11-requirements-and-suspension.md#r-req.row.least.ambiguous.reported

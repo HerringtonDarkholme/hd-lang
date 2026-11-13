@@ -1773,39 +1773,43 @@ type AliasBody = (Vec<bool>, Ty, Vec<u16>);
 /// Calls `f` on each type in `t` along the paths that hold its reference
 /// slots, in [`Types::ref_slots`] order: through a reference of either
 /// kind, `mut`, an optional, a tuple's elements and a type's arguments.
+/// Callers look only at parameters, references and opaque types, so a
+/// part that holds none is skipped whole. The walk keeps its own stack:
+/// a type nested 20,000 deep, as a chain of aliases makes, is no native
+/// recursion, and a chain's closed parts cost nothing.
 fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
-    let d = pool.get(t);
-    f(&d);
-    match d {
-        TyData::Ref { inner: i, .. } => slot_paths(pool, i, f),
-        TyData::Tuple { elems, rest } => {
-            for &e in pool.list_items(elems).iter().chain(rest.as_ref()) {
-                slot_paths(pool, e, f);
-            }
+    let mut stack = vec![t];
+    while let Some(t) = stack.pop() {
+        if !(pool.has_param(t) || pool.has_ref(t) || pool.has_opaque(t)) {
+            continue;
         }
-        TyData::Union(members) => {
-            for &member in pool.list_items(members) {
-                slot_paths(pool, member, f);
+        let d = pool.get(t);
+        f(&d);
+        let at = stack.len();
+        match d {
+            TyData::Ref { inner: i, .. } => stack.push(i),
+            TyData::Tuple { elems, rest } => {
+                stack.extend(pool.list_items(elems).iter().chain(rest.as_ref()));
             }
-        }
-        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-            for &a in pool.list_items(args) {
-                slot_paths(pool, a, f);
+            TyData::Union(args) | TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                stack.extend_from_slice(pool.list_items(args));
             }
+            // No path to a reference slot goes through these.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Fn { .. }
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
-        // No path to a reference slot goes through these.
-        TyData::Prim(_)
-        | TyData::Never
-        | TyData::Poison
-        | TyData::Fn { .. }
-        | TyData::Opaque { .. }
-        | TyData::Param(_)
-        | TyData::Const(_)
-        | TyData::Assoc { .. }
-        | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Row(_)
-        | TyData::Context(_) => {}
+        // Parts in written order: the first is popped first.
+        stack[at..].reverse();
     }
 }
 
