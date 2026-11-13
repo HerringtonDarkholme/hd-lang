@@ -464,9 +464,12 @@ callee, and today's answer otherwise.
 3. It finds the SCCs of those callees with an iterative Tarjan walk, on
    demand, decoding and inlining each callee the same way.
 4. It runs the ownership passes per SCC, callees' SCCs first. Inside an
-   SCC, a call of another member reads the declared convention. The
-   passes then return the body and its summary, and the driver records
-   both.
+   SCC, the members' borrows are a fixed point (Lean 4's borrow
+   inference, `Env::component_borrows` in `hd_driver/src/own.rs`, #1289,
+   #1232): every member starts borrowing each value parameter that may
+   hold a count, and a parameter a member keeps leaves the assumption
+   until none does. The passes then return the body and its summary, and
+   the driver records both.
 5. Emission reads the conventions from `Summaries` for each instance's
    own parameters and for the glue it generates.
 
@@ -817,9 +820,8 @@ What the stress test found:
    needs the owner's approval.
 2. **Conservative recursion loses recursive descent.** A parser's
    recursive functions pass their context to each other. The first
-   version keeps such parameters owned. Lean's fixed point (about 30 more
-   lines) would lend them; slice 3 records how many parameters the
-   conservative rule keeps, to decide.
+   version kept such parameters owned. Built since: Lean's fixed point
+   lends them (#1289, #1232; step 4 of "Data flow").
 3. **The field copies are not counts.** A lent struct still passes its
    words. The lane's 12% field-copy share needs a large in-place struct
    passed by the address of the caller's place. That is sound only when

@@ -493,9 +493,12 @@ The measured cost: the instructions a per-instance run sees are 1.03
 times those the per-body run sees in release, 1.04 in dev, on 25
 programs; 1.17 at most (json, dev). The gain: no `Maybe`, so no count is
 kept "in case"; bound calls resolve to impl calls before inlining, which
-is one of #1205's two causes. The other constraints hold: one IR,
-interprocedural work release-only, no whole-program analysis beyond
-model A's existing release summaries.
+is one of #1205's two causes. One IR remains. The limit on cross-function
+work did not hold: the inliner runs before the passes in every build, and
+pointer-loan elision is a whole-program link pass in every build
+(`hd_tir/src/own/pointer.rs`), beside release's summaries. The owner
+allowed whole-program and cross-function analysis on 2026-11-12
+(docs/audit/review-2026-11-12.md §13, "Owner Answers").
 
 ## Appendix A. Stress Test
 

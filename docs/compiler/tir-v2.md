@@ -56,13 +56,51 @@ longer rebuild their parents.
 
 The duty is **visible ownership**. Each `Read` says how it reads: `copy`
 (takes a count), `move` (takes the place's count and leaves it empty)
-or `borrow` (no count). `Drop`, `IsUnique` and `Pin` are statements.
-The checker writes none of this: it emits plain reads. A fixed sequence
-of six passes in `hd_tir` (insertion, borrow, move, pair cancellation,
-known-null, hoisting) decides every count once per generic body. They
-replace the emitter's `count.rs` and `live.rs` decisions, its three loan
-kinds and the checker's copy and pin bookkeeping, and they run before
-any instance is emitted.
+or `borrow` (no count). `Drop` and `IsUnique` are statements (`Pin`
+went with counted element references, #1336 phase 10). The checker
+writes none of this: it emits plain reads. The design had a fixed
+sequence of six passes in `hd_tir` (insertion, borrow, move, pair
+cancellation, known-null, hoisting) decide every count once per generic
+body, replacing the emitter's count decisions. What was built differs;
+see [As built](#as-built-2026-11-13).
+
+### As built (2026-11-13)
+
+- **Steps.** `hd_tir::own::run` (`crates/hd_tir/src/own.rs`) runs about
+  21 steps: local references, struct copies, temporaries, value aliases
+  and forwarding, late reads, insertion, derivation, move, capture moves,
+  known-null, hoisting and arm drops, one splice, then self stores, loan
+  ends, overwrites, retains, counts, liveness and the copy verifier.
+  Pair cancellation (`own/pairs.rs`, #1399) and `Pin` are gone.
+- **Only weakening holds up to the splice.** Insertion to hoisting only
+  weaken, delete or move what insertion wrote. The steps after the
+  splice add statements again (`LoanEnd`, `Release`, `Retain`, boundary
+  counts), so "correct after any prefix" covers the first part only.
+- **Per instance, not per generic body.** The driver clones a body per
+  instance, substitutes its types and chooses impls before the passes
+  (`hd_driver/src/own.rs`, `Env::inlined_instance`), so `OwnCx::counted`
+  answers `bool` on concrete types. An item's generic body serves only
+  past 4,096 type leaves (`MAX_INSTANCE_LEAVES`) and for a generic local
+  function, which stays generic inside its body until emission.
+- **`OwnCx` has about 45 methods**, not three. They include release
+  summaries of callees, promoted arguments and exclusive copies, so the
+  passes read facts of other bodies.
+- **Cross-function and whole-program work.** The inliner copies callees
+  into callers before the passes in every build (`hd_opt/src/inline.rs`).
+  Release adds per-instance summaries with a fixed point over recursive
+  groups, exclusive copies of bodies with reference parameters and
+  argument promotion (RELEASE_INTERPROC.md). Pointer-loan elision is a
+  whole-program link pass in every build (`hd_tir/src/own/pointer.rs`).
+  The owner allowed whole-program and cross-function analysis on
+  2026-11-12 (docs/audit/review-2026-11-12.md §13, "Owner Answers").
+- **The emitter still decides counts.** TIR has no instantiation: no
+  instance id, type arguments or layout (owner, 2026-11-12). So the
+  emitter decides what depends on them: by layout (how many counted
+  leaves a value has, and whether an argument passes owned,
+  `layout::function_pass`), by instance (counts in a generic local
+  function or an instance over the leaf limit), and by storage (loans,
+  `emit/loan_facts.rs`). The module doc of `hd_wasm/src/emit/count.rs`
+  lists the counts it adds.
 
 Everything else stays: structured control flow, the flat column
 encoding, the wire format and its per-body hash, suspension lowering,
@@ -76,8 +114,9 @@ exists (stage 3).
 
 **Fixed by the owner.** RC on wasm32 linear memory with the cycle
 collector, never Wasm GC. A reference is one thin address. No
-whole-program or cross-function analysis (#702 and #703 stay held). No
-second copies of a callee for result demand (#681). Bounds-check
+whole-program or cross-function analysis (#702 and #703 stay held); the
+owner lifted this on 2026-11-12, and the built pipeline has both (see
+[As built](#as-built-2026-11-13)). No second copies of a callee for result demand (#681). Bounds-check
 elimination is separate (#711). Interior references carry no tag: a counted
 reference always refers to a whole object (#912), so a `*T`'s counts
 read the header (§23.30, #988, #1444); [Stage 2](#stage-2) says what places
@@ -649,8 +688,10 @@ the builder keeps a string it pushes. There is no `Interp` instruction.
 
 ## The ownership passes
 
-Stage 2 adds `hd_tir::own`, six passes over one body, in this order:
-insertion, borrow, move, pair cancellation, known-null, hoisting. Each
+Stage 2 adds `hd_tir::own`, designed as six passes over one body, in
+this order: insertion, borrow, move, pair cancellation, known-null,
+hoisting. The built order has about 21 steps, without pair cancellation
+([As built](#as-built-2026-11-13)). Each
 pass reads the body and rewrites read modes or adds and removes
 ownership statements; none changes what the program computes. Before
 insertion, late operand reads reorder a few pure reads
@@ -658,9 +699,11 @@ insertion, late operand reads reorder a few pure reads
 
 ### Where and when the passes run
 
-The passes run on each body collection decodes, once per body per run,
-in the driver's `decode`, where `strip_closure_forms` runs today. All
-instances of a generic body share the result. A std body's owned form
+As designed, the passes run on each body collection decodes, once per
+body per run, and all instances of a generic body share the result. As
+built, they run once per instance on substituted types; the generic body
+serves only past the instance leaf limit
+([As built](#as-built-2026-11-13)). A std body's owned form
 in a dev build is the same in every program, so the driver stores it
 and later builds decode it instead of running the passes again
 (`Run::owned_std_key`, #1423).
@@ -701,8 +744,9 @@ pub trait OwnCx {
 }
 ```
 
-These are signature and layout facts, never another body's, so the
-passes stay per function.
+These were to be signature and layout facts, never another body's. As
+built, `OwnCx` has about 45 methods, and in release they include callee
+summaries ([As built](#as-built-2026-11-13)).
 
 ### Data layout of the passes
 
@@ -999,7 +1043,9 @@ the rarer temporaries. Known-null needs the final moves and drops, so it
 runs after both. Hoisting runs last, on the `IsUnique`s that survive.
 Every pass after insertion only weakens or deletes, so stopping after
 any prefix of the order still gives a correct program; that is how
-stage 2 lands one pass per commit.
+stage 2 lands one pass per commit. As built, this holds up to the
+splice; the steps after it add statements
+([As built](#as-built-2026-11-13)).
 
 ### What each emitter rule becomes
 
