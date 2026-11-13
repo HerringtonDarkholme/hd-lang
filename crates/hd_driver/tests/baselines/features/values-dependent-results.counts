@@ -12,8 +12,6 @@ fn name_of(u: &User) -> &string:
 
 fn first_name(us: &List[User]) -> &string:
     &us[0].name
-> app/main/first_name
->   unique List[app.main.User] (may be shared)
 
 fn read(u: User) -> usize:
     name_of(&u).len()
@@ -23,7 +21,6 @@ fn read(u: User) -> usize:
 fn read_list(us: List[User]) -> usize:
     first_name(&us).len()
 > app/main/read_list
->   unique List[app.main.User] (may be shared)
 >   release List[app.main.User] (last use)
 
 fn through_ptr(u: *User) -> usize:

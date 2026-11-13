@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: the shared pre-loop pin proof makes read_only non-writing with no uniqueness operation.
-# Mutable references, references outside a loop, and reads made inside the loop keep their old effects.
+# Mutable references keep their checks; shared loans omit uniqueness inside and outside loops.
 fn read_only(values: &List[string]) -> usize:
     let total = 0
     for item in &values:

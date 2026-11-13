@@ -54,7 +54,9 @@
 //!    collection), the base's own lists are made unique again right before
 //!    the `Ref`, which reads the base again. The reference counts nothing
 //!    (#1336 phase 10): the list's holder lives until its last use.
-//!    A local immutable address used by one read-only direct call is exempt
+//!    A path through a shared local reference is exempt: its loan already
+//!    prevents storage changes. A local immutable address used by one read-only
+//!    direct call is exempt
 //!    when its result holds no local reference and no intervening operation
 //!    can change storage (`readonly_elements`). Pointer checks and call loans
 //!    remain: only the redundant copy-on-write split is omitted.
@@ -326,7 +328,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     locals(b, topo, cx, t, edits);
     after_drops(t, edits);
     jumps(b, topo, t, edits);
-    uniqueness(b, topo, t, edits);
+    uniqueness(b, topo, cx, t, edits);
     for i in 0..n {
         if b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Use as u32 {
             // A read through a pointer moves the value out
@@ -809,7 +811,13 @@ fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
 /// map place and before element references not proven read-only; and
 /// the same for lists on the path of each read the change goes through,
 /// before that read.
-fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables) {
+fn uniqueness(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     for i in 0..b.len() {
         if topo.blk[i] == NONE {
             continue;
@@ -820,7 +828,6 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
             Tag::Ref if t.pinned[i] => b.data[i][1] |= crate::ir::ref_word::PINS,
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
-                let readonly = pin && t.readonly_elements[i];
                 let deref = path_lists(b, t, a);
                 // A place rooted at a read of a local's or a binding's
                 // place, which folding kept (a reference of an open type):
@@ -828,6 +835,10 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                 // after them, as a change does.
                 let root = b.view(a).value();
                 let base = root.and_then(|v| read_place(b, topo, v));
+                let readonly = pin
+                    && (t.readonly_elements[i]
+                        || cx.shared_place(b, a)
+                        || base.is_some_and(|w| cx.shared_place(b, w)));
                 // The change reads its base's place again here, after what
                 // ran since that read (an index call may copy the
                 // collection): each list on the base's own path is made

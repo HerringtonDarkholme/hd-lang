@@ -3,8 +3,8 @@
   (import "fixture" "make" (func $make (param i32) (result i32 i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
@@ -113,10 +113,6 @@
     local.get $ps
     local.get $p
     i32.store $heap offset=16
-    local.get $ps
-    ;; 14 |     p := make(k)
-    call $rt:list_unique
-    local.set $ps
     ;; 17 |     d := &ps[0].name
     i32.const 0
     local.get $ps

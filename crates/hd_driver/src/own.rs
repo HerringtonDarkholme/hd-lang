@@ -34,7 +34,92 @@ use hd_types::{Ty, TyData, TyList};
 
 use super::{Env, LazyBody, ProgramTables, Run, lock};
 
+/// One actually visited type projection, independent of an element's index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct PlacePart {
+    ty: Ty,
+    variant: Option<u32>,
+    field: Option<u32>,
+}
+
+pub(super) type PlaceSubstitutions = HashMap<(DefId, TyList), HashMap<Ty, Ty>>;
+
+impl Env<'_> {
+    /// O(1) indexed declaration access; substitute just the selected field.
+    /// Cache each type edge, never copy/scan every field for each reference.
+    fn own_place_part(&self, key: PlacePart) -> Option<Ty> {
+        if let Some(hit) = lock(&self.run.own_place_parts).get(&key) {
+            return *hit;
+        }
+        let pool = &self.run.pool;
+        let found = match (pool.get(key.ty), key.field) {
+            (TyData::Tuple { elems, rest }, Some(field)) => {
+                pool.list_items(elems).get(field as usize).copied().or(rest)
+            }
+            (TyData::Union(members), Some(0)) => key
+                .variant
+                .and_then(|v| pool.list_items(members).get(v as usize).copied()),
+            (TyData::Adt { def, args }, field) => {
+                if let Some(field) = field {
+                    let raw = self.p.items.get(def).and_then(|item| match &item.data {
+                        hd_resolve::ItemData::Struct(fields, _) => {
+                            fields.get(field as usize).map(|f| f.ty)
+                        }
+                        hd_resolve::ItemData::Newtype(inner) if field == 0 => Some(*inner),
+                        hd_resolve::ItemData::Enum {
+                            shared, variants, ..
+                        } => match key.variant {
+                            Some(v) => variants
+                                .get(v as usize)
+                                .and_then(|v| v.fields.get(field as usize))
+                                .map(|f| f.ty),
+                            None => shared.get(field as usize).map(|f| f.ty),
+                        },
+                        _ => None,
+                    });
+                    raw.map(|t| {
+                        let owner = self.generics_owner(def);
+                        let parent = self.parent(owner);
+                        let offset = parent.map_or(0, |(_, n)| n);
+                        let arguments = pool.list_items(args);
+                        // The substitution is a pure pool walk: no Env callback while
+                        // holding this cache. All fields share its child memo.
+                        let mut contexts = lock(&self.run.own_place_substs);
+                        let memo = contexts.entry((def, args)).or_default();
+                        place_types::substitute(
+                            pool,
+                            t,
+                            memo,
+                            &|p| {
+                                if p.owner == owner {
+                                    arguments.get(offset + usize::from(p.index)).copied()
+                                } else if parent.is_some_and(|(o, _)| p.owner == o) {
+                                    arguments.get(usize::from(p.index)).copied()
+                                } else {
+                                    None
+                                }
+                            },
+                            || {},
+                        )
+                    })
+                } else {
+                    let at = match self.std_kind(def) {
+                        hd_mono::layout::StdKind::List => Some(0),
+                        hd_mono::layout::StdKind::Map => Some(1),
+                        _ => None,
+                    };
+                    at.and_then(|at| pool.list_items(args).get(at).copied())
+                }
+            }
+            _ => None,
+        };
+        lock(&self.run.own_place_parts).insert(key, found);
+        found
+    }
+}
+
 mod effects;
+mod place_types;
 mod program;
 
 thread_local! {
@@ -525,6 +610,69 @@ impl OwnCx for Env<'_> {
 
     fn thin_counted_reference(&self, ty: Ty) -> bool {
         !self.is_open(ty) && hd_wasm::thin_counted_reference_type(&self.run.pool, self, ty)
+    }
+
+    fn shared_place(&self, b: &Body, word: u32) -> bool {
+        use hd_tir::ir::{Proj, Root};
+        let p = b.view(word);
+        let mut remaining = p.steps(b).filter(|s| matches!(s, Proj::Deref)).count();
+        if remaining == 0 {
+            return false;
+        }
+        let mut ty = match p.root {
+            Root::Local(l) => b.local_ty[l as usize],
+            Root::Value(v) => b.ty[v as usize],
+            Root::Global(_, ty) => ty,
+            _ => return false,
+        };
+        let mut variant = None;
+        for step in p.steps(b) {
+            match step {
+                Proj::Deref => {
+                    let TyData::Ref {
+                        inner,
+                        mutable,
+                        counted,
+                    } = self.run.pool.get(ty)
+                    else {
+                        return false;
+                    };
+                    if !mutable && !counted {
+                        return true;
+                    }
+                    remaining -= 1;
+                    if remaining == 0 {
+                        return false;
+                    }
+                    ty = inner;
+                    variant = None;
+                }
+                Proj::Variant(v) => variant = Some(v),
+                Proj::Field(field) => {
+                    let Some(next) = self.own_place_part(PlacePart {
+                        ty,
+                        variant,
+                        field: Some(field),
+                    }) else {
+                        return false;
+                    };
+                    ty = next;
+                    variant = None;
+                }
+                Proj::Elem(_) => {
+                    let Some(next) = self.own_place_part(PlacePart {
+                        ty,
+                        variant,
+                        field: None,
+                    }) else {
+                        return false;
+                    };
+                    ty = next;
+                    variant = None;
+                }
+            }
+        }
+        false
     }
 
     fn reference_target(&self, ty: Ty) -> Option<Ty> {

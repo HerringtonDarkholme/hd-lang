@@ -2,7 +2,6 @@
 (module
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -120,11 +119,6 @@
     local.get $t1
     i32.store $heap
     local.get $us
-    local.get $us
-    i32.load $heap
-    call $rt:list_unique
-    i32.store $heap
-    local.get $us
     i32.load $heap
     local.set $t1
     i32.const 0
@@ -164,11 +158,6 @@
   )
   (func $first_name (param $us i32) (result i32)
     ;; 13 |     &us[0].name
-    local.get $us
-    local.get $us
-    i32.load $heap
-    call $rt:list_unique
-    i32.store $heap
     local.get $us
     i32.load $heap
     local.set $us

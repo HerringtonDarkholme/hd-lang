@@ -15,13 +15,12 @@ impl Index[usize] for Names:
         &self.items[key]
 > app/main/impl Index[usize] for Names.index
 >   local $0 self: &Names [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 key: usize [param read] value
 >     uses $1: entry -> %0 lend last
 >   %0 = Read copy [$1] : usize
->   %1 = IsUnique [*$0 .items] : ()
->   %2 = Ref local [*$0 .items [%0]] : &string
->   %3 = Block %2 : &string
+>   %1 = Ref local [*$0 .items [%0]] : &string
+>   %2 = Block %1 : &string
 >   summary kept [] writes
 
 impl IndexSet[usize, string] for Names:
@@ -50,28 +49,27 @@ fn read_len(n: Names, i: usize) -> usize:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 self: &Names [read] value
->     uses $2: %3 -> %7 lend last
+>     uses $2: %3 -> %6 lend last
 >   local $3 key: usize [read] value
 >     uses $3: %4 -> %5 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     n[i].len()
 >   %1 = Ref local frame [$0] : &Names
 >   %2 = Read copy [$1] : usize
 >   %3 = Store [$2] %1 : ()
 >   %4 = Store [$3] %2 : ()
 >   %5 = Read copy [$3] : usize
->   %6 = IsUnique [*$2 .items] : ()
->   %7 = Ref local [*$2 .items [%5]] : &string
->   %8 = Break L0 %7 : never
->   %9 = Block - : &string
->   %10 = Scope %9 [] : &string
->   %11 = Ref local [*%10] : &string
->   %12 = LoanEnd [%10] : ()
->   %13 = Call std/text/impl string.len[] (%11) : usize
->   %14 = Drop [%11] : ()
->   %15 = LoanEnd [$2] : ()
->   %16 = Drop [$0] : ()
->   %17 = Block %13 : usize
+>   %6 = Ref local [*$2 .items [%5]] : &string
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : &string
+>   %9 = Scope %8 [] : &string
+>   %10 = Ref local [*%9] : &string
+>   %11 = LoanEnd [%9] : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = Drop [%10] : ()
+>   %14 = LoanEnd [$2] : ()
+>   %15 = Drop [$0] : ()
+>   %16 = Block %12 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0]
@@ -117,13 +115,13 @@ fn generic_first(xs: List[string]) -> usize:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %20 -> %21 lend last
+>     uses $1: %19 -> %20 lend last
 >   local $3 items: List[string] [read captured] place
 >   local $4 self: &List[string] [read] value
->     uses $4: %4 -> %8 lend last
+>     uses $4: %4 -> %7 lend last
 >   local $5 key: usize [read] value
 >     uses $5: %5 -> %6 lend last
->   %0 = Retain %27 Entry local $0 #0 : ()
+>   %0 = Retain %26 Entry local $0 #0 : ()
     first(xs).len()
 >   %1 = Read move [$0] : List[string]
 >   %2 = Store [$3] %1 : ()
@@ -131,27 +129,26 @@ fn generic_first(xs: List[string]) -> usize:
 >   %4 = Store [$4] %3 : ()
 >   %5 = Store [$5] 0:usize : ()
 >   %6 = Read copy [$5] : usize
->   %7 = IsUnique [*$4] : ()
->   %8 = Ref local [*$4 [%6]] : &string
->   %9 = Break L1 %8 : never
->   %10 = Block - : &string
->   %11 = Scope %10 [] : &string
->   %12 = Read copy [*%11] : string
->   %13 = LoanEnd [%11] : ()
->   %14 = LoanEnd [$4] : ()
->   %15 = Break L2 %12 : never
->   %16 = LoanEnd [$4] : ()
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Drop [$3] : ()
->   %20 = Store [$1] %18 : ()
->   %21 = Read borrow [$1] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L0 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Drop [$1] : ()
->   %27 = Block %25 : usize
+>   %7 = Ref local [*$4 [%6]] : &string
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : &string
+>   %10 = Scope %9 [] : &string
+>   %11 = Read copy [*%10] : string
+>   %12 = LoanEnd [%10] : ()
+>   %13 = LoanEnd [$4] : ()
+>   %14 = Break L2 %11 : never
+>   %15 = LoanEnd [$4] : ()
+>   %16 = Block - : string
+>   %17 = Scope %16 [] : string
+>   %18 = Drop [$3] : ()
+>   %19 = Store [$1] %17 : ()
+>   %20 = Read borrow [$1] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Drop [$1] : ()
+>   %26 = Block %24 : usize
 >   %3 finds [$3] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
