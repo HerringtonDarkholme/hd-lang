@@ -1,0 +1,36 @@
+# @dump: own wat
+# @build: v8 release
+# expected: references through shared list loans do not make buffers unique; mutable loans keep their checks
+struct Holder:
+    values: List[string]
+
+fn direct(values: &List[string]) -> &string:
+    &values[0]
+
+fn nested(values: &List[List[string]]) -> &string:
+    &values[0][0]
+
+fn field(holder: &Holder) -> &string:
+    &holder.values[0]
+
+fn exclusive(values: &mut List[string]) -> &string:
+    &values[0]
+
+fn helper_base(values: &List[List[string]], i: usize) -> &string:
+    let base = &values[i]
+    &base[0]
+
+struct PointerHolder:
+    values: *mut List[string]
+
+fn through_pointer(holder: &PointerHolder) -> &string:
+    &holder.values[0]
+
+struct BorrowedHolder['a]:
+    values: &'a List[string]
+
+fn through_borrowed['a](holder: &BorrowedHolder['a]) -> &'a string:
+    &holder.values[0]
+
+fn through_owned_borrowed['a](holder: BorrowedHolder['a]) -> &'a string:
+    &holder.values[0]

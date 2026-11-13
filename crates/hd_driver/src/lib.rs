@@ -1604,6 +1604,9 @@ struct Run<'a> {
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a local reference or a counted owning reference.
     own_types: Mutex<HashMap<Ty, (bool, Option<bool>)>>,
+    /// Lazily indexed type edges used to find shared reference fields.
+    own_place_parts: Mutex<HashMap<own::PlacePart, Option<Ty>>>,
+    own_place_substs: Mutex<own::PlaceSubstitutions>,
     /// Whether a value of a type may be copied, per run (`own.rs`,
     /// `OwnCx::copies`).
     copy_types: Mutex<HashMap<Ty, hd_tir::own::Tri>>,
@@ -2648,6 +2651,8 @@ fn build_packages_inner(
             packages.verify_tir,
         ),
         own_types: Mutex::new(HashMap::default()),
+        own_place_parts: Mutex::new(HashMap::default()),
+        own_place_substs: Mutex::new(HashMap::default()),
         copy_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         own_cold: Mutex::new(HashMap::default()),

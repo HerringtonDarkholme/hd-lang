@@ -261,6 +261,12 @@ pub trait OwnCx {
         let _ = ty;
         false
     }
+    /// Whether this place is reached through an immutable local reference.
+    /// The default supplies no type/projection proof.
+    fn shared_place(&self, b: &Body, word: u32) -> bool {
+        let _ = (b, word);
+        false
+    }
     /// A reference's target type. None for a value that is not a reference.
     fn reference_target(&self, ty: Ty) -> Option<Ty> {
         let _ = ty;

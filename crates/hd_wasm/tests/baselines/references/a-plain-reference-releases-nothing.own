@@ -75,17 +75,16 @@ fn first(xs: &List[string]) -> usize:
     a := &xs[0]
 > app/main/first
 >   local $0 xs: &List[string] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 a: &string [:= read assigned] value
->     uses $1: %2 -> %3 lend last
->   %0 = IsUnique [*$0] : ()
->   %1 = Ref local [*$0 [0:usize]] : &string
->   %2 = Store [$1] %1 : ()
->   %6 = Block %4 : usize
+>     uses $1: %1 -> %2 lend last
+>   %0 = Ref local [*$0 [0:usize]] : &string
+>   %1 = Store [$1] %0 : ()
+>   %5 = Block %3 : usize
     a.len()
->   %3 = Read move [$1] : &string
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = LoanEnd [%3] : ()
+>   %2 = Read move [$1] : &string
+>   %3 = Call std/text/impl string.len[] (%2) : usize
+>   %4 = LoanEnd [%2] : ()
 >   summary kept [] writes
 
 fn slot() -> i32:
