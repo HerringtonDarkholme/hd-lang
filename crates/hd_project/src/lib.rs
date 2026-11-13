@@ -23,6 +23,7 @@ pub use manifest::{
     LintTable, Manifest, ManifestError, Problem, Requirement, STD_NAME, Version, Workspace,
     capability_insertion, capability_insertion_for, compatibility_line, grant_problem, host_path,
     is_capability_selector, key_problem, parse_manifest, problems, requirement_problem,
+    std_name_problem,
 };
 
 /// One file of a source set: its package-relative path with `/`.

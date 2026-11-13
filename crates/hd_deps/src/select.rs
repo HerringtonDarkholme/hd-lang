@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use hd_diag::{Code, Severity};
 use hd_project::{
     HostPath, Manifest, Requirement, Version, compatibility_line, host_path, parse_manifest,
-    problems,
+    problems, std_name_problem,
 };
 
 use crate::cache::Entry;
@@ -386,10 +386,17 @@ fn select_graph(
             message,
         });
     };
-    // A reached local package's minimum applies like a member's
-    // (`module.toolchain.graph-minimum`); a member's is reported by the
-    // command that works on it.
+    // A reached local package's minimum and name apply like a member's
+    // (`module.toolchain.graph-minimum`, `cli.name.std.manifest`); a
+    // member's are reported by the command that works on it.
     for node in &nodes[members_end..] {
+        if let Some(p) = std_name_problem(&node.manifest) {
+            let at = Place {
+                dir: node.dir.clone(),
+                line: p.line.unwrap_or(0),
+            };
+            problem(&mut sel, p.code, &at, p.message);
+        }
         for (line, code, message) in requirement_errors(&node.manifest, toolchain) {
             if code == Code::ToolchainTooOld {
                 let at = Place {
@@ -514,6 +521,9 @@ fn select_graph(
                 if *code == Code::ToolchainTooOld || line.is_none() {
                     problem(&mut sel, Some(*code), &at, format!("{key}: {message}"));
                 }
+            }
+            if let Some(p) = std_name_problem(&manifest) {
+                problem(&mut sel, p.code, &at, format!("{key}: {}", p.message));
             }
             // A fetched version's dev dependencies are never read
             // (`module.select.dev-dependencies`).
@@ -1069,6 +1079,35 @@ mod tests {
         let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
         assert_eq!(codes(&sel), [(Some(Code::ToolchainTooOld), 3)]);
         assert!(sel.problems[0].message.starts_with("tax: "));
+    }
+
+    #[test]
+    fn a_path_dependency_named_std_is_invalid_at_its_name() {
+        let dir = temp("path-std");
+        let root = root_package(&dir, "[dependencies]\ncore = { path = \"../core\" }\n");
+        write(&dir, "core/hd.toml", "[package]\nname = \"std\"\n");
+        let mut fake = Fake::new(&dir);
+        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+        assert_eq!(codes(&sel), [(Some(Code::InvalidManifest), 2)]);
+        assert!(sel.problems[0].place.dir.ends_with("core"));
+    }
+
+    #[test]
+    fn a_fetched_version_named_std_is_invalid_at_its_requirement() {
+        let dir = temp("fetched-std");
+        let root = root_package(
+            &dir,
+            "[dependencies]\ncore = \"github.com/acme/core@1.0.0\"\n",
+        );
+        let mut fake = Fake::new(&dir);
+        fake.version("github.com/acme/core@1.0.0", "std", "");
+        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+        assert_eq!(codes(&sel), [(Some(Code::InvalidManifest), 5)]);
+        assert!(
+            sel.problems[0]
+                .message
+                .starts_with("github.com/acme/core@1.0.0: ")
+        );
     }
 
     #[test]

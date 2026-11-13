@@ -1,0 +1,8 @@
+use dep.core.{cents}
+
+pub fn main() -> void:
+    if cents() != 100:
+        panic("core gave the wrong amount")
+
+# Spec CLI Package Names: cli.name.std.manifest. The root is named shop, but
+# its path dependency core names itself std in its own hd.toml.

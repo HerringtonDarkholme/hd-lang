@@ -792,6 +792,19 @@ fn identity(r: &Requirement) -> Option<String> {
 pub const STD_NAME: &str =
     "no package is named `std`, the standard library's name; rename the package";
 
+/// The problem of a manifest that names its package `std`, at the line of
+/// its `name` key (`cli.name.std.manifest`): the driver and the module
+/// table read a package named `std` as the standard library itself.
+#[must_use]
+pub fn std_name_problem(m: &Manifest) -> Option<Problem> {
+    (m.name == "std").then(|| Problem {
+        code: Some(Code::InvalidManifest),
+        severity: Severity::Error,
+        line: Some(m.name_line),
+        message: STD_NAME.to_owned(),
+    })
+}
+
 /// The rules a manifest alone breaks, in line order: each requirement's
 /// form, key-name collisions and keys that share a package
 /// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
@@ -931,16 +944,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
             });
         }
     }
-    // `cli.name.std.manifest`: the driver and the module table read a package
-    // named `std` as the standard library itself.
-    if m.name == "std" {
-        out.push(Problem {
-            code: Some(Code::InvalidManifest),
-            severity: Severity::Error,
-            line: Some(m.name_line),
-            message: STD_NAME.to_owned(),
-        });
-    }
+    out.extend(std_name_problem(m));
     for e in &m.executables {
         if e.name.is_none() || e.module.is_none() {
             out.push(Problem {
