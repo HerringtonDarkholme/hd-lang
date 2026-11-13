@@ -104,7 +104,8 @@ Correctness is a gate, not a goal.
 
 1. **Cheap for one agent to get right.** Every signature is explicit, so
    an agent reads a header, never a body. Checking is incremental:
-   edit-to-check takes 25 ms at the median on a 10k-line package.
+   edit-to-check took 52 ms at the median on a 10k-line package in the
+   daily run of 2026-11-13 (target 50 ms).
 2. **Many agents on one machine.** Check results and compiled code are
    cached by content and shared across processes. A program reaches the
    host only through the capabilities it is granted.

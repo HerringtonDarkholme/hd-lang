@@ -38,8 +38,11 @@ before relying on one, because they change.
   explicit `@from` and `@source` instead of inferred `From` and cause.
 - Derivation is written as one block per concern. Never propose merging all
   derivations at the declaration.
-- Resource safety is planned through a NonEscapable-style trait, and
-  `defer` stays. Do not propose `Drop` or `using` as the answer.
+- Resources use `using` and `using!` over `Disposable` and
+  `AsyncDisposable`, and `@auto_closing` calls whose `AutoClosing` result
+  must be registered; `defer(action)` is one such std call, not a
+  keyword. Do not propose `Drop` (a std-only runtime hook) as the
+  resource answer.
 - Per-tool authority reports are application-level. Do not raise them as a
   language next step.
 - Follow prior art's best practice by default: the behavior of the

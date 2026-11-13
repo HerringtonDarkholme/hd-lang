@@ -48,9 +48,13 @@ checking.
   10 GB with LRU eviction.
 - Release builds omit the standard `name` section and keep the compact
   `hd.names` for backtraces.
-- Resources use `Disposable` and `using`, not ownership. The local `^`
-  mode was removed (#163). `defer` stays, and a `defer` suite still
-  cannot make a bang call.
+- Resources use `using` with `Disposable`, `using!` with
+  `AsyncDisposable`, and `@auto_closing` calls whose `AutoClosing`
+  result is registered for cleanup (`flow.using.*`,
+  `flow.auto-closing.*`), not ownership. The local `^` mode was removed
+  (#163). `defer` is no keyword (`lex.defer.identifier`): `defer(action)`
+  is the std auto-closing call `std.ops.defer` (`std-ops.defer.*`), and
+  its action is a `FnMut() -> void`, which cannot make a bang call.
 - No serializable closures in the first release; see #166.
 - Suspension lowering reserves no-op observability and replay hook points
   (crates/hd_wasm/DESIGN.md §14.7).
