@@ -1,0 +1,31 @@
+# test: an effect-free function that stores a reference through a bound into its own binding compiles in every pipeline
+# Spec 13 Lifetime Traits: ref.lifetime.trait. `fill` stores `&q` into
+# `local_store`'s `k`; the copies of `&mut k` and `&q` the ownership passes
+# write still point into `local_store`'s own storage, so it writes nothing
+# outside it.
+# expect-stdout: 4
+struct Point:
+    x: i32
+
+trait Store['a]:
+    fn put(&mut self, value: &'a Point) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store['a] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn fill['a, S < Store['a]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+fn local_store() -> i32:
+    p := Point { x: 3 }
+    q := Point { x: 4 }
+    let mut k = Keep { last: &p }
+    fill(&mut k, &q)
+    k.last.x
+
+pub fn main() -> void $ Console:
+    println(local_store())

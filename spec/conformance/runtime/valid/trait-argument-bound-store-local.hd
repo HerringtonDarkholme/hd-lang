@@ -1,6 +1,7 @@
 # test: a function's own binding may take its locals through a lifetime bound
 # Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `k` is a
 # place of `local_store`, so `fill` may put `&q` there.
+# expect-stdout: 4
 struct Point:
     x: i32
 
@@ -23,3 +24,6 @@ fn local_store() -> i32:
     let mut k = Keep { last: &p }
     fill(&mut k, &q)
     k.last.x
+
+pub fn main() -> void $ Console:
+    println(local_store())

@@ -1,0 +1,25 @@
+# @dump: wat
+# @build: v8 release
+# expected: local_store writes only its own `k`; the passes' copies of `&mut k` and `&q` point into it, so it compiles with no write effect.
+struct Point:
+    x: i32
+
+trait Store['a]:
+    fn put(&mut self, value: &'a Point) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store['a] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn fill['a, S < Store['a]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+pub fn local_store() -> i32:
+    p := Point { x: 3 }
+    q := Point { x: 4 }
+    let mut k = Keep { last: &p }
+    fill(&mut k, &q)
+    k.last.x

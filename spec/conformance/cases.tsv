@@ -5453,7 +5453,8 @@ typing/invalid/local-reference-escapes-bound-argument-store-trait-method.hd	type
 typing/invalid/local-reference-escapes-bound-argument-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-outlives-local-bound-argument.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/trait-argument-bound-store-outlives.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
-typing/valid/trait-argument-bound-store-local.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+runtime/valid/trait-argument-bound-store-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+runtime/valid/trait-lifetime-bound-store-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait
 typing/invalid/local-reference-escapes-bound-argument-store-assoc.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-escapes-bound-argument-store-assoc-supertrait.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-escapes-bound-argument-store-assoc-bound-supertrait.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument

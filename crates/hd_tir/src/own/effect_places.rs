@@ -102,9 +102,13 @@ impl Places {
                     ) {
                         out.storage_sources[i] = out.source_at(b, a, i);
                     }
-                    b.local_read(i).map_or(Origin::External, |local| {
-                        out.local_source(b, u32_of(local.idx()), i)
-                    })
+                    match (b.local_read(i), b.value_read(i)) {
+                        (Some(local), _) => out.local_source(b, u32_of(local.idx()), i),
+                        // A copy of a whole value the passes write for a
+                        // later consumer points where that value does.
+                        (_, Some(value)) => out.reference_source(value),
+                        _ => Origin::External,
+                    }
                 }
                 Tag::Ref if w & ref_word::LOCAL != 0 => {
                     let (_, element) = out.get_with(b, a, &mut measure);
@@ -138,7 +142,7 @@ impl Places {
                     {
                         out.reference(b.data[store as usize][1])
                     } else {
-                        false
+                        b.value_read(i).is_some_and(|value| out.reference(value))
                     }
                 }
                 Tag::Ref if w & ref_word::LOCAL != 0 => {
@@ -162,6 +166,9 @@ impl Places {
         use super::memory_effects::ValueSource;
         if b.same_value_coercion(i) {
             return ValueSource::Value(b.data[i][0]);
+        }
+        if let Some(value) = b.value_read(i) {
+            return ValueSource::Value(value);
         }
         if b.tags[i] == Tag::Read
             && let Some(local) = b.local_read(i)
