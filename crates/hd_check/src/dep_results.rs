@@ -1341,6 +1341,16 @@ struct CallSig {
     links: Vec<(Var, Var)>,
 }
 
+impl CallSig {
+    /// Whether the call passes an argument at one of the body's own
+    /// lifetimes, which it checks there (`ref.lifetime.trait.bound-argument`).
+    fn passes_own(&self) -> bool {
+        let own = |v: &Var| matches!(v, Var::Own(_));
+        (self.params.iter()).any(|p| p.1.iter().any(|x| own(&x.0)))
+            || self.links.iter().any(|(x, y)| own(x) || own(y))
+    }
+}
+
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 enum Origin {
@@ -2577,7 +2587,7 @@ impl Ck<'_, '_> {
                 // A suspension that holds an argument may be kept
                 // (`ref.dep.suspension.local`).
                 let held = sig.result && ls.of(body.ty[i]).slots.iter().any(|s| s.hold);
-                through |= sig.store || held;
+                through |= sig.store || held || sig.passes_own();
                 calls.insert(w(i), sig);
             }
             // A call that takes a reference beside another argument
@@ -2749,7 +2759,8 @@ impl Ck<'_, '_> {
         let elem: Vec<_> = (self.conflicts.iter())
             .map(|c| range(tree.node(c.1)))
             .collect();
-        for (at, code, msg) in self.verdict_list(verdicts, own.as_ref(), fun, &paths) {
+        let sigs = (own.as_ref(), mine.as_ref());
+        for (at, code, msg) in self.verdict_list(verdicts, sigs, fun, &paths) {
             let node = self.cx.src.parse.tree.node(at);
             let (lo, hi) = range(node);
             if code == Code::ConflictingAccess
@@ -2900,12 +2911,13 @@ impl Ck<'_, '_> {
     }
 
     /// The diagnostics of `v`, one per node, in today's order: stores into
-    /// a place the caller owns, captured function values, returned values,
-    /// closures' returned values, then the scope check.
+    /// a place the caller owns, arguments passed at a bound's lifetime,
+    /// captured function values, returned values, closures' returned
+    /// values, then the scope check.
     fn verdict_list(
         &self,
         v: Verdicts,
-        own: Option<&DepSig>,
+        (own, mine): (Option<&DepSig>, Option<&DepSig>),
         fun: Option<NodeRef<'_>>,
         paths: &[OwnPath],
     ) -> Vec<(NodeIdx, Code, String)> {
@@ -2925,6 +2937,11 @@ impl Ck<'_, '_> {
         };
         for at in stores {
             push(at, &|| CALLER_PLACE_MSG.to_owned());
+        }
+        if let Some(own) = own.or(mine) {
+            for (at, o, l) in v.bounds {
+                push(at, &|| self.passed_message(own, o, l, fun));
+            }
         }
         for (at, msg) in v.capture {
             push(at, &|| msg.to_owned());
@@ -3005,7 +3022,7 @@ impl Ck<'_, '_> {
             .children()
             .filter(|c| {
                 let (lo, hi) = range(*c);
-                c.kind() == SyntaxKind::ImplDecl && lo < x && x < hi
+                matches!(c.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl) && lo < x && x < hi
             })
             .collect();
         owners.push(fun);
@@ -3019,12 +3036,68 @@ impl Ck<'_, '_> {
             .collect()
     }
 
+    /// `ref.lifetime.trait.bound-argument`: an argument a call passes at
+    /// the body's own lifetime `l`, as a bound writes it, refers to `o`,
+    /// which does not outlive `l`.
+    fn passed_message(&self, own: &DepSig, o: Origin, l: u32, fun: Option<NodeRef<'_>>) -> String {
+        let lifetimes = fun.map(|f| self.lifetime_names(f)).unwrap_or_default();
+        let what = self.origin_what(own, o, l, fun, &lifetimes);
+        let at = (l < ANON).then(|| lifetimes.get((l as usize).wrapping_sub(1)));
+        let at = at
+            .flatten()
+            .map_or_else(String::new, |n| format!(" `{n}`,"));
+        format!(
+            "{what}; the call passes it at{at} the lifetime the bound writes, which it must outlive"
+        )
+    }
+
     /// `ref.dep.return.message`: the root the result slot of lifetime `id`
     /// must not depend on.
     fn origin_message(&self, own: &DepSig, o: Origin, id: u32, fun: Option<NodeRef<'_>>) -> String {
         let body = self.b.body();
         let name = |l: u32| self.cx.names.text(body.local_name[l as usize]).to_owned();
         let lifetimes = fun.map(|f| self.lifetime_names(f)).unwrap_or_default();
+        let lifetime = |l: u32| {
+            (l < ANON)
+                .then(|| lifetimes.get(l as usize - 1).cloned())
+                .flatten()
+        };
+        let carries = |p: u32| {
+            own.params
+                .get(p as usize)
+                .is_some_and(|(_, ids)| ids.contains(&id) || id == ANY && !ids.is_empty())
+        };
+        let what = self.origin_what(own, o, id, fun, &lifetimes);
+        let mut sources: Vec<String> = (0..own.params.len())
+            .filter(|&p| carries(w(p)))
+            .map(|p| format!("`{}`", name(w(p))))
+            .collect();
+        sources.dedup();
+        let from = match sources.as_slice() {
+            [] => String::new(),
+            [one] => one.clone(),
+            [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+        };
+        match lifetime(id) {
+            _ if sources.is_empty() => format!("{what}; the result may depend on no parameter"),
+            Some(l) => format!("{what}; a `{l}` reference of the result depends only on {from}"),
+            None => format!("{what}; the result depends only on {from}"),
+        }
+    }
+
+    /// What origin `o` is, for a message about lifetime `id`: a local, a
+    /// parameter's own storage, a temporary, a top-level binding, or what
+    /// a parameter refers to and at which of `lifetimes`.
+    fn origin_what(
+        &self,
+        own: &DepSig,
+        o: Origin,
+        id: u32,
+        fun: Option<NodeRef<'_>>,
+        lifetimes: &[String],
+    ) -> String {
+        let body = self.b.body();
+        let name = |l: u32| self.cx.names.text(body.local_name[l as usize]).to_owned();
         let lifetime = |l: u32| {
             (l < ANON)
                 .then(|| lifetimes.get(l as usize - 1).cloned())
@@ -3041,7 +3114,7 @@ impl Ck<'_, '_> {
                 .get(p as usize)
                 .is_some_and(|(_, ids)| ids.contains(&id) || id == ANY && !ids.is_empty())
         };
-        let what = match o {
+        match o {
             Origin::Local(l)
                 if body.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM != 0 =>
             {
@@ -3072,21 +3145,6 @@ impl Ck<'_, '_> {
                 format!("the value refers to a temporary of {f}")
             }
             Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
-        };
-        let mut sources: Vec<String> = (0..own.params.len())
-            .filter(|&p| carries(w(p)))
-            .map(|p| format!("`{}`", name(w(p))))
-            .collect();
-        sources.dedup();
-        let from = match sources.as_slice() {
-            [] => String::new(),
-            [one] => one.clone(),
-            [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
-        };
-        match lifetime(id) {
-            _ if sources.is_empty() => format!("{what}; the result may depend on no parameter"),
-            Some(l) => format!("{what}; a `{l}` reference of the result depends only on {from}"),
-            None => format!("{what}; the result depends only on {from}"),
         }
     }
 }
@@ -3119,6 +3177,10 @@ struct Verdicts {
     capture: Vec<(NodeIdx, &'static str)>,
     /// Returned values: the origin they may not depend on, the lifetime.
     results: Vec<(NodeIdx, Origin, u32)>,
+    /// Call arguments passed at one of the body's own lifetimes that a
+    /// bound writes: the origin that does not outlive it, the lifetime
+    /// (`ref.lifetime.trait.bound-argument`).
+    bounds: Vec<(NodeIdx, Origin, u32)>,
     /// Closures' returned values and the origin.
     closures: Vec<(NodeIdx, Origin)>,
     /// `local-reference-outlives-local`.

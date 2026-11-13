@@ -1,0 +1,14 @@
+# test: a counted reference lent at a bound's lifetime must outlive it
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument; Dependent
+# Results: ref.dep.origin.lend. `s.pick(c)` lends the counted `c` as a
+# `&'b Point` at `'a`, but it is lent from the local `c`, which does not
+# outlive `'a`.
+struct Point:
+    x: i32
+
+trait Pick['b]:
+    fn pick(&self, a: &'b Point) -> i32
+
+fn counted['a, S < Pick['a]](s: &S, p: &'a Point) -> i32:
+    c := box(Point { x: 1 })
+    s.pick(c) # diagnostic: local-reference-escapes

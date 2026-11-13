@@ -2,6 +2,9 @@
 # Spec 13 Generic Calls: ref.generic.call; Lifetime Traits:
 # ref.lifetime.trait.bound-argument. `put` keeps its `V`, here `T::Item`,
 # which `t.make(&q)` builds from `q`.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

@@ -1,0 +1,12 @@
+# test: an argument a bound's lifetime fixes must outlive that lifetime even when the result holds no reference
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. With
+# `S < Pick['a]`, `s.pick(p, x)` passes both at `'a`. `x` lives for `'c`,
+# which need not outlive `'a`.
+struct Point:
+    x: i32
+
+trait Pick['b]:
+    fn pick(&self, a: &'b Point, b: &'b Point) -> i32
+
+fn short['a, 'c, S < Pick['a]](s: &S, p: &'a Point, x: &'c Point) -> i32:
+    s.pick(p, x) # diagnostic: local-reference-escapes

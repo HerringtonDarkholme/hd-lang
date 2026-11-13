@@ -77,6 +77,9 @@ pub(crate) enum Category {
     Result,
     /// A store into a universal slot of a place the caller owns.
     CallerPlace,
+    /// A call argument passed at one of the body's own lifetimes, as a
+    /// bound writes it, into that lifetime's universal region.
+    Bound,
     /// The value of a `box`, into `'static`.
     Box,
     /// A provider's value, into `'static`.

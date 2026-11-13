@@ -1,0 +1,14 @@
+# test: a local passed at a bound's lifetime is an error though the call's result holds no reference
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. With
+# `S < Pick['a]`, `s.pick(p, &q)` passes `&q` at `'a`, which the local `q`
+# does not outlive. The `i32` result carries nothing out, and the call is
+# checked all the same.
+struct Point:
+    x: i32
+
+trait Pick['b]:
+    fn pick(&self, a: &'b Point, b: &'b Point) -> i32
+
+fn local['a, S < Pick['a]](s: &S, p: &'a Point) -> i32:
+    q := Point { x: 1 }
+    s.pick(p, &q) # diagnostic: local-reference-escapes

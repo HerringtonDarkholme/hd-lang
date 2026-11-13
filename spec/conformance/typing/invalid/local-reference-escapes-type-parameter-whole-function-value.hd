@@ -1,0 +1,17 @@
+# test: a projection value a function value builds from a local keeps its origins through a type parameter
+# Spec 13 Generic Calls: ref.generic.call. `f(&q)` has no slot of its own
+# but holds `q`, and `id`'s result of type `T` holds what its argument for
+# `T` held, so `ret` returns a reference to its local.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn id[T](x: T) -> T:
+    x
+
+fn ret['a, S < Shelf['a]](f: fn(&'a Point) -> S::Item, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    id(f(&q)) # diagnostic: local-reference-escapes

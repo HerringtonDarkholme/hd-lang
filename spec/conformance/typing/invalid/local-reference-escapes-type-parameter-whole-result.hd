@@ -3,6 +3,9 @@
 # ref.lifetime.trait.bound-argument. `s.make(&q)` has no slot of its own
 # but holds `q`, and `id`'s result of type `T` holds what its argument for
 # `T` held.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

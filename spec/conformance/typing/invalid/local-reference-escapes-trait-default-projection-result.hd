@@ -3,6 +3,9 @@
 # In `Shelf['b]`'s own bodies `Self::Item` is at `'b`, as `S::Item` with
 # `S < Shelf['a]` is at `'a`. `make` takes `&q` at `'b`, so its result may
 # hold `q`, and `dflt` has no parameter at `'b` to return.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

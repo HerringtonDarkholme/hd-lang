@@ -2,6 +2,9 @@
 # Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `make`'s
 # `Self::Item` result is at `Shelf`'s `'b`, which `S < Shelf['a]` makes
 # `'a`, and `&q` is passed at it, so `mk` returns a reference to its local.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

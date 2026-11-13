@@ -14,4 +14,4 @@ trait Shelf['b]:
 fn mk['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
     q := Point { x: 1 }
     s.make(&q)
-> error: main.hd:446..456: local-reference-escapes: `q` is a local of `mk`; a `'a` reference of the result depends only on `p`
+> error: main.hd:453..455: local-reference-escapes: `q` is a local of `mk`; the call passes it at `'a`, the lifetime the bound writes, which it must outlive

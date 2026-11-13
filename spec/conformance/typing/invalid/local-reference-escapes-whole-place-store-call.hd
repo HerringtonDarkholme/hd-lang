@@ -3,6 +3,9 @@
 # ref.lifetime.store.call. `d`'s referent `S::Item` has no slot of its own
 # but is a place the caller owns at `'a`, and `set` stores into it the
 # `s.make(&q)` that holds `q`.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

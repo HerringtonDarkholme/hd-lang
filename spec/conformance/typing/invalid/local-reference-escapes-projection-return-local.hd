@@ -1,6 +1,9 @@
 # test: a projection result passed on from a call depends on the call's arguments at the projection's lifetime
 # Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument,
 # ref.lifetime.return. `pick`'s result is at `'a`, which `&q` is passed at.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

@@ -1,6 +1,9 @@
 # test: a value with no slot of its own passed through a type parameter inside a tuple keeps its origins
 # Spec 13 Generic Calls: ref.generic.call. `wrap`'s `(T, i32)` result holds
 # what its argument for `T` held, `q` here.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

@@ -1,0 +1,17 @@
+# test: a call that stores a function value's projection result into a `&mut` place with no slot of its own keeps its origins
+# Spec 13 Generic Calls: ref.generic.store; Lifetime Stores:
+# ref.lifetime.store.call. `d`'s referent `S::Item` is a place the caller
+# owns at `'a`, and `set` stores into it the `f(&q)` that holds `q`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn set[T](dst: &mut T, x: T) -> void:
+    *dst = x
+
+fn put['a, S < Shelf['a]](f: fn(&'a Point) -> S::Item, d: &mut S::Item, p: &'a Point) -> void:
+    q := Point { x: 1 }
+    set(d, f(&q)) # diagnostic: local-reference-escapes

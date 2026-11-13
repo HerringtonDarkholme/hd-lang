@@ -1,7 +1,8 @@
-# test: a projection value with no slot of its own passed on through a call keeps what it holds
-# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `t` holds
-# `&q` at `'a`; `pick` takes it as `S::Item`, at `'a`, and returns it, so
-# `mk` returns a reference to its local.
+# test: a projection value built from a local is an error where it is built, before it is passed on
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `s.make(&q)`
+# passes `&q` at `'a`, which `q` does not outlive, so the call that would
+# build `t` holding `q` is the error. `pick` would return `t` as
+# `S::Item`, at `'a`, and `mk` would return a reference to its local.
 struct Point:
     x: i32
 
@@ -14,5 +15,5 @@ fn pick['a, S < Shelf['a]](x: S::Item, p: &'a Point) -> S::Item:
 
 fn mk['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
     q := Point { x: 1 }
-    t := s.make(&q)
-    pick::[S](t, p) # diagnostic: local-reference-escapes
+    t := s.make(&q) # diagnostic: local-reference-escapes
+    pick::[S](t, p)

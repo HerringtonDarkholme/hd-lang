@@ -1,0 +1,40 @@
+# test: arguments that outlive the lifetime a bound writes pass through it
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. Each call
+# below passes `p`, or `x` of `'a` too, at `'a`. A `T` result may return
+# or go into the caller's `&mut T` place, and a local passed where the
+# bound writes no lifetime, a tuple's second place here, stays in the
+# call. A receiver borrowed at `'a` may be a reference of `'a`.
+struct Point:
+    x: i32
+
+trait Mk['b, T]:
+    fn make(&self, v: &'b Point) -> T
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+trait Pick['b]:
+    fn pick(&self, a: &'b Point, b: &'b Point) -> i32
+    fn peek(&self, a: &'b Point, b: &Point) -> i32
+    fn pair(&self, a: (&'b Point, &Point)) -> i32
+    fn me(&'b self) -> i32
+
+fn ok['a, T, S < Mk['a, T]](s: &S, p: &'a Point) -> T:
+    s.make(p)
+
+fn bound['a, T, S < Shelf['a, Item = T]](s: &S, p: &'a Point) -> T:
+    s.make(p)
+
+fn place['a, T, S < Mk['a, T]](s: &S, d: &mut T, p: &'a Point) -> void:
+    *d = s.make(p)
+
+fn long['a, S < Pick['a]](s: &S, p: &'a Point, x: &'a Point) -> i32:
+    s.pick(p, x)
+
+fn aside['a, S < Pick['a]](s: &S, p: &'a Point) -> i32:
+    q := Point { x: 1 }
+    s.peek(p, &q) + s.pair((p, &q))
+
+fn borrowed['a, S < Pick['a]](s: &'a S) -> i32:
+    s.me()

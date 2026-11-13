@@ -5452,6 +5452,15 @@ typing/invalid/local-reference-escapes-bound-argument-store-caller.hd	type	rejec
 typing/invalid/local-reference-escapes-bound-argument-store-impl-caller.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-escapes-bound-argument-store-trait-method.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-escapes-bound-argument-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-bare-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-bare-binding.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-bare-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-short.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-local-unreturned.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-receiver.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-counted.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/valid/bound-argument-checked-at-call.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+runtime/valid/bound-argument-bare-result.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-outlives-local-bound-argument.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/trait-argument-bound-store-outlives.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/trait-argument-bound-store-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
@@ -5802,6 +5811,7 @@ typing/invalid/generic-call-method-result-local.hd	type	reject:local-reference-e
 typing/valid/type-parameter-whole-value.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.call
 typing/invalid/local-reference-escapes-type-parameter-whole-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
 typing/invalid/local-reference-escapes-type-parameter-whole-tuple.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
+typing/invalid/local-reference-escapes-type-parameter-whole-function-value.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
 typing/invalid/local-reference-escapes-bound-argument-projection-store.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/type-parameter-whole-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.call
 typing/valid/generic-call-unrelated-short-argument.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.call.line-up
@@ -5810,6 +5820,7 @@ typing/invalid/generic-store-outlives-local.hd	type	reject:local-reference-outli
 typing/invalid/generic-store-caller-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
 typing/valid/whole-place-store-at-its-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.call
 typing/invalid/local-reference-escapes-whole-place-store-call.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.call
+typing/invalid/local-reference-escapes-whole-place-function-value.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.call
 typing/invalid/local-reference-escapes-whole-place-assign.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.call
 typing/invalid/local-reference-escapes-whole-place-field.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.call
 typing/invalid/local-reference-escapes-whole-place-trait-method.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.call

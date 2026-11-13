@@ -1,0 +1,14 @@
+# test: a call through a bound whose binding names a bare type parameter passes its argument at the bound's lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. With
+# `S < Shelf['a, Item = T]`, `s.make(&q)` has type `T` and passes `&q` at
+# `'a`, which `q` does not outlive.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn bad['a, T, S < Shelf['a, Item = T]](s: &S, p: &'a Point) -> T:
+    q := Point { x: 1 }
+    s.make(&q) # diagnostic: local-reference-escapes

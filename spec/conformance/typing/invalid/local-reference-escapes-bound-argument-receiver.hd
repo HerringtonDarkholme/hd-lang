@@ -1,0 +1,13 @@
+# test: a receiver a call borrows at a bound's lifetime must outlive it
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. With
+# `S < Pick['a]`, `s.me()` borrows `s` for `&'b self` at `'a`, but `s` is
+# a parameter whose own storage the call owns, and it does not outlive
+# `'a`.
+struct Point:
+    x: i32
+
+trait Pick['b]:
+    fn me(&'b self) -> i32
+
+fn recv['a, S < Pick['a]](s: S, p: &'a Point) -> i32:
+    s.me() # diagnostic: local-reference-escapes

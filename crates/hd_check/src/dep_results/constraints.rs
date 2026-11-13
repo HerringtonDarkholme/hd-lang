@@ -472,6 +472,9 @@ impl Gen<'_, '_> {
     /// capture slot the callee may keep is checked by where it keeps it: a
     /// type parameter bounded by `'static`, one that only forwards
     /// parameters' captures, or a function type written inside another type.
+    /// What flows into a variable a bound makes one with the body's own
+    /// lifetime is checked against that lifetime at the call, whatever the
+    /// call returns (`ref.lifetime.trait.bound-argument`).
     fn call(&mut self, sig: &CallSig, me: &View) {
         let (b, pool, ls, iu) = (self.s.b, self.s.pool, self.s.ls, self.at as usize);
         let flows = sig.result || sig.store;
@@ -484,12 +487,33 @@ impl Gen<'_, '_> {
         let owns = (sig.params.iter().flat_map(|p| p.1.iter().map(|x| x.0)))
             .chain(sig.outs.iter().flatten().copied())
             .chain(sig.links.iter().flat_map(|&(x, y)| [x, y]));
+        // The variables at one of the body's own lifetimes: those and the
+        // ones the links make one with them. A call has a few links.
+        let mut fixed: Vec<Var> = Vec::new();
         for v in owns {
             if let Var::Own(l) = v {
                 let r = self.own_lifetime(l);
                 vars.insert(v, r);
+                fixed.push(v);
             }
         }
+        let mut grew = !fixed.is_empty();
+        while grew {
+            grew = false;
+            for &(x, y) in &sig.links {
+                for (a, b) in [(x, y), (y, x)] {
+                    if fixed.contains(&a) && !fixed.contains(&b) {
+                        fixed.push(b);
+                        grew = true;
+                    }
+                }
+            }
+        }
+        // The argument edges into such a variable are checked at the call.
+        let into = |v: Var| match cat {
+            Category::Flow if fixed.contains(&v) => Category::Bound,
+            _ => cat,
+        };
         let mut var = |t: &mut RegionTable, v| *vars.entry(v).or_insert_with(|| t.fresh(1).start);
         for &(x, y) in &sig.links {
             let (x, y) = (var(&mut self.t, x), var(&mut self.t, y));
@@ -504,8 +528,10 @@ impl Gen<'_, '_> {
             };
             let mut vs: Vec<Var> = slots.iter().map(|x| x.0).collect();
             let keeps = ls.holds(at) && slots.iter().any(|x| x.1.is_some());
-            if b.tags[a as usize] != Tag::Ref && !ls.holds(at) && flows {
+            let checks = vs.iter().any(|v| fixed.contains(v));
+            if b.tags[a as usize] != Tag::Ref && !ls.holds(at) && (flows || checks) {
                 vs.extend(any.then_some(Var::Life(ANY)));
+                vs.retain(|v| flows || fixed.contains(v));
                 vs.dedup();
                 let h = self.t.fresh(1).start;
                 self.lend(a, h);
@@ -514,10 +540,16 @@ impl Gen<'_, '_> {
                 if exclusive::call_site(self.s, a) {
                     self.seed(h, Origin::Site(a));
                 }
-                let rs: Vec<Region> = vs.into_iter().map(|v| var(&mut self.t, v)).collect();
-                self.flow_vars(&[h], &rs, cat);
+                let node = self.node(a);
+                for v in vs {
+                    let r = var(&mut self.t, v);
+                    match into(v) {
+                        Category::Bound => self.checked(h, r, Category::Bound, node),
+                        cat => self.flow_vars(&[h], &[r], cat),
+                    }
+                }
                 continue;
-            } else if !flows && !keeps {
+            } else if !flows && !keeps && !checks {
                 continue;
             }
             let (v, lent) = self.arg(a, at);
@@ -536,7 +568,7 @@ impl Gen<'_, '_> {
                     self.checked(hub.unwrap_or(v.0[k]), self.stat, cat, node);
                 }
             }
-            if !flows {
+            if !flows && !checks {
                 continue;
             }
             let lay = ls.of(at);
@@ -551,14 +583,26 @@ impl Gen<'_, '_> {
                 self.each_into(&v.0, &[r]);
             }
             for (k, &id) in vs.iter().enumerate().take(v.0.len()) {
-                let r = var(&mut self.t, id);
+                if !flows && !fixed.contains(&id) {
+                    continue;
+                }
+                let (r, cat) = (var(&mut self.t, id), into(id));
+                // An argument with no slot of its own has one origin set.
+                let behind = k + 1..lay.slots.get(k).map_or(k + 1, |s| s.end);
                 if under_mut(pool, &lay, k) {
                     self.c.equal(v.0[k], r, self.at);
-                } else {
+                } else if cat != Category::Bound {
                     self.flow_vars(&[v.0[k]], &[r], cat);
                 }
-                // An argument with no slot of its own has one origin set.
-                for j in k + 1..lay.slots.get(k).map_or(k + 1, |s| s.end) {
+                if cat == Category::Bound {
+                    // Checked at the argument, as the call passes it.
+                    let node = self.node(a);
+                    for j in std::iter::once(k).chain(behind) {
+                        self.checked(v.0[j], r, cat, node);
+                    }
+                    continue;
+                }
+                for j in behind {
                     self.flow_vars(&[v.0[j]], &[r], cat);
                 }
             }
@@ -1175,8 +1219,10 @@ impl Gen<'_, '_> {
     /// The diagnostics of the checked edges whose source holds a loan
     /// their target does not allow: a universal region of the result its
     /// lifetimes' parameter slots, a slot of a place the caller owns what
-    /// [`Gen::takes`] allows, `'static` top-level bindings, and a type
-    /// parameter that only forwards captures the parameters' too.
+    /// [`Gen::takes`] allows, `'static` top-level bindings, a type
+    /// parameter that only forwards captures the parameters' too, and the
+    /// body's own lifetime a call passes an argument at its parameter
+    /// slots of that lifetime.
     fn verdicts(&self, sol: &Solution, r: &Returns<'_>) -> Verdicts {
         let (b, ls, pool) = (self.s.b, self.s.ls, self.s.pool);
         // Each slot behind a parameter's top `&mut` is a place the caller owns.
@@ -1228,16 +1274,47 @@ impl Gen<'_, '_> {
                         .all(|&(l, _)| global || own.is_some_and(|own| own.allows(ls, o, l)))
                 }
                 Category::Forward => global || matches!(o, Origin::Param(..)),
+                Category::Bound => (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
+                    .all(|&(l, _)| global || own.is_some_and(|own| own.allows(ls, o, l))),
                 _ => global,
             }
         };
         let has = |v: u32, o: Origin| self.has(sol, v, o);
         let mut v = Verdicts::default();
         let mut returns = HashSet::default();
-        for x in sol.violations(&self.c, allowed) {
+        let violations = sol.violations(&self.c, allowed);
+        // An origin a call may not pass at a bound's lifetime is reported
+        // once, at the first call that passes it, and not again where a
+        // value holding it is passed on, stored or returned.
+        let mut passed: HashSet<Origin> = HashSet::default();
+        for x in violations.iter().filter(|x| x.edge.cat == Category::Bound) {
             let e = x.edge;
             let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
-            let o = bad.map(|l| self.loans[l as usize]).min().expect("a loan");
+            let fresh: Vec<Origin> = (bad.map(|l| self.loans[l as usize]))
+                .filter(|o| !passed.contains(o))
+                .collect();
+            let (Some(&o), Some(at)) = (
+                fresh.iter().min(),
+                self.sites.get(&(e.from, e.to, e.inst)).copied(),
+            ) else {
+                continue;
+            };
+            passed.extend(fresh);
+            let l = (self.owns.iter())
+                .find(|&&(l, r)| sol.same(e.to, r) && !own.is_some_and(|own| own.allows(ls, o, l)))
+                .map_or(NO_SOURCE, |x| x.0);
+            v.bounds.push((at, o, l));
+        }
+        for x in violations.iter().filter(|x| x.edge.cat != Category::Bound) {
+            let e = x.edge;
+            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
+            let reported = |o: &Origin| {
+                matches!(e.cat, Category::Result | Category::CallerPlace) && passed.contains(o)
+            };
+            let bad = bad.map(|l| self.loans[l as usize]).filter(|o| !reported(o));
+            let Some(o) = bad.min() else {
+                continue;
+            };
             let at = self.sites.get(&(e.from, e.to, e.inst)).copied();
             match e.cat {
                 Category::Result if returns.insert(e.inst) => {

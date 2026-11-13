@@ -3,6 +3,9 @@
 # ref.lifetime.trait.bound-argument. Through `S < Mk[&'a Point]`, `fill`'s
 # `Self::Item` stands for the caller's `S::Item` at `'a`, and
 # `s.make(&q)` holds `q`.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 

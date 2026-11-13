@@ -1,0 +1,28 @@
+# test: a call through a bound passes its argument at the lifetime the bound writes, though its result holds nothing
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. Through
+# `S < Mk['a, T]`, `s.make(&q)` passes `&q` at `'a`, which `q` does not
+# outlive. The result of type `T` has no slot to carry `q` to the return,
+# so the call itself is checked. `outlive` would read `bad`'s dead `q`.
+struct Point:
+    x: i32
+
+struct Keep['a]:
+    last: &'a Point
+
+trait Mk['b, T]:
+    fn make(&self, v: &'b Point) -> T
+
+struct Sh:
+    n: i32
+
+impl['b] Mk['b, Keep['b]] for Sh:
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+fn bad['a, T, S < Mk['a, T]](s: &S, p: &'a Point) -> T:
+    q := Point { x: 1 }
+    s.make(&q) # diagnostic: local-reference-escapes
+
+fn outlive['c](p: &'c Point) -> Keep['c]:
+    s := Sh { n: 1 }
+    bad(&s, p)

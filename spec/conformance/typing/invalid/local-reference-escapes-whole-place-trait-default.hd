@@ -3,6 +3,9 @@
 # ref.lifetime.trait.bound-argument. In `Shelf['b]`'s own bodies
 # `Self::Item` is at `'b`, so `*d` is the caller's place at `'b`, and
 # `self.make(&q)` holds `q`.
+# The error is at `&q`: the call passes it at the lifetime the bound
+# writes, which `q` does not outlive, and what holds `q` later is not
+# reported again.
 struct Point:
     x: i32
 
