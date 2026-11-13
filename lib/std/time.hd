@@ -775,7 +775,13 @@ impl ManualClock:
     pub fn new(start: Timestamp) -> *mut ManualClock:
         # Boxed because the returned clock is installed as a provider and advanced later.
         timeline := box(
-            Timeline { current: start.millis, due: Heap::new(), next: 0, listed: false, next_idle: .None },
+            Timeline {
+                current: start.millis,
+                due: Heap::new(),
+                next: 0,
+                listed: false,
+                next_idle: .None,
+            },
         )
         box(ManualClock { timeline: timeline })
 

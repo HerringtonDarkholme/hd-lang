@@ -18,7 +18,7 @@ pub trait Iterator[T < ?Copy] < ?Copy:
     fn map[U < ?Copy, F < FnMut(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]:
         MapIter { source: self, transform: transform }
 
-    fn filter[F < FnMut(& T) -> bool](self, keep: F) -> Filter[Self, T, F]:
+    fn filter[F < FnMut(&T) -> bool](self, keep: F) -> Filter[Self, T, F]:
         Filter { source: self, keep: keep }
 
     fn take(self, count: usize) -> Take[Self, T]:
@@ -30,7 +30,7 @@ pub trait Iterator[T < ?Copy] < ?Copy:
     fn skip(self, count: usize) -> Skip[Self, T]:
         Skip { source: self, left: count }
 
-    fn take_while[F < FnMut(& T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]:
+    fn take_while[F < FnMut(&T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]:
         TakeWhile { source: self, keep: keep, open: true }
 
     fn zip[U < ?Copy, J < ?Copy & Iterable[U]](self, other: J) -> Zip[Self, T, U, J]:
@@ -179,7 +179,7 @@ impl[T < ?Copy] dyn Iterator[T]:
     ) -> MapIter[DynIterator[T], T, U, F]:
         DynIterator { source: self }.map::[U, F](transform)
 
-    pub fn filter[F < FnMut(& T) -> bool](*mut self, keep: F) -> Filter[DynIterator[T], T, F]:
+    pub fn filter[F < FnMut(&T) -> bool](*mut self, keep: F) -> Filter[DynIterator[T], T, F]:
         DynIterator { source: self }.filter::[F](keep)
 
     pub fn take(*mut self, count: usize) -> Take[DynIterator[T], T]:
@@ -191,10 +191,7 @@ impl[T < ?Copy] dyn Iterator[T]:
     pub fn skip(*mut self, count: usize) -> Skip[DynIterator[T], T]:
         DynIterator { source: self }.skip(count)
 
-    pub fn take_while[F < FnMut(& T) -> bool](
-        *mut self,
-        keep: F,
-    ) -> TakeWhile[DynIterator[T], T, F]:
+    pub fn take_while[F < FnMut(&T) -> bool](*mut self, keep: F) -> TakeWhile[DynIterator[T], T, F]:
         DynIterator { source: self }.take_while::[F](keep)
 
     pub fn zip[U < ?Copy, J < ?Copy & Iterable[U]](
@@ -255,11 +252,11 @@ impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] Iterator[
             .Some(item) => .Some((self.transform)(item))
             .None => .None
 
-pub struct Filter[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool = fn(&T) -> bool]:
+pub struct Filter[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(&T) -> bool = fn(&T) -> bool]:
     source: I
     keep: F
 
-impl[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool] Iterator[T] for Filter[I, T, F]:
+impl[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(&T) -> bool] Iterator[T] for Filter[I, T, F]:
     fn next(&mut self) -> T?:
         while true:
             item := match self.source.next():
@@ -305,12 +302,12 @@ impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[T] for Skip[I, T]:
                 .None => return .None
         self.source.next()
 
-pub struct TakeWhile[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool = fn(&T) -> bool]:
+pub struct TakeWhile[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(&T) -> bool = fn(&T) -> bool]:
     source: I
     keep: F
     open: bool
 
-impl[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool] Iterator[T] for TakeWhile[I, T, F]:
+impl[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(&T) -> bool] Iterator[T] for TakeWhile[I, T, F]:
     fn next(&mut self) -> T?:
         if !self.open:
             return .None

@@ -164,7 +164,11 @@ fn drift_merge[T < ?Copy, O < DriftOrder[T]](
     middle: usize,
     end: usize,
 ) -> void:
-    copy_bytes(scratch.at(start).address, items.at(start).address, (middle - start) * size_of::[T]())
+    copy_bytes(
+        scratch.at(start).address,
+        items.at(start).address,
+        (middle - start) * size_of::[T](),
+    )
     let left = start
     let right = middle
     let out = start

@@ -1,4 +1,5 @@
-//! Inspect the std formatting projection without editing any std source.
+//! Std's sources are `hd fmt` clean: each file is its own formatting, which
+//! is idempotent, and every breakable code line fits.
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -18,16 +19,25 @@ fn sources(directory: &Path, out: &mut Vec<PathBuf>) {
 }
 
 #[test]
-fn std_projection_is_idempotent_and_every_breakable_code_line_fits() {
+fn std_is_formatted_idempotent_and_every_breakable_code_line_fits() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
     let mut files = Vec::new();
     sources(&root, &mut files);
     files.sort_stable();
-    let mut wide = Vec::new();
+    let (mut wide, mut drift) = (Vec::new(), Vec::new());
     for file in files {
         let original = fs::read_to_string(&file).expect("std source");
         let formatted =
             format(&original).unwrap_or_else(|diags| panic!("{}: {diags:?}", file.display()));
+        if formatted != original {
+            let line = original
+                .lines()
+                .zip(formatted.lines())
+                .position(|(left, right)| left != right)
+                .unwrap_or_else(|| original.lines().count().min(formatted.lines().count()));
+            let shown = file.strip_prefix(&root).unwrap_or(&file).display();
+            drift.push(format!("lib/std/{shown}:{}", line + 1));
+        }
         let twice = format(&formatted).unwrap_or_else(|diags| {
             let offset = diags.first().map_or(0, |diag| diag.primary.lo as usize);
             let line = formatted[..offset].matches('\n').count();
@@ -121,5 +131,10 @@ fn std_projection_is_idempotent_and_every_breakable_code_line_fits() {
             start += text.len();
         }
     }
+    assert!(
+        drift.is_empty(),
+        "`hd fmt` would change these std files (first differing line):\n{}",
+        drift.join("\n")
+    );
     assert!(wide.is_empty(), "{}", wide.join("\n"));
 }

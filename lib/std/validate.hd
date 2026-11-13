@@ -981,7 +981,7 @@ pub fn unique[F < Eq & Hash & Validate](message: string? = .None) -> Unique[List
     Unique::[List[F]] { message: message }
 
 ## A custom field check; it runs after every built-in fact on the field.
-pub fn check[F, G < 'static & Fn(& F) -> Result[void, Problem]](
+pub fn check[F, G < 'static & Fn(&F) -> Result[void, Problem]](
     test: G,
     message: string? = .None,
 ) -> Check[F]:

@@ -30,6 +30,7 @@
 //                     `-p hd_driver`, never `--test conformance` without
 //                     HD_CONFORMANCE_ONLY.
 //   golden std TIR    hd_check, hd_tir or lib/std touched.
+//   std fmt           lib/std changed: hd_fmt's std test, std is `hd fmt` clean.
 //   server SDK schema lib/std/{console,http,http_wire,time}.hd or packages/server-sdk.
 //   metrics fixtures  bench/metrics fixtures changed (CI runs them for every
 //                     diagnostic change).
@@ -428,6 +429,21 @@ const conformanceRule: Rule = (ctx) => {
   ];
 };
 
+// Std is `hd fmt` clean (#1759). hd_fmt's test formats every std file in
+// one small binary; a touched hd_fmt runs it in its crate step.
+const stdFmtRule: Rule = (ctx) => {
+  if (!ctx.std || ctx.touched.has("hd_fmt")) {
+    return [];
+  }
+  return [
+    step(
+      "std_fmt",
+      "lib/std changed",
+      cargoTest("-p", "hd_fmt", "--test", "all", "--", "std_projection::"),
+    ),
+  ];
+};
+
 const stdRtRule: Rule = (ctx) => {
   if (!anyOf(ctx.selected, COMPILER_CRATES) && !ctx.std) {
     return [];
@@ -461,6 +477,7 @@ const RULES: Rule[] = [
   sdkRule,
   cliRule,
   cliCaseRule,
+  stdFmtRule,
   conformanceRule,
   stdRtRule,
 ];

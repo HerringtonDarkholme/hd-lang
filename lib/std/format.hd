@@ -849,10 +849,7 @@ fn dbg_writer(pretty: bool) -> DebugWriter:
 
 # The column element `at` starts at: its own, or the last one.
 fn dbg_column(columns: List[usize], at: usize) -> usize:
-    if at < columns.len():
-        columns[at]
-    else:
-        columns[columns.len() - 1]
+    if at < columns.len(): columns[at] else: columns[columns.len() - 1]
 
 # The text of `value`, written by `show`, after `width` columns of its line:
 # compact when the line fits in 80 columns, else pretty

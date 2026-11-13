@@ -50,19 +50,14 @@ fn formatting_the_stdlib_stays_within_three_times_parsing() {
     let mut files = Vec::new();
     hd_files(&root.join("lib/std"), &mut files);
     assert!(!files.is_empty(), "the stdlib performance corpus is empty");
-    let authored: Vec<_> = files
+    // Std is `hd fmt` clean (`std_projection`), so its sources are the
+    // canonical text the formatter reproduces.
+    let sources: Vec<_> = files
         .iter()
         .map(|path| {
             fs::read_to_string(path)
                 .unwrap_or_else(|error| panic!("could not read {}: {error}", path.display()))
         })
-        .collect();
-    // The source rewrite deliberately lands after the formatter. Measure the
-    // canonical stdlib projection that the rewrite will commit, so this test
-    // is stable before and after that mechanical pass.
-    let sources: Vec<_> = authored
-        .iter()
-        .map(|source| hd_fmt::format(source).expect("stdlib source formats"))
         .collect();
 
     black_box(measure(&sources, false));

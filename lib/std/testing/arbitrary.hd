@@ -21,5 +21,5 @@ pub struct With[F]:
 
 ## Returns the `@arbitrary.with(gen)` fact: the member is drawn by `gen` instead of its type's `Arbitrary`.
 ## See [std-testing.arbitrary.with.capture-free](../../../spec/std/testing.md#r-std-testing.arbitrary.with.capture-free).
-pub fn with[F, G < Fn(& mut Choices) -> F & 'static](gen: G) -> With[F]:
+pub fn with[F, G < Fn(&mut Choices) -> F & 'static](gen: G) -> With[F]:
     With::[F] { gen: fn(choices: &mut Choices) -> F: gen(choices) }

@@ -90,7 +90,7 @@ impl[T < ?Copy] T?:
             .None => panic(message)
 
 # A copy of the referred-to payload (STDLIB_REFERENCES slice 2).
-impl['a, T](&'a T)?:
+impl['a, T] (&'a T)?:
     ## `.Some` of a copy of the value a `.Some` refers to, and `.None` for a `.None`.
     ## See [std-option.copied](../../spec/std/option.md#r-std-option.copied).
     @inline(.Always)
