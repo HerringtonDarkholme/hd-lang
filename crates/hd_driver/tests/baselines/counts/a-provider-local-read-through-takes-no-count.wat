@@ -39,7 +39,7 @@
     end
     local.get $t0
     local.tee $t1
-    i32.const 344 ;; &vtable[func42]
+    i32.const 380 ;; &vtable[func42]
     local.tee $t2
     ;; 31 |         line("ab")
     local.set $t3
@@ -84,7 +84,7 @@
     i32.const 19 ;; &"c"
     i32.const 1
     local.get $second
-    i32.const 344 ;; &vtable[func42]
+    i32.const 380 ;; &vtable[func42]
     local.get $t1
     local.get $t2
     call $swapped

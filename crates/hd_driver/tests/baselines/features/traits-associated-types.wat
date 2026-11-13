@@ -73,7 +73,7 @@
     local.get $t2
     i32.store $heap offset=4
     local.get $c
-    i32.const 160 ;; &vtable[func21]
+    i32.const 192 ;; &vtable[func21]
     call $read
     local.set $t1
     local.get $c

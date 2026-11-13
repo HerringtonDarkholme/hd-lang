@@ -2574,7 +2574,7 @@ fn small_class(size: u32) -> Option<(u32, u32)> {
 
 /// The offset of each class's freed list in std's allocator metadata
 /// (`std.rt.alloc`'s `FREED`): class `c`'s is at `FREED + 4 * c`.
-const FREED: u32 = 256;
+const FREED: u32 = 640;
 
 /// Pop the class's freed list, else a free slot, or bump within the head
 /// page when it remains non-full. The last available slot, a missing

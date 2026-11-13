@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release std
+# @helpers: std/rt.alloc/block_of
+# expected: later pages resolve to their span; the class quotient uses an exact 48-bit reciprocal.
+use std.rt.alloc.block_of
+
+fn interior(address: usize) -> usize:
+    block_of(address)
