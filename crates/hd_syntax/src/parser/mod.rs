@@ -153,7 +153,19 @@ const MAX_NESTING: u32 = 160;
 /// recursion, and the nesting limit does not bound them: a chain loops in
 /// the parser. Below it, check, fmt and build fit a pool worker's stack
 /// (`hd_sched::pool::WORKER_STACK`), which `hd` gives its command thread.
+#[cfg(not(target_family = "wasm"))]
 pub(crate) const MAX_CHAIN_LINKS: u32 = 10_000;
+
+/// The browser build's chain limit. A wasm frame lives on the engine's
+/// own stack, which a page cannot raise (about 1 MiB in V8), so the
+/// browser build takes shorter chains. Measured on Node 25's V8 with
+/// the 2 MiB linear-memory stack `scripts/build-web-compiler.ts` links:
+/// the first shape to fail, `f()()...` under 79 nested blocks, fails
+/// between 1,200 and 1,300 links; `x |> f(_)...` past 1,500 and every
+/// other shape past 1,900. 500 leaves more than twice that margin for
+/// other engines.
+#[cfg(target_family = "wasm")]
+pub(crate) const MAX_CHAIN_LINKS: u32 = 500;
 
 /// `grammar.limit.chain.error`.
 const CHAIN_TOO_LONG: &str =

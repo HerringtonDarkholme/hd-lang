@@ -149,6 +149,41 @@ const malformed = compile(exports, Uint8Array.of(1));
 assert.equal(malformed.status, STATUS.malformed);
 assert.deepEqual(malformed.json, { error: "request ends early" });
 
+// grammar.limit.chain: the browser build takes 500 links on its engine's
+// stack and reports the 501st as nesting-too-deep, never a thrown
+// RangeError or a trap. The shapes' frames differ; `f()()...` under
+// nested blocks is the deepest measured. A pipe step is one link after
+// the first operand's.
+const chainLimit = 500;
+const chain = (link: string, links: number, blocks = 0) => {
+  const indent = (level: number) => "    ".repeat(level + 1);
+  let text = "fn f(x: i32) -> i32:\n";
+  for (let level = 0; level < blocks; level++) {
+    text += `${indent(level)}if x > 0:\n`;
+  }
+  return `${text}${indent(blocks)}x${link.repeat(links)}\n`;
+};
+const chainCodes = (text: string) => {
+  const result = compile(exports, encodeRequest({ "src/main.hd": text }, "src/main.hd", GOAL.run));
+  return (result.json.diagnostics ?? []).map(({ code }) => code);
+};
+for (const [link, blocks, links] of [
+  [" + x", 0, chainLimit],
+  [" |> f(_)", 0, chainLimit - 1],
+  [".a", 0, chainLimit],
+  ["()", 0, chainLimit],
+  ["()", 79, chainLimit],
+  ["[0]", 0, chainLimit],
+  ["?", 0, chainLimit],
+  [".m()", 0, chainLimit],
+] as const) {
+  const at = chainCodes(chain(link, links, blocks));
+  assert.ok(!at.includes("nesting-too-deep"), `${link} x ${links}: ${at}`);
+  const past = chainCodes(chain(link, links + 1, blocks));
+  assert.ok(past.includes("nesting-too-deep"), `${link} x ${links + 1}: ${past}`);
+}
+console.log(`chains: ${chainLimit} links compile, ${chainLimit + 1} are nesting-too-deep`);
+
 // A REPL session: two inputs, each built as the session program and run
 // in the JS host's session after replaying the inputs before it, then
 // reported as joined.

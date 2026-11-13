@@ -11,6 +11,13 @@
 // `cargo build`; it cannot go in a profile or a target's rustflags, since
 // the debug builds of wasm32 carry debug info, which the flag rejects.
 //
+// The compiler links a 2 MiB linear-memory stack (`-zstack-size`), up from
+// the default 1 MiB: at 1 MiB, `f()()...` under nested blocks ran out of
+// it near 620 links, below the browser build's 500-link chain limit
+// (`MAX_CHAIN_LINKS`, grammar.limit.chain) with too little margin. At 2 MiB
+// the engine's own stack fails first on every shape. Cost: one more MiB of
+// initial memory per compiler instance; none at run time.
+//
 // No wasm-opt pass: -Oz made the gzip download larger (it optimizes raw
 // size), and the cheap passes that do help (-O1 and duplicate function
 // elimination, 56 KB) need a binaryen the repository does not declare.
@@ -32,6 +39,9 @@ const TARGET_DIR = process.env.CARGO_TARGET_DIR
 /** The compiler wasm the playground serves. */
 export const COMPILER_WASM = join(root, "website", "playground", "assets", "hd_web.wasm");
 export const WAT_WASM = join(root, "website", "playground", "assets", "hd_wat.wasm");
+
+/** The compiler's linear-memory stack, in bytes (see the header). */
+const COMPILER_STACK = 2 * 1024 * 1024;
 
 /** Raw and gzip (level 9) byte counts of a file. */
 export function sizes(path: string): { raw: number; gzip: number } {
@@ -65,6 +75,7 @@ function build() {
         "--",
         "-C",
         "link-arg=--compress-relocations",
+        ...(crate === "hd_web" ? ["-C", `link-arg=-zstack-size=${COMPILER_STACK}`] : []),
       ],
       { cwd: root, stdio: "inherit" },
     );
