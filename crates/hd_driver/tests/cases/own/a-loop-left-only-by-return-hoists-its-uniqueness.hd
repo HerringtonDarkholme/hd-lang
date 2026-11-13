@@ -1,0 +1,13 @@
+# @dump: own
+# expected: `IsUnique hoisted [*$0]` before the loop; the push's original
+# check is removed, including through the physical dereference.
+# Hoisting: a `while true` loop left only by `return` still has an entry
+# test: its `If true` exit arm breaks. So the push in its iteration block
+# makes the parameter's list unique once, before the loop.
+fn fill(xs: &mut List[i32], n: i32) -> i32:
+    let mut i = +0
+    while true:
+        if i == n:
+            return i
+        xs.push(i)
+        i += 1

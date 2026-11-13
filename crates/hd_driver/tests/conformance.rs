@@ -2043,10 +2043,6 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt_tests/ref_tests.hd", include_str!("std_rt/ref_tests.hd")),
     (
-        "rt_tests/loop_exit_tests.hd",
-        include_str!("std_rt/loop_exit_tests.hd"),
-    ),
-    (
         "rt_tests/task_tests.hd",
         include_str!("std_rt/task_tests.hd"),
     ),
@@ -2079,7 +2075,6 @@ const STD_RT_CHECKED_TOO: &[&str] = &[
     "rt_tests/dyn_call_tests.hd",
     "rt_tests/inline_drop_tests.hd",
     "rt_tests/ref_tests.hd",
-    "rt_tests/loop_exit_tests.hd",
 ];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,

@@ -1,9 +1,0 @@
-# @dump: own
-# A return before the push can skip it, so its IsUnique stays in the loop.
-fn fill(xs: &mut List[i32], n: i32) -> i32:
-    let mut i = +0
-    while true:
-        if i == n:
-            return i
-        xs.push(i)
-        i += 1
