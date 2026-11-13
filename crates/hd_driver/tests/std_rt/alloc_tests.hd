@@ -280,3 +280,15 @@ tests:
         again := alloc_class(2048, 20)
         assert(again / PAGE == first / PAGE, "the empty head page stays cached")
         free_class(again, 20)
+
+    it("a failed large search preserves smaller holes and newly freed runs"):
+        first := alloc(PAGE)
+        second := alloc(PAGE)
+        free(first)
+        large := alloc(2 * PAGE)
+        assert(alloc(PAGE) == first, "a smaller request reuses the skipped hole")
+        free(first)
+        free(second)
+        assert(alloc(2 * PAGE) == first, "freeing pages invalidates a failed-search proof")
+        free(first)
+        free(large)

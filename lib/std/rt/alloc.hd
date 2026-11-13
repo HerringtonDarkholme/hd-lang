@@ -58,6 +58,10 @@ let capacity: usize = 0
 let known: usize = 0
 # No page below this one is free.
 let hint: usize = 0
+# A failed search proved there is no run of `miss_size` pages before
+# `miss_end`. Larger requests reuse that proof until any page is freed.
+let miss_size: usize = 0
+let miss_end: usize = 0
 # Every address below this one is null or static data, in no block: the
 # table's first page, set by the first allocation (0 before it, when no
 # address is in a block).
@@ -418,6 +422,7 @@ fn set(page_number: usize, entry: u32) -> void:
     store_u32(table + LISTS + 4 * page_number, entry)
 
 fn lower_hint(page_number: usize) -> void:
+    miss_size = 0
     if page_number < hint:
         hint = page_number
 
@@ -436,17 +441,35 @@ fn start() -> void:
 # grows when none fit. The caller sets their entries.
 fn take(count: usize) -> usize:
     let first = hint
+    if miss_size != 0 && count >= miss_size && miss_end > first:
+        first = miss_end
     let run: usize = 0
-    let page_number = hint
+    let page_number = first
     while page_number < known && run < count:
         if load_u32(table + LISTS + 4 * page_number) == 0:
             run = run + 1
         else:
             first = page_number + 1
             run = 0
+            # Skip only an occupied prefix; an earlier free hole must
+            # remain searchable by a later, smaller request.
+            if hint == page_number:
+                hint = page_number + 1
         page_number = page_number + 1
     if run < count:
-        return extend(count)
+        scan_end := known
+        miss_size = count
+        miss_end = scan_end
+        fresh := extend(count)
+        # A table move invalidates the proof through lower_hint. Otherwise
+        # the newly occupied run extends the same failed-search prefix.
+        if miss_size != 0:
+            miss_end = fresh + count
+        # Table relocation can free an earlier page and lower hint.
+        # Preserve it; otherwise no free page preceded the fresh run.
+        if hint == scan_end:
+            hint = fresh + count
+        return fresh
     if first == hint:
         hint = first + count
     first

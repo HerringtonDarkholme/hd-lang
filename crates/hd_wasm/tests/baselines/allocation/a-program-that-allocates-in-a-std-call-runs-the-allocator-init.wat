@@ -6,6 +6,8 @@
   (import "fixture" "std/rt.alloc/capacity" (global $std/rt.alloc/capacity (mut i32)))
   (import "fixture" "std/rt.alloc/known" (global $std/rt.alloc/known (mut i32)))
   (import "fixture" "std/rt.alloc/hint" (global $std/rt.alloc/hint (mut i32)))
+  (import "fixture" "std/rt.alloc/miss_size" (global $std/rt.alloc/miss_size (mut i32)))
+  (import "fixture" "std/rt.alloc/miss_end" (global $std/rt.alloc/miss_end (mut i32)))
   (import "fixture" "std/rt.alloc/heap" (global $std/rt.alloc/heap (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
@@ -28,6 +30,10 @@
     global.set $std/rt.alloc/known
     i32.const 0
     global.set $std/rt.alloc/hint
+    i32.const 0
+    global.set $std/rt.alloc/miss_size
+    i32.const 0
+    global.set $std/rt.alloc/miss_end
     i32.const 0
     global.set $std/rt.alloc/heap
   )
