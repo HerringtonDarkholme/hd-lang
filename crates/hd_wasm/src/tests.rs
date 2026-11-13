@@ -608,6 +608,7 @@ fn session_static_operands_keep_ordinary_wasm_identical() {
         if symbolic {
             f.static_addr(address);
         } else {
+            f.mark_static(address);
             f.u32(address);
         }
         let key = Sym::Inst(Hash128(646));
@@ -1640,4 +1641,116 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             });
         }
     }
+}
+
+/// Dead data may disappear from initialization, while live interior addresses
+/// and mutable zero slots retain their exact linear-memory addresses.
+#[test]
+fn unreachable_static_bytes_leave_live_addresses_and_zero_slots_intact() -> Result<(), String> {
+    use crate::op::Op as Instruction;
+    let mut m = Module::default();
+    let dead = m.static_bytes(&[b'x'; 96], 1);
+    let live = m.static_bytes(&[b'y'; 64], 8);
+    let slot = m.static_slot(24, 8);
+    let mut unused = m.func("unused_literal", vec![], vec![Val::I32]);
+    unused.static_addr(dead);
+    m.define(Sym::Inst(Hash128(7991)), unused);
+    let mut f = m.func("live_literal", vec![], vec![Val::I32]);
+    f.static_addr(live + 7);
+    f.op(Instruction::I32Load8U(wasm_encoder::MemArg {
+        offset: 0,
+        align: 0,
+        memory_index: 0,
+    }));
+    let key = Sym::Inst(Hash128(7992));
+    m.define(key.clone(), f);
+    m.export("read", key);
+    let bytes = m.finish().map_err(|e| format!("{e:?}"))?;
+    validate(&bytes);
+    let mut image = vec![0u8; slot as usize + 24];
+    for payload in wasmparser::Parser::new(0).parse_all(&bytes) {
+        if let wasmparser::Payload::DataSection(section) = payload.map_err(|e| e.to_string())? {
+            for segment in section {
+                let segment = segment.map_err(|e| e.to_string())?;
+                let wasmparser::DataKind::Active { offset_expr, .. } = segment.kind else {
+                    return Err("ordinary initialization must be active".to_owned());
+                };
+                let op = offset_expr
+                    .get_operators_reader()
+                    .read()
+                    .map_err(|e| e.to_string())?;
+                let wasmparser::Operator::I32Const { value } = op else {
+                    return Err("ordinary data must have a constant offset".to_owned());
+                };
+                let start = value.cast_unsigned() as usize;
+                image[start..start + segment.data.len()].copy_from_slice(segment.data);
+            }
+        }
+    }
+    assert!(
+        image[dead as usize..dead as usize + 96]
+            .iter()
+            .all(|b| *b == 0)
+    );
+    assert!(
+        image[live as usize..live as usize + 64]
+            .iter()
+            .all(|b| *b == b'y')
+    );
+    assert!(
+        image[slot as usize..slot as usize + 24]
+            .iter()
+            .all(|b| *b == 0)
+    );
+    Ok(())
+}
+
+/// Constant propagation can remove a std initializer while its static pointer
+/// survives in a reader which had no static operands before optimization.
+#[test]
+fn a_folded_initializer_keeps_its_forwarded_literal() -> Result<(), String> {
+    use crate::{module::Global, op::Op as I};
+    let mut m = Module::default();
+    let text = b"forwarded literal survives its removed initializer";
+    let at = m.static_bytes(text, 1);
+    let global = Global::Storage(Hash128(7993), 0, Val::I32);
+    let init_key = Hash128(7994);
+    let mut init = m.func("init_literal", vec![], vec![]);
+    init.static_addr(at);
+    init.global_set(global);
+    m.define(Sym::Inst(init_key), init);
+    m.init_insts.push(init_key);
+    m.std_insts.insert(init_key);
+    m.export(
+        "hd.init",
+        Sym::Helper(Helper::EntryInit {
+            inits: vec![(init_key, false)],
+        }),
+    );
+    let mut read = m.func("read_literal", vec![], vec![Val::I32]);
+    read.global_get(global);
+    read.op(I::I32Load8U(wasm_encoder::MemArg {
+        offset: 0,
+        align: 0,
+        memory_index: 0,
+    }));
+    let read_key = Sym::Inst(Hash128(7995));
+    m.define(read_key.clone(), read);
+    m.export("read", read_key);
+    let bytes = m.finish().map_err(|e| format!("{e:?}"))?;
+    validate(&bytes);
+    let mut found = false;
+    for payload in wasmparser::Parser::new(0).parse_all(&bytes) {
+        if let wasmparser::Payload::DataSection(section) = payload.map_err(|e| e.to_string())? {
+            for segment in section {
+                let segment = segment.map_err(|e| e.to_string())?;
+                found |= segment
+                    .data
+                    .windows(text.len())
+                    .any(|window| window == text);
+            }
+        }
+    }
+    assert!(found);
+    Ok(())
 }
