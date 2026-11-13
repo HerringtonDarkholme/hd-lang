@@ -1,0 +1,11 @@
+[package]
+name = "server_api"
+[dependencies]
+server_sdk = { path = "/Users/hd/code/test/hd-lane-spec/packages/server-sdk" }
+[capabilities]
+"dep.server_sdk.server.HttpServer" = true
+Console = true
+Clock = true
+
+[dev-capabilities]
+"dep.server_sdk.deployment.Deployment" = true

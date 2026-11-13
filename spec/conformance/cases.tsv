@@ -6210,6 +6210,7 @@ runtime/valid/call-through-function-reference.hd	runtime	accept	lang/05-expressi
 typing/invalid/call-through-nonfunction-reference.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.call.apply.not-callable
 typing/invalid/concrete-associated-field-is-not-copy.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.structure
 typing/invalid/move-while-borrowed-nested-33-levels.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.copy.structure
+typing/invalid/copy-bound-nested-40-levels.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.structure
 typing/invalid/move-while-borrowed-nested-100-levels.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.copy.structure
 runtime/valid/uniq-map-borrowed-payload.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.get-mut
 typing/valid/string-slice-method-types.hd	type	accept	lang/10-modules.md#r-module.string.slice

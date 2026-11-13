@@ -1,0 +1,12 @@
+[package]
+name = "server_api"
+[dependencies]
+server_sdk = { path = "../sdk" }
+[capabilities]
+"dep.server_sdk.server.HttpServer" = true
+Console = true
+Clock = true
+
+[dev-capabilities]
+"dep.server_sdk.server.HttpServer" = false
+"dep.server_sdk.deployment.Deployment" = true

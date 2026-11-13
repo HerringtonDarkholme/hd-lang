@@ -1,0 +1,8 @@
+[package]
+name = "server_sdk"
+[host]
+"deployment.Deployment" = "providers/deployment.ts"
+"server.HttpServer" = "providers/node.ts"
+
+[dev-capabilities]
+Clock = true

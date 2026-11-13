@@ -237,13 +237,11 @@ pub(crate) fn row(
             return Some(Row::Fails(FailReason::NoImpl));
         }
         let mut subs = Vec::new();
-        return Some(
-            if copy_parts(pool, decls, self_ty, &mut subs, &mut Walk::default()) {
-                Row::Holds(BuiltinImpl::Copy, subs)
-            } else {
-                Row::Fails(FailReason::NoImpl)
-            },
-        );
+        return Some(if copy_parts(pool, decls, self_ty, &mut subs) {
+            Row::Holds(BuiltinImpl::Copy, subs)
+        } else {
+            Row::Fails(FailReason::NoImpl)
+        });
     }
     // A variable stalled above, before the `'static` and `Copy` rows.
     if matches!(
@@ -354,70 +352,70 @@ pub(crate) fn row(
 /// fails. The parameters and inference variables it reaches are left in
 /// `subs`, for the environment to answer. A projection and an opaque type
 /// copy, as today.
-fn copy_parts(
-    pool: Types<'_>,
-    decls: &dyn Declarations,
-    t: Ty,
-    subs: &mut Vec<Ty>,
-    seen: &mut Walk,
-) -> bool {
-    match pool.get(t) {
-        TyData::Ref {
-            mutable, counted, ..
-        } => !mutable || counted,
-        TyData::Tuple { elems, rest } => {
-            pool.list_items(elems)
-                .iter()
-                .all(|&e| copy_parts(pool, decls, e, subs, seen))
-                && rest.is_none_or(|r| copy_parts(pool, decls, r, subs, seen))
-        }
-        TyData::Union(ms) => pool
-            .list_items(ms)
-            .iter()
-            .all(|&m| copy_parts(pool, decls, m, subs, seen)),
-        TyData::Param(_) | TyData::Infer(_) => {
-            if !subs.contains(&t) {
-                subs.push(t);
+///
+/// A work stack, not recursion: a declaration's members nest as deep as
+/// the program's types do, and a fixed depth cap answered "copies" past
+/// it (#1777). Each nominal instance is entered once (`entered`), which
+/// also ends a cycle through a declaration (`Node { next: Node? }`) and
+/// walks a type argument shared by many fields (`Pair[X, X]`) once.
+/// Parts are taken left to right, so `subs` keeps the order a recursive
+/// walk gives. Nothing is allocated for a type that is one part.
+fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<Ty>) -> bool {
+    let mut stack: Vec<Ty> = Vec::new();
+    let mut entered: HashSet<Ty> = HashSet::default();
+    let mut next = Some(t);
+    while let Some(t) = next.take().or_else(|| stack.pop()) {
+        match pool.get(t) {
+            TyData::Ref {
+                mutable, counted, ..
+            } => {
+                if mutable && !counted {
+                    return false;
+                }
             }
-            true
-        }
-        TyData::Adt { def, args } => {
-            if seen.copies.contains(&t) || seen.open.contains(&t) || seen.open.len() > 32 {
-                return true;
+            TyData::Tuple { elems, rest } => {
+                stack.extend(rest);
+                stack.extend(pool.list_items(elems).iter().rev());
             }
-            match decls.copy_decl(def) {
-                CopyDecl::Copies => true,
-                CopyDecl::NotCopy => false,
+            TyData::Union(ms) => stack.extend(pool.list_items(ms).iter().rev()),
+            TyData::Param(_) | TyData::Infer(_) => {
+                if !subs.contains(&t) {
+                    subs.push(t);
+                }
+            }
+            TyData::Adt { def, args } => match decls.copy_decl(def) {
+                CopyDecl::Copies => {}
+                CopyDecl::NotCopy => return false,
                 CopyDecl::Members(ms) => {
+                    if !entered.insert(t) {
+                        continue;
+                    }
                     let argv = pool.list_items(args);
-                    seen.open.push(t);
-                    let ok = ms.iter().all(|&m| {
-                        let m = pool.subst(m, &|p: ParamRef| {
+                    stack.extend(ms.iter().rev().map(|&m| {
+                        pool.subst(m, &|p: ParamRef| {
                             (p.owner == def)
                                 .then(|| argv.get(usize::from(p.index)).copied())
                                 .flatten()
-                        });
-                        copy_parts(pool, decls, m, subs, seen)
-                    });
-                    seen.open.pop();
-                    if ok {
-                        seen.copies.insert(t);
-                    }
-                    ok
+                        })
+                    }));
                 }
-            }
+            },
+            // A projection and an opaque type copy, as today; the rest
+            // hold nothing by value that could block a copy.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Fn { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Opaque { .. }
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
-        _ => true,
     }
-}
-
-/// The nominal types `copy_parts` is inside, and those it already found to
-/// copy, so a type argument shared by many fields (`Pair[X, X]`) is walked
-/// once rather than once per path to it.
-#[derive(Default)]
-struct Walk {
-    open: Vec<Ty>,
-    copies: HashSet<Ty>,
+    true
 }
 
 /// `ref.generic.static.no-local`: a type meets `'static` when it holds no

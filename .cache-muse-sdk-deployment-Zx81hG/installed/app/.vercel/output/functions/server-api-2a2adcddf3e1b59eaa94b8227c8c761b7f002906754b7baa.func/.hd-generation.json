@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "platform": "vercel-node",
+  "generation": "2a2adcddf3e1b59eaa94b8227c8c761b7f002906754b7baa9bfcfddc9040e9cd",
+  "configuration": {
+    "name": "server-api"
+  },
+  "files": {
+    ".vc-config.json": "4b1ede802eb23da332825b1d900b363815b689d7b20769846bd96948b1a303e8",
+    "app.wasm": "56f29809645cf08b517b0272c1ebe810900208c78a054333b6d77539de317bf4",
+    "bindings.js": "22bdcd7f0e618428c0dc100c8c1d817a218d6efc1bb223a55f7be11ced9e8f61",
+    "deployment.json": "120f04758b7918b27e7105d6913ae0abdeff87b56e62a4cb705a5806b10bbe7b",
+    "grants.json": "70d8e026055b5cacd748285f286ae22be4b4b8c4fbef0cdc39318d3097d041f1",
+    "index.js": "6222ad70c544bce04fd77cc038b96732857a572b0022cc721d53fba2c8aacdff",
+    "package.json": "a90fc33418afa2b9cbf4768524b021135b965ecdf993457505bfae3ac44a8428",
+    "runtime/abi-model.json": "e1e768aaf34ca1818550b985f2ac7c79e7c427a935c5e85eff39964b7fb275a2",
+    "runtime/checked-report.js": "090129cc91bd7327ab1d82edc2cc226f5a4f32bad713d70183a53fc254a33cdf",
+    "runtime/core-package.js": "30e70726ece4b3f39ae9bb0fdbad51f5190c90f5741422918e739ebb0111d991",
+    "runtime/core.js": "8c89cd4c1351947eb404f6dfaf2b0ed93c4d0d2b7d2a283dac8e7862d2673003",
+    "runtime/deployed-core.js": "1830c78adc52d829a0736e9053c0f25699511c76699bf87f1531265f6469d223",
+    "runtime/float.js": "d0ca4956b9c906e8b564d35b412f41df1b800d8217584ad180ee90c8b8c20308",
+    "runtime/gen/abi.js": "0d5c43a16c0b4184d8ed55adf974a11f8543fb007c6e96542948e95e8545e359",
+    "runtime/journal.js": "6d7e85af2aab59caba384f8d57c11026b44ab27adb99f975f2a90bb85ba73c11",
+    "runtime/package-contract.js": "f956c1ef3953c48097715a4ecd86cea70df848811bf9db5a082ef6ce3fe8b781",
+    "runtime/package-providers.js": "7e126ed6afb034dedb26f23ffe7a49dc92551200d5f9a924ccaf476d36ccf0c7",
+    "runtime/run-support.js": "52a271075132a141ecacbb255390fb707462f19fb847036a005056bbafc9135f",
+    "runtime/session.js": "2b89f50d684f1892ca13a2281c3933b67351705fe0d4d4614172194e4e98c21a",
+    "runtime/wire.js": "2c2eb8f72a1b644ece47ff9d045ca03afabd597d7a9ef37f2ae462d5a12d80b9",
+    "sdk/application.js": "29b898a3f444d0d1cf421ae9312eeb5ee41dadbbf9a995b805f3781f0c2f1479",
+    "sdk/console.js": "76ac80dff21bedc260b09b8cdecdce27374a80d57d3f3eb855b9d49855a77c47",
+    "sdk/contract-bindings.js": "05b7e9613a02bf3682686df71a9000854925ac5fcf3273205d63a2d0906ab44f",
+    "sdk/dispatcher.js": "15d41e76d966d859900a5dc8659d8a3f46bc7bc31859bb1f4f9d8e03e114e969",
+    "sdk/fetch.js": "4951ced70b6a3b4d7a0af786e7dcf03db608bb95fd5e3f6be3e67f68e31b6d19",
+    "sdk/http.js": "cfc79b2346bea56ecc0c6fcbfe4ac8a9e4d5533f37c3223523255cc39d221791",
+    "sdk/supervisor.js": "8859e8121b05ccdfa5ca4e9bad6bda8da3a1013db3370d5f82abf4382b4c18d9",
+    "sdk/vercel-node.js": "e4c2dd06efa70b27ec67babe5de5eff02dbc1794f4679ec93dec3964c33896b6",
+    "sdk/worker.js": "8739bce50e10dd7978a592bcb44ec48c418c67fb38e597920d06a9b6d8a3ce57"
+  }
+}
