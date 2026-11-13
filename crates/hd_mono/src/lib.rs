@@ -1591,23 +1591,13 @@ impl Cx<'_> {
             // request is ordinary recursion; a hit outside the
             // requester's ancestry is a shared instance, not a cycle.
             let changed = raw != table.args[id.idx()];
-            let mut ancestor = parent;
-            let mut cycle = false;
-            while !cycle && ancestor != InstId::NONE {
-                cycle = ancestor == id;
-                ancestor = table.parent[ancestor.idx()];
-            }
-            if cycle && changed {
+            if changed && table.is_generic_ancestor(id, parent) {
                 return Err(self.stop_poly_recursion(item, raw, parent));
             }
             return Ok(key);
         }
         let table = &self.out.table;
-        let chain = if parent == InstId::NONE {
-            0
-        } else {
-            table.chain_len(parent) + 1
-        };
+        let chain = table.request_chain_len(parent, args);
         let pool = self.pool;
         let depth = pool
             .list_items(args)
@@ -1849,7 +1839,7 @@ impl Cx<'_> {
         let why = if depth > u32::from(MAX_DEPTH) {
             format!("its type arguments nest {depth} deep, past the limit of {MAX_DEPTH}")
         } else {
-            format!("its request chain is {chain} long, past the limit of {MAX_CHAIN}")
+            format!("its generic request chain is {chain} long, past the limit of {MAX_CHAIN}")
         };
         let message = format!(
             "instantiating {last} does not end: {why}; the chain: {}",

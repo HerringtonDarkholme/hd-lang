@@ -836,8 +836,11 @@ growing type) has no finite instance set.
   deepest type argument of an instance. Its default limit is **32**.
   A type nests that deep only through a recursive instantiation chain;
   hand-written types stay far below it.
-- **Chain length** is the shortest chain of instance requests from a root.
-  Its default limit is **256**.
+- **Chain length** counts requests with type arguments after a root.
+  Its default limit is **256**; ordinary non-generic calls consume none.
+  Each instance caches this count and its nearest generic ancestor, so
+  plain request chains cost constant work per instance. The polymorphic
+  recursion check visits only generic ancestors, at most 256 plus the root.
 - The walk is breadth-first in content order, so the first instance over
   either limit is the same on every run.
 - The diagnostic `instantiation-too-deep` points at the generic call that grows the type, and shows the first
