@@ -1,0 +1,21 @@
+# test: a call through a nested projection's bound stores a local reference at the lifetime the bound writes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `O::Inner::Item`'s
+# bound is `Store[&'a Point]` through `Outer['a]` and `Shelf['a]`, so
+# `put` keeps `&q` where the caller's `'a` place does.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+    fn item(&mut self) -> &mut Self::Item
+
+trait Outer['c]:
+    type Inner < Shelf['c]
+    fn inner(&mut self) -> &mut Self::Inner
+
+fn bad['a, O < Outer['a]](o: &mut O, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    o.inner().item().put(&q) # diagnostic: local-reference-escapes

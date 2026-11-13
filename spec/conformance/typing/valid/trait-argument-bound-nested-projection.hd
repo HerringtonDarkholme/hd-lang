@@ -1,0 +1,36 @@
+# test: a projection over a bound's trait arguments holds them where the projection is, so a call through it is no escape
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument,
+# ref.local.holding. `o.inner()` is a `&mut O::Inner` whose trait argument
+# is `Outer['a]`'s lifetime, and `o.inner().item()` a `&mut O::Inner::Item`
+# over `Shelf['a]`'s; neither is a local reference written in a trait
+# argument. `Arg[&'a Point]` names its lifetime, so `S::Item` holds it too.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+    fn item(&mut self) -> &mut Self::Item
+
+trait Outer['c]:
+    type Inner < Shelf['c]
+    fn inner(&mut self) -> &mut Self::Inner
+
+fn nested['a, O < Outer['a]](o: &mut O, p: &'a Point) -> void:
+    o.inner().item().put(p)
+
+fn bound['a, O < Outer['a]](o: &mut O, p: &'a Point) -> void:
+    i := o.inner()
+    i.item().put(p)
+
+fn single['a, S < Shelf['a]](s: &mut S, p: &'a Point) -> void:
+    s.item().put(p)
+
+trait Arg[V]:
+    type Item < Store[V]
+    fn item(&mut self) -> &mut Self::Item
+
+fn argument['a, S < Arg[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    s.item().put(p)

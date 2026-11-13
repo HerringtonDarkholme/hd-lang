@@ -5466,6 +5466,8 @@ typing/invalid/local-reference-escapes-bound-argument-store-self-supertrait.hd	t
 typing/invalid/local-reference-outlives-local-bound-argument-assoc.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/valid/trait-argument-bound-store-assoc.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/trait-argument-bound-store-assoc-outlives.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/valid/trait-argument-bound-nested-projection.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-bound-argument-store-nested-projection.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/valid/trait-argument-impl-named-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
 runtime/valid/trait-argument-impl-unnamed-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-unnamed
 typing/valid/list-and-map-of-local-references-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.argument

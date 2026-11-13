@@ -454,8 +454,13 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
             .iter()
             .find_map(|&a| escape_in(a, top_ok && hd_resolve::iface::is_lifetime_arg(pool, a)))
             .or_else(|| bindings.iter().find_map(|&(_, b)| escape_in(b, false))),
+        // A projection holds what its base and its trait's arguments hold,
+        // at the top as a generic instance does (`ref.local.holding`). Its
+        // arguments are a bound's, a lifetime argument or a `&'a T` the
+        // bound wrote, which the bound itself answers for
+        // (`ref.lifetime.trait.bound-argument`), so they escape nowhere here.
         TyData::Assoc { self_ty, args, .. } => {
-            escape_in(self_ty, false).or_else(|| list(args, false))
+            escape_in(self_ty, top_ok).or_else(|| list(args, top_ok))
         }
         // A result with a source may hold a local reference at the top,
         // as a function's may (`fn.type.lifetime.result`).
