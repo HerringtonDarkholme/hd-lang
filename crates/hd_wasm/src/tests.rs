@@ -1787,3 +1787,148 @@ if (base.read() !== 112) throw Error('new init flags were not applied');
     run_session_node(&script);
     Ok(())
 }
+
+/// A page-rounded allocator makes every allocation's spare room explicit.
+/// Count actual buffer changes while executing the ordinary list helpers.
+#[test]
+fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::module::{BUF, HEAP, mem};
+    use crate::op::Op as I;
+    use std::io::Write;
+    let mut m = Module::new(&runtime());
+    define_runtime(&mut m);
+    let elem = |size| Elem {
+        size,
+        leaves: vec![],
+        walk: None,
+        colls: vec![],
+        drops: vec![],
+        cyclic: false,
+    };
+    // Record each allocation's byte size in the exchange memory, indexed by
+    // its first page. Test blocks span whole pages and never share a page.
+    let mut alloc = m.func("page_alloc", vec![Val::I32], vec![Val::I32]);
+    let size = alloc.local(Val::I32);
+    let block = alloc.local(Val::I32);
+    alloc.get(0);
+    alloc.i32(65535);
+    alloc.op(I::I32Add);
+    alloc.i32(-65536);
+    alloc.op(I::I32And);
+    alloc.op(I::LocalTee(size));
+    alloc.helper(Helper::Alloc);
+    alloc.set(block);
+    alloc.get(block);
+    alloc.i32(16);
+    alloc.op(I::I32ShrU);
+    alloc.i32(4);
+    alloc.op(I::I32Mul);
+    alloc.get(size);
+    alloc.op(I::I32Store(mem(BUF, 0, 2)));
+    alloc.get(block);
+    m.define(Sym::Inst(m.runtime.alloc), alloc);
+    let mut bytes = m.func("page_bytes", vec![Val::I32], vec![Val::I32]);
+    bytes.get(0);
+    bytes.i32(16);
+    bytes.op(I::I32ShrU);
+    bytes.i32(4);
+    bytes.op(I::I32Mul);
+    bytes.op(I::I32Load(mem(BUF, 0, 2)));
+    m.define(Sym::Inst(m.runtime.block_bytes), bytes);
+    for size in [0, 3, 4] {
+        m.export(
+            format!("new{size}"),
+            Sym::Helper(Helper::ListBuf { elem: elem(size) }),
+        );
+    }
+    let mut push = m.func("push", vec![Val::I32; 2], vec![Val::I32]);
+    let block = push.local(Val::I32);
+    let len = push.local(Val::I32);
+    push.get(0);
+    push.helper(Helper::ListGrow { elem: elem(4) });
+    push.op(I::LocalTee(block));
+    push.op(I::I32Load(mem(HEAP, crate::rt::LIST_LEN, 2)));
+    push.set(len);
+    push.get(block);
+    push.get(len);
+    push.i32(4);
+    push.op(I::I32Mul);
+    push.op(I::I32Add);
+    push.get(1);
+    push.op(I::I32Store(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
+    push.get(block);
+    push.get(len);
+    push.i32(1);
+    push.op(I::I32Add);
+    push.op(I::I32Store(mem(HEAP, crate::rt::LIST_LEN, 2)));
+    push.get(block);
+    m.define(Sym::Inst(Hash128(99101)), push);
+    m.export("push", Sym::Inst(Hash128(99101)));
+    for (name, offset) in [("capacity", 0), ("length", crate::rt::LIST_LEN)] {
+        let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
+        f.get(0);
+        f.op(I::I32Load(mem(HEAP, offset, 2)));
+        let sym = Sym::Inst(Hash128(99102 + u128::from(offset)));
+        m.define(sym.clone(), f);
+        m.export(name, sym);
+    }
+    let mut read = m.func("at", vec![Val::I32; 2], vec![Val::I32]);
+    read.get(0);
+    read.get(1);
+    read.i32(4);
+    read.op(I::I32Mul);
+    read.op(I::I32Add);
+    read.op(I::I32Load(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
+    m.define(Sym::Inst(Hash128(99110)), read);
+    m.export("at", Sym::Inst(Hash128(99110)));
+    let mut full = m.func("set_full", vec![Val::I32; 2], vec![]);
+    for offset in [0, crate::rt::LIST_LEN] {
+        full.get(0);
+        full.get(1);
+        full.op(I::I32Store(mem(HEAP, offset, 2)));
+    }
+    m.define(Sym::Inst(Hash128(99111)), full);
+    m.export("set_full", Sym::Inst(Hash128(99111)));
+    for size in [0, 4] {
+        m.export(
+            format!("grow{size}"),
+            Sym::Helper(Helper::ListGrow { elem: elem(size) }),
+        );
+    }
+    let wasm = m.finish()?;
+    validate(&wasm);
+    // cost: one Node process pushes/reads 16,379 fixed values; no repository scan.
+    let mut child=std::process::Command::new("node").args(["--input-type=module","-e",r"
+        import assert from 'node:assert/strict';
+        const chunks=[];for await(const c of process.stdin)chunks.push(c);
+        const module=await WebAssembly.compile(Buffer.concat(chunks));
+        const imports={};for(const i of WebAssembly.Module.imports(module)){imports[i.module]??={};imports[i.module][i.name]=()=>{throw Error('unexpected import '+i.module+'.'+i.name)};}
+        const {exports:e}=await WebAssembly.instantiate(module,imports);
+        let b=e.new4(4), blocks=1;
+        for(let i=0;i<10000;i++){const next=e.push(b,i);if(next!==b)blocks++;b=next;}
+        assert.equal(e.length(b),10000);
+        assert.equal(blocks,1,'no reallocation within the page capacity');
+        assert.equal(e.capacity(b),16378);
+        assert.equal(e.capacity(e.new3(1)),21837,'capacity floors non-power-of-two element sizes');
+        assert.equal(e.capacity(e.new0(1))>>>0,0xffffffff,'zero-sized elements need no byte room');
+        const first=b;
+        for(let i=10000;i<16378;i++){b=e.push(b,i);assert.equal(b,first);}
+        b=e.push(b,16378);assert.notEqual(b,first,'a full page grows');
+        assert.equal(e.capacity(b),32762);
+        for(let i=0;i<16379;i++)assert.equal(e.at(b,i),i,'growth preserves each element');
+        e.set_full(b,Math.floor((0xffffffff-24)/4));
+        assert.throws(()=>e.grow4(b),/unexpected import/,'maximum-length growth takes the panic path before copying');
+        const z=e.new0(1);e.set_full(z,-1);
+        assert.throws(()=>e.grow0(z),/unexpected import/,'zero-sized length overflow takes the panic path');
+        console.log(JSON.stringify({blocks,capacity:e.capacity(b),three:e.capacity(e.new3(1)),zero:e.capacity(e.new0(1))>>>0}));
+    "])
+    // cost: the same single process executes the bounded helper test above.
+    .stdin(std::process::Stdio::piped()).spawn()?;
+    child
+        .stdin
+        .take()
+        .ok_or("Node stdin was not piped")?
+        .write_all(&wasm)?;
+    assert!(child.wait()?.success());
+    Ok(())
+}

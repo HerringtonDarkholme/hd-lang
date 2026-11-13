@@ -3059,7 +3059,18 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.helper(Helper::New);
     f.set(b);
     f.get(b);
-    f.get(0);
+    if elem.size == 0 {
+        f.u32(u32::MAX);
+    } else {
+        f.get(b);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.call(Sym::Inst(m.runtime.block_bytes));
+        f.u32(HEADER + LIST_ELEMS);
+        f.op(Instruction::I32Sub);
+        f.u32(elem.size);
+        f.op(Instruction::I32DivU);
+    }
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(b);
     f.i32(0);
@@ -3401,7 +3412,8 @@ fn list_copy(elem: &Elem, m: &Module) -> Func {
 }
 
 /// [`Helper::ListGrow`]: a full buffer moves to
-/// one of twice its length plus 4, and the old one, its elements moved and its length 0, loses
+/// one requesting twice its length plus 4 (clamped to the largest fitting
+/// capacity), and the old one, its elements moved and its length 0, loses
 /// the count the list held.
 fn list_grow(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:list_grow", vec![Val::I32], vec![Val::I32]);
@@ -3414,11 +3426,31 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Eq);
     f.op(Instruction::If(BlockType::Empty));
+    let most = (u32::MAX - LIST_ELEMS - HEADER)
+        .checked_div(elem.size)
+        .unwrap_or(u32::MAX);
+    f.get(n);
+    f.u32(most);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "heap-exhausted: a list does not fit the heap".into(),
+    ));
+    f.op(Instruction::End);
+    // Clamp the geometric request before multiplying, including element
+    // layouts whose largest possible capacity is less than four.
+    f.get(n);
+    f.u32(most.saturating_sub(4).div_ceil(2));
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::If(BlockType::Result(Val::I32.wasm())));
+    f.u32(most);
+    f.op(Instruction::Else);
     f.get(n);
     f.i32(2);
     f.op(Instruction::I32Mul);
     f.i32(4);
     f.op(Instruction::I32Add);
+    f.op(Instruction::End);
     f.helper(Helper::ListBuf { elem: elem.clone() });
     f.set(nb);
     f.get(nb);

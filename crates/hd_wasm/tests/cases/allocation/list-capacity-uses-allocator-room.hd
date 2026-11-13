@@ -1,0 +1,8 @@
+# @dump: wat
+# @helpers: list_buf list_grow
+# expected: capacity comes from the allocated block's room; zero-sized elements use the maximum count
+fn push_i32(values: &mut List[i32], value: i32) -> void:
+    values.push(value)
+
+fn push_void(values: &mut List[void]) -> void:
+    values.push(())
