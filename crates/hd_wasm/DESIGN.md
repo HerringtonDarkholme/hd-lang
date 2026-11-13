@@ -501,16 +501,16 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
   origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
   struct of an address and a capacity, hd over these (`std.rt.memory`):
-  its room is a block whose count word starts at 1, the buffer's, and
-  whose descriptor word is 0, then the values. A reference into the room
-  that takes a count adds one (§23.20, "References count what they
-  cross"), until the reference counts go
-([ownership.md](../../docs/compiler/ownership.md#references-count-nothing-formerly-phase-10));
-  nothing reads that word as a pin. Its `Drop` and
-  `grow` give up the buffer's count and free the room when it was the
-  last; else the last reference's release frees it, with no glue. The
-  collector's `hold_room` defers that free while it traces (§23.28). A string's bytes are its address, and a new string is a
-  `Str` block, or the static empty string for no bytes.
+  its room starts with an 8-byte header reserved for a bytes-to-string
+  transfer: a count word of 1 and a descriptor word of 0, then its values.
+  While the buffer owns the room, neither it nor an element reference
+  changes that count word (`std.rt.memory::room`, #1321).
+  `Drop` and `grow` call `free_room`, which returns the raw block through
+  `free_block`; no reference-count decrement controls that free.
+  The collector's `hold_room` defers it while tracing (§23.28).
+  Reference dependencies keep the owner live (§23.20).
+  A string's bytes are its address, and a new string is a `Str` block,
+  or the static empty string for no bytes.
 - **Release glue only.** A type whose values hold no counted address but
   implement `std.rt.Drop` (a `UniqList` of scalars) has the walk
   `Walk::Glue`, so the ownership passes and the parameter convention
@@ -542,9 +542,8 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 - **`std.rt.alloc`.** `lib/std/rt/alloc.hd` is the allocator of §23.5 and
   §23.6 in hd over `std.rt.memory`: `alloc(size)`, `free(address)`,
   `block_of(address)`, the page-table lookup of an interior address, and
-  `block_size(size)`. Its state is four module bindings: the table's
-  address and capacity, how many pages the table knows, and the lowest
-  page that may be free. The first `alloc` grows a page for the table and
+  `block_size(size)`. Its module bindings track the page table, heap limits
+  and free-page search state. The first `alloc` grows a page for the table and
   marks every page before it static.
 - **Pages it does not own.** The heap can grow under it through `grow`.
   Each time it grows, it marks pages grown since as static and never
@@ -1166,11 +1165,10 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
   reads the old field before its RHS; both kinds store after the RHS,
-  preserving changes it makes to neighboring fields through aliases. A local
-  reference that takes a count is counted through the page table at any
-  address in its object, so a reference to a field keeps the whole object
-  alive (a counted one is a payload start, §23.30); which ones take one is
-  below ("References count what they cross"). `is` compares
+  preserving changes it makes to neighboring fields through aliases. A
+  page-table lookup can find an object's header from an interior address
+  (§23.5); a local reference borrows its backing storage without retaining
+  it, as described below ("References count nothing"). `is` compares
   addresses, and `identity_of` is no base, the address as the serial and
   no key. A reference to a trait value is that trait value, the data
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block

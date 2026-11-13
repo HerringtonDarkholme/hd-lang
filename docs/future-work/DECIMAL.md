@@ -1,6 +1,6 @@
 # Decimal
 
-Status: design accepted 2026-10-28 as a future package, not in std; not scheduled. The owner accepted fixed 128-bit storage, JSON as an exact string, and a +12 KiB invoice budget. Whether it ships in std or as a package is triaged later; the earlier "decimal is the one number type past the primitives" decision is under review.
+Status: parked by the owner on 2026-11-11 (#840). Resume after the ticket push and reference-counting work. The owner reaffirmed that `decimal` is the one number type past the primitives. The 2026-10-28 package proposal below is a dated record, not a new implementation plan.
 
 This proposal addresses [#840](https://github.com/HerringtonDarkholme/hd-lang/issues/840).
 It adds one `std.decimal.Decimal` value with a fixed 128-bit representation.

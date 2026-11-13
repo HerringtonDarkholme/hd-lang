@@ -26,7 +26,7 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 ### Language and library
 
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
-- [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
+- [Decimal](DECIMAL.md): parked by the owner on 2026-11-11 until after the ticket push and reference-counting work; the earlier fixed 128-bit package proposal is retained as a dated record (#840).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 
 ### Tooling
