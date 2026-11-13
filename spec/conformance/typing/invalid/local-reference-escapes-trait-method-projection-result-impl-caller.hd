@@ -1,0 +1,25 @@
+# test: a caller of an implementation's projection-result method holds the argument it passed
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `Sh`'s `Item`
+# is `Keep['b]`, built from `v`, so `caller` returns the `Keep` that refers
+# to its local `q`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+struct Keep['a]:
+    last: &'a Point
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+fn caller['c](s: &Sh, p: &'c Point) -> Keep['c]:
+    q := Point { x: 4 }
+    s.make(&q) # diagnostic: local-reference-escapes

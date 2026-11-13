@@ -1,0 +1,18 @@
+# test: a projection value with no slot of its own passed on through a call keeps what it holds
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `t` holds
+# `&q` at `'a`; `pick` takes it as `S::Item`, at `'a`, and returns it, so
+# `mk` returns a reference to its local.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn pick['a, S < Shelf['a]](x: S::Item, p: &'a Point) -> S::Item:
+    x
+
+fn mk['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    t := s.make(&q)
+    pick::[S](t, p) # diagnostic: local-reference-escapes

@@ -5473,6 +5473,12 @@ typing/invalid/local-reference-escapes-projection-return-caller.hd	type	reject:l
 typing/invalid/local-reference-escapes-projection-return-trait-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/invalid/local-reference-escapes-projection-return-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 runtime/valid/trait-argument-projection-return.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/valid/trait-method-projection-result.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-trait-method-projection-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-trait-method-projection-result-impl-caller.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-trait-method-projection-result-pass-on.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+typing/invalid/local-reference-escapes-trait-method-projection-result-type-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
+runtime/valid/trait-method-projection-result.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.bound-argument
 typing/valid/trait-argument-impl-named-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-argument
 runtime/valid/trait-argument-impl-unnamed-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait.impl-unnamed
 typing/valid/list-and-map-of-local-references-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.argument

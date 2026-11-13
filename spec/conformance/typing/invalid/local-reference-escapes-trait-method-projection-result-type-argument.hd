@@ -1,0 +1,15 @@
+# test: a trait method's projection result holds what the trait's type argument holds
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `Mk[V]`
+# writes no lifetime, but `Self::Item` holds what its trait's arguments
+# hold, and `S < Mk[&'a Point]` passes `v` at `'a`, so `mk` returns a
+# reference to its local.
+struct Point:
+    x: i32
+
+trait Mk[V]:
+    type Item
+    fn make(&self, v: V) -> Self::Item
+
+fn mk['a, S < Mk[&'a Point]](s: &S, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    s.make(&q) # diagnostic: local-reference-escapes

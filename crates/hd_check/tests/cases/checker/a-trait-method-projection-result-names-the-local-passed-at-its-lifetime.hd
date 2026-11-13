@@ -1,0 +1,15 @@
+# @dump: tir
+# ref.lifetime.trait.bound-argument, ref.dep.elide: `make`'s `Self::Item`
+# result writes no reference, so it is at `Shelf`'s `'b`, not the
+# receiver's elided lifetime. `&q` is passed at `'b`, so the error names
+# `q`, not the receiver `s`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn mk['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    s.make(&q)

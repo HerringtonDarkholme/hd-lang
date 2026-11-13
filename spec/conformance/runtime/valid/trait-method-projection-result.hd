@@ -1,0 +1,39 @@
+# test: a trait method's projection result built from another parameter keeps that parameter's reference
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument, ref.dep.elide.
+# `Sh`'s `make` builds its `Keep['b]` from `v`, not from the receiver, and
+# `ok` returns it past the receiver's scope.
+# expect-stdout: 3
+# expect-stdout: 5
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn ok['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    s.make(p)
+
+struct Keep['a]:
+    last: &'a Point
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+fn outlive['c](p: &'c Point) -> Keep['c]:
+    s := Sh { n: 1 }
+    ok::[Sh](&s, p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    k := outlive(&p)
+    println(k.last.x)
+    q := Point { x: 5 }
+    s := Sh { n: 2 }
+    j := s.make(&q)
+    println(j.last.x)

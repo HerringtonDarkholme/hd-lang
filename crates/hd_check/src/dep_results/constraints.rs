@@ -550,7 +550,8 @@ impl Gen<'_, '_> {
                 } else {
                     self.flow_vars(&[v.0[k]], &[r], cat);
                 }
-                for j in k + 1..lay.slots[k].end {
+                // An argument with no slot of its own has one origin set.
+                for j in k + 1..lay.slots.get(k).map_or(k + 1, |s| s.end) {
                     self.flow_vars(&[v.0[j]], &[r], cat);
                 }
             }
@@ -559,7 +560,7 @@ impl Gen<'_, '_> {
             return;
         }
         if ls.of(me.1).tops.is_empty() {
-            let rs: Vec<Region> = (sig.elided.iter()).map(|&v| var(&mut self.t, v)).collect();
+            let rs: Vec<Region> = (sig.bare.iter()).map(|&v| var(&mut self.t, v)).collect();
             self.each_into(&rs, &me.0);
             return;
         }

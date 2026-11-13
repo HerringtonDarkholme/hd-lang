@@ -348,12 +348,14 @@ impl DepSig {
     /// associated type of `Self` as `Self::Out`, is the implementation's
     /// type substituted there, so it takes the implementation result's
     /// lifetime `impl_outs` when the target has it
-    /// (`ref.lifetime.impl-target.assoc`).
+    /// (`ref.lifetime.impl-target.assoc`), or for a projection of `Self`
+    /// when it is one of the lifetimes `proj` gives that projection
+    /// (`ref.lifetime.trait.bound-argument`).
     fn align_trait_impl(
         self,
         ls: &Layouts<'_>,
         params: &[(hd_base::Symbol, Ty)],
-        (ret, impl_outs): (Ty, &[Option<u32>]),
+        (ret, impl_outs, proj): (Ty, &[Option<u32>], ProjLifetimes<'_>),
         trait_: DefId,
         trait_lifetimes: &[u16],
         self_lifetimes: &[u16],
@@ -396,7 +398,11 @@ impl DepSig {
                     Key::Decl(j) => Some(ids.get(j).copied()?.map(remap)),
                     _ if outs.is_some() && filled(k) => {
                         let out = outs.and_then(|o| o.get(at).copied().flatten());
-                        Some(out.filter(|&id| of_self(id)))
+                        let named = |id: u32| match k {
+                            Key::AllOf(_, t) => proj(t).into_iter().any(|l| remap(l) == id),
+                            _ => false,
+                        };
+                        Some(out.filter(|&id| of_self(id) || named(id)))
                     }
                     Key::AllOf(..) if outs.is_some() => None,
                     Key::None | Key::AllOf(..) => Some(None),
@@ -546,6 +552,60 @@ fn trait_lifetimes(generics: &[hd_resolve::Generic], ids: &[Vec<u32>]) -> Vec<u3
         .collect()
 }
 
+/// The lifetimes of a projection ([`Ck::proj_lifetimes`]).
+type ProjLifetimes<'f> = &'f dyn Fn(Ty) -> Vec<u32>;
+
+/// The projections a value of type `t` holds where its layout has no slot
+/// for them, as `S::Item` or `List[S::Item]`, each outermost one, and whether
+/// it holds a trait value or an opaque type besides. None for a type with slots of its own.
+/// A trait value's and an opaque type's arguments are no part of what they
+/// hold (`trait.dyn.ref.convert`, `types.opaque.borrows`). A trait's own
+/// `Self::Item` lists no trait arguments, so [`Layouts::holds`] says no to
+/// it, but it holds what the trait's lifetimes name all the same.
+fn wholes(ls: &Layouts<'_>, t: Ty) -> (Vec<Ty>, bool) {
+    let (pool, mut out, mut other) = (ls.pool, Vec::new(), false);
+    if !ls.of(t).slots.is_empty() || !pool.has_assoc(t) {
+        return (out, other);
+    }
+    let mut stack = vec![t];
+    while let Some(t) = stack.pop() {
+        match pool.get(t) {
+            TyData::Assoc { .. } => out.push(t),
+            TyData::TraitValue { .. } | TyData::Opaque { .. } => other = true,
+            _ => pool.children(t, &mut stack),
+        }
+    }
+    (out, other)
+}
+
+/// Whether a slot of what type parameter `p` stands for is part of what
+/// projection `proj` holds: `p` is its base or is in its trait's
+/// arguments, as Rust's projection outlives rule has it. A trait's own
+/// `Self::Item` lists no arguments, and holds each of the trait's
+/// parameters.
+fn proj_holds(pool: Types<'_>, proj: Ty, p: hd_types::ParamRef) -> bool {
+    let mut stack = vec![proj];
+    while let Some(t) = stack.pop() {
+        match pool.get(t) {
+            _ if !pool.has_param(t) => {}
+            TyData::Param(x) if x == p => return true,
+            TyData::Assoc {
+                trait_, self_ty, ..
+            } if p.owner == trait_
+                && pool.get(self_ty)
+                    == TyData::Param(hd_types::ParamRef {
+                        owner: trait_,
+                        index: 0,
+                    }) =>
+            {
+                return true;
+            }
+            _ => pool.children(t, &mut stack),
+        }
+    }
+    false
+}
+
 /// The entries of `ids`, one per slot of `t`, at its reference slots.
 fn ref_ids_of<T: Copy>(ls: &Layouts<'_>, t: Ty, ids: &[T]) -> Vec<T> {
     (ls.of(t).slots.iter())
@@ -586,7 +646,8 @@ enum Key {
     /// capture slot included.
     Param(hd_types::ParamRef, usize),
     /// A slot of projection `t` of type parameter `p`, as `P::Out`: any
-    /// slot of what `p` stands for, and any lifetime the projection's
+    /// slot of what `p` or a type parameter in its trait's arguments
+    /// stands for ([`proj_holds`]), and any lifetime the projection's
     /// bounds write ([`line_up_call`] only).
     AllOf(hd_types::ParamRef, Ty),
     /// A slot of an opaque type that does not borrow.
@@ -1075,8 +1136,9 @@ struct CallSig {
     params: Vec<(Ty, Vec<ArgSlot>)>,
     /// Each result slot's variables.
     outs: Vec<Vec<Var>>,
-    /// The elided lifetimes, for a result with no slots.
-    elided: Vec<Var>,
+    /// What a result with no slots takes: the elided lifetimes, and what
+    /// the projections it holds hold.
+    bare: Vec<Var>,
     /// Whether the result takes the variables.
     result: bool,
     /// Whether the call may store through a `&mut` argument
@@ -1302,7 +1364,7 @@ impl Ck<'_, '_> {
         dep.align_trait_impl(
             ls,
             &sig.params,
-            (sig.ret, &impl_outs),
+            (sig.ret, &impl_outs, &|t| self.proj_lifetimes(ls, t)),
             trait_,
             trait_lifetimes,
             self_lifetimes,
@@ -1385,8 +1447,9 @@ impl Ck<'_, '_> {
         let dep = match &sig {
             Some(sig) => {
                 let is_self = |s| names.text(s) == "self";
-                DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
-                    .with_paths(ls, &sig.paths)
+                let dep = DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+                    .with_paths(ls, &sig.paths);
+                self.with_wholes(ls, dep)
             }
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
@@ -1485,11 +1548,21 @@ impl Ck<'_, '_> {
                     };
                     (var, cat)
                 })
-                .collect();
+                .collect::<Vec<_>>();
+            // An argument with no slot of its own for a parameter that
+            // holds projections is passed at their lifetimes as one, as
+            // each slot of a projection is (`ref.lifetime.trait.bound-argument`).
+            let slots = match self.whole_lifetimes(ls, *decl).split_first() {
+                Some((&a, rest)) if slots.is_empty() && ls.holds(t) => {
+                    proj_links.extend(rest.iter().map(|&l| (Var::Life(a), Var::Life(l))));
+                    vec![(Var::Life(a), None)]
+                }
+                _ => slots,
+            };
             params.push((t, slots));
         }
         // A result slot a type parameter adds takes what that parameter's
-        // argument slots took, and a projection of it all of them.
+        // argument slots took, and a projection all those it holds.
         let from = |want: &dyn Fn(Key) -> bool| -> Vec<Var> {
             let mut vs: Vec<Var> = (took.iter()).filter(|x| want(x.0)).map(|x| x.1).collect();
             vs.dedup();
@@ -1511,8 +1584,8 @@ impl Ck<'_, '_> {
                 }
                 None => from(&|x| x == k),
             },
-            Key::AllOf(q, proj) => {
-                let mut vs = from(&|x| matches!(x, Key::Param(p, _) if p == q));
+            Key::AllOf(_, proj) => {
+                let mut vs = from(&|x| matches!(x, Key::Param(p, _) if proj_holds(pool, proj, p)));
                 vs.extend(self.proj_lifetimes(ls, proj).into_iter().map(Var::Life));
                 vs
             }
@@ -1536,7 +1609,21 @@ impl Ck<'_, '_> {
             Elided::Lifetime(l) => Some(Var::Life(l)),
             _ => None,
         };
-        let depends = outs.iter().any(|o| !o.is_empty()) || lifetime(dep.elided).is_some();
+        // A result with no slot of its own that holds projections holds
+        // what each of them holds: what its base and its trait's type
+        // arguments stand for, and its lifetimes ([`Key::AllOf`]), not
+        // the elided lifetime (`ref.dep.elide`).
+        let mut bare: Vec<Var> = dep.whole.iter().map(|&l| Var::Life(l)).collect();
+        for proj in wholes(ls, dep.ret).0 {
+            for v in from(&|x| matches!(x, Key::Param(p, _) if proj_holds(pool, proj, p))) {
+                if !bare.contains(&v) {
+                    bare.push(v);
+                }
+            }
+        }
+        let depends = outs.iter().any(|o| !o.is_empty())
+            || lifetime(dep.elided).is_some()
+            || !bare.is_empty();
         // A call may store an argument's origins through a `&mut` argument
         // of a type parameter or of a written lifetime.
         let writes = sig.as_ref().is_some_and(|sig| {
@@ -1566,10 +1653,9 @@ impl Ck<'_, '_> {
             paths,
             store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
             result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
-            elided: [dep.elided, dep.capture_elided]
-                .map(lifetime)
-                .into_iter()
+            bare: ([dep.elided, dep.capture_elided].map(lifetime).into_iter())
                 .flatten()
+                .chain(bare)
                 .collect(),
             params,
             outs,
@@ -1623,19 +1709,9 @@ impl Ck<'_, '_> {
     /// arguments are no part of what they hold (`trait.dyn.ref.convert`,
     /// `types.opaque.borrows`).
     fn whole_lifetimes(&self, ls: &Layouts<'_>, t: Ty) -> Vec<u32> {
-        let pool = ls.pool;
-        if !ls.of(t).slots.is_empty() || !ls.holds(t) {
-            return Vec::new();
-        }
-        let mut out = Vec::new();
-        let mut stack = vec![t];
-        while let Some(t) = stack.pop() {
-            match pool.get(t) {
-                TyData::Assoc { .. } => out.extend(self.proj_lifetimes(ls, t)),
-                TyData::TraitValue { .. } | TyData::Opaque { .. } => {}
-                _ => pool.children(t, &mut stack),
-            }
-        }
+        let mut out: Vec<u32> = (wholes(ls, t).0.into_iter())
+            .flat_map(|p| self.proj_lifetimes(ls, p))
+            .collect();
         out.sort_stable();
         out.dedup();
         out
@@ -1646,7 +1722,10 @@ impl Ck<'_, '_> {
     /// [`DepSig::whole`] theirs, so `-> S::Item: x` with `x: S::Item`
     /// returns what it was given (`ref.lifetime.return`). A caller links a
     /// projection's lifetimes as one ([`Key::AllOf`]), so the first stands
-    /// for them all.
+    /// for them all. A result that holds only projections writes no
+    /// reference, so nothing elides to it (`ref.dep.elide`): it depends on
+    /// its projections' lifetimes alone, as Rust's projection outlives rule
+    /// has it, not on a receiver it was not built from.
     fn with_wholes(&self, ls: &Layouts<'_>, mut dep: DepSig) -> DepSig {
         for (t, ids) in &mut dep.params {
             if ids.is_empty()
@@ -1654,6 +1733,11 @@ impl Ck<'_, '_> {
             {
                 ids.push(l);
             }
+        }
+        let (projs, other) = wholes(ls, dep.ret);
+        if !projs.is_empty() && !other {
+            dep.elided = Elided::Missing;
+            dep.capture_elided = Elided::Missing;
         }
         dep.whole = self.whole_lifetimes(ls, dep.ret);
         dep

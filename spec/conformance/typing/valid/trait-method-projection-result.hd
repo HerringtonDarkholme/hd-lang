@@ -1,0 +1,56 @@
+# test: a trait method's projection result holds what the projection's trait arguments name, not the receiver
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument, ref.dep.elide.
+# `Self::Item` writes no reference, so nothing elides to it: `make`'s result
+# is at the trait's `'b`, which `v` is passed at. The implementation may
+# build its `Keep['b]` from `v`, a generic caller may return `s.make(p)` at
+# `'a`, and so may a caller of the implementation at its own lifetime. A
+# trait type argument that a bound writes as `&'a Point` holds the same way.
+# A type parameter outside the projection adds nothing to it, so `aside`
+# may pass `&q` for `T`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn ok['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    s.make(p)
+
+fn passed['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    ok::[S](s, p)
+
+fn side['a, T, S < Shelf['a]](s: &S, t: T, p: &'a Point) -> S::Item:
+    s.make(p)
+
+fn aside['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    side(s, &q, p)
+
+fn listed['a, S < Shelf['a]](s: &S, p: &'a Point) -> (S::Item, S::Item):
+    (s.make(p), s.make(p))
+
+struct Keep['a]:
+    last: &'a Point
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+fn concrete['c](s: &Sh, p: &'c Point) -> Keep['c]:
+    s.make(p)
+
+fn local_shelf['c](p: &'c Point) -> Keep['c]:
+    s := Sh { n: 1 }
+    s.make(p)
+
+trait Mk[V]:
+    type Item
+    fn make(&self, v: V) -> Self::Item
+
+fn typed['a, S < Mk[&'a Point]](s: &S, p: &'a Point) -> S::Item:
+    s.make(p)
