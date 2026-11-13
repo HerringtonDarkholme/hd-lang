@@ -206,6 +206,9 @@ pub trait ProgramEnv: LayoutEnv {
     fn printed_name(&self, def: DefId) -> String;
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
+    /// The source position of a checked body's instruction. Generated bodies
+    /// have no source node and collection never asks for one.
+    fn source_span(&self, item: DefId, node: NodeIdx) -> Option<hd_base::Span>;
     /// The text of a string const argument (`hd_types::ConstValue::Str`).
     fn const_text(&self, p: hd_base::PathId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
@@ -2228,7 +2231,7 @@ impl Cx<'_> {
                 // Optional probes can discard this failure. Bound its context
                 // before expanding a shared type graph into a printed tree.
                 e.what = format!(
-                    "{} (`{}` at `{}`)",
+                    "{} while selecting trait `{}` for type `{}`",
                     e.what,
                     env.describe(trait_),
                     shown_type(self.pool, env, self_ty)
@@ -3912,13 +3915,29 @@ fn collect_roots(
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
             Some(t) => Ok(Err(t)),
-            None => Err(e),
+            None => Err(locate_stop(e, cx.at, |item, node| {
+                env.source_span(item, node)
+            })),
         };
     }
     let mut out = cx.out;
     out.calls.resize_with(out.table.len(), HashMap::default);
     out.callee_reps.resize(out.table.len(), Hash128(0));
     Ok(Ok(out))
+}
+
+fn locate_stop(
+    error: NotImplemented,
+    site: Option<(DefId, NodeIdx)>,
+    resolve: impl FnOnce(DefId, NodeIdx) -> Option<hd_base::Span>,
+) -> NotImplemented {
+    if error.span.is_some() {
+        return error;
+    }
+    match site.and_then(|(item, node)| resolve(item, node)) {
+        Some(span) => error.at(span),
+        None => error,
+    }
 }
 
 impl Cx<'_> {
@@ -3972,5 +3991,45 @@ impl Cx<'_> {
             self.scan(id)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod selection_diagnostics_tests {
+    use super::*;
+    use hd_base::{FileId, Span};
+
+    #[test]
+    fn collection_stops_use_the_call_site_and_preserve_inner_spans() {
+        let source = Span {
+            file: FileId::from_raw(2),
+            lo: 10,
+            hi: 20,
+        };
+        let inner = Span {
+            file: FileId::from_raw(3),
+            lo: 30,
+            hi: 40,
+        };
+        let site = (DefId::from_raw(7), NodeIdx::from_raw(9));
+        let error = || NotImplemented::bug(Stage::Collect, "checked trait selection failed");
+        let located = locate_stop(error(), Some(site), |item, node| {
+            assert_eq!((item, node), site);
+            Some(source)
+        });
+        assert_eq!(located.span, Some(source));
+        assert!(located.bug);
+        let preserved = locate_stop(error().at(inner), Some(site), |_, _| {
+            std::panic!("an inner span needs no lookup")
+        });
+        assert_eq!(preserved.span, Some(inner));
+        assert_eq!(locate_stop(error(), Some(site), |_, _| None).span, None);
+        assert_eq!(
+            locate_stop(error(), None, |_, _| {
+                std::panic!("a generated body has no call-site lookup")
+            })
+            .span,
+            None
+        );
     }
 }
