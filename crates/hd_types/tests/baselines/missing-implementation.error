@@ -1,0 +1,1 @@
+stage Collect hit a bug: trait selection failed after type checking; the checker should have reported an unsatisfied or ambiguous bound

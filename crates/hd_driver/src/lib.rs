@@ -12412,6 +12412,11 @@ impl Env<'_> {
 }
 
 impl ProgramEnv for Env<'_> {
+    fn source_span(&self, item: DefId, node: hd_base::NodeIdx) -> Option<Span> {
+        let module = self.run.item_module(item)?.idx();
+        let source = self.run.src(module);
+        Some(source.span(source.parse.tree.node(node)))
+    }
     fn local_ref_receiver(&self, def: DefId) -> Option<bool> {
         let item = self.p.items.get(def)?;
         let (_, ty) = item.sig()?.params.first()?;

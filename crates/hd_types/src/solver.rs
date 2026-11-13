@@ -3073,9 +3073,9 @@ impl Solver for TableSolver {
                 evidence: Evidence::Builtin(b),
                 ..
             } => Ok(Selection::Builtin(b)),
-            other => Err(NotImplemented::new(
+            _ => Err(NotImplemented::bug(
                 Stage::Collect,
-                format!("select found no impl: {other:?}"),
+                "trait selection failed after type checking; the checker should have reported an unsatisfied or ambiguous bound",
             )),
         }
     }
@@ -5521,8 +5521,17 @@ mod tests {
             s.expect("selects"),
             super::Selection::Builtin(super::BuiltinImpl::Inspectable)
         );
-        let s = TableSolver.select(&mut cx, ConcreteTraitRef(on(3, Ty::I32)));
-        assert!(s.is_err(), "i32 is no AnyRef");
+        let error = TableSolver
+            .select(&mut cx, ConcreteTraitRef(on(3, Ty::I32)))
+            .expect_err("i32 is no AnyRef");
+        assert!(error.bug, "a failed checked selection is a compiler bug");
+        assert!(!error.out_of_fuel);
+        assert_eq!(
+            format!("{error}\n"),
+            include_str!("../tests/baselines/missing-implementation.error")
+        );
+        assert!(!error.what.contains("CanonGoal"));
+        assert!(!error.what.contains("FailInfo"));
     }
 
     /// A tuple template's member steps, for the tests below.
