@@ -464,7 +464,7 @@ pub trait OwnCx {
         Tri::Yes
     }
     /// Whether the optimized pipeline's release summaries read the body's
-    /// result (`docs/future-work/RELEASE_INTERPROC.md`): an owned parameter
+    /// result (`crates/hd_opt/DESIGN.md` §9): an owned parameter
     /// whose only kept reads go to binding locals is then left unowned too,
     /// so that callers may lend it.
     fn summarizes(&self) -> bool {
@@ -972,7 +972,7 @@ pub struct Uncopied {
     pub copies: Tri,
 }
 
-/// The copy verifier (`docs/future-work/RAW_BUFFER.md`, "The verifier"):
+/// The copy verifier (`docs/compiler/ownership.md#raw-buffers`, "Raw Buffers"):
 /// after the passes, no `Read` of a non-copyable type has mode `copy`
 /// and no closure captures one by copy, since a copy is a retain of what
 /// the value owns. Every finding goes to `out`, in instruction order. One
@@ -1161,7 +1161,7 @@ pub(crate) fn frame_reference_uses(
 }
 
 /// What the optimized pipeline reads of one body
-/// (`docs/future-work/RELEASE_INTERPROC.md`, "Data structures"): facts of
+/// (`crates/hd_opt/DESIGN.md` §9, "What a summary says"): facts of
 /// its code, never of its signature, which type checking never reads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Summary {

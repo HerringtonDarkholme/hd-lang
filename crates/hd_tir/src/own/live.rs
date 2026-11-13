@@ -1,8 +1,9 @@
 //! What a suspension frame holds at each point
-//! (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`, step 26, #1393): per
+//! (`docs/compiler/ownership.md#ownership-per-instance`; #1393): per
 //! suspension point, the locals and values that a resume there may read,
 //! so the frame saves and reloads only those. Written last, over the TIR
-//! the emitter lowers.
+//! the emitter lowers. Migration step 26 is in
+//! git history at 7ccbb4ea8, `docs/future-work/OWNERSHIP_ARCHITECTURE.md`.
 //!
 //! A backward liveness walk over the structured control flow ([`backward`]):
 //! an operand reads its value, a `Drop`'s place included; a place reads

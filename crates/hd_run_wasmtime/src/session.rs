@@ -1,4 +1,4 @@
-//! A REPL session on wasmtime (spec `cli.repl.*`; `docs/future-work/live-execution.md`
+//! A REPL session on wasmtime (spec `cli.repl.*`; `docs/compiler/live-execution.md`
 //! §4 and §5).
 //!
 //! A linked session retains initialized code epochs in one Store. Its

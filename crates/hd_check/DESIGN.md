@@ -1643,7 +1643,7 @@ region variables live in a side table parallel to each type's reference
 slots. The type pool and the interface cache are untouched.
 
 The design and its staging were accepted on 2026-10-29 and 2026-10-30;
-the studies are in git history: at 7ccbb4ea8 `docs/future-work/LIFETIME_SOLVER.md` (solver slices S1 to S12, with the
+the studies are in git history at 7ccbb4ea8, `docs/future-work/LIFETIME_SOLVER.md` (solver slices S1 to S12, with the
 check-time measurements of tier 2) and
 at 7ccbb4ea8 `docs/future-work/RETURNED_REFERENCES_PATH.md` (stages 1 to 9). What is
 accepted but not built is in

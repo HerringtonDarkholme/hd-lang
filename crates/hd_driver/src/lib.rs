@@ -2092,7 +2092,7 @@ pub struct Packages<'a> {
     pub reuse: Option<&'a Reuse>,
     /// For a `Goal::ReplInput { input }` with a session: build every input
     /// from this number to `input` as one module, for a rebuild that holds
-    /// many inputs in one instance (`docs/future-work/live-execution.md`
+    /// many inputs in one instance (`docs/compiler/live-execution.md`
     /// §5.4). The sources hold each one's `repl#K` file. Input `K`'s top
     /// level runs from the exports `hd.init.K` and `hd.poll.K`. `None`
     /// builds `input` alone, whose exports are `hd.init` and `hd.poll`.

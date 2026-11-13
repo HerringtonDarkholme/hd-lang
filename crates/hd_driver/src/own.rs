@@ -141,8 +141,8 @@ pub(super) fn count_report_label() -> String {
     COPY_LABEL.with(|l| l.borrow().clone())
 }
 
-/// The run's release summaries (`docs/future-work/RELEASE_INTERPROC.md`,
-/// "Data structures"): per instance the passes ran over, what its code
+/// The run's release summaries (`crates/hd_opt/DESIGN.md` §9,
+/// "What a summary says"): per instance the passes ran over, what its code
 /// says of its parameters. Only looked up, never iterated, so output
 /// stays deterministic. Type checking never reads it.
 #[derive(Default)]
@@ -2754,8 +2754,8 @@ impl Env<'_> {
         Ok((body, k.finish()))
     }
 
-    /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "What each caller
-    /// reads"): whether every caller passes parameter `k` of instance
+    /// Release (`crates/hd_opt/DESIGN.md` §9, "Who reads them"): whether every caller
+    /// passes parameter `k` of instance
     /// `node` with no count, as its summary lends it. The first answer
     /// stays, so a caller's passes and its emission agree; one read before
     /// the record is no.
@@ -3171,7 +3171,7 @@ impl Run<'_> {
         }
     }
 
-    /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "Data flow"): owns
+    /// Release (`crates/hd_opt/DESIGN.md` §9, "Where they are computed"): owns
     /// the instances `root` reaches through the callee scan, the callees'
     /// strongly connected components first, so every summary a body's
     /// passes may read is recorded before they run. Each instance's body

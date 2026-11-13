@@ -62,7 +62,7 @@ pub const CLASS_MASK: u32 = 31 << CLASS_SHIFT;
 /// writes them 0, black and no frame, with the rest of the word.
 pub const COLLECTOR_SHIFT: u32 = 22;
 /// First of the six descriptor bits that hold an object's borrow state
-/// (`docs/future-work/POINTER_LOANS.md`, model A): bits 16 to 20 count its
+/// (`docs/compiler/ownership.md#pointer-loans-model-a`, model A): bits 16 to 20 count its
 /// shared loans and bit 21 marks an exclusive one. Every object starts
 /// with no loan, a state of 0.
 pub const LOAN_SHIFT: u32 = 16;

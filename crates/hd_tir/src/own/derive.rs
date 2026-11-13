@@ -1,5 +1,5 @@
 //! One derivation of which reads borrow
-//! (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`, "The One Place Each Count
+//! (`docs/compiler/ownership.md#ownership-per-instance`, "The One Place Each Count
 //! Is Decided"), from the four facts of a value: its source is owned or
 //! lent, each use consumes or lends, its last use on each path, and whether
 //! its source may change while it lives.

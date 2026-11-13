@@ -86,7 +86,7 @@ impl Leaf {
 /// `rustc_abi` lib.rs): the unsigned scalar leaf at `offset`, `bytes`
 /// wide, whose valid values are `start..=end`, wrapping at its width. Its
 /// other values are free for an enclosing enum's other variants
-/// (`docs/future-work/ENUM-LAYOUT.md`). `size` is the scalar's whole
+/// (`crates/hd_wasm/DESIGN.md` §23.14). `size` is the scalar's whole
 /// width, which a tag widened to 8 bytes keeps although its leaf is its
 /// low 4: an enum places a variant after the niche past `size` bytes, as
 /// rustc places it past `niche.value.size`.
@@ -862,7 +862,7 @@ fn ref_walk(fat: bool, whole: bool, counting: bool) -> Option<Walk> {
 }
 
 /// How a plain function's parameter takes its argument
-/// (`crates/hd_wasm/DESIGN.md` §23.25; `REFCOUNT_RUNTIME.md` §4.3), fixed
+/// (`crates/hd_wasm/DESIGN.md` §23.25; git history at 7ccbb4ea8, `REFCOUNT_RUNTIME.md` §4.3), fixed
 /// by the parameter's type alone so that every caller and the callee
 /// agree without reading each other's bodies.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1183,7 +1183,7 @@ fn place(fields: &[Mem], offsets: &[u32], prefix: u32, bias: Bias) -> (Mem, Vec<
 }
 
 /// Fields placed as rustc's `univariant` places them (layout.rs:265,
-/// 1091; decision 1 of `docs/future-work/ENUM-LAYOUT.md`): a struct's
+/// 1091; decision 1 of `crates/hd_wasm/DESIGN.md` §23.14): a struct's
 /// (`prefix` 0) by alignment group, largest first, then its largest niche
 /// first; a payload behind a tag of `prefix` bytes by group, smallest
 /// first, the largest niche last, so that small fields pack after the
@@ -1467,7 +1467,7 @@ pub enum Test {
 
 /// Pushes the variant index of an enum whose cell's value `push` pushes,
 /// given the value's index (`read_discr`,
-/// `docs/future-work/ENUM-LAYOUT.md`): the tag itself, a
+/// `crates/hd_wasm/DESIGN.md` §23.14): the tag itself, a
 /// constant, or for a niche one compare and a `select`. Several niche
 /// values need the index twice, in a local of `f`'s.
 pub fn read_discr(
@@ -1520,7 +1520,7 @@ pub fn read_discr(
     }
 }
 
-/// An enum's layout (`docs/future-work/ENUM-LAYOUT.md`): in memory, each
+/// An enum's layout (`crates/hd_wasm/DESIGN.md` §23.14): in memory, each
 /// variant's payload as one struct at one offset, behind a tag or around
 /// a niche ([`Disc`]); in locals, one Wasm value per distinct leaf of
 /// every variant (owner, 2026-11-08: never two leaves in one value), as a

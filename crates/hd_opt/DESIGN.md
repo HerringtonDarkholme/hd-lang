@@ -264,8 +264,8 @@ pipeline"). Built 2026-10-25: per-instance summaries over the call
 graph's SCCs, which tell a caller which arguments it may lend
 (binary_trees 133 to 88 ms then). Further slices (trait-method meets,
 escape facts for frame slots) measured no gain and were not merged
-(#681 closed; numbers on #165). The design record is in git history at
-7ccbb4ea8, `docs/future-work/RELEASE_INTERPROC.md`.
+(#681 closed; numbers on #165). The design record is in
+git history at 7ccbb4ea8, `docs/future-work/RELEASE_INTERPROC.md`.
 
 - **What a summary says** (`hd_tir::own::Summary`): facts of a body's
   code, never of its signature, which type checking never reads. `kept`

@@ -1,7 +1,7 @@
 //! The region table, the constraint graph and the one location-insensitive
-//! solver of the lifetime check (`docs/future-work/LIFETIME_SOLVER.md`,
-//! slice S2). Each value and local gets one region variable per slot of
-//! its type, each instruction adds outlives edges between them, and
+//! solver of the lifetime check (`crates/hd_check/DESIGN.md` §15.2). Each
+//! value and local gets one region variable per slot of its type, each
+//! instruction adds outlives edges between them, and
 //! [`Constraints::solve`] computes every region's loan set at once: an
 //! iterative Tarjan pass collapses strongly connected components, then one
 //! pass unions bitsets in topological order (`ref.dep.origin.set`).

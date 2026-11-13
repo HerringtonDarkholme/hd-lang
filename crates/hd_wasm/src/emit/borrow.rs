@@ -1,5 +1,5 @@
 //! Pointer loans and the access checks on an object's borrow state (model
-//! A of `docs/future-work/POINTER_LOANS.md`, #1336). Every counted object
+//! A of `docs/compiler/ownership.md#pointer-loans-model-a`, #1336). Every counted object
 //! keeps its loans in descriptor bits 16 to 21 (§23.4): bits 16 to 20
 //! count shared loans and bit 21 marks an exclusive one.
 //!
@@ -22,7 +22,7 @@
 //! through the same pointer compares the state with them instead of 0.
 //! The checker already rejects an access that overlaps one of its own
 //! references (`ref.excl.place`), so what remains through that pointer is
-//! apart from it (`POINTER_LOANS.md`, question 4). A local per pointer
+//! apart from it (`docs/compiler/ownership.md#pointer-loans-model-a`). A local per pointer
 //! holds the sum.
 //!
 //! A type no loan may hold needs no check ([`Module::lent`]), so a place
@@ -1123,7 +1123,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// The captures of closure `ci` that carry its creator's own loans
-    /// (`POINTER_LOANS.md` E.2): each `*T` local whose pointee a loan may
+    /// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`): each `*T`
+    /// local whose pointee a loan may
     /// hold. The closure checks an access through one against the loans
     /// its creator holds through it, which a cell in its environment
     /// keeps, as the creator's own local does.
@@ -1251,7 +1252,8 @@ impl Em<'_, '_, '_> {
 
     /// The local of the own loans through key `k`, read again from their
     /// cell where one is made: the creator and its closures, suspending
-    /// ones too, change one count (E.2).
+    /// ones too, change one count
+    /// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
     fn own_read(&mut self, k: usize) -> u32 {
         let own = self.own_local(k);
         if let Some(c) = self.own_cell_of_key(k) {
@@ -1731,7 +1733,8 @@ impl Em<'_, '_, '_> {
 
     /// Adds `delta` (or subtracts it, with `sign` -1) to the borrow state
     /// at the header address in local `header`. A shared loan goes
-    /// through `rt:loan_share`, which spills past 31 (E.2).
+    /// through `rt:loan_share`, which spills past 31
+    /// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
     fn loan_state_add(&mut self, header: u32, delta: u32, sign: i32) {
         let op = if sign < 0 { I::I32Sub } else { I::I32Add };
         if delta == LOAN_SHARED {

@@ -1,6 +1,6 @@
 # test: an inlined copy capture retains its creator's own-loan context
 # expect-stdout: ok
-# Accepted POINTER_LOANS.md E.2; ref.excl.alias.conflict.
+# Accepted docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2; ref.excl.alias.conflict.
 struct Cell:
     value: string
     other: string

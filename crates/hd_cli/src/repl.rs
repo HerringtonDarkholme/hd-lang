@@ -87,7 +87,7 @@ Ctrl-C clears the line, or stops the input that runs.
 ";
 
 /// Said once, after the input in which the session's journal of host
-/// calls passed its cap (`docs/future-work/live-execution.md` §4.6):
+/// calls passed its cap (`docs/compiler/live-execution.md` §4.6):
 /// recording stopped, and every input replays the journal, so the session
 /// can run no further input.
 const JOURNAL_FULL: &str =

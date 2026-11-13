@@ -1,5 +1,5 @@
 //! Holder bindings for pointer loans (model A of
-//! `docs/future-work/POINTER_LOANS.md`, `borrow.rs`): which stores bind a
+//! `docs/compiler/ownership.md#pointer-loans-model-a`, `borrow.rs`): which stores bind a
 //! reference into a holder (a binding, or a struct, tuple or variant that
 //! holds it), from a `Ref`, a call's result that depends on an argument
 //! the checker found it holds ([`Body::held_args`]), or another holder by
