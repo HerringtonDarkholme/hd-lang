@@ -119,7 +119,7 @@ options for each, priced, with a labeled recommendation.
 | O3 | Where the slot count lives for freeing. |
 | O4 | How std reaches slot `i`. |
 | O5 | `regrow` on an uncounted box. |
-| O6 | Weak references and `ref_identity` on a tail block. |
+| O6 | `ref_identity` on a tail block. |
 
 The stress test found more that is unsettled. Three decided points do
 not hold as written: `make_unique`'s `copy` cannot return an unsized

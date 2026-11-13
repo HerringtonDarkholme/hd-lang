@@ -5564,12 +5564,6 @@ typing/invalid/provider-install-local-binding.hd	type	reject:local-reference-esc
 typing/invalid/provider-share-local-reference.hd	type	reject:local-reference-escapes	lang/11-requirements-and-suspension.md#r-req.mut.install-no-local
 runtime/valid/provider-install-box.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-counted
 typing/invalid/counted-trait-value-from-value.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.counted.new
-runtime/valid/weak-reference-acyclic-tree.hd	runtime	accept	std/weak.md#collection-and-release
-runtime/valid/weak-reference-cycle-collector.hd	runtime	accept	std/weak.md#collection-and-release
-runtime/valid/weak-reference-generic-exact-targets.hd	runtime	accept	std/weak.md#weak-types-and-construction
-runtime/valid/weak-reference-identity-lifecycle.hd	runtime	accept	std/weak.md#weakening-and-identity
-runtime/valid/weak-reference-large-function-table.hd	runtime	accept	std/weak.md#weak-types-and-construction
-runtime/valid/weak-reference-lifetime.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/a-weakened-cold-call-releases-its-counted-reference-argument.hd	runtime	accept	lang/07-functions.md#r-fn.type.suspend.weaken
 runtime/valid/cold-frame-keeps-conditional-reference-objects.hd	runtime	accept	lang/13-values-and-references.md#r-ref.convert.lend
 runtime/valid/function-reference-variance-wide-inputs.hd	runtime	accept	lang/07-functions.md#r-fn.type.declared-variance
@@ -5577,12 +5571,6 @@ runtime/panic/nonescaping-closure-keeps-captured-root-loan.hd	runtime	panic:borr
 runtime/valid/inlined-copy-capture-keeps-creator-own-loans.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/inlined-capture-of-an-alias-keeps-other-loans.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/nonescaping-closures-preserve-capture-lifetimes.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.using-split
-runtime/valid/weak-reference-module-initializer.hd	runtime	accept	std/weak.md#weak-types-and-construction
-runtime/valid/weak-reference-suspension.hd	runtime	accept	std/weak.md#upgrading
-runtime/valid/weak-reference-whole-object.hd	runtime	accept	std/weak.md#weak-types-and-construction
-typing/invalid/weak-direct-construction-private.hd	type	reject:private-member	std/weak.md#r-std-weak.type.entry
-typing/invalid/weak-mut-entry-construction-private.hd	type	reject:private-member	std/weak.md#r-std-weak.type.entry
-typing/invalid/weak-readonly-no-mutable-upgrade.hd	type	reject:type-mismatch	std/weak.md#weakening-and-identity
 typing/valid/typed-fact-optional-payload.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.optional-payload
 typing/invalid/typed-fact-optional-payload-unrelated.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check.optional-payload
 runtime/valid/validation-rules.hd	runtime	accept	std/validate.md#r-std-validate.rule.declarations
@@ -7090,7 +7078,6 @@ runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	runtime	pani
 runtime/panic/pointer-loan-extra-generic-argument-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-copy-under-element-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-sort-comparator-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
-runtime/valid/pointer-loan-extra-weak-upgrade-root.hd	runtime	accept	std/weak.md#r-std-weak.upgrade.readonly
 runtime/panic/pointer-loan-extra-elide-callback-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-elide-dyn-call-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-elide-writes-holder-type-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases

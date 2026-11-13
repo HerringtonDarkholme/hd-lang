@@ -378,9 +378,7 @@ A helper thread could free a dead structure's unshared subgraph (count
 non-atomic counts, as Redis's lazy free does for large values. It needs
 shared memory, a settle step before every point the runtime reads a
 count (pins, copy-on-write, `memory.grow`, the leak audit), and it
-excludes cycle-capable types and any type a `Weak[T]` can name, since a
-weak upgrade reaches an object whose count the helper has not yet
-lowered. The measured pause (6.6 ms for 2M nodes) does not ask for any
+excludes cycle-capable types. The measured pause (6.6 ms for 2M nodes) does not ask for any
 of this; a server benchmark of p99 latency on other connections while
 a big value drops, and while a big map grows, would be the evidence to
 reopen it.

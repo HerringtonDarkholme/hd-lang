@@ -462,36 +462,6 @@ pub fn main() -> void $ Console:
 `,
   },
   {
-    name: "weak-upgrade-root",
-    panic: false,
-    what: "a reference through an upgraded weak pointer outlives the last strong holder's release",
-    source: `use std.weak.{Weak, weak}
-
-struct Cell:
-    value: string
-
-struct Holder:
-    child: *Cell
-
-@@HELPERS@@
-fn probe(holder: *mut Holder, w: Weak[Cell]) -> string:
-    match w.upgrade():
-        .Some(strong) =>
-            r := &strong.value
-            holder.child = box(Cell { value: fresh() })
-            junk := churn()
-            seen := *r
-            _ := junk.len()
-            seen
-        .None => ""
-
-pub fn main() -> void $ Console:
-    holder := box(Holder { child: box(Cell { value: orig() }) })
-    w := weak(holder.child).expect("a whole object")
-    seen := probe(holder, w)
-@@TAIL@@`,
-  },
-  {
     name: "elide-callback-panics",
     panic: true,
     what: "a callback passed in writes the borrowed object; a function value has no summary",
@@ -982,7 +952,6 @@ export const extraColumns: Record<string, [string, string]> = {
   "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
   "copy-under-element-loan-panics": ["loan needed", "runs; the copy keeps its own elements"],
   "sort-comparator-alias-write-panics": ["loan needed", "runs"],
-  "weak-upgrade-root": ["elided", "runs"],
   "elide-callback-panics": ["loan needed", "runs, sees the write"],
   "elide-dyn-call-panics": ["loan needed", "runs, sees the write"],
   "elide-writes-holder-type-panics": ["loan needed", "runs, stale"],

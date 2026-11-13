@@ -91,7 +91,6 @@ std-map
 std-set-deque-heap
 std-text
 std-uniq-map
-std-weak
 strings
 top-level
 traits-any-downcast

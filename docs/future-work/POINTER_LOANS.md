@@ -238,7 +238,7 @@ branch; a **count** is a page-table retain and release.
 | --- | --- | --- | --- | --- |
 | A1 depth-first search | petgraph `Dfs` | works | none: the loop's range writes `Node` | works; a count per loop |
 | A2 in-degree count | petgraph `neighbors` | friction: a self-loop panics | none | works |
-| A3 tree with parent links | DOM, `rctree` | works | all: `total` and `weak_mut` write no `Node` | works |
+| A3 tree with parent links | DOM, `rctree` | works | all: `total` writes no `Node` | works |
 | A4 event listeners | Node `EventEmitter` | friction: a listener writing the bus panics | none: a trait call writes `Bus` | works; an unsubscribe leaves the loop on the old list |
 | A5 ECS system | bevy, specs | works (needs own loans) | the `&mut` one; the `&` one stays | works; a room count per element |
 | A6 memo recursion | `functools.lru_cache` | compile error, as Rust | all | compile error |
@@ -309,15 +309,13 @@ value loop, which takes no loan.
 ### A3. Tree With Parent Links
 
 ```text
-use std.weak.{WeakMut, weak_mut}
-
 struct Node:
     size: i32
-    parent: WeakMut[Node]?
+    parent: (*mut Node)?
     children: List[*mut Node]
 
 fn add_child(parent: *mut Node, child: *mut Node) -> void:
-    child.parent = weak_mut(&mut *parent)
+    child.parent = .Some(parent)
     parent.children.push(child)
 
 fn total(node: &Node) -> i32:
@@ -327,9 +325,8 @@ fn total(node: &Node) -> i32:
     sum
 ```
 
-Works. `weak_mut(&mut *parent)` takes an exclusive loan for one call;
-the size walk takes shared loans only. An upgraded `WeakMut` is an
-ordinary `*mut` local, so a reference through it is rooted there.
+Works. Linking is a plain field write; the size walk takes shared loans
+only. The parent links make cycles, which the cycle collector reclaims.
 
 ### A4. Event Listeners
 
@@ -424,11 +421,9 @@ would panic `borrow-conflict` instead of writing a freed slot.
 ### A7. Doubly Linked List
 
 ```text
-use std.weak.{WeakMut, weak_mut}
-
 struct Node:
     value: i32
-    prev: WeakMut[Node]?
+    prev: (*mut Node)?
     next: (*mut Node)?
 
 struct Deque:
@@ -437,7 +432,7 @@ struct Deque:
 fn push_front(d: *mut Deque, value: i32) -> void:
     node := box(Node { value: value, prev: .None, next: d.head })
     match d.head:
-        .Some(old) => old.prev = weak_mut(&mut *node)
+        .Some(old) => old.prev = .Some(node)
         .None => pass
     d.head = .Some(node)
 ```
@@ -532,7 +527,6 @@ list is dropped.
 | root-pointer-last-use-before-reference | runs | elided | runs | reads freed memory |
 | root-pointer-moved-into-a-task | runs | elided | runs | reads freed memory |
 | sort-comparator-alias-write-panics | panics | loan needed | runs | runs |
-| weak-upgrade-root | runs | elided | runs | as A |
 
 The 14 `typing/invalid/pointer-loan-same-root-*` cases are compile
 errors in both models; three of them are not built yet
@@ -715,8 +709,7 @@ print(child.parent)     // traps: attempted to read an unowned reference but the
 ```
 
 The contrast with model B: Swift chose a crash for a dangling access,
-where C keeps the storage alive and returns stale data. hd's `Weak`
-upgrade (`ref.weak.upgrade.dead`) refuses instead of trapping.
+where C keeps the storage alive and returns stale data.
 [Swift: Unowned References](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/automaticreferencecounting/#Unowned-References).
 
 ## Appendix C. Alternatives Considered
@@ -732,8 +725,7 @@ upgrade (`ref.weak.upgrade.dead`) refuses instead of trapping.
 ### E.2 The Mechanism In Detail
 
 - **Header.** Descriptor bits 16 to 21: bit 21 exclusive, bits 16 to 20
-  the shared count. The release glue's slot narrows to bits 0 to 15 (0 to
-  14 in a weak-linked module, whose side-entry bit is 15); the
+  the shared count. The release glue's slot narrows to bits 0 to 15; the
   collector's colors and flags keep bits 22 to 31. Every loan update is a
   read-modify-write that keeps the other bits, as a count update is. A
   static object has the same header. A static cell (§23.20) has only a
@@ -764,8 +756,6 @@ upgrade (`ref.weak.upgrade.dead`) refuses instead of trapping.
 - **Cycles.** A borrowed object is reachable from the live root of its
   loan, so the collector never frees it; trace glue reads fields without
   checks.
-- **`Weak`.** An upgrade gives an ordinary `*T` local, which roots the
-  loans taken through it; a weak entry roots nothing.
 - **Elision (release).** A type `T` drops its loans and checks when no
   reference through a `*T` to `T` outlives its expression and no call that
   lends one can reach a `T` through another pointer, or when no write
@@ -841,8 +831,7 @@ Each about an hour, with its test; the matrix rows leave
 `KNOWN_FAILURES.tsv` as they pass.
 
 1. Header bits: narrow the glue slot, add the state; a stage case for
-   the descriptor. A weak-linked module's side-entry bit moves from 21
-   to 15. The narrower glue mask shrinks every program by 1 or 2 bytes.
+   the descriptor. The narrower glue mask shrinks every program by 1 or 2 bytes.
 2. Access checks on writes and reads through `*T`. Alone it turns no
    row green: every failing `other`, `write` and `read` row needs a loan
    set, which phase 3 does.

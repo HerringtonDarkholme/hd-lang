@@ -292,10 +292,8 @@ rules, and a `Ref` of an element keeps its pin. Summaries change neither.
 **Lifetimes of objects.** A lent argument is released right after the
 call instead of at the callee's exit (an owned parameter that its body
 never keeps is released at the exit today, `received`'s `Owned` path).
-Nothing runs between the two points. Weak upgrades make the target's final
-release observable, so a release may move only where no weak observer can
-distinguish the two points
-([`data.repr.weak-observable`](../../spec/lang/08-data-and-enums.md#r-data.repr.weak-observable)).
+Nothing runs between the two points, and no program can observe when an
+object is freed.
 A frame slot that carries a counted target keeps it alive at either point.
 
 ## Options

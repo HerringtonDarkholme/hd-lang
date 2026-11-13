@@ -18,7 +18,6 @@ function sectionOf(source: string): string {
   const cited: [string, string][] = [
     ["use std.collections.UniqList", "std/collections.md#r-std-collections.uniq-list.type"],
     ["use std.collections.UniqMap", "std/collections.md#r-std-collections.uniq-map.type"],
-    ["use std.weak.", "std/weak.md#r-std-weak.upgrade.readonly"],
     ["use std.time.", "std/time.md#r-std-time.helper.sleep"],
   ];
   return cited.find(([use]) => source.includes(use))?.[1] ?? section;

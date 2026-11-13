@@ -5,8 +5,7 @@ spec text, or compiler code. It tests decisions D1 to D10 and open
 questions O1 to O6 of [List Blocks](LIST_BLOCK.md) (#1219, #1220),
 against [Typed Memory](../../spec/lang/10-modules.md#typed-memory),
 [Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook),
-[Boxes](../../spec/lang/13-values-and-references.md#boxes) and
-[Weak runtime support](../../spec/lang/13-values-and-references.md#r-ref.weak.target.whole).
+and [Boxes](../../spec/lang/13-values-and-references.md#boxes).
 
 ## Contents
 
@@ -129,7 +128,7 @@ is claimed to type-check, and the placeholders do not exist in std.
 | C14 | change while iterating | std | works | |
 | C15 | a list of lists | std | works | |
 | C16 | a list field behind `&mut self` | std | friction | D9 compiler facts |
-| C17 | `weak` of a `UniqList` element | std | breaks | D7 no header |
+| C17 | `weak` of a `UniqList` element | std | moot | #1731 removed weak references |
 | C18 | release a `List[string]` | std | breaks | D4 "drops none" |
 | C19 | `Map` copy-on-write | #1220 | breaks | D8 `make_unique` signature |
 
@@ -138,8 +137,7 @@ is claimed to type-check, and the placeholders do not exist in std.
 operation translates. Three decided points do not hold as written.
 `make_unique` cannot copy an unsized head (C1, C19). `regrow` on a shared
 box would release elements twice (C1). "`List[T < Copy]` drops none"
-leaks counted items (C18). The headerless uncounted block also lets
-`weak` mistake an element for an object (C17). The one-word `UniqList`
+leaks counted items (C18). The one-word `UniqList`
 moves `len` and `cap` from Wasm locals into memory, a cost that today's
 three-word `UniqList` does not pay (C3, C10).
 
@@ -512,28 +510,9 @@ result as a root, and a list in a frame slot.
 
 ### C17. `weak` of a `UniqList` element
 
-```text
-use std.weak.weak
-
-struct Node:
-    id: i64
-
-fn watch(nodes: &UniqList[Node]) -> void:
-    w := weak(&nodes[0])
-```
-
-- [`ref.weak.target.refuse`](../../spec/lang/13-values-and-references.md#r-ref.weak.target.refuse)
-  says an element is refused. The runtime test (`rt:weak_new`) accepts an
-  address that is a block's start plus 8, then reads the word at
-  block + 4 as the descriptor.
-- A headerless block puts slot 0 at block + 8 and `cap` at block + 4.
-  When `cap` equals `Node`'s glue slot plus one, the test succeeds, and
-  binding the entry sets bit 15 of `cap`. The list then believes it has
-  32,768 more slots. **Breaks** (P5), silently.
-- A `List` element is safe: its slot 0 is at block + 16.
-- `ref_identity` is the place's address (`emit/refs.rs`), so it works for
-  any slot, and changes when `regrow` or a copy moves the block, as for
-  the built-in List.
+Moot: #1731 removed weak references. `ref_identity` is the place's
+address (`emit/refs.rs`), so it works for any slot, and changes when
+`regrow` or a copy moves the block, as for the built-in List.
 
 ### C18. Releasing a `List[string]`
 
@@ -825,22 +804,22 @@ list copies twice what it needs.
 **Recommendation:** A, returning `&'a mut S`, with fewer slots having no
 effect; shrinking can be a later operation.
 
-### O6. Weak references and `ref_identity` on a tail block
+### O6. `ref_identity` on a tail block
 
 `ref_identity` needs nothing: it is the address of the place, as for
-today's list elements. A counted tail block is never a user-nameable
-weak target, and a `List` slot sits at block + 16, so `weak` refuses it.
-The uncounted block is the problem (C17). Options:
+today's list elements. The weak-target half of this question went with
+weak references (#1731). The uncounted block's head still differs from a
+counted object's for the checked leak report (P5). Options:
 
-| | A page-table bit | B a zero word at block + 4 | C class bits in `weak_new` |
-| --- | --- | --- | --- |
-| how | uncounted blocks come from pages marked in the page table; `weak_new` refuses them | the head starts `[len, 0, cap]` | `weak_new` also requires the descriptor's class bits to match the page's class |
-| bytes per block | 0 | 8 with an 8-aligned tail; D7's saving gone | 0 |
-| cost | separate page lists per class: up to 20 partly used 64 KiB pages | none | 1 load and a compare per `weak` |
-| sound | yes | yes | for small blocks; a large run needs its own class value |
+| | A page-table bit | B a zero word at block + 4 |
+| --- | --- | --- |
+| how | uncounted blocks come from pages marked in the page table | the head starts `[len, 0, cap]` |
+| bytes per block | 0 | 8 with an 8-aligned tail; D7's saving gone |
+| cost | separate page lists per class: up to 20 partly used 64 KiB pages | none |
+| sound | yes | yes |
 
 **Recommendation:** A if D7's 8 bytes matter more than a few resident
-pages; else B. C is cheapest but rests on a bit-pattern argument.
+pages; else B.
 
 ## Problems, Ranked
 
@@ -849,7 +828,7 @@ pages; else B. C is cheapest but rests on a bit-pattern argument.
 | 1 | P1 | `make_unique` cannot copy an unsized head | breaks every write | C1, C12, C19 |
 | 2 | P4 | "`List[T < Copy]` drops none" leaks counted items | silent leak | C18 |
 | 3 | P3 | `regrow` on a shared counted box releases twice | silent double free | C1, C4 |
-| 4 | P5 | `weak` mistakes a headerless slot for an object | silent corruption | C17 |
+| 4 | P5 | checked builds' leak report reads a headerless block's `len` as a count | false leak report | |
 | 5 | P2 | the hoist rule excludes a loop that grows the list | the 5% probe | C11, C16 |
 | 6 | P6 | one-word `UniqList` moves `len`/`cap` into memory | slower push loops | C3, C10 |
 | 7 | P9 | tail struct literals and by-value use have no rule | spec gap | C2, all |
@@ -914,16 +893,14 @@ pub fn make_room['a, S < ?Copy](r: &'a mut *S, slots: usize, copy: fn(&S, *mut S
     panic("intrinsic")
 ```
 
-### P5. `weak` and a headerless block
+### P5. The checked leak report and a headerless block
 
-**Effect.** `weak(&nodes[0])` on a `UniqList` can pass `rt:weak_new`'s
-whole-object test and set a bit in `cap` (C17). Checked builds' leak
-report also reads `len` as a count. See O6 under [Open Questions: Options](#open-questions-options).
+**Effect.** Checked builds' leak report reads a headerless block's `len`
+as a count. See O6 under [Open Questions: Options](#open-questions-options).
 
 **Candidates.**
 1. Should uncounted blocks come from pages the page table marks?
 2. Should the uncounted head keep a zero word at block + 4?
-3. Should `weak_new` also check the descriptor's class bits?
 
 ### P2. The hoist rule and a growing loop
 
@@ -1011,9 +988,9 @@ report's, labeled, and not a decision.
 5. **P2.** Does a `regrow` in a loop block the `make_unique` hoist?
    **Recommendation:** no; the rule should say `regrow` keeps the place
    unique.
-6. **O6 / P5.** How does `weak` refuse a headerless slot?
-   **Recommendation:** a page-table mark for uncounted blocks; a zero
-   word if the pages cost more than D7's 8 bytes save.
+6. **O6 / P5.** How does the checked leak report skip a headerless
+   block? **Recommendation:** a page-table mark for uncounted blocks; a
+   zero word if the pages cost more than D7's 8 bytes save.
 7. **O2 / P9.** How does std declare a tail? **Recommendation:** a last
    field of type `Slots[T]`; its literal omits it, valid only in `box` or
    `own`.

@@ -1746,17 +1746,7 @@ fn descriptor_glue_mask() -> usize
 ```
 
 1. r[module.rt.descriptor-mask.decl] `std.rt.checked_report` privately declares `descriptor_glue_mask` with `@intrinsic("descriptor_glue_mask")`; the compiler supplies only its body.
-2. r[module.rt.descriptor-mask.value] `descriptor_glue_mask()` returns the mask of the descriptor's release-glue field for this linked program, excluding every collector, allocation-class, and weak-entry flag bit.
-
-### Weak Runtime Interface
-
-The compiler calls ordinary functions in `std.rt.weak` to maintain the
-on-demand weak-entry and descriptor-type tables:
-
-1. r[module.rt.weak.entry-decl] `std.rt.weak` declares `lookup(target: usize) -> usize`, `bind(target: usize, entry: usize) -> void`, `forget(target: usize, entry: usize) -> void`, and `clear(target: usize) -> void` with their definitions in std; the compiler knows these declarations by path.
-2. r[module.rt.weak.entry-ops] `lookup` returns the shared live entry for `target` or 0, and `bind` records a new shared entry. `forget` removes the matching row when that entry dies; `clear` removes it and makes the entry dead before the target is freed.
-3. r[module.rt.weak.type-decl] `std.rt.weak` declares `type_of(descriptor: usize) -> usize` and `type_bind(descriptor: usize, type_id: usize) -> void` with their definitions in std; the compiler knows these declarations by path.
-4. r[module.rt.weak.type-ops] `type_bind` idempotently associates a linked descriptor alias with its nonzero exact-type identity, and `type_of` returns that identity or 0 when none is registered.
+2. r[module.rt.descriptor-mask.value] `descriptor_glue_mask()` returns the mask of the descriptor's release-glue field for this linked program, excluding every collector and allocation-class bit.
 
 ### Memory Intrinsics
 
@@ -1857,7 +1847,7 @@ pub fn make_unique['a, T < ?Copy](r: &'a mut *T, copy: fn(&T) -> T) -> &'a mut T
 21. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
 22. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
 23. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
-24. r[module.rt.unique] `unique_mut(r)` returns `.Some` of an `&mut T` to the object that the counted reference at `r` refers to when that reference is the object's only counted reference and no weak reference names the object. Otherwise, and always for a literal or constant object, it returns `.None`.
+24. r[module.rt.unique] `unique_mut(r)` returns `.Some` of an `&mut T` to the object that the counted reference at `r` refers to when that reference is the object's only counted reference. Otherwise, and always for a literal or constant object, it returns `.None`.
 25. r[module.rt.unique.lend] The `&mut T` borrows `r` for `'a`, so no other counted reference to the object is made while it is written through. Std's copy-on-write types write a value in place through it, and copy the object into a new one first when the call returns `.None`.
 26. r[module.rt.make-unique] `make_unique(r, copy)` returns an `&mut T` to the object that the counted reference at `r` refers to after making that reference the object's only one: when [`unique_mut(r)`](#r-module.rt.unique) would return `.None`, it first calls `copy` with a reference to the object and stores a new box of the result at `r`, as `*r = box(copy(*r))` does.
 27. r[module.rt.make-unique.copy] `copy` returns a value equal to its argument and has no other effect, so only the count of objects made shows how often it runs. A shared box's `make_unique` calls it once. Where every iteration of a loop makes the same place unique and nothing in the loop shares or replaces that place's box, the call may run once before the loop's first iteration instead, and then only when the loop runs at least one iteration.

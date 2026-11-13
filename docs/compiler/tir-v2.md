@@ -1010,9 +1010,8 @@ and marks the `Ref` argument of every test of `p` with one of two bits of
 
 "Nothing copies `p`" resolves places through the local references the
 body stores, and allows a read through the box, a move, a `Drop`, a test's
-argument, and a borrow or reference used only as a place's root. A weak
-reference's upgrade also makes a second owner, so the backend ignores
-both bits in a module that links weak references. Cost: one scan per body
+argument, and a borrow or reference used only as a place's root. Cost:
+one scan per body
 for tests, then one per tested place.
 
 **`make_unique` writes** (`module.rt.make-unique`, #1219). Std's

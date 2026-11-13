@@ -509,7 +509,6 @@ model A's existing release summaries.
 | a `&dyn Codec` generic method returning a payload reference | releasing the receiver's root while its dependent result is live invalidates the result | the result carries its receiver's origins through its last use (`ref.dep.call`, `ref.dep.trait`); its root stays alive (`ref.box.root`) |
 | a polymorphic recursive generic | per-instance work explodes | passes run only on instances the emitter already emits; no new instance is made |
 | a suspension cancelled between two points | values live across it leak | the live set at that point is the unwind set: "cancelled" releases |
-| `Weak[T]` upgrade after the last strong use | an earlier release changes what `upgrade` sees | releases stay at today's last use (§23.20); none moves earlier |
 | a body over 64 addressed locals | `frame.rs` gives up past 64 candidates | dependence on values has no cap; a fact cut short is "conservative" and counted |
 
 Two cases cost something: dev's lent parameters add a retain where a

@@ -1309,7 +1309,6 @@ std/time.md	16	complete	runtime/valid/time-rfc3339-parse.hd
 std/time.md	17	type-fragment	-
 std/time.md	18	complete	runtime/valid/time-serde-forms.hd
 std/validate.md	1	fragment	runtime/valid/validation-rules.hd
-std/weak.md	1	complete	runtime/valid/weak-reference-lifetime.hd
 cli/command-line.md	1	complete	-
 cli/command-line.md	2	fragment	-
 cli/command-line.md	3	fragment	-
