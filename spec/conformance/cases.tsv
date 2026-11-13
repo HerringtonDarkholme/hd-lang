@@ -5856,6 +5856,8 @@ runtime/valid/fn-bound-nested-captures.hd	runtime	accept	lang/13-values-and-refe
 typing/valid/fn-bound-nested-captures.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.outlives.instance
 typing/invalid/fn-bound-nested-outlives.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.generic.outlives.instance
 typing/invalid/fn-bound-nested-written.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.written
+typing/valid/function-value-read-through-a-reference-from-a-written-field-type.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.outlives.written
+typing/invalid/local-reference-escapes-function-value-read-from-a-type-argument-field.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.written
 typing/invalid/fn-bound-argument-static.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.argument
 typing/invalid/function-parameter-capture-boxed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.box
 typing/invalid/function-parameter-capture-static-bound.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.box

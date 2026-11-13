@@ -1,0 +1,13 @@
+# test: a function value read from a field of a type parameter keeps the captures of the value the instance holds
+# Spec 13 Lifetime Bounds: ref.generic.outlives.written. `f: F` writes no
+# function type, so the closure `h` holds keeps its capture of `p`, and
+# `h.f` returns that capture past `p`.
+struct Point:
+    x: i32
+
+struct Holder[F]:
+    f: F
+
+fn leak(p: &Point) -> fn() -> i32:
+    h := Holder { f: fn() -> i32: p.x }
+    h.f # diagnostic: local-reference-escapes

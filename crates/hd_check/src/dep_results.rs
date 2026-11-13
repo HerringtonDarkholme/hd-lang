@@ -1035,6 +1035,10 @@ const ALL_SLOTS: usize = usize::MAX;
 struct FieldMap {
     ty: Ty,
     at: Option<Vec<usize>>,
+    /// The capture slots of the function types the declaration writes,
+    /// which hold no captured origins (`ref.generic.outlives.written`):
+    /// a read of the field takes none from the instance.
+    written: Vec<usize>,
 }
 
 /// The slot layouts of the types one check meets, and the slot maps of
@@ -1082,14 +1086,30 @@ impl<'a> Layouts<'a> {
         variant: Option<u32>,
         j: u32,
     ) -> Option<(Ty, Option<Vec<usize>>)> {
+        self.field_entry(cx, t, variant, j, |m| (m.ty, m.at.clone()))
+    }
+
+    /// Field `j`'s [`FieldMap::written`] slots.
+    fn field_written(&self, cx: &BodyCx<'_>, t: Ty, variant: Option<u32>, j: u32) -> Vec<usize> {
+        (self.field_entry(cx, t, variant, j, |m| m.written.clone())).unwrap_or_default()
+    }
+
+    /// `f` of field `j`'s [`FieldMap`], made once.
+    fn field_entry<R>(
+        &self,
+        cx: &BodyCx<'_>,
+        t: Ty,
+        variant: Option<u32>,
+        j: u32,
+        f: impl FnOnce(&FieldMap) -> R,
+    ) -> Option<R> {
         let key = (t, variant.unwrap_or(NONE), j);
         if !self.fields.borrow().contains_key(&key) {
-            let m = (self.field_map(cx, t, variant, j)).map(|(ty, at)| FieldMap { ty, at });
+            let m = self.field_map(cx, t, variant, j);
             self.fields.borrow_mut().insert(key, m);
         }
         let fields = self.fields.borrow();
-        let m = fields.get(&key)?.as_ref()?;
-        Some((m.ty, m.at.clone()))
+        Some(f(fields.get(&key)?.as_ref()?))
     }
 
     /// The type of field `j` and where its slots lie ([`FieldMap`]).
@@ -1129,13 +1149,7 @@ impl<'a> Layouts<'a> {
         }
     }
 
-    fn field_map(
-        &self,
-        cx: &BodyCx<'_>,
-        t: Ty,
-        variant: Option<u32>,
-        j: u32,
-    ) -> Option<(Ty, Option<Vec<usize>>)> {
+    fn field_map(&self, cx: &BodyCx<'_>, t: Ty, variant: Option<u32>, j: u32) -> Option<FieldMap> {
         let pool = self.pool;
         let len = |t: Ty| self.of(t).slots.len();
         let run = |start: usize, t: Ty| Some((start..start + len(t)).collect());
@@ -1144,7 +1158,11 @@ impl<'a> Layouts<'a> {
                 let es = pool.list_items(elems);
                 let e = *es.get(j as usize)?;
                 let start = es[..j as usize].iter().map(|&x| len(x)).sum();
-                Some((e, run(start, e)))
+                Some(FieldMap {
+                    ty: e,
+                    at: run(start, e),
+                    written: Vec::new(),
+                })
             }
             (TyData::Adt { def, args }, _) => {
                 let item = cx.lookup.item(def)?;
@@ -1204,7 +1222,16 @@ impl<'a> Layouts<'a> {
                         known.then_some(at)
                     }
                 };
-                Some((ty, at))
+                // A capture slot of a function type the field's type
+                // writes, not one a type argument brings.
+                let decl = self.of(f);
+                let written = (line_up(self, f, ty).unwrap_or_default().iter().enumerate())
+                    .filter(|(_, k)| {
+                        matches!(k, Key::Decl(d) if decl.slots.get(*d).is_some_and(|s| s.fun && !s.hold))
+                    })
+                    .map(|(k, _)| k)
+                    .collect();
+                Some(FieldMap { ty, at, written })
             }
             _ => None,
         }

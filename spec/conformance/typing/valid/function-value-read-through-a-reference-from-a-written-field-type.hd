@@ -1,0 +1,26 @@
+# test: a function value read through a reference from a field whose type writes it holds no captured origins
+# Spec 13 Lifetime Bounds: ref.generic.outlives.written. `h.f` is a
+# function value of a type `Holder` writes, so the result's capture
+# depends on no parameter; its input position keeps `Holder`'s `'a`. A
+# named function stored into the field through `&mut` checks too.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn take['a, T](h: &Holder['a, T]) -> fn(&'a Point) -> T:
+    h.f
+
+fn double(p: &Point) -> i32:
+    p.x * 2
+
+fn set['a](h: &mut Holder['a, i32]) -> void:
+    h.f = double
+
+fn run() -> i32:
+    p := Point { x: 4 }
+    let mut h = Holder { f: double }
+    set(&mut h)
+    g := take(&h)
+    g(&p)

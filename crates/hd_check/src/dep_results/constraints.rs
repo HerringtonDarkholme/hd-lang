@@ -172,8 +172,18 @@ impl Gen<'_, '_> {
 
     /// Field `ty` of `v` by its field slot map `at`: the instance's slots,
     /// and a fresh one where the map names none, which a hub reads from
-    /// the instance (`dir.0`) or stores into it (`dir.1`).
-    fn field(&mut self, v: &View, ty: Ty, at: Option<Vec<usize>>, dir: (bool, bool)) -> View {
+    /// the instance (`dir.0`) or stores into it (`dir.1`). A capture slot
+    /// of a function type the field's declaration writes (`written`) is
+    /// fresh and holds nothing a read takes (`ref.generic.outlives.written`);
+    /// a store puts its value's captures where the map says.
+    fn field(
+        &mut self,
+        v: &View,
+        ty: Ty,
+        at: Option<Vec<usize>>,
+        written: &[usize],
+        dir: (bool, bool),
+    ) -> View {
         let (lc, n) = (self.s.ls.of(ty), self.width(ty) as usize);
         // A field of a value held whole, with no slot of its own, is part
         // of that whole ([`super::Slot::whole`]).
@@ -184,24 +194,37 @@ impl Gen<'_, '_> {
         }
         // A top slot that is no one slot of the instance takes all of them.
         let at = at.filter(|at| at.len() == n && lc.tops.iter().all(|&k| at[k] < v.0.len()));
-        let mut fresh: Split = Default::default();
+        let (mut fresh, mut stored): (Split, Split) = Default::default();
         let mut out = Vec::with_capacity(n);
         for k in 0..n {
-            if let Some(&r) = at.as_ref().and_then(|at| v.0.get(at[k])) {
+            let mapped = at.as_ref().and_then(|at| v.0.get(at[k])).copied();
+            let capture = written.contains(&k);
+            if let (Some(r), false) = (mapped, capture) {
                 out.push(r);
                 continue;
             }
             let r = self.t.fresh(1).start;
-            let top = lc.slots.get(k).is_none_or(|s| s.top);
-            (if top { &mut fresh.0 } else { &mut fresh.1 }).push(r);
             out.push(r);
+            if let Some(m) = mapped {
+                if dir.1 {
+                    self.flow(r, m);
+                }
+                continue;
+            }
+            let top = lc.slots.get(k).is_none_or(|s| s.top);
+            for s in [Some(&mut stored), (!capture).then_some(&mut fresh)]
+                .into_iter()
+                .flatten()
+            {
+                (if top { &mut s.0 } else { &mut s.1 }).push(r);
+            }
         }
         let parent = self.split(v);
         if dir.0 {
             self.hubs(&parent, &fresh);
         }
         if dir.1 {
-            self.hubs(&fresh, &parent);
+            self.hubs(&stored, &parent);
         }
         (out, ty)
     }
@@ -217,10 +240,14 @@ impl Gen<'_, '_> {
         for p in proj {
             match *p {
                 Proj::Variant(k) => variant = Some(k),
-                Proj::Field(j) => match self.s.ls.field_slots(self.s.cx, v.1, variant.take(), j) {
-                    Some((child, at)) => v = self.field(&v, child, at, dir),
-                    None => break,
-                },
+                Proj::Field(j) => {
+                    let (cx, ls) = (self.s.cx, self.s.ls);
+                    let written = ls.field_written(cx, v.1, variant, j);
+                    match ls.field_slots(cx, v.1, variant.take(), j) {
+                        Some((child, at)) => v = self.field(&v, child, at, &written, dir),
+                        None => break,
+                    }
+                }
                 // A trait value's slots are its lifetime arguments; one with
                 // none has one set, for what it refers to (`ref.dep.trait`).
                 Proj::Deref
@@ -1134,7 +1161,7 @@ impl Gen<'_, '_> {
                     let field =
                         j.and_then(|j| self.s.ls.field_slots(self.s.cx, me.1, variant, w(j)));
                     let to = match field {
-                        Some((ty, at)) => self.field(&me, ty, at, (false, true)),
+                        Some((ty, at)) => self.field(&me, ty, at, &[], (false, true)),
                         None => me.clone(),
                     };
                     if let Some(v) = self.val(v) {
