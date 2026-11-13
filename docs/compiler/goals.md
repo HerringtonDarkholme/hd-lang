@@ -151,6 +151,21 @@ The artifact is the program built from the user's code.
 | `dead-code` | Wasm bytes per 1,000 lines; unused std excluded | no unused std in the binary |
 | `long-run-memory` | a simulated service for 10 minutes: heap over time, GC pauses, p99 latency of its request loop | flat after warm-up; pause and p99 reported |
 
+Rules that shape runtime work, from the performance roadmap of
+2026-10 (git history at 7ccbb4ea8, `docs/future-work/PERFORMANCE_ROADMAP.md`):
+
+- An API that forces a cost no implementation can remove is a design
+  bug, not a tuning task.
+- Strings follow Go: immutable UTF-8 bytes, text built with
+  `StringBuilder` or `join`, and `+` copies.
+- Intrinsics stay low-level, one machine operation each; algorithms are
+  std hd code. Where hd is slow, the fix is the missing low-level
+  primitive, not moving the algorithm into the compiler.
+- A speed fix never grows hello.wasm. It may grow programs that use the
+  feature when it gains at least 5% speed for each 10% of size.
+- Float text and Unicode case mapping stay host primitives until a
+  measurement says otherwise.
+
 ### Prerequisite: compiler correctness (a gate, not a pillar)
 
 | Script | Measures | Target |

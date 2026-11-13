@@ -573,7 +573,7 @@ Without it, the leak report fails the test.
 - **Lines.** One buffer, grown to the longest line up to `limit`, and
   one string copy per line, which an immutable string needs. One host
   call fills 8 KiB. The newline scan can use the byte scans of
-  [SIMD byte scans](PERFORMANCE_ROADMAP.md#39-simd-byte-scans-428). Sharing the source
+  SIMD byte scans (closed #428; git history at 7ccbb4ea8, `docs/future-work/PERFORMANCE_ROADMAP.md` §3.9). Sharing the source
   handle costs nothing.
 - **Copy.** One 64 KiB buffer. When both ends are host handles, a host
   may splice without passing bytes through Wasm, as Rust's `io::copy`

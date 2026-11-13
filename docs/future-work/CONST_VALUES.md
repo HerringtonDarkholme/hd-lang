@@ -6,7 +6,7 @@ This record explores [issue #875](https://github.com/HerringtonDarkholme/hd-lang
 It reviews const generic parameters, compile-time-only value parameters, and validation of static inputs.
 
 It reviews the accepted [Generics](../../spec/lang/04-type-system.md#generics), [Type Inference Boundaries](../../spec/lang/04-type-system.md#type-inference-boundaries), and [Facts](../../spec/lang/14-annotations.md#facts) rules.
-It also uses the SIMD evidence in the [Performance Roadmap](PERFORMANCE_ROADMAP.md#24-what-the-simd-probe-settled) and the repository design-cost order.
+It also uses the SIMD probe below and the repository design-cost order.
 
 ## Contents
 
@@ -79,7 +79,7 @@ Facts do not supply compile-time evaluation. Their expressions run lazily at run
 
 `Regex::new` and `Url::parse` return `Result` today. Regex compilation builds lists and strings, so a static constructor must embed an immutable result or reconstruct it at runtime.
 
-The SIMD probe found large scan gains, but SIMD remains parked until hd can express lane-dependent code. The measurements are in [Performance Roadmap section 2.4](PERFORMANCE_ROADMAP.md#24-what-the-simd-probe-settled).
+The SIMD probe found large scan gains, but SIMD remains parked until hd can express lane-dependent code. Hand-written kernels (2026-10-17, Apple M3 Max, closed #428) showed a byte scan of 1 MiB gaining 22x on V8 and 41x on wasmtime with 16-byte SIMD steps, and a 64-byte scan 6x to 10x; bulk copies already run at memory speed. The probe is in git history at 7ccbb4ea8, `docs/future-work/PERFORMANCE_ROADMAP.md` §2.4.
 
 ## Survey
 

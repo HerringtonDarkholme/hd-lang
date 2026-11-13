@@ -14,7 +14,7 @@ shared between threads.
 
 There is no local `^` mode and no ownership mode. Escape analysis and
 scalar replacement are optimizer work after inlining, with no language
-mark ([Performance Roadmap](PERFORMANCE_ROADMAP.md)).
+mark.
 
 hd code in `text` blocks is proposed syntax that no compiler checks yet,
 and names are placeholders.

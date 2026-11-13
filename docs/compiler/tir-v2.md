@@ -9,7 +9,7 @@ experiments #861 and #862 remain in #426's history.
 Later removals: generic method calls through `dyn` and their erased bodies
 and thunks (#1421), `own/pairs.rs` (#1399), and reference views with their
 getters and setters (#1399 step 22; every `&T` and `&mut T` is one address). As-built notes are under [Commits](#commits). The owner chose Direction 3 of
-[tir-v2-directions.md](tir-v2-directions.md), which stays as the record
+tir-v2-directions.md (git history at 7ccbb4ea8, `docs/compiler/tir-v2-directions.md`), the record
 of the alternatives. This document is the full design of that direction:
 the IR, what the checker emits, the ownership passes, the emitter, a
 staged migration with stage 1 ready to implement, and the cost.
