@@ -721,30 +721,60 @@ pub fn instruction_types(
 /// as the A1 class `REF`, so a copy in it knows what it copies.
 #[must_use]
 pub fn holds_coll(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    holds_coll_at(pool, env, t, 0)
+    holds_coll_walk(t, |t| {
+        let TyData::Adt { def, args } = pool.get(t) else {
+            return (false, Vec::new());
+        };
+        match env.std_kind(def) {
+            StdKind::List | StdKind::Map => (true, Vec::new()),
+            StdKind::Other => {
+                let mut fields = if let Some(base) = env.newtype_base(def) {
+                    vec![base]
+                } else if env.is_struct(def) {
+                    env.data_fields(def).unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                for field in &mut fields {
+                    *field = subst(pool, env, def, args, *field);
+                }
+                (false, fields)
+            }
+            StdKind::Suspend => (false, Vec::new()),
+        }
+    })
 }
 
-fn holds_coll_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> bool {
-    if depth > 16 {
-        return false;
+/// Queries each distinct instantiated type once. Mark on enqueue so a
+/// shared field appears only once on the worklist; a repeated declaration
+/// at different arguments is a different type, and still gets its turn.
+fn holds_coll_walk(root: Ty, mut fields: impl FnMut(Ty) -> (bool, Vec<Ty>)) -> bool {
+    let (collection, mut children) = fields(root);
+    // A direct collection or terminal value needs no traversal storage.
+    if collection || children.is_empty() {
+        return collection;
     }
-    match pool.get(t) {
-        TyData::Adt { def, args } => match env.std_kind(def) {
-            StdKind::List | StdKind::Map => true,
-            StdKind::Other => {
-                if let Some(base) = env.newtype_base(def) {
-                    return holds_coll_at(pool, env, subst(pool, env, def, args, base), depth + 1);
-                }
-                env.is_struct(def)
-                    && env.data_fields(def).unwrap_or_default().iter().any(|f| {
-                        holds_coll_at(pool, env, subst(pool, env, def, args, *f), depth + 1)
-                    })
+    let mut seen = HashSet::from_iter([root]);
+    let mut work = Vec::new();
+    loop {
+        for child in children {
+            if seen.insert(child) {
+                work.push(child);
             }
-            StdKind::Suspend => false,
-        },
-        _ => false,
+        }
+        let Some(t) = work.pop() else {
+            return false;
+        };
+        let (collection, next) = fields(t);
+        if collection {
+            return true;
+        }
+        children = next;
     }
 }
+
+#[cfg(test)]
+mod collection_tests;
 
 /// The printable name of `t`'s runtime identity (trait.typeid.name.*),
 /// which a `TypeId` holds as its key (its printable name is
