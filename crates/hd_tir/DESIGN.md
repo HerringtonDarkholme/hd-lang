@@ -1400,7 +1400,7 @@ same way on every run, thread count and cache state.
 | Limit | Counts | Default | Diagnostic |
 | --- | --- | --- | --- |
 | nesting depth | brackets, blocks, closures and interpolations open at once | 160 (`crates/hd_syntax/src/parser/mod.rs`) | `nesting-too-deep` |
-| chain length | binary operators and postfix operations on one path, brackets included; `.m(...)` is one | 10,000 (`MAX_CHAIN_LINKS`, same file) | `nesting-too-deep` |
+| chain length | binary operators and postfix operations on one path, brackets included; `.m(...)` is one | 10,000; 500 in the browser build (`MAX_CHAIN_LINKS`, same file) | `nesting-too-deep` |
 | trait resolution depth | nested subgoals | 64 | `trait-resolution-depth` |
 | body fuel | candidates, subgoals, unification steps, matrix cells, trials, joins, obligation retries; memo hits at their stored cost ([crates/hd_check/DESIGN.md (type checking) §11.1](../hd_check/DESIGN.md#111-what-counts)) | `Fuel::BODY_DEFAULT`, 2^24 steps per body (`crates/hd_base/src/lib.rs`) | see below |
 | embedding depth | nested `data` embedding | the spec's | `embedding-too-deep` |

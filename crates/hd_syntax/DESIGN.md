@@ -205,7 +205,9 @@ pass. `precede` wraps a finished node through `forward_parent`;
   `nesting-too-deep` once, at the first link past it, and skips the rest
   of the chain into an `ERROR` node. Below it, check, fmt and build fit
   `hd_sched::pool::WORKER_STACK`, which `hd` gives its command thread
-  too.
+  too. The browser build (`target_family = "wasm"`) limits a chain to
+  500 links: its frames live on the engine's fixed stack, about 1 MiB
+  in V8, and the worst measured shape fails past 1,200.
 - **Grammar checks.** A path-only alias such as `use a.b as c` parses.
   An associated type is only `type Name` in a trait or `type Name = Type`
   in an impl; `type Item < Eq = i32` is a `syntax-error`.
