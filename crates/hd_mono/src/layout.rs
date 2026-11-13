@@ -728,12 +728,19 @@ pub struct InstanceTable {
     /// The instance that first requested it, `NONE` for a root. Collection
     /// is breadth-first, so the parents spell a shortest chain from a root.
     pub parent: Vec<InstId>,
+    /// Generic requests after the root, cached on insertion. Plain requests
+    /// inherit their parent's depth rather than consuming the generic limit.
+    chain: Vec<u32>,
+    /// Nearest strict ancestor with type arguments, skipping plain call chains.
+    generic_parent: Vec<InstId>,
+    #[cfg(test)]
+    request_work: std::cell::Cell<usize>,
     pub key: Vec<Hash128>,
     index: hd_base::HashMap<(DefId, Sub, TyList, Hash128), InstId>,
 }
 
 /// The instantiation limits (§13.4): the nesting depth of an instance's
-/// type arguments, and the length of its request chain from a root.
+/// type arguments, and the number of generic requests after a root.
 pub const MAX_DEPTH: u8 = 32;
 pub const MAX_CHAIN: u32 = 256;
 
@@ -803,6 +810,10 @@ impl InstanceTable {
             return (id, false);
         }
         let id = InstId::from_raw(u32::try_from(self.item.len()).expect("instances"));
+        let chain = self.request_chain_len(parent, args);
+        let generic_parent = self.generic_at_or_above(parent);
+        #[cfg(test)]
+        self.request_work.set(self.request_work.get() + 1);
         self.item.push(item);
         self.sub.push(sub);
         self.args.push(args);
@@ -810,6 +821,8 @@ impl InstanceTable {
         self.defaults.push(defaults.into());
         self.depth.push(depth);
         self.parent.push(parent);
+        self.chain.push(chain);
+        self.generic_parent.push(generic_parent);
         self.key.push(key);
         self.index.insert(
             (item, sub, args, crate::defaults::digest(known, defaults)),
@@ -818,16 +831,51 @@ impl InstanceTable {
         (id, true)
     }
 
-    /// The number of requests from a root to `id`: 0 for a root.
+    /// The number of generic requests after a root to `id`: 0 for a root.
     #[must_use]
     pub fn chain_len(&self, id: InstId) -> u32 {
-        let mut n = 0;
-        let mut p = self.parent[id.idx()];
-        while p != InstId::NONE {
-            n += 1;
-            p = self.parent[p.idx()];
+        self.chain[id.idx()]
+    }
+
+    /// The proposed request's generic depth, in constant time.
+    #[must_use]
+    pub(crate) fn request_chain_len(&self, parent: InstId, args: TyList) -> u32 {
+        #[cfg(test)]
+        self.request_work.set(self.request_work.get() + 1);
+        if parent == InstId::NONE {
+            0
+        } else {
+            self.chain_len(parent) + u32::from(args != TyList::EMPTY)
         }
-        n
+    }
+
+    fn generic_at_or_above(&self, id: InstId) -> InstId {
+        #[cfg(test)]
+        self.request_work.set(self.request_work.get() + 1);
+        if id == InstId::NONE {
+            InstId::NONE
+        } else if self.args[id.idx()] != TyList::EMPTY {
+            id
+        } else {
+            self.generic_parent[id.idx()]
+        }
+    }
+
+    /// Only a request with type arguments can change under classification,
+    /// which preserves argument arity. Search only those ancestors: collection
+    /// limits this walk to `MAX_CHAIN` plus a possibly generic root.
+    #[must_use]
+    pub(crate) fn is_generic_ancestor(&self, ancestor: InstId, from: InstId) -> bool {
+        let mut at = self.generic_at_or_above(from);
+        while at != InstId::NONE {
+            #[cfg(test)]
+            self.request_work.set(self.request_work.get() + 1);
+            if at == ancestor {
+                return true;
+            }
+            at = self.generic_parent[at.idx()];
+        }
+        false
     }
     #[must_use]
     pub fn len(&self) -> usize {
@@ -851,8 +899,8 @@ impl InstanceTable {
 #[cfg(test)]
 mod tests {
     use super::{
-        A1Class, CanonMemo, InstanceTable, KeyArg, LayoutEnv, StdKind, Sub, inline_map_key,
-        instance_key, known_key, strip_newtype,
+        A1Class, CanonMemo, InstanceTable, KeyArg, LayoutEnv, MAX_CHAIN, StdKind, Sub,
+        inline_map_key, instance_key, known_key, strip_newtype,
     };
     use hd_base::SliceSort as _;
     use hd_base::{DefId, Hash128, InstId};
@@ -1409,10 +1457,10 @@ mod tests {
         assert!(new);
         assert!(!t.push(push, body, TyList::EMPTY, &[], 0, InstId::NONE, a).1);
         assert_eq!(t.get(push, body, TyList::EMPTY), Some(root));
-        // The chain counts requests from the root.
+        // Plain requests do not consume the generic nesting limit.
         let (inner, _) = t.push(push, Sub::Body(1), TyList::EMPTY, &[], 0, root, c);
         assert_eq!(t.chain_len(root), 0);
-        assert_eq!(t.chain_len(inner), 1);
+        assert_eq!(t.chain_len(inner), 0);
         // A specialized instance (A2) sits beside the plain one; the same
         // known closures find it again, other ones make another.
         let k1 = [(2, Hash128(11))];
@@ -1424,5 +1472,133 @@ mod tests {
         assert_eq!(t.get_known(push, body, TyList::EMPTY, &k1), Some(copy));
         assert_eq!(t.get_known(push, body, TyList::EMPTY, &k2), None);
         assert_eq!(t.get(push, body, TyList::EMPTY), Some(root));
+    }
+    #[test]
+    fn pathological_plain_request_chains_do_linear_metadata_work() {
+        let run = |count: u32| {
+            let mut table = InstanceTable::default();
+            let mut parent = InstId::NONE;
+            for raw in 1..=count {
+                assert_eq!(table.request_chain_len(parent, TyList::EMPTY), 0);
+                let (id, fresh) = table.push(
+                    DefId::from_raw(raw),
+                    Sub::Body(0),
+                    TyList::EMPTY,
+                    &[],
+                    0,
+                    parent,
+                    Hash128(u128::from(raw)),
+                );
+                assert!(fresh);
+                assert_eq!(table.chain_len(id), 0);
+                parent = id;
+            }
+            assert_eq!(table.len(), count as usize);
+            assert!(!table.is_generic_ancestor(parent, parent));
+            let work = table.request_work.get();
+            assert!(
+                work <= 5 * count as usize + 1,
+                "{count} requests: {work} visits"
+            );
+            work
+        };
+        let small = run(1000);
+        let large = run(10000);
+        assert!(large <= 11 * small);
+    }
+
+    #[test]
+    fn generic_ancestry_skips_plain_bridges_and_distinguishes_shared_instances() {
+        let pool = InternPool::default();
+        let args = pool.list(&[Ty::I32]);
+        let mut table = InstanceTable::default();
+        let mut serial = 1u32;
+        let mut push = |table: &mut InstanceTable, parent, args| {
+            let item = DefId::from_raw(serial);
+            serial += 1;
+            table
+                .push(
+                    item,
+                    Sub::Body(0),
+                    args,
+                    &[],
+                    0,
+                    parent,
+                    Hash128(u128::from(item.raw())),
+                )
+                .0
+        };
+        let root = push(&mut table, InstId::NONE, args);
+        let unrelated = push(&mut table, InstId::NONE, args);
+        let mut parent = root;
+        for depth in 1..=20 {
+            for _ in 0..1000 {
+                parent = push(&mut table, parent, TyList::EMPTY);
+                assert_eq!(table.chain_len(parent), depth - 1);
+            }
+            assert_eq!(table.request_chain_len(parent, args), depth);
+            parent = push(&mut table, parent, args);
+            assert_eq!(table.chain_len(parent), depth);
+        }
+        let before = table.request_work.get();
+        assert!(table.is_generic_ancestor(root, parent));
+        assert!(table.is_generic_ancestor(parent, parent));
+        assert!(!table.is_generic_ancestor(unrelated, parent));
+        assert!(table.request_work.get() - before <= 3 * 22);
+        for depth in 21..=MAX_CHAIN {
+            parent = push(&mut table, parent, args);
+            assert_eq!(table.chain_len(parent), depth);
+        }
+        assert_eq!(table.request_chain_len(parent, args), MAX_CHAIN + 1);
+        assert_eq!(table.request_chain_len(parent, TyList::EMPTY), MAX_CHAIN);
+        let before = table.request_work.get();
+        assert!(!table.is_generic_ancestor(unrelated, parent));
+        assert!(table.request_work.get() - before <= MAX_CHAIN as usize + 2);
+    }
+    #[test]
+    fn pathological_wide_deep_requests_have_bounded_ancestry_work() {
+        let run = |width: u32| {
+            let pool = InternPool::default();
+            let args = pool.list(&[Ty::I32]);
+            let mut table = InstanceTable::default();
+            let (root, _) = table.push(
+                DefId::from_raw(1),
+                Sub::Body(0),
+                args,
+                &[],
+                1,
+                InstId::NONE,
+                Hash128(1),
+            );
+            let mut serial = 2u32;
+            for _ in 0..width {
+                let mut parent = root;
+                for level in 0..20 {
+                    let arguments = if level % 2 == 0 { TyList::EMPTY } else { args };
+                    let (id, _) = table.push(
+                        DefId::from_raw(serial),
+                        Sub::Body(0),
+                        arguments,
+                        &[],
+                        1,
+                        parent,
+                        Hash128(u128::from(serial)),
+                    );
+                    serial += 1;
+                    assert!(table.is_generic_ancestor(root, id));
+                    parent = id;
+                }
+            }
+            assert_eq!(table.len(), (20 * width + 1) as usize);
+            let work = table.request_work.get();
+            assert!(
+                work <= 20 * (20 * width + 1) as usize,
+                "width {width}: {work}"
+            );
+            work
+        };
+        let small = run(100);
+        let large = run(1000);
+        assert!(large <= 11 * small);
     }
 }

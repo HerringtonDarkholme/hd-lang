@@ -14294,3 +14294,52 @@ mod verification_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod instantiation_chain_tests {
+    use super::*;
+
+    #[test]
+    fn pathological_plain_chains_build_with_linear_instance_body_work() {
+        let mut counts = Vec::new();
+        for count in [1000, 10000] {
+            let mut source = String::new();
+            for i in 0..count {
+                use std::fmt::Write as _;
+                if i + 1 == count {
+                    writeln!(source, "fn g_{i}(x: i32) -> i32: x").unwrap();
+                } else {
+                    writeln!(source, "fn g_{i}(x: i32) -> i32: g_{}(x)", i + 1).unwrap();
+                }
+            }
+            source.push_str("pub fn main() -> void $ Console: println(g_0(7))\n");
+            let mut sources = MemorySources::default();
+            sources.insert("main.hd", &source);
+            let store = warm_std_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let out = build_packages(
+                &host,
+                "chain",
+                &Packages::default(),
+                &Goal::Program {
+                    entry: "main".into(),
+                },
+            );
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert!(out.wasm.is_some());
+            let work = out.counters.bodies_decoded;
+            assert!(
+                (count..=count + 1000).contains(&work),
+                "{count} calls: {work} decoded bodies"
+            );
+            counts.push(work);
+        }
+        assert!(counts[1] <= 11 * counts[0], "decoded bodies: {counts:?}");
+    }
+}
