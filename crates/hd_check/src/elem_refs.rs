@@ -587,7 +587,7 @@ impl Ck<'_, '_> {
         let before = self.diags.len();
         self.declare_pattern(pat, rt, &mut binds)?;
         if self.diags.len() == before {
-            self.irrefutable_loop_pattern(pat, rt);
+            self.irrefutable_loop_pattern(pat, rt)?;
         }
         let ab = self.b.open_block();
         // The loop is one access to the list (`flow.for.ref.access`). A

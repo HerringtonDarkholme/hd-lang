@@ -358,8 +358,19 @@ pub struct Lexed {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// `lex.limit.file-size.error`: a source file over
+/// `hd_base::limits::FILE_SIZE` bytes.
+const FILE_TOO_LARGE: &str =
+    "this file is larger than the compiler allows (16 MiB); split it into modules";
+
 #[must_use]
 pub fn lex(source: &[u8]) -> Lexed {
+    if source.len() > hd_base::limits::FILE_SIZE as usize {
+        return Lexed {
+            diagnostics: vec![diagnostic(Code::FileTooLarge, 0, 0, FILE_TOO_LARGE)],
+            ..Lexed::default()
+        };
+    }
     let Ok(text) = core::str::from_utf8(source) else {
         return Lexed {
             diagnostics: vec![diagnostic(
@@ -1616,6 +1627,22 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code.as_str() == "tab-whitespace")
         );
+    }
+
+    #[test]
+    fn a_file_at_the_size_limit_lexes_and_one_byte_more_is_too_large() {
+        let limit = hd_base::limits::FILE_SIZE as usize;
+        // One comment line of `limit` bytes.
+        let mut source = vec![b'x'; limit];
+        source[0] = b'#';
+        let at = lex(&source);
+        assert!(at.diagnostics.is_empty(), "{:?}", at.diagnostics);
+        assert_eq!(at.tokens.com_kind.len(), 1);
+        source.push(b'x');
+        let past = lex(&source);
+        let codes: Vec<&str> = past.diagnostics.iter().map(|d| d.code.as_str()).collect();
+        assert_eq!(codes, ["file-too-large"]);
+        assert!(past.tokens.is_empty());
     }
 
     #[test]

@@ -1,0 +1,7 @@
+# test: an integer arm inside an earlier range arm is unreachable
+fn in_range(n: i32) -> i32:
+    match n:
+        0..=9 => 1
+        10 => 2
+        4 => 3 # diagnostic: unreachable-match-arm
+        _ => 4

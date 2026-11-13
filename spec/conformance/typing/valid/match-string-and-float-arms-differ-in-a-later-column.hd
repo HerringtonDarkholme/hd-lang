@@ -1,0 +1,28 @@
+# test: string and float arms that share a value differ in a later column
+struct Key:
+    name: string
+    on: bool
+
+fn by_tuple(s: string, b: bool) -> i32:
+    match (s, b):
+        ("a", true) => 1
+        ("a", false) => 2
+        _ => 3
+
+fn by_float(x: f64, b: bool) -> i32:
+    match (x, b):
+        (1.5, true) => 1
+        (1.5, false) => 2
+        _ => 3
+
+fn by_option(o: (string, i32)?) -> i32:
+    match o:
+        .Some(("a", 1)) => 1
+        .Some(("a", 2)) => 2
+        _ => 3
+
+fn by_field(k: Key) -> i32:
+    match k:
+        Key { name: "a", on: true } => 1
+        Key { name: "a", on: false } => 2
+        _ => 3

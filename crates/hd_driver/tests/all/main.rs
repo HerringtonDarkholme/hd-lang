@@ -76,6 +76,7 @@ mod local_items_run;
 mod map_key_bounds;
 mod map_run;
 mod match_decision_tree_run;
+mod match_work;
 mod method_bound_unmet;
 mod method_chain_depth;
 mod method_choice;

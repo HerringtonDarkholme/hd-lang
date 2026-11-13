@@ -3920,14 +3920,15 @@ impl Ck<'_, '_> {
     }
 
     /// `flow.for.pattern.irrefutable`: a `for` pattern must always match.
-    pub(crate) fn irrefutable_loop_pattern(&mut self, pat: NodeRef<'_>, t: Ty) {
-        if self.refutable(pat, t) {
+    pub(crate) fn irrefutable_loop_pattern(&mut self, pat: NodeRef<'_>, t: Ty) -> StageResult<()> {
+        if self.refutable(pat, t)? {
             self.err(
                 Code::RefutableLetPattern,
                 pat,
                 "a `for` pattern must match every item",
             );
         }
+        Ok(())
     }
 
     /// A loop's normal exit: its `else` suite's value, then `break`; the
@@ -4193,7 +4194,7 @@ impl Ck<'_, '_> {
         // A pattern that does not fit the item type already reported; its
         // refutability would only repeat that error.
         if self.diags.len() == before {
-            self.irrefutable_loop_pattern(pat, item_ty);
+            self.irrefutable_loop_pattern(pat, item_ty)?;
         }
         let ab = self.b.open_block();
         body(self)?;
@@ -4608,7 +4609,7 @@ impl Ck<'_, '_> {
         let before = self.diags.len();
         self.declare_pattern(pat, item_ty, &mut binds)?;
         if self.diags.len() == before {
-            self.irrefutable_loop_pattern(pat, item_ty);
+            self.irrefutable_loop_pattern(pat, item_ty)?;
         }
         let ab = self.b.open_block();
         body(self)?;

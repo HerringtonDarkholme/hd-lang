@@ -1167,10 +1167,17 @@ it, in source order (`flow.match.guard.*`). A row with no test in a
 switched column repeats under each outcome, as in any decision tree; a
 nested-enum match stays linear in TIR size.
 
-Planned, not built: a one-column fast path (a hash set over distinct
-literals or variants) for large flat matches; a `match-too-complex` limit
-when usefulness runs out of fuel; a witness deeper than the top-level
-constructor.
+Reachability asks one usefulness question per arm, against only the
+earlier unguarded arms whose head can share a value with it: the arms
+are indexed by head variant, string, float and integer value, so a flat
+match of literal or variant arms costs a few rows per arm. One match's
+questions share a work budget, `hd_base::limits::MATCH_WORK`: a state of
+the usefulness work stack costs one plus its rows, as rustc's pattern
+complexity counts, and the work also charges the body's fuel. Past the
+budget the match is `match-too-complex` (`flow.match.limit.error`) and
+its decision tree is a poison value.
+
+Planned, not built: a witness deeper than the top-level constructor.
 
 ### 7.3 `let` Patterns And `let-else`
 
@@ -1520,9 +1527,7 @@ Other limits:
 | chain length | 10,000 links | parser; the checker relies on it | `nesting-too-deep` |
 | instantiation depth of row keys | 32 | M1 row solve | `instantiation-too-deep` |
 | growing generic call cycle | none: any growth on a cycle | after a module's bodies (`inst_cycles`) | `instantiation-too-deep` |
-
-Planned, not built: a type size limit at interning (`type-too-large`)
-and `match-too-complex`.
+| match work | 2^22 rows (`hd_base::limits::MATCH_WORK`) | a match's usefulness checks (section 7.2) | `match-too-complex` |
 
 ### 11.3 Pathological Cases
 
@@ -1531,8 +1536,8 @@ and `match-too-complex`.
 | a method chain of 10,000 calls, `a.b().c()...` | the syntax tree is 10,000 deep on its left spine | the parser rejects a chain past 10,000 links (`grammar.limit.chain`), and below it the walks recurse on a 32 MiB worker stack (`hd_sched::pool::WORKER_STACK`); a method chain's receivers are checked in a loop |
 | deep nesting of brackets, blocks and closures | stack overflow | the nesting limit of 160 bounds native recursion |
 | a list literal of 100,000 elements | quadratic LCT or literal grouping | the join compares a value only when the site's type changes, a bounded number of times per site; literal classes are union-find |
-| a 10,000-arm literal match | quadratic usefulness | planned one-column fast path (section 7.2) |
-| wide tuple patterns with nested enums | exponential usefulness | fuel |
+| a 10,000-arm literal match | quadratic usefulness | earlier arms indexed by head value (section 7.2) |
+| wide tuple patterns with nested enums | exponential usefulness | the match work limit, `match-too-complex` |
 | nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | the head prefilter; arguments inferred once outside trials; the trial memo (#49); fuel |
 | many pending goals | quadratic retries | a statement settles only its own goals |
 | huge rows | quadratic set operations | sorted key lists |

@@ -1407,14 +1407,18 @@ same way on every run, thread count and cache state.
 | embedding depth | nested `data` embedding | the spec's | `embedding-too-deep` |
 | type depth | type constructors on the longest path from a type down to a leaf, for a body value's type and a written one; every type walk in `hd_check` and `hd_types` stops there | 1,000 (`hd_base::limits::TYPE_DEPTH`) | `type-too-large` |
 | instantiation depth | nesting depth of an instance's type arguments; length of the request chain from a root; also row keys grown by polymorphic recursion | 32; 256 | `instantiation-too-deep`: a build error, and for rows a check error |
+| file size | bytes in one source file; the lexer reads none of a larger one, so every offset fits its `u32` | 16 MiB (`hd_base::limits::FILE_SIZE`) | `file-too-large` |
+| match work | one match's coverage and reachability checks: each state of the usefulness work stack costs one plus its rows, as rustc's pattern complexity counts; also charged to body fuel | 2^22 (`hd_base::limits::MATCH_WORK`) | `match-too-complex`, on the match |
 
 A body that runs out of fuel is `item-too-complex` naming the item, with
 its TIR rolled back to one `Poison`
 ([crates/hd_check/DESIGN.md (type checking) §11.2](../hd_check/DESIGN.md#112-running-out)).
 
-Planned, not built: `file-too-large` (16 MiB) and `match-too-complex`
-(exhaustiveness out of body fuel). The codes exist in `hd_diag`; nothing
-emits them. `type-too-large` counts depth, not nodes: depth is what a
+Usefulness is exponential in the worst case: a match over a tuple of
+`bool`s can encode a SAT formula. A match past its work is one
+`match-too-complex`, and its decision tree, as large as that work, is a
+poison value. A body with less fuel left than the limit stops at its
+fuel instead, as `item-too-complex`. `type-too-large` counts depth, not nodes: depth is what a
 recursive type walk spends, and a type's depth is kept in its meta word,
 so the check costs one read per body value and per written type. A body
 reports its first such value; the header check reports a written type

@@ -134,6 +134,107 @@ fn int_segments(
     }
 }
 
+/// The work a usefulness question may still spend (`flow.match.limit`):
+/// a state of `Ck::useful`'s work stack costs one plus its rows, as
+/// rustc's pattern complexity counts. A match's questions share one
+/// budget of `hd_base::limits::MATCH_WORK`, or less when the body's fuel
+/// has less left.
+struct Work {
+    left: u64,
+    spent: u64,
+}
+
+/// A usefulness question ran past its [`Work`] budget.
+struct Exceeded;
+
+impl Work {
+    fn new(left: u64) -> Self {
+        Self { left, spent: 0 }
+    }
+
+    /// Takes a state of `rows` rows; `Exceeded` once its cost is more
+    /// than is left.
+    fn take(&mut self, rows: usize) -> Result<(), Exceeded> {
+        let cost = 1 + rows as u64;
+        if cost > self.left {
+            return Err(Exceeded);
+        }
+        self.left -= cost;
+        self.spent += cost;
+        Ok(())
+    }
+}
+
+/// The unguarded arms before the one being checked, indexed by what
+/// their head pattern can match, so an arm's reachability question reads
+/// only the rows that can share a value with it: a flat match of literal
+/// or variant arms costs a few rows per arm, not every earlier arm.
+#[derive(Default)]
+struct Earlier {
+    rows: Vec<Vec<P>>,
+    by_ctor: HashMap<String, Vec<usize>>,
+    by_str: HashMap<String, Vec<usize>>,
+    by_flt: HashMap<u64, Vec<usize>>,
+    /// Integer arms of one value, by that value.
+    by_int: HashMap<i128, Vec<usize>>,
+    /// Integer arms of a range of more than one value.
+    ranges: Vec<usize>,
+    wild: Vec<usize>,
+}
+
+impl Earlier {
+    fn push(&mut self, p: P) {
+        let i = self.rows.len();
+        match &p {
+            P::Ctor(c, _) => self.by_ctor.entry(c.clone()).or_default().push(i),
+            P::Str(s) => self.by_str.entry(s.clone()).or_default().push(i),
+            P::Flt(b) => self.by_flt.entry(*b).or_default().push(i),
+            P::Int(lo, hi) if lo == hi => self.by_int.entry(*lo).or_default().push(i),
+            P::Int(..) => self.ranges.push(i),
+            P::Wild => self.wild.push(i),
+            P::Lit => {}
+        }
+        self.rows.push(vec![p]);
+    }
+
+    /// The earlier rows that can match a value `p` matches, in row
+    /// order; every row for a wildcard, an opaque literal or a range.
+    fn overlapping(&self, p: &P) -> Cow<'_, [Vec<P>]> {
+        let named = match p {
+            P::Ctor(c, _) => self.by_ctor.get(c.as_str()),
+            P::Str(s) => self.by_str.get(s.as_str()),
+            P::Flt(b) => self.by_flt.get(b),
+            P::Int(lo, hi) if lo == hi => {
+                let ranges =
+                    self.ranges.iter().copied().filter(
+                        |&i| matches!(self.rows[i][0], P::Int(l, h) if l <= *lo && *lo <= h),
+                    );
+                let at: Vec<usize> = self
+                    .by_int
+                    .get(lo)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .chain(ranges)
+                    .collect();
+                return Cow::Owned(head_rows(&self.rows, Some(&at), &self.wild));
+            }
+            P::Int(..) | P::Wild | P::Lit => return Cow::Borrowed(&self.rows),
+        };
+        Cow::Owned(head_rows(&self.rows, named, &self.wild))
+    }
+}
+
+/// The rows of `m` whose head is a wildcard or a value `same` accepts,
+/// without their head: the rows a string or float head can share a value
+/// with.
+fn same_value(m: &[Vec<P>], same: impl Fn(&P) -> bool) -> Vec<Vec<P>> {
+    m.iter()
+        .filter(|r| matches!(r[0], P::Wild) || same(&r[0]))
+        .map(|r| r[1..].to_vec())
+        .collect()
+}
+
 fn head_rows(m: &[Vec<P>], named: Option<&Vec<usize>>, wild: &[usize]) -> Vec<Vec<P>> {
     let mut at: Vec<usize> = named.cloned().unwrap_or_default();
     at.extend_from_slice(wild);
@@ -223,6 +324,10 @@ fn splice(
     o.splice(j..=j, new);
     o
 }
+
+/// `flow.match.limit.error`: a match whose coverage and reachability
+/// checks need more than `hd_base::limits::MATCH_WORK`.
+const MATCH_TOO_COMPLEX: &str = "checking this match's arms needs more steps than the compiler allows; split it into smaller matches";
 
 /// A pattern for the exhaustiveness test.
 #[derive(Clone, Debug)]
@@ -1013,7 +1118,7 @@ impl Ck<'_, '_> {
         declared?;
         // `flow.let.refutable.else`, `flow.let.else.unreachable`. A pattern
         // that does not fit `t` already reported; skip the cascade.
-        let refutable = self.refutable(pat, t);
+        let refutable = self.refutable(pat, t)?;
         match els {
             _ if self.diags.len() != before => {}
             None if refutable => self.err(
@@ -1141,12 +1246,15 @@ impl Ck<'_, '_> {
             }
             // An arm that could not name its variants poisoned the type.
             let failed = failed || this.infer.resolve(this.pool(), st) == Ty::POISON;
-            if !failed {
-                this.check_exhaustive(n, &rows, &rejected_arms, st);
-                this.check_reachable(&rows, &rejected_arms, st);
-            }
+            // A match past its work limit has reported; its decision tree,
+            // as large as its usefulness work, is a poison value.
+            let too_complex = !failed && !this.check_match(n, &rows, &rejected_arms, st)?;
             let db = this.b.open_block();
-            this.decide(&rows, sr, st)?;
+            if too_complex {
+                this.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index());
+            } else {
+                this.decide(&rows, sr, st)?;
+            }
             let dec = this.b.close_block(db, None, Ty::NEVER, n.index());
             let mut rec = vec![dec];
             rec.extend(arms);
@@ -2154,9 +2262,11 @@ impl Ck<'_, '_> {
     /// its own rows. A state keeps its pattern vector and column types
     /// reversed, so taking the head column is a `pop`. The answer is
     /// whether any state reaches an empty vector no row covers; work is
-    /// what the recursive form did, each specialization once.
-    fn useful(&self, m: &[Vec<P>], q: &[P], tys: &[Ty]) -> bool {
-        let mut work: Vec<Useful<'_>> = vec![Useful {
+    /// what the recursive form did, each specialization once. Each state
+    /// takes its cost from `work` (`flow.match.limit`), and the question
+    /// stops with `Exceeded` past it.
+    fn useful(&self, m: &[Vec<P>], q: &[P], tys: &[Ty], work: &mut Work) -> Result<bool, Exceeded> {
+        let mut stack: Vec<Useful<'_>> = vec![Useful {
             rows: Cow::Borrowed(m),
             q: q.iter().rev().cloned().collect(),
             tys: tys.iter().rev().copied().collect(),
@@ -2165,11 +2275,12 @@ impl Ck<'_, '_> {
             rows,
             mut q,
             mut tys,
-        }) = work.pop()
+        }) = stack.pop()
         {
+            work.take(rows.len())?;
             let Some(head) = q.pop() else {
                 if rows.is_empty() {
-                    return true;
+                    return Ok(true);
                 }
                 continue;
             };
@@ -2179,27 +2290,20 @@ impl Ck<'_, '_> {
             // patterns (`flow.match.cover.integer`).
             let ints = m.iter().any(|r| matches!(r[0], P::Int(..)));
             match head {
-                P::Int(lo, hi) => int_segments(m, &q, &tys, (lo, hi), &mut work),
-                // A string or float column: only the same value matches, so
-                // the arm is useful when no earlier row matches it.
-                P::Str(s) => {
-                    if !m.iter().any(|r| match &r[0] {
-                        P::Wild => true,
-                        P::Str(t) => *t == s,
-                        _ => false,
-                    }) {
-                        return true;
-                    }
-                }
-                P::Flt(b) => {
-                    if !m.iter().any(|r| match &r[0] {
-                        P::Wild => true,
-                        P::Flt(c) => *c == b,
-                        _ => false,
-                    }) {
-                        return true;
-                    }
-                }
+                P::Int(lo, hi) => int_segments(m, &q, &tys, (lo, hi), &mut stack),
+                // A string or float column: only the same value and a
+                // wildcard match it, and the rest of the vector decides
+                // among those rows.
+                P::Str(s) => stack.push(Useful {
+                    rows: Cow::Owned(same_value(m, |p| matches!(p, P::Str(t) if *t == s))),
+                    q,
+                    tys,
+                }),
+                P::Flt(b) => stack.push(Useful {
+                    rows: Cow::Owned(same_value(m, |p| matches!(p, P::Flt(c) if *c == b))),
+                    q,
+                    tys,
+                }),
                 P::Ctor(c, args) => {
                     let ftys = self
                         .ctor_fields(t, &c)
@@ -2209,16 +2313,16 @@ impl Ck<'_, '_> {
                     args.resize(ftys.len(), P::Wild);
                     q.extend(args.into_iter().rev());
                     tys.extend(ftys.into_iter().rev());
-                    work.push(Useful {
+                    stack.push(Useful {
                         rows: Cow::Owned(rows),
                         q,
                         tys,
                     });
                 }
-                P::Lit => return true,
+                P::Lit => return Ok(true),
                 P::Wild => {
                     if ints && let Some(all) = self.int_range(t) {
-                        int_segments(m, &q, &tys, all, &mut work);
+                        int_segments(m, &q, &tys, all, &mut stack);
                         continue;
                     }
                     let ctors = self.ctors(t);
@@ -2245,7 +2349,7 @@ impl Ck<'_, '_> {
                             nq.extend(core::iter::repeat_n(P::Wild, ftys.len()));
                             let mut nt = tys.clone();
                             nt.extend(ftys.iter().rev().copied());
-                            work.push(Useful {
+                            stack.push(Useful {
                                 rows: Cow::Owned(specialize(c, ftys.len(), rows.iter())),
                                 q: nq,
                                 tys: nt,
@@ -2258,7 +2362,7 @@ impl Ck<'_, '_> {
                         .filter(|r| matches!(r[0], P::Wild))
                         .map(|r| r[1..].to_vec())
                         .collect();
-                    work.push(Useful {
+                    stack.push(Useful {
                         rows: Cow::Owned(rows),
                         q,
                         tys,
@@ -2266,15 +2370,52 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        false
+        Ok(false)
     }
 
-    /// `unreachable-match-arm` for an arm whose values the unguarded arms
-    /// before it already match.
-    /// Whether some value of `t` fails to match `pat`.
-    pub(crate) fn refutable(&mut self, pat: NodeRef<'_>, t: Ty) -> bool {
+    /// Whether some value of `t` fails to match `pat`. The question's
+    /// work charges the body's fuel, and stops the check when it runs
+    /// out; one pattern's work grows with its size alone.
+    pub(crate) fn refutable(&mut self, pat: NodeRef<'_>, t: Ty) -> StageResult<bool> {
         let p = self.to_p(Some(pat), t);
-        self.useful(&[vec![p]], &[P::Wild], &[t])
+        let mut work = Work::new(self.fuel.left());
+        let useful = self.useful(&[vec![p]], &[P::Wild], &[t], &mut work);
+        match useful {
+            Ok(useful) if self.fuel.charge(work.spent) => Ok(useful),
+            _ => crate::body::out_of_fuel(),
+        }
+    }
+
+    /// `flow.match.limit`: the coverage and reachability checks of the
+    /// match `n`, sharing one [`Work`] budget of `MATCH_WORK`. Past it the
+    /// match is `match-too-complex`, its remaining checks are skipped, and
+    /// the answer is false. The work charges the body's fuel; a body with
+    /// less fuel left than the limit stops at its fuel, as
+    /// `item-too-complex`.
+    fn check_match(
+        &mut self,
+        n: NodeRef<'_>,
+        rows: &[Row<'_>],
+        rejected: &[bool],
+        t: Ty,
+    ) -> StageResult<bool> {
+        let limit = u64::from(hd_base::limits::MATCH_WORK);
+        let fuel = self.fuel.left();
+        let mut work = Work::new(limit.min(fuel));
+        let checked = self
+            .check_exhaustive(n, rows, rejected, t, &mut work)
+            .and_then(|()| self.check_reachable(rows, rejected, t, &mut work));
+        if checked.is_err() {
+            if fuel < limit {
+                return crate::body::out_of_fuel();
+            }
+            self.err(Code::MatchTooComplex, n, MATCH_TOO_COMPLEX);
+        }
+        if self.fuel.charge(work.spent) {
+            Ok(checked.is_ok())
+        } else {
+            crate::body::out_of_fuel()
+        }
     }
 
     /// Whether a range pattern has a bound outside the integer type `t`,
@@ -2291,13 +2432,16 @@ impl Ck<'_, '_> {
             .any(|v| v < min || v > max)
     }
 
-    fn check_reachable(&mut self, rows: &[Row<'_>], rejected: &[bool], t: Ty) {
-        let mut before: Vec<Vec<P>> = Vec::new();
-        // The earlier arms by head constructor, and the wild ones: a
-        // constructor arm is useful against only those that can match it,
-        // so each arm reads its own few rows, not every earlier arm.
-        let mut by_ctor: HashMap<String, Vec<usize>> = HashMap::default();
-        let mut wild = Vec::new();
+    /// `unreachable-match-arm` for an arm whose values the unguarded arms
+    /// before it already match.
+    fn check_reachable(
+        &mut self,
+        rows: &[Row<'_>],
+        rejected: &[bool],
+        t: Ty,
+        work: &mut Work,
+    ) -> Result<(), Exceeded> {
+        let mut before = Earlier::default();
         for (r, rej) in rows.iter().zip(rejected) {
             // A rejected pattern has reported its error: its arm neither
             // is reported nor hides the arms after it.
@@ -2305,13 +2449,12 @@ impl Ck<'_, '_> {
                 continue;
             }
             let p = self.to_p(r.pat, t);
-            let useful = match &p {
-                P::Ctor(c, _) => {
-                    let m = head_rows(&before, by_ctor.get(c.as_str()), &wild);
-                    self.useful(&m, std::slice::from_ref(&p), &[t])
-                }
-                _ => self.useful(&before, std::slice::from_ref(&p), &[t]),
-            };
+            let useful = self.useful(
+                &before.overlapping(&p),
+                std::slice::from_ref(&p),
+                &[t],
+                work,
+            )?;
             // An arm with an out-of-type bound is already an error.
             if !useful
                 && !r.pat.is_some_and(|n| self.bound_outside(n, t))
@@ -2324,41 +2467,45 @@ impl Ck<'_, '_> {
                 );
             }
             if r.guard.is_none() {
-                match &p {
-                    P::Ctor(c, _) => by_ctor.entry(c.clone()).or_default().push(before.len()),
-                    P::Wild => wild.push(before.len()),
-                    _ => {}
-                }
-                before.push(vec![p]);
+                before.push(p);
             }
         }
+        Ok(())
     }
 
     /// `nonexhaustive-match` when some value matches no unguarded arm.
-    fn check_exhaustive(&mut self, n: NodeRef<'_>, rows: &[Row<'_>], rejected: &[bool], t: Ty) {
+    fn check_exhaustive(
+        &mut self,
+        n: NodeRef<'_>,
+        rows: &[Row<'_>],
+        rejected: &[bool],
+        t: Ty,
+        work: &mut Work,
+    ) -> Result<(), Exceeded> {
         let m: Vec<Vec<P>> = rows
             .iter()
             .zip(rejected)
             .filter(|(r, _)| r.guard.is_none())
             .map(|(r, rej)| vec![if *rej { P::Wild } else { self.to_p(r.pat, t) }])
             .collect();
-        if self.useful(&m, &[P::Wild], &[t]) {
-            let missing = self.ctors(t).map_or_else(
-                || "_".into(),
-                |cs| {
-                    cs.into_iter()
-                        .filter(|(c, f)| {
-                            let q = vec![P::Ctor(c.clone(), vec![P::Wild; f.len()])];
-                            self.useful(&m, &q, &[t])
-                        })
-                        .map(|(c, _)| c)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                },
-            );
+        if self.useful(&m, &[P::Wild], &[t], work)? {
+            let missing = match self.ctors(t) {
+                None => "_".into(),
+                Some(cs) => {
+                    let mut names = Vec::new();
+                    for (c, f) in cs {
+                        let q = vec![P::Ctor(c.clone(), vec![P::Wild; f.len()])];
+                        if self.useful(&m, &q, &[t], work)? {
+                            names.push(c);
+                        }
+                    }
+                    names.join(", ")
+                }
+            };
             let msg = format!("no arm matches {missing}");
             self.err(Code::NonexhaustiveMatch, n, &msg);
         }
+        Ok(())
     }
 }
 

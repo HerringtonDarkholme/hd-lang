@@ -1,0 +1,7 @@
+# test: a float arm whose later column an earlier arm with the same value covers is unreachable
+fn by_float(x: f64, b: bool) -> i32:
+    match (x, b):
+        (1.5, true) => 1
+        (1.5, false) => 2
+        (1.5, _) => 3 # diagnostic: unreachable-match-arm
+        _ => 4

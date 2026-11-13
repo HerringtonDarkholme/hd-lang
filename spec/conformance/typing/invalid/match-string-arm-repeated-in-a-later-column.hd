@@ -1,0 +1,6 @@
+# test: a string arm whose later column an earlier arm with the same string covers is unreachable
+fn by_tuple(s: string, b: bool) -> i32:
+    match (s, b):
+        ("a", _) => 1
+        ("a", false) => 2 # diagnostic: unreachable-match-arm
+        _ => 3

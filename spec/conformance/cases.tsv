@@ -1851,6 +1851,11 @@ typing/valid/variant-pattern-lists-payload.hd	type	accept	lang/06-control-flow.m
 typing/invalid/match-arm-after-catch-all.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
 typing/invalid/duplicate-bool-match-arm.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
 typing/invalid/duplicate-literal-match-arm.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
+typing/invalid/match-integer-arm-inside-an-earlier-range.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
+typing/invalid/match-string-arm-repeated-in-a-later-column.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
+typing/invalid/match-float-arm-repeated-in-a-later-column.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
+typing/valid/match-string-and-float-arms-differ-in-a-later-column.hd	type	accept	lang/06-control-flow.md#match-expressions
+typing/invalid/match-too-complex.hd	type	reject:match-too-complex	lang/06-control-flow.md#r-flow.match.limit.error
 typing/invalid/propagation-operand-not-optional.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#propagation
 typing/invalid/propagation-without-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#propagation
 typing/invalid/closure-parameter-without-type.hd	type	reject:closure-parameter-needs-annotation	lang/07-functions.md#closures
