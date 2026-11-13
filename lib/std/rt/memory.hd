@@ -212,25 +212,6 @@ fn free_room(address: usize) -> void:
 pub fn string_bytes(text: string) -> Ptr[u8]:
     panic("intrinsic")
 
-## Lends the object `r` refers to for writing when `r` holds its only counted reference, and `.None` when it is shared. Copy-on-write std types write through it, and copy the object into a new one first when it is shared.
-## See [module.rt.unique](../../../spec/lang/10-modules.md#r-module.rt.unique).
-@intrinsic("unique_mut")
-pub fn unique_mut['a, T < ?Copy](r: &'a mut *T) -> (&'a mut T)?:
-    panic("intrinsic")
-
-## Lends the object `r` refers to for writing, after making it the object's only counted reference: when the object is shared, `r` first takes a new box of `copy` of it. Copy-on-write std types write through it.
-## See [module.rt.make-unique](../../../spec/lang/10-modules.md#r-module.rt.make-unique).
-pub fn make_unique['a, T < ?Copy](r: &'a mut *T, copy: fn(&T) -> T) -> &'a mut T:
-    shared := match unique_mut(r):
-        .Some(_) => false
-        .None => true
-    if shared:
-        *r = box(copy(*r))
-    match unique_mut(r):
-        .Some(u) => u
-        # ruled out: the store above left `r` the only counted reference to a new box.
-        .None => panic("make_unique found a new box shared")
-
 ## A new string of `len` bytes, which the caller writes through `string_bytes` before anything reads it.
 ## See [module.rt.string.new](../../../spec/lang/10-modules.md#r-module.rt.string.new).
 @intrinsic("mem_new_string")

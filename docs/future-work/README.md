@@ -27,8 +27,6 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 ### Language and library
 
 - [Raw Buffers](RAW_BUFFER.md): accepted 2026-11-03; raw storage, std-only `Drop` and the copy verifier are implemented. The counted copy-on-write layers remain tracked by #1219 and #1220.
-- [List Blocks](LIST_BLOCK.md): owner decisions of 2026-11-12 on #1219: `List` and `UniqList` each hold one pointer to one block with an unsized std-only tail; six questions open.
-- [List Blocks: Stress Test](LIST_BLOCK_STRESS_TEST.md): 19 cases against those decisions; three decided points fail as written (`make_unique`'s copy, `regrow` when shared, dropping counted items), with options and ranked owner questions.
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.

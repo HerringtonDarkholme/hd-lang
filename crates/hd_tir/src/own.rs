@@ -95,7 +95,6 @@ mod reason;
 mod ref_copy;
 pub(crate) mod referent;
 pub(crate) mod retains;
-mod unique_test;
 pub use retains::{provider_view, took_source};
 mod live;
 mod self_store;
@@ -226,19 +225,6 @@ pub trait OwnCx {
     /// Whether this callee is the map-probe intrinsic. Its three-argument
     /// form inserts on a miss; the two-argument form never copies a key.
     fn is_map_probe(&self, callee: &Callee) -> bool {
-        let _ = callee;
-        false
-    }
-    /// Whether this callee is std's `unique_mut` (`module.rt.unique`),
-    /// whose tests `own::unique_test` classifies.
-    fn is_unique_test(&self, callee: &Callee) -> bool {
-        let _ = callee;
-        false
-    }
-    /// Whether this callee is std's `make_unique`
-    /// (`module.rt.make-unique`), which `own::unique_test` classifies as
-    /// it does a test, and hoists out of a loop that leaves its place alone.
-    fn is_make_unique(&self, callee: &Callee) -> bool {
         let _ = callee;
         false
     }
@@ -1060,7 +1046,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     values::capture_moves(b, topo, cx, &mut scratch.values, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
-    unique_test::run(b, topo, cx, edits);
     known::place_arm_drops(b, &scratch.known, edits);
     splice::apply(b, topo, edits)?;
     if self_store::applies(b) {
@@ -2048,15 +2033,6 @@ pub(crate) mod tests {
                 }
                 if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::PINS != 0 {
                     line.push_str(" pins");
-                }
-                if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::UNIQUE != 0 {
-                    line.push_str(" unique");
-                }
-                if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::STICKY != 0 {
-                    line.push_str(" sticky");
-                }
-                if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::HOISTED != 0 {
-                    line.push_str(" hoisted");
                 }
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::HOISTED {
                     line.push_str(" hoisted");

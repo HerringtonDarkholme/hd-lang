@@ -12660,9 +12660,6 @@ impl ProgramEnv for Env<'_> {
     fn drop_items(&self) -> Option<(DefId, DefId)> {
         Some((self.run.known.drop_trait, self.run.known.drop_method))
     }
-    fn make_unique_item(&self) -> Option<DefId> {
-        Some(self.run.known.make_unique)
-    }
     fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
         let Some(it) = self.p.items.get(impl_) else {
             return false;

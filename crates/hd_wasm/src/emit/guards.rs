@@ -23,12 +23,11 @@
 //!    in a cell as of a parameter's referent: no store into the cell or
 //!    move out of it, and a `Ptr` store goes into a room, never a cell.
 //!    The object of a thin `*T` held in such a root's field is a root too
-//!    ([`BOX`]): while the field holds the box, the box keeps a count of
-//!    its own, so `unique_mut` lends the object to no other holder, and
-//!    the object is no room and no cell. Whatever keeps the holder's root
-//!    keeps the object. A dereference of a value read from the field
-//!    names that object only when the read is a `borrow`, which the field
-//!    keeps while the value lives.
+//!    ([`BOX`]): the object is no room and no cell, the only places a
+//!    write that keeps a root may reach, so whatever keeps the holder's
+//!    root keeps the object while the field holds the box. A dereference
+//!    of a value read from the field names that object only when the read
+//!    is a `borrow`, which the field keeps while the value lives.
 //! 2. **Values by their source.** A read of a local with one dominating
 //!    store is the stored value; an identity or weakening coercion, and a
 //!    block whose one break carries a value, are that value.
@@ -140,10 +139,10 @@ pub(super) struct Hoist {
 const OWN: u32 = 1 << 31;
 
 /// The root bit of a box's object: `k | BOX` names the object of the `*T`
-/// in entry `k` of the box table, a field of another root. While that
-/// field holds the box, the box holds a count of its own, so nothing
-/// else lends its object for writing (`unique_mut` finds it shared), and
-/// it is no room and no cell: whatever keeps the holder's root keeps it.
+/// in entry `k` of the box table, a field of another root. The object is
+/// no room and no cell, the only places a write that keeps a root may
+/// reach, so while that field holds the box, whatever keeps the holder's
+/// root keeps it.
 const BOX: u32 = 1 << 30;
 
 /// The most box roots a body names.

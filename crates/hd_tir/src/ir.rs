@@ -771,11 +771,6 @@ pub mod ref_word {
     /// its last access takes the local's count of its cell, and leaves the
     /// local empty. The checker never sets it (invariant 22).
     pub const TAKES: u32 = 2;
-    /// Set by the ownership passes (`own::unique_test`): the
-    /// `&mut` argument of a `unique_mut` test whose place holds a fresh
-    /// box, which nothing else can hold, so the test is true with no load.
-    /// The checker never sets it (invariant 22).
-    pub const UNIQUE: u32 = 4;
     /// Set by the checker: the `Ref` makes a local reference, `&T` or
     /// `&mut T`, or the address a `&self` or `&mut self` receiver takes,
     /// which never outlives its use
@@ -801,18 +796,6 @@ pub mod ref_word {
     /// local's object (`Part::Lent`). The checker never sets it
     /// (invariant 22).
     pub const LENT: u32 = 64;
-    /// Set by the ownership passes (`own::unique_test`): the
-    /// `&mut` argument of a `unique_mut` test whose place nothing in the
-    /// body can share once a test found it unique, and every store to
-    /// which is a fresh box, so the backend runs the test until one finds
-    /// it unique and not after. The checker never sets it (invariant 22).
-    pub const STICKY: u32 = 128;
-    /// Set by the ownership passes (`own::unique_test`): the `&mut`
-    /// argument of a `make_unique` call they put before the loop that
-    /// follows it, whose own calls of the same place they mark `UNIQUE`.
-    /// It runs only when that loop's entry test lets the loop in, as a
-    /// hoisted `IsUnique` does. The checker never sets it (invariant 22).
-    pub const HOISTED: u32 = 256;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2207,9 +2190,6 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::PINS != 0 => "a pinning `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
-            Tag::Ref if w & (ref_word::UNIQUE | ref_word::STICKY | ref_word::HOISTED) != 0 => {
-                "a uniqueness-test `Ref` before the passes".to_owned()
-            }
             _ => continue,
         };
         errs.push(VerifyError {
@@ -3565,25 +3545,6 @@ mod tests {
         assert_eq!(body.read_step(0), None);
         assert_eq!(body.element_read(1), None);
         assert_eq!(body.value_operands(0), Some(vec![xs.0, k.0]));
-    }
-
-    /// Only the ownership passes mark a `unique_mut` test's argument
-    /// (`ref_word::UNIQUE`, `ref_word::STICKY`): invariant 22 refuses
-    /// either in a checker's body.
-    #[test]
-    fn verifier_rejects_a_uniqueness_test_mark_before_the_passes() {
-        for bit in [super::ref_word::UNIQUE, super::ref_word::STICKY] {
-            let mut b = place_sample();
-            let r = b.tags.iter().position(|t| *t == Tag::Ref).expect("a Ref");
-            b.data[r][1] |= bit;
-            let found = verify(&b);
-            assert!(
-                found
-                    .iter()
-                    .any(|e| e.invariant == 22 && e.what.contains("uniqueness-test")),
-                "{found:?}"
-            );
-        }
     }
 
     #[test]

@@ -989,53 +989,6 @@ boundaries discard the facts. An element-reference drop ends its loan
 without changing the header. A shared short loan can omit its preceding
 uniqueness check, so it discards these facts.
 
-**`unique_mut` tests** (`module.rt.unique`, #1219). Std's test of a box,
-`unique_mut(&mut p)`, stays a `Call`: it has a result and changes no
-collection buffer, which `IsUnique` does. After hoisting,
-`own::unique_test` classifies each tested place `p` over the whole body
-and marks the `Ref` argument of every test of `p` with one of two bits of
-`Ref`'s word, which invariant 22 refuses before the passes:
-
-- `ref_word::UNIQUE` (4), **fresh**: `p` is in a local that is no
-  parameter and that no closure captures, every store that sets `p` (or
-  a struct literal holding it) stores a new box, and nothing copies `p`.
-  Its box always has one owner, so the backend emits no load: the test is
-  true.
-- `ref_word::STICKY` (128): the same, except that `p` may start with a
-  box from outside, behind a `&mut` parameter (an inlined `self`
-  included), and the body calls nothing else that could reach it. Once a
-  test finds the box unique it stays so, so the backend keeps one flag
-  per place and loads the count only until a test sets it: a loop loads
-  it once.
-
-"Nothing copies `p`" resolves places through the local references the
-body stores, and allows a read through the box, a move, a `Drop`, a test's
-argument, and a borrow or reference used only as a place's root. Cost:
-one scan per body
-for tests, then one per tested place.
-
-**`make_unique` writes** (`module.rt.make-unique`, #1219). Std's
-test-and-copy of a box, `make_unique(&mut p, copy)`, is an ordinary std
-function with an hd body that the inliner never inlines (the known item
-`make_unique`). It stays a `Call`, for the reason `unique_mut` does, and
-`own::unique_test` marks it as it marks a test. The backend tests the
-count inline and calls the body only for a shared box. A loop whose
-every entered iteration makes `p` unique this way (no `break`, `continue`
-or `return` can come before the call in the iteration, though an inner
-loop's own `break` can), that never stores
-`p`'s root, stores only new boxes into `p`, copies no place holding `p`,
-lends one only as a place's root, suspends nowhere and, for a place
-behind a parameter, calls nothing that may write, runs the call once
-before the loop instead: the pass puts `Ref mut local hoisted [p]`, the
-copy's item and the call before the loop, and marks every test of `p` in
-the loop `UNIQUE`, so the loop loads no count. The backend holds those
-instructions back to the loop, as it does a hoisted `IsUnique`, and runs
-them under the loop's entry test, so an empty loop copies nothing. A body
-that suspends can't repeat the test, so there only a loop with no entry
-test hoists the call. Cost: per loop with such a call, one scan of the
-loop per tested place, and one of the body for the uses of the
-references the loop takes.
-
 ### Why this order
 
 Insertion makes every count explicit. Borrow runs next, because each

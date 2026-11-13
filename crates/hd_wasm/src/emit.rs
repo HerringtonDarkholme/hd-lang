@@ -19,7 +19,7 @@ use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::count::{At as CountAt, Info as CountInfo, Part as CountPart};
 use hd_tir::ir::{
-    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags, ref_word,
+    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
 use hd_tir::own::Reason;
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -1354,9 +1354,6 @@ struct Em<'i, 'a, 'm> {
     /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
-    /// A sticky `unique_mut` test's flag local per tested place record
-    /// (`ref_word::STICKY`): set once a test finds the object unique.
-    unique_flags: Vec<(Vec<u32>, u32)>,
     cached_buffers: Vec<(u32, u32)>,
     /// Exact range-index reads proven in bounds in this body's loops.
     proven_list_indices: Vec<u32>,
@@ -1442,12 +1439,9 @@ struct Em<'i, 'a, 'm> {
     topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
     /// The hoisted `IsUnique`s met before the loop that follows them
-    /// (`docs/compiler/tir-v2.md`, "Hoisting"), and the instructions of a
-    /// hoisted `make_unique` call ([`Em::waits`]), which run at that loop
+    /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
     hoisted: Vec<u32>,
-    /// The values the waiting `make_unique` instructions read.
-    hoisted_reads: Vec<u32>,
     /// The `Read` right after a plain `IsUnique` of its place, and the
     /// local holding the buffer the check left ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
@@ -1579,7 +1573,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             frame_refs: Vec::new(),
             init_key: None,
             list_caches: Vec::new(),
-            unique_flags: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),
             headers: guards::HeaderFacts::default(),
@@ -1609,7 +1602,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             part_only: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
-            hoisted_reads: Vec::new(),
             hoisted: Vec::new(),
             walked: None,
             driven: HashMap::default(),
@@ -2270,57 +2262,13 @@ impl Em<'_, '_, '_> {
     /// Emits instruction `i`; the operands whose counts it took are zeroed
     /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
-        // A hoisted `IsUnique` or `make_unique` waits for its loop;
-        // anything else first runs any that wait, unguarded (a body a
-        // default argument's specialization folded may have lost the
-        // loop's test).
-        if self.waits(i) {
-            return Ok(());
-        }
+        // A hoisted `IsUnique` waits for its loop; anything else first
+        // runs any that wait, unguarded (a body a default argument's
+        // specialization folded may have lost the loop's test).
         if !self.hoisted.is_empty() && !matches!(self.b.tags[i as usize], Tag::Loop | Tag::IsUnique)
         {
             self.hoisted_uniques(None)?;
         }
-        self.inst_now(i)
-    }
-
-    /// Whether instruction `i` waits for the loop that follows, and if so
-    /// queues it: a hoisted `make_unique` call, whose `Ref` argument is
-    /// `ref_word::HOISTED` (`own::unique_test`), and, while one waits,
-    /// each instruction that reads a waiting value or a value a waiting
-    /// instruction reads (the call, its result's count and drop, the
-    /// loan's end, the copy item's drop). They run in order under the
-    /// loop's entry test, so an empty loop copies nothing
-    /// (`module.rt.make-unique.copy`).
-    fn waits(&mut self, i: u32) -> bool {
-        let b = self.b;
-        let at = i as usize;
-        let hoisted = |r: u32| {
-            Ref(r).as_inst().is_some_and(|r| {
-                let r = r.0 as usize;
-                b.tags[r] == Tag::Ref && b.data[r][1] & hd_tir::ir::ref_word::HOISTED != 0
-            })
-        };
-        // The `Ref` emits where its call reads it.
-        let lends =
-            b.tags[at] == Tag::Call && b.record(b.data[at][1]).first().is_some_and(|&r| hoisted(r));
-        if !lends && self.hoisted_reads.is_empty() {
-            return false;
-        }
-        let mut ops = Vec::new();
-        hd_tir::own::operands(b, at, &mut ops);
-        let reads = |v: u32| self.hoisted.contains(&v) || self.hoisted_reads.contains(&v);
-        if !lends && !ops.iter().any(|op| reads(op.value)) {
-            return false;
-        }
-        self.hoisted.push(i);
-        self.hoisted_reads.push(i);
-        self.hoisted_reads.extend(ops.iter().map(|op| op.value));
-        true
-    }
-
-    /// Emits instruction `i` where it stands ([`Em::inst`]).
-    fn inst_now(&mut self, i: u32) -> StageResult<()> {
         // An instruction with a source position anchors the calls it
         // writes, for a panic's frames (`crates/hd_wasm/DESIGN.md` §15.9);
         // the enclosing anchor holds again after it.
@@ -3251,9 +3199,6 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
             Some(Target::Call(ct)) => match &ct.kind {
-                TargetKind::Instance if Some(ct.item) == self.env().make_unique_item() => {
-                    self.make_unique(i, &ct, &args)
-                }
                 TargetKind::Instance => self.call_instance(i, &ct, &args),
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
@@ -3264,7 +3209,6 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key) if matches!(key.as_str(), "ptr_ref" | "ptr_mut") => {
                     self.ptr_ref(i, &args)
                 }
-                TargetKind::Intrinsic(key) if key == "unique_mut" => self.unique_mut(i, args[0]),
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
                 }
@@ -4059,118 +4003,6 @@ impl Em<'_, '_, '_> {
     fn ptr_ref(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
         // `as_ref(self)` and `as_mut(self)`.
         self.comp(args[0], 0)?;
-        self.store(i)
-    }
-
-    /// `unique_mut(r)` (`module.rt.unique`): the object the `*T` at `r`
-    /// refers to, lent for writing when its count word is 1, else `.None`.
-    /// A counted reference is the address of a whole object's payload
-    /// (`ref.box.object`), so its header is 8 bytes below with no
-    /// page-table lookup (§23.4): one load and one compare of the count
-    /// word.
-    /// A static object's zero count reads as shared. Cost: constant per
-    /// call; `own::unique_test` drops the load for a fresh box.
-    fn unique_mut(&mut self, i: u32, r: u32) -> StageResult<()> {
-        // The object's address, the `*T`'s one word at `r`: `T` is never a
-        // trait descriptor (`cannot-infer-type`), so the `(&mut T)?` is
-        // thin too, its address or null for `.None`.
-        let address = self.box_address(r)?;
-        let (word, flag) = self.unique_mark(r);
-        self.f.get(address);
-        self.f.u32(0);
-        self.unique_test(address, word, flag, true);
-        self.f.op(I::Select);
-        self.store(i)
-    }
-
-    /// The address of the object the `*T` at `r` refers to, in a new local.
-    fn box_address(&mut self, r: u32) -> StageResult<u32> {
-        let address = self.f.local(Val::I32);
-        self.comp(r, 0)?;
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.set(address);
-        Ok(address)
-    }
-
-    /// The passes' mark on a uniqueness test's argument `Ref` `r`
-    /// (`own::unique_test`), and a sticky test's flag local, which every
-    /// test of its place shares. The marks count box copies as second
-    /// owners.
-    fn unique_mark(&mut self, r: u32) -> (u32, Option<u32>) {
-        let word = if self.b.tags.get(r as usize) == Some(&Tag::Ref) {
-            self.b.data[r as usize][1]
-        } else {
-            0
-        };
-        let flag = (word & ref_word::STICKY != 0).then(|| {
-            let key = self.b.record(self.b.data[r as usize][0]).to_vec();
-            if let Some(&(_, l)) = self.unique_flags.iter().find(|(k, _)| *k == key) {
-                return l;
-            }
-            let l = self.f.local(Val::I32);
-            self.unique_flags.push((key, l));
-            l
-        });
-        (word, flag)
-    }
-
-    /// Pushes whether the object at `address` has one counted reference:
-    /// 1 with no load for a `UNIQUE` mark; a
-    /// sticky test reads its flag first and, with `tee`, sets it from the
-    /// load. A static object's zero count reads as shared.
-    fn unique_test(&mut self, address: u32, word: u32, flag: Option<u32>, tee: bool) {
-        if word & ref_word::UNIQUE != 0 {
-            self.f.u32(1);
-            return;
-        }
-        if let Some(flag) = flag {
-            self.f.get(flag);
-            self.f
-                .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
-            self.f.u32(1);
-            self.f.op(I::Else);
-        }
-        self.f.get(address);
-        self.f.u32(8);
-        self.f.op(I::I32Sub);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.u32(1);
-        self.f.op(I::I32Eq);
-        if let Some(flag) = flag {
-            if tee {
-                self.f.op(I::LocalTee(flag));
-            }
-            self.f.op(I::End);
-        }
-    }
-
-    /// A `make_unique(r, copy)` call `i` (`module.rt.make-unique`) of
-    /// instance `ct`: the object the `*T` at `r` refers to, lent for
-    /// writing. The count test runs here, as `unique_mut`'s; only a shared
-    /// box calls the std body, which stores a new box of the copy at `r`.
-    /// A `UNIQUE` mark (a fresh box, or a loop the passes hoisted the call
-    /// out of) leaves the box's address alone: no load of its count and no
-    /// call. Cost: constant per call; the copy runs only for a shared box.
-    fn make_unique(&mut self, i: u32, ct: &hd_mono::CallTarget, args: &[u32]) -> StageResult<()> {
-        let r = args[0];
-        let address = self.box_address(r)?;
-        let (word, flag) = self.unique_mark(r);
-        if word & ref_word::UNIQUE == 0 {
-            self.unique_test(address, word, flag, false);
-            self.f.op(I::I32Eqz);
-            self.f.op(I::If(BlockType::Empty));
-            self.call_instance(i, ct, args)?;
-            self.comp(r, 0)?;
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            self.f.set(address);
-            self.f.op(I::End);
-            // Either way the box is now unique.
-            if let Some(flag) = flag {
-                self.f.u32(1);
-                self.f.set(flag);
-            }
-        }
-        self.f.get(address);
         self.store(i)
     }
 
