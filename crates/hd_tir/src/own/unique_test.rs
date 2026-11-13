@@ -477,9 +477,18 @@ struct Hoist {
 /// The statements that run on every entered iteration of `Loop` `l`
 /// (`docs/compiler/tir-v2.md`, "Hoisting", rule 1): those of its
 /// iteration block behind a pure entry-test prefix, at any depth through
-/// scopes and unconditional match arms. An inner loop's statements are
-/// left out: it may run no iteration.
-fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut Vec<u32>) {
+/// scopes and unconditional match arms, up to the first statement that
+/// [`leaves`] marks in each block: a `break`, `continue` or `return` there
+/// may end the iteration before the statements after it. An inner loop's
+/// statements are left out: it may run no iteration.
+fn every_iteration(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    leaves: &[bool],
+    l: u32,
+    out: &mut Vec<u32>,
+) {
     out.clear();
     let mut blocks = match entry_test(b, topo, l) {
         Some(e) => {
@@ -498,6 +507,9 @@ fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut 
     while let Some(blk) = blocks.pop() {
         for &x in b.record(b.data[blk as usize][0]) {
             match b.tags[x as usize] {
+                // A block listed beside the statement that runs it, as a
+                // loop's body: that statement stands for it.
+                Tag::Block if topo.owner[x as usize] != NONE => continue,
                 // An inner loop may run no iteration; its own hoist puts the
                 // call before it.
                 Tag::Loop => {}
@@ -509,8 +521,50 @@ fn every_iteration(b: &Body, topo: &Topology, cx: &dyn OwnCx, l: u32, out: &mut 
                 }
                 _ => out.push(x),
             }
+            if leaves[x as usize] {
+                break;
+            }
         }
     }
+}
+
+/// Per instruction, whether a jump inside it may go past its end: a
+/// `break` or `continue` to a label outside it, or a `return`, which
+/// leaves its sub-body. A jump marks each instruction from itself up to,
+/// not including, the one that holds its target, or up to its sub-body's
+/// root for a `return`. A `break` to a loop marks the statements around it
+/// in the loop, never the loop: after the loop, the block goes on.
+///
+/// Cost: per jump, one step per instruction around it, up to its target.
+fn leaves(b: &Body, topo: &Topology) -> Vec<bool> {
+    let mut out = vec![false; b.len()];
+    for i in 0..b.len() {
+        let target = match b.tags[i] {
+            Tag::Break | Tag::Continue => b
+                .label_inst
+                .get(b.data[i][0] as usize)
+                .copied()
+                .unwrap_or(NONE),
+            Tag::Return => NONE,
+            _ => continue,
+        };
+        let mut x = i;
+        // The instruction that holds the target stops the walk.
+        while target == NONE || !(topo.first[x] <= target && target <= u32_of(x)) {
+            out[x] = true;
+            // A block's parent is the instruction that runs it.
+            let up = if b.tags[x] == Tag::Block && topo.owner[x] != NONE {
+                topo.owner[x]
+            } else {
+                topo.blk[x]
+            };
+            if topo.is_root[x] || up == NONE {
+                break;
+            }
+            x = up as usize;
+        }
+    }
+    out
 }
 
 /// The `make_unique` calls a loop may run once before it (owner,
@@ -552,6 +606,7 @@ fn loop_hoists(
     // Outermost first: an outer loop starts no later and ends later.
     loops.sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
     let mut every = Vec::new();
+    let leaves = leaves(b, topo);
     let mut hoisted = vec![false; b.len()];
     // The backend runs a hoisted call under its loop's entry test, which a
     // suspending body's emission can't repeat ([`hoist_before`]).
@@ -560,7 +615,7 @@ fn loop_hoists(
         if suspends && entry_test(b, topo, l).is_some() {
             continue;
         }
-        every_iteration(b, topo, cx, l, &mut every);
+        every_iteration(b, topo, cx, &leaves, l, &mut every);
         for &x in &every {
             let x = x as usize;
             let Some(&(_, arg)) = tests.iter().find(|&&(c, _)| c == x) else {

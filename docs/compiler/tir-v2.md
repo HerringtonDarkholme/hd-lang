@@ -1021,7 +1021,9 @@ function with an hd body that the inliner never inlines (the known item
 `make_unique`). It stays a `Call`, for the reason `unique_mut` does, and
 `own::unique_test` marks it as it marks a test. The backend tests the
 count inline and calls the body only for a shared box. A loop whose
-every entered iteration makes `p` unique this way, that never stores
+every entered iteration makes `p` unique this way (no `break`, `continue`
+or `return` can come before the call in the iteration, though an inner
+loop's own `break` can), that never stores
 `p`'s root, stores only new boxes into `p`, copies no place holding `p`,
 lends one only as a place's root, suspends nowhere and, for a place
 behind a parameter, calls nothing that may write, runs the call once

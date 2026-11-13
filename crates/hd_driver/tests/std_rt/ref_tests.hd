@@ -213,6 +213,43 @@ fn add_rows(h: &mut CountHolder, rows: i64, cols: i64) -> void:
             j += 1
         i += 1
 
+# Adds `0..n` to the holder's count, but leaves at `stop`: the loop may
+# leave before its write, so the call stays in it.
+fn add_until(h: &mut CountHolder, n: i64, stop: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        if i == stop:
+            break
+        make_unique(&mut h.store, copy_count).n += i
+        i += 1
+
+# The same with no loop test: the break is the loop's one exit.
+fn add_until_true(h: &mut CountHolder, n: i64) -> void:
+    let mut i: i64 = 0
+    while true:
+        if i >= n:
+            break
+        make_unique(&mut h.store, copy_count).n += i
+        i += 1
+
+# Skips every `i` up to `skip` before its write.
+fn add_skipping(h: &mut CountHolder, n: i64, skip: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        i += 1
+        if i <= skip:
+            continue
+        make_unique(&mut h.store, copy_count).n += i
+
+# Returns at `stop`, before its write.
+fn add_or_return(h: &mut CountHolder, n: i64, stop: i64) -> void:
+    let mut i: i64 = 0
+    while i < n:
+        if i == stop:
+            return
+        make_unique(&mut h.store, copy_count).n += i
+        i += 1
+
 # A match whose one arm always runs.
 fn add_matched(h: &mut CountHolder, n: i64) -> void:
     let mut i: i64 = 0
@@ -532,6 +569,32 @@ tests:
         add_rows(&mut h, 2, 3)
         assert(allocated() - before <= 1, "one copy, then the copy is written in place")
         assert(h.store.n == 9 && keep.n == 3, "the shared box keeps its value")
+
+    it("a make_unique loop that leaves before its first write copies nothing"):
+        let mut h = CountHolder { store: box(Count { n: 3 }) }
+        keep := h.store
+        before := allocated()
+        add_until(&mut h, 4, 0)
+        add_until_true(&mut h, 0)
+        add_skipping(&mut h, 4, 4)
+        add_or_return(&mut h, 4, 0)
+        assert(allocated() == before, "no iteration reaches the write, so nothing is copied")
+        shared := match unique_mut(&mut h.store):
+            .Some(_) => false
+            .None => true
+        assert(shared && keep.n == 3, "the box stays shared")
+
+    it("a make_unique loop that leaves after a write copies a shared box once"):
+        let mut h = CountHolder { store: box(Count { n: 0 }) }
+        keep := h.store
+        before := allocated()
+        add_until(&mut h, 4, 2)
+        assert(allocated() - before <= 1, "one copy, then the copy is written in place")
+        add_until_true(&mut h, 2)
+        add_skipping(&mut h, 4, 3)
+        add_or_return(&mut h, 4, 3)
+        assert(allocated() - before <= 1, "the copy stays unique")
+        assert(h.store.n == 1 + 1 + 4 + 3 && keep.n == 0, "the shared box keeps its value")
 
     it("two writes of a parameter's box test its count once"):
         let mut h = CountHolder { store: box(Count { n: 0 }) }

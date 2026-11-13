@@ -1,0 +1,30 @@
+# @dump: wat
+# @build: v8 release std
+# `make_unique` (module.rt.make-unique.copy): an inner loop's own `break`
+# ends only that loop, so a write after it still runs on every iteration of
+# the outer loop, and the call runs once before the outer loop.
+use std.rt.memory.make_unique
+use std.collections.UniqList
+use std.annotation.inline
+
+struct L:
+    store: *UniqList[i64]
+
+fn copied(u: &UniqList[i64]) -> UniqList[i64]:
+    let mut c = UniqList::[i64].with_capacity(u.len())
+    for i in 0..u.len():
+        c.push(u[i])
+    c
+
+impl L:
+    @inline
+    fn set(&mut self, i: usize, v: i64) -> void:
+        make_unique(&mut self.store, copied)[i] = v
+
+fn write_after_a_scan(xs: &mut L, n: usize) -> void:
+    # subject
+    for i in 0..n:
+        let mut j: usize = 0
+        while j < i:
+            j += 1
+        xs.set(i, 5)
