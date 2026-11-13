@@ -1430,6 +1430,7 @@ runtime/valid/inferred-results-a-body-without-a-value-is-void.hd	runtime	accept	
 runtime/valid/inferred-results-a-private-function-result-is-its-body-type.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 runtime/valid/inferred-results-a-private-method-infers-its-result.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 runtime/valid/inferred-results-function-values-join-to-the-union-row.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
+runtime/valid/inferred-results-a-chain-that-top-level-statements-reach-reads-earlier-bindings.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 runtime/valid/inferred-results-recursion-through-an-annotated-function-is-valid.hd	runtime	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
 runtime/valid/inferred-results-return-paths-join-to-their-least-common-type.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 runtime/valid/inferred-rows-a-chain-of-private-callers-takes-the-keys-left-unprovided-02.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private

@@ -1325,20 +1325,26 @@ seen(f):
   ([`fn.decl.omitted-cycle.report`](../../spec/lang/07-functions.md#r-fn.decl.omitted-cycle.report)).
 - The walk is serial within one module; different modules run theirs in
   parallel.
-- The design keeps an explicit stack of open bodies, so a chain of
-  10,000 private functions cannot overflow the native stack.
-  Implementation differs: before the sweep, `acyclic_callees_first`
-  orders the callables whose bodies reach no cycle callees first, with
-  an explicit stack, and checks them in that order, so each call finds
-  its callee done. A body's references are its identifier tokens that
-  name a registered callable. A callable that reaches a cycle keeps its
-  source-order place, and `seen` still reaches its callees through
-  `check_fn_body`, so a long chain that ends in a cycle, or one the
-  top-level statements enter, still recurses natively.
+- No chain of omitted results nests body checks. Before the sweep,
+  `acyclic_callees_first` orders the callables whose bodies reach no
+  cycle callees first, so each call finds its callee done. A body's
+  references are its identifier tokens that name a registered callable;
+  the module's reference graph is built once (`Plan`). When `seen` is
+  about to check a body with an omitted result for any caller, the
+  top-level statements included, `callees_first` first checks the
+  pending callables with omitted results that the body reaches, callees
+  first, each at depth one. It skips a callable that names a top-level
+  binding no statement has declared yet, or reaches one that does: its
+  check depends on the statement that calls it, so it waits for that
+  call. Native recursion is left only within a cycle of omitted results,
+  which is an error, and under such a waiting callable.
 
 ### 9.3 Cost
 
-M1 does each such body's work once, as M2 would have. The cost is lost
+M1 does each such body's work once, as M2 would have. The reference
+graph costs one scan of the registered bodies' tokens per module.
+`callees_first` walks only pending callables, each of which it then
+checks, so its walks add up to the references of the bodies it checks. The cost is lost
 parallelism inside one module: a module made only of private functions
 with omitted results checks serially. The remedy would be a lint that
 suggests result types, not a design change.

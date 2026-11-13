@@ -158,6 +158,59 @@ fn row_signature_rings_have_linear_body_work_and_constant_active_depth() {
     }
 }
 
+// Checker: #1774, a chain of omitted results checks callees first from
+// any entry, so its body checks do not nest.
+/// `g_0` calls `g_1` and so on, each without a result type; `g_n` reads
+/// the top-level `z` when `reads_top`. The chain is entered from a
+/// top-level statement, or from `main`.
+fn omitted_result_chain(n: usize, from_main: bool, reads_top: bool) -> String {
+    let mut s = String::from("let z: i32 = 1\n");
+    for i in 0..n {
+        let _ = writeln!(s, "fn g_{i}(x: i32): g_{}(x)", i + 1);
+    }
+    let _ = writeln!(
+        s,
+        "fn g_{n}(x: i32): x{}",
+        if reads_top { " + z" } else { "" }
+    );
+    if from_main {
+        s.push_str("pub fn main() -> void $ Console:\n    println(g_0(1))\n");
+    } else {
+        s.push_str("y := g_0(+1)\nprintln(y)\n");
+    }
+    s
+}
+
+#[test]
+fn omitted_result_chains_check_once_per_function_at_depth_one() {
+    for (from_main, reads_top) in [(false, false), (false, true), (true, false)] {
+        // 500 overflowed from a top-level statement; 10x and 20x that.
+        for n in [500, 5000, 10_000] {
+            let (out, counts) = hd_check::work::count_item_body_checks(|| {
+                compile(
+                    &omitted_result_chain(n, from_main, reads_top),
+                    &Goal::Analyze,
+                )
+            });
+            assert!(!out.diags.has_errors(), "chain {n}: {}", out.render());
+            let chain: Vec<_> = counts.iter().filter(|c| c.owner.contains("/g_")).collect();
+            assert_eq!(chain.len(), n + 1, "chain {n}: one record per function");
+            for c in &chain {
+                assert_eq!(
+                    c.checks, 1,
+                    "chain {n}: {} checked {} times",
+                    c.owner, c.checks
+                );
+                assert_eq!(
+                    c.max_active_depth, 1,
+                    "chain {n}: {} checked at depth {}",
+                    c.owner, c.max_active_depth
+                );
+            }
+        }
+    }
+}
+
 /// Checker: fuel spent entering expressions and solving body obligations.
 fn check_fuel(generate: fn(usize) -> String, small: usize, large: usize) {
     let work = |n| {

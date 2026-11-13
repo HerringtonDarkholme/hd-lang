@@ -9,8 +9,9 @@
 //! (`req.row.omitted.inferred-private`).
 //!
 //! Such a body is checked before its callers: those that reach no cycle
-//! callees first, then the rest in source order, depth first when a body
-//! reads the signature of one that is not done. A callee
+//! callees first, then the rest in source order. A body about to be
+//! checked for a caller first has the pending bodies it reaches checked,
+//! callees first, so a chain of them does not nest body checks. A callee
 //! whose omitted result is still being checked closes a cycle
 //! (`fn.decl.omitted-cycle`), reported once at the cycle's member that
 //! comes first in source order (`fn.decl.omitted-cycle.report`). A callee
@@ -140,6 +141,8 @@ pub struct Results {
     /// In a forked context: how many of `template_named` it was forked
     /// with ([`crate::fork`]).
     named_base: usize,
+    /// The reference graph of the callables, built on first use.
+    plan: Option<std::sync::Arc<Plan>>,
 }
 
 /// What a caller sees of a registered callable's omitted parts.
@@ -211,6 +214,7 @@ impl Results {
             body_errors: hd_base::HashSet::default(),
             waiting: self.waiting.clone(),
             named_base: self.template_named.len(),
+            plan: self.plan.clone(),
         }
     }
 
@@ -700,9 +704,8 @@ fn template_named(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) -> hd_base::
 
 /// M1's sweep: checks every registered callable in source order. The
 /// callables whose omitted results reach no cycle go first, callees
-/// before callers, so each call finds its callee done and a long chain
-/// checks without native recursion (`crates/hd_check/DESIGN.md` (type
-/// checking) §9.2).
+/// before callers, so each call finds its callee done
+/// (`crates/hd_check/DESIGN.md` (type checking) §9.2).
 pub fn infer_results(cx: &BodyCx<'_>) {
     for def in acyclic_callees_first(cx) {
         seen(cx, def, true);
@@ -713,66 +716,105 @@ pub fn infer_results(cx: &BodyCx<'_>) {
     }
 }
 
-/// The pending callables whose bodies reach no
-/// cycle, callees before callers. A body refers to each such callable
-/// whose name is one of its identifier tokens. That over-approximates its
-/// calls, so a callable left out may still reach no cycle; it keeps its
-/// place in the source-order sweep, and so does every cycle's entry.
-fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
-    let defs: Vec<(DefId, NodeIdx)> = {
-        let r = cx.results.borrow();
-        r.order
-            .iter()
-            .filter_map(|d| {
-                let o = r.omits.get(d)?;
-                let pending = matches!(r.state.get(d), Some(State::Pending(_)));
-                pending.then_some((*d, o.at))
-            })
-            .collect()
-    };
-    let mut by_name: HashMap<&str, Vec<usize>> = HashMap::default();
-    for (i, (d, _)) in defs.iter().enumerate() {
-        if let Some(it) = cx.lookup.item(*d) {
-            by_name.entry(cx.names.text(it.name)).or_default().push(i);
+/// The module's registered callables as a reference graph, built once on
+/// first use. A body refers to each registered callable whose name is one
+/// of its identifier tokens. That over-approximates its calls and its
+/// reads, so an order that respects these edges respects the real ones.
+struct Plan {
+    /// The callables in source order: a callable's index is its
+    /// `Omits::position`.
+    defs: Vec<DefId>,
+    /// Each body's references, in source order.
+    refs: Vec<Vec<u32>>,
+    /// The component of each callable with an omitted result in the graph
+    /// of references between such callables, numbered callees first;
+    /// `u32::MAX` for one whose result is written.
+    comp: Vec<u32>,
+    /// The module's top-level binding names each body names: it can be
+    /// checked early only once each is declared.
+    tops: Vec<Vec<hd_base::Symbol>>,
+}
+
+impl Plan {
+    fn build(cx: &BodyCx<'_>, r: &Results) -> Plan {
+        let defs: Vec<DefId> = r.order.clone();
+        let mut by_name: HashMap<&str, Vec<u32>> = HashMap::default();
+        for (i, d) in defs.iter().enumerate() {
+            if let Some(it) = cx.lookup.item(*d) {
+                by_name
+                    .entry(cx.names.text(it.name))
+                    .or_default()
+                    .push(u32::try_from(i).unwrap_or(u32::MAX));
+            }
         }
-    }
-    let edges: Vec<Vec<usize>> = defs
-        .iter()
-        .map(|&(_, at)| {
-            let node = cx.src.parse.tree.node(at);
-            let Some(body) = Src::child(node, SyntaxKind::Block) else {
-                return Vec::new();
-            };
-            let mut out: Vec<usize> = cx
-                .src
-                .tokens(body)
-                .filter(|&t| {
-                    matches!(
-                        cx.src.tkind(t),
-                        Some(TokenKind::Ident | TokenKind::RawIdent)
-                    )
-                })
-                .filter_map(|t| by_name.get(cx.src.text(t)))
-                .flatten()
-                .copied()
-                .collect();
+        let tops_by_name: HashMap<&str, hd_base::Symbol> = {
+            let init = cx.init.borrow();
+            init.pending
+                .keys()
+                .map(|s| (cx.names.text(*s), *s))
+                .collect()
+        };
+        let mut refs = Vec::with_capacity(defs.len());
+        let mut tops = Vec::with_capacity(defs.len());
+        for d in &defs {
+            let mut out: Vec<u32> = Vec::new();
+            let mut named: Vec<hd_base::Symbol> = Vec::new();
+            // A registered callable has a body (`omitted_results`).
+            let body = r
+                .omits
+                .get(d)
+                .and_then(|o| Src::child(cx.src.parse.tree.node(o.at), SyntaxKind::Block));
+            for t in body.into_iter().flat_map(|b| cx.src.tokens(b)) {
+                if !matches!(
+                    cx.src.tkind(t),
+                    Some(TokenKind::Ident | TokenKind::RawIdent)
+                ) {
+                    continue;
+                }
+                let text = cx.src.text(t);
+                if let Some(callees) = by_name.get(text) {
+                    out.extend_from_slice(callees);
+                }
+                if let Some(sym) = tops_by_name.get(text) {
+                    named.push(*sym);
+                }
+            }
             out.sort_stable();
             out.dedup();
-            out
-        })
-        .collect();
-    // Tarjan's strongly connected components with an explicit stack: each
-    // component comes out after every component it reaches.
-    let n = defs.len();
+            named.sort_stable_by_key(|s| s.raw());
+            named.dedup();
+            refs.push(out);
+            tops.push(named);
+        }
+        let ret: Vec<bool> = defs.iter().map(|d| r.omits[d].ret).collect();
+        let mut comp = vec![u32::MAX; defs.len()];
+        for (c, members) in components(&refs, &ret).iter().enumerate() {
+            for &m in members {
+                comp[m as usize] = u32::try_from(c).unwrap_or(u32::MAX);
+            }
+        }
+        Plan {
+            defs,
+            refs,
+            comp,
+            tops,
+        }
+    }
+}
+
+/// The strongly connected components of `edges` restricted to the nodes
+/// `include` keeps, each after every component it reaches (Tarjan's
+/// algorithm with an explicit stack).
+fn components(edges: &[Vec<u32>], include: &[bool]) -> Vec<Vec<u32>> {
+    let n = edges.len();
     let mut index = vec![usize::MAX; n];
     let mut low = vec![0; n];
     let mut on_stack = vec![false; n];
     let mut stack = Vec::new();
-    let mut cyclic = vec![false; n];
     let mut next = 0;
     let mut out = Vec::new();
     for root in 0..n {
-        if index[root] != usize::MAX {
+        if index[root] != usize::MAX || !include[root] {
             continue;
         }
         index[root] = next;
@@ -785,6 +827,10 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
             if let Some(&w) = edges[v].get(i) {
                 if let Some(top) = work.last_mut() {
                     top.1 += 1;
+                }
+                let w = w as usize;
+                if !include[w] {
+                    continue;
                 }
                 if index[w] == usize::MAX {
                     index[w] = next;
@@ -808,26 +854,152 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
             let mut component = Vec::new();
             while let Some(w) = stack.pop() {
                 on_stack[w] = false;
-                component.push(w);
+                component.push(u32::try_from(w).unwrap_or(u32::MAX));
                 if w == v {
                     break;
                 }
             }
-            // A component reaches a cycle when it is one, or when a
-            // component it calls does (those came out before it).
-            let reaches = component.len() > 1
-                || component
-                    .iter()
-                    .any(|&c| edges[c].iter().any(|&w| w == c || cyclic[w]));
-            for &c in &component {
-                cyclic[c] = reaches;
-            }
-            if !reaches {
-                out.push(defs[v].0);
-            }
+            out.push(component);
         }
     }
     out
+}
+
+fn plan(cx: &BodyCx<'_>) -> std::sync::Arc<Plan> {
+    let mut r = cx.results.borrow_mut();
+    if let Some(p) = &r.plan {
+        return std::sync::Arc::clone(p);
+    }
+    let p = std::sync::Arc::new(Plan::build(cx, &r));
+    r.plan = Some(std::sync::Arc::clone(&p));
+    p
+}
+
+/// The pending callables whose bodies reach no
+/// cycle, callees before callers. A callable left out may still reach no
+/// cycle, since references over-approximate calls; it keeps its place in
+/// the source-order sweep, and so does every cycle's entry.
+fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
+    let plan = plan(cx);
+    let pending: Vec<bool> = {
+        let r = cx.results.borrow();
+        plan.defs
+            .iter()
+            .map(|d| matches!(r.state.get(d), Some(State::Pending(_))))
+            .collect()
+    };
+    let mut cyclic = vec![false; plan.defs.len()];
+    let mut out = Vec::new();
+    for component in components(&plan.refs, &pending) {
+        // A component reaches a cycle when it is one, or when a
+        // component it calls does (those came out before it).
+        let reaches = component.len() > 1
+            || component.iter().any(|&c| {
+                plan.refs[c as usize]
+                    .iter()
+                    .any(|&w| pending[w as usize] && (w == c || cyclic[w as usize]))
+            });
+        for &c in &component {
+            cyclic[c as usize] = reaches;
+        }
+        if !reaches {
+            out.extend(component.iter().map(|&c| plan.defs[c as usize]));
+        }
+    }
+    out
+}
+
+/// Before the omitted result of the callable at `root` (its position) is
+/// checked for a caller: checks the pending callables with omitted
+/// results that its body reaches, callees
+/// first, each from this depth, so a chain of them does not nest native
+/// body checks (`crates/hd_check/DESIGN.md` (type checking) §9.2). A
+/// callable that names a top-level binding not declared yet, or reaches
+/// one that does, waits for its caller as before: its check depends on
+/// the moment of the call. So do the members of its own cycle.
+/// Returns whether it checked any.
+fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
+    let plan = plan(cx);
+    let own = plan.comp[root];
+    let is_pending_ret = |r: &Results, i: u32| {
+        plan.comp[i as usize] != u32::MAX
+            && plan.comp[i as usize] != own
+            && matches!(r.state.get(&plan.defs[i as usize]), Some(State::Pending(_)))
+    };
+    // The pending callables with omitted results that `def` reaches.
+    let mut reach: Vec<u32> = Vec::new();
+    {
+        let r = cx.results.borrow();
+        let mut visited: hd_base::HashSet<u32> = hd_base::HashSet::default();
+        let mut stack: Vec<u32> = plan.refs[root]
+            .iter()
+            .copied()
+            .filter(|&i| is_pending_ret(&r, i))
+            .collect();
+        while let Some(i) = stack.pop() {
+            if !visited.insert(i) {
+                continue;
+            }
+            reach.push(i);
+            stack.extend(
+                plan.refs[i as usize]
+                    .iter()
+                    .copied()
+                    .filter(|&w| !visited.contains(&w) && is_pending_ret(&r, w)),
+            );
+        }
+    }
+    if reach.is_empty() {
+        return false;
+    }
+    reach.sort_stable_by_key(|&i| (plan.comp[i as usize], i));
+    // A component is ready when each member's top-level names are
+    // declared and each component it reaches is ready; those come first.
+    let mut ready: HashMap<u32, bool> = HashMap::default();
+    {
+        let init = cx.init.borrow();
+        let r = cx.results.borrow();
+        let declared =
+            |s: &hd_base::Symbol| init.globals.contains_key(s) || init.earlier.contains_key(s);
+        let mut at = 0;
+        while at < reach.len() {
+            let c = plan.comp[reach[at] as usize];
+            let end = reach[at..]
+                .iter()
+                .position(|&i| plan.comp[i as usize] != c)
+                .map_or(reach.len(), |k| at + k);
+            let ok = reach[at..end].iter().all(|&i| {
+                plan.tops[i as usize].iter().all(declared)
+                    && plan.refs[i as usize].iter().all(|&w| {
+                        let cw = plan.comp[w as usize];
+                        cw == c
+                            || !is_pending_ret(&r, w)
+                            || ready.get(&cw).copied().unwrap_or(false)
+                    })
+            });
+            ready.insert(c, ok);
+            at = end;
+        }
+    }
+    let mut checked = false;
+    for i in reach {
+        if !ready.get(&plan.comp[i as usize]).copied().unwrap_or(false) {
+            continue;
+        }
+        let d = plan.defs[i as usize];
+        let n = {
+            let mut r = cx.results.borrow_mut();
+            let Some(&State::Pending(n)) = r.state.get(&d) else {
+                continue;
+            };
+            r.state.insert(d, State::Active(n));
+            r.active.push(d);
+            n
+        };
+        check(cx, d, n);
+        checked = true;
+    }
+    checked
 }
 
 /// What callers see of `def` when it is a registered callable. Its body
@@ -837,7 +1009,8 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
 /// being checked closes a cycle: the error is reported and the call is
 /// poison.
 fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
-    let (node, omits) = {
+    let mut prepared = false;
+    let node = loop {
         let mut r = cx.results.borrow_mut();
         let omits = *r.omits.get(&def)?;
         if let Some(&reader) = r.active.last() {
@@ -865,14 +1038,26 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
             State::Pending(_) if !omits.ret && !force => {
                 return Some(Seen { ret: None, row });
             }
+            State::Pending(_) if omits.ret && !prepared => {
+                drop(r);
+                prepared = true;
+                callees_first(cx, omits.position);
+            }
             State::Pending(n) => {
                 let n = *n;
                 r.state.insert(def, State::Active(n));
                 r.active.push(def);
-                (n, omits)
+                break n;
             }
         }
     };
+    check(cx, def, node)
+}
+
+/// Checks the body of `def`, which the caller made active, and settles
+/// what it changed.
+fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Option<Seen> {
+    let omits = *cx.results.borrow().omits.get(&def)?;
     // Its own diagnostics: a caller's trial cannot roll them back, and a
     // later row pass replaces them together with this provisional body.
     let mut diags = DiagBuf::default();

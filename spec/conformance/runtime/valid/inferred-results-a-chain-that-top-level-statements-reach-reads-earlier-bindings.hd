@@ -1,0 +1,25 @@
+# test: a chain of omitted results that top-level statements reach reads the bindings declared before each call
+# Spec 07 Functions: fn.decl.result-inferred; Spec 10 Definite Initialization: module.init.binding.
+fn head(x: i32): tail(x) + middle(x)
+
+offset := +3
+
+fn tail(x: i32): x + offset
+
+fn middle(x: i32): tail(x) * 2
+
+fn doubled(x: i32): twice(x)
+
+fn twice(x: i32):
+    late := x * 2
+    late
+
+first := head(+4)
+late := doubled(first)
+
+tests:
+    use std.testing.assert_equal
+
+    it("each call reads the bindings declared before it"):
+        assert_equal(first, 21, reason="the chain read offset, declared before the call")
+        assert_equal(late, 42, reason="a local named like a later binding is the local")
