@@ -51,6 +51,10 @@ struct Gen<'s, 'a> {
     /// meets through a bound ([`Var::Own`]): the origins of the parameter
     /// slots of that lifetime.
     owns: Vec<(u32, Region)>,
+    /// By call instruction, the variables of its lifetimes that a later
+    /// call of the function value it returned passes arguments at
+    /// ([`Var::At`]), made before either call is visited.
+    returned: HashMap<u32, Vec<(u32, Region)>>,
 }
 
 /// What the result checks need: the function's map with what each
@@ -491,11 +495,20 @@ impl Gen<'_, '_> {
         // ones the links make one with them. A call has a few links.
         let mut fixed: Vec<Var> = Vec::new();
         for v in owns {
-            if let Var::Own(l) = v {
-                let r = self.own_lifetime(l);
-                vars.insert(v, r);
-                fixed.push(v);
-            }
+            let r = match v {
+                Var::Own(l) => self.own_lifetime(l),
+                // The variable of an earlier call's lifetime that the
+                // function value it returned writes (`fn.type.lifetime.call.written`).
+                Var::At(c, l) => self.call_lifetime(c, l),
+                _ => continue,
+            };
+            vars.insert(v, r);
+            fixed.push(v);
+        }
+        // This call's lifetimes that a function value it returns writes,
+        // which a later call of that value passes its arguments at.
+        for &(l, r) in self.returned.get(&self.at).into_iter().flatten() {
+            vars.entry(Var::Life(l)).or_insert(r);
         }
         let mut grew = !fixed.is_empty();
         while grew {
@@ -621,6 +634,19 @@ impl Gen<'_, '_> {
                 self.flow(r, to);
             }
         }
+    }
+
+    /// The variable of lifetime `l` of the call at instruction `c`, made
+    /// once, which that call and each call of the function value it
+    /// returned share (`fn.type.lifetime.call.written`).
+    fn call_lifetime(&mut self, c: u32, l: u32) -> Region {
+        let rs = self.returned.entry(c).or_default();
+        if let Some(&(_, r)) = rs.iter().find(|x| x.0 == l) {
+            return r;
+        }
+        let r = self.t.fresh(1).start;
+        rs.push((l, r));
+        r
     }
 
     /// The universal region of the body's own lifetime `l`, made once:
@@ -1088,6 +1114,7 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         hidden: HashMap::default(),
         universal: HashMap::default(),
         owns: Vec::new(),
+        returned: HashMap::default(),
     };
     let widths: Vec<u32> = (b.local_ty.iter().map(|&t| g.width(t)))
         .chain((0..b.tags.len()).map(|i| g.width(b.ty[i]).max(u32::from(b.tags[i] == Tag::Ref))))
@@ -1096,6 +1123,20 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         g.t.push(n);
     }
     g.stat = g.t.fresh(1).start;
+    // The lifetimes of a call that a later call of the function value it
+    // returned passes at, before the walk reaches either call.
+    let mut at: Vec<(u32, u32)> = (s.calls.values())
+        .flat_map(|c| c.links.iter().flat_map(|&(x, y)| [x, y]))
+        .filter_map(|v| match v {
+            Var::At(c, l) => Some((c, l)),
+            _ => None,
+        })
+        .collect();
+    at.sort_stable();
+    at.dedup();
+    for (c, l) in at {
+        g.call_lifetime(c, l);
+    }
     for l in 0..g.locals {
         if b.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM != 0 {
             g.param(l);
@@ -1303,7 +1344,7 @@ impl Gen<'_, '_> {
             let l = (self.owns.iter())
                 .find(|&&(l, r)| sol.same(e.to, r) && !own.is_some_and(|own| own.allows(ls, o, l)))
                 .map_or(NO_SOURCE, |x| x.0);
-            let value = self.s.b.tags.get(e.inst as usize) == Some(&Tag::CallValue);
+            let value = self.s.calls.get(&e.inst).is_some_and(|c| c.by_value);
             v.bounds.push((at, o, l, value));
         }
         for x in violations.iter().filter(|x| x.edge.cat != Category::Bound) {

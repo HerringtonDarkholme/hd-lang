@@ -1,0 +1,16 @@
+# test: a function-typed payload of an enum passes at the lifetime the enum is given
+# Spec 07 Function Types: fn.type.lifetime.call.written. `.Run`'s payload
+# writes `Act`'s `'a`, which `e`'s type makes the function's `'a`, so
+# `f(&q)` passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+enum Act['a, T]:
+    Run(fn(&'a Point) -> T)
+    Stop
+
+fn acted['a, T](e: &Act['a, T], p: &'a Point, d: T) -> T:
+    q := Point { x: 1 }
+    match e:
+        .Run(f) => f(&q) # diagnostic: local-reference-escapes
+        .Stop => d

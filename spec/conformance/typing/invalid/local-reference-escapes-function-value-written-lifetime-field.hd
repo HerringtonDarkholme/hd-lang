@@ -1,0 +1,13 @@
+# test: a function-typed field passes its argument at the lifetime its type gives the struct's
+# Spec 07 Function Types: fn.type.lifetime.call.written. The field's type
+# writes `Holder`'s `'a`, which `h`'s type makes the function's `'a`, so
+# `(h.f)(&q)` passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn field['a, T](h: &Holder['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (h.f)(&q) # diagnostic: local-reference-escapes

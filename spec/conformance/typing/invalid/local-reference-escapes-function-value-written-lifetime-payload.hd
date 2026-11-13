@@ -1,0 +1,18 @@
+# test: a function-typed field of an enum payload passes at the lifetime the enum is given
+# Spec 07 Function Types: fn.type.lifetime.call.written. `h` is the
+# payload of `e`, a `Pick['a, T]`, so `(h.f)(&q)` passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+enum Pick['a, T]:
+    One(Holder['a, T])
+    None
+
+fn picked['a, T](e: &Pick['a, T], p: &'a Point, d: T) -> T:
+    q := Point { x: 1 }
+    match e:
+        .One(h) => (h.f)(&q) # diagnostic: local-reference-escapes
+        .None => d

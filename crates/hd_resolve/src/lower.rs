@@ -4597,7 +4597,11 @@ impl Lower<'_, '_, '_> {
         let before = self.opaque_result.replace((owner, 0, borrows));
         let ins = self.slots.as_ref().map_or(0, Vec::len);
         self.result_paths = Some((params.clone(), ins, Vec::new()));
+        self.fn_inputs = None;
         let ret = self.ty(Src::type_child(f), gn);
+        let ret_inputs = (self.fn_inputs.take())
+            .filter(|_| matches!(self.names.pool.get(ret), TyData::Fn { .. }));
+        fn_lifetimes.push(ret_inputs.unwrap_or_default());
         let mut paths = self.result_paths.take().map(|p| p.2).unwrap_or_default();
         let written_paths = paths.len();
         paths.retain(|p| p.param != u16::MAX);
@@ -4749,7 +4753,14 @@ impl Lower<'_, '_, '_> {
             let outer = std::mem::replace(&mut self.in_field, true);
             let saved = std::mem::replace(&mut self.slots, lifetimes.then(Vec::new));
             let saved_held = std::mem::replace(&mut self.held, lifetimes.then(Vec::new));
+            self.fn_inputs = None;
             let ty = self.ty(tn, gn);
+            // `fn.type.lifetime.call.written`: the struct's lifetimes a
+            // function type's inputs write, which the type does not keep.
+            let fn_lifetimes = (self.fn_inputs.take())
+                .filter(|l| l.iter().any(|&x| x != 0))
+                .filter(|_| matches!(self.names.pool.get(ty), TyData::Fn { .. }))
+                .unwrap_or_default();
             let mut slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
             let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
             with_held(&mut slots, [ty], &held, self.names.pool.types());
@@ -4761,6 +4772,7 @@ impl Lower<'_, '_, '_> {
                 has_default: !embedded && Src::child(f, SyntaxKind::DefaultValue).is_some(),
                 embedded,
                 lifetimes: slots,
+                fn_lifetimes,
             });
         }
         out

@@ -1,0 +1,50 @@
+# test: a function value from a copy, a field, a call or a passing call runs at the written lifetime
+# Spec 07 Function Types: fn.type.lifetime.call.written. Each form calls
+# `x_of` with `p`, which lives for `'a`; `free` copies a value whose type
+# writes no lifetime and calls it with a local.
+# expect-stdout: 3
+# expect-stdout: 3
+# expect-stdout: 3
+# expect-stdout: 1
+# expect-stdout: 3
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn copied['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    g := f
+    g(p)
+
+fn field['a, T](h: &Holder['a, T], p: &'a Point) -> T:
+    (h.f)(p)
+
+fn make['a, T](f: fn(&'a Point) -> T) -> fn(&'a Point) -> T:
+    f
+
+fn result['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    make(f)(p)
+
+fn free[T](f: fn(&Point) -> T) -> T:
+    q := Point { x: 1 }
+    g := f
+    g(&q)
+
+fn apply['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn forward['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    apply(f, p)
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    println(copied(x_of, &p))
+    h := Holder { f: x_of }
+    println(field(&h, &p))
+    println(result(x_of, &p))
+    println(free(x_of))
+    println(forward(x_of, &p))

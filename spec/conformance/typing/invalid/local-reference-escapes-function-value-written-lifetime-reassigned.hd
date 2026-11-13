@@ -1,0 +1,12 @@
+# test: a binding a function value is assigned to passes at every lifetime its values' types write
+# Spec 07 Function Types: fn.type.lifetime.call.written. `g` starts as
+# `g0`, whose type writes no lifetime, and then holds `f`, so `g(&q)`
+# passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+fn reassigned['a, T](f: fn(&'a Point) -> T, g0: fn(&Point) -> T, p: &'a Point) -> T:
+    let g = g0
+    g = f
+    q := Point { x: 1 }
+    g(&q) # diagnostic: local-reference-escapes

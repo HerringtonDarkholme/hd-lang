@@ -1,0 +1,13 @@
+# test: a function value stored in a struct literal keeps the lifetime its type writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `w.f` is the `f`
+# the literal was given, so `(w.f)(&q)` passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+struct Wrap[F]:
+    f: F
+
+fn wrapped['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    w := Wrap { f: f }
+    q := Point { x: 1 }
+    (w.f)(&q) # diagnostic: local-reference-escapes

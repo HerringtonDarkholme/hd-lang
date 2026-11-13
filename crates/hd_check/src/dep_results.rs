@@ -1109,6 +1109,24 @@ impl<'a> Layouts<'a> {
             .collect()
     }
 
+    /// The slot of an instance with arguments `argv` of a type with
+    /// `generics` that its `l`th lifetime, 1-based, lies in: that
+    /// argument's one top slot.
+    fn lifetime_slot(
+        &self,
+        generics: &[hd_resolve::Generic],
+        argv: &[Ty],
+        l: u16,
+    ) -> Option<usize> {
+        let mut lts = (generics.iter().enumerate()).filter(|(_, g)| g.lifetime);
+        let g = lts.nth(usize::from(l).checked_sub(1)?)?.0;
+        let start: usize = argv.get(..g)?.iter().map(|&x| self.of(x).slots.len()).sum();
+        match self.of(*argv.get(g)?).tops.as_slice() {
+            [one] => Some(start + one),
+            _ => None,
+        }
+    }
+
     fn field_map(
         &self,
         cx: &BodyCx<'_>,
@@ -1143,18 +1161,7 @@ impl<'a> Layouts<'a> {
                 let argv = pool.list_items(args);
                 let ty = subst_owner(pool, def, argv, f);
                 let start = |a: usize| argv[..a].iter().map(|&x| len(x)).sum::<usize>();
-                let lts: Vec<usize> = (item.generics.iter().enumerate())
-                    .filter(|(_, g)| g.lifetime)
-                    .map(|(g, _)| g)
-                    .collect();
-                // The slot of the `l`th lifetime: its argument's one top slot.
-                let lifetime = |l: u16| {
-                    let g = *lts.get(usize::from(l).checked_sub(1)?)?;
-                    match self.of(*argv.get(g)?).tops.as_slice() {
-                        [one] => Some(start(g) + one),
-                        _ => None,
-                    }
-                };
+                let lifetime = |l: u16| self.lifetime_slot(&item.generics, argv, l);
                 let at = match pool.get(f) {
                     // `ref.generic.outlives.position`: a field of a type
                     // parameter bounded by a lifetime lies in that
@@ -1309,6 +1316,10 @@ enum Var {
     /// argument (`ref.lifetime.trait.bound-argument`): what flows in must
     /// be what a result of that lifetime may depend on.
     Own(u32),
+    /// Callee lifetime `l` of the call at instruction `c`, which wrote it
+    /// into an input of the function value it returned
+    /// (`fn.type.lifetime.call.written`): the variable that call made.
+    At(u32, u32),
 }
 
 /// An argument slot's variable, and its check if the callee may keep it.
@@ -1341,15 +1352,55 @@ struct CallSig {
     /// the lifetimes its bounds write, and those and the caller's own
     /// where the parameter stands for a parameter of the caller's.
     links: Vec<(Var, Var)>,
+    /// Whether a function value's type wrote some of `links`: a call
+    /// of a function value, or a call passing one
+    /// (`fn.type.lifetime.call.written`).
+    by_value: bool,
 }
 
 impl CallSig {
     /// Whether the call passes an argument at one of the body's own
-    /// lifetimes, which it checks there (`ref.lifetime.trait.bound-argument`).
+    /// lifetimes, or at one a function value it calls writes, which it
+    /// checks there (`ref.lifetime.trait.bound-argument`,
+    /// `fn.type.lifetime.call.written`).
     fn passes_own(&self) -> bool {
-        let own = |v: &Var| matches!(v, Var::Own(_));
+        let own = |v: &Var| matches!(v, Var::Own(_) | Var::At(..));
         (self.params.iter()).any(|p| p.1.iter().any(|x| own(&x.0)))
             || self.links.iter().any(|(x, y)| own(x) || own(y))
+    }
+}
+
+/// What [`Ck::written_inputs`] reads of one body: the body's own map,
+/// whose parameter slots give a field's written lifetime, and the stores
+/// into each local, indexed once on first use.
+struct FnValues<'a> {
+    b: &'a Body,
+    mine: Option<&'a DepSig>,
+    stores: std::cell::OnceCell<HashMap<u32, Vec<u32>>>,
+}
+
+impl<'a> FnValues<'a> {
+    fn new(b: &'a Body, mine: Option<&'a DepSig>) -> Self {
+        FnValues {
+            b,
+            mine,
+            stores: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// The `Store`s whose place is rooted at local `l`.
+    fn stores(&self, l: u32) -> &[u32] {
+        let b = self.b;
+        let all = self.stores.get_or_init(|| {
+            let mut m: HashMap<u32, Vec<u32>> = HashMap::default();
+            for s in (0..b.tags.len()).filter(|&s| b.tags[s] == Tag::Store) {
+                if let Some(PlaceRoot::Local(l)) = b.decode_place(b.data[s][0]).map(|p| p.root) {
+                    m.entry(l.raw()).or_default().push(w(s));
+                }
+            }
+            m
+        });
+        all.get(&l).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -1579,7 +1630,13 @@ impl Ck<'_, '_> {
     /// lifetime (`ref.generic.outlives.argument`). A result slot a type
     /// parameter adds takes what that parameter's argument slots took, and
     /// nothing where no argument slot has it (`ref.generic.call`).
-    fn call_sig(&self, ls: &Layouts<'_>, b: &Body, i: usize) -> Option<CallSig> {
+    fn call_sig(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        i: usize,
+        values: &FnValues<'_>,
+    ) -> Option<CallSig> {
         let (pool, tag, names) = (ls.pool, b.tags[i], &self.cx.names);
         let (mut holds, mut held) = (ls.holds(b.ty[i]), false);
         let receiver = (tag == Tag::CallDyn).then(|| b.data[i][0]);
@@ -1923,18 +1980,42 @@ impl Ck<'_, '_> {
             let pairs = (lts.into_iter().enumerate()).filter(|x| x.1 != 0);
             links.extend(pairs.map(|(k, l)| (Var::Life(w(k + 1)), Var::Own(l))));
         }
-        // A function value's type writes the caller's lifetimes, which the
-        // type does not keep: `f(&q)` with `f: fn(&'a Point) -> T` passes
-        // `&q` at `'a` (`fn.type.lifetime.call.written`).
-        if tag == Tag::CallValue
-            && let Some(written) = self.fn_param_lifetimes(b, i)
-        {
-            let ins = (dep.params.iter()).flat_map(|(t, ids)| ref_ids_of(ls, *t, ids));
-            let pairs = ins.zip(written).filter(|x| *x.1 != 0);
-            links.extend(pairs.map(|(id, &l)| (Var::Life(id), Var::Own(u32::from(l)))));
+        // A function value's type writes lifetimes the type does not keep:
+        // `f(&q)` with `f: fn(&'a Point) -> T` passes `&q` at `'a`, the
+        // caller's or a call's, wherever `f` comes from; a call passing
+        // `f` for a parameter whose type writes `'b` makes `'b` that one
+        // (`fn.type.lifetime.call.written`).
+        let mut by_value = false;
+        if tag == Tag::CallValue {
+            let ins: Vec<u32> = (dep.params.iter())
+                .flat_map(|(t, ids)| ref_ids_of(ls, *t, ids))
+                .collect();
+            for (k, var) in self.written_inputs(ls, b, b.data[i][0], values) {
+                if let Some(&id) = ins.get(k) {
+                    links.push((Var::Life(id), var));
+                    by_value = true;
+                }
+            }
+        } else if let Some(sig) = &sig {
+            let n = sig.params.len();
+            for (p, lts) in sig.fn_lifetimes.iter().take(n).enumerate() {
+                let Some(a) = (lts.iter().any(|&l| l != 0))
+                    .then(|| source_arg(b, i, p))
+                    .flatten()
+                else {
+                    continue;
+                };
+                for (k, var) in self.written_inputs(ls, b, a, values) {
+                    if let Some(&l) = lts.get(k).filter(|&&l| l != 0) {
+                        links.push((Var::Life(u32::from(l)), var));
+                        by_value = true;
+                    }
+                }
+            }
         }
         Some(CallSig {
             links,
+            by_value,
             paths,
             store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
             result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
@@ -1949,24 +2030,202 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// The lifetimes the inputs of the function type of the parameter that
-    /// call `i` calls write, one per reference slot
-    /// ([`hd_resolve::FnSig::fn_lifetimes`]).
-    fn fn_param_lifetimes<'s>(&'s self, b: &Body, i: usize) -> Option<&'s [u16]> {
-        let v = *b.data[i].first()? as usize;
-        if b.tags.get(v) != Some(&Tag::Read) || b.kind != BodyKind::Fn {
-            return None;
+    /// The input slots of function value `v` that write a lifetime, each
+    /// with the variable an argument there is passed at
+    /// (`fn.type.lifetime.call.written`). The type keeps no lifetime names
+    /// (`fn.type.lifetime.identity`), so they come from where the value
+    /// does: a parameter's or a field's declared function type, through
+    /// copies, coercions, struct literals and closure captures, or the
+    /// declared result of the call that returned it. Each slot is in
+    /// [`Types::ref_slots`] order over the inputs.
+    fn written_inputs(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        v: u32,
+        values: &FnValues<'_>,
+    ) -> Vec<(usize, Var)> {
+        let mut out = Vec::new();
+        let mut seen = HashSet::default();
+        self.trace_value(ls, b, values, (v, &[], 0), &mut seen, &mut out);
+        out
+    }
+
+    /// [`Ck::written_inputs`] of the part `path` of value `v`.
+    fn trace_value(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        values: &FnValues<'_>,
+        (v, path, depth): (u32, &[Proj], u32),
+        seen: &mut HashSet<(u32, Vec<Proj>)>,
+        out: &mut Vec<(usize, Var)>,
+    ) {
+        let i = v as usize;
+        if depth > 32 || v & hd_tir::ir::Ref::CONST_BIT != 0 || i >= b.tags.len() {
+            return;
         }
-        let place = b.decode_place(b.data[v][0])?;
-        let PlaceRoot::Local(l) = place.root else {
+        let d = depth + 1;
+        let mut push = |k: usize, var: Var| {
+            if !out.contains(&(k, var)) {
+                out.push((k, var));
+            }
+        };
+        // A named function's value writes no lifetime of the body's in its
+        // inputs, nor does a value of no function type. A closure literal
+        // that writes one, and a function type nested in another type, as
+        // a call through a value returns, are not traced: no record keeps
+        // their written lifetimes.
+        let tag = b.tags[i];
+        if tag == Tag::Coerce {
+            self.trace_value(ls, b, values, (b.data[i][0], path, d), seen, out);
+        } else if tag == Tag::Read
+            && let Some(place) = b.decode_place(b.data[i][0])
+        {
+            let full: Vec<Proj> = place.proj.iter().chain(path).copied().collect();
+            match place.root {
+                PlaceRoot::Local(l) => {
+                    self.trace_local(ls, b, values, (l.raw(), &full, d), seen, out);
+                }
+                PlaceRoot::Value(r) => {
+                    self.trace_value(ls, b, values, (r.0, &full, d), seen, out);
+                }
+                // A top-level binding's type names no lifetime of the
+                // body's, and the frame and pointer roots hold no
+                // function value the checker built.
+                PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => {}
+            }
+        } else if tag == Tag::NewStruct
+            && let [Proj::Field(j), rest @ ..] = path
+            && let Some(&f) = b.record(b.data[i][1]).get(*j as usize)
+        {
+            // A struct literal's field is the value it was given.
+            self.trace_value(ls, b, values, (f, rest, d), seen, out);
+        } else if matches!(tag, Tag::Call | Tag::Await)
+            && path.is_empty()
+            && let Some(sig) = (Callee::from_words(b.record(b.data[i][0])))
+                .map(|c| match c {
+                    Callee::Item { def, .. } => def,
+                    Callee::TraitMethod { method, .. } => method,
+                })
+                .and_then(|def| self.cx.lookup.item(def)?.sig())
+        {
+            // A call's result is at the call's own lifetimes.
+            let ret = sig.fn_lifetimes.get(sig.params.len());
+            for (k, &l) in ret.into_iter().flatten().enumerate() {
+                if l != 0 {
+                    push(k, Var::At(v, u32::from(l)));
+                }
+            }
+        }
+    }
+
+    /// [`Ck::written_inputs`] of the part `path` of local `l`: a
+    /// parameter's by its declared type, a binding's by what each store
+    /// into it, or into the part read, puts there.
+    fn trace_local(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        values: &FnValues<'_>,
+        (l, path, depth): (u32, &[Proj], u32),
+        seen: &mut HashSet<(u32, Vec<Proj>)>,
+        out: &mut Vec<(usize, Var)>,
+    ) {
+        if !seen.insert((l, path.to_vec())) {
+            return;
+        }
+        let param = b.kind == BodyKind::Fn
+            && (b.local_flags.get(l as usize))
+                .is_some_and(|f| f & hd_tir::ir::local_flags::PARAM != 0);
+        let sig = self.cx.lookup.item(b.item).and_then(|it| it.sig());
+        if param && let Some(sig) = sig.filter(|sig| (l as usize) < sig.params.len()) {
+            self.trace_param(ls, sig, values, (l as usize, path), out);
+            return;
+        }
+        for &s in values.stores(l) {
+            let place = b.decode_place(b.data[s as usize][0]);
+            if let Some(rest) = place.and_then(|p| path.strip_prefix(p.proj.as_slice())) {
+                self.trace_value(
+                    ls,
+                    b,
+                    values,
+                    (b.data[s as usize][1], rest, depth),
+                    seen,
+                    out,
+                );
+            }
+        }
+    }
+
+    /// [`Ck::written_inputs`] of the part `path` of parameter `p`: its own
+    /// function type's ([`hd_resolve::FnSig::fn_lifetimes`]), or a
+    /// function-typed field's ([`hd_resolve::Field::fn_lifetimes`]) at the
+    /// lifetime the parameter's type gives that struct's lifetime.
+    fn trace_param(
+        &self,
+        ls: &Layouts<'_>,
+        sig: &hd_resolve::FnSig,
+        values: &FnValues<'_>,
+        (p, path): (usize, &[Proj]),
+        out: &mut Vec<(usize, Var)>,
+    ) -> Option<()> {
+        let pool = ls.pool;
+        let mut push = |k: usize, var: Var| {
+            if !out.contains(&(k, var)) {
+                out.push((k, var));
+            }
+        };
+        let Some((&Proj::Field(j), steps)) = path.split_last() else {
+            let lts = sig.fn_lifetimes.get(p).into_iter().flatten();
+            for (k, &l) in lts.enumerate().filter(|x| *x.1 != 0) {
+                push(k, Var::Own(u32::from(l)));
+            }
+            return Some(());
+        };
+        let &(mut ty, ref ids) = values.mine?.params.get(p)?;
+        // The parameter's slots the part reached so far lies in, as
+        // [`constraints::Gen::project`] walks them.
+        let mut at: Vec<usize> = (0..ls.of(ty).slots.len()).collect();
+        let mut variant = None;
+        for step in steps {
+            match *step {
+                Proj::Deref => {
+                    let (counted, _) = local_ref(pool, ty)?;
+                    if !counted {
+                        at = at.get(1..)?.to_vec();
+                    }
+                    ty = referent(pool, ty);
+                }
+                Proj::Variant(k) => variant = Some(k),
+                Proj::Field(j) => {
+                    let (child, map) = ls.field_slots(self.cx, ty, variant.take(), j)?;
+                    at = map?
+                        .iter()
+                        .map(|&k| at.get(k).copied())
+                        .collect::<Option<_>>()?;
+                    ty = child;
+                }
+                Proj::Elem(_) => return None,
+            }
+        }
+        // The function-typed field, at its struct's lifetimes.
+        let TyData::Adt { def, args } = pool.get(ty) else {
             return None;
         };
-        let l = l.raw() as usize;
-        if !place.proj.is_empty() || b.local_flags[l] & hd_tir::ir::local_flags::PARAM == 0 {
-            return None;
+        let item = self.cx.lookup.item(def)?;
+        let fields = match (&item.data, variant) {
+            (ItemData::Struct(fs, _), None) => fs,
+            (ItemData::Enum { variants, .. }, Some(k)) => &variants.get(k as usize)?.fields,
+            _ => return None,
+        };
+        let field = fields.get(j as usize)?;
+        let argv = pool.list_items(args);
+        for (k, &l) in field.fn_lifetimes.iter().enumerate().filter(|x| *x.1 != 0) {
+            let s = ls.lifetime_slot(&item.generics, argv, l)?;
+            push(k, Var::Own(*ids.get(*at.get(s)?)?));
         }
-        let sig = self.cx.lookup.item(b.item)?.sig()?;
-        sig.fn_lifetimes.get(l).map(Vec::as_slice)
+        Some(())
     }
 
     /// The lifetimes of projection `proj`, in its scope's numbering,
@@ -2605,6 +2864,7 @@ impl Ck<'_, '_> {
                 DepSig::new(ls, &sig.params, is_self, Ty::VOID, &sig.lifetimes),
             )
         });
+        let values = FnValues::new(body, mine.as_ref());
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = body.local_ty.iter().enumerate().any(|(l, &t)| {
@@ -2614,7 +2874,7 @@ impl Ck<'_, '_> {
             if matches!(
                 body.tags[i],
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
-            ) && let Some(sig) = self.call_sig(ls, body, i)
+            ) && let Some(sig) = self.call_sig(ls, body, i, &values)
             {
                 // A suspension that holds an argument may be kept
                 // (`ref.dep.suspension.local`).

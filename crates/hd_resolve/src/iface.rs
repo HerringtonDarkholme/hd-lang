@@ -421,13 +421,14 @@ pub struct FnSig {
     /// When a `Suspend` writes one, each `Suspend`'s follows, in order
     /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
-    /// For each parameter whose type is a function type, the lifetime each
-    /// local reference slot of that type's inputs writes, 0 where it writes
-    /// none, in [`hd_types::Types::ref_slots`] order; empty for any other
-    /// parameter. The type keeps no names (`fn.type.lifetime.identity`), so
-    /// a call of the parameter learns here at which of the caller's
-    /// lifetimes it passes each argument (`fn.type.lifetime.call.written`). Empty when
-    /// no parameter's function type writes one.
+    /// For each parameter, then for the result, whose type is a function
+    /// type, the lifetime each local reference slot of that type's inputs
+    /// writes, 0 where it writes none, in [`hd_types::Types::ref_slots`]
+    /// order; empty for any other. The type keeps no names
+    /// (`fn.type.lifetime.identity`), so a call of such a value learns
+    /// here at which lifetimes it passes each argument
+    /// (`fn.type.lifetime.call.written`). Empty when none writes one;
+    /// otherwise one list per parameter and one for the result.
     pub fn_lifetimes: Vec<Vec<u16>>,
     /// The result reference slots that name a parameter's field path
     /// (`ref.result.path.form`), in source order. Such a slot's lifetime is 0.
@@ -486,6 +487,11 @@ pub struct Field {
     /// When a `Suspend` writes one, each `Suspend`'s follows, in order
     /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
+    /// When `ty` is a function type: the struct's lifetime each local
+    /// reference slot of its inputs writes, numbered as `lifetimes`, 0
+    /// where it writes none (`fn.type.lifetime.call.written`). Empty when
+    /// none writes one.
+    pub fn_lifetimes: Vec<u16>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1484,6 +1490,10 @@ fn put_fields(w: &mut Writer, t: &mut TableWriter<'_>, fields: &[Field]) -> Stag
         for l in &f.lifetimes {
             w.u32(u32::from(*l));
         }
+        w.len_of(&f.fn_lifetimes);
+        for l in &f.fn_lifetimes {
+            w.u32(u32::from(*l));
+        }
     }
     Ok(())
 }
@@ -1498,6 +1508,10 @@ fn get_fields(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Field>> {
         for _ in 0..r.count() {
             lifetimes.push(u16::try_from(r.u32()).ok()?);
         }
+        let mut fn_lifetimes = Vec::new();
+        for _ in 0..r.count() {
+            fn_lifetimes.push(u16::try_from(r.u32()).ok()?);
+        }
         fields.push(Field {
             name,
             ty,
@@ -1505,6 +1519,7 @@ fn get_fields(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Field>> {
             has_default: f & 2 != 0,
             embedded: f & 4 != 0,
             lifetimes,
+            fn_lifetimes,
         });
     }
     Some(fields)

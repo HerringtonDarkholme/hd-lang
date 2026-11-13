@@ -1,0 +1,15 @@
+# test: a function-typed field reached through another field passes at the lifetime its struct is given
+# Spec 07 Function Types: fn.type.lifetime.call.written. `o.inner` is a
+# `Holder['a, T]`, so `(o.inner.f)(&q)` passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Outer['a, T]:
+    inner: Holder['a, T]
+
+fn nested['a, T](o: &Outer['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (o.inner.f)(&q) # diagnostic: local-reference-escapes

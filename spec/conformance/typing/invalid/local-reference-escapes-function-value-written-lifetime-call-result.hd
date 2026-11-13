@@ -1,0 +1,13 @@
+# test: a function value a call returns passes at the call's lifetime its result type writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `make`'s result
+# writes its `'a`, which passing `f` makes the caller's `'a`, so
+# `make(f)(&q)` passes `&q` at `'a`.
+struct Point:
+    x: i32
+
+fn make['a, T](f: fn(&'a Point) -> T) -> fn(&'a Point) -> T:
+    f
+
+fn result['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    q := Point { x: 1 }
+    make(f)(&q) # diagnostic: local-reference-escapes

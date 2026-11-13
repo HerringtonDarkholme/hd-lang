@@ -1,0 +1,12 @@
+# test: passing a function value for a parameter whose type writes a lifetime fixes that lifetime
+# Spec 07 Function Types: fn.type.lifetime.call.written. `apply`'s `'a`
+# is `f`'s, the caller's `'a`, so `apply(f, p)` passes `p`, which lives
+# for `'b`, at `'a`, and `'b` need not outlive `'a`.
+struct Point:
+    x: i32
+
+fn apply['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn mixed['a, 'b, T](f: fn(&'a Point) -> T, p: &'b Point) -> T:
+    apply(f, p) # diagnostic: local-reference-escapes

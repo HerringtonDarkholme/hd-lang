@@ -643,7 +643,7 @@ fn demo(a: &User, b: &User) -> usize:
 10. r[fn.type.lifetime.subtype.error] A result that depends on an input position the expected result does not permit is an error. Error: `type-mismatch`.
 11. r[fn.type.lifetime.value] A named function's or method's value has the dependencies of its signature, after elision, with an unbound method's receiver as its first input.
 12. r[fn.type.lifetime.call] A call through a function value depends on what its arguments in each result position's lifetime depend on, as [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call) states for a named call.
-13. r[fn.type.lifetime.call.written] A call through a function value passes the argument for an input position that writes a lifetime variable at that lifetime, which the argument must outlive, whatever the result holds. With `f: fn(&'a Point) -> T`, `f(&q)` of a local `q` is an error. Error: `local-reference-escapes`.
+13. r[fn.type.lifetime.call.written] A call through a function value passes the argument for an input position that writes a lifetime variable at that lifetime, which the argument must outlive, whatever the result holds. The written lifetime goes with the value through bindings, fields, captures and a call's result, and passing the value for a parameter whose type writes a lifetime there makes that lifetime the value's. With `f: fn(&'a Point) -> T`, `f(&q)` and `g := f; g(&q)` of a local `q` are errors. Error: `local-reference-escapes`.
 
 ```text
 struct User:

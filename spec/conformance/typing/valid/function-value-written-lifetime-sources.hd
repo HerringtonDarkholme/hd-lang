@@ -1,0 +1,85 @@
+# test: a function value from a copy, a field, a literal, a payload, a capture or a call passes at the written lifetime what outlives it
+# Spec 07 Function Types: fn.type.lifetime.call.written. Each form passes
+# `p`, which lives for `'a`, or the top-level `G`, which outlives every
+# lifetime. A copy of a value whose type writes no lifetime takes a local.
+struct Point:
+    x: i32
+
+G := Point { x: 5 }
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn copied['a, T](f: fn(&'a Point) -> T, p: &'a Point, again: bool) -> T:
+    let g = f
+    if again:
+        g = f
+    g(p)
+
+fn field['a, T](h: &Holder['a, T], p: &'a Point) -> T:
+    (h.f)(p)
+
+fn closure['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    c := fn() -> T: f(&G)
+    c()
+
+fn make['a, T](f: fn(&'a Point) -> T) -> fn(&'a Point) -> T:
+    f
+
+fn result['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    make(f)(p)
+
+fn apply['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn forward['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    apply(f, p)
+
+fn free[T](f: fn(&Point) -> T) -> T:
+    q := Point { x: 1 }
+    g := f
+    g(&q)
+
+struct Outer['a, T]:
+    inner: Holder['a, T]
+
+struct Wrap[F]:
+    f: F
+
+enum Pick['a, T]:
+    One(Holder['a, T])
+    None
+
+trait Maker:
+    fn make['a, T](self, f: fn(&'a Point) -> T) -> fn(&'a Point) -> T
+
+struct M:
+    n: i32
+
+impl Maker for M:
+    fn make['a, T](self, f: fn(&'a Point) -> T) -> fn(&'a Point) -> T:
+        f
+
+fn nested['a, T](o: &Outer['a, T], p: &'a Point) -> T:
+    (o.inner.f)(p)
+
+fn wrapped['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    w := Wrap { f: f }
+    (w.f)(p)
+
+fn picked['a, T](e: &Pick['a, T], p: &'a Point, d: T) -> T:
+    match e:
+        .One(h) => (h.f)(p)
+        .None => d
+
+fn method['a, T](m: M, f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    m.make(f)(p)
+
+enum Act['a, T]:
+    Run(fn(&'a Point) -> T)
+    Stop
+
+fn acted['a, T](e: &Act['a, T], p: &'a Point, d: T) -> T:
+    match e:
+        .Run(f) => f(p)
+        .Stop => d

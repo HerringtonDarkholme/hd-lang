@@ -1,0 +1,11 @@
+# test: a closure's call of a captured function value passes at the lifetime its type writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. The closure
+# captures `f`, and `f(&q)` in its body passes its own local `q` at `'a`.
+struct Point:
+    x: i32
+
+fn closure['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    c := fn() -> T:
+        q := Point { x: 1 }
+        f(&q) # diagnostic: local-reference-escapes
+    c()

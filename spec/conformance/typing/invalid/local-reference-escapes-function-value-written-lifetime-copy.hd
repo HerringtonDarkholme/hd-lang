@@ -1,0 +1,10 @@
+# test: a copy of a function value passes its argument at the lifetime the type writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `g` is `f`, so
+# `g(&q)` passes `&q` at `'a`, which the local `q` does not outlive.
+struct Point:
+    x: i32
+
+fn copied['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    g := f
+    q := Point { x: 1 }
+    g(&q) # diagnostic: local-reference-escapes
