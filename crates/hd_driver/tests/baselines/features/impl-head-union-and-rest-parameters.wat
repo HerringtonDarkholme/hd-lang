@@ -209,8 +209,7 @@
     end
     local.get $t2
     i32.wrap_i64
-    i32.const 115 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t3
     ;; 22 |     let union: i32 | string = ._1("a")

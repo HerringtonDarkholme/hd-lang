@@ -212,8 +212,7 @@
     end
     local.get $t2
     i32.wrap_i64
-    i32.const 65 ;; &"j"
-    i32.load8_u $heap
+    i32.const 106
     i32.store8 $heap
     local.get $t1
     ;; 14 |     p := make(k)

@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: v8 release
+# expected: literal suffix bytes become constant stores without source loads
+fn append_one(value: string) -> string:
+    value + "?"
+
+fn append_seven(value: string) -> string:
+    value + "abcdefg"
+
+fn append_long(value: string) -> string:
+    value + "abcdefghijklmnopqrstuvwxyzABCDE"

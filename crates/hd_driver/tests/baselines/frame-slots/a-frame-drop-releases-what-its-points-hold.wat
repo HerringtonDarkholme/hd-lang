@@ -999,8 +999,7 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 112 ;; &"t"
-    i32.load8_u $heap
+    i32.const 116
     i32.store8 $heap
     local.get $t0
     local.get $t4

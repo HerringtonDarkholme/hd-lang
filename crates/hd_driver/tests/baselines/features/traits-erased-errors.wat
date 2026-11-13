@@ -6,7 +6,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Display for FsError.to_string" (param $self i32) (result i32 i32) (local $path.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64) (local $t6 i32)
+  (func $"impl Display for FsError.to_string" (param $self i32) (result i32 i32) (local $path.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 13 |         match *self:
     local.get $self
     i32.load $heap
@@ -28,23 +28,14 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 65 ;; &"not found: "
-    local.set $t3
-    local.tee $t4
-    local.get $t3
-    i64.load $heap align=1
-    local.set $t5
-    local.get $t3
-    i32.load16_u $heap offset=8 align=1
-    local.set $t6
-    local.get $t3
-    i32.load8_u $heap offset=10
+    local.tee $t3
+    i32.const 32
     i32.store8 $heap offset=10
-    local.get $t4
-    local.get $t6
+    local.get $t3
+    i32.const 14948
     i32.store16 $heap offset=8 align=1
-    local.get $t4
-    local.get $t5
+    local.get $t3
+    i64.const 7959390400869068654
     i64.store $heap align=1
     local.get $t2
     i32.const 11
@@ -74,8 +65,7 @@
       local.get $t2
       local.get $path.1
       i32.add
-      i32.const 76 ;; &"!"
-      i32.load8_u $heap
+      i32.const 33
       i32.store8 $heap
       i32.const 0
     else
@@ -133,8 +123,7 @@
       local.get $t2
       local.get $path.1
       i32.add
-      i32.const 76 ;; &"!"
-      i32.load8_u $heap
+      i32.const 33
       i32.store8 $heap
       local.get $path.0
       local.tee $path.0

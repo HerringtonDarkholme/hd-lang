@@ -164,8 +164,7 @@
     local.get $t3
     local.get $value.1
     i32.add
-    i32.const 149 ;; &"!"
-    i32.load8_u $heap
+    i32.const 33
     i32.store8 $heap
     local.get $t0
     i64.const 0

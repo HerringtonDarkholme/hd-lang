@@ -356,8 +356,7 @@
     ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
     local.get $t2
     i32.add
-    i32.const 145 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t7
     ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }

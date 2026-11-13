@@ -50,8 +50,7 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 65 ;; &"n="
-    i32.load16_u $heap align=1
+    i32.const 15726
     i32.store16 $heap align=1
     local.get $n
     local.get $t4

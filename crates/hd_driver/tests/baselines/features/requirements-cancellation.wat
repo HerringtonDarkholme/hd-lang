@@ -54,8 +54,7 @@
     local.get $t3
     local.get $key.1
     i32.add
-    i32.const 65 ;; &"?"
-    i32.load8_u $heap
+    i32.const 63
     i32.store8 $heap
     local.get $key.0
     if

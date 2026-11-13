@@ -14,8 +14,7 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 65 ;; &"-"
-    i32.load8_u $heap
+    i32.const 45
     i32.store8 $heap
     local.get $t2
     i32.const 1
@@ -42,8 +41,7 @@
     call $rt:str
     local.tee $t1
     local.tee $t2
-    i32.const 65 ;; &"-"
-    i32.load8_u $heap
+    i32.const 45
     i32.store8 $heap
     local.get $t2
     i32.const 1

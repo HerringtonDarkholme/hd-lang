@@ -23,7 +23,7 @@
     i32.const 0
     i32.const 0
   )
-  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64)
+  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32)
     ;; 25 | @error
     local.get $self
     i32.load $heap
@@ -67,17 +67,11 @@
         local.set $t3
       end
       local.get $t3
-      i32.const 16 ;; &"cannot read "
-      local.set $t5
-      local.tee $t6
-      local.get $t5
-      i64.load $heap align=1
-      local.set $t7
-      local.get $t5
-      i32.load $heap offset=8 align=1
+      local.tee $t5
+      i32.const 543449445
       i32.store $heap offset=8 align=1
-      local.get $t6
-      local.get $t7
+      local.get $t5
+      i64.const 8223700941521445219
       i64.store $heap align=1
       local.get $t3
       local.get $self
@@ -154,7 +148,7 @@
     ;; 25 | @error
     local.get $t2
   )
-  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i64) (local $t9 i64)
+  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 15 |         "bad yaml at line ${self.line}"
     local.get $self
     i64.load $heap
@@ -187,29 +181,17 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 102 ;; &"bad yaml at line "
-    local.set $t5
-    local.tee $t6
-    local.get $t5
-    i64.load $heap align=1
-    local.set $t7
-    local.get $t5
-    i64.load $heap offset=8 align=1
-    local.set $t8
-    local.get $t5
-    i64.load $heap offset=1 align=1
-    local.set $t9
-    local.get $t5
-    i64.load $heap offset=9 align=1
+    local.tee $t5
+    i64.const 2334393380926157921
     i64.store $heap offset=9 align=1
-    local.get $t6
-    local.get $t9
+    local.get $t5
+    i64.const 2336362572109866081
     i64.store $heap offset=1 align=1
-    local.get $t6
-    local.get $t8
+    local.get $t5
+    i64.const 7308895158390776096
     i64.store $heap offset=8 align=1
-    local.get $t6
-    local.get $t7
+    local.get $t5
+    i64.const 7813008101420065122
     i64.store $heap align=1
     local.get $t0
     local.get $t4
@@ -420,7 +402,7 @@
     i32.wrap_i64
     i32.const 0
   )
-  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i32)
+  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
     ;; 19 | @error
     local.get $self
     i32.load $heap
@@ -451,23 +433,14 @@
         local.set $t3
       end
       local.get $t3
-      i32.const 38 ;; &"not found: "
-      local.set $t4
-      local.tee $t5
-      local.get $t4
-      i64.load $heap align=1
-      local.set $t6
-      local.get $t4
-      i32.load16_u $heap offset=8 align=1
-      local.set $t7
-      local.get $t4
-      i32.load8_u $heap offset=10
+      local.tee $t4
+      i32.const 32
       i32.store8 $heap offset=10
-      local.get $t5
-      local.get $t7
+      local.get $t4
+      i32.const 14948
       i32.store16 $heap offset=8 align=1
-      local.get $t5
-      local.get $t6
+      local.get $t4
+      i64.const 7959390400869068654
       i64.store $heap align=1
       local.get $t3
       local.get $t1

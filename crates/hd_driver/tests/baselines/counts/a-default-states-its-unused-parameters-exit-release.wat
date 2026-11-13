@@ -312,8 +312,7 @@
     end
     local.get $t3
     i32.wrap_i64
-    i32.const 163 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t7
     i64.extend_i32_u
@@ -346,8 +345,7 @@
     end
     local.get $t3
     i32.wrap_i64
-    i32.const 163 ;; &" "
-    i32.load8_u $heap
+    i32.const 32
     i32.store8 $heap
     local.get $t2
     local.get $t7

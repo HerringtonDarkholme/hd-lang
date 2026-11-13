@@ -10,7 +10,7 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "names" (global $names (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $init.init (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $init.init (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 6 | greeting := "hello ${1}"
     i64.const 1
     local.tee $t0
@@ -29,17 +29,11 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 81 ;; &"hello "
-    local.set $t5
-    local.tee $t6
-    local.get $t5
-    i32.load $heap align=1
-    local.set $t7
-    local.get $t5
-    i32.load16_u $heap offset=4 align=1
+    local.tee $t5
+    i32.const 8303
     i32.store16 $heap offset=4 align=1
-    local.get $t6
-    local.get $t7
+    local.get $t5
+    i32.const 1819043176
     i32.store $heap align=1
     local.get $t0
     ;; (no span)
@@ -82,8 +76,7 @@
       local.set $t4
     end
     local.get $t4
-    i32.const 87 ;; &"a"
-    i32.load8_u $heap
+    i32.const 97
     i32.store8 $heap
     local.get $t0
     ;; (no span)
