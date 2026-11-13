@@ -567,7 +567,11 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
     if pool.has_assoc(s) {
         // An impl's binding may name a function type with a dependency map.
         let types = pool.types();
-        types.erase_fn_deps(hd_types::solver::normalize_concrete(types, env.impls(), s))
+        // gap: #1777, a chain past `PROJECTION_DEPTH` bindings stays an
+        // unnormalized projection here: `subst` has no error path, so
+        // `trait-resolution-depth` is the checker's, at the uses it sees.
+        let n = hd_types::solver::normalize_concrete(types, env.impls(), s).unwrap_or(s);
+        types.erase_fn_deps(n)
     } else {
         s
     }

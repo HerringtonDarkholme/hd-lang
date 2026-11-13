@@ -576,8 +576,13 @@ fn apply_binds_in(
                     })
                     .collect::<Vec<_>>(),
             );
-            if let Some(x) = project_concrete(pool, impls, *assoc, *trait_, *base, ta, reads) {
-                args[*target as usize] = Some(norm_concrete(pool, impls, x, 0, reads));
+            // A binding chain past the limit fixes nothing: the target
+            // stays open, so the impl does not match, as for a projection
+            // that is not concrete yet.
+            if let Some(x) = project_concrete(pool, impls, *assoc, *trait_, *base, ta, reads)
+                && let Ok(x) = norm_concrete(pool, impls, x, 0, reads)
+            {
+                args[*target as usize] = Some(x);
                 changed = true;
             }
         }
@@ -2208,10 +2213,13 @@ impl<'s, 'a> Search<'s, 'a> {
         let mut reads = Reads::default();
         // A projection on a concrete base among the arguments, as a bound
         // plan's `O < Layer[I::Output]` gives, matches as its normal form.
-        let tref = TraitRef {
-            args: norm_list(pool, impls, tref.args, 0, &mut reads),
-            ..tref
+        // One with no normal form within `PROJECTION_DEPTH` bindings
+        // overflows, as a proof past its depth does
+        // (`trait.assoc.projection.depth`).
+        let Ok(args) = norm_list(pool, impls, tref.args, 0, &mut reads) else {
+            return Ok(self.leaf(key, root, Answer::Overflow));
         };
+        let tref = TraitRef { args, ..tref };
         let goal_args = pool.list_items(tref.args);
         let open = goal_args.iter().any(|a| open_arg(pool, *a));
         let mut yes = Vec::new();
@@ -3073,12 +3081,29 @@ impl Solver for TableSolver {
     }
 }
 
+/// A projection whose normal form needs more associated-type bindings,
+/// one after another, than `hd_base::limits::PROJECTION_DEPTH`
+/// (`trait.assoc.projection.depth`), or one whose bindings come back to
+/// it (`trait.assoc.projection.cycle`): `trait-resolution-depth`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectionTooDeep {
+    /// The projection the chain starts at, its base normalized.
+    pub head: Ty,
+}
+
 /// Replaces every projection in `t` whose base is concrete by the binding
 /// of the impl whose head matches it (§4.3, codegen's mode): the checker
 /// has proven the goal, so a head match is enough. A projection on a
-/// parameter or a variable, or one no impl binds, is kept.
-#[must_use]
-pub fn normalize_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty) -> Ty {
+/// parameter or a variable, or one no impl binds, is kept. A chain past
+/// `PROJECTION_DEPTH` bindings is an error, not an answer.
+///
+/// Cost: one head match per binding followed, at most `PROJECTION_DEPTH`
+/// per projection in `t`.
+pub fn normalize_concrete(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: Ty,
+) -> Result<Ty, ProjectionTooDeep> {
     norm_concrete(pool, impls, t, 0, &mut Reads::default())
 }
 
@@ -3088,17 +3113,26 @@ fn norm_list(
     l: TyList,
     depth: u32,
     reads: &mut Reads,
-) -> TyList {
+) -> Result<TyList, ProjectionTooDeep> {
     let mut out = Vec::with_capacity(pool.list_items(l).len());
     for x in pool.list_items(l).iter().copied() {
-        out.push(norm_concrete(pool, impls, x, depth, reads));
+        out.push(norm_concrete(pool, impls, x, depth, reads)?);
     }
-    pool.list(&out)
+    Ok(pool.list(&out))
 }
 
-fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &mut Reads) -> Ty {
-    if !pool.has_assoc(t) || depth > 64 {
-        return t;
+/// `t` normalized, `depth` bindings into the chain that reached it. Its
+/// parts are normalized at the same depth; a binding followed is one
+/// deeper, and the binding past `PROJECTION_DEPTH` is the error.
+fn norm_concrete(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: Ty,
+    depth: u32,
+    reads: &mut Reads,
+) -> Result<Ty, ProjectionTooDeep> {
+    if !pool.has_assoc(t) {
+        return Ok(t);
     }
     let d = match pool.get(t) {
         TyData::Assoc {
@@ -3107,9 +3141,18 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
             self_ty,
             args,
         } => {
-            let s = norm_concrete(pool, impls, self_ty, depth, reads);
-            let a = norm_list(pool, impls, args, depth, reads);
+            let s = norm_concrete(pool, impls, self_ty, depth, reads)?;
+            let a = norm_list(pool, impls, args, depth, reads)?;
             if let Some(x) = project_concrete(pool, impls, assoc, trait_, s, a, reads) {
+                if depth >= hd_base::limits::PROJECTION_DEPTH {
+                    let head = pool.intern_ty(&TyData::Assoc {
+                        assoc,
+                        trait_,
+                        self_ty: s,
+                        args: a,
+                    });
+                    return Err(ProjectionTooDeep { head });
+                }
                 return norm_concrete(pool, impls, x, depth + 1, reads);
             }
             TyData::Assoc {
@@ -3121,34 +3164,42 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
         }
         // An opaque type and a row keep their projections, and so does a
         // function type's row.
-        TyData::Opaque { .. } | TyData::Row(_) | TyData::Context(_) => return t,
+        TyData::Opaque { .. } | TyData::Row(_) | TyData::Context(_) => return Ok(t),
         _ => {
-            return pool.map_children(
-                t,
-                &mut NormConcrete {
-                    pool,
-                    impls,
-                    depth,
-                    reads,
-                },
-            );
+            let mut map = NormConcrete {
+                pool,
+                impls,
+                depth,
+                reads,
+                failed: None,
+            };
+            let r = pool.map_children(t, &mut map);
+            return map.failed.map_or(Ok(r), Err);
         }
     };
-    pool.intern_ty(&d)
+    Ok(pool.intern_ty(&d))
 }
 
 /// [`norm_concrete`] applied to each child of a type; rows are left as
-/// they are.
+/// they are. The first child past the limit is kept in `failed`, and the
+/// rest are left as they are.
 struct NormConcrete<'p, 'i, 'r> {
     pool: Types<'p>,
     impls: Impls<'i>,
     depth: u32,
     reads: &'r mut Reads,
+    failed: Option<ProjectionTooDeep>,
 }
 
 impl crate::TyMap for NormConcrete<'_, '_, '_> {
     fn ty(&mut self, t: Ty) -> Ty {
-        norm_concrete(self.pool, self.impls, t, self.depth, self.reads)
+        if self.failed.is_some() {
+            return t;
+        }
+        norm_concrete(self.pool, self.impls, t, self.depth, self.reads).unwrap_or_else(|e| {
+            self.failed = Some(e);
+            t
+        })
     }
     fn row(&mut self, r: crate::RowId) -> crate::RowId {
         r
@@ -4479,6 +4530,85 @@ mod tests {
         push_row(&mut t, p, row, m, p.list(&[Ty::I32]), (0, vec![]));
         t.index();
         (t, ids)
+    }
+
+    /// `trait.assoc.projection.depth` in codegen's normalizer: `impl Walk
+    /// for i32: type Out = string` and `impl[T < Walk] Walk for Box[T]:
+    /// type Out = T::Out`, so `Box^n[i32]::Out` follows `n + 1` bindings.
+    /// `PROJECTION_DEPTH` of them normalize; one more is the error, at the
+    /// chain's head, and so is a binding that needs itself again.
+    #[test]
+    fn concrete_normalization_follows_the_depth_limit_and_reports_past_it() {
+        use super::normalize_concrete;
+        use hd_base::limits::PROJECTION_DEPTH;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let (walk, out, boxed, looped) = (
+            DefId::from_raw(20),
+            DefId::from_raw(50),
+            DefId::from_raw(22),
+            DefId::from_raw(23),
+        );
+        let mut t = ImplTable::default();
+        push_row(
+            &mut t,
+            p,
+            (walk, DefId::from_raw(30)),
+            Ty::I32,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        t.assoc[0].push((out, Ty::STRING));
+        let imp = DefId::from_raw(31);
+        let tp = param(p, imp, 0);
+        let proj = |self_ty| {
+            p.intern_ty(&TyData::Assoc {
+                assoc: out,
+                trait_: walk,
+                self_ty,
+                args: TyList::EMPTY,
+            })
+        };
+        push_row(
+            &mut t,
+            p,
+            (walk, imp),
+            adt(p, boxed, &[tp]),
+            TyList::EMPTY,
+            (1, bound(0, walk)),
+        );
+        t.assoc[1].push((out, proj(tp)));
+        // `impl Walk for Loop: type Out = Loop::Out`.
+        let lp = adt(p, looped, &[]);
+        push_row(
+            &mut t,
+            p,
+            (walk, DefId::from_raw(32)),
+            lp,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        t.assoc[2].push((out, proj(lp)));
+        t.index();
+        let folder = TestFolder::new(p, Some(&t));
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
+        let impls = super::Impls::Owned(&view);
+        let at_limit = proj(boxes(p, boxed, PROJECTION_DEPTH as usize - 1));
+        assert_eq!(normalize_concrete(p, impls, at_limit), Ok(Ty::STRING));
+        let list = adt(p, DefId::from_raw(24), &[at_limit]);
+        assert_eq!(
+            normalize_concrete(p, impls, list),
+            Ok(adt(p, DefId::from_raw(24), &[Ty::STRING]))
+        );
+        let past = proj(boxes(p, boxed, PROJECTION_DEPTH as usize));
+        assert!(normalize_concrete(p, impls, past).is_err());
+        let past_inside = adt(p, DefId::from_raw(24), &[past]);
+        assert!(normalize_concrete(p, impls, past_inside).is_err());
+        assert_eq!(
+            normalize_concrete(p, impls, proj(lp)),
+            Err(super::ProjectionTooDeep { head: proj(lp) })
+        );
     }
 
     /// `Box` nested `n` deep over `i32`.

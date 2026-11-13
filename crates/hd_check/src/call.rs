@@ -5497,7 +5497,7 @@ impl Ck<'_, '_> {
             self.norm_cut = Some(self.norm_cut.map_or(head, |c| c.min(head)));
             return Ok(Ty::POISON);
         }
-        if self.norm_stack.len() >= PROJECTION_DEPTH_LIMIT {
+        if self.norm_stack.len() >= hd_base::limits::PROJECTION_DEPTH as usize {
             self.projection_error(self.norm_stack[0], false);
             self.norm_cut = Some(0);
             return Ok(Ty::POISON);
@@ -5531,9 +5531,7 @@ impl Ck<'_, '_> {
                 "`{shown}` cannot normalize: its associated-type bindings form a cycle that needs `{shown}` again"
             )
         } else {
-            format!(
-                "normalizing `{shown}` needs more than {PROJECTION_DEPTH_LIMIT} nested associated-type bindings"
-            )
+            crate::value::projection_too_deep(&shown)
         };
         let node = self.cur_stmt.or(self.fn_body);
         let span = match node {
@@ -5757,10 +5755,6 @@ impl Ck<'_, '_> {
         Ok(t)
     }
 }
-
-/// `trait.assoc.projection.depth`: the most associated-type bindings one
-/// normalization nests, as `trait.bound.depth.limit` bounds a proof.
-const PROJECTION_DEPTH_LIMIT: usize = 64;
 
 impl Ck<'_, '_> {
     /// Normalizes every projection inside a type.

@@ -1008,7 +1008,7 @@ impl<'a> ItemCheck<'_, 'a> {
         if let Some(&r) = memo.get(&t) {
             return Ok(Some(r));
         }
-        if stack.contains(&t) || stack.len() >= HEADER_PROJECTION_DEPTH {
+        if stack.contains(&t) || stack.len() >= hd_base::limits::PROJECTION_DEPTH as usize {
             return Ok(None);
         }
         stack.push(t);
@@ -1127,8 +1127,17 @@ impl<'a> ItemCheck<'_, 'a> {
                 self_ty,
                 args,
             });
-            let got = hd_types::solver::normalize_concrete(pool, impls, proj);
-            let want = hd_types::solver::normalize_concrete(pool, impls, want);
+            let (got, want) = match (
+                hd_types::solver::normalize_concrete(pool, impls, proj),
+                hd_types::solver::normalize_concrete(pool, impls, want),
+            ) {
+                (Ok(got), Ok(want)) => (got, want),
+                (Err(e), _) | (_, Err(e)) => {
+                    let message = crate::value::projection_too_deep(&self.show(e.head));
+                    self.report(0, Code::TraitResolutionDepth, message);
+                    continue;
+                }
+            };
             let open = |t: Ty| pool.has_assoc(t) || pool.has_param(t) || pool.has_poison(t);
             if got != want && !open(got) && !open(want) {
                 let message = format!(
@@ -1449,13 +1458,17 @@ impl<'a> ItemCheck<'_, 'a> {
         let pool = self.pool();
         if !self.too_complex {
             match self.cycles.check(pool, self.cx.lookup, Impls::Owned(self.cx.impls), t, &mut self.fuel) {
-                Ok(true) => self.report(slot, Code::RecursiveValueType,
+                Ok(Some(crate::value::Unsized::Cycle)) => self.report(slot, Code::RecursiveValueType,
                     "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle".to_owned()),
+                Ok(Some(crate::value::Unsized::TooDeep(head))) => {
+                    let message = crate::value::projection_too_deep(&self.show(head));
+                    self.report(slot, Code::TraitResolutionDepth, message);
+                }
                 Err(()) => {
                     self.too_complex = true;
                     self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
                 }
-                Ok(false) => {}
+                Ok(None) => {}
             }
         }
         let keys = |row: RowId, kids: &mut Vec<Work>| {
@@ -2101,10 +2114,6 @@ impl ItemCheck<'_, '_> {
         Ok(None)
     }
 }
-
-/// The most nested bindings a header normalization follows, as
-/// `trait.assoc.projection.depth` bounds a body's.
-const HEADER_PROJECTION_DEPTH: usize = 64;
 
 /// Rebuilds a type from children already normalized.
 struct Settled<'m>(&'m hd_base::HashMap<Ty, Ty>);

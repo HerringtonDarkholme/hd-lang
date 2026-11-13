@@ -14,3 +14,12 @@
 /// through aliases (`type A1 = List[A0]`, ...); inference grows one as
 /// `x1 := [x0]`, `x2 := [x1]`, ... does. Owner decision 2026-11-13.
 pub const TYPE_DEPTH: u32 = 1_000;
+
+/// Associated-type bindings one normalization follows, one after another
+/// (`trait.assoc.projection.depth`): normalizing `T::Out` through `impl
+/// Walk for A: type Out = U::Out` takes one, and a chain that needs more
+/// than this many is `trait-resolution-depth`, as a bound proof past its
+/// depth is (`trait.bound.depth.limit`). The checker's normalizers and
+/// `hd_types::solver::normalize_concrete` stop at it; rustc's
+/// `recursion_limit` (E0275) plays the same part.
+pub const PROJECTION_DEPTH: u32 = 64;

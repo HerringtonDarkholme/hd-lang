@@ -5135,10 +5135,14 @@ impl Ck<'_, '_> {
                 let node = self.cx.src.parse.tree.node(syn);
                 let view = self.cx.impls.hiding(&self.hidden);
                 match cycles.check_nested(pool, self.cx.lookup, Impls::Owned(&view), z, &mut self.fuel) {
-                    Ok(true) => self.err(Code::RecursiveValueType, node,
+                    Ok(Some(crate::value::Unsized::Cycle)) => self.err(Code::RecursiveValueType, node,
                         "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle"),
+                    Ok(Some(crate::value::Unsized::TooDeep(head))) => {
+                        let message = crate::value::projection_too_deep(&self.show(head));
+                        self.err(Code::TraitResolutionDepth, node, &message);
+                    }
                     Err(()) => return out_of_fuel(),
-                    Ok(false) => {}
+                    Ok(None) => {}
                 }
             }
         }

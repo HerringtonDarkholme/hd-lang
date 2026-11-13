@@ -29,6 +29,26 @@ use crate::refs::{Place, Root};
 /// (`trait.assoc.projection`, `data.enum.no-recursion`). Declaration cycles
 /// without a projection retain the existing field diagnostics and fix-its.
 /// Each reachable instance and edge is expanded once; no type-pool scan.
+/// Why an instance has no size: it holds itself through a projection's
+/// payload, or one of its projections has no normal form within
+/// `hd_base::limits::PROJECTION_DEPTH` bindings
+/// (`trait.assoc.projection.depth`), the chain starting at the type kept.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Unsized {
+    Cycle,
+    TooDeep(Ty),
+}
+
+/// `trait-resolution-depth` on a projection whose bindings chain past
+/// the limit (`trait.assoc.projection.depth`); `shown` is the projection
+/// the chain starts at.
+pub(crate) fn projection_too_deep(shown: &str) -> String {
+    format!(
+        "normalizing `{shown}` needs more than {} nested associated-type bindings",
+        hd_base::limits::PROJECTION_DEPTH
+    )
+}
+
 #[derive(Default)]
 pub(crate) struct ProjectionCycles {
     done: HashMap<Ty, Option<Ty>>,
@@ -45,21 +65,33 @@ impl ProjectionCycles {
         impls: hd_types::solver::Impls<'_>,
         ty: Ty,
         fuel: &mut Fuel,
-    ) -> Result<bool, ()> {
+    ) -> Result<Option<Unsized>, ()> {
         // A rigid projection can acquire a concrete payload at a later
         // instantiation. Do not remember that open instance as acyclic.
         if pool.has_param(ty) || pool.has_infer(ty) {
-            return Ok(false);
+            return Ok(None);
         }
+        // A projection past the depth limit stays as it is in the search,
+        // which then ends as for any other open projection; the first is
+        // reported, once per head.
+        let mut too_deep = None;
         let cycle = Self::search(
             &mut self.done,
             ty,
             fuel,
             &mut |t| {
-                *self
-                    .normalized
-                    .entry(t)
-                    .or_insert_with(|| hd_types::solver::normalize_concrete(pool, impls, t))
+                if let Some(&n) = self.normalized.get(&t) {
+                    return n;
+                }
+                let n = match hd_types::solver::normalize_concrete(pool, impls, t) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        too_deep.get_or_insert(e.head);
+                        t
+                    }
+                };
+                self.normalized.insert(t, n);
+                n
             },
             &mut |t| {
                 let mut children = Vec::new();
@@ -121,7 +153,12 @@ impl ProjectionCycles {
                 children
             },
         )?;
-        Ok(cycle.is_some_and(|t| self.reported.insert(t)))
+        if let Some(head) = too_deep.filter(|&h| self.reported.insert(h)) {
+            return Ok(Some(Unsized::TooDeep(head)));
+        }
+        Ok(cycle
+            .is_some_and(|t| self.reported.insert(t))
+            .then_some(Unsized::Cycle))
     }
 
     fn search(
@@ -195,14 +232,15 @@ impl ProjectionCycles {
         impls: hd_types::solver::Impls<'_>,
         ty: Ty,
         fuel: &mut Fuel,
-    ) -> Result<bool, ()> {
+    ) -> Result<Option<Unsized>, ()> {
         let mut todo = vec![ty];
-        let mut bad = false;
+        let mut bad = None;
         while let Some(t) = todo.pop() {
             if !self.checked.insert(t) {
                 continue;
             }
-            bad |= self.check(pool, lookup, impls, t, fuel)?;
+            let found = self.check(pool, lookup, impls, t, fuel)?;
+            bad = bad.or(found);
             match pool.get(t) {
                 TyData::Adt { args, .. } => todo.extend(pool.list_items(args)),
                 TyData::Union(members) => todo.extend(pool.list_items(members)),
