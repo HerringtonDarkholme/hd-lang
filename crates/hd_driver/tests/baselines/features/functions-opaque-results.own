@@ -23,59 +23,68 @@ fn names(xs: &List[string]) -> impl Iterator[string]:
 
 fn count_long(xs: List[string]) -> usize:
 > app/main/count_long
->   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 consume last
+>   local $0 xs: List[string] [param read captured] place
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $3 $iter: &mut ListIter[string] [assigned] value
->     uses $3: %12 -> %13 lend
+>     uses $3: %18 -> %19 lend
 >   local $4 x: string [read assigned] value
->     uses $4: %28 -> %16 lend last
->   %0 = Retain %43 Entry local $0 #0 : ()
+>     uses $4: %34 -> %22 lend last
+>   local $6 xs: &List[string] [read] value
+>     uses $6: %3 -> %4 lend last
+>   local $7 self: List[string] [read] value
+>     uses $7: %5 -> %6 consume last
+>   %0 = Retain %49 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %43 = Block %42 : usize
+>   %49 = Block %48 : usize
     for x in names(&xs):
->   %2 = Read move [$0] : List[string]
->   %3 = NewStruct [%2 0:usize] : ListIter[string]
->   %4 = Break L2 %3 : never
->   %5 = Block - : ListIter[string]
->   %6 = Scope %5 [] : ListIter[string]
->   %7 = Break L3 %6 : never
->   %8 = Block - : ListIter[string]
->   %9 = Scope %8 [] : ListIter[string]
->   %10 = Store [$2] %9 : ()
->   %11 = Ref mut local frame [$2] : &mut ListIter[string]
->   %12 = Store [$3] %11 : ()
->   %13 = Read borrow [$3] : &mut ListIter[string]
->   %14 = Call std/iter/Iterator.next for ListIter[string] [string] via Bound (%13) : string?
->   %23 = Block - : ()
->   %24 = Drop [%14] : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = Read borrow [%14 as #1 .0] : string
->   %28 = Store [$4] %27 : ()
->   %29 = Release %28 Operation #3 : ()
->   %35 = Block - : never
->   %36 = Match %14 [%35 %23 %26] : ()
->   %37 = Drop [%14] : ()
->   %38 = Block - : ()
->   %39 = Loop %38 - : ()
->   %40 = LoanEnd [$3] : ()
->   %41 = Drop [$2] : ()
->   %11 finds [$2] full
->   %39 finds [$2] full
+>   %2 = Ref local frame [$0] : &List[string]
+>   %3 = Store [$6] %2 : ()
+>   %4 = Read borrow [*$6] : List[string]
+>   %5 = Store [$7] %4 : ()
+>   %6 = Read copy [$7] : List[string]
+>   %7 = NewStruct [%6 0:usize] : ListIter[string]
+>   %8 = Break L2 %7 : never
+>   %9 = Block - : ListIter[string]
+>   %10 = Scope %9 [] : ListIter[string]
+>   %11 = Break L3 %10 : never
+>   %12 = Block - : ListIter[string]
+>   %13 = Scope %12 [] : ListIter[string]
+>   %14 = LoanEnd [$6] : ()
+>   %15 = Drop [$0] : ()
+>   %16 = Store [$2] %13 : ()
+>   %17 = Ref mut local frame [$2] : &mut ListIter[string]
+>   %18 = Store [$3] %17 : ()
+>   %19 = Read borrow [$3] : &mut ListIter[string]
+>   %20 = Call std/iter/Iterator.next for ListIter[string] [string] via Bound (%19) : string?
+>   %29 = Block - : ()
+>   %30 = Drop [%20] : ()
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = Read borrow [%20 as #1 .0] : string
+>   %34 = Store [$4] %33 : ()
+>   %35 = Release %34 Operation #3 : ()
+>   %41 = Block - : never
+>   %42 = Match %20 [%41 %29 %32] : ()
+>   %43 = Drop [%20] : ()
+>   %44 = Block - : ()
+>   %45 = Loop %44 - : ()
+>   %46 = LoanEnd [$3] : ()
+>   %47 = Drop [$2] : ()
+>   %17 finds [$2] full
+>   %45 finds [$2] full
         n += x.len()
->   %15 = Read copy [$1] : usize
->   %16 = Read borrow [$4] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
->   %18 = Break L1 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = Prim Add [%15 %20] : usize
->   %22 = Store [$1] %21 : ()
+>   %21 = Read copy [$1] : usize
+>   %22 = Read borrow [$4] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L1 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Prim Add [%21 %26] : usize
+>   %28 = Store [$1] %27 : ()
     n
->   %42 = Read copy [$1] : usize
+>   %48 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
->   storage sub 0: $2 slot
+>   storage sub 0: $0 slot, $2 slot
 >   summary kept [$0] writes
