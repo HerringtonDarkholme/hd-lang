@@ -235,8 +235,10 @@ The SDK owns the output marker, generation store and regular `wrangler.json`
 selector. Repeated preparation selects a complete immutable generation and
 retains previous generations for readers already using them. Unrelated root
 files and Wrangler caches are preserved. Preparation refuses an unowned
-output directory or modified SDK payload; other writers must leave the
-reserved paths unchanged while preparation runs.
+output directory, changed selector, or modified active or destination payload.
+It validates a retained destination before selecting it again. Untouched retained
+generations are checked only by the explicit full audit below; other writers
+must leave reserved paths unchanged while preparation runs.
 
 The maintained deployment, output, schema and binding tests run with the
 other SDK JavaScript tests. Local workerd probes exercised startup Env
@@ -296,9 +298,23 @@ embedded in generated output.
 Repeated preparation atomically changes `config.json` to select a complete
 immutable function under `functions/`. Earlier generations remain available
 to existing readers; unrelated root files and caches are preserved. An
-unowned output directory, changed SDK payload, or unknown function directory
-is refused. Other writers must leave the SDK's reserved paths unchanged
-during publication.
+unowned output directory, changed selector, or changed active or destination
+function is refused. Untouched retained functions and unknown inactive directories
+are checked only by the explicit full audit. Other writers must leave the SDK's
+reserved paths unchanged during publication.
+
+To validate the entire retained store, run this command from the installed SDK
+directory while no publisher or other writer is changing its reserved paths:
+
+```sh
+node --experimental-strip-types packaging/audit-output.ts cloudflare /path/to/cloudflare
+node --experimental-strip-types packaging/audit-output.ts vercel-node /path/to/.vercel/output
+```
+
+The audit checks the ownership marker, selector and every retained generation,
+including unknown inactive directories. It reports errors without changing files.
+Ordinary publication checks only the active and destination generations, so its
+work does not grow with the retained generation count. Retention is unchanged.
 
 Local controls use the official `@vercel/node` launcher and build-utils ZIP
 builder, exercising retained requests, overlapping work, body limits and
