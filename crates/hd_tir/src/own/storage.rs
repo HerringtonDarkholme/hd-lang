@@ -1,7 +1,9 @@
-//! Where each local lives (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`,
-//! step 17): per sub-body, a frame slot or a cell for a local whose
+//! Where each local lives (`docs/compiler/ownership.md#ownership-per-instance`,
+//! "Ownership Per Instance"): per sub-body, a frame slot or a cell for a local whose
 //! address a thin reference takes or a closure shares, and Wasm locals
-//! for every other (no row). Written right after `frame::run`, whose
+//! for every other (no row). Migration step 17 is in
+//! git history at 7ccbb4ea8, `docs/future-work/OWNERSHIP_ARCHITECTURE.md`.
+//! Written right after `frame::run`, whose
 //! `ref_word::FRAME` marks the slot rule reads. In a root that runs over
 //! a suspension frame, a slot is a slot of that frame (#1707,
 //! [`awaited_slots`]).

@@ -1,4 +1,4 @@
-//! Value locals (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`, "Values"):
+//! Value locals (`docs/compiler/ownership.md#ownership-per-instance`):
 //! which locals of a body name one value at a time, so a later pass can
 //! read them as values, and which stay places.
 //!

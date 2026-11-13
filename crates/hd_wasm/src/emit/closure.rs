@@ -62,7 +62,8 @@ pub(super) fn cell_locals(b: &Body, stored: &[usize]) -> HashMap<usize, u32> {
 
 /// The locals some closure of `b` shares through a cell. A cell is an
 /// object a closure reaches as a `*mut` does its pointee, so a reference
-/// into the variable takes a loan on it (`POINTER_LOANS.md`, question 6).
+/// into the variable takes a loan on it
+/// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
 pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
     let recursive = hd_tir::own::RecursiveBindings::new(b);
     (0..b.len())
@@ -681,7 +682,8 @@ impl Em<'_, '_, '_> {
                 self.local(l32)?
             }));
         }
-        // The cells of the creator's own loans (`POINTER_LOANS.md` E.2).
+        // The cells of the creator's own loans
+        // (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
         for l in self.own_caps(i as usize) {
             let c = self.own_cell_for(l)?;
             srcs.push(Src::Locals(vec![c]));

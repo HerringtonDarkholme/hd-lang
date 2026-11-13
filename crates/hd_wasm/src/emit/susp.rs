@@ -1896,7 +1896,8 @@ pub(super) fn finish(
                         }
                     }
                 }
-                // The cells of the creator's own loans (E.2), each with a count
+                // The cells of the creator's own loans
+                // (docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2), each with a count
                 // the frame holds, and the body's own loans as they stand.
                 let own = em.own_caps(ci);
                 for (l, p) in own.into_iter().zip(&parts[caps.len()..]) {

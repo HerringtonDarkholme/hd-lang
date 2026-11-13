@@ -1,7 +1,7 @@
 //! One branch per discriminant cell for nested enum matches (#1532,
-//! `docs/future-work/ENUM-LAYOUT.md` "Discriminant read, write and
-//! match"). An enum and the enums nested in its untagged payload share
-//! the niche cell: `i32??`'s cell 0 holds the inner tag (0 or 1) or the
+//! `crates/hd_wasm/DESIGN.md` §23.14, "Enum layout decisions"; algorithm
+//! in git history at 7ccbb4ea8). An enum and the enums nested in its
+//! untagged payload share the niche cell: `i32??`'s cell 0 holds the inner tag (0 or 1) or the
 //! outer `.None` (2). A match's decision tests that cell once per level;
 //! here the levels' `SwitchTag`s are grouped, each target mapped to the
 //! raw cell values that select it (targets whose code is the same merged),

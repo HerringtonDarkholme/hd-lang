@@ -1,4 +1,4 @@
-//! Why each count operation stands (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`,
+//! Why each count operation stands (`docs/compiler/ownership.md#ownership-per-instance`,
 //! "The One Place Each Count Is Decided"). A `Drop` carries its reason in
 //! its data word b; an `IsUnique`'s and a copy `Read`'s follow from the
 //! statement ([`reason`]). Checked native builds independently verify the

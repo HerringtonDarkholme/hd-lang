@@ -594,8 +594,8 @@ lowers their instructions.
   `None` is `0x110000`, where rustc 1.97 uses -1). (4) Locals hold one
   value per leaf, the rule below. (5) Order of the work: payload as a
   struct, then the views' deletion (#1448), then niches. The design
-  record, with rustc's algorithm and walkthroughs of `i32??`, is in git
-  history at 7ccbb4ea8, `docs/future-work/ENUM-LAYOUT.md`.
+  record, with rustc's algorithm and walkthroughs of `i32??`, is in
+  git history at 7ccbb4ea8, `docs/future-work/ENUM-LAYOUT.md`.
 - **Enums** (#1422). In memory, the
   tag, then each variant's payload as one struct at one offset
   (`layout::Flat`), as rustc lays out a tagged enum: a `&` or `&mut` to a

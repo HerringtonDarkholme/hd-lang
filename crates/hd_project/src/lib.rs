@@ -168,7 +168,8 @@ pub enum Root {
     Test,
     /// `tasks` (`cli.task.file`).
     Task,
-    /// A REPL input (`docs/future-work/live-execution.md` "REPL Decisions"): the synthetic file `repl#N` of
+    /// A REPL input (`docs/compiler/live-execution.md` "REPL Decisions"): the synthetic
+    /// file `repl#N` of
     /// the session's `N`th input, outside every package folder. It is its
     /// own module and its own folder, and its relative lookup starts at
     /// the package root module, as `src/lib.hd`'s does (`cli.repl.package.lib`).

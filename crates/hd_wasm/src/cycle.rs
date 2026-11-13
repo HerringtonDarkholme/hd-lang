@@ -1,6 +1,6 @@
 //! Which objects take part in cycle collection
 //! (`crates/hd_wasm/DESIGN.md` §23.28,
-//! `docs/future-work/REFCOUNT_RUNTIME.md` §7.1), decided per concrete type
+//! git history at 7ccbb4ea8, `docs/future-work/REFCOUNT_RUNTIME.md` §7.1), decided per concrete type
 //! when the object's allocation is emitted. An object that takes part has
 //! [`crate::module::CYCLIC`] set in its descriptor word; any other is
 //! released with a plain decrement and never becomes a candidate.

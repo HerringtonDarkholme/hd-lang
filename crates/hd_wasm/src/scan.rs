@@ -1,5 +1,5 @@
 //! Byte scans over a string's bytes in SIMD128 (#428,
-//! docs/future-work/PERFORMANCE_ROADMAP.md §3.9). Each std primitive keeps
+//! docs/future-work/CONST_VALUES.md §2.4). Each std primitive keeps
 //! an hd reference body that defines its result; the helper here is the
 //! body the linear backend links instead, only when a program reaches it.
 //!

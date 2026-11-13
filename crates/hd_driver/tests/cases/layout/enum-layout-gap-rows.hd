@@ -1,6 +1,6 @@
 # @dump: layout
 # The size of each type in the enum layout gap table
-# (docs/future-work/ENUM-LAYOUT.md, #1422): each field is one row's type.
+# (crates/hd_wasm/DESIGN.md, #1422): each field is one row's type.
 # Struct fields are ordered by alignment, largest first.
 use std.json.Json
 use std.http.Cookie

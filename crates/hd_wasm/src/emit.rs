@@ -573,7 +573,8 @@ fn body_func<'a>(
     }
     if suspending {
         em.f.op(Instruction::End);
-        // A frame owns its reference parameters (POINTER_LOANS.md E.2): a
+        // A frame owns its reference parameters
+        // (docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2): a
         // local reference counts nothing, so the cold constructor takes a
         // page-table count of each one's object into a temporary that the
         // frame's exit or release glue releases (`susp::finish`). A tuple

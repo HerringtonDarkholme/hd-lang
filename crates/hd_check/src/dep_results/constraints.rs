@@ -1,6 +1,6 @@
 //! Outlives constraints for places, stores, constructions, control flow,
 //! calls and closures, and the checked edges into universal regions
-//! (`docs/future-work/LIFETIME_SOLVER.md`): [`solve`] generates them for
+//! (`crates/hd_check/DESIGN.md` §15): [`solve`] generates them for
 //! one body, solves them and reads its diagnostics off the solution.
 
 use hd_base::{HashMap, HashSet, NodeIdx, SliceSort as _};

@@ -1,5 +1,5 @@
 # The hd tests of std's byte scans (#428,
-# docs/future-work/PERFORMANCE_ROADMAP.md §3.9): the compiler supplies a
+# docs/future-work/CONST_VALUES.md §2.4): the compiler supplies a
 # SIMD128 body for each scan primitive, and that body must give what the
 # primitive's hd reference body gives. Only std may declare a primitive,
 # so the conformance runner adds this file to std as

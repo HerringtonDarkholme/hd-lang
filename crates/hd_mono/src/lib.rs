@@ -241,7 +241,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// (the receiver first) lent, so a call passes it with no count and
     /// glue that calls the instance counts none for it. Only the optimized
     /// pipeline's release summaries set one
-    /// (`docs/future-work/RELEASE_INTERPROC.md`).
+    /// (`crates/hd_opt/DESIGN.md` §9).
     fn lends(&self, _item: DefId, _args: TyList) -> u64;
     /// The checked body forwards only this parameter to its result. A
     /// structural fact, independent of ownership-summary processing order.

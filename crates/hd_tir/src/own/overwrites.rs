@@ -1,4 +1,4 @@
-//! The old value a store replaces (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`,
+//! The old value a store replaces (`docs/compiler/ownership.md#ownership-per-instance`,
 //! `Release p`, reason overwritten): a `Store` into a place that may hold a
 //! value is followed by `Release %store`, which the backend lowers inside the
 //! store's one walk of the place. A `Store` with none only writes.

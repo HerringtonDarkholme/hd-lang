@@ -6,7 +6,7 @@
 # Counting frees an object at its last release, but not a ring of objects
 # that hold each other. This is synchronous trial deletion (Bacon and
 # Rajan, "Concurrent Cycle Collection in Reference Counted Systems",
-# ECOOP 2001; docs/future-work/REFCOUNT_RUNTIME.md §7):
+# ECOOP 2001; git history at 7ccbb4ea8, docs/future-work/REFCOUNT_RUNTIME.md §7):
 #
 # 1. A release that leaves a count above zero on an object that takes part
 #    makes it a candidate: purple, and in the candidate buffer. Its last
@@ -269,7 +269,7 @@ pub fn collect(
     clear(rooms)
     clear(garbage)
     compact()
-    # REFCOUNT_RUNTIME.md §7.4: a collection that frees most of what it
+    # git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §7.4: a collection that frees most of what it
     # visited halves the threshold back toward the first; one that frees
     # little doubles it.
     if freed * 2 >= visited:

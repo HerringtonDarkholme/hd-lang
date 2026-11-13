@@ -45,7 +45,7 @@ pub(crate) enum Prim {
     SnapshotUpdate,
 }
 
-/// Which journal row a call of an import writes (`docs/future-work/live-execution.md` §4.2).
+/// Which journal row a call of an import writes (`docs/compiler/live-execution.md` §4.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Record {
     /// None: the `hd:prim` functions answer from their arguments alone,

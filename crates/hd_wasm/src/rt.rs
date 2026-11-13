@@ -4052,7 +4052,7 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
 /// [`Helper::LoanShare`] and [`Helper::LoanUnshare`]: a shared loan's
 /// begin or end on the object whose descriptor word is at address
 /// parameter 0, at a count of 31 (model A,
-/// `docs/future-work/POINTER_LOANS.md` E.2). A begin adds to the object's
+/// `docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`). A begin adds to the object's
 /// entry in the spill map instead, leaving the count at 31 so the inline
 /// checks still see a shared loan; an end takes from the entry first. The
 /// map is an open-addressed table of `(address, count)` pairs, linearly

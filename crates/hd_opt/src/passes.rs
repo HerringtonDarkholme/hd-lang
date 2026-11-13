@@ -371,7 +371,7 @@ pub static PASSES: &[PassSpec] = &[
         Body(closure_spec),
         [max_insts: 1..=4096, max_depth: 1..=8]
     ),
-    // The release summaries (`docs/future-work/RELEASE_INTERPROC.md`):
+    // The release summaries (`crates/hd_opt/DESIGN.md` §9):
     // the driver owns bodies callees first and records what each body's
     // code says of its parameters when its pipeline holds this pass.
     pass!("summaries", TirAnalysis, [], [], 0, Optional, Instance),
