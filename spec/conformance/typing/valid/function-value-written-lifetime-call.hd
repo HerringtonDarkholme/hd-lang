@@ -1,0 +1,29 @@
+# test: a call through a function value passes at the written lifetime what outlives it
+# Spec 07 Function Types: fn.type.lifetime.call.written. `f(p)` passes `p`,
+# which lives for `'a`. An input position that writes no lifetime takes a
+# local, as `&q` for `g`'s second input, and so does a method's parameter
+# whose type writes none. A top-level binding outlives every lifetime.
+struct Point:
+    x: i32
+
+G := Point { x: 5 }
+
+fn good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn mixed['a, T](g: fn(&'a Point, &Point) -> T, p: &'a Point) -> T:
+    q := Point { x: 1 }
+    g(p, &q)
+
+fn global['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(&G)
+
+struct Hold:
+    n: i32
+
+impl Hold:
+    fn apply['a, T](&self, f: fn(&'a Point) -> T, p: &'a Point) -> T:
+        f(p)
+    fn any[T](&self, f: fn(&Point) -> T) -> T:
+        q := Point { x: self.n }
+        f(&q)

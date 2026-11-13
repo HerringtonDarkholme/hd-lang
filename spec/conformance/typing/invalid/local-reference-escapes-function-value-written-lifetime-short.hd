@@ -1,0 +1,9 @@
+# test: an argument a function type's written lifetime fixes must outlive it even when the result holds nothing
+# Spec 07 Function Types: fn.type.lifetime.call.written. `f(x)` passes `x`
+# at `'a`. `x` lives for `'c`, which need not outlive `'a`; the `void`
+# result carries nothing out, and the call is checked all the same.
+struct Point:
+    x: i32
+
+fn short['a, 'c](f: fn(&'a Point) -> void, p: &'a Point, x: &'c Point) -> void:
+    f(x) # diagnostic: local-reference-escapes

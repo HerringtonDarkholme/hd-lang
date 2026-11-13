@@ -1,0 +1,11 @@
+# test: a call through a function value passes its argument at the lifetime the type writes, though the result holds no reference
+# Spec 07 Function Types: fn.type.lifetime.call.written. `f(&q)` passes
+# `&q` at `'a`, which the local `q` does not outlive. The result of type
+# `T` has no slot to carry `q` to the return, so the call itself is
+# checked. With `T = Keep['a]`, the caller would read a dead `q`.
+struct Point:
+    x: i32
+
+fn bad2['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    q := Point { x: 1 }
+    f(&q) # diagnostic: local-reference-escapes

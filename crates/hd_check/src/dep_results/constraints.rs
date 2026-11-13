@@ -1303,7 +1303,8 @@ impl Gen<'_, '_> {
             let l = (self.owns.iter())
                 .find(|&&(l, r)| sol.same(e.to, r) && !own.is_some_and(|own| own.allows(ls, o, l)))
                 .map_or(NO_SOURCE, |x| x.0);
-            v.bounds.push((at, o, l));
+            let value = self.s.b.tags.get(e.inst as usize) == Some(&Tag::CallValue);
+            v.bounds.push((at, o, l, value));
         }
         for x in violations.iter().filter(|x| x.edge.cat != Category::Bound) {
             let e = x.edge;

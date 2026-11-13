@@ -421,6 +421,14 @@ pub struct FnSig {
     /// When a `Suspend` writes one, each `Suspend`'s follows, in order
     /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
+    /// For each parameter whose type is a function type, the lifetime each
+    /// local reference slot of that type's inputs writes, 0 where it writes
+    /// none, in [`hd_types::Types::ref_slots`] order; empty for any other
+    /// parameter. The type keeps no names (`fn.type.lifetime.identity`), so
+    /// a call of the parameter learns here at which of the caller's
+    /// lifetimes it passes each argument (`fn.type.lifetime.call.written`). Empty when
+    /// no parameter's function type writes one.
+    pub fn_lifetimes: Vec<Vec<u16>>,
     /// The result reference slots that name a parameter's field path
     /// (`ref.result.path.form`), in source order. Such a slot's lifetime is 0.
     pub paths: Vec<ResultPath>,
@@ -459,6 +467,7 @@ impl FnSig {
             variadic: false,
             mut_self: false,
             lifetimes: Vec::new(),
+            fn_lifetimes: Vec::new(),
             paths: Vec::new(),
         }
     }
@@ -1407,6 +1416,7 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
     for l in &s.lifetimes {
         w.u32(u32::from(*l));
     }
+    put_lifetime_lists(w, &s.fn_lifetimes);
     w.len_of(&s.paths);
     for p in &s.paths {
         w.u32(u32::from(p.slot));
@@ -1435,6 +1445,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
     for _ in 0..r.count() {
         lifetimes.push(u16::try_from(r.u32()).ok()?);
     }
+    let fn_lifetimes = get_lifetime_lists(r)?;
     let mut paths = Vec::new();
     for _ in 0..r.count() {
         let slot = u16::try_from(r.u32()).ok()?;
@@ -1458,6 +1469,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         variadic: flags & 2 != 0,
         mut_self: flags & 4 != 0,
         lifetimes,
+        fn_lifetimes,
         paths,
     })
 }

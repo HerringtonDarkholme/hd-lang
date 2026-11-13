@@ -36,7 +36,9 @@ use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Body, BodyKind, Callee, ChoiceKind, NONE, Proj, Role, Tag, Word, slots};
+use hd_tir::ir::{
+    Body, BodyKind, Callee, ChoiceKind, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
+};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
@@ -1921,6 +1923,16 @@ impl Ck<'_, '_> {
             let pairs = (lts.into_iter().enumerate()).filter(|x| x.1 != 0);
             links.extend(pairs.map(|(k, l)| (Var::Life(w(k + 1)), Var::Own(l))));
         }
+        // A function value's type writes the caller's lifetimes, which the
+        // type does not keep: `f(&q)` with `f: fn(&'a Point) -> T` passes
+        // `&q` at `'a` (`fn.type.lifetime.call.written`).
+        if tag == Tag::CallValue
+            && let Some(written) = self.fn_param_lifetimes(b, i)
+        {
+            let ins = (dep.params.iter()).flat_map(|(t, ids)| ref_ids_of(ls, *t, ids));
+            let pairs = ins.zip(written).filter(|x| *x.1 != 0);
+            links.extend(pairs.map(|(id, &l)| (Var::Life(id), Var::Own(u32::from(l)))));
+        }
         Some(CallSig {
             links,
             paths,
@@ -1935,6 +1947,26 @@ impl Ck<'_, '_> {
             outs,
             held: held_args,
         })
+    }
+
+    /// The lifetimes the inputs of the function type of the parameter that
+    /// call `i` calls write, one per reference slot
+    /// ([`hd_resolve::FnSig::fn_lifetimes`]).
+    fn fn_param_lifetimes<'s>(&'s self, b: &Body, i: usize) -> Option<&'s [u16]> {
+        let v = *b.data[i].first()? as usize;
+        if b.tags.get(v) != Some(&Tag::Read) || b.kind != BodyKind::Fn {
+            return None;
+        }
+        let place = b.decode_place(b.data[v][0])?;
+        let PlaceRoot::Local(l) = place.root else {
+            return None;
+        };
+        let l = l.raw() as usize;
+        if !place.proj.is_empty() || b.local_flags[l] & hd_tir::ir::local_flags::PARAM == 0 {
+            return None;
+        }
+        let sig = self.cx.lookup.item(b.item)?.sig()?;
+        sig.fn_lifetimes.get(l).map(Vec::as_slice)
     }
 
     /// The lifetimes of projection `proj`, in its scope's numbering,
@@ -2939,8 +2971,8 @@ impl Ck<'_, '_> {
             push(at, &|| CALLER_PLACE_MSG.to_owned());
         }
         if let Some(own) = own.or(mine) {
-            for (at, o, l) in v.bounds {
-                push(at, &|| self.passed_message(own, o, l, fun));
+            for (at, o, l, value) in v.bounds {
+                push(at, &|| self.passed_message(own, (o, l, value), fun));
             }
         }
         for (at, msg) in v.capture {
@@ -3036,18 +3068,29 @@ impl Ck<'_, '_> {
             .collect()
     }
 
-    /// `ref.lifetime.trait.bound-argument`: an argument a call passes at
-    /// the body's own lifetime `l`, as a bound writes it, refers to `o`,
-    /// which does not outlive `l`.
-    fn passed_message(&self, own: &DepSig, o: Origin, l: u32, fun: Option<NodeRef<'_>>) -> String {
+    /// `ref.lifetime.trait.bound-argument`, `fn.type.lifetime.call.written`: an
+    /// argument a call passes at the body's own lifetime `l`, as a bound
+    /// or, for a call of a function value, its type writes it, refers to
+    /// `o`, which does not outlive `l`.
+    fn passed_message(
+        &self,
+        own: &DepSig,
+        (o, l, value): (Origin, u32, bool),
+        fun: Option<NodeRef<'_>>,
+    ) -> String {
         let lifetimes = fun.map(|f| self.lifetime_names(f)).unwrap_or_default();
         let what = self.origin_what(own, o, l, fun, &lifetimes);
         let at = (l < ANON).then(|| lifetimes.get((l as usize).wrapping_sub(1)));
         let at = at
             .flatten()
             .map_or_else(String::new, |n| format!(" `{n}`,"));
+        let writer = if value {
+            "the function value's type"
+        } else {
+            "the bound"
+        };
         format!(
-            "{what}; the call passes it at{at} the lifetime the bound writes, which it must outlive"
+            "{what}; the call passes it at{at} the lifetime {writer} writes, which it must outlive"
         )
     }
 
@@ -3178,9 +3221,10 @@ struct Verdicts {
     /// Returned values: the origin they may not depend on, the lifetime.
     results: Vec<(NodeIdx, Origin, u32)>,
     /// Call arguments passed at one of the body's own lifetimes that a
-    /// bound writes: the origin that does not outlive it, the lifetime
-    /// (`ref.lifetime.trait.bound-argument`).
-    bounds: Vec<(NodeIdx, Origin, u32)>,
+    /// bound or a function value's type writes: the origin that does not
+    /// outlive it, the lifetime, and whether the call is of a function
+    /// value (`ref.lifetime.trait.bound-argument`, `fn.type.lifetime.call.written`).
+    bounds: Vec<(NodeIdx, Origin, u32, bool)>,
     /// Closures' returned values and the origin.
     closures: Vec<(NodeIdx, Origin)>,
     /// `local-reference-outlives-local`.

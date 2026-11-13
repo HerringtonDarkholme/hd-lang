@@ -1,0 +1,36 @@
+# test: a function value called at the lifetime its type writes runs with the caller's argument
+# Spec 07 Function Types: fn.type.lifetime.call.written. `apply` passes
+# `p`, which lives for `'a`, and a method passes its own parameter the same
+# way; `either` passes a local where the type writes no lifetime.
+# expect-stdout: 3
+# expect-stdout: 8
+# expect-stdout: 11
+struct Point:
+    x: i32
+
+struct Hold:
+    n: i32
+
+fn apply['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn either['a, T](g: fn(&'a Point, &Point) -> T, p: &'a Point) -> T:
+    q := Point { x: 8 }
+    g(p, &q)
+
+impl Hold:
+    fn apply['a, T](&self, f: fn(&'a Point) -> T, p: &'a Point) -> T:
+        f(p)
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+fn sum(a: &Point, b: &Point) -> i32:
+    a.x + b.x
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    println(apply(x_of, &p))
+    h := Hold { n: 1 }
+    println(h.apply(fn(r: &Point) -> i32: r.x + 5, &p))
+    println(either(sum, &p))

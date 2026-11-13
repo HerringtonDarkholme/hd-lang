@@ -1891,6 +1891,9 @@ struct Lower<'a, 'r, 'x> {
     /// While a signature's parameter or result type is lowered: the
     /// lifetime of each local reference slot so far (`FnSig::lifetimes`).
     slots: Option<Vec<u16>>,
+    /// The lifetimes the inputs of the function type lowered last write,
+    /// for [`FnSig::fn_lifetimes`].
+    fn_inputs: Option<Vec<u16>>,
     /// Alongside `slots`: the lifetime each `Suspend` names, 0 when
     /// omitted, after its type argument's (`ref.dep.suspension.lifetime`).
     held: Option<Vec<u16>>,
@@ -3800,6 +3803,10 @@ impl Lower<'_, '_, '_> {
                 let written = std::mem::replace(&mut self.slots, outer).unwrap_or_default();
                 self.held = outer_held;
                 self.in_field = in_field;
+                let n_in: usize = params.iter().map(|&t| pool.types().ref_slots(t)).sum();
+                let mut ins = written.get(..n_in).unwrap_or(&written).to_vec();
+                ins.resize(n_in, 0);
+                self.fn_inputs = Some(ins);
                 let deps = pool.types().fn_deps_written(&params, result, &written);
                 pool.intern_ty(&TyData::Fn {
                     params: pool.list(&params),
@@ -4466,6 +4473,7 @@ impl Lower<'_, '_, '_> {
         let mut defaults = Vec::new();
         let mut variadic = false;
         let mut mut_self = false;
+        let mut fn_lifetimes: Vec<Vec<u16>> = Vec::new();
         let saved = self.slots.replace(Vec::new());
         let saved_held = self.held.replace(Vec::new());
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
@@ -4517,6 +4525,7 @@ impl Lower<'_, '_, '_> {
                     }
                     params.push((self.sym_token(token), st));
                     defaults.push(false);
+                    fn_lifetimes.push(Vec::new());
                     continue;
                 }
                 if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
@@ -4554,8 +4563,16 @@ impl Lower<'_, '_, '_> {
                     generics.push(generic);
                     ty
                 } else {
+                    self.fn_inputs = None;
                     self.ty(type_node, gn)
                 };
+                // `fn.type.lifetime.call.written`: the lifetimes a function type's
+                // inputs write, which the type itself does not keep.
+                let inputs = self
+                    .fn_inputs
+                    .take()
+                    .filter(|_| matches!(self.names.pool.get(ty), TyData::Fn { .. }));
+                fn_lifetimes.push(inputs.unwrap_or_default());
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
                 // tuple type, or a type parameter bounded by `Tuple`.
                 if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
@@ -4620,6 +4637,9 @@ impl Lower<'_, '_, '_> {
         if lifetimes.iter().all(|l| *l == 0) {
             lifetimes = Vec::new();
         }
+        if fn_lifetimes.iter().flatten().all(|l| *l == 0) {
+            fn_lifetimes = Vec::new();
+        }
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
@@ -4634,6 +4654,7 @@ impl Lower<'_, '_, '_> {
             variadic,
             mut_self,
             lifetimes,
+            fn_lifetimes,
             paths,
         }
     }
@@ -6875,6 +6896,7 @@ fn lower_aliases(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                fn_inputs: None,
                 held: None,
                 in_field: false,
                 locals: &locals[mi],
@@ -6945,6 +6967,7 @@ fn lower_aliases(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                fn_inputs: None,
                 held: None,
                 in_field: false,
                 locals: &locals[mi],
@@ -8467,6 +8490,7 @@ pub fn build_folder(
                     result_paths: None,
                     kind_reported: HashSet::default(),
                     slots: None,
+                    fn_inputs: None,
                     held: None,
                     in_field: false,
                     locals: &locals,
@@ -8608,6 +8632,7 @@ pub fn build_folder(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                fn_inputs: None,
                 held: None,
                 in_field: false,
                 locals: &[],
@@ -8750,6 +8775,7 @@ fn own_trait_generics(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                fn_inputs: None,
                 held: None,
                 in_field: false,
                 locals: &locals,
@@ -8961,6 +8987,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                     variadic: sig.variadic,
                     mut_self: sig.mut_self,
                     lifetimes: sig.lifetimes.clone(),
+                    fn_lifetimes: sig.fn_lifetimes.clone(),
                     paths: sig.paths.clone(),
                 };
                 fwd.push(Item::new(
@@ -9030,6 +9057,7 @@ fn own_trait_supers(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                fn_inputs: None,
                 held: None,
                 in_field: false,
                 locals: &locals,

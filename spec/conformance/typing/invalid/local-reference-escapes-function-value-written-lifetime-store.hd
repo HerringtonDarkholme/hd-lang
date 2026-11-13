@@ -1,0 +1,10 @@
+# test: a function value's result stored into a `&mut T` place is checked at the call that builds it
+# Spec 07 Function Types: fn.type.lifetime.call.written. `*d = f(&q)` would
+# put a value built from `q` into the caller's `T` place, but `f(&q)`
+# already passes `&q` at `'a`, which `q` does not outlive.
+struct Point:
+    x: i32
+
+fn bad3['a, T](f: fn(&'a Point) -> T, d: &mut T, p: &'a Point) -> void:
+    q := Point { x: 1 }
+    *d = f(&q) # diagnostic: local-reference-escapes

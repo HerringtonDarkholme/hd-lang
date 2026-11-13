@@ -438,6 +438,7 @@ fn too_complex_case(
         variadic: false,
         mut_self: false,
         lifetimes: Vec::new(),
+        fn_lifetimes: Vec::new(),
         paths: Vec::new(),
     };
     let item = Item::new(
@@ -550,6 +551,7 @@ fn check_case(
         variadic: false,
         mut_self: false,
         lifetimes: Vec::new(),
+        fn_lifetimes: Vec::new(),
         paths: Vec::new(),
     };
     let item = Item::new(
@@ -754,6 +756,7 @@ fn check_registration(
         variadic: false,
         mut_self: false,
         lifetimes: Vec::new(),
+        fn_lifetimes: Vec::new(),
         paths: Vec::new(),
     };
     let item = Item::new(
