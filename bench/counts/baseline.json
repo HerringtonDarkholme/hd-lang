@@ -116,8 +116,8 @@
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
       "released": "614481",
-      "uniques": "2768400",
-      "total": "3382881",
+      "uniques": "2476270",
+      "total": "3090751",
       "noOpsAndSkipped": "21099052"
     },
     {
