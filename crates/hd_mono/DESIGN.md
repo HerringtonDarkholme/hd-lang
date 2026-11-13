@@ -19,7 +19,7 @@ interfaces and does not reach around them:
 | types and rows | `hd_types` | the intern pool, stable paths for every `DefId`, and `StableHash` |
 | init order | `InitOrder` | statement order per module cycle |
 | test plan | `hd_driver` | test programs and their statically registered cases |
-| cache | `hd_cache` | `CacheStore`, the key rules of crates/hd_cache/DESIGN.md §5.3, entry framing, eviction; the back half's kinds are `code` and `link` |
+| cache | `hd_cache` | `CacheStore`, the key rules of crates/hd_cache/DESIGN.md §5.3, entry framing, eviction; the back half writes `link` and, for std bodies in a dev build, `owned` (`code` entries are planned, #49) |
 | scheduler | `hd_sched` | `TaskKind::Ext` tasks with dependencies on frontend tasks |
 | diagnostics | `hd_diag` | the `Diagnostic` record for the back half's own errors, such as instantiation depth |
 | determinism | | content order, local counters, no IDs in output or keys |
@@ -36,12 +36,9 @@ interfaces and does not reach around them:
                        Collect(P): reachability over TIR + impl tables
                                   │ instance set {(item, type args)}, content-ordered
                                   ▼
-                       Emit(inst): emit every missed instance,
-                                    choose layouts, write Wasm ═════════► [code]     one per instance, parallel
-                                  │ body bytes + symbolic relocations
-                                  ▼
-                       Link(P): fold identical bodies, assign indices,
-                                build types/globals/data, patch relocations ═► [link entry] = Wasm bytes
+                       Link(P): emit every instance, choose layouts,
+                                assign indices, build types/globals/data,
+                                run the link-time cleanup ═══════════════► [link entry] = Wasm bytes
                                   │
             ┌─────────────────────┴──────────────────────────┐
             ▼ native (hd_run_wasmtime)                        ▼ browser (hd_web + generated JS glue)
@@ -57,21 +54,29 @@ no IDs, no thread counts. Fold at link is not built (§13.7), and
 `Precompile` and `RunCase` are scheduled but empty: `hd_run_wasmtime`
 compiles and runs outside the task graph.
 
+Implementation differs: there is no `Emit` task and no `code` entry.
+`Link` emits every instance of the program in one task, on one thread
+(`hd_wasm::build`), so every miss of the `link` entry emits the whole
+program again. The per-folder-group `Emit` and its code packs described
+below in §11.2, §11.3 and §13.8 are planned, not built (#49, point 4).
+
 ### 11.2 Stages
 
 | Stage | Input | Output | Unit | Parallel | Cached | Key |
 | --- | --- | --- | --- | --- | --- | --- |
-| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set; code-entry hits and folder groups with misses | program | serial per program; programs in parallel | inside `link` | none |
-| Emit | one folder group's missed instances: generic TIR, substitutions, and callees' TIR | Wasm body bytes, relocations, site and line records | folder group (`codepack`) | groups in parallel | `code` entries in `codepack` | §13.8 |
-
-A folder group is the folder of an instance's item. Its code is one
-`codepack` entry (crates/hd_cache/DESIGN.md §5.4, "Code packs").
-| Link | code entries of the instance set | one Wasm module with its custom sections | program | serial per program; fold hashing in parallel | `link` | §13.10 |
+| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | serial per program | inside `link` | none |
+| Link | the instance set and its owned bodies | one Wasm module with its custom sections | program | serial | `link` | §13.10 |
 | Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 
+Planned, not built (#49, point 4): an `Emit` stage per folder group (the
+folder of an instance's item) that writes each missed instance's Wasm
+body, relocations and line records into one `codepack` entry
+(crates/hd_cache/DESIGN.md §5.4), groups in parallel, and a `Link` that
+reads code entries.
+
 There is no MIR stage: the checker's TIR is the input of `Collect` and
-`Emit`.
+`Link`.
 
 ### 11.3 Tasks
 
@@ -80,8 +85,7 @@ The back half's tasks are `TaskKind::Ext` tasks (crates/hd_sched/DESIGN.md §6.1
 ```rust
 pub enum ExtTask {   // hd_sched
     Collect,         // after the check entry of every module the program can reach
-    Emit(u32),       // created by Collect, one per folder group with a miss
-    Link,            // after every Emit of its program
+    Link,            // created by Collect: emits and links the program
     Precompile,      // scheduled, no work yet
     RunCase(u32),    // scheduled, no work yet
 }
@@ -91,10 +95,10 @@ pub enum ExtTask {   // hd_sched
   program's roots reach in the module use graph exist, and after the
   `HeaderCheck` task of every folder they reach (crates/hd_sched/DESIGN.md §6.1). That set comes
   from the manifest's use lists, so it is known before any check runs.
-- `Collect` looks up every code entry itself. It reuses hits and creates
-  one `ExtTask::Emit(GroupId)` for each folder group with at least one
-  miss. The task emits that group's missed instances as a batch, and the
-  group is the `codepack` unit of crates/hd_cache/DESIGN.md §5.2.
+- `Collect` looks up the program's `link` entry by the program fast key
+  below. On a miss it collects the instance set and creates one `Link`.
+  Planned, not built (#49, point 4): code-entry lookups in `Collect` and
+  one `Emit` per folder group with a miss.
 - **The program fast key.** Before `Collect`, the driver computes
 
   ```text

@@ -389,9 +389,11 @@ exports (crates/hd_run_wasmtime/DESIGN.md §16.4).
 
 Continuing §7.9:
 
-1. "Run" in the compiler worker: check, then `Collect`, `Emit` and `Link`
-   in `hd_web` with the serial scheduler. The `MemoryStore` holds code
-   entries, so a second run after a small edit re-emits few instances.
+1. "Run" in the compiler worker: check, then `Collect` and `Link` in
+   `hd_web` with the serial scheduler. The `MemoryStore` holds `check`
+   and `link` entries, so a second run with no edit reads the linked
+   module, and one after an edit emits the whole program again (code
+   entries are planned, #49 point 4).
 2. Browser providers (`host/web.ts` over `host/core.ts`): `Console` to
    the page, `Clock` and `Random` from the platform, same-origin `Http`
    as a synchronous `XMLHttpRequest`, `TestRunner.temp_dir`, and test

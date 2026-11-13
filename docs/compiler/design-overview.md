@@ -41,7 +41,7 @@ Part of the [compiler design](ARCHITECTURE.md).
                                           │
                                    PackageResult ──► InitOrder(F) ═► [graph: init]
                                           │
-                                   Collect ─► Emit per instance ═► [code] ─► Link ═► [link]
+                                   Collect ─► Link: emit and link the whole program ═► [link]
 ```
 
 `═══►` marks a cache boundary. Every boundary is content-addressed through
@@ -72,7 +72,13 @@ edit from one key.
 | Coherence | impl heads of the traits whose `coh_key` changed | `overlapping-impl` | one task per changed trait | `coh` part of `graph` | trait path plus sorted head hashes |
 | Init order | init summaries of a folder's modules | statement order, `top-level-read-before-initialization` | folder | `init` part of `graph` | `init_key` |
 | Package result | all of the above | sorted diagnostics, summary | package | no | |
-| Collect, Emit, Link | TIR, interfaces | Wasm | program, instance, program | `codepack` per folder group, `link` per program | `code_key`, `prog_key` |
+| Collect, Link | TIR, interfaces | Wasm | program | `link` per program; `owned` per std body in a dev build | `prog_key`; `owned_std_key` |
+
+Planned, not built: per-instance code entries packed per folder group
+(`codepack`, `packhint`) and one `Emit` task per folder group with a miss
+(#49, point 4). Today `Link` emits and links every function of the
+program in one task on one thread (`hd_wasm::build`), and no code entry
+is written.
 
 Implementation differs: one `Coherence` task, not one per trait
 (`crates/hd_driver/src/lib.rs`, `fn coherence`). It runs when any
@@ -110,8 +116,7 @@ Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) �
 - `PackageResult` waits for every header check, `Coherence` and module
   finish. It creates one `InitOrder(F)` per built
   folder, and, for a program with no error, `Collect` after them.
-  `Collect` creates one `Emit` per folder group with a code-entry miss
-  and a `Link` after them.
+  `Collect` creates one `Link`, which emits and links the whole program.
 - A file is parsed on demand, by the task that first needs its tree,
   and at most once per run. `hd check` and `hd doc` also add a
   `Parse(f)` task per file.

@@ -831,14 +831,14 @@ The keys are recomputed from the skims, not stored.
 | `graph` | one part: a folder's header findings (`hdr`), the coherence result (`coh`) or a folder's init order (`init`) |
 | `depfiles` | the embedded std's file skims; a source set's last-run record (§3.20.3) |
 | `parse` | empty: the source parses cleanly |
-| `codepack` | one folder group's Wasm code (§3.22) |
-| `packhint` | each folder group's recent `codepack` keys, per package |
 | `link` | the linked module |
+| `owned` | one std body after the ownership passes, in a dev build |
 | `clpack` | one module's Cranelift machine code: per function, Cranelift's key and its serialized code |
 
 Positions in `check` entries are relative to code lines (§3.7), so
 emission never needs the syntax tree. The kinds `check-test`, `pkgres`,
-`cwasm` and `code` are declared in `EntryKind` but not written; `clpack`
+`cwasm`, `code`, `codepack` and `packhint` are declared in `EntryKind`
+but not written; `clpack`
 holds one module's Cranelift machine code
 ([engines §18.2](engines-and-test-runner.md#182-compile-caches)).
 
@@ -885,24 +885,29 @@ key). An index maps `(item, sub, args, known)` to the instance.
 
 - **Dedup in run IDs, keys in content.** Collection dedups by run IDs
   and computes the 128-bit instance key once per new instance. The key
-  sorts the set and names the code entry.
+  sorts the set (and would name the planned code entry).
 
-**Code entry** (`hd_wasm::Code`): parameter and result types, the body
+Planned, not built (#49, point 4): a code entry per instance and a
+`codepack` per folder group (crates/hd_cache/DESIGN.md §5.4). Today
+`Link` emits every instance of the program in one task, and nothing
+between collection and the linked module is cached.
+
+**Code entry**, as designed: parameter and result types, the body
 bytes (locals and instructions, index immediates as 5-byte padded LEBs),
 relocations sorted by offset, line anchors, and a suspending instance's
 other functions.
 
-**Code packs.** A folder group's code entries are one `codepack`
-entry, never files of their own (crates/hd_cache/DESIGN.md §5.4). Its
-first section lists the code keys. Its second is `encode_codes`: one
-type table, one table of relocation targets, then the entries. A
-relocation is 8 bytes, its offset and its target's index. So a target
-that several functions of the group call is written once.
+**Code packs**, as designed: a folder group's code entries are one
+`codepack` entry, never files of their own. Its first section lists the
+code keys. Its second holds one type table, one table of relocation
+targets, then the entries. A relocation is 8 bytes, its offset and its
+target's index. So a target that several functions of the group call is
+written once.
 
 ### 3.23 Wasm Emission Buffers
 
-One `Emit` task writes one instance's Wasm and its relocations; `Link`
-writes the module. Emission state (`hd_wasm::emit::Em`) is made per
+`Link` emits every instance of the program and writes the module, in
+one task. Emission state (`hd_wasm::emit::Em`) is made per
 instance: the assembler buffer, value and local maps, the control stack,
 cleanup scopes and suspension state.
 

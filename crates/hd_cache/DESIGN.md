@@ -30,14 +30,16 @@ says.
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
 | `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file); per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that missed its result | every later run (§5.5) |
-| `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
-| `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
 | `owned` | one std body after the ownership passes, in the wire form's owned section, and its hash; keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423) | `Collect`, after the passes on a miss | `Collect`, before running them |
 | `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
 
-`EntryKind` also names `check-test`, `pkgres`, `cwasm` and `code`; no
-code writes them.
+`EntryKind` also names `check-test`, `pkgres`, `cwasm`, `code`,
+`codepack` and `packhint`; no code writes them. `code_key`,
+`codepack_key` and `packhint_key` are defined, and only their own tests
+call them. The per-group code cache left with the Wasm GC backend
+(`dc358a56e`); `Link` emits the whole program on every miss of its `link`
+entry. Planned, not built: code packs again (§5.4, #49 point 4).
 
 **Sections, not files.** A file costs hundreds of µs to publish and tens
 to over a hundred to open on macOS, more than the work inside most small
@@ -426,11 +428,12 @@ obj/
   retired storage layout; GC retires them once `pack-v1` exists. Old
   binaries racing that cleanup still see ordinary cache misses.
 
-**Planned logical code packs.** These are distinct from physical data packs.
-Current producers write Parse, Check, Iface, Graph, Depfiles and Link; the
-older Codepack/Packhint emit-and-collect plan below is not implemented.
-Code is stored in one `codepack` per folder group, so a
-build reads and publishes tens of files instead of one per instance.
+**Planned logical code packs (#49, point 4).** These are distinct from
+physical data packs. Current producers write `parse`, `check`, `iface`,
+`graph`, `depfiles`, `link`, `owned` and `clpack`; the `codepack` and
+`packhint` design below is not built. In it, code is stored in one
+`codepack` per folder group, so a build reads and publishes tens of files
+instead of one per instance.
 - **The key** is the group's code keys in content order
   (`codepack_key`). Two programs that use the same instances of a
   folder share its pack.
@@ -958,8 +961,9 @@ back in one transaction.
 On macOS a publish costs about 340 µs and an open and read 60 to 120 µs
 (under load), and a Linux runner is likely 5 to 20 times cheaper. With
 one file per entry, a warm one-function edit opens one `check` entry per
-module, publishes the edited module's `check`, and on a build opens one
-`codepack` per folder group (§5.4). The stat manifest (§5.5) keeps
+module, publishes the edited module's `check`, and on a build misses the
+program's `link` entry and emits the whole program again (code packs per
+folder group are planned, §5.4). The stat manifest (§5.5) keeps
 source reads to the changed files; the planned early cutoff (§5.3.1)
 exists to cut the entry counts to a few files per edit.
 

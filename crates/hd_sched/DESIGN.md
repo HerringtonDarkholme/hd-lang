@@ -14,7 +14,7 @@ pub enum TaskKind {                         // payloads: dense run IDs (file, fo
     FolderIface(u32), HeaderCheck(u32),
     ModulePrep(u32), Body(u32), ModuleFinish(u32),
     Coherence, InitOrder(u32), PackageResult,
-    Ext(ExtTask),                           // Collect, Emit(group), Link, Precompile, RunCase(case)
+    Ext(ExtTask),                           // Collect, Link, Precompile, RunCase(case)
 }
 struct TaskNode { kind, waiting_on: u32, successors: Vec<TaskId>, state, priority: u32 }
 pub struct TaskGraph { nodes: Vec<TaskNode>, ready: VecDeque<TaskId> }
@@ -30,13 +30,14 @@ owns what each task does.
   per built module and a held `PackageResult`; `ModulePrep` adds `Body`
   and `ModuleFinish` on a cache miss; `PackageResult` looks up the
   package's `graph` entry and, on a miss, adds one `Coherence` and one
-  `InitOrder` per folder, then `Collect` after them. `Collect` performs the `codepack` lookups and adds a held
-  `Link`; for each folder group with at least one miss it creates one
-  `ExtTask::Link`, which emits and links the whole linear-memory module.
-  The folder group is the folder of the instance's item, the `codepack`
-  cache unit
-  (crates/hd_cache/DESIGN.md §5.2). An edge from a task that is already
-  done counts as satisfied at once.
+  `InitOrder` per folder, then `Collect` after them. `Collect` looks up
+  the program's `link` entry; on a miss it collects the instances and
+  adds one `ExtTask::Link`, which emits and links the whole module on one
+  thread. `Precompile` and `RunCase` are scheduled but do nothing.
+  Planned, not built: one `Emit` task per folder group with a code-entry
+  miss, the `codepack` cache unit (crates/hd_cache/DESIGN.md §5.4, #49
+  point 4). An edge from a task that is already done counts as satisfied
+  at once.
 - **The creation guard.** `add_held` creates a task with one extra wait
   count, dropped by `release`, so edges added after creation cannot race
   its start (docs/compiler/data-structures.md §3.21). An edge into a
