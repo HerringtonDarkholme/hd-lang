@@ -115,21 +115,7 @@ pub(super) fn run(
             continue;
         }
         let (block, position) = if info.at == At::Operation {
-            let block = topo.blk[target as usize];
-            let mut position = topo.pos[target as usize] + 1;
-            // A borrowed result becomes owned before any operation cleanup
-            // can end its source argument. Keep its value retain first.
-            if b.record(b.data[block as usize][0])
-                .get(position as usize)
-                .is_some_and(|&next| {
-                    b.tags[next as usize] == Tag::Retain
-                        && b.data[next as usize][0] == target
-                        && Info::read(b, next as usize).is_some_and(|c| c.at == At::Value)
-                })
-            {
-                position += 1;
-            }
-            (block, position)
+            (topo.blk[target as usize], topo.pos[target as usize] + 1)
         } else {
             (target, 0)
         };

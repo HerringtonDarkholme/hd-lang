@@ -101,7 +101,6 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         reference_values: &reference_values,
     };
     decided(b, &mut errs);
-    crate::own::return_loan::verify(b, own, |at, message| err(&mut errs, at, message));
     retained_results(b, own, &topo, &mut errs);
     crate::own::counts::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
     crate::own::overwrites::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
@@ -148,7 +147,6 @@ fn borrowed_wrappers(b: &Body, errs: &mut Vec<VerifyError>) {
 /// immediately after construction and before a source owner can be dropped.
 fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let results = crate::own::retains::results(b, cx, topo);
-    let returned = crate::own::retains::returned_ends(b, cx, topo, Tag::LoanEnd);
     for i in 0..b.len() {
         if results[i] {
             let block = topo.blk[i];
@@ -160,8 +158,8 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
                 .flatten()
                 .copied();
             // A count that a `LoanEnd` ended is no count to take.
-            let handed = returned[i].is_some()
-                || crate::own::retains::handed(b, cx, topo, &results, i, Tag::LoanEnd).is_some();
+            let handed =
+                crate::own::retains::handed(b, cx, topo, &results, i, Tag::LoanEnd).is_some();
             if !handed
                 && !next.is_some_and(|next| {
                     b.tags[next as usize] == Tag::Retain

@@ -1368,7 +1368,6 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         },
         Helper::DynSlot {
             target: Hash128(8),
-            retained_result: Some(crate::layout::Walk::Known(0)),
             leaves: None,
             params: vec![Val::I64, Val::F64],
             results: vec![Val::I32],
@@ -1378,7 +1377,6 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         },
         Helper::DynRead {
             target: Hash128(8),
-            retained_result: Some(crate::layout::Walk::Known(0)),
             read: RefRead {
                 value: RefLayout {
                     size: 4,

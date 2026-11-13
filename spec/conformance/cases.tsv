@@ -6730,7 +6730,6 @@ runtime/valid/inlined-constant-arithmetic.hd	runtime	accept	std/num.md#r-std-num
 runtime/valid/readonly-optional-tag-lends-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.place
 runtime/valid/function-value-copy-inputs-preserve-owners.hd	runtime	accept	std/collections.md#uniqlist
 runtime/valid/cold-function-value-copy-inputs-keep-owners.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
-runtime/valid/a-returned-parameter-keeps-its-callers-lifetime.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

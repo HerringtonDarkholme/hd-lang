@@ -145,12 +145,7 @@ pub fn adjacent(b: &Body, topo: &Topology, target: u32, statement: u32) -> bool 
     let previous = b.record(b.data[topo.blk[i] as usize][0])[(topo.pos[i] - 1) as usize];
     previous == target
         || (b.data[previous as usize][0] == target
-            && Info::read(b, previous as usize).is_some_and(|c| {
-                c.at == At::Operation
-                    || (c.at == At::Value
-                        && c.part == Part::Result
-                        && b.tags[previous as usize] == Tag::Retain)
-            }))
+            && Info::read(b, previous as usize).is_some_and(|c| c.at == At::Operation))
 }
 
 /// Reads one action from the adjacent count bundle, without scanning a body.

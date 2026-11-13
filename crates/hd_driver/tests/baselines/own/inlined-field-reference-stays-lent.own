@@ -71,10 +71,10 @@ fn identity['a](target: &'a i32) -> &'a i32:
     target
 > app/main/identity
 >   local $0 target: &i32 [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : &i32
+>     uses $0: entry -> %0 consume last
+>   %0 = Read copy [$0] : &i32
 >   %1 = Block %0 : &i32
->   summary kept [] returns $0
+>   summary kept [$0] returns $0
 
 @inline(.Never)
 fn project['a](point: &'a Point) -> &'a i32:

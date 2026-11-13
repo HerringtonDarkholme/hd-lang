@@ -64,12 +64,13 @@ impl Vec2:
     fn keep(*self) -> *Vec2:
 > app/main/impl Vec2.keep
 >   local $0 self: *Vec2 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %2 Exit local $0 #2 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $0 #0 : ()
         self
->   %1 = Read borrow [$0] : *Vec2
+>   %1 = Read move [$0] : *Vec2
 >   %2 = Block %1 : *Vec2
->   summary kept [] borrows [$0] returns $0
+>   exit sub 0 drops [$0]
+>   summary kept [$0] returns $0
 
 fn make(s: string) -> Vec2:
 > app/main/make
@@ -244,15 +245,15 @@ fn mut_self(v: Vec2, n: string) -> usize:
 fn counted(b: *Vec2) -> usize:
 > app/main/counted
 >   local $0 b: *Vec2 [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %1 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %5 -> %6 lend last
->   %0 = Release %12 Exit local $0 #2 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
     b.keep().name.len()
->   %1 = Read borrow [$0] : *Vec2
+>   %1 = Read move [$0] : *Vec2
 >   %2 = Call app/main/impl Vec2.keep[] (%1) : *Vec2
 >   %3 = Read copy [*%2 .name] : string
->   %4 = LoanEnd [%2] : ()
+>   %4 = Drop [%2] : ()
 >   %5 = Store [$1] %3 : ()
 >   %6 = Read borrow [$1] : string
 >   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
@@ -261,4 +262,5 @@ fn counted(b: *Vec2) -> usize:
 >   %10 = Scope %9 [] : usize
 >   %11 = Drop [$1] : ()
 >   %12 = Block %10 : usize
->   summary kept [] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]

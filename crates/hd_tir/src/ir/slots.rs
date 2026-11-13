@@ -127,9 +127,6 @@ fn layout(tag: Tag) -> [Layout; 2] {
 pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
     let tag = b.tags[i];
     let mut layouts = layout(tag);
-    if tag == Tag::Return && b.data[i][1] == super::return_word::BORROWED {
-        layouts[0] = L::One(Word::Value(Role::Lend));
-    }
     // A coercion that keeps its operand's values takes its count.
     if b.same_value_coercion(i) {
         layouts[0] = L::One(Word::Value(Role::Consume));

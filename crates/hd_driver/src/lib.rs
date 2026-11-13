@@ -1611,10 +1611,6 @@ struct Run<'a> {
     /// Selected cold parameter types and whether the slot lends its receiver,
     /// keyed by the fixed-width callee record.
     own_cold: Mutex<HashMap<Vec<u32>, Option<own::ColdSignature>>>,
-    /// Checked-body pass-through result facts, independent of summary order.
-    own_return_shapes: Mutex<HashMap<DefId, Arc<OnceLock<Option<u8>>>>>,
-    /// Borrowed-result layout eligibility at a concrete instance, queried once.
-    own_return_layouts: Mutex<HashMap<own::Node, Arc<OnceLock<Option<u8>>>>>,
     /// The release summaries of the bodies the passes ran over
     /// (`own.rs`); `None` in a dev build, which computes none.
     summaries: Option<own::Summaries>,
@@ -2640,8 +2636,6 @@ fn build_packages_inner(
         copy_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         own_cold: Mutex::new(HashMap::default()),
-        own_return_shapes: Mutex::new(HashMap::default()),
-        own_return_layouts: Mutex::new(HashMap::default()),
         summaries: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"summaries")
@@ -12878,12 +12872,6 @@ impl ProgramEnv for Env<'_> {
     }
     fn lends(&self, item: DefId, args: TyList) -> u64 {
         self.lent_mask(self.node(item, args))
-    }
-    fn pass_through_parameter(&self, item: DefId) -> Option<u8> {
-        self.return_loan_shape(item)
-    }
-    fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8> {
-        self.return_loan_layout(item, args)
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug

@@ -391,10 +391,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                     {
                         ops.push(format!("{op:?}"));
                     }
-                    Op::Meta if tag == Tag::Return && word == NONE => {}
-                    Op::Meta if tag == Tag::Return && word == hd_tir::ir::return_word::BORROWED => {
-                        ops.push("borrowed".into());
-                    }
                     Op::Meta => ops.push(format!("#{word}")),
                     Op::Values | Op::Blocks | Op::Record => {
                         if word == NONE {

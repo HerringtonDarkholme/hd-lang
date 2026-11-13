@@ -949,16 +949,13 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
                 (ct.item, ct.args),
                 ct.ret,
                 Sym::Inst(ct.key),
-                (
-                    input.env.lends(ct.item, ct.args),
-                    input.env.return_loan_parameter(ct.item, ct.args).is_some(),
-                ),
+                input.env.lends(ct.item, ct.args),
             )
         }
         target => {
             let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
-            forward(input, m, item, (item, args), ret, sym, (0, false))
+            forward(input, m, item, (item, args), ret, sym, 0)
         }
     }
 }
@@ -1024,7 +1021,7 @@ fn forward(
     (callee, cargs): (DefId, TyList),
     ret: Ty,
     sym: Sym,
-    (lends, borrowed_result): (u64, bool),
+    lends: u64,
 ) -> StageResult<Func> {
     let (pool, env) = (input.pool, input.env);
     let mut params = vec![Val::I32];
@@ -1096,11 +1093,6 @@ fn forward(
         f.get(c);
     }
     f.call(sym);
-    if borrowed_result {
-        let walk = crate::layout::walk(pool, env, ret);
-        let results = f.results.clone();
-        crate::rt::retain_slot_result(&mut f, &results, walk.as_ref());
-    }
     if !lent.is_empty() {
         let out: Vec<u32> = f.results.clone().into_iter().map(|v| f.local(v)).collect();
         for &l in out.iter().rev() {
@@ -2633,7 +2625,7 @@ impl Em<'_, '_, '_> {
                     self.f.op(Instruction::Unreachable);
                     return Ok(());
                 }
-                self.ret_value(a, bw == hd_tir::ir::return_word::BORROWED)?;
+                self.ret_value(a)?;
             }
             Tag::Unreachable => self.f.op(Instruction::Unreachable),
             Tag::Scope if !self.rec(bw).is_empty() => self.scope(i, a, bw)?,

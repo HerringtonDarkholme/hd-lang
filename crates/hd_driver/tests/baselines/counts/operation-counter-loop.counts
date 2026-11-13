@@ -23,7 +23,7 @@ pub fn main() -> void $ Console:
         if EXTRA:
 >   release *string (last use)
             extra := duplicate(root)
->   retain *string (stored)
+>   retain *mut string (stored)
             total += length(extra)
         else:
             total += length(root)

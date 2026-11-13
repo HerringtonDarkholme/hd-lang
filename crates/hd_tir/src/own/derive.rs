@@ -628,8 +628,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 // `&dyn` counts nothing, and the checker keeps its referent
                 // unchanged while it lives (`ref.count.local`).
                 Role::Consume if tag == Tag::Coerce && super::dyn_view(b, cx, i).is_some() => false,
-                Role::Consume => true,
-                Role::Tail => consumes(b, cx, i, op, NONE),
+                Role::Consume | Role::Tail => true,
                 Role::Arg(_) => consumes(b, cx, i, op, NONE),
                 Role::Dropped => false,
                 // A reference into the value's own storage outlives the read;
@@ -643,7 +642,6 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 Role::Lend => !matches!(
                     tag,
                     Tag::Read
-                        | Tag::Return
                         | Tag::Store
                         | Tag::IsUnique
                         | Tag::Prim

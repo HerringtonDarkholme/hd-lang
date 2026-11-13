@@ -21,13 +21,14 @@ fn read(value: &i32) -> i32:
 @cold
 > app/main/keep
 >   local $0 value: *i32 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %2 Exit local $0 #2 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $0 #0 : ()
 fn keep(value: *i32) -> *i32:
     value
->   %1 = Read borrow [$0] : *i32
+>   %1 = Read move [$0] : *i32
 >   %2 = Block %1 : *i32
->   summary kept [] borrows [$0] returns $0
+>   exit sub 0 drops [$0]
+>   summary kept [$0] returns $0
 
 @cold
 fn lend_view() -> fn(*i32) -> i32:
@@ -49,12 +50,13 @@ fn nested_view(values: List[fn(&i32) -> i32]) -> List[fn(*i32) -> i32]:
 > app/main/nested_view
 >   local $0 values: List[fn(&i32) -> i32] [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Release %3 Exit local $0 #2 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
     values
->   %1 = Read borrow [$0] : List[fn(&i32) -> i32]
+>   %1 = Read move [$0] : List[fn(&i32) -> i32]
 >   %2 = Coerce %1 [Variance -] : List[fn(*i32) -> i32]
 >   %3 = Block %2 : List[fn(*i32) -> i32]
->   summary kept [] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]
 
 @cold
 > app/main/invoke

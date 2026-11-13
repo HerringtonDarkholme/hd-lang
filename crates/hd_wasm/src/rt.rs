@@ -355,7 +355,6 @@ pub enum Helper {
     /// it after the call, including its Drop hooks.
     DynSlot {
         target: Hash128,
-        retained_result: Option<Walk>,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
         results: Vec<Val>,
@@ -368,7 +367,6 @@ pub enum Helper {
     /// that address, calls `target`, then releases the value read.
     DynRead {
         target: Hash128,
-        retained_result: Option<Walk>,
         read: RefRead,
         params: Vec<Val>,
         results: Vec<Val>,
@@ -1302,7 +1300,6 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 #[allow(clippy::too_many_arguments)]
 fn dyn_read(
     target: Hash128,
-    retained_result: Option<&Walk>,
     read: &RefRead,
     params: &[Val],
     results: &[Val],
@@ -1330,33 +1327,11 @@ fn dyn_read(
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
-    retain_slot_result(&mut f, results, retained_result);
     if !recv_owned {
         ref_count(&mut f, &held, &read.value, false);
     }
     release_given(&mut f, own, given);
     f
-}
-
-/// Dynamic slots preserve their owned-result ABI even when the concrete
-/// function forwards a guaranteed argument. Take the count before ending
-/// any argument or receiver owner.
-pub(crate) fn retain_slot_result(f: &mut Func, results: &[Val], walk: Option<&Walk>) {
-    let Some(walk) = walk else { return };
-    let locals: Vec<_> = results.iter().map(|&v| f.local(v)).collect();
-    for &local in locals.iter().rev() {
-        f.set(local);
-    }
-    for &local in &locals {
-        f.get(local);
-    }
-    f.helper(Helper::Retain {
-        vals: results.to_vec(),
-        walk: walk.clone(),
-    });
-    for &local in &locals {
-        f.get(local);
-    }
 }
 
 /// Writes the literal `text` to standard error.
@@ -1964,7 +1939,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,
-            retained_result,
             leaves,
             params,
             results,
@@ -1995,30 +1969,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
-            retain_slot_result(&mut f, results, retained_result.as_ref());
             release_given(&mut f, own, given);
             f
         }
         Helper::DynRead {
             target,
-            retained_result,
             read,
             params,
             results,
             own,
             given,
             ctx,
-        } => dyn_read(
-            *target,
-            retained_result.as_ref(),
-            read,
-            params,
-            results,
-            own,
-            given,
-            ctx.as_ref(),
-            m,
-        ),
+        } => dyn_read(*target, read, params, results, own, given, ctx.as_ref(), m),
         Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::ListReserve { elem } => list_reserve(elem, m),
         Helper::ListExtend { elem } => list_extend(elem, m),
