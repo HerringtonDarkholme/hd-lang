@@ -1170,15 +1170,17 @@ impl Body {
                 .is_some_and(|h| self.tags[h as usize] == Tag::Read)
     }
 
-    /// Whether value `v` is a [`Body::same_value_coercion`] of a `borrow`
-    /// read, or a [`Body::wrapper_value`] that is one: a borrow too, which
-    /// holds no count.
+    /// Whether `v` forwards borrowed bits through a same-value coercion,
+    /// a wrapper, or a selection of whole parameter loans. It owns no count.
     #[must_use]
     pub fn is_borrowed_coercion(&self, v: u32) -> bool {
         self.borrowed_alias(v).is_some()
+            || self
+                .parameter_join_reads(v)
+                .is_some_and(|reads| reads.into_iter().all(|r| self.is_borrow(r)))
     }
 
-    /// The `borrow` read a [`Body::is_borrowed_coercion`] `v` keeps.
+    /// The one `borrow` read a coercion or wrapper keeps, when it has one.
     #[must_use]
     pub fn borrowed_alias(&self, v: u32) -> Option<u32> {
         if Ref(v).as_inst().is_none() || v as usize >= self.len() {
@@ -1214,10 +1216,109 @@ impl Body {
             .then_some(self.data[x][1])
     }
 
+    /// Whole parameter reads forwarded by a conditional value. The fixed
+    /// proof budget bounds both fan-out and depth; exceeding it leaves the
+    /// value owned. No source projection, frame address or native recursion.
+    #[must_use]
+    pub fn parameter_join_reads(&self, value: u32) -> Option<Vec<u32>> {
+        self.parameter_join_with(value, |_| true)
+    }
+
+    pub(crate) fn parameter_join_with(
+        &self,
+        value: u32,
+        mut permits: impl FnMut(u32) -> bool,
+    ) -> Option<Vec<u32>> {
+        const BUDGET: usize = 16;
+        // Ordinary values and scalar coercions take the old cheap path.
+        // Only a coercion chain that reaches a join allocates a worklist.
+        let mut head = value;
+        let mut found = false;
+        for _ in 0..BUDGET {
+            let i = Ref(head).as_inst()?.0 as usize;
+            match *self.tags.get(i)? {
+                Tag::If
+                | Tag::Match
+                | Tag::SwitchTag
+                | Tag::SwitchInt
+                | Tag::SwitchChar
+                | Tag::SwitchStr => {
+                    found = true;
+                    break;
+                }
+                Tag::Coerce if self.same_value_coercion(i) && permits(head) => {
+                    head = self.data[i][0];
+                }
+                _ => return None,
+            }
+        }
+        if !found {
+            return None;
+        }
+        let mut todo = vec![value];
+        let mut reads = Vec::new();
+        let mut joined = false;
+        let mut work = 0;
+        while let Some(v) = todo.pop() {
+            work += 1;
+            if work + todo.len() > BUDGET || Ref(v).as_inst().is_none() || !permits(v) {
+                return None;
+            }
+            let i = v as usize;
+            match *self.tags.get(i)? {
+                Tag::Read => {
+                    let p = self.view(self.data[i][0]);
+                    let l = p.local().filter(|_| p.whole())?;
+                    if self.local_flags[l as usize] & local_flags::PARAM == 0 {
+                        return None;
+                    }
+                    reads.push(v);
+                }
+                Tag::Coerce if self.same_value_coercion(i) => todo.push(self.data[i][0]),
+                Tag::Block => {
+                    let tail = self.data[i][1];
+                    if tail != NONE {
+                        todo.push(tail);
+                    } else if self.ty[i] != Ty::NEVER {
+                        return None;
+                    }
+                }
+                Tag::If
+                | Tag::Match
+                | Tag::SwitchTag
+                | Tag::SwitchInt
+                | Tag::SwitchChar
+                | Tag::SwitchStr => {
+                    // The schema visits every arm. Bound its record before
+                    // visiting it, so a wide switch cannot multiply scans.
+                    if self.record(self.data[i][1]).len() > BUDGET {
+                        return None;
+                    }
+                    joined = true;
+                    topo::for_blocks(self, i, |blk| {
+                        if crate::own::owner_takes_tail(self, v, blk) {
+                            todo.push(blk);
+                        }
+                    });
+                }
+                _ => return None,
+            }
+        }
+        (joined && !reads.is_empty()).then_some(reads)
+    }
+
+    /// A value that carries only loans, including a conditional selection
+    /// of whole parameter loans. Unlike `loan_read`, this need not have one
+    /// source read.
+    #[must_use]
+    pub fn loan_value(&self, v: u32) -> Option<u32> {
+        (self.is_borrow(v) || self.is_borrowed_coercion(v)).then_some(v)
+    }
+
     /// The `borrow` read whose value `v` is, itself or through a
     /// [`Body::is_borrowed_coercion`]: what a binding local that a `Store`
     /// of `v` fills holds (`crate::own::borrow`); `None` for any other
-    /// value.
+    /// value, including a selection with several source reads.
     #[must_use]
     pub fn loan_read(&self, v: u32) -> Option<u32> {
         if self.is_borrow(v) {

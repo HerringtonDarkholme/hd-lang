@@ -329,8 +329,18 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(x);
                     self.loans.insert(a);
                 }
-                // A borrowed read or lent field reference stores its loan.
-                Tag::Store if let Some(w) = self.b.loan_read(w) => {
+                Tag::If
+                | Tag::Match
+                | Tag::SwitchTag
+                | Tag::SwitchInt
+                | Tag::SwitchChar
+                | Tag::SwitchStr
+                    if self.b.is_borrowed_coercion(x) =>
+                {
+                    self.loans.insert(x);
+                }
+                // A borrowed read or selected parameter stores its loan.
+                Tag::Store if let Some(w) = self.b.loan_value(w) => {
                     let p = self.b.view(a);
                     let l = p.whole().then(|| p.local()).flatten().map(|l| l as usize);
                     // A borrow of all of another such local holds that
@@ -339,10 +349,11 @@ impl Em<'_, '_, '_> {
                     if let Some(l) = l
                         && self.loans.contains(&w)
                     {
-                        let from = self.b.data[w as usize][0];
-                        let held = (from & place::BARE_LOCAL != 0)
-                            .then(|| self.loan_locals.get(&bare_local(self.b, from)))
-                            .flatten()
+                        let read = self.b.loan_read(w);
+                        let from = read.map(|r| self.b.data[r as usize][0]);
+                        let held = from
+                            .filter(|from| from & place::BARE_LOCAL != 0)
+                            .and_then(|from| self.loan_locals.get(&bare_local(self.b, from)))
                             .copied();
                         self.loan_locals.insert(l, held.unwrap_or(w));
                     }

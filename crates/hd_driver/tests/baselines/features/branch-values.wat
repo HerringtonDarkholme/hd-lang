@@ -167,27 +167,12 @@
     local.get $c
     if (result i32)
       local.get $a.0
-      local.get $b.0
-      local.tee $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref
-      end
     else
       local.get $b.0
-      local.get $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref
-      end
       local.get $b.1
       local.set $a.1
     end
-    local.tee $a.0
-    if
-      local.get $a.0
-      call $rt:release_ref
-    end
+    drop
     local.get $a.1
   )
 )

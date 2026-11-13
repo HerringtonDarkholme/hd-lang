@@ -1,0 +1,40 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: conditional read-only selections take no count. A separate
+# owned use of any input prevents lending its connected selection group.
+use std.annotation.inline
+
+@inline(.Never)
+fn keep(s: string) -> List[string]:
+    [s]
+
+fn nested(c: bool, d: bool, a: string, b: string, e: string) -> usize:
+    selected := if c: (if d: a else: b) else: e
+    selected.len()
+
+fn matched(k: i64, a: string, b: string) -> usize:
+    selected := match k:
+        0 => a
+        1 => b
+        _ => a
+    selected.len()
+
+fn trapping(c: bool, a: string) -> usize:
+    selected := if c: a else: panic("unselected")
+    selected.len()
+
+fn connected(c: bool, a: string, b: string, d: string) -> usize:
+    x := if c: a else: b
+    y := if c: b else: d
+    kept := keep(d)
+    x.len() + y.len() + kept[0].len()
+
+fn returned(c: bool, a: string, b: string) -> string:
+    selected := if c: a else: b
+    selected
+
+# Nested bodies keep their own parameter and suspension ownership contract.
+fn closure() -> fn(bool, string, string) -> usize:
+    fn(c, a, b):
+        selected := if c: a else: b
+        selected.len()

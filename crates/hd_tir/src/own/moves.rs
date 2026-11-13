@@ -415,7 +415,7 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
                 }
             }
             // A binding local holds a borrowed value: it owns no count.
-            Tag::Store if b.loan_read(w).is_some() => {
+            Tag::Store if b.loan_value(w).is_some() => {
                 let p = b.view(a);
                 if let Some(l) = p.local().filter(|_| p.whole()) {
                     t.keep_l[l as usize] = true;
