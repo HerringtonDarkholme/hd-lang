@@ -2121,7 +2121,7 @@ impl Module {
             self.import_session(previous)?;
         }
         // Wide lowering can change signatures and add helpers: read the
-        // final ones for the stack heights of rule 19.
+        // final ones for the stack heights of rule 18.
         let arity = self.symbols.call_arities(&self.funcs);
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::blocks(f, &arity);

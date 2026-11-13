@@ -1,23 +1,28 @@
 //! Counting (`crates/hd_wasm/DESIGN.md` §23.16): every place that
-//! holds a counted reference owns one count, and the ownership passes
-//! (`docs/compiler/tir-v2.md`, "Stage 2") decided every count of a body
-//! ([`Em::owned`]); this module lowers their decisions to count glue and
-//! decides none itself. A `Read` copies, moves or borrows as its mode
+//! holds a counted reference owns one count. The ownership passes
+//! (`docs/compiler/tir-v2.md`, "Stage 2") decide the counts the body
+//! they ran on shows ([`Em::owned`]), and this module lowers those
+//! decisions to count glue: a `Read` copies, moves or borrows as its mode
 //! says, a `Drop` releases (and zeroes) a value or a local, a value moves
 //! into the one use that consumes it ([`Em::take_from`]), and the one exit
-//! releases the sub-body's exit set. A parameter is taken as
-//! `layout::Pass` says (§23.25), so a value parameter arrives with its
-//! count and a `&T` one is never counted.
+//! releases the sub-body's exit set. A `borrow` read takes no count, and a
+//! local a borrow is stored into holds none ([`Em::prepare_own_loans`]).
 //!
-//! What the backend still adds is glue for a lowering or an instance the
-//! generic body cannot see: an argument a callee instance owns but the
-//! passes lent takes a count (`push_args`), a parameter the caller lends
-//! takes one on entry when the body owns it (its exit set lists it), one
-//! the passes left unowned that an instance receives owned is released at
-//! the exit, and a cancelled suspension point releases the values the
-//! passes' unwind set lists for it, before the exit releases the exit set
-//! ([`Em::release_unwound`]). A `borrow` read takes no count, and a local
-//! a borrow is stored into holds none ([`Em::prepare_own_loans`]).
+//! It also decides counts of its own, by layout and by instance, which
+//! that body cannot show: TIR has no instantiation, so a generic local
+//! function and an instance past the leaf limit keep their generic body,
+//! and only the emitter knows each instance's layout.
+//! - A parameter is taken as `layout::Pass` says for the instance's
+//!   layout (§23.25), so a value parameter arrives with its count and a
+//!   `&T` one is never counted.
+//! - An argument a callee instance owns but the passes lent takes a count
+//!   (`push_args`).
+//! - A parameter the caller lends takes one on entry when the body owns
+//!   it (its exit set lists it), and one the passes left unowned that an
+//!   instance receives owned is released at the exit.
+//! - A cancelled suspension point releases the values the passes' unwind
+//!   set lists for it, before the exit releases the exit set
+//!   ([`Em::release_unwound`]).
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;

@@ -26,54 +26,54 @@
 //!    zero check of `x != 0`, `x >u 0` or `!!x` is one of `x`, a
 //!    multiplication, quotient or remainder by
 //!    a power of two is a shift or a mask, and a constant added to a load's
-//!    address is its offset (a store's is rule 9's);
-//! 9. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
+//!    address is its offset (a store's is rule 8's);
+//! 8. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
 //!    that pushes one value over what it found, is `R` and the store at
 //!    `c` more offset;
-//! 10. `X; local.set a; P; local.get a`, where those are `a`'s only write
-//!     and read, `X` is a straight-line run that pushes one value and `P`
-//!     pushes a local, a global or a constant that `X` cannot change, is
-//!     `P; X`;
-//! 11. a local no instruction names is not declared, and the others are
+//! 9. `X; local.set a; P; local.get a`, where those are `a`'s only write
+//!    and read, `X` is a straight-line run that pushes one value and `P`
+//!    pushes a local, a global or a constant that `X` cannot change, is
+//!    `P; X`;
+//! 10. a local no instruction names is not declared, and the others are
 //!     numbered again in order;
-//! 12. a release of zero, a redundant store of zero and an `if` with no
+//! 11. a release of zero, a redundant store of zero and an `if` with no
 //!     `else` on a local of zero go when forward local facts prove them
 //!     zero on every path, including loop backedges;
-//! 13. a `local.set` or `local.tee` of a local that no path reads before
+//! 12. a `local.set` or `local.tee` of a local that no path reads before
 //!     its next write goes, a set's value dropped: the zero a move leaves
 //!     in a local stays only where some release still reads it;
-//! 14. in `local.set t; R; local.get t`, with that get the first access
+//! 13. in `local.set t; R; local.get t`, with that get the first access
 //!     of `t` after the set and `R` a straight-line run (panic guards
 //!     included), a pure push before the set moves to the get when `t`
 //!     is dead after it; else, when `R` leaves the stack as it found it,
 //!     the get goes, the value staying under `R`, and the set goes too,
 //!     or becomes a tee when `t` is read again;
-//! 15. once the rules are done ([`coalesce`]), locals of one type whose
+//! 14. once the rules are done ([`coalesce`]), locals of one type whose
 //!     values are never live at once share one local, and a copy between
 //!     two locals that share one goes;
-//! 16. a `drop` takes back the instruction that pushed its value when
+//! 15. a `drop` takes back the instruction that pushed its value when
 //!     that instruction has no other effect: a push without operands goes
 //!     with it, a load or another operation that cannot trap becomes the
 //!     drop of its operands, and `local.tee t; drop` is `local.set t`. A
 //!     load cannot trap here: emitted code loads only from a place it
 //!     holds or an index it checked. An `if` with nothing in it drops its
 //!     test;
-//! 17. a count whose every operand is a constant, pushed directly, held
+//! 16. a count whose every operand is a constant, pushed directly, held
 //!     in a local that only constants are written to, or received by a
 //!     closed-world function at only constant call sites, goes
 //!     ([`static_values`], [`static_counts`]): a constant address is null
 //!     or static data;
-//! 18. `local.set r_k; ...; local.set r_1; br L`, where `L` is a block
+//! 17. `local.set r_k; ...; local.set r_1; br L`, where `L` is a block
 //!     whose `end` only `local.get r_1; ...; local.get r_k` follows to the
 //!     function's end, is `return`: the values the exit would read back
 //!     are on the stack already ([`exits`]);
-//! 19. a `br 0` straight before the `end` or `else` of a block or an `if`
+//! 18. a `br 0` straight before the `end` or `else` of a block or an `if`
 //!     goes when the stack holds exactly the label's values there, or no
 //!     more of them in unreachable code: it jumps where falling through
 //!     goes.
 //!     An `else` straight before the `end` of a void `if` goes, and a void
 //!     block that loses its last branch this way goes too ([`blocks`]);
-//! 20. a short-circuit value `if (result i32) X else i32.const K end`
+//! 19. a short-circuit value `if (result i32) X else i32.const K end`
 //!     (`&&` for K = 0, `||` for K = 1) whose result only feeds a
 //!     `br_if`, an `if`, or either after an `i32.eqz` is a chain of
 //!     branches: no join of the two arms, and no test of the joined value
@@ -1509,7 +1509,7 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
             in_copy[p + 1..k].fill(true);
         } else if level && !tee && !in_copy[k] && open.last().is_none_or(|&(_, e)| j <= e) {
             // The value stays under the run; a set read again later
-            // becomes a tee, unless the get feeds a copy, which rule 14
+            // becomes a tee, unless the get feeds a copy, which rule 13
             // moves instead.
             if !last && matches!(body.get(j + 1), Some(Ins::Op(I::LocalSet(_)))) {
                 continue;
@@ -1543,7 +1543,7 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
                 .or_else(|| origins.first(at..at + 1));
             origins.repeat(origin, 1);
         } else if dead_write(at) {
-            // A dead set drops its value; rule 16 takes back a pure push
+            // A dead set drops its value; rule 15 takes back a pure push
             // just before it.
             if matches!(ins, Ins::Op(I::LocalTee(_))) {
                 continue;
@@ -1950,7 +1950,7 @@ pub(crate) fn drops(f: &mut Func) -> bool {
 }
 
 /// How many operands `i` takes when it pushes one value and does nothing
-/// else (it cannot trap, a load aside, which rule 16 covers); `None` for
+/// else (it cannot trap, a load aside, which rule 15 covers); `None` for
 /// any other instruction.
 fn pure_operands(i: &I) -> Option<usize> {
     Some(match i {
@@ -2633,7 +2633,7 @@ fn with_offset(i: &I, by: u32) -> Option<I> {
     })
 }
 
-/// Remove control instructions that only fall through (rule 19), then unused void
+/// Remove control instructions that only fall through (rule 18), then unused void
 /// labels, after the passes that can empty their bodies. A direct
 /// stack-polymorphic instruction keeps its validation boundary. The walks
 /// cost O(N + T) for N instructions and T branch-table targets.
@@ -2909,7 +2909,7 @@ fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
     changed
 }
 
-/// The body after the first rewrite by rule 5, 6 or 20, if there is one.
+/// The body after the first rewrite by rule 5, 6 or 19, if there is one.
 fn shape_once(f: &mut Func, np: u32, arity: &Arity) -> Option<(Vec<Ins>, Remap)> {
     let (reads, writes) = counts(f);
     let b = &f.body;
@@ -5358,7 +5358,7 @@ mod origin_tests {
             });
             assert_eq!(zeros(&f), kept, "{:?}", f.body);
         }
-        // A dead set of a constant drops it, and rule 16 takes the push back.
+        // A dead set of a constant drops it, and rule 15 takes the push back.
         let f = run(
             tracked(
                 &symbols,

@@ -397,32 +397,31 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
 - **A list** is the address of its buffer, a counted object holding the
-  capacity, the length, the owner word and then the elements inline at
-  their layout's size. While the owner word is 0, the buffer's count is
-  its holder count, for copy-on-write: a change first checks it is 1 and
-  copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1). Once an element
-  reference pins the list, the owner word is set and one place holds the
-  buffer, so its other counts are pins, the second count of
-  the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §6.3 (§23.20).
+  capacity, the length, a reserved word and then the elements inline at
+  their layout's size. The buffer's count is its holder count, for
+  copy-on-write: a change first checks it is 1 and copies the buffer
+  otherwise (REFCOUNT_RUNTIME.md §9.1). An element reference counts
+  nothing and sets nothing in the buffer (§23.20, "Element references").
 - **A map** is the address of its table, one counted block that holds
   the entries in the order they were added and a probing index over them
-  (§23.18), with the owner word at the offset a list buffer has it, so
-  one copy glue (`rt:coll_copy`) reads it the same way for either.
+  (§23.18), with the reserved word at the offset a list buffer has it. A
+  copy of either is one more count of the buffer (`rt:coll_copy`).
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | capacity, in elements |
 | 4 | 4 | length |
-| 8 | 4 | the owner word: clone-glue table slot plus one once pinned (0 while shareable), with bit 31 recording transitive exposure; growth moves it to the new buffer |
+| 8 | 4 | reserved, always 0 (`rt::LIST_OWN`); it held a pinned list's owner word until element references stopped counting their buffer (#1336 phase 10) |
 | 16 | capacity times the element size | the elements, inline |
 
 The value is the buffer's address, not a header's, because every change
 that may replace the buffer (an `IsUnique` that copies it, a `push` that
 grows it, a put that grows a table, `list_truncate`) names the place it
 changes, and the emitter stores the new address there
-(`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). A pinned buffer
-never moves, since an element reference is an address in it, and a copy
-of a pinned list copies it at once.
+(`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). The ownership
+passes keep the list's holder alive and the checker forbids changing it
+while an element reference is live (`ref.elem.access.*`), so the buffer
+cannot move under one.
 
 ### 23.8 Closures, `dyn` And Vtables
 
@@ -724,11 +723,11 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   point inside the scope) and then leaves through the exit, whose exit
   set holds every local that may hold a value at a suspension point
   (`release_unwound`).
-- **Uniqueness and pins.** `IsUnique` lowers to `rt:list_unique` or
-  `rt:map_unique`, and `Pin` to the buffer's owner word (§23.20),
-  of the header at their place: a local's or a value's, then struct
-  fields, elements, bounds-checked, and dereferences
+- **Uniqueness checks.** `IsUnique` lowers to `rt:list_unique` or
+  `rt:map_unique` of the header at its place: a local's or a value's,
+  then struct fields, elements, bounds-checked, and dereferences
   (`Em::place_header`, which walks the place as a rooted one, below).
+  TIR has no `Pin`: element references stopped counting (§23.20).
   A `copy` or `borrow` read of the same place, through a step, right
   after a plain `IsUnique` in its block, which is how a change reads its
   operand, takes the header the check found, so the place is walked
@@ -752,7 +751,7 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   reference local refers to, with no counted leaf in its elements, keeps
   its header, buffer and length in locals for the loop, with no check
   of its own. The checker writes element
-  references as plain `Ref`s, which the passes pin, and element reads as
+  references as plain `Ref`s, and element reads as
   plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); TIR has
   no pin or element-write intrinsic, and no copy: every count of a
   collection runs the copy glue (§23.17).
@@ -1396,10 +1395,18 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   `ACTIVE`, `DONE`, `CANCELLED`, `UNWINDING`, `ABANDONED`, and `EXITED`
   once the body has left) and the child (`F_CHILD`). The save area
   follows at `F_SAVED`: one slot for every Wasm local of the body but
-  the frame and `pc`. A point's suspend stores them all and a resume
-  loads them all (`Ins::SaveAll` and `Ins::LoadAll`, expanded once the
-  body's locals are known). That is simpler than §14.3's live set, and
-  costs frame bytes, not code.
+  the frame and `pc`. A point's suspend stores its state's save row, the
+  locals live there, or the whole area where no row exists (#1393); a
+  resume branches on the state and loads that row (`Ins::Save` and
+  `Ins::LoadAll`, expanded by `susp::expand` once the body's locals are
+  known). So the save and load code is written once per point, and its
+  size grows with the points times their rows. Measured on 2026-11-12
+  (docs/audit/review-2026-11-12.md, F6), one `fn!` body with n
+  sequential awaits grows with n squared: 24,042 bytes at 10, 595,853 at
+  100 and 9,088,201 at 400, and wasmtime refuses the module at 500. Which
+  part of the lowering makes it quadratic is not isolated. Planned, not
+  built: keep values that cross an await in frame slots for the whole
+  body, as rustc's coroutine lowering does, so a point saves nothing.
 - **The parts.** The instance's own function
   is the cold constructor and the body, poll and cancel are its parts
   (`Part`). The frame's release glue is a fourth part. Until the body has
@@ -1543,10 +1550,28 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
     power-of-two multiply, divide or remainder, and a constant added to
     a load or store address, which becomes its offset;
   - unused locals are not declared;
+  - a release of zero, a redundant store of zero, and an `if` with no
+    `else` on a local that forward facts prove zero on every path go;
+  - a `local.set` or `local.tee` that no path reads before the next
+    write goes;
+  - a value set into a local and read after a straight-line run that
+    leaves the stack as it found it stays on the stack under the run;
+  - once the rules are done, locals of one type that are never live at
+    once share one local (`opt::coalesce`);
+  - a `drop` takes back the instruction that pushed its value when that
+    instruction has no other effect;
+  - a count whose operands are all constants, or held in a local only
+    constants are written to, or received by a closed-world function at
+    only constant call sites, goes (`opt::static_values`,
+    `static_counts`);
+  - a run of sets of the exit's values followed by a branch to a block
+    whose end only reads them back and returns is a `return`
+    (`opt::exits`);
   - a `br 0` straight before the `end` or `else` it would fall through
     to, and a void `if`'s empty `else`, go, then any void block no
     branch targets (`opt::blocks`, once before the last local cleanup
     and once at the end).
+  The numbered list in the module doc of `opt.rs` is the full rule set.
   Across functions, `opt::constants` reads a top-level binding as its
   constant when an init stores that constant and nothing else writes
   it, as the allocator's `PAGE` and tag constants.
@@ -1664,7 +1689,7 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
   a host call and a handle's leaf over a record of every kind of boundary
   type and validates the module, and by the runtime fixtures of the
   profiles, the property and snapshot runners, `Random.fill` and
-  `ConsoleInput.read_line` in `LINEAR_PASSES.tsv`. Programs over the
+  `ConsoleInput.read_line` in `spec/conformance/cases.tsv`. Programs over the
   real `fs`, `process`, `env`, `args`, `sys`, `clock`, `random`, `net`
   (loopback TCP and UDP) and `http` (a local server) hosts print the
   same output on both engines.
@@ -2007,14 +2032,12 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   blocks of `std.rt.alloc`, which checked mode does not count as live.
   `count_tests.hd`'s heap bound goes from 4 pages to 12: the buffer's
   size classes and runs.
-- **Checked by** both sweeps: `linear-checked` passes all 1,480
-  `LINEAR_PASSES.tsv` cases with counts audited, including the eight
-  cycles of §23.24 (`deep-equal-rings`, `deep-equal-visits-shared`,
+- **Checked by** the conformance runtime cases in checked mode
+  (`HD_CONFORMANCE_CHECKED`, run in CI), which audit every count at
+  exit, including the eight cycles of §23.24 (`deep-equal-rings`, `deep-equal-visits-shared`,
   `local-closure-calls-own-name`, `local-function-recurses`,
   `named-local-functions`, `named-local-suspending-function`,
-  `recursive-local-closure`, `reference-cycles-are-ordinary-data`). With
-  the threshold fixed at one, so that every allocation after a release
-  collects, the `linear-checked` sweep passes too. The conformance case
+  `recursive-local-closure`, `reference-cycles-are-ordinary-data`). The conformance case
   `dropped-cycles-are-reclaimed` drops 50,000 rings and 20,000 recursive
   local closures; `crates/hd_driver/tests/std_rt/cycle_tests.hd` drops
   200,000 of each and checks the heap: the rings take 23 pages with the
@@ -2040,11 +2063,16 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   object's contents hold, through tuples, options, structs, value enums,
   list and map elements, data fields and explicit enum reference links.
   The object takes
-  part when the walk meets a reference (`&T` or `&mut T`: it may point
-  into any object with a place of its target's type, so the type graph
-  cannot say what it reaches), an open value (a function value, a trait
-  value, a context, a suspension, or a type
-  the walk does not know). A path through values alone is acyclic, even
+  part when the walk meets a reference to a type whose existing objects
+  the program may write (a write through it can add a back edge, and
+  the type graph cannot say what it reaches), or an open value (a
+  function value, a trait value, a context, a suspension, or a type the
+  walk does not know). A reference to a type nothing writes is followed
+  into its referent's contents instead. Which types may be written is a
+  whole-program fact: a closed-world release build reads it from
+  `hd_opt::whole::mutation_targets` (`cycle::mutation_targets`,
+  `hd_wasm/src/lib.rs`), and every other build treats every reference
+  as writable. A path through values alone is acyclic, even
   when it revisits its own type. Construction holds older values; a write
   first copies a shared collection buffer or value cell. That copy keeps
   the old object's edges unchanged, so the write cannot close a cycle
@@ -2053,8 +2081,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   A closure literal's environment is decided from its actual captures:
   a shared captured cell or a captured reference keeps it capable; copied
   or moved values use the same value walk. A type with an ordinary `fn`
-  field remains open and capable. No callee or whole-program summary is
-  involved. A suspending body's frame, a child's or a race's frame
+  field remains open and capable. A suspending body's frame, a child's or a race's frame
   with glue (#637) always takes part. A host call's leaf frame takes part as `holding` says
   of its arguments' types. A list copy (`rt:list_copy`) takes part as its
   original does, read from the original's descriptor at run time.
@@ -2115,7 +2142,7 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   export is a compiler bug: the host calls those by their Wasm signature.
 - **Counts.** The moves copy bits: a value's counts move through the
   frame as through Wasm values, and the frame is never allocated or
-  counted, so `linear-checked` audits the same counts.
+  counted, so a checked build audits the same counts.
 - **The stack** is memory 2, 16 pages that the module declares only when
   some signature or body needs it. It grows down from its end; a frame below
   address 0 wraps to an address past the end, so a too-deep chain of wide
@@ -2364,7 +2391,7 @@ anchors and panic reporting keep their behavior.
   and any other value by its index, `$N.1`), by the role of a parameter that is no TIR local (`frame`,
   `env`, `ctx`, `providerN`, `providerN.vtable`, and `args`
   for a wide signature's frame address), or not at all for a temporary.
-  Local renumbering (rule 11 of `opt.rs`) and wide-signature lowering
+  Local renumbering (rule 10 of `opt.rs`) and wide-signature lowering
   carry the names to the final indices. Each static data address a body
   pushes is listed with what it holds: bytes, a vtable's slot functions,
   or a name (`empty-object`, `empty-buffer`, `""`, a top-level binding's
