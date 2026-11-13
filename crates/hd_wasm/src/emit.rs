@@ -52,6 +52,7 @@ mod map;
 mod promote;
 pub use promote::{lent_referent, promotable_referent, rooted_referent};
 mod parameter_uses;
+pub(crate) mod ref_slots;
 mod refs;
 mod scope;
 mod shape;

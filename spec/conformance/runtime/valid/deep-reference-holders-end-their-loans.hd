@@ -1,0 +1,264 @@
+# test: deep reference holders allow a shared alias read and a write after last use
+# expect-stdout: original
+# expect-stdout: changed
+struct Cell:
+    value: string
+
+struct View0['a]:
+    r: &'a string
+
+struct View1['a]:
+    inner: View0['a]
+
+struct View2['a]:
+    inner: View1['a]
+
+struct View3['a]:
+    inner: View2['a]
+
+struct View4['a]:
+    inner: View3['a]
+
+struct View5['a]:
+    inner: View4['a]
+
+struct View6['a]:
+    inner: View5['a]
+
+struct View7['a]:
+    inner: View6['a]
+
+struct View8['a]:
+    inner: View7['a]
+
+struct View9['a]:
+    inner: View8['a]
+
+struct View10['a]:
+    inner: View9['a]
+
+struct View11['a]:
+    inner: View10['a]
+
+struct View12['a]:
+    inner: View11['a]
+
+struct View13['a]:
+    inner: View12['a]
+
+struct View14['a]:
+    inner: View13['a]
+
+struct View15['a]:
+    inner: View14['a]
+
+struct View16['a]:
+    inner: View15['a]
+
+struct View17['a]:
+    inner: View16['a]
+
+struct View18['a]:
+    inner: View17['a]
+
+struct View19['a]:
+    inner: View18['a]
+
+struct View20['a]:
+    inner: View19['a]
+
+struct View21['a]:
+    inner: View20['a]
+
+struct View22['a]:
+    inner: View21['a]
+
+struct View23['a]:
+    inner: View22['a]
+
+struct View24['a]:
+    inner: View23['a]
+
+struct View25['a]:
+    inner: View24['a]
+
+struct View26['a]:
+    inner: View25['a]
+
+struct View27['a]:
+    inner: View26['a]
+
+struct View28['a]:
+    inner: View27['a]
+
+struct View29['a]:
+    inner: View28['a]
+
+struct View30['a]:
+    inner: View29['a]
+
+struct View31['a]:
+    inner: View30['a]
+
+struct View32['a]:
+    inner: View31['a]
+
+struct View33['a]:
+    inner: View32['a]
+
+struct View34['a]:
+    inner: View33['a]
+
+struct View35['a]:
+    inner: View34['a]
+
+struct View36['a]:
+    inner: View35['a]
+
+struct View37['a]:
+    inner: View36['a]
+
+struct View38['a]:
+    inner: View37['a]
+
+struct View39['a]:
+    inner: View38['a]
+
+struct View40['a]:
+    inner: View39['a]
+
+fn probe(p: *mut Cell, alias: *mut Cell) -> string:
+    view := View40 {
+        inner: View39 {
+            inner: View38 {
+                inner: View37 {
+                    inner: View36 {
+                        inner: View35 {
+                            inner: View34 {
+                                inner: View33 {
+                                    inner: View32 {
+                                        inner: View31 {
+                                            inner: View30 {
+                                                inner: View29 {
+                                                    inner: View28 {
+                                                        inner: View27 {
+                                                            inner: View26 {
+                                                                inner: View25 {
+                                                                    inner: View24 {
+                                                                        inner: View23 {
+                                                                            inner: View22 {
+                                                                                inner: View21 {
+                                                                                    inner: View20 {
+                                                                                        inner: View19 {
+                                                                                            inner: View18 {
+                                                                                                inner: View17 {
+                                                                                                    inner: View16 {
+                                                                                                        inner: View15 {
+                                                                                                            inner: View14 {
+                                                                                                                inner: View13 {
+                                                                                                                    inner: View12 {
+                                                                                                                        inner: View11 {
+                                                                                                                            inner: View10 {
+                                                                                                                                inner: View9 {
+                                                                                                                                    inner: View8 {
+                                                                                                                                        inner: View7 {
+                                                                                                                                            inner: View6 {
+                                                                                                                                                inner: View5 {
+                                                                                                                                                    inner: View4 {
+                                                                                                                                                        inner: View3 {
+                                                                                                                                                            inner: View2 {
+                                                                                                                                                                inner: View1 {
+                                                                                                                                                                    inner: View0 {
+                                                                                                                                                                        r: &p.value,
+                                                                                                                                                                    },
+                                                                                                                                                                },
+                                                                                                                                                            },
+                                                                                                                                                        },
+                                                                                                                                                    },
+                                                                                                                                                },
+                                                                                                                                            },
+                                                                                                                                        },
+                                                                                                                                    },
+                                                                                                                                },
+                                                                                                                            },
+                                                                                                                        },
+                                                                                                                    },
+                                                                                                                },
+                                                                                                            },
+                                                                                                        },
+                                                                                                    },
+                                                                                                },
+                                                                                            },
+                                                                                        },
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                        },
+                                                                    },
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+    before := alias.value
+    seen := *view.inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .r
+    if before != seen:
+        panic("a shared read changed the value")
+    alias.value = "changed"
+    seen
+
+pub fn main() -> void $ Console:
+    p := box(Cell { value: "original" })
+    println(probe(p, p))
+    println(p.value)
