@@ -76,6 +76,12 @@
 //! its init writes, with a constant, as that constant.
 
 mod constant;
+mod empty_loops;
+
+/// Delete finite induction loops whose counters are unobserved.
+pub fn delete_empty_loops(f: &mut Func) -> bool {
+    empty_loops::run(f)
+}
 
 /// Propagate literal local values after instruction scheduling exposes them.
 pub fn fold_local_constants(f: &mut crate::module::Func) -> bool {

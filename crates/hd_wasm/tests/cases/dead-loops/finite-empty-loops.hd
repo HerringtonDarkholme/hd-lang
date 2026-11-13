@@ -1,0 +1,29 @@
+# @dump: wat
+# @build: v8 release std
+# @helper: std/collections/impl[T < ?Copy] Drop for UniqList[T].drop
+# expected: scalar destruction has no counter loop; string destruction
+# keeps releases; a wrapping +2 induction variable keeps its loop.
+use std.collections.UniqList
+use std.rt.Drop
+
+fn discard_scalars(items: &mut UniqList[i32]) -> void:
+    items.drop()
+
+fn discard_strings(items: &mut UniqList[string]) -> void:
+    items.drop()
+
+fn finite(n: usize) -> void:
+    let i = 0
+    while i < n:
+        i += 1
+
+fn possibly_infinite(n: usize) -> void:
+    let i = 0
+    while i < n:
+        i += 2
+
+fn observed(n: usize) -> usize:
+    let i = 0
+    while i < n:
+        i += 1
+    i
