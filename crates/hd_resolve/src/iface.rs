@@ -2666,7 +2666,8 @@ fn show_ty_opts(
 /// result, for a message (`fn.type.lifetime.identity`): `None` when
 /// elision gives its map, else a name for each slot that shares one.
 fn lifetime_marks(pool: hd_types::Types<'_>, t: Ty) -> Option<Marks> {
-    let (ins, outs) = pool.fn_ty_deps(t)?;
+    // An open map names no shared lifetime ([`hd_types::FnDeps`]).
+    let (ins, outs) = pool.fn_ty_deps(t).filter(|(_, outs)| !outs.is_empty())?;
     let TyData::Fn {
         params,
         result,

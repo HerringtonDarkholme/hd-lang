@@ -1,0 +1,16 @@
+# test: a call's type-parameter result holds what its arguments at the function type's written lifetime hold
+# Spec 07 Function Types: fn.type.lifetime.result.param. `T` may hold `'a`,
+# so `good(ident, &q)` returns what `&q` holds, and returning it lets the
+# local `q` escape.
+struct Point:
+    x: i32
+
+fn good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn ident(x: &Point) -> &Point:
+    x
+
+fn leak(p: &Point) -> &Point:
+    q := Point { x: 1 }
+    good(ident, &q) # diagnostic: local-reference-escapes

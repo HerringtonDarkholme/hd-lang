@@ -465,7 +465,7 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
         // A result with a source may hold a local reference at the top,
         // as a function's may (`fn.type.lifetime.result`).
         TyData::Fn { params, result, .. } => list(params, true).or_else(|| {
-            let sourced = pool.fn_ty_deps(t).is_some();
+            let sourced = pool.fn_ty_deps(t).is_some_and(|(_, outs)| !outs.is_empty());
             match escape_in(result, sourced) {
                 Some(Escape::TypeArgument) if !sourced && is_local_ref(pool, result) => {
                     Some(Escape::Result)

@@ -5790,6 +5790,10 @@ typing/invalid/local-reference-escapes-function-value-written-lifetime-variant.h
 typing/invalid/local-reference-escapes-function-value-written-lifetime-method-result.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/valid/function-value-written-lifetime-sources.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
 runtime/valid/function-value-written-lifetime-sources.hd	runtime	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/valid/function-type-result-param-written-lifetime.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.result.param
+typing/invalid/local-reference-escapes-function-type-result-param.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.result.param
+typing/invalid/type-mismatch-function-type-result-param-elided.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.result.param
+runtime/valid/function-type-result-param-written-lifetime.hd	runtime	accept	lang/07-functions.md#r-fn.type.lifetime.result.param
 typing/invalid/static-bound-box-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
 typing/invalid/static-bound-capture-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 typing/invalid/static-bound-local-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error

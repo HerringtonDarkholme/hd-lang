@@ -1556,6 +1556,19 @@ impl Ck<'_, '_> {
     /// The expected and the found type as a mismatch shows them. Two types
     /// that differ only in a function type's row would read the same, so
     /// they show their rows.
+    /// Where two function types that print alike differ: the found
+    /// result borrows from an input, and the expected one, whose map no
+    /// lifetime mark shows, permits none (`fn.type.lifetime.subtype.error`).
+    fn fn_deps_note(&self, got: hd_types::FnDeps) -> Option<String> {
+        let (ins, outs) = self.pool().deps_of(got)?;
+        let o = outs.iter().find(|&&o| o != 0)?;
+        let k = ins.iter().position(|x| x == o)?;
+        Some(format!(
+            "; the found result borrows from input reference {}, which the expected result may not borrow from",
+            k + 1
+        ))
+    }
+
     pub(crate) fn show_pair(&self, want: Ty, got: Ty) -> (String, String) {
         let (w, g) = (self.show(want), self.show(got));
         let pool = self.pool();
@@ -2463,6 +2476,16 @@ impl Ck<'_, '_> {
                 return true;
             }
             let mut msg = format!("in {what}: expected {want_s}, found {got_s}");
+            if want_s == got_s
+                && let (TyData::Fn { deps: wd, .. }, TyData::Fn { deps: gd, .. }) = (
+                    pool.get(self.infer.resolve(pool, want)),
+                    pool.get(self.infer.resolve(pool, got)),
+                )
+                && wd != gd
+                && let Some(note) = self.fn_deps_note(gd)
+            {
+                msg.push_str(&note);
+            }
             // `types.num.binary.no-mix`, `expr.range.bound.signedness`: a
             // signed and an unsigned integer operand do not mix.
             let code = if position == ExpectPosition::Operand && self.mixes_signedness(got, want) {

@@ -220,9 +220,13 @@ pub struct RowData {
 /// input reference slots each result reference slot depends on, as the
 /// lifetime of each slot of its inputs and then of its result
 /// ([`Types::ref_slots`] order), numbered by first occurrence
-/// ([`Types::fn_deps`]). `NONE` when the result has no reference slot. It
-/// is part of the type's identity and erased by [`Types::erase_fn_deps`], so
-/// it never reaches a monomorphization key.
+/// ([`Types::fn_deps`]). `NONE` when the result has no reference slot,
+/// but for an open map: a result with no reference slot that holds a type
+/// parameter, where some input writes a lifetime, keeps which inputs write
+/// one (`fn.type.lifetime.result.param`), and a result slot an instance
+/// adds may depend on those ([`Types::fn_deps_written`]). It is part of the
+/// type's identity and erased by [`Types::erase_fn_deps`], so it never
+/// reaches a monomorphization key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FnDeps(u32);
 
@@ -1143,7 +1147,49 @@ impl<'a> Types<'a> {
             _ => 0,
         };
         let outs: Vec<u32> = (0..n_out).map(|j| at(n_in + j).unwrap_or(elided)).collect();
+        if n_out == 0 && self.has_param(result) && (0..n_in).any(|k| at(k).is_some()) {
+            // An open map: which inputs write a lifetime, which a type
+            // parameter of the result may name (`fn.type.lifetime.result.param`).
+            let open: Vec<bool> = (0..n_in).map(|k| at(k).is_some()).collect();
+            return self.fn_deps_open(&open);
+        }
         self.fn_deps(&ins, &outs)
+    }
+
+    /// An open dependency map ([`FnDeps`]): a result with no reference
+    /// slot yet, and for each input slot whether it writes a lifetime,
+    /// 1, or not, 0.
+    pub(crate) fn fn_deps_open(self, written: &[bool]) -> FnDeps {
+        let mut words = vec![0, 0];
+        for (n, &x) in (1..).zip(written) {
+            words[0] = n;
+            words.push(u32::from(x));
+        }
+        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0))
+    }
+
+    /// The map an instance of a function type with an open map, whose
+    /// inputs `ins` mark the ones that write a lifetime, takes once its
+    /// result has `n_out` reference slots and its inputs `n_in`
+    /// (`fn.type.lifetime.result.param`): each result slot depends on the
+    /// inputs that write a lifetime, which a type parameter may name, and
+    /// no others. Where the inputs no longer line up with the map, a
+    /// result slot depends on none.
+    fn fn_deps_instance(self, ins: &[u32], n_in: usize, n_out: usize) -> FnDeps {
+        let lined = ins.len() == n_in;
+        // An input that writes none has a lifetime of its own, past every
+        // written one's 1.
+        let ins: Vec<u32> = ((2..).zip(0..n_in))
+            .map(|(own, k)| {
+                if lined && ins.get(k) == Some(&1) {
+                    1
+                } else {
+                    own
+                }
+            })
+            .collect();
+        let w = u32::from(ins.contains(&1));
+        self.fn_deps(&ins, &vec![w; n_out])
     }
 
     /// A dependency map's input and result lifetimes; `None` for `NONE`.
@@ -1234,6 +1280,34 @@ impl<'a> Types<'a> {
                 suspends: *suspends,
                 inputs,
                 deps: *deps,
+            });
+        }
+        // An open map whose result an instance gave reference slots
+        // (`fn.type.lifetime.result.param`).
+        if let TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs,
+            deps,
+        } = t
+            && let Some((ins, [])) = self.deps_of(*deps)
+            && self.ref_slots(*result) > 0
+        {
+            let n_in = self
+                .list_items(*params)
+                .iter()
+                .map(|&p| self.ref_slots(p))
+                .sum();
+            let deps = self.fn_deps_instance(ins, n_in, self.ref_slots(*result));
+            return self.intern_ty(&TyData::Fn {
+                params: *params,
+                result: *result,
+                row: *row,
+                suspends: *suspends,
+                inputs: *inputs,
+                deps,
             });
         }
         let (tag, data, meta): (PoolTag, u32, u32) = match t {
@@ -2293,7 +2367,10 @@ mod tests {
         assert_ne!(applied, super::Ty::I32);
     }
 
-    use super::{Inputs, InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
+    use super::{
+        FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RowData, RowId, Ty, TyData, TyList,
+        Types,
+    };
     use hd_base::DefId;
 
     #[test]
@@ -2778,6 +2855,50 @@ mod tests {
         );
         assert_eq!(local.len(), 3);
     }
+    /// `fn(&'a i32, &i32) -> T` keeps which inputs write a lifetime, and
+    /// an instance whose result holds a reference depends on those
+    /// (`fn.type.lifetime.result.param`); with no written input, or
+    /// inputs that no longer line up, it depends on none.
+    #[test]
+    fn an_open_map_gives_an_instance_result_the_written_inputs() {
+        let pool = InternPool::new();
+        let types = pool.types();
+        let r = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let t = pool.intern_ty(&TyData::Param(ParamRef {
+            owner: DefId::from_raw(1),
+            index: 0,
+        }));
+        let open = types.fn_deps_written(&[r, r], t, &[1, 0]);
+        assert_eq!(types.deps_of(open), Some((&[1, 0][..], &[][..])));
+        assert_eq!(types.fn_deps_written(&[r, r], t, &[]), FnDeps::NONE);
+        assert_eq!(
+            types.fn_deps_written(&[r, r], Ty::I32, &[1, 0]),
+            FnDeps::NONE
+        );
+        let f = |params: &[Ty], result: Ty| {
+            pool.intern_ty(&TyData::Fn {
+                params: pool.list(params),
+                result,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: open,
+            })
+        };
+        assert_eq!(
+            types.fn_ty_deps(f(&[r, r], t)),
+            Some((&[1, 0][..], &[][..]))
+        );
+        let at_first = types.fn_deps(&[1, 2], &[1]);
+        assert_eq!(types.fn_ty_deps(f(&[r, r], r)), types.deps_of(at_first));
+        let none = types.fn_deps(&[1, 2, 3], &[0]);
+        assert_eq!(types.fn_ty_deps(f(&[r, r, r], r)), types.deps_of(none));
+    }
+
     #[test]
     fn erasing_fn_deps_keeps_every_reference_kind() {
         use crate::pool::FnDeps;

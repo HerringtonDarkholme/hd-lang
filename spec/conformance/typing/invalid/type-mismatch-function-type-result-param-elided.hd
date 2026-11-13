@@ -1,0 +1,15 @@
+# test: a type-parameter result cannot depend on an input that writes no lifetime
+# Spec 07 Function Types: fn.type.lifetime.result.param. `f`'s input
+# writes no lifetime, which `T` cannot name, so `ident`, whose result
+# borrows from its input, does not fit; the message says which input.
+struct Point:
+    x: i32
+
+fn elided[T](f: fn(&Point) -> T, p: &Point) -> T:
+    f(p)
+
+fn ident(x: &Point) -> &Point:
+    x
+
+fn bad(p: &Point) -> &Point:
+    elided(ident, p) # diagnostic: type-mismatch

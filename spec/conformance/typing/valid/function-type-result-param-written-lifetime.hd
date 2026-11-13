@@ -1,0 +1,25 @@
+# test: a function value whose result depends on its input fits a type-parameter result at the input's written lifetime
+# Spec 07 Function Types: fn.type.lifetime.result.param. With
+# `f: fn(&'a Point) -> T`, `T` may hold `'a`, so `ident` and `keep`, whose
+# results borrow from their input, fit with `T = &'c Point` and
+# `T = Keep['c]`, and the call's result depends on `p`.
+struct Point:
+    x: i32
+
+struct Keep['c]:
+    last: &'c Point
+
+fn good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn ident(x: &Point) -> &Point:
+    x
+
+fn keep(x: &Point) -> Keep:
+    Keep { last: x }
+
+fn outer['c](p: &'c Point) -> &'c Point:
+    good(ident, p)
+
+fn kept['c](p: &'c Point) -> Keep['c]:
+    good(keep, p)

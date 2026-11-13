@@ -1,0 +1,32 @@
+# test: a function value that builds a reference-holding result runs through a type-parameter result
+# Spec 07 Function Types: fn.type.lifetime.result.param,
+# fn.type.lifetime.call.written. `good` passes `p` at `'a`, and `keep`
+# builds a `Keep['c]` from it, which the caller reads.
+# expect-stdout: 3
+# expect-stdout: 7
+struct Point:
+    x: i32
+
+struct Keep['c]:
+    last: &'c Point
+
+fn good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T:
+    f(p)
+
+fn ident(x: &Point) -> &Point:
+    x
+
+fn keep(x: &Point) -> Keep:
+    Keep { last: x }
+
+fn outer['c](p: &'c Point) -> &'c Point:
+    good(ident, p)
+
+fn kept['c](p: &'c Point) -> Keep['c]:
+    good(keep, p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    println(outer(&p).x)
+    r := Point { x: 7 }
+    println(kept(&r).last.x)

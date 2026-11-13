@@ -644,6 +644,7 @@ fn demo(a: &User, b: &User) -> usize:
 11. r[fn.type.lifetime.value] A named function's or method's value has the dependencies of its signature, after elision, with an unbound method's receiver as its first input.
 12. r[fn.type.lifetime.call] A call through a function value depends on what its arguments in each result position's lifetime depend on, as [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call) states for a named call.
 13. r[fn.type.lifetime.call.written] A call through a function value passes the argument for an input position that writes a lifetime variable at that lifetime, which the argument must outlive, whatever the result holds. The written lifetime goes with the value through bindings, fields, captures and a call's result, and passing the value for a parameter whose type writes a lifetime there makes that lifetime the value's. With `f: fn(&'a Point) -> T`, `f(&q)` and `g := f; g(&q)` of a local `q` are errors. Error: `local-reference-escapes`.
+14. r[fn.type.lifetime.result.param] A type parameter in a function type's result may hold the lifetimes its input positions write. An instance whose result holds a reference may depend on each input position that writes a lifetime and on no other, and a call that passes a function value for that type depends on what its arguments at those lifetimes depend on. With `good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T`, `good(ident, p)` with `ident(x: &Point) -> &Point` is a `&Point` that depends on `p`.
 
 ```text
 struct User:

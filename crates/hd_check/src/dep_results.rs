@@ -252,7 +252,9 @@ impl DepSig {
         let TyData::Fn { params, result, .. } = pool.get(t) else {
             return None;
         };
-        let deps = pool.fn_ty_deps(t);
+        // An open map's inputs mark which write a lifetime, not which
+        // share one ([`hd_types::FnDeps`]).
+        let deps = pool.fn_ty_deps(t).filter(|(_, outs)| !outs.is_empty());
         let ins = deps.as_ref().map_or(&[][..], |(ins, _)| *ins);
         let written_outs = deps.as_ref().map_or(&[][..], |(_, outs)| *outs);
         let mut ref_at = 0;
@@ -1551,6 +1553,11 @@ impl Ck<'_, '_> {
             return true;
         }
         let pool = self.pool();
+        // `NONE`, or an open map: no result slot yet.
+        let open = |d| pool.deps_of(d).is_none_or(|(_, outs)| outs.is_empty());
+        if open(got) && open(want) {
+            return true;
+        }
         let (Some((got_ins, got_outs)), Some((want_ins, want_outs))) =
             (pool.deps_of(got), pool.deps_of(want))
         else {
@@ -1873,6 +1880,32 @@ impl Ck<'_, '_> {
             vs.dedup();
             vs
         };
+        // A type parameter in the result of a function-typed parameter
+        // whose inputs write lifetimes may hold those lifetimes, so a
+        // result of that parameter takes them: `good(ident, p)` with
+        // `f: fn(&'a Point) -> T` returns what `p` holds
+        // (`fn.type.lifetime.result.param`).
+        let mut fn_held: Vec<(hd_types::ParamRef, u32)> = Vec::new();
+        if let Some(sig) = &sig {
+            let n = sig.params.len();
+            for (p, lts) in sig.fn_lifetimes.iter().take(n).enumerate() {
+                let TyData::Fn { result, .. } = pool.get(sig.params[p].1) else {
+                    continue;
+                };
+                for q in bare_parts(pool, result).0 {
+                    for &l in lts.iter().filter(|&&l| l != 0) {
+                        if !fn_held.contains(&(q, u32::from(l))) {
+                            fn_held.push((q, u32::from(l)));
+                        }
+                    }
+                }
+            }
+        }
+        let held_by = |q: hd_types::ParamRef| {
+            (fn_held.iter())
+                .filter(move |x| x.0 == q)
+                .map(|x| Var::Life(x.1))
+        };
         let out = |k: Key| match k {
             Key::Decl(j) => (dep.outs.get(j).copied().flatten())
                 .map(Var::Life)
@@ -1880,15 +1913,19 @@ impl Ck<'_, '_> {
                 .collect(),
             Key::None => Vec::new(),
             Key::Param(q, j) if let Some(v) = own(q, j) => vec![v],
-            Key::Param(q, j) => match target(q, j) {
-                Some(l) => vec![Var::Life(l)],
-                // A trait type argument the implementation fills in may
-                // name `Self`'s lifetimes (`ref.lifetime.impl-target.assoc`).
-                None if trait_.is_some_and(|tr| q.owner == tr && q.index > 0) => {
-                    from(&|x| x == k || matches!(x, Key::Param(p, _) if is_trait_self(p)))
-                }
-                None => from(&|x| x == k),
-            },
+            Key::Param(q, j) => {
+                let mut vs = match target(q, j) {
+                    Some(l) => vec![Var::Life(l)],
+                    // A trait type argument the implementation fills in may
+                    // name `Self`'s lifetimes (`ref.lifetime.impl-target.assoc`).
+                    None if trait_.is_some_and(|tr| q.owner == tr && q.index > 0) => {
+                        from(&|x| x == k || matches!(x, Key::Param(p, _) if is_trait_self(p)))
+                    }
+                    None => from(&|x| x == k),
+                };
+                vs.extend(held_by(q).filter(|v| !vs.contains(v)).collect::<Vec<_>>());
+                vs
+            }
             Key::AllOf(_, proj) => {
                 let mut vs = from(&|x| matches!(x, Key::Param(p, _) if proj_holds(pool, proj, p)));
                 vs.extend(self.proj_lifetimes(ls, proj).into_iter().map(Var::Life));

@@ -470,7 +470,12 @@ impl Tables {
                         Some(&n) => {
                             let rest = words.get(5..)?;
                             let (ins, outs) = rest.split_at_checked(n as usize)?;
-                            pool.types().fn_deps(ins, outs)
+                            if outs.is_empty() {
+                                let open: Vec<bool> = ins.iter().map(|&x| x != 0).collect();
+                                pool.types().fn_deps_open(&open)
+                            } else {
+                                pool.types().fn_deps(ins, outs)
+                            }
                         }
                         None => FnDeps::NONE,
                     };
@@ -980,5 +985,29 @@ mod tests {
             pool.types().fn_deps(&[3, 3, 4], &[4]),
             pool.types().fn_deps(&[5, 6, 4], &[4])
         );
+        // An open map, of a result with no reference slot, round-trips
+        // (`fn.type.lifetime.result.param`).
+        let open = |p: &InternPool, r: Ty| {
+            let t = p.intern_ty(&TyData::Tuple {
+                elems: crate::TyList::EMPTY,
+                rest: None,
+            });
+            p.intern_ty(&TyData::Fn {
+                params: p.list(&[r, r]),
+                result: t,
+                row: crate::RowId::EMPTY,
+                suspends: false,
+                inputs: crate::Inputs::Fixed,
+                deps: p.types().fn_deps_open(&[true, false]),
+            })
+        };
+        let g = open(&pool, r(&pool));
+        let mut w = TableWriter::new(&pool, &paths, &syms);
+        let at = w.ty(g).expect("function");
+        let mut out = Writer::default();
+        w.write(&mut out);
+        let pool3 = InternPool::new();
+        let t = Tables::read(&mut Reader::new(&out.bytes), &pool3, &paths, &syms).expect("tables");
+        assert_eq!(t.ty(at), Some(open(&pool3, r(&pool3))));
     }
 }
