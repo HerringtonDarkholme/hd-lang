@@ -73,9 +73,8 @@ one function.
    way that solves more cases, in this order: write it in hd; make the
    optimizer handle the general pattern (an effect-free loop is deleted;
    a small known closure is inlined); fall back to an intrinsic only when
-   neither can do it, and say why in the proposal. Intrinsics are being
-   reduced (#1206), so each new one needs that reason and the owner's
-   approval.
+   neither can do it, and say why in the proposal. Each new intrinsic
+   needs that reason and the owner's approval.
 6. Check a design against these rules and the Design Cost Order before
    proposing it.
 
