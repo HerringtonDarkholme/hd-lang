@@ -53,14 +53,13 @@
         local.set $t1
     ;; 27 |         for i in 0..n:
         local.get $self
-        local.get $self
         i32.load $heap
         call $rt:list_unique
+        local.set $t2
+        local.get $self
+        local.get $t2
         i32.store $heap
     ;; 29 |             self.index[i] = self.held
-        local.get $self
-        i32.load $heap
-        local.set $t2
         local.tee $t3
         local.get $t2
         i32.load $heap offset=4

@@ -1,0 +1,15 @@
+# @dump: own wat
+# @build: v8 release
+use std.annotation.inline
+
+@inline(.Never)
+fn repeat_after_callback(xs: &mut List[i32], rounds: usize, tick: fn() -> i32) -> i32:
+    let total = +0
+    for round in 0..rounds:
+        total += tick()
+        for i in 0..xs.len():
+            if i == 128:
+                break
+            xs[i] = i32(round)
+        total += xs[0]
+    total

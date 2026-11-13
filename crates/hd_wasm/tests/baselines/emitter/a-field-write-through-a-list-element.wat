@@ -3,25 +3,24 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $place (param $bodies i32) (param $i i32) (param $x f64)
+  (func $place (param $bodies i32) (param $i i32) (param $x f64) (local $t0 i32)
     ;; 7 |     bodies[i].x = x
-    local.get $bodies
     local.get $bodies
     i32.load $heap
     call $rt:list_unique
+    local.set $t0
+    local.get $bodies
+    local.get $t0
     i32.store $heap
-    local.get $bodies
-    i32.load $heap
-    local.set $bodies
     local.get $i
-    local.get $bodies
+    local.get $t0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $bodies
+    local.get $t0
     local.get $i
     i32.const 16
     i32.mul

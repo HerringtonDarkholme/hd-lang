@@ -13,25 +13,24 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
+  (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
     ;; 17 |     xs[i] = s
-    local.get $xs
     local.get $xs
     i32.load $heap
     call $rt:list_unique
+    local.set $t0
+    local.get $xs
+    local.get $t0
     i32.store $heap
-    local.get $xs
-    i32.load $heap
-    local.set $xs
     local.get $i
-    local.get $xs
+    local.get $t0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $xs
+    local.get $t0
     local.get $i
     i32.const 8
     i32.mul

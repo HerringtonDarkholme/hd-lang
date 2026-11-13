@@ -101,9 +101,11 @@
       unreachable
     end
     local.get $env
-    local.get $env
     i32.load $heap
     call $rt:list_unique
+    local.set $t0
+    local.get $env
+    local.get $t0
     i32.store $heap
     local.get $env
     i32.const 4
@@ -115,33 +117,30 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $env
-    i32.load $heap
-    local.set $env
     i32.const 0
-    local.get $env
+    local.get $t0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic'3
       unreachable
     end
-    local.get $env
+    local.get $t0
     i32.load $heap offset=16
-    local.tee $t0
+    local.tee $env
     if
-      local.get $t0
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $env
         call $rt:release_ref
       end
     end
-    local.get $env
+    local.get $t0
     local.get $ctx
     i32.store $heap offset=16
   )

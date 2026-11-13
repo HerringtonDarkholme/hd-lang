@@ -1442,9 +1442,13 @@ struct Em<'i, 'a, 'm> {
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
     hoisted: Vec<u32>,
+    /// Deferred uniqueness flags, keyed by the pass's canonical place.
+    deferred_uniques: HashMap<u32, (u32, bool)>,
     /// The `Read` right after a plain `IsUnique` of its place, and the
     /// local holding the buffer the check left ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
+    /// The next element store and its already resolved collection header.
+    walked_store: Option<(u32, usize, u32)>,
     /// Each `block_on` whose cold call has already had its first drive.
     driven: HashMap<u32, Driven>,
 }
@@ -1603,7 +1607,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),
+            deferred_uniques: HashMap::default(),
             walked: None,
+            walked_store: None,
             driven: HashMap::default(),
         };
         em.provider_transfer_calls = hd_tir::own::scoped_provider_transfers(b, &em.topo)

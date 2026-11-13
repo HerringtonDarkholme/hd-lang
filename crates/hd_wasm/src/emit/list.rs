@@ -978,6 +978,15 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let test = l
+            .filter(|_| {
+                uniques.iter().any(|&i| {
+                    !matches!(
+                        self.b.data[i as usize][1],
+                        hd_tir::ir::unique_word::DEFERRED_INIT
+                            | hd_tir::ir::unique_word::DEFERRED_CACHE
+                    )
+                })
+            })
             .filter(|_| self.susp.is_none())
             .and_then(|l| hd_tir::own::entry_test(self.b, &self.topo, l).map(|e| (l, e)));
         if let Some((l, e)) = test {
@@ -995,6 +1004,18 @@ impl Em<'_, '_, '_> {
         }
         let was = self.f.reason;
         for i in uniques {
+            if matches!(
+                self.b.data[i as usize][1],
+                hd_tir::ir::unique_word::DEFERRED_INIT | hd_tir::ir::unique_word::DEFERRED_CACHE
+            ) {
+                let flag = self.f.local(Val::I32);
+                let cache = self.b.data[i as usize][1] == hd_tir::ir::unique_word::DEFERRED_CACHE;
+                self.f.i32(0);
+                self.f.set(flag);
+                self.deferred_uniques
+                    .insert(self.b.data[i as usize][0], (flag, cache));
+                continue;
+            }
             self.f.reason = hd_tir::own::reason(self.b, i as usize);
             self.unique_at(i)?;
         }

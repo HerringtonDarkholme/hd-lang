@@ -13,7 +13,9 @@
 //!    body's first `If`, one arm of which exits the loop) that
 //!    goes on, through unconditional pattern bindings if present, or of the
 //!    iteration block of an inner loop that stands there in turn, at any depth, so it runs
-//!    whenever that inner loop is entered; and the statements before the
+//!    whenever that inner loop is entered. An exit before the check defers
+//!    it to the first reached write, with one shared decision for the loop;
+//!    and the statements before the
 //!    entry test are pure, so the backend can run them once more before
 //!    the loop as its guard. A loop with no entry test (`while true`)
 //!    runs its body block whenever it is entered: that block is its
@@ -231,11 +233,13 @@ struct Cand {
     len: u32,
     /// From an `IsUnique` of the iteration block (rule 1).
     hoist: bool,
+    /// A check runs before any exit can skip it.
+    eager: bool,
     /// Rule 3's case for calls: not the whole of a fresh, private local.
     external: bool,
     /// Rules 2 and 3 hold so far.
     ok: bool,
-    /// A `ListPush` or `ListReserve` changes it.
+    /// An intrinsic can replace its header (growth or entry insertion).
     pushes: bool,
     /// An element read or store, or a `ListLen`, reads it.
     used: bool,
@@ -304,6 +308,7 @@ pub(crate) struct Tables {
     borrows: Vec<(u32, u32)>,
     /// Per instruction: an `IsUnique` already removed or proved unnecessary.
     gone: Vec<bool>,
+    leaves: Vec<bool>,
     cands: Vec<Cand>,
     csteps: Vec<u32>,
     /// The `IsUnique`s of each candidate in the loop: (candidate, inst).
@@ -415,8 +420,22 @@ pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
     }
 }
 
-/// An intrinsic that changes, copies or pins its collection,
-/// or calls std code that may.
+/// Intrinsics that can replace the collection header rather than just its elements.
+pub(crate) fn changes_header(op: Option<IntrinsicOp>) -> bool {
+    !matches!(
+        op,
+        Some(
+            IntrinsicOp::ListLen
+                | IntrinsicOp::MapLen
+                | IntrinsicOp::MapGet
+                | IntrinsicOp::MapSlots
+                | IntrinsicOp::MapSlotNext
+                | IntrinsicOp::MapSlotEntry
+        )
+    )
+}
+
+/// An intrinsic that changes, copies or pins its collection, or calls std code that may.
 fn changes(op: Option<IntrinsicOp>) -> bool {
     !matches!(
         op,
@@ -556,6 +575,7 @@ pub(crate) fn run(
     if !b.tags.contains(&Tag::Loop) {
         return;
     }
+    t.leaves = leaves(b, topo);
     t.pending.build(n, edits);
     t.loops.clear();
     for i in (0..n).filter(|&i| b.tags[i] == Tag::Loop) {
@@ -1192,6 +1212,50 @@ fn unique_header(b: &Body, word: u32) -> Option<u32> {
     p.value().filter(|_| p.whole())
 }
 
+/// Whether an instruction can exit past its end. Structured targets form an
+/// ancestor chain; the largest target is outermost in postorder. Zero means
+/// no exit, target + 1 names a label, and NONE means a return (or missing label).
+/// Joining summaries and passing them to each parent once costs O(N) time and
+/// space, independent of jump count and nesting depth. Sub-body roots stop it.
+fn leaves(b: &Body, topo: &Topology) -> Vec<bool> {
+    leaves_counted(b, topo, &mut || {})
+}
+
+fn leaves_counted(b: &Body, topo: &Topology, visit: &mut impl FnMut()) -> Vec<bool> {
+    let mut out = vec![false; b.len()];
+    let mut exit = vec![0; b.len()];
+    for i in 0..b.len() {
+        visit();
+        let target = match b.tags[i] {
+            Tag::Break | Tag::Continue => b
+                .label_inst
+                .get(b.data[i][0] as usize)
+                .filter(|&&target| target != NONE)
+                .map_or(NONE, |&target| target + 1),
+            Tag::Return => NONE,
+            _ => 0,
+        };
+        exit[i] = exit[i].max(target);
+        let target = exit[i];
+        if target == 0 || (target != NONE && (topo.first[i]..=u32_of(i)).contains(&(target - 1))) {
+            continue;
+        }
+        out[i] = true;
+        if topo.is_root[i] {
+            continue;
+        }
+        let parent = if topo.owner[i] == NONE {
+            topo.blk[i]
+        } else {
+            topo.owner[i]
+        };
+        if parent != NONE {
+            exit[parent as usize] = exit[parent as usize].max(target);
+        }
+    }
+    out
+}
+
 fn hoist_loop(
     b: &mut Body,
     topo: &Topology,
@@ -1211,48 +1275,47 @@ fn hoist_loop(
     let mut blocks = match entry_test(b, topo, l) {
         Some(e) => {
             let mut budget = b.len();
-            let prefix_pure = loop_statements(b, l)
+            if loop_statements(b, l)
                 .take(e.prefix)
-                .all(|x| pure(b, cx, x, &mut budget));
-            if prefix_pure {
-                vec![e.iteration]
+                .all(|x| pure(b, cx, x, &mut budget))
+            {
+                vec![(e.iteration, true)]
             } else {
                 Vec::new()
             }
         }
-        None => vec![b.data[l as usize][0]],
+        None => vec![(b.data[l as usize][0], true)],
     };
-    // The iteration block's statements, and those of the iteration block
-    // of each loop that stands among them, at any depth: an `IsUnique`
-    // there runs whenever that inner loop is entered.
-    while let Some(blk) = blocks.pop() {
+    while let Some((blk, mut eager)) = blocks.pop() {
         for k in 0..b.record(b.data[blk as usize][0]).len() {
             let x = b.record(b.data[blk as usize][0])[k];
-            if b.tags[x as usize] == Tag::Loop && !t.pending.dead[x as usize] {
-                blocks.push(entry_test(b, topo, x).map_or(b.data[x as usize][0], |e| e.iteration));
+            let i = x as usize;
+            if (b.tags[i] == Tag::Block && topo.owner[i] != NONE) || t.pending.dead[i] {
                 continue;
             }
-            if b.tags[x as usize] == Tag::Match
-                && !t.pending.dead[x as usize]
-                && let Some(arm) = unconditional_arm(b, x as usize)
-            {
-                blocks.push(arm);
-                continue;
+            if b.tags[i] == Tag::Loop {
+                blocks.push((
+                    entry_test(b, topo, x).map_or(b.data[i][0], |e| e.iteration),
+                    eager,
+                ));
+            } else if b.tags[i] == Tag::Match {
+                if let Some(arm) = unconditional_arm(b, i) {
+                    blocks.push((arm, eager));
+                }
+            } else if b.tags[i] == Tag::IsUnique && !t.gone[i] {
+                let word = b.data[i][0];
+                let local = match unique_header(b, word) {
+                    Some(h) => header_place(b, cx, t, h),
+                    None => rooted_place(b, t, word, false),
+                };
+                let hoist = !serves_shared_ref(b, t, blk, k);
+                if let Some(local) = local
+                    && let Some(c) = candidate(t, local, hoist)
+                {
+                    t.cands[c].eager |= eager && hoist;
+                }
             }
-            if b.tags[x as usize] != Tag::IsUnique
-                || t.gone[x as usize]
-                || t.pending.dead[x as usize]
-            {
-                continue;
-            }
-            let word = b.data[x as usize][0];
-            let local = match unique_header(b, word) {
-                Some(h) => header_place(b, cx, t, h),
-                None => rooted_place(b, t, word, false),
-            };
-            if let Some(local) = local {
-                candidate(t, local, !serves_shared_ref(b, t, blk, k));
-            }
+            eager &= !t.leaves[i];
         }
     }
     // The stable list candidates: the headers element accesses and
@@ -1339,7 +1402,7 @@ fn hoist_loop(
                 continue;
             }
         }
-        let stable = c.used && !c.pushes && (c.hoist || !c.unique);
+        let stable = c.used && !c.pushes && ((c.hoist && c.eager) || !c.unique);
         if !c.hoist && !stable {
             continue;
         }
@@ -1349,7 +1412,16 @@ fn hoist_loop(
                 at.0,
                 at.1,
                 Tag::IsUnique,
-                [word, unique_word::HOISTED],
+                [
+                    word,
+                    if c.eager {
+                        unique_word::HOISTED
+                    } else if !c.pushes {
+                        unique_word::DEFERRED_CACHE
+                    } else {
+                        unique_word::DEFERRED_INIT
+                    },
+                ],
                 Ty::VOID,
                 b.syn[l as usize],
             );
@@ -1359,9 +1431,12 @@ fn hoist_loop(
                     continue;
                 }
                 t.gone[x as usize] = true;
-                // The hoisted check proves this same place unique for
-                // every entered iteration; retain no no-op placeholder.
-                edits.remove(x);
+                if c.eager {
+                    edits.remove(x);
+                } else {
+                    // All covered writes share the loop's deferred decision.
+                    b.data[x as usize] = [word, unique_word::DEFERRED];
+                }
             }
         }
         if stable {
@@ -1557,10 +1632,15 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
                     // A repeat has no run-time effect, but its verifier
                     // requires the earlier in-block check. Track it in the
                     // existing hit list so both go when this place hoists.
-                    // An outer loop's already removed check stays ignored.
+                    // An outer loop's removed eager check stays ignored.
+                    // A deferred check can still replace the header here,
+                    // so an inner loop cannot cache it on entry.
                     _ if t.gone[x as usize] => {
                         if exact && w == unique_word::REPEAT {
                             t.hits.push((u32_of(k), x));
+                        }
+                        if exact && w == unique_word::DEFERRED {
+                            t.cands[k].unique = true;
                         }
                         true
                     }
@@ -1596,7 +1676,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
                 let cs = &t.csteps[c.start as usize..(c.start + c.len) as usize];
                 let mine = l == c.local && prefix(cs, &steps);
                 let exact = mine && steps.len() == cs.len();
-                if exact && matches!(op, Some(IntrinsicOp::ListPush | IntrinsicOp::ListReserve)) {
+                if exact && changes_header(op) {
                     c.pushes = true;
                 }
                 if exact && op == Some(IntrinsicOp::ListLen) {
@@ -1611,4 +1691,60 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
     }
     t.steps = steps;
     t.raw = raw;
+}
+
+#[cfg(test)]
+mod exit_tests {
+    use super::*;
+    use crate::ir::{TirBuilder, TirSink};
+    use hd_base::{DefId, NodeIdx};
+
+    #[test]
+    fn exit_summary_visits_once_at_width_1000_and_depth_20() -> Result<(), String> {
+        for width in [1, 1000] {
+            for tag in [Tag::Break, Tag::Continue, Tag::Return] {
+                for external in [false, true] {
+                    let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+                    let root = b.open_block();
+                    let outer = b.open_loop();
+                    let outer_body = b.open_block();
+                    let mut nesting = Vec::new();
+                    for _ in 0..20 {
+                        nesting.push((b.open_loop(), b.open_block()));
+                    }
+                    let inner_label = nesting.last().ok_or("missing inner loop")?.0.0;
+                    for _ in 0..width {
+                        b.emit(
+                            Tag::Break,
+                            inner_label.raw(),
+                            NONE,
+                            Ty::NEVER,
+                            NodeIdx::NONE,
+                        );
+                        if external || tag == Tag::Return {
+                            b.emit(tag, outer.0.raw(), NONE, Ty::NEVER, NodeIdx::NONE);
+                        }
+                    }
+                    let mut loops = Vec::new();
+                    while let Some((lp, block)) = nesting.pop() {
+                        let block = b.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+                        loops.push(b.close_loop(lp, block, Ty::VOID, NodeIdx::NONE).0);
+                    }
+                    let outer_body = b.close_block(outer_body, None, Ty::VOID, NodeIdx::NONE);
+                    let outer_inst = b.close_loop(outer, outer_body, Ty::VOID, NodeIdx::NONE).0;
+                    let root = b.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+                    let b = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                    let topo = Topology::new(&b);
+                    let mut visits = 0;
+                    let leaves = leaves_counted(&b, &topo, &mut || visits += 1);
+                    assert_eq!(visits, b.len());
+                    for lp in loops {
+                        assert_eq!(leaves[lp as usize], external || tag == Tag::Return);
+                    }
+                    assert_eq!(leaves[outer_inst as usize], tag == Tag::Return);
+                }
+            }
+        }
+        Ok(())
+    }
 }

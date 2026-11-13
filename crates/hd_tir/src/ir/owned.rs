@@ -41,7 +41,8 @@
 //!   suspension point and a value;
 //! - no `Ref` takes its local's count of a cell in a sub-body that holds
 //!   a suspension point ([`takes_outside_suspension`]);
-//! - an `IsUnique` is plain, `HOISTED`, `FRESH` or `REPEAT`; a hoisted one stands
+//! - an `IsUnique` is plain, `HOISTED`, `FRESH`, `REPEAT`, or a deferred
+//!   initializer/check pair; a hoisted initializer stands
 //!   right before a loop (among other hoisted ones), names a local's place
 //!   with one leading dereference at most and fields, whose local no `Ref`
 //!   roots at; in that loop nothing copies it (a read of it or of a place
@@ -316,7 +317,12 @@ fn takes_outside_suspension(b: &Body, topo: &Topology, errs: &mut Vec<VerifyErro
 fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let n = b.len();
     let unique = |x: usize, p: &Place| {
-        b.tags[x] == Tag::IsUnique && b.decode_place(b.data[x][0]).as_ref() == Some(p)
+        b.tags[x] == Tag::IsUnique
+            && !matches!(
+                b.data[x][1],
+                super::unique_word::DEFERRED_INIT | super::unique_word::DEFERRED_CACHE
+            )
+            && b.decode_place(b.data[x][0]).as_ref() == Some(p)
     };
     let quiet = |&x: &u32| {
         matches!(
@@ -411,7 +417,7 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
 /// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
 /// "Hoisting"): what the pass relies on, checked again.
 fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
-    use super::unique_word::{FRESH, HOISTED, REPEAT};
+    use super::unique_word::{DEFERRED, DEFERRED_CACHE, DEFERRED_INIT, FRESH, HOISTED, REPEAT};
     use crate::own::hoist;
     let n = b.len();
     // A fresh buffer's `IsUnique` is of a local that keeps it fresh, and one
@@ -430,7 +436,9 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                     u32_of(i),
                     "a fresh `IsUnique` of a place that may share its buffer".into(),
                 );
-            } else if (w == 0 || w == HOISTED) && is_fresh {
+            } else if matches!(w, 0 | HOISTED | DEFERRED | DEFERRED_INIT | DEFERRED_CACHE)
+                && is_fresh
+            {
                 err(
                     errs,
                     u32_of(i),
@@ -502,6 +510,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                     .any(|&(_, r)| hoist::ref_in_loop(r, last[r as usize], first[lp as usize], lp)))
     };
     let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
+    let mut deferred = std::collections::BTreeMap::<u32, Vec<(u32, u32)>>::new();
     for i in 0..n {
         if b.tags[i] != Tag::IsUnique {
             continue;
@@ -515,7 +524,10 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             );
             continue;
         }
-        if w != 0 && w != HOISTED && w != FRESH && w != REPEAT {
+        if !matches!(
+            w,
+            0 | HOISTED | FRESH | REPEAT | DEFERRED_INIT | DEFERRED | DEFERRED_CACHE
+        ) {
             err(
                 errs,
                 u32_of(i),
@@ -523,7 +535,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             );
             continue;
         }
-        if w != HOISTED {
+        if !matches!(w, HOISTED | DEFERRED_INIT | DEFERRED_CACHE) {
             continue;
         }
         let at = blk[i];
@@ -536,7 +548,11 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                         let tag = b.tags[x as usize];
                         // A block in the list is one a statement runs.
                         tag != Tag::Block
-                            && !(tag == Tag::IsUnique && b.data[x as usize][1] == HOISTED)
+                            && !(tag == Tag::IsUnique
+                                && matches!(
+                                    b.data[x as usize][1],
+                                    HOISTED | DEFERRED_INIT | DEFERRED_CACHE
+                                ))
                     })
             })
             .flatten();
@@ -548,6 +564,12 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             );
             continue;
         };
+        if matches!(w, DEFERRED_INIT | DEFERRED_CACHE) {
+            deferred
+                .entry(b.data[i][0])
+                .or_default()
+                .push((first[l as usize], l));
+        }
         let (local, _) = hoist::resolve(b, b.data[i][0], &mut steps, &mut raw);
         if local == NONE || !hoist::hoistable(&steps) || reached(local as usize, l) {
             err(
@@ -570,6 +592,20 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                 Some("pins or suspends")
             } else if !whole && !excl && hoist::writes(b, cx, xi) {
                 Some("calls what may write")
+            } else if w == DEFERRED_CACHE
+                && tag == Tag::Intrinsic
+                && hoist::changes_header(super::IntrinsicOp::from_u32(a))
+            {
+                let coll = b.record(xw).first().copied().unwrap_or(NONE);
+                let same = Ref(coll).as_inst().is_some_and(|read| {
+                    let r = read.0 as usize;
+                    if b.tags[r] != Tag::Read {
+                        return false;
+                    }
+                    let (ol, _) = hoist::resolve(b, b.data[r][0], &mut other, &mut raw);
+                    ol == local && other == steps
+                });
+                same.then_some("replaces its deferred cached header")
             } else if matches!(tag, Tag::Read | Tag::Store | Tag::Drop | Tag::Ref) {
                 let (ol, temp) = hoist::resolve(b, a, &mut other, &mut raw);
                 let mine = ol == local;
@@ -602,6 +638,36 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                 );
                 break;
             }
+        }
+    }
+    // Decisions for the same canonical place have disjoint loop ranges.
+    // Two indexed passes avoid an ancestor search at every covered write.
+    for ranges in deferred.values_mut() {
+        ranges.sort_stable();
+        for pair in ranges.windows(2) {
+            if pair[0].1 >= pair[1].0 {
+                err(
+                    errs,
+                    pair[1].1,
+                    "overlapping deferred uniqueness decisions".into(),
+                );
+            }
+        }
+    }
+    for i in 0..n {
+        if b.tags[i] != Tag::IsUnique || b.data[i][1] != DEFERRED {
+            continue;
+        }
+        let covered = deferred.get(&b.data[i][0]).is_some_and(|ranges| {
+            let at = ranges.partition_point(|&(lo, _)| lo <= u32_of(i));
+            at > 0 && u32_of(i) < ranges[at - 1].1
+        });
+        if !covered {
+            err(
+                errs,
+                u32_of(i),
+                "a deferred uniqueness check without its loop decision".into(),
+            );
         }
     }
     for (k, &(l, word)) in b.stable_lists.iter().enumerate() {
@@ -2109,4 +2175,97 @@ pub(crate) fn entry_locals(b: &Body, s: usize) -> Vec<usize> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod deferred_tests {
+    use super::*;
+    use crate::ir::{BodyKind, TirBuilder, TirSink, local_flags, place, unique_word};
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::Ty;
+
+    #[test]
+    fn deferred_checks_and_initializers_require_a_covering_loop() -> Result<(), String> {
+        for (mode, message) in [
+            (unique_word::DEFERRED, "without its loop decision"),
+            (unique_word::DEFERRED_INIT, "that no loop follows"),
+            (unique_word::DEFERRED_CACHE, "that no loop follows"),
+        ] {
+            let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let root = build.open_block();
+            let local = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+            build.emit(
+                Tag::IsUnique,
+                local.raw() | place::BARE_LOCAL,
+                mode,
+                Ty::VOID,
+                NodeIdx::NONE,
+            );
+            let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+            let body = build
+                .finish_tolerating(root, &[], &[22])
+                .map_err(|e| format!("{e:?}"))?;
+            let errors = verify_owned(&body, &crate::own::tests::Cx);
+            assert!(
+                errors.iter().any(|e| e.what.contains(message)),
+                "{errors:?}"
+            );
+        }
+        Ok(())
+    }
+    #[test]
+    fn a_deferred_cache_rejects_buffer_growth() -> Result<(), String> {
+        use crate::ir::{IntrinsicOp, ReadMode};
+        let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = build.open_block();
+        // The ownership unit context uses string as a counted-header stand-in.
+        let local = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+        let word = local.raw() | place::BARE_LOCAL;
+        build.emit(
+            Tag::IsUnique,
+            word,
+            unique_word::DEFERRED_CACHE,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let lp = build.open_loop();
+        let body = build.open_block();
+        build.emit(
+            Tag::IsUnique,
+            word,
+            unique_word::DEFERRED,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let header = build.emit(
+            Tag::Read,
+            word,
+            ReadMode::Borrow as u32,
+            Ty::STRING,
+            NodeIdx::NONE,
+        );
+        let value = build.const_value(Ty::I32, 0);
+        let args = build.refs_record(&[header, value]);
+        build.emit(
+            Tag::Intrinsic,
+            IntrinsicOp::ListPush as u32,
+            args,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let body = build.close_block(body, None, Ty::VOID, NodeIdx::NONE);
+        build.close_loop(lp, body, Ty::VOID, NodeIdx::NONE);
+        let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        let body = build
+            .finish_tolerating(root, &[], &[22])
+            .map_err(|e| format!("{e:?}"))?;
+        let errors = verify_owned(&body, &crate::own::tests::Cx);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.what.contains("replaces its deferred cached header")),
+            "{errors:?}"
+        );
+        Ok(())
+    }
 }

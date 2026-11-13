@@ -2037,6 +2037,15 @@ pub(crate) mod tests {
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::HOISTED {
                     line.push_str(" hoisted");
                 }
+                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::DEFERRED_INIT {
+                    line.push_str(" deferred-init");
+                }
+                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::DEFERRED_CACHE {
+                    line.push_str(" deferred-cache");
+                }
+                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::DEFERRED {
+                    line.push_str(" deferred");
+                }
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::FRESH {
                     line.push_str(" fresh");
                 }

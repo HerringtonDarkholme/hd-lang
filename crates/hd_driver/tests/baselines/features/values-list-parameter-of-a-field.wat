@@ -312,25 +312,24 @@
     i32.add
     global.set $locals
   )
-  (func $set_first (param $xs i32) (param $v i64)
+  (func $set_first (param $xs i32) (param $v i64) (local $t0 i32)
     ;; 18 |     xs[0] = v
-    local.get $xs
     local.get $xs
     i32.load $heap
     call $rt:list_unique
+    local.set $t0
+    local.get $xs
+    local.get $t0
     i32.store $heap
-    local.get $xs
-    i32.load $heap
-    local.set $xs
     i32.const 0
-    local.get $xs
+    local.get $t0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $xs
+    local.get $t0
     local.get $v
     i64.store $heap offset=16
   )
@@ -343,23 +342,22 @@
     i32.lt_u
     if
       local.get $steps
-      local.get $steps
       i32.load $heap
       call $rt:list_unique
+      local.set $t0
+      local.get $steps
+      local.get $t0
       i32.store $heap
     ;; 13 |         steps[slot] = step
-      local.get $steps
-      i32.load $heap
-      local.set $steps
       local.get $slot
-      local.get $steps
+      local.get $t0
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $steps
+      local.get $t0
       local.get $slot
       i32.const 8
       i32.mul

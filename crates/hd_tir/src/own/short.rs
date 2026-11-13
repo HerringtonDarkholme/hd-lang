@@ -204,7 +204,13 @@ impl Pass<'_> {
             let tag = self.b.tags[k];
             let ours = matches!(tag, Tag::IsUnique)
                 && self.b.view(self.b.data[k][0]).root == Root::Local(l)
-                && !(tag == Tag::IsUnique && self.b.data[k][1] == unique_word::HOISTED);
+                && !(tag == Tag::IsUnique
+                    && matches!(
+                        self.b.data[k][1],
+                        unique_word::HOISTED
+                            | unique_word::DEFERRED_INIT
+                            | unique_word::DEFERRED_CACHE
+                    ));
             if !ours {
                 break;
             }

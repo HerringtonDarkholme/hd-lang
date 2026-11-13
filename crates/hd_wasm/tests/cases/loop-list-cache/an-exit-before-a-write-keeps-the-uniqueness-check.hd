@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# An exit before the write must keep the uniqueness check in the iteration.
+fn break_before_write(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..xs.len():
+        if i == stop:
+            break
+        xs[i] = +5
+
+fn continue_before_write(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..xs.len():
+        if i == stop:
+            continue
+        xs[i] = +5
+
+fn return_before_write(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..xs.len():
+        if i == stop:
+            return
+        xs[i] = +5

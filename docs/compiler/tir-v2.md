@@ -967,7 +967,24 @@ loop's entry test so an empty loop copies nothing, when:
    is behind a reference parameter the loop hands to nothing: its callers
    leave nothing else able to reach `p` during the call.
 
-The same proof marks the loop's **stable list places**: a list place
+A `break`, `continue` or `return` before a check can skip it. Such a
+check is deferred to the first reached write instead of running before
+the loop. A flag initialized at loop entry records that the buffer has
+been made unique; later covered writes use that decision without another
+uniqueness operation. The same non-sharing proof (rules 2 and 3) keeps
+that decision valid. A loop that exits before its first write copies
+nothing. An eager check remains before the loop when no exit can skip it.
+
+A deferred decision does not mark its place stable from loop entry:
+the first write can replace the buffer. When no operation in the loop can
+grow or replace the header, the decision also caches the successful buffer.
+The backend keeps the initialized bit in an unused alignment bit of that
+private Wasm local; header zero has initialized encoding one. The header
+is untagged before use. Growing loops keep a boolean decision and reload
+the current buffer. An adjacent element store reuses the header its
+uniqueness check just resolved, preserving its ordinary bounds check.
+
+The same proof otherwise marks the loop's **stable list places**: a list place
 whose header nothing in the loop replaces. The pass records them in a
 side table, and the emitter keeps their buffer address and length in
 Wasm locals for the loop, as #710's list caches do today; with the list
