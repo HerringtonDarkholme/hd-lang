@@ -111,8 +111,10 @@ Only a `Display` type interpolates: unwrap an optional first
 (`.unwrap_or("")`), and print a list or a record with `debug(x)`.
 To build text in a loop, push to a `StringBuilder` (`use std.text.StringBuilder`;
 `out := StringBuilder::new()`, `out.push(s)`,
-`out.build()`) or collect parts and `join` them. `out = out + s` in a loop
-copies the whole text every time, as Go's `s += t` does.
+`out.build()`) or collect parts and `join` them. `out = out + s` and
+`out += s` append in place while `out` holds the only count of its text,
+so such a loop is linear too; a copy of `out` kept elsewhere makes the
+next append copy the text once.
 
 ## Values And References
 

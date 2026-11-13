@@ -23,6 +23,29 @@ The `counts` column is the release `counts` stage view for the marked target exp
 not mean the called std implementation allocates nothing. A loop suffix says that the shown
 operation runs for each element or entry.
 
+## Update, 2026-11-13
+
+Rerun at `a45fdfc17` with the same runner and seven runs, load average
+about 15:
+
+| case | hd ms | JS ms | hd/JS | Wasm B |
+| --- | ---: | ---: | ---: | ---: |
+| `string-add-build` | 0.5 | 0.2 | 2.40 | 4,339 |
+| `string-add-assign-build` | 0.5 | 0.2 | 2.44 | 4,339 |
+| `string-builder-push` | 7.5 | 33.9 | 0.22 | 6,396 |
+| `list-for-borrow-i32` | 11.9 | 26.3 | 0.45 | 4,224 |
+| `list-for-borrow-string` | 3.1 | 6.6 | 0.47 | 4,727 |
+| `list-mut-i32` | 4.1 | 8.1 | 0.51 | 4,343 |
+| `list-mut-string` | 13.9 | 13.8 | 1.00 | 5,007 |
+
+`s = s + t` and `s += t` now append in place when `s` holds the only
+count of its text: `rt:str_append` (`crates/hd_wasm/src/rt.rs`) grows a
+uniquely held buffer in place, or moves the bytes to one twice as long,
+so a building loop is linear. A borrowing `for x in &xs` loop costs no
+count per element: an element reference counts nothing (#1336 phase 10).
+The counts column of the tables below was not re-read. The other rows
+below are the 2026-11-02 snapshot.
+
 ## Strings
 
 | case | hd ms | JS ms | hd/JS | counts per target operation | Wasm B |
@@ -130,16 +153,18 @@ keyword literals, 500,000 times.
 
 ## Findings
 
-- Repeated `+` and `+=` building are the dominant miss: about 290 ms against Node's 0.2 ms.
+- On 2026-11-02, repeated `+` and `+=` building were the dominant miss: about 290 ms against
+  Node's 0.2 ms. They append in place since, at 0.5 ms (Update, 2026-11-13).
   `StringBuilder.push`, slicing, character iteration and integer formatting are already at or
   below Node in these programs.
 - The other string misses are grouped tightly: split, trim, equality and string-key lookup are
   4.58–5.26 times Node. Short and long equality cost the same within noise, so today's fixed
   call/scan path dominates the extra bytes in this range.
-- A borrowing List loop is 4.77–4.81 times Node and much slower than the corresponding value
-  loop. Its counts view identifies a retain and release for every element. Short direct
-  `&xs[i]` calls have no count operation and beat Node; mutable element calls retain and are
-  3.49–4.98 times Node.
+- On 2026-11-02, a borrowing List loop was 4.77–4.81 times Node, with a retain and release
+  for every element, and mutable element calls retained and were 3.49–4.98 times Node. Element
+  references count nothing since: on 2026-11-13 the borrowing loops are 0.45–0.47 times Node
+  and the mutable element calls 0.51–1.00 times (Update, 2026-11-13). Short direct `&xs[i]`
+  calls have no count operation and beat Node.
 - Integer-key Map iteration, update and `get_or_insert` beat Node. String-key get, contains,
   update and `get_or_insert` are 2.38–5.53 times Node, isolating string hashing/comparison as
   the difference. `keys()` is intentionally copying and is 1.86 times Node for integers and
