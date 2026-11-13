@@ -52,7 +52,7 @@ header), a closure (the reference), or a rebuilt copy (the struct).
   it, and nothing sits between them.
 - **Compile time, memory and compiler size count** as much as run time.
   Checking runs once per generic body; inlining and ownership run per
-  instance ([Ownership Per Instance](../future-work/OWNERSHIP_ARCHITECTURE.md),
+  instance ([Ownership Per Instance](ownership.md#ownership-per-instance),
   owner 2026-11-04; 1.03 times the instructions, measured).
 - **RC on linear memory** with the cycle collector. A reference is one
   address. Value-only recursion is acyclic (#707).

@@ -26,7 +26,6 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 
 ### Language and library
 
-- [Raw Buffers](RAW_BUFFER.md): accepted 2026-11-03; raw storage, std-only `Drop` and the copy verifier are implemented. The counted `List` and `Map` stay compiler built-ins (owner, 2026-11-12).
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
@@ -39,15 +38,16 @@ execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 ### Memory model and performance
 
 - [Enum Layout](ENUM-LAYOUT.md): built and closed 2026-11-08 (#1422, #1448): rustc's enum layout on wasm32 (payload as a struct at one offset, widened tag, niche filling), its gap against hd today, the algorithm in pseudocode, and the view deletion it enables (#1422, #1448).
-- [Pointer Loans](POINTER_LOANS.md): accepted 2026-11-03, model A, built (#1336), its loan placement in TIR (#1399): aliasing through `*T` by per-object loans with per-reference elision, with a stress test and a 424-case matrix (#1323).
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29, stages 1 to 9 built (the checker's region solver is [crates/hd_check/DESIGN.md §15](../../crates/hd_check/DESIGN.md#15-lifetimes-one-region-solver)); kept for the parts accepted but not built: view types for `&mut` parameters (#1357) and phantom markers.
-- [Ownership Per Instance](OWNERSHIP_ARCHITECTURE.md): accepted 2026-11-04, migration closed 2026-11-08 (#1399; what remains has its own issue): decide every count once per instance in one TIR pass, with never-addressed locals as values, a storage pass, explicit count and loan statements with checked reasons, and an emitter that decides nothing; reopens "work once per generic body" (#1364).
-- [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 - [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): built 2026-10-25 in the optimized pipeline only: per-function summaries over SCCs (slices 2-5: kept parameters, writes, lent parameters). Slices 6-9 measured no gain and were not merged (#681 closed); results on #165.
 
 No native backend is planned (#188 closed), and no direct TLS streams are planned.
 
 The compiler's design is in
-[docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
+[docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md). Built
+designs leave this folder for it: counts per instance, pointer loans and
+raw buffers are [docs/compiler/ownership.md](../compiler/ownership.md),
+and the lifetime solver is
+[crates/hd_check/DESIGN.md §15](../../crates/hd_check/DESIGN.md#15-lifetimes-one-region-solver).

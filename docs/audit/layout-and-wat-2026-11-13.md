@@ -66,7 +66,7 @@ Interior references cost a page-table lookup and a reciprocal multiply on
 each count change (§23.5). Neither Rust nor Swift counts interior
 addresses. The cost is accepted by the design and shrinks with count
 elision (§23.25) and the planned removal of reference counts
-(`POINTER_LOANS.md` phase 10), so it is not raised here.
+(`POINTER_LOANS.md` phase 10, git history at 7ccbb4ea8; now [ownership.md](../compiler/ownership.md#references-count-nothing-formerly-phase-10)), so it is not raised here.
 
 ### 3.2 L1: The Page Search Is Quadratic In Heap Pages
 

@@ -122,6 +122,10 @@ Tools and front ends:
 - [tiering.md](tiering.md): the dev and optimized pipelines and the pass
   architecture.
 - [goals.md](goals.md): the owner's goals, the metrics and feature triage.
+- [tir-v2.md](tir-v2.md): TIR's places, reads and ownership statements,
+  the ownership passes and the inliner.
+- [ownership.md](ownership.md): counts per instance, pointer loans
+  (model A) and raw buffers.
 
 Open designs stay in [`docs/future-work/`](../future-work/README.md), such as
 [live execution](../future-work/live-execution.md).

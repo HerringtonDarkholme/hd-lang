@@ -4865,9 +4865,9 @@ reasons or their scope, not their direction:
   list header stay, and so does the
   separate `for` lowering for lists.
 - **Ownership passes once per generic body.** Replaced on 2026-11-04 by
-  [Ownership Per Instance](../future-work/OWNERSHIP_ARCHITECTURE.md), which
-  decides counts per instance; the text below describes the passes until
-  its migration lands. The measured programs have
+  [Ownership Per Instance](ownership.md#ownership-per-instance), which
+  decides counts per instance; the text below describes the passes as
+  they were before that migration (#1399, closed 2026-11-08). The measured programs have
   0.8 to 1.07 instances per decoded body, so this saves little compile
   time today. The decision still holds: it puts the decisions in one
   place per body, where a fixture shows them, and it scales to generic

@@ -227,7 +227,7 @@ runtime can change its representation without breaking a program.
   does nothing.
 - **Pages** are Wasm's 64 KiB pages. The heap grows with `memory.grow`
   on memory 0 and never shrinks: a program's footprint is its high-water
-  mark (REFCOUNT_RUNTIME.md §6).
+  mark (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §6).
 
 ### 23.3 Values
 
@@ -292,8 +292,8 @@ the slot's start:
 
 | Offset | Size | Field |
 | --- | --- | --- |
-| 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 15 the release glue's function-table slot plus one (0 for none), bits 16 to 21 the borrow state (bits 16 to 20 the shared loan count, bit 21 an exclusive loan; `docs/future-work/POINTER_LOANS.md`), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §4.4) |
+| 4 | 4 | the descriptor word: bits 0 to 15 the release glue's function-table slot plus one (0 for none), bits 16 to 21 the borrow state (bits 16 to 20 the shared loan count, bit 21 an exclusive loan; [docs/compiler/ownership.md](../../docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2)), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 
 - A reference to a whole object is the payload's address, slot + 8, so
@@ -320,13 +320,13 @@ the slot's start:
   ever changes it and it is never freed. As its count is never 1, a write
   that needs the only reference copies it first.
 - **Release glue** is one function per type layout, shared by types with
-  the same layout, iterative for a recursive type (REFCOUNT_RUNTIME.md
+  the same layout, iterative for a recursive type (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md
   §4.5); trace glue exists only for cycle-capable types.
 
 ### 23.5 Interior Addresses And The Page Table
 
 A reference is one `i32` address, which may point at a field or an
-element (the thin form of REFCOUNT_RUNTIME.md §5). Reading through it
+element (the thin form of REFCOUNT_RUNTIME.md §5, git history at 7ccbb4ea8). Reading through it
 needs only the address; a count update finds the object's slot through
 the page table:
 
@@ -356,7 +356,7 @@ memory.
 
 ### 23.6 The Allocator's Geometry
 
-The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
+The allocator is hd in `std.rt.alloc`, the refcount study's §6 (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md)
 `sc` grown into a real allocator:
 
 - **Size classes**, 20 of them, sizes in bytes including the header: 16
@@ -383,7 +383,7 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   anything reads it, and only the collector scans, and only initialized
   objects.
 - **Reachable code only.** A program links only the allocator functions
-  its code reaches (REFCOUNT_RUNTIME.md §10.1). When none of them writes
+  its code reaches (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §10.1). When none of them writes
   the allocator's bindings, its init does nothing, and `hd.init` leaves
   it out (§15.4).
 
@@ -392,7 +392,7 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
 - **Strings** are views `(address, length)` of valid UTF-8 inside a
   counted byte buffer, or inside static data for a literal. A slice is a
   new view with no allocation; it counts the buffer through the page
-  table only when stored (REFCOUNT_RUNTIME.md §5). **Every empty string
+  table only when stored (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §5). **Every empty string
   is one static value**: its address is one fixed static location and its
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
@@ -400,7 +400,7 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   capacity, the length, a reserved word and then the elements inline at
   their layout's size. The buffer's count is its holder count, for
   copy-on-write: a change first checks it is 1 and copies the buffer
-  otherwise (REFCOUNT_RUNTIME.md §9.1). An element reference counts
+  otherwise (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §9.1). An element reference counts
   nothing and sets nothing in the buffer (§23.20, "Element references").
 - **A map** is the address of its table, one counted block that holds
   the entries in the order they were added and a probing index over them
@@ -504,7 +504,8 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   its room is a block whose count word starts at 1, the buffer's, and
   whose descriptor word is 0, then the values. A reference into the room
   that takes a count adds one (§23.20, "References count what they
-  cross"), until the reference counts go (`POINTER_LOANS.md`, phase 10);
+  cross"), until the reference counts go
+([ownership.md](../../docs/compiler/ownership.md#references-count-nothing-formerly-phase-10));
   nothing reads that word as a pin. Its `Drop` and
   `grow` give up the buffer's count and free the room when it was the
   last; else the last reference's release frees it, with no glue. The
@@ -1171,7 +1172,7 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
 - **References count nothing** (model A,
-  `docs/future-work/POINTER_LOANS.md` phase 10, spec
+  [docs/compiler/ownership.md](../../docs/compiler/ownership.md#references-count-nothing-formerly-phase-10), spec
   `ref.count.pointer`, `ref.count.local`, `ref.count.new-object`). A
   thin local reference is a plain address, which counts nothing: its
   count walk is none: every enum payload sits at one offset, so a
@@ -1289,7 +1290,7 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   (`UniqMap.insert`'s probe, #1230). Other references keep their normal
   ownership and lifetime handling.
 - **Pointer loans and borrow-state checks** (model A of
-  `docs/future-work/POINTER_LOANS.md`, #1336; `emit/borrow.rs`). A
+  [docs/compiler/ownership.md](../../docs/compiler/ownership.md#pointer-loans-model-a), #1336; `emit/borrow.rs`). A
   reference a binding, struct, tuple or option holds takes a shared loan
   on each `*T` object its place crosses and, on the last, a shared one for
   `&` or an exclusive one for `&mut`: the store into the holder adds them
@@ -1522,7 +1523,8 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
 ### 23.22 Code Size: The Local Cleanup And The Allocator
 
 Issue #581 brings the allocator toward §10.1's size budget of
-REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
+the refcount study (`opt.rs`, `lib/std/rt/alloc.hd`; the study is
+`docs/future-work/REFCOUNT_RUNTIME.md` in git history at 7ccbb4ea8).
 
 - **The local cleanup.** Emission gives every TIR value a fresh local, and
   checks every integer operation. Before encoding, `opt::locals` rewrites
@@ -1916,7 +1918,8 @@ whose row changes and `$.Context` values on the linear backend
 
 The backend reclaims reference cycles by synchronous trial deletion
 (Bacon and Rajan, ECOOP 2001), as
-docs/future-work/REFCOUNT_RUNTIME.md §7 plans. The collector is hd in
+the refcount study §7 planned
+(`docs/future-work/REFCOUNT_RUNTIME.md` in git history at 7ccbb4ea8). The collector is hd in
 `std.rt.cycle` (`lib/std/rt/cycle.hd`); the backend adds what only it can
 build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 `CycleFree` and `Opaque`, and `cycle.rs`'s per-type analysis).
@@ -2004,7 +2007,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 - **When.** `rt:new` collects first when std's `due` says the buffer holds
   at least the threshold's live candidates (those with a count): 10,000 at first, halved back
   toward 10,000 after a collection that frees at least half of what it
-  marked gray, doubled after one that frees less (REFCOUNT_RUNTIME.md
+  marked gray, doubled after one that frees less (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md
   §7.4). An allocation is never reached from release glue, so a
   collection never interrupts one. The entry's poll collects whenever it
   answers (`Helper::CollectPoll`): at idle when the answer is Pending, and
@@ -2048,7 +2051,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `std_rt/cycle_tests.hd` drops 400,000 argument/capture frame cycles and
   checks reuse in the normal allocator; checked mode quarantines freed
   blocks and checks their counts instead.
-- **Cycle capability** (issue #642; REFCOUNT_RUNTIME.md §7.1).
+- **Cycle capability** (issue #642; git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md §7.1).
   An object can be on a cycle only if what it holds reaches, through
   counted references, a value that can hold the object again.
   `cycle::object` (a list's header and buffers, a map's table, a data

@@ -116,7 +116,8 @@ every count is non-atomic. Sharing an object between threads would put it
 in a shared region, where only those objects need atomic counts. A frozen
 graph published once could be made immortal for the life of its region, so
 readers do no count updates
-([Refcount Runtime](REFCOUNT_RUNTIME.md) §9.5). Wasm threads have shipped,
+(the refcount study §9.5,
+`docs/future-work/REFCOUNT_RUNTIME.md` at 7ccbb4ea8). Wasm threads have shipped,
 so this does not wait for an engine feature. It waits for the language
 design of what may be shared, and is parked.
 
