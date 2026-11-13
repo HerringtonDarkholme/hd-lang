@@ -134,8 +134,8 @@ pub(crate) struct Tables {
     stack: Vec<u32>,
     exits: Vec<(SubId, LocalId)>,
     /// Per read a change goes through (rules 5 and 6): whether the lists
-    /// on its path have their `IsUnique` before it (bit 1) and their `Pin`
-    /// (bit 2), so a read two changes go through gets them once.
+    /// on its path have their `IsUnique` before it (bit 1), and whether
+    /// a reference walk has covered it (bit 2), so checks are placed once.
     walked: Vec<u8>,
     /// The collection changes' operands ([`changes`]), and as (key,
     /// change) each key a change looks a map entry up with again.
@@ -806,8 +806,8 @@ fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
 }
 
 /// Rules 5 and 6: an `IsUnique` before each in-place change of a list or
-/// map place, and a `Pin` after it before each element reference; and the
-/// same for the lists on the path of each read the change goes through,
+/// map place and before element references not proven read-only; and
+/// the same for lists on the path of each read the change goes through,
 /// before that read.
 fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables) {
     for i in 0..b.len() {
@@ -882,8 +882,8 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
     }
 }
 
-/// Marks each `for x in &xs` loop's element reference that
-/// pins the list once (#1399 9k): a `&` of an element of a read made
+/// Marks each `for x in &xs` loop's element reference whose buffer
+/// stays live for the loop (#1399 9k): a `&` of an element of a read made
 /// before the loop, of a place rooted at a local no closure shares, where
 /// nothing in the loop stores or takes a `&mut` through that local. The
 /// read keeps the buffer live before the loop through its end. Where
@@ -895,7 +895,7 @@ pub(super) fn pinned_elements(b: &Body, topo: &Topology, out: &mut Vec<bool>) {
     pinned_elements_with(b, topo, out, || {});
 }
 
-/// Batches the pin proof without scanning a loop for every reference.
+/// Batches the stable-reference proof without scanning each loop per reference.
 /// Loop enter/exit events give exact ancestry intervals. A second event
 /// walk compares each candidate's root-write counter at entry and exit:
 /// the difference includes precisely that loop and its nested loops.
@@ -1305,7 +1305,7 @@ fn entry(b: &Body, ix: u32) -> Option<usize> {
 
 /// The reads a change through value `v` goes through, from `v` back to
 /// a read of a local, a global, a dereference or no read at all: for each,
-/// an `IsUnique` (and a `Pin`, for a reference) of every list on its path,
+/// an `IsUnique` of every list on its path,
 /// outermost first, before the read. A coercion passes its value on, and
 /// a read of a field of a value goes on to that value.
 fn through(

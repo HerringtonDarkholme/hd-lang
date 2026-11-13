@@ -31,7 +31,7 @@
 //!   sub-body, after a `Drop` of it, a `move` read of it and a `Ref` that
 //!   takes its count; a store into its own storage clears it. Each
 //!   instruction that reads the local's storage (a `Read`, `Store`, `Ref`,
-//!   `IsUnique` or `Pin` of a place rooted at it, a `Closure` that captures
+//!   `IsUnique` of a place rooted at it, a `Closure` that captures
 //!   it) and each `Loop` (where the backend reads stable places before the
 //!   loop) gets a row in `Body::full_cells` when the bit is clear on every
 //!   path that reaches it: there the backend reads the cell with no null

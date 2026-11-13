@@ -1,8 +1,8 @@
 //! Lists (`crates/hd_wasm/DESIGN.md` §23.7, §23.17, job 9). A list value
 //! is the address of its buffer, a counted object holding the capacity,
-//! the length, the owner word (§23.20) and the elements inline; a copy,
-//! every count of it (`rt:coll_copy`), counts one more holder of the same
-//! buffer, or clones a pinned one. The ownership passes' `IsUnique` makes the buffer the list's
+//! the length, a reserved word that stays 0 (§23.20), and the elements
+//! inline. Every copy (`rt:coll_copy`) counts one more holder of the same
+//! buffer. The ownership passes' `IsUnique` makes the buffer the list's
 //! own before a change (`rt:list_unique`): a shared one is copied, and the
 //! copied elements' collections are copied in turn, so a nested write
 //! never reaches another list. A check or a change that replaces the
@@ -1399,8 +1399,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// `ListReserve`: room for `count` more elements, through
-    /// [`Helper::ListReserve`], which panics on a pinned list and copies a
-    /// shared buffer; the buffer it returns goes back into the operand's
+    /// [`Helper::ListReserve`], which copies a shared buffer; the buffer
+    /// it returns goes back into the operand's
     /// place. A count of 0 does nothing, so an empty list keeps the static
     /// empty buffer.
     pub(super) fn list_reserve(&mut self, args: &[u32]) -> StageResult<()> {

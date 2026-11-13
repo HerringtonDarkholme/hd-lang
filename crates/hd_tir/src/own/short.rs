@@ -1,8 +1,7 @@
 //! Short loans (`crates/hd_wasm/DESIGN.md` §23.20): a reference into
 //! a collection whose every holder ends before anything could write or
 //! drop that collection lives on the collection's own count. It takes no
-//! count of the buffer, and a shared one makes the buffer neither unique
-//! nor pinned.
+//! count of the buffer, and a shared one leaves the buffer unchanged.
 //!
 //! An **origin** is a reference-returning `map_probe` intrinsic, a
 //! `ptr_ref` intrinsic, a `MapGet` (its hit's value copy takes no count),
@@ -20,7 +19,7 @@
 //! Between the origin and that `Drop`, every statement that runs leaves
 //! the collection alone: no store but into a local that is not on the
 //! collection's path, no drop or move of that path, no `&mut`, no
-//! uniqueness check or pin, no call that may write (`OwnCx::may_write`),
+//! uniqueness check, no call that may write (`OwnCx::may_write`),
 //! no intrinsic but a read, no return and no jump out. Anything else keeps
 //! the counted reference.
 //!
@@ -160,7 +159,7 @@ impl Pass<'_> {
     }
 
     /// For a shared `Ref` of an element of a local's list, `[$l [%i]]` or
-    /// `[*$l [%i]]`: the `IsUnique`s and `Pin`s of the list that stand
+    /// `[*$l [%i]]`: the `IsUnique`s of the list that stand
     /// right before it in its block, which insertion put there for it.
     fn shared_elem_ref(&self, x: u32) -> Option<Vec<u32>> {
         let i = x as usize;

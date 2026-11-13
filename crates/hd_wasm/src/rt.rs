@@ -267,8 +267,7 @@ pub enum Helper {
         elem: Elem,
     },
     /// `(coll) -> coll`: a copy of a list or a map (`types.coll.value`):
-    /// one more count on its buffer, or a clone through the owner word's
-    /// slot when it is pinned or exposed.
+    /// one more count on the same buffer. Its reserved word stays 0.
     CollCopy,
     /// `(ctx, key) -> entry`: the entry of key id `key` in context `ctx`
     /// ([`ctx_elem`]), `LIST_ELEMS` before it. Checking covers every key a
@@ -336,8 +335,8 @@ pub enum Helper {
         entry: map::Entry,
     },
     /// `(map) -> map`: the map's table made its own before a change: a
-    /// table it shares is copied, its entries taking their own counts. A
-    /// table with an owner word has one holder (a pinned map).
+    /// table it shares is copied, its entries taking their own counts.
+    /// The reserved word stays 0.
     MapUnique {
         entry: map::Entry,
     },
@@ -382,19 +381,17 @@ pub enum Helper {
         entry: map::Entry,
         item: Box<crate::layout::Flat>,
     },
-    /// `(list, n) -> list`: std's `list_truncate`: a pinned list whose
-    /// length would change panics; otherwise the buffer is made the list's
-    /// own, the elements from `n` on are released and the length becomes
-    /// `n`.
+    /// `(list, n) -> list`: std's `list_truncate`: make the buffer the
+    /// list's own, release the elements from `n` on and set the length to
+    /// `n`. The reserved word stays 0.
     ListTruncate {
         elem: Elem,
     },
     /// `(list, extra) -> list`: std's `list_reserve`, and the reserve
     /// of [`Helper::ListExtend`]: room for
     /// `extra` (more than 0, which each caller tests) more elements
-    /// without another growth: a pinned list panics; a shared
-    /// buffer is copied, its elements taking their own counts; a buffer
-    /// without the room moves to one of the needed length or twice the
+    /// without another growth: a shared buffer is copied, its elements
+    /// taking their own counts; a buffer without the room moves to one of the needed length or twice the
     /// length plus 4, whichever is more. At most one new buffer.
     ListReserve {
         elem: Elem,
@@ -3648,7 +3645,7 @@ fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32, m: &Module) {
 
 /// [`Helper::StrFromBytes`]: takes a count of the list's buffer. An
 /// unshared buffer (count 1) becomes the string's: the view
-/// is its bytes in place. A shared or pinned one is copied into a string
+/// is its bytes in place. A shared one is copied into a string
 /// buffer and loses the count. No bytes is the static empty string.
 fn str_from_bytes(m: &Module) -> Func {
     let mut f = m.func("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
@@ -3898,7 +3895,8 @@ fn drop_value_glue(
 
 /// One more count on each counted reference of the value in locals `ls`,
 /// loads no count keeps: a collection's is the copy glue's result, which
-/// replaces it, a clone when the collection is pinned (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`).
+/// replaces it with the same buffer carrying one more count. The reserved
+/// collection word stays 0.
 fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
     for &c in &value.colls {
         f.get(ls[c as usize]);
