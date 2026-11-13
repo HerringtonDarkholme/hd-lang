@@ -429,6 +429,34 @@ pub mod meta {
     pub const HAS_REF: u32 = 32;
     pub const HAS_OPAQUE: u32 = 64;
     pub const HAS_FN: u32 = 128;
+    /// The flag bits; the word's upper half is the depth (`depth`).
+    pub const FLAGS: u32 = 0xFFFF;
+    const DEPTH_SHIFT: u32 = 16;
+
+    /// The depth a meta word records: type constructors on the longest
+    /// path down to a leaf, a list or a row adding none. Saturates at
+    /// `u16::MAX`, past every limit (`hd_base::limits::TYPE_DEPTH`).
+    #[must_use]
+    pub const fn depth(m: u32) -> u32 {
+        m >> DEPTH_SHIFT
+    }
+
+    /// The flags of both words, and the greater depth: the meta of a
+    /// list or row of parts with these metas.
+    #[must_use]
+    pub const fn join(a: u32, b: u32) -> u32 {
+        let d = if depth(a) > depth(b) { a } else { b };
+        (a | b) & FLAGS | d & !FLAGS
+    }
+
+    /// The meta of a type constructor over parts whose joined meta is
+    /// `m`: one level deeper.
+    #[must_use]
+    pub const fn level(m: u32) -> u32 {
+        let d = depth(m);
+        let d = if d < FLAGS { d + 1 } else { d };
+        m & FLAGS | d << DEPTH_SHIFT
+    }
 }
 
 impl PoolTag {
@@ -1028,7 +1056,7 @@ impl<'a> Types<'a> {
 
     #[must_use]
     pub fn list(self, tys: &[Ty]) -> TyList {
-        let meta = tys.iter().fold(0, |m, t| m | self.meta_of(*t));
+        let meta = tys.iter().fold(0, |m, t| meta::join(m, self.meta_of(*t)));
         TyList(self.intern(PoolTag::List, 0, (&[], tys), meta))
     }
 
@@ -1058,7 +1086,7 @@ impl<'a> Types<'a> {
         keys.dedup();
         params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
         params.dedup();
-        let mut meta = keys.iter().fold(0, |m, t| m | self.meta_of(*t));
+        let mut meta = keys.iter().fold(0, |m, t| meta::join(m, self.meta_of(*t)));
         if !params.is_empty() {
             meta |= meta::HAS_PARAM;
         }
@@ -1310,17 +1338,24 @@ impl<'a> Types<'a> {
                 deps,
             });
         }
+        let j = meta::join;
         let (tag, data, meta): (PoolTag, u32, u32) = match t {
             TyData::Prim(p) => (T::Prim, *p as u32, 0),
             TyData::Never => (T::Never, 0, 0),
             TyData::Poison => (T::Poison, 0, meta::HAS_POISON),
-            TyData::Adt { args, .. } => (T::Adt, 0, self.list_meta(*args)),
-            TyData::Tuple { elems, rest: None } => (T::Tuple, elems.0, self.list_meta(*elems)),
+            TyData::Adt { args, .. } => (T::Adt, 0, meta::level(self.list_meta(*args))),
+            TyData::Tuple { elems, rest: None } => {
+                (T::Tuple, elems.0, meta::level(self.list_meta(*elems)))
+            }
             TyData::Tuple {
                 elems,
                 rest: Some(r),
-            } => (T::TupleRest, 0, self.list_meta(*elems) | self.meta_of(*r)),
-            TyData::Union(members) => (T::Union, members.0, self.list_meta(*members)),
+            } => (
+                T::TupleRest,
+                0,
+                meta::level(j(self.list_meta(*elems), self.meta_of(*r))),
+            ),
+            TyData::Union(members) => (T::Union, members.0, meta::level(self.list_meta(*members))),
             TyData::Fn {
                 params,
                 result,
@@ -1330,16 +1365,19 @@ impl<'a> Types<'a> {
                 T::Fn,
                 0,
                 meta::HAS_FN
-                    | self.list_meta(*params)
-                    | self.meta_of(*result)
-                    | self.row_meta(*row),
+                    | meta::level(j(
+                        j(self.list_meta(*params), self.meta_of(*result)),
+                        self.row_meta(*row),
+                    )),
             ),
             TyData::TraitValue { args, bindings, .. } => (
                 T::TraitValue,
                 0,
-                bindings
-                    .iter()
-                    .fold(self.list_meta(*args), |m, (_, t)| m | self.meta_of(*t)),
+                meta::level(
+                    bindings
+                        .iter()
+                        .fold(self.list_meta(*args), |m, (_, t)| j(m, self.meta_of(*t))),
+                ),
             ),
             TyData::Opaque {
                 args,
@@ -1351,15 +1389,14 @@ impl<'a> Types<'a> {
                 0,
                 meta::HAS_OPAQUE
                     | if *borrows { meta::HAS_REF } else { 0 }
-                    | self.list_meta(*args)
-                    | self.meta_of(*bound),
+                    | meta::level(j(self.list_meta(*args), self.meta_of(*bound))),
             ),
             TyData::Param(_) => (T::Param, 0, meta::HAS_PARAM),
             TyData::Const(_) => (T::Const, 0, 0),
             TyData::Assoc { self_ty, args, .. } => (
                 T::Assoc,
                 0,
-                meta::HAS_ASSOC | self.meta_of(*self_ty) | self.list_meta(*args),
+                meta::HAS_ASSOC | meta::level(j(self.meta_of(*self_ty), self.list_meta(*args))),
             ),
             TyData::Ref {
                 inner,
@@ -1373,12 +1410,12 @@ impl<'a> Types<'a> {
                     (true, true) => T::CRefMut,
                 },
                 inner.0,
-                meta::HAS_REF | self.meta_of(*inner),
+                meta::HAS_REF | meta::level(self.meta_of(*inner)),
             ),
             TyData::Infer(v) => (T::Infer, v.raw(), meta::HAS_INFER),
             TyData::Canon(i) => (T::Canon, u32::from(*i), meta::HAS_CANON),
-            TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
-            TyData::Context(r) => (T::Context, r.0, self.row_meta(*r)),
+            TyData::Row(r) => (T::RowTy, r.0, meta::level(self.row_meta(*r))),
+            TyData::Context(r) => (T::Context, r.0, meta::level(self.row_meta(*r))),
         };
         let mut buf = [0u32; 5];
         let rec: &[u32] = match t {
@@ -1898,6 +1935,13 @@ impl<'a> Types<'a> {
         self.meta_of(t) & meta::HAS_FN != 0
     }
 
+    /// Type constructors on the longest path from `t` down to a leaf
+    /// ([`meta::depth`]), read from its meta word: no walk.
+    #[must_use]
+    pub fn depth(self, t: Ty) -> u32 {
+        meta::depth(self.meta_of(t))
+    }
+
     /// The local reference slots of `t`: each `&T` and `&mut T` outside
     /// function types, through counted references
     /// (`ref.local.holding.counted`), and each opaque type that borrows
@@ -1909,7 +1953,7 @@ impl<'a> Types<'a> {
     }
 
     fn ref_slots_at(self, t: Ty, depth: u32) -> usize {
-        if depth > 32 || !self.has_ref(t) {
+        if depth > hd_base::limits::TYPE_DEPTH || !self.has_ref(t) {
             return 0;
         }
         let d = depth + 1;

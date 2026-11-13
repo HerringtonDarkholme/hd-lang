@@ -130,6 +130,11 @@ pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
     e.stage == Stage::Body && e.out_of_fuel
 }
 
+/// `types.limit.type-size.error`: a value's type nests deeper than
+/// `hd_base::limits::TYPE_DEPTH`.
+const TYPE_TOO_LARGE: &str =
+    "this value's type nests deeper than the compiler allows; name a struct to wrap part of it";
+
 /// The message of `item-too-complex`, in a body and in a header.
 pub(crate) const TOO_COMPLEX: &str =
     "checking this item needs more steps than the compiler allows; split it into smaller items";
@@ -5114,6 +5119,15 @@ impl Ck<'_, '_> {
             let t = self.b.body_mut().ty[i];
             let z = self.zonk(t);
             self.b.body_mut().ty[i] = z;
+            // §4.15: past `TYPE_DEPTH`, the type walks stop short, so the
+            // first value with such a type is an error.
+            if pool.depth(z) > hd_base::limits::TYPE_DEPTH && syn != hd_base::NodeIdx::NONE {
+                if !self.diags.has_errors() {
+                    let node = self.cx.src.parse.tree.node(syn);
+                    self.err(Code::TypeTooLarge, node, TYPE_TOO_LARGE);
+                }
+                continue;
+            }
             if syn != hd_base::NodeIdx::NONE && !self.diags.has_errors() {
                 let node = self.cx.src.parse.tree.node(syn);
                 let view = self.cx.impls.hiding(&self.hidden);

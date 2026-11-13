@@ -752,7 +752,7 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
             st.0 += 1;
         };
         match (pool.get(d), pool.get(t)) {
-            _ if depth > 32 => false,
+            _ if depth > hd_base::limits::TYPE_DEPTH => false,
             (TyData::Param(p), _) => {
                 st.1.extend((0..ls.of(t).slots.len()).map(|s| Key::Param(p, s)));
                 true
@@ -946,7 +946,7 @@ impl Layout {
         depth: u32,
         out: &mut Vec<Slot>,
     ) {
-        if depth > 32 {
+        if depth > hd_base::limits::TYPE_DEPTH {
             return;
         }
         let d = depth + 1;

@@ -138,6 +138,7 @@ mod trials;
 mod tuple_structure;
 mod tuple_template_bounds;
 mod type_default_written_run;
+mod type_depth;
 mod typed_facts;
 mod typeid_of;
 mod unlowered_intrinsic;

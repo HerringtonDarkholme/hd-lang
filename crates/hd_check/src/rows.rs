@@ -396,7 +396,7 @@ impl Ck<'_, '_> {
             self.infer.resolve(pool, got),
             self.infer.resolve(pool, want),
         );
-        if depth > 32 || g == w {
+        if depth > hd_base::limits::TYPE_DEPTH || g == w {
             return;
         }
         let strip = |t: Ty| t;

@@ -124,7 +124,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let g = self.infer.resolve(pool, got);
         let w = self.infer.resolve(pool, want);
-        if depth > 32 || g == w {
+        if depth > hd_base::limits::TYPE_DEPTH || g == w {
             return true;
         }
         let d = depth + 1;

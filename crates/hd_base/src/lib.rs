@@ -8,6 +8,7 @@
 
 pub mod append;
 pub mod hash;
+pub mod limits;
 pub mod path;
 pub mod sort;
 pub mod stable;
