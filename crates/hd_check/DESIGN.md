@@ -1613,6 +1613,102 @@ threads and memo states (TC-8); a pathological suite with each case of
 section 11.3, well-typed and ill-typed; a one-root-cause fuzzer; a crash
 fuzzer.
 
+## 15. Lifetimes: One Region Solver
+
+The rules are spec chapter 13
+([Local References](../../spec/lang/13-values-and-references.md#local-references)
+through [Result Paths](../../spec/lang/13-values-and-references.md#result-paths)).
+The checker proves them with Rust's shape: every reference position of
+every value in a body gets a region variable, each TIR instruction adds
+outlives constraints between them, and one solver computes all region
+values before the checks read them (`src/regions.rs`, generators in
+`src/dep_results/constraints.rs`, exclusivity in
+`src/dep_results/constraints/exclusive.rs`). Body types stay erased: the
+region variables live in a side table parallel to each type's reference
+slots. The type pool and the interface cache are untouched.
+
+The design and its staging were accepted on 2026-10-29 and 2026-10-30;
+the studies are in git history: at 7ccbb4ea8 `docs/future-work/LIFETIME_SOLVER.md` (solver slices S1 to S12, with the
+check-time measurements of tier 2) and
+at 7ccbb4ea8 `docs/future-work/RETURNED_REFERENCES_PATH.md` (stages 1 to 9). What is
+accepted but not built is in
+[The Path To Returned Local References](../../docs/future-work/RETURNED_REFERENCES_PATH.md).
+
+### 15.1 Regions
+
+**Region slots.** A type's slots are each local `&` and `&mut` outside a
+function type or a counted reference, each struct lifetime argument,
+each function type's capture, each borrowing opaque type, and one for a
+`&dyn` value's data. Each value and each local of a body gets one region
+variable per slot of its type (`RegionTable`: a base per value plus the
+slot index).
+
+**Two cached maps.** A slot layout per distinct type (its slots in
+preorder, each with its kind and the end of its subtree), and a field
+slot map per struct field and variant payload: for each slot of the
+field's declared type, which slot of the parent instance it is.
+`Outer.inner: Two['b, 'a]` maps to `Outer`'s second and first lifetime
+slots, at any depth. A per-type "has slots" flag lets a body whose values
+and locals have none skip the solver.
+
+**Loans** are what a parameter slot refers to, a local, a hidden local of
+`&e`, and a top-level binding. A region's value is a bitset of loans
+(`Loans`).
+
+### 15.2 Constraints
+
+`a ⊑ b` means "everything `a` may point into, `b` may too" (Rust writes
+`'b: 'a`). A slot is invariant under a `&mut`, and in a struct lifetime
+that a `&'a mut` field names; elsewhere it is covariant.
+
+| TIR construct | Constraints |
+| --- | --- |
+| `Ref` of place `p` | slot 0 holds the loan of `p`'s root; slots 1.. are `p`'s slots, both ways |
+| `Read` of `p` | `p`'s slots ⊑ the value's, both ways in invariant slots |
+| `Store` into `p` | the value's slots ⊑ `p`'s, both ways in invariant slots; a universal slot of `p` adds a check |
+| field, variant, tuple projection | the field slot map |
+| `Deref` projection | a local reference's slots after slot 0; a counted reference's own slots |
+| `Elem`, `push`, map store | the collection's type-argument slots |
+| struct, variant, tuple, list construction | each part ⊑ the parent, by the field slot map |
+| `Coerce` | slot by slot; to `&dyn` or a shape that does not line up, every slot ⊑ each target slot |
+| block, `if`, `match`, loop, `break` | each arm's value ⊑ the result |
+| call | fresh variables per callee lifetime and per type-parameter slot; argument ⊑ parameter; a `&mut` parameter's inner slots equal the argument's; the result takes its lifetime's variable |
+| suspension (bang call without `!`) | each argument's slots, but a lent counted reference's, ⊑ its own slot; the result's slots as the call's with `!` |
+| closure | each captured local's slots ⊑ the capture slot |
+| return, body value | value ⊑ the result's universal regions (checked) |
+| `box` | the new object's value ⊑ the counted reference, slot by slot; a captured function value's slot ⊑ `'static` (checked) |
+| provider, host call, `'static` type parameter | value ⊑ `'static` (checked) |
+
+### 15.3 The Solver And The Checks
+
+`Constraints::solve` builds the constraint graph, collapses strongly
+connected components with an iterative Tarjan pass, and unions bitsets
+once in topological order. The work is linear in slots plus edges, with
+no pass count and no recursion. It is location-insensitive, as
+`ref.dep.origin.set` specifies: one value per region for the whole body.
+
+Each signature lifetime is a universal region. Its parameter slots start
+with their placeholder loans, and implied bounds come from the slot
+layout (a slot behind `&'a` outlives `'a`). A universal region may hold
+only placeholders of lifetimes that outlive it, and `'static` only
+top-level bindings. Every checked edge carries its instruction and a
+`Category` (result, caller's place, `box`, provider, host call, capture
+into a field, `'static` parameter, and the rest). The category picks the
+message and code, and the instruction picks the line. The scope check
+(`local-reference-outlives-local`) keeps its syntax ranges and reads the
+solved values.
+
+**Exclusivity** (spec [Writes While Borrowed](../../spec/lang/13-values-and-references.md#writes-while-borrowed),
+[Conflicts Through Aliases](../../spec/lang/13-values-and-references.md#conflicts-through-aliases)):
+each written `&` or `&mut` and each reference a call takes is a loan of
+its place, live until the last use of a binding that holds it, as Rust's
+non-lexical lifetimes. A conflicting access to an overlapping place the
+checker sees is `conflicting-access`. A loan of a place reached through a
+`*mut` that the checker cannot see past registers its address range in
+a run-time loan table, and a conflicting access through a counted
+reference panics `borrow-conflict`; a program with no such binding emits
+no table.
+
 # New Compiler: The Trait Solver
 
 Status: design record; may lag the code. The code and the spec win.
