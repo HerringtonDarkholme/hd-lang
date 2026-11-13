@@ -1598,6 +1598,8 @@ struct Run<'a> {
     /// Whether the ownership passes' output is verified without debug
     /// assertions or `checked` ([`Packages::verify_own`]).
     verify_own: bool,
+    /// Checked-body verification policy captured for this run.
+    verify_tir: bool,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a local reference or a counted owning reference.
@@ -2115,6 +2117,10 @@ pub struct Packages<'a> {
     /// rejects a body a pass leaves broken. Requires the default-enabled
     /// `checked-builds` crate feature.
     pub verify_own: bool,
+    /// Verify checker-produced TIR in a compiler without debug assertions.
+    /// Debug compilers and allocation/count-audit builds always verify it.
+    /// Native clients set this for `HD_VERIFY`; the driver reads no environment.
+    pub verify_tir: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -2636,6 +2642,11 @@ fn build_packages_inner(
         body_fuel: packages.body_fuel,
         checked: packages.checked,
         verify_own: packages.verify_own,
+        verify_tir: verifies_tir(
+            cfg!(debug_assertions),
+            packages.checked,
+            packages.verify_tir,
+        ),
         own_types: Mutex::new(HashMap::default()),
         copy_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
@@ -6184,6 +6195,8 @@ impl Run<'_> {
         // Keep fixed-callee summaries and invalidate serialized main and
         // derivation advice. Ephemeral lint facts remain off-band.
         let mut key = hd_base::StableHasher::new("check-main-derivation-facts-v1");
+        // CI must not reuse an unchecked result from an ordinary compiler run.
+        key.u8(u8::from(self.verify_tir));
         key.hash(check_key(
             self.toolchain,
             package,
@@ -6618,6 +6631,7 @@ impl Run<'_> {
             file_name: &self.table.files[m],
             session: &session,
             fuel: self.fuel_of(m),
+            verify_tir: self.verify_tir,
         };
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
@@ -8066,6 +8080,7 @@ impl Run<'_> {
             file_name: &self.table.files[tm],
             session: &session,
             fuel: self.fuel_of(tm),
+            verify_tir: self.verify_tir,
         };
         Some(f(&tcx, &theads))
     }
@@ -8142,6 +8157,7 @@ impl Run<'_> {
             file_name: &self.table.files[tm],
             session: &[],
             fuel: self.fuel_of(tm),
+            verify_tir: self.verify_tir,
         };
         let ItemData::Impl { methods, .. } = &lookup.item(template)?.data else {
             return None;
@@ -14241,3 +14257,37 @@ mod count_audit_tests;
 
 #[cfg(test)]
 mod count_ops_tests;
+
+/// Constant-time policy; captured once and passed through every checking context.
+const fn verifies_tir(debug: bool, checked: bool, requested: bool) -> bool {
+    debug || checked || requested
+}
+
+#[cfg(test)]
+mod verification_tests {
+    use super::verifies_tir;
+    use hd_base::DefId;
+    use hd_tir::ir::{BodyKind, TirBuilder, TirSink};
+
+    #[test]
+    fn checked_body_verification_rejects_corruption_in_debug_checked_and_ci() {
+        assert!(!verifies_tir(false, false, false));
+        let mut ordinary = TirBuilder::new(DefId::NONE, BodyKind::Fn).with_verification(false);
+        let root = ordinary.reserve().as_ref();
+        assert_eq!(ordinary.finish(root, &[]).is_ok(), !cfg!(debug_assertions));
+        for (debug, checked, requested) in [
+            (true, false, false),
+            (false, true, false),
+            (false, false, true),
+        ] {
+            // An unfilled reserved slot is malformed compiler IR. Exercise
+            // CI's request independently of the compiler's debug assertions.
+            let enabled = verifies_tir(debug, checked, requested);
+            let mut builder = TirBuilder::new(DefId::NONE, BodyKind::Fn).with_verification(enabled);
+            let root = builder.reserve().as_ref();
+            assert!(
+                matches!(builder.finish(root, &[]), Err(errors) if errors.iter().any(|error| error.invariant == 14))
+            );
+        }
+    }
+}
