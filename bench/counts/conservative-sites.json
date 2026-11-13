@@ -69,7 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 450
+      "sites": 462,
+      "explanation": "Added bench/study/function-value-inputs.hd (#1376, 36bcecaca): 12 static source-call sites (8 runtime cleanup, 4 std allocator/cycle free), no application or hot CallValue-input sites; the other programs keep their sites."
     },
     {
       "reason": "conservative: unique",
