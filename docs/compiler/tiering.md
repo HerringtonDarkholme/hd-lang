@@ -18,19 +18,22 @@ The owner's direction:
 ## Summary
 
 - **Two pipelines.** The **dev** pipeline (`hd run`, `hd test`, the
-  REPL) runs no optional passes, and compiles with Cranelift
-  `OptLevel::None`. The **optimized** pipeline (`--release`) runs hd's
-  own passes, then Cranelift `OptLevel::Speed`. Layouts are the same in
-  both.
+  REPL) runs no planned body passes, and compiles with Cranelift
+  `OptLevel::None` on wasmtime. It still runs the inliner and the
+  structure folds before the ownership passes, and the link-time Wasm
+  cleanup (§2.2). The **optimized** pipeline (`--release`) adds hd's own
+  body passes and release summaries, then Cranelift `OptLevel::Speed`.
+  Layouts are the same in both.
 - **Profile and pipeline are separate.** The profile (checked or
   wrapping) is observable; the pipeline (dev or optimized) is not, as in
   Zig's `ReleaseSafe`. `hd test --release` keeps the test profile's checks
   and selects the optimized pipeline; on `hd build`, `hd run` and
   `hd FILE`, `--release` selects the release profile and the optimized
   pipeline together.
-- **Passes never rewrite TIR.** Analyses and decisions write side tables
-  that collection and emission read. Nothing is invalidated, so pass order
-  is only a dependency graph.
+- **Some passes rewrite TIR.** The `hd_opt` body passes write plans that
+  collection applies. The inliner and the structure and fact folds copy
+  callee bodies into their callers (`hd_opt::inline`), and the ownership
+  passes splice statements into each body (`hd_tir::own`, `splice`).
 - **Pass count is not where compile time goes; machine code is.** One
   linear pass over the 10k-line application costs an estimated 1 to 5 ms;
   Cranelift costs an estimated 640 ms on the same program.
@@ -60,9 +63,10 @@ an immutable IR, run nested per unit for locality (MLIR, Binaryen), are
 gated so a pass that cannot apply is skipped by one test, and need no
 fixed point.
 
-**For hd:** analyses and decisions are separate passes over immutable
-TIR, local rewrites belong in the emission walk, and every pass has a
-gate. That is the shape of Go's and Cranelift's fast paths, not of LLVM's
+**For hd:** the `hd_opt` analyses and decisions are separate passes over
+immutable TIR, and every pass has a gate. The inliner and the ownership
+passes do rewrite TIR (Summary), and local rewrites run on the emitted
+Wasm (`hd_wasm/src/opt.rs`). That is the shape of Go's and Cranelift's fast paths, not of LLVM's
 rewriting pipeline. A dev tier gains by cutting Cranelift's work, not by
 fusing passes; a release tier can afford many passes of its own.
 
@@ -77,8 +81,19 @@ kept ([`types.arith.checked`](../../spec/lang/04-type-system.md#r-types.arith.ch
 
 ### 2.2 What It Runs
 
-- No body passes: the dev pipeline's planner plans nothing, so collection
-  does no plan work.
+- No planned body passes: the dev pipeline's planner plans nothing, so
+  collection does no plan work. Its TIR pass list is `liveness`
+  (`hd_opt::passes::DEV`).
+- The TIR rewrites every build runs: generated structure folds, the
+  inliner (`Env::fold_and_inline` in `hd_driver/src/own.rs`), then the
+  ownership passes.
+- The link-time Wasm cleanup, for every function of the program, on one
+  thread (`Module::finish_link`, `hd_wasm/src/module.rs`): `constants`,
+  `fold_constant_branches`, `static_values` with `static_counts`,
+  `effect_free_calls`, and the `locals` rule fixpoint after each; on
+  wasmtime also `inline_counts` (`DEV_WASMTIME`), except in a checked
+  build. The daily `dev-speed` metric was 1.22x against an allowed 4x on
+  2026-11-12, so dev spends compile time it is allowed to save.
 - Cranelift `OptLevel::None` with the backtracking register allocator
   (`hd_run_wasmtime::EngineConfig::pipeline`). On V8, Liftoff and tier-up
   already give a fast first tier.
@@ -99,9 +114,18 @@ no loop) in dev, if spike T4 shows it saves compile time.
 
 Winch is wasmtime's baseline compiler, about 7x faster to compile than
 Cranelift. It does not support `gc`, `function-references`,
-`exception-handling` or `tail-call` ([wasmtime proposals](https://docs.wasmtime.dev/stability-wasm-proposals.html)),
-and every hd program uses GC structs, so it cannot be the dev tier.
-Revisit when it supports GC.
+`exception-handling` or `tail-call` ([wasmtime proposals](https://docs.wasmtime.dev/stability-wasm-proposals.html)).
+hd's output needs none of them: it uses linear memory, and the engine
+turns GC and tail calls off (`wasm_gc(false)`, `wasm_tail_call(false)`,
+`hd_run_wasmtime/src/engine.rs`).
+
+Measured on 2026-11-12 (docs/audit/review-2026-11-12.md, A7): the
+wasmtime CLI compiled the 2.56 MB dev module of a generated 200k-line
+package in 0.83 s CPU with Cranelift at opt level 0 (5.1 MB of code),
+1.00 s at opt level 2 (4.7 MB), and 0.23 s with Winch (8.2 MB). So Winch
+compiles hd's output. It has not been run end to end: the CLI lacks hd's
+host imports, and `hd_run_wasmtime` has no Winch setting. Whether Winch
+becomes the dev tier is open.
 
 ### 2.4 Lazy Compilation
 
