@@ -59,66 +59,95 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
 /// `!Copy`, or a type parameter that is not `Copy`, held by value in a
 /// struct, enum, tuple, optional or union. A `*mut T` and a `&T` copy.
 /// `relaxed` lists the body's local functions' `?Copy` parameters.
+///
+/// A depth-first walk over a work stack, in field order, that visits each
+/// type once: a type seen before held no blocker, or the walk would have
+/// stopped. So the work is one step per distinct member type, at any
+/// nesting depth.
 fn blocker(
     cx: (Types<'_>, &Lookup<'_>, &[Ty]),
     t: Ty,
-    seen: &mut Vec<Ty>,
     normalize: &mut dyn FnMut(Ty) -> Ty,
 ) -> Option<Ty> {
     let (pool, lookup, relaxed) = cx;
-    let t = if matches!(pool.get(t), TyData::Assoc { .. }) {
-        normalize(t)
-    } else {
-        t
-    };
-    if seen.contains(&t) || seen.len() > 32 {
-        return None;
-    }
-    let mut any =
-        |ts: &[Ty], seen: &mut Vec<Ty>| ts.iter().find_map(|&e| blocker(cx, e, seen, normalize));
-    match pool.get(t) {
-        TyData::Ref {
-            mutable, counted, ..
-        } => (mutable && !counted).then_some(t),
-        TyData::Tuple { elems, rest } => any(pool.list_items(elems), seen)
-            .or_else(|| rest.and_then(|r| blocker(cx, r, seen, normalize))),
-        TyData::Union(ms) => any(pool.list_items(ms), seen),
-        TyData::Param(_) if relaxed.contains(&t) => Some(t),
-        TyData::Param(p) => (!param_copies((pool, lookup), p)).then_some(t),
-        TyData::Assoc { assoc, .. } => {
-            let copies = lookup.item(assoc).is_some_and(|item| match &item.data {
-                ItemData::AssocType { bounds, .. } => bounds.iter().any(|&bound| {
-                    pool.trait_value(bound).is_some_and(|(trait_, _)| {
-                        lookup
-                            .item(trait_)
-                            .is_some_and(hd_resolve::Item::requires_copy)
-                    })
-                }),
-                _ => false,
-            });
-            (!copies).then_some(t)
+    let mut seen: HashSet<Ty> = HashSet::default();
+    let mut work = vec![t];
+    while let Some(t) = work.pop() {
+        let t = if matches!(pool.get(t), TyData::Assoc { .. }) {
+            normalize(t)
+        } else {
+            t
+        };
+        if !seen.insert(t) {
+            continue;
         }
-        TyData::Adt { def, args } => {
-            let members = match lookup.item(def)?.copy_decl() {
-                CopyDecl::Copies => return None,
-                CopyDecl::NotCopy => return Some(t),
-                CopyDecl::Members(ms) => ms,
-            };
-            let argv = pool.list_items(args);
-            seen.push(t);
-            let found = members.iter().find_map(|&m| {
-                let ft = pool.subst(m, &|p| {
-                    (p.owner == def)
-                        .then(|| argv.get(p.index as usize).copied())
-                        .flatten()
+        match pool.get(t) {
+            TyData::Ref {
+                mutable, counted, ..
+            } => {
+                if mutable && !counted {
+                    return Some(t);
+                }
+            }
+            TyData::Tuple { elems, rest } => {
+                work.extend(rest);
+                work.extend(pool.list_items(elems).iter().rev());
+            }
+            TyData::Union(ms) => work.extend(pool.list_items(ms).iter().rev()),
+            TyData::Param(_) if relaxed.contains(&t) => return Some(t),
+            TyData::Param(p) => {
+                if !param_copies((pool, lookup), p) {
+                    return Some(t);
+                }
+            }
+            TyData::Assoc { assoc, .. } => {
+                let copies = lookup.item(assoc).is_some_and(|item| match &item.data {
+                    ItemData::AssocType { bounds, .. } => bounds.iter().any(|&bound| {
+                        pool.trait_value(bound).is_some_and(|(trait_, _)| {
+                            lookup
+                                .item(trait_)
+                                .is_some_and(hd_resolve::Item::requires_copy)
+                        })
+                    }),
+                    _ => false,
                 });
-                blocker(cx, ft, seen, normalize)
-            });
-            seen.pop();
-            found
+                if !copies {
+                    return Some(t);
+                }
+            }
+            TyData::Adt { def, args } => {
+                let Some(item) = lookup.item(def) else {
+                    continue;
+                };
+                let members = match item.copy_decl() {
+                    CopyDecl::Copies => continue,
+                    CopyDecl::NotCopy => return Some(t),
+                    CopyDecl::Members(ms) => ms,
+                };
+                let argv = pool.list_items(args);
+                work.extend(members.iter().rev().map(|&m| {
+                    pool.subst(m, &|p| {
+                        (p.owner == def)
+                            .then(|| argv.get(p.index as usize).copied())
+                            .flatten()
+                    })
+                }));
+            }
+            // Values that copy, or hold no value of their own here.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Fn { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Opaque { .. }
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
-        _ => None,
     }
+    None
 }
 
 /// Whether type parameter `p` is `Copy`: it has a bound on a trait that
@@ -303,12 +332,9 @@ impl Ck<'_, '_> {
     /// The part of `t` that keeps it from being copied ([`blocker`]).
     fn not_copied_by(&mut self, t: Ty) -> Option<Ty> {
         let relaxed = self.relaxed_local_params();
-        blocker(
-            (self.pool(), self.cx.lookup, &relaxed),
-            t,
-            &mut Vec::new(),
-            &mut |ty| self.norm_ty(ty),
-        )
+        blocker((self.pool(), self.cx.lookup, &relaxed), t, &mut |ty| {
+            self.norm_ty(ty)
+        })
     }
 
     /// The type parameters of the body's generic local functions declared

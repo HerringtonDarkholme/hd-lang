@@ -1,0 +1,312 @@
+# test: a struct nested 100 levels around a non-Copy one is not Copy, so moving it while borrowed conflicts (#1777)
+# Spec 13 Copy: ref.copy.structure.
+struct S1:
+    v: i32
+
+impl !Copy for S1
+
+struct S2:
+    inner: S1
+
+struct S3:
+    inner: S2
+
+struct S4:
+    inner: S3
+
+struct S5:
+    inner: S4
+
+struct S6:
+    inner: S5
+
+struct S7:
+    inner: S6
+
+struct S8:
+    inner: S7
+
+struct S9:
+    inner: S8
+
+struct S10:
+    inner: S9
+
+struct S11:
+    inner: S10
+
+struct S12:
+    inner: S11
+
+struct S13:
+    inner: S12
+
+struct S14:
+    inner: S13
+
+struct S15:
+    inner: S14
+
+struct S16:
+    inner: S15
+
+struct S17:
+    inner: S16
+
+struct S18:
+    inner: S17
+
+struct S19:
+    inner: S18
+
+struct S20:
+    inner: S19
+
+struct S21:
+    inner: S20
+
+struct S22:
+    inner: S21
+
+struct S23:
+    inner: S22
+
+struct S24:
+    inner: S23
+
+struct S25:
+    inner: S24
+
+struct S26:
+    inner: S25
+
+struct S27:
+    inner: S26
+
+struct S28:
+    inner: S27
+
+struct S29:
+    inner: S28
+
+struct S30:
+    inner: S29
+
+struct S31:
+    inner: S30
+
+struct S32:
+    inner: S31
+
+struct S33:
+    inner: S32
+
+struct S34:
+    inner: S33
+
+struct S35:
+    inner: S34
+
+struct S36:
+    inner: S35
+
+struct S37:
+    inner: S36
+
+struct S38:
+    inner: S37
+
+struct S39:
+    inner: S38
+
+struct S40:
+    inner: S39
+
+struct S41:
+    inner: S40
+
+struct S42:
+    inner: S41
+
+struct S43:
+    inner: S42
+
+struct S44:
+    inner: S43
+
+struct S45:
+    inner: S44
+
+struct S46:
+    inner: S45
+
+struct S47:
+    inner: S46
+
+struct S48:
+    inner: S47
+
+struct S49:
+    inner: S48
+
+struct S50:
+    inner: S49
+
+struct S51:
+    inner: S50
+
+struct S52:
+    inner: S51
+
+struct S53:
+    inner: S52
+
+struct S54:
+    inner: S53
+
+struct S55:
+    inner: S54
+
+struct S56:
+    inner: S55
+
+struct S57:
+    inner: S56
+
+struct S58:
+    inner: S57
+
+struct S59:
+    inner: S58
+
+struct S60:
+    inner: S59
+
+struct S61:
+    inner: S60
+
+struct S62:
+    inner: S61
+
+struct S63:
+    inner: S62
+
+struct S64:
+    inner: S63
+
+struct S65:
+    inner: S64
+
+struct S66:
+    inner: S65
+
+struct S67:
+    inner: S66
+
+struct S68:
+    inner: S67
+
+struct S69:
+    inner: S68
+
+struct S70:
+    inner: S69
+
+struct S71:
+    inner: S70
+
+struct S72:
+    inner: S71
+
+struct S73:
+    inner: S72
+
+struct S74:
+    inner: S73
+
+struct S75:
+    inner: S74
+
+struct S76:
+    inner: S75
+
+struct S77:
+    inner: S76
+
+struct S78:
+    inner: S77
+
+struct S79:
+    inner: S78
+
+struct S80:
+    inner: S79
+
+struct S81:
+    inner: S80
+
+struct S82:
+    inner: S81
+
+struct S83:
+    inner: S82
+
+struct S84:
+    inner: S83
+
+struct S85:
+    inner: S84
+
+struct S86:
+    inner: S85
+
+struct S87:
+    inner: S86
+
+struct S88:
+    inner: S87
+
+struct S89:
+    inner: S88
+
+struct S90:
+    inner: S89
+
+struct S91:
+    inner: S90
+
+struct S92:
+    inner: S91
+
+struct S93:
+    inner: S92
+
+struct S94:
+    inner: S93
+
+struct S95:
+    inner: S94
+
+struct S96:
+    inner: S95
+
+struct S97:
+    inner: S96
+
+struct S98:
+    inner: S97
+
+struct S99:
+    inner: S98
+
+struct S100:
+    inner: S99
+
+fn consume(b: S100) -> usize: 0
+
+fn peek(r: &S100) -> usize: 0
+
+fn early(b: S100) -> usize:
+    r := &b
+    n := consume(b) # diagnostic: conflicting-access
+    n + peek(r)

@@ -1136,6 +1136,9 @@ Bindings take access types by the path rules. A generic field keeps its substitu
 
 Exhaustiveness and unreachable arms use Maranget's usefulness algorithm
 over the pattern matrix (`pat.rs`, `useful`), as rustc and OCaml do.
+`useful` takes one column at a time from a work stack, not by recursion:
+a data pattern adds a column per field, so recursion would grow with a
+type's width.
 
 1. Rows are the arms in source order. A guarded arm adds no coverage
    ([`flow.match.guard.coverage`](../../spec/lang/06-control-flow.md#r-flow.match.guard.coverage)),

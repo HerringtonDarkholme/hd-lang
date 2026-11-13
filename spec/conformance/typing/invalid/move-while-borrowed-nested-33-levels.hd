@@ -1,0 +1,111 @@
+# test: a struct nested 33 levels around a non-Copy one is not Copy, so moving it while borrowed conflicts (#1777)
+# Spec 13 Copy: ref.copy.structure.
+struct S1:
+    v: i32
+
+impl !Copy for S1
+
+struct S2:
+    inner: S1
+
+struct S3:
+    inner: S2
+
+struct S4:
+    inner: S3
+
+struct S5:
+    inner: S4
+
+struct S6:
+    inner: S5
+
+struct S7:
+    inner: S6
+
+struct S8:
+    inner: S7
+
+struct S9:
+    inner: S8
+
+struct S10:
+    inner: S9
+
+struct S11:
+    inner: S10
+
+struct S12:
+    inner: S11
+
+struct S13:
+    inner: S12
+
+struct S14:
+    inner: S13
+
+struct S15:
+    inner: S14
+
+struct S16:
+    inner: S15
+
+struct S17:
+    inner: S16
+
+struct S18:
+    inner: S17
+
+struct S19:
+    inner: S18
+
+struct S20:
+    inner: S19
+
+struct S21:
+    inner: S20
+
+struct S22:
+    inner: S21
+
+struct S23:
+    inner: S22
+
+struct S24:
+    inner: S23
+
+struct S25:
+    inner: S24
+
+struct S26:
+    inner: S25
+
+struct S27:
+    inner: S26
+
+struct S28:
+    inner: S27
+
+struct S29:
+    inner: S28
+
+struct S30:
+    inner: S29
+
+struct S31:
+    inner: S30
+
+struct S32:
+    inner: S31
+
+struct S33:
+    inner: S32
+
+fn consume(b: S33) -> usize: 0
+
+fn peek(r: &S33) -> usize: 0
+
+fn early(b: S33) -> usize:
+    r := &b
+    n := consume(b) # diagnostic: conflicting-access
+    n + peek(r)

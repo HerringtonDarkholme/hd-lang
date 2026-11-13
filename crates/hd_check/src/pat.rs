@@ -8,6 +8,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use std::borrow::Cow;
 
 use hd_base::{LocalId, NodeIdx, StageResult};
 use hd_diag::Code;
@@ -63,6 +64,76 @@ enum Cell<'t> {
 
 /// The rows of `m` at the positions `named` and `wild`, in row order:
 /// the rows that can match one constructor in the first column.
+/// One state of `Ck::useful`'s work stack: rows, and the pattern vector
+/// and its column types, both reversed.
+struct Useful<'m> {
+    rows: Cow<'m, [Vec<P>]>,
+    q: Vec<P>,
+    tys: Vec<Ty>,
+}
+
+/// The rows of `rows` that constructor `c` of `arity` fields can match,
+/// its fields in place of their head.
+fn specialize<'r>(c: &str, arity: usize, rows: impl Iterator<Item = &'r Vec<P>>) -> Vec<Vec<P>> {
+    rows.filter_map(|r| match &r[0] {
+        P::Ctor(d, a) if d == c => {
+            let mut v = a.clone();
+            v.resize(arity, P::Wild);
+            v.extend(r[1..].iter().cloned());
+            Some(v)
+        }
+        P::Ctor(..) | P::Lit | P::Int(..) | P::Str(_) | P::Flt(_) => None,
+        P::Wild => {
+            let mut v = vec![P::Wild; arity];
+            v.extend(r[1..].iter().cloned());
+            Some(v)
+        }
+    })
+    .collect()
+}
+
+/// Pushes one `Useful` state per segment of the integers `lo..=hi`, split
+/// at the bounds of the rows' head patterns, each with the rows that hold
+/// it; `q` and `tys` are the reversed rest of the vector.
+fn int_segments(
+    m: &[Vec<P>],
+    q: &[P],
+    tys: &[Ty],
+    (lo, hi): (i128, i128),
+    work: &mut Vec<Useful<'_>>,
+) {
+    if lo > hi {
+        return;
+    }
+    let mut starts = vec![lo];
+    for r in m {
+        if let P::Int(l, h) = r[0]
+            && l <= h
+        {
+            starts.extend([l, h + 1].into_iter().filter(|c| *c > lo && *c <= hi));
+        }
+    }
+    starts.sort_stable();
+    starts.dedup();
+    for (i, &s) in starts.iter().enumerate().rev() {
+        let e = starts.get(i + 1).map_or(hi, |n| n - 1);
+        let rows: Vec<Vec<P>> = m
+            .iter()
+            .filter(|r| match r[0] {
+                P::Wild => true,
+                P::Int(l, h) => l <= s && e <= h,
+                _ => false,
+            })
+            .map(|r| r[1..].to_vec())
+            .collect();
+        work.push(Useful {
+            rows: Cow::Owned(rows),
+            q: q.to_vec(),
+            tys: tys.to_vec(),
+        });
+    }
+}
+
 fn head_rows(m: &[Vec<P>], named: Option<&Vec<usize>>, wild: &[usize]) -> Vec<Vec<P>> {
     let mut at: Vec<usize> = named.cloned().unwrap_or_default();
     at.extend_from_slice(wild);
@@ -2074,138 +2145,128 @@ impl Ck<'_, '_> {
             .map(|x| x.1)
     }
 
-    fn useful(&self, m: &[Vec<P>], q: &[P], tys: &[Ty], depth: u32) -> bool {
-        if depth > 64 {
-            return false;
-        }
-        let Some(head) = q.first() else {
-            return m.is_empty();
-        };
-        let t = tys.first().copied().unwrap_or(Ty::POISON);
-        let spec = |c: &str, arity: usize, rows: &[Vec<P>]| -> Vec<Vec<P>> {
-            rows.iter()
-                .filter_map(|r| match &r[0] {
-                    P::Ctor(d, a) if d == c => {
-                        let mut v = a.clone();
-                        v.resize(arity, P::Wild);
-                        v.extend(r[1..].iter().cloned());
-                        Some(v)
-                    }
-                    P::Ctor(..) | P::Lit | P::Int(..) | P::Str(_) | P::Flt(_) => None,
-                    P::Wild => {
-                        let mut v = vec![P::Wild; arity];
-                        v.extend(r[1..].iter().cloned());
-                        Some(v)
-                    }
-                })
-                .collect()
-        };
-        // An integer column: the values split at the bounds of its
-        // patterns (`flow.match.cover.integer`).
-        let ints = m.iter().any(|r| matches!(r[0], P::Int(..)));
-        match head {
-            P::Int(lo, hi) => self.useful_int(m, q, tys, (*lo, *hi), depth),
-            // A string or float column: only the same value matches, so
-            // the arm is useful when no earlier row matches it
-            // (`flow.match.unreachable`).
-            P::Str(s) => !m.iter().any(|r| match &r[0] {
-                P::Wild => true,
-                P::Str(t) => t == s,
-                _ => false,
-            }),
-            P::Flt(b) => !m.iter().any(|r| match &r[0] {
-                P::Wild => true,
-                P::Flt(c) => c == b,
-                _ => false,
-            }),
-            P::Ctor(c, args) => {
-                let ftys = self
-                    .ctor_fields(t, c)
-                    .unwrap_or_else(|| vec![Ty::POISON; args.len()]);
-                let mut nq = args.clone();
-                nq.resize(ftys.len(), P::Wild);
-                nq.extend(q[1..].iter().cloned());
-                let mut nt = ftys.clone();
-                nt.extend(tys[1..].iter().copied());
-                self.useful(&spec(c, ftys.len(), m), &nq, &nt, depth + 1)
-            }
-            P::Lit => true,
-            P::Wild => {
-                if ints && let Some(all) = self.int_range(t) {
-                    return self.useful_int(m, q, tys, all, depth);
+    /// Whether some value matches `q` (one pattern per column, of types
+    /// `tys`) and no row of `m` (`flow.match.unreachable`).
+    ///
+    /// Maranget's usefulness, taken one column at a time from a work
+    /// stack, not by recursion: a struct pattern adds a column per field,
+    /// so the depth grows with a type's width, and each work item holds
+    /// its own rows. A state keeps its pattern vector and column types
+    /// reversed, so taking the head column is a `pop`. The answer is
+    /// whether any state reaches an empty vector no row covers; work is
+    /// what the recursive form did, each specialization once.
+    fn useful(&self, m: &[Vec<P>], q: &[P], tys: &[Ty]) -> bool {
+        let mut work: Vec<Useful<'_>> = vec![Useful {
+            rows: Cow::Borrowed(m),
+            q: q.iter().rev().cloned().collect(),
+            tys: tys.iter().rev().copied().collect(),
+        }];
+        while let Some(Useful {
+            rows,
+            mut q,
+            mut tys,
+        }) = work.pop()
+        {
+            let Some(head) = q.pop() else {
+                if rows.is_empty() {
+                    return true;
                 }
-                let ctors = self.ctors(t);
-                // The rows by head constructor, so each constructor's
-                // specialization reads only its own rows and the wild ones.
-                let mut by_ctor: HashMap<&str, Vec<usize>> = HashMap::default();
-                for (i, r) in m.iter().enumerate() {
-                    if let P::Ctor(c, _) = &r[0] {
-                        by_ctor.entry(c.as_str()).or_default().push(i);
+                continue;
+            };
+            let t = tys.pop().unwrap_or(Ty::POISON);
+            let m = &*rows;
+            // An integer column: the values split at the bounds of its
+            // patterns (`flow.match.cover.integer`).
+            let ints = m.iter().any(|r| matches!(r[0], P::Int(..)));
+            match head {
+                P::Int(lo, hi) => int_segments(m, &q, &tys, (lo, hi), &mut work),
+                // A string or float column: only the same value matches, so
+                // the arm is useful when no earlier row matches it.
+                P::Str(s) => {
+                    if !m.iter().any(|r| match &r[0] {
+                        P::Wild => true,
+                        P::Str(t) => *t == s,
+                        _ => false,
+                    }) {
+                        return true;
                     }
                 }
-                if let Some(cs) = ctors
-                    && !cs.is_empty()
-                    && cs.iter().all(|(c, _)| by_ctor.contains_key(c.as_str()))
-                {
-                    let wild: Vec<usize> = (0..m.len())
-                        .filter(|&i| matches!(m[i][0], P::Wild))
-                        .collect();
-                    return cs.iter().any(|(c, ftys)| {
-                        let mut nq = vec![P::Wild; ftys.len()];
-                        nq.extend(q[1..].iter().cloned());
-                        let mut nt = ftys.clone();
-                        nt.extend(tys[1..].iter().copied());
-                        let rows = head_rows(m, by_ctor.get(c.as_str()), &wild);
-                        self.useful(&spec(c, ftys.len(), &rows), &nq, &nt, depth + 1)
+                P::Flt(b) => {
+                    if !m.iter().any(|r| match &r[0] {
+                        P::Wild => true,
+                        P::Flt(c) => *c == b,
+                        _ => false,
+                    }) {
+                        return true;
+                    }
+                }
+                P::Ctor(c, args) => {
+                    let ftys = self
+                        .ctor_fields(t, &c)
+                        .unwrap_or_else(|| vec![Ty::POISON; args.len()]);
+                    let rows = specialize(&c, ftys.len(), m.iter());
+                    let mut args = args;
+                    args.resize(ftys.len(), P::Wild);
+                    q.extend(args.into_iter().rev());
+                    tys.extend(ftys.into_iter().rev());
+                    work.push(Useful {
+                        rows: Cow::Owned(rows),
+                        q,
+                        tys,
                     });
                 }
-                let d: Vec<Vec<P>> = m
-                    .iter()
-                    .filter(|r| matches!(r[0], P::Wild))
-                    .map(|r| r[1..].to_vec())
-                    .collect();
-                self.useful(&d, &q[1..], &tys[1..], depth + 1)
+                P::Lit => return true,
+                P::Wild => {
+                    if ints && let Some(all) = self.int_range(t) {
+                        int_segments(m, &q, &tys, all, &mut work);
+                        continue;
+                    }
+                    let ctors = self.ctors(t);
+                    // The rows by head constructor, so each constructor's
+                    // specialization reads only its own rows and the wild ones.
+                    let mut by_ctor: HashMap<&str, Vec<usize>> = HashMap::default();
+                    for (i, r) in m.iter().enumerate() {
+                        if let P::Ctor(c, _) = &r[0] {
+                            by_ctor.entry(c.as_str()).or_default().push(i);
+                        }
+                    }
+                    if let Some(cs) = ctors
+                        && !cs.is_empty()
+                        && cs.iter().all(|(c, _)| by_ctor.contains_key(c.as_str()))
+                    {
+                        let wild: Vec<usize> = (0..m.len())
+                            .filter(|&i| matches!(m[i][0], P::Wild))
+                            .collect();
+                        // Pushed last first, so the first constructor is
+                        // decided first, as before.
+                        for (c, ftys) in cs.iter().rev() {
+                            let rows = head_rows(m, by_ctor.get(c.as_str()), &wild);
+                            let mut nq = q.clone();
+                            nq.extend(core::iter::repeat_n(P::Wild, ftys.len()));
+                            let mut nt = tys.clone();
+                            nt.extend(ftys.iter().rev().copied());
+                            work.push(Useful {
+                                rows: Cow::Owned(specialize(c, ftys.len(), rows.iter())),
+                                q: nq,
+                                tys: nt,
+                            });
+                        }
+                        continue;
+                    }
+                    let rows: Vec<Vec<P>> = m
+                        .iter()
+                        .filter(|r| matches!(r[0], P::Wild))
+                        .map(|r| r[1..].to_vec())
+                        .collect();
+                    work.push(Useful {
+                        rows: Cow::Owned(rows),
+                        q,
+                        tys,
+                    });
+                }
             }
         }
-    }
-
-    /// Whether some integer in `lo..=hi` matches `q` and no row of `m`.
-    /// The values split into segments at the rows' bounds, and each
-    /// segment is tried with the rows that hold it.
-    fn useful_int(
-        &self,
-        m: &[Vec<P>],
-        q: &[P],
-        tys: &[Ty],
-        (lo, hi): (i128, i128),
-        depth: u32,
-    ) -> bool {
-        if lo > hi {
-            return false;
-        }
-        let mut starts = vec![lo];
-        for r in m {
-            if let P::Int(l, h) = r[0]
-                && l <= h
-            {
-                starts.extend([l, h + 1].into_iter().filter(|c| *c > lo && *c <= hi));
-            }
-        }
-        starts.sort_stable();
-        starts.dedup();
-        starts.iter().enumerate().any(|(i, &s)| {
-            let e = starts.get(i + 1).map_or(hi, |n| n - 1);
-            let rows: Vec<Vec<P>> = m
-                .iter()
-                .filter(|r| match r[0] {
-                    P::Wild => true,
-                    P::Int(l, h) => l <= s && e <= h,
-                    _ => false,
-                })
-                .map(|r| r[1..].to_vec())
-                .collect();
-            self.useful(&rows, &q[1..], &tys[1..], depth + 1)
-        })
+        false
     }
 
     /// `unreachable-match-arm` for an arm whose values the unguarded arms
@@ -2213,7 +2274,7 @@ impl Ck<'_, '_> {
     /// Whether some value of `t` fails to match `pat`.
     pub(crate) fn refutable(&mut self, pat: NodeRef<'_>, t: Ty) -> bool {
         let p = self.to_p(Some(pat), t);
-        self.useful(&[vec![p]], &[P::Wild], &[t], 0)
+        self.useful(&[vec![p]], &[P::Wild], &[t])
     }
 
     /// Whether a range pattern has a bound outside the integer type `t`,
@@ -2247,9 +2308,9 @@ impl Ck<'_, '_> {
             let useful = match &p {
                 P::Ctor(c, _) => {
                     let m = head_rows(&before, by_ctor.get(c.as_str()), &wild);
-                    self.useful(&m, std::slice::from_ref(&p), &[t], 0)
+                    self.useful(&m, std::slice::from_ref(&p), &[t])
                 }
-                _ => self.useful(&before, std::slice::from_ref(&p), &[t], 0),
+                _ => self.useful(&before, std::slice::from_ref(&p), &[t]),
             };
             // An arm with an out-of-type bound is already an error.
             if !useful
@@ -2281,14 +2342,14 @@ impl Ck<'_, '_> {
             .filter(|(r, _)| r.guard.is_none())
             .map(|(r, rej)| vec![if *rej { P::Wild } else { self.to_p(r.pat, t) }])
             .collect();
-        if self.useful(&m, &[P::Wild], &[t], 0) {
+        if self.useful(&m, &[P::Wild], &[t]) {
             let missing = self.ctors(t).map_or_else(
                 || "_".into(),
                 |cs| {
                     cs.into_iter()
                         .filter(|(c, f)| {
                             let q = vec![P::Ctor(c.clone(), vec![P::Wild; f.len()])];
-                            self.useful(&m, &q, &[t], 0)
+                            self.useful(&m, &q, &[t])
                         })
                         .map(|(c, _)| c)
                         .collect::<Vec<_>>()
