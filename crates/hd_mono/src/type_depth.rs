@@ -59,7 +59,6 @@ fn depth_with(
     root: Ty,
     visit: &mut impl FnMut(),
 ) -> u32 {
-    let mut active = hd_base::HashSet::default();
     let mut work = vec![(root, false)];
     while let Some((ty, ready)) = work.pop() {
         visit();
@@ -68,11 +67,8 @@ fn depth_with(
         }
         let children = parts(pool, ty);
         if !ready {
-            if !active.insert(ty) {
-                // A malformed cyclic type graph cannot pass monomorphization.
-                done.insert(ty, u32::from(crate::MAX_DEPTH) + 1);
-                continue;
-            }
+            // ruled out: interned argument edges form an immutable DAG;
+            // nominal declaration recursion is not an argument edge.
             if children.iter().any(|child| !done.contains_key(child)) {
                 work.push((ty, true));
                 for child in children {
@@ -88,7 +84,6 @@ fn depth_with(
             depth = depth.max(done.get(&child).copied().unwrap_or(u32::MAX));
         }
         done.insert(ty, depth.saturating_add(1));
-        active.remove(&ty);
     }
     done.get(&root).copied().unwrap_or(u32::MAX)
 }
@@ -96,6 +91,40 @@ fn depth_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn opaque_bounds_arguments_and_associated_self_contribute_depth() {
+        use hd_base::DefId;
+        let pool = InternPool::default();
+        let tuple = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&[Ty::I32]),
+            rest: None,
+        });
+        for (args, bound) in [(&[tuple][..], Ty::I32), (&[Ty::I32][..], tuple)] {
+            let opaque = pool.intern_ty(&TyData::Opaque {
+                owner: DefId::from_raw(1),
+                site: 0,
+                borrows: false,
+                args: pool.list(args),
+                bound,
+            });
+            let assoc = pool.intern_ty(&TyData::Assoc {
+                assoc: DefId::from_raw(2),
+                trait_: DefId::from_raw(3),
+                self_ty: opaque,
+                args: pool.list(&[tuple]),
+            });
+            let mut memo = HashMap::default();
+            assert_eq!(type_argument_depth(&pool, &mut memo, opaque), 3);
+            assert_eq!(type_argument_depth(&pool, &mut memo, assoc), 4);
+            let through_arg = pool.intern_ty(&TyData::Assoc {
+                assoc: DefId::from_raw(2),
+                trait_: DefId::from_raw(3),
+                self_ty: Ty::I32,
+                args: pool.list(&[assoc]),
+            });
+            assert_eq!(type_argument_depth(&pool, &mut memo, through_arg), 5);
+        }
+    }
     #[test]
     fn depth_query_counts_shared_width_and_deep_dag_work() {
         let run = |width: usize, depth: usize| {

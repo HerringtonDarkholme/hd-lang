@@ -96,7 +96,7 @@ pub fn constant(body: &Body) -> Option<Value> {
         return None;
     }
     let root = *body.sub_root.first()?;
-    Values::new(body, &[], &|_| None)?.word(body, root)
+    Values::compute(body, &[], &|_| None).word(body, root)
 }
 
 /// Whether variant construction `i` carries no value: no fields, or only
@@ -155,6 +155,20 @@ impl Values {
         defaults: &[(u32, Value)],
         calls: &dyn Fn(usize) -> Option<Value>,
     ) -> Option<Self> {
+        let params = params(body);
+        let defaults = defaults
+            .iter()
+            .map(|&(parameter, value)| Some((*params.get(parameter as usize)?, value)))
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self::compute(body, &defaults, calls))
+    }
+
+    /// Defaults already name valid local indices; call-only analysis has none.
+    fn compute(
+        body: &Body,
+        defaults: &[(usize, Value)],
+        calls: &dyn Fn(usize) -> Option<Value>,
+    ) -> Self {
         let n = body.len();
         let locals = body.local_ty.len();
         let mut writes = vec![0u32; locals];
@@ -177,9 +191,7 @@ impl Values {
             }
         }
         let mut seeded = vec![None; locals];
-        let params = params(body);
-        for &(p, value) in defaults {
-            let &l = params.get(p as usize)?;
+        for &(l, value) in defaults {
             if writes[l] == 0 && body.local_flags[l] & local_flags::CAPTURED_ASSIGNED == 0 {
                 seeded[l] = Some(value);
             }
@@ -311,7 +323,7 @@ impl Values {
             };
             out.val[i] = v;
         }
-        Some(out)
+        out
     }
 
     /// Whether instruction `i` is pure, from its operands' purity.
@@ -716,7 +728,7 @@ pub fn collapse(body: &Body) -> Option<Body> {
     let &[root] = body.sub_root.as_slice() else {
         return None;
     };
-    let values = Values::new(body, &[], &|_| None)?;
+    let values = Values::compute(body, &[], &|_| None);
     let value = values
         .word(body, root)
         .filter(|_| values.pure[root as usize])?;
@@ -799,7 +811,7 @@ pub fn value_given(body: &Body, calls: &dyn Fn(usize) -> Option<Value>) -> Optio
     let &[root] = body.sub_root.as_slice() else {
         return None;
     };
-    Values::new(body, &[], calls)?.word(body, root)
+    Values::compute(body, &[], calls).word(body, root)
 }
 
 /// Reachable instructions under independently proved call results, without
@@ -816,9 +828,7 @@ fn reachable_given_with(
     calls: &dyn Fn(usize) -> Option<Value>,
     visit: &mut impl FnMut(),
 ) -> Vec<bool> {
-    let Some(values) = Values::new(body, &[], calls) else {
-        return vec![true; body.len()];
-    };
+    let values = Values::compute(body, &[], calls);
     let chosen = |i: usize| match body.tags[i] {
         Tag::If | Tag::Match => values.chosen(body, i),
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => values.switched(body, i),
@@ -1591,6 +1601,106 @@ mod tests {
         assert!(known[condition.0 as usize]);
         assert!(!known[later.0 as usize]);
         assert!(reachable_given(&body, &|_| None)[later.0 as usize]);
+        Ok(())
+    }
+    #[test]
+    fn reachability_follows_closure_roots_and_rejects_single_result_analysis() -> Result<(), String>
+    {
+        let n = NodeIdx::NONE;
+        let mut b = TirBuilder::new(DefId::from_raw(30), BodyKind::Fn);
+        let root = b.open_block();
+        let pool = hd_types::InternPool::default();
+        let fn_ty = pool.intern_ty(&hd_types::TyData::Fn {
+            params: TyList::EMPTY,
+            result: Ty::VOID,
+            row: hd_types::RowId::EMPTY,
+            suspends: false,
+            inputs: hd_types::Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
+        });
+        let sub = b.open_sub(&[]);
+        let inner = b.open_block();
+        let effect = b.call(&item(31), &[], Providers::None, Ty::VOID, n);
+        let inner = b.close_block(inner, None, Ty::VOID, n);
+        let closure = b.close_sub(sub, inner, fn_ty, n);
+        let root = b.close_block(root, Some(closure), fn_ty, n);
+        let scope = b.open_scope();
+        let root = b.close_scope(scope, root, fn_ty, n);
+        let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        assert!(reachable_given(&body, &|_| None)[effect.0 as usize]);
+        assert_eq!(value_given(&body, &|_| None), None);
+        Ok(())
+    }
+
+    #[test]
+    fn reachability_short_circuits_only_the_selected_boolean_rhs() -> Result<(), String> {
+        let n = NodeIdx::NONE;
+        for tag in [Tag::And, Tag::Or] {
+            for left in [0, 1] {
+                let mut b = TirBuilder::new(DefId::from_raw(32), BodyKind::Fn);
+                let root = b.open_block();
+                let lhs = b.const_value(Ty::BOOL, left);
+                let rhs = b.open_block();
+                let effect = b.call(&item(33), &[], Providers::None, Ty::BOOL, n);
+                let rhs = b.close_block(rhs, Some(effect), Ty::BOOL, n);
+                let value = b.emit(tag, lhs.0, rhs.0, Ty::BOOL, n);
+                let root = b.close_block(root, Some(value), Ty::BOOL, n);
+                let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                let live = reachable_given(&body, &|_| None);
+                assert_eq!(live[effect.0 as usize], (tag == Tag::And) == (left != 0));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn reachability_preserves_unknown_switch_arms_and_selects_known_ones() -> Result<(), String> {
+        let n = NodeIdx::NONE;
+        for known in [false, true] {
+            let mut b = TirBuilder::new(DefId::from_raw(34), BodyKind::Fn);
+            let root = b.open_block();
+            let selector = b.call(&item(35), &[], Providers::None, Ty::I32, n);
+            let yes = b.open_block();
+            let yes_call = b.call(&item(36), &[], Providers::None, Ty::VOID, n);
+            let yes = b.close_block(yes, None, Ty::VOID, n);
+            let no = b.open_block();
+            let no_call = b.call(&item(37), &[], Providers::None, Ty::VOID, n);
+            let no = b.close_block(no, None, Ty::VOID, n);
+            let arms = b.words_record(&[7, yes.0, no.0]);
+            b.emit(Tag::SwitchInt, selector.0, arms, Ty::VOID, n);
+            let root = b.close_block(root, None, Ty::VOID, n);
+            let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            let live = reachable_given(&body, &|i| {
+                (known && i == selector.0 as usize).then_some(Value::Scalar(7))
+            });
+            assert!(live[selector.0 as usize] && live[yes_call.0 as usize]);
+            assert_eq!(live[no_call.0 as usize], !known);
+        }
+        Ok(())
+    }
+    #[test]
+    fn call_only_value_queries_distinguish_constants_known_calls_and_unknown_calls()
+    -> Result<(), String> {
+        let n = NodeIdx::NONE;
+        let mut b = TirBuilder::new(DefId::from_raw(38), BodyKind::Default);
+        let root = b.open_block();
+        let literal = b.const_value(Ty::BOOL, 1);
+        let root = b.close_block(root, Some(literal), Ty::BOOL, n);
+        let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(constant(&body), Some(Value::Scalar(1)));
+        assert_eq!(value_given(&body, &|_| None), Some(Value::Scalar(1)));
+
+        let mut b = TirBuilder::new(DefId::from_raw(39), BodyKind::Fn);
+        let root = b.open_block();
+        let called = b.call(&item(40), &[], Providers::None, Ty::BOOL, n);
+        let root = b.close_block(root, Some(called), Ty::BOOL, n);
+        let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(
+            value_given(&body, &|_| Some(Value::Scalar(0))),
+            Some(Value::Scalar(0))
+        );
+        assert_eq!(value_given(&body, &|_| None), None);
+        assert_eq!(constant(&body), None);
         Ok(())
     }
 }
