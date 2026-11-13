@@ -73,7 +73,7 @@
     local.get $needle.1
     local.get $t0
     i32.eq
-    if (result i32)
+    if
       local.get $needle.0
       local.get $needle.1
       local.get $start
@@ -81,8 +81,7 @@
       call $rt:bytes_mismatch
       local.get $needle.1
       i32.eq
-    else
-      i32.const 0
+      ;; ...
     end
     ;; ...
   )

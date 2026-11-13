@@ -264,9 +264,7 @@
       local.get $t6
       i32.const 1
       i32.eq
-      if
-        br 1
-      end
+      br_if 0
       local.get $t5
       if
         local.get $t5

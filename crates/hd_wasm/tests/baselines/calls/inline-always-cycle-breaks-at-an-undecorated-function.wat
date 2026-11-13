@@ -6,9 +6,7 @@
     block
       local.get $n
       i32.eqz
-      if
-        br 1
-      end
+      br_if 0
       local.get $n
       i32.const 1
       i32.sub

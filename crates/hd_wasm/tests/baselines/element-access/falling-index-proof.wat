@@ -10,8 +10,6 @@
         block
           loop
             local.get $j
-            i32.const 0
-            i32.gt_u
             i32.eqz
             br_if 1
     ;; 12 |             if items[j - 1] <= key:
@@ -25,11 +23,7 @@
             i32.load $heap offset=16
             local.get $key
             i32.le_s
-            if
-    ;; 13 |                 break
-              br 2
-    ;; 12 |             if items[j - 1] <= key:
-            end
+            br_if 1
     ;; 14 |             items[j] = items[j - 1]
             local.get $items
             local.get $j

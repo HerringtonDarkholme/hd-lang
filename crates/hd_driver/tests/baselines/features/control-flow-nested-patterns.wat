@@ -60,8 +60,6 @@
           i32.eqz
           if
             local.get $s.3
-            i32.eqz
-            i32.eqz
             br_if 2
             br 1
           else

@@ -240,8 +240,6 @@
         block
     ;; 15 |         .Completed(value) => value.len()
           local.get $key.1
-          i32.eqz
-          i32.eqz
           br_if 1
           local.get $t1
           local.get $t0
@@ -361,8 +359,6 @@
         block
     ;; 28 |         .Completed(value) => value.len()
           local.get $key.1
-          i32.eqz
-          i32.eqz
           br_if 1
           local.get $log
           local.get $t0
@@ -416,8 +412,6 @@
         block
     ;; 21 |         .Completed(value) => value.len()
           local.get $key.1
-          i32.eqz
-          i32.eqz
           br_if 1
           local.get $t1
           local.get $t0

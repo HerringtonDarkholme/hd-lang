@@ -88,8 +88,6 @@
             local.set $s.1
             drop
             local.get $s.1
-            i32.const 0
-            i32.gt_u
             br_if 1
             local.get $o.0
             local.get $o.1

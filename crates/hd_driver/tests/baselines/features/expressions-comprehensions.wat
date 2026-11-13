@@ -202,8 +202,6 @@
           unreachable
         end
         local.get $u.name.1
-        i32.const 0
-        i32.gt_u
         if
           local.get $t0
           local.tee $t3

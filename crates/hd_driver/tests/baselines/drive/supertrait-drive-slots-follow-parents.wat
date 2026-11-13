@@ -128,8 +128,6 @@
         block
     ;; 16 |         .Completed(n) => n
           local.get $value.0
-          i32.eqz
-          i32.eqz
           br_if 1
           local.get $t3
           local.set $n

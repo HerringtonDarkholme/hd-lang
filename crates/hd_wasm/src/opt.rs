@@ -15,14 +15,16 @@
 //!    constant bulk widths may also enter empty blocks on that run;
 //! 5. `if A else br N end`, with `N` past the `if` and no branch in `A`
 //!    to the `if` itself, is `i32.eqz; br_if N-1; A`, and `if br N else A
-//!    end` is `br_if N-1; A`: the shape of a `while` loop's test;
+//!    end` is `br_if N-1; A`, `A` empty when there is no `else`: the shape
+//!    of a `while` loop's test;
 //! 6. `if A; local.set x else B; local.set x end; local.get x`, where
 //!    those are `x`'s only writes and that get its only read and neither
 //!    arm branches to the `if` itself, is `if (result T) A else B end`;
 //! 7. constants fold: a nonzero constant's zero check goes, two constants
 //!    joined by `+`, `-` or `*` are one constant, adding 0 on either side
-//!    goes, `+ a ± b` is one addition, `x == 0` is `i32.eqz`, a test of
-//!    `x != 0` is a test of `x`, a multiplication, quotient or remainder by
+//!    goes, `+ a ± b` is one addition, `x == 0` is `i32.eqz`, a test or a
+//!    zero check of `x != 0`, `x >u 0` or `!!x` is one of `x`, a
+//!    multiplication, quotient or remainder by
 //!    a power of two is a shift or a mask, and a constant added to a load's
 //!    address is its offset (a store's is rule 9's);
 //! 9. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
@@ -70,7 +72,12 @@
 //!     more of them in unreachable code: it jumps where falling through
 //!     goes.
 //!     An `else` straight before the `end` of a void `if` goes, and a void
-//!     block that loses its last branch this way goes too ([`blocks`]).
+//!     block that loses its last branch this way goes too ([`blocks`]);
+//! 20. a short-circuit value `if (result i32) X else i32.const K end`
+//!     (`&&` for K = 0, `||` for K = 1) whose result only feeds a
+//!     `br_if`, an `if`, or either after an `i32.eqz` is a chain of
+//!     branches: no join of the two arms, and no test of the joined value
+//!     ([`chain`]).
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -374,7 +381,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
     loop {
         let mut changed = settled.run(f, Rule::Pairs, |f| pairs(f, np));
         changed |= settled.run(f, Rule::Forward, |f| forward(f, np));
-        changed |= settled.run(f, Rule::Shapes, |f| shapes(f, np));
+        changed |= settled.run(f, Rule::Shapes, |f| shapes(f, np, arity));
         changed |= settled.run(f, Rule::Exits, exits);
         changed |= settled.run(f, Rule::Fold, fold);
         changed |= settled.run(f, Rule::Drops, drops);
@@ -1806,10 +1813,18 @@ fn fold(f: &mut Func) -> bool {
                 k += 2;
                 changed = true;
             }
+            // A test of `x != 0`, `x >u 0` or `!!x` is a test of `x`, and
+            // so is its zero check.
             (
                 Some(Ins::Op(I::I32Const(0))),
-                Some(Ins::Op(I::I32Ne)),
-                Some(Ins::Op(I::If(_) | I::BrIf(_))),
+                Some(Ins::Op(I::I32Ne | I::I32GtU)),
+                Some(Ins::Op(I::If(_) | I::BrIf(_) | I::I32Eqz)),
+                _,
+            )
+            | (
+                Some(Ins::Op(I::I32Eqz)),
+                Some(Ins::Op(I::I32Eqz)),
+                Some(Ins::Op(I::If(_) | I::BrIf(_) | I::I32Eqz)),
                 _,
             ) => {
                 k += 2;
@@ -2883,10 +2898,10 @@ fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
     true
 }
 
-/// Rules 5 and 6: rewrites each `if` of those shapes.
-fn shapes(f: &mut Func, np: u32) -> bool {
+/// Rules 5, 6 and 20: rewrites each `if` of those shapes.
+fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
     let mut changed = false;
-    while let Some((next, origins)) = shape_once(f, np) {
+    while let Some((next, origins)) = shape_once(f, np, arity) {
         f.body = next;
         origins.finish(f);
         changed = true;
@@ -2894,17 +2909,18 @@ fn shapes(f: &mut Func, np: u32) -> bool {
     changed
 }
 
-/// The body after the first rewrite by rule 5 or 6, if there is one.
-fn shape_once(f: &mut Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
+/// The body after the first rewrite by rule 5, 6 or 20, if there is one.
+fn shape_once(f: &mut Func, np: u32, arity: &Arity) -> Option<(Vec<Ins>, Remap)> {
     let (reads, writes) = counts(f);
     let b = &f.body;
-    for (s, e, n) in ifs(b) {
+    let sites = ifs(b);
+    for &(s, e, n) in &sites {
         let Ins::Op(I::If(wasm_encoder::BlockType::Empty)) = b[s] else {
             continue;
         };
-        let Some(e) = e else { continue };
-        let then = s + 1..e;
-        let other = e + 1..n;
+        // No `else` is an empty arm.
+        let then = s + 1..e.unwrap_or(n);
+        let other = e.map_or(n..n, |e| e + 1..n);
         // Rule 5.
         let lone_br = |r: std::ops::Range<usize>| match &b[r] {
             [Ins::Op(I::Br(d))] if *d >= 1 => Some(*d),
@@ -2915,7 +2931,7 @@ fn shape_once(f: &mut Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
             (then.clone(), other.clone(), false),
         ] {
             if let Some(d) = lone_br(exit.clone())
-                && !targets_self(&b[keep.clone()], &f.labels)
+                && let Some(kept) = shifted(&b[keep.clone()], -1, &mut f.labels)
             {
                 let mut out = b[..s].to_vec();
                 if negate {
@@ -2928,12 +2944,13 @@ fn shape_once(f: &mut Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
                 origins.repeat(origin, usize::from(negate) + 1);
                 origins.copy(keep.clone());
                 origins.copy(n + 1..b.len());
-                out.extend(lowered(&b[keep], &mut f.labels));
+                out.extend(kept);
                 out.extend_from_slice(&b[n + 1..]);
                 return Some((out, origins));
             }
         }
         // Rule 6.
+        let Some(e) = e else { continue };
         if let (
             Some(Ins::Op(I::LocalSet(x))),
             Some(Ins::Op(I::LocalSet(y))),
@@ -2970,7 +2987,260 @@ fn shape_once(f: &mut Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
             return Some((out, origins));
         }
     }
-    None
+    // Rule 20, outermost value first: `a && b && c` feeding a branch is
+    // the outer `&&` feeding it, and then the inner one feeds it too.
+    let mut by_start = None;
+    sites
+        .iter()
+        .rev()
+        .find_map(|&site| chain(f, site, &sites, &mut by_start, arity))
+}
+
+/// Rule 20: a short-circuit value `T; if (result i32) X else i32.const K
+/// end` (`&&` for K = 0, `||` for K = 1) whose result only feeds a branch
+/// becomes a chain of branches. The value form makes a backend join the
+/// two arms and test the joined value: a taken jump onto a branch on
+/// every evaluation, which Cranelift does not thread (#1725).
+///
+/// The test after the value, flipped by an `i32.eqz` before it, is one of:
+/// - `br_if d`: when K takes the branch, `T; i32.eqz; br_if d; X` and the
+///   test; else `T; if; X` and the test to `d+1`, then `end`;
+/// - `if A else B end`: the arm K picks (`Outer`) is reached from two
+///   places and the other (`Inner`) from one, so `Inner` nests inside the
+///   test of `X`: `T; if; X; if Inner end; end` when `Outer` is empty, else
+///   `block; T; if; X; if Inner; br 2; end; end; Outer; end`.
+///
+/// Each moved run keeps its branch targets ([`shifted`]). Cost: a test of
+/// each `if` in [`shape_once`]'s scan, and each rewrite is one more pass
+/// over the body, as a rule 5 or 6 rewrite is. The block form walks back
+/// over `T`, at most [`OPERAND_REACH`] instructions; a fall-through
+/// `br_if` walks back to its label.
+fn chain(
+    f: &mut Func,
+    (s, e, n): (usize, Option<usize>, usize),
+    sites: &[(usize, Option<usize>, usize)],
+    by_start: &mut Option<Vec<(usize, Option<usize>, usize)>>,
+    arity: &Arity,
+) -> Option<(Vec<Ins>, Remap)> {
+    use wasm_encoder::{BlockType, ValType};
+    let b = &f.body;
+    let (Ins::Op(I::If(BlockType::Result(ValType::I32))), Some(e)) = (b[s], e) else {
+        return None;
+    };
+    let k = short_circuit(&b[e + 1..n])?;
+    let x = s + 1..e;
+    if targets_self(&b[x.clone()], &f.labels) {
+        return None;
+    }
+    let flip = matches!(b.get(n + 1), Some(Ins::Op(I::I32Eqz)));
+    let c = n + 1 + usize::from(flip);
+    let mut origins = Remap::new(f.origins.as_deref());
+    let origin = origins
+        .first(s..s + 1)
+        .or_else(|| origins.first(n + 1..c + 1));
+    let mut out = Vec::with_capacity(b.len() + 4);
+    let new = |out: &mut Vec<Ins>, origins: &mut Remap, i: I| {
+        out.push(Ins::Op(i));
+        origins.repeat(origin, 1);
+    };
+    match *b.get(c)? {
+        // K takes the branch exactly when K, flipped, is nonzero.
+        Ins::Op(I::BrIf(d)) => {
+            if k == u32::from(flip) {
+                // K falls through: `T; if; X; br_if d+1; end`. Inside the
+                // new `if`, the branch reaches no stack values.
+                if label_has_values(f, s, d) {
+                    return None;
+                }
+                out.extend_from_slice(&b[..e]);
+                origins.copy(0..e);
+                out[s] = Ins::Op(I::If(BlockType::Empty));
+                out.extend(shifted(&b[n + 1..=c], 1, &mut f.labels)?);
+                origins.copy(n + 1..c + 1);
+                new(&mut out, &mut origins, I::End);
+                out.extend_from_slice(&b[c + 1..]);
+                origins.copy(c + 1..b.len());
+            } else {
+                out.extend_from_slice(&b[..s]);
+                origins.copy(0..s);
+                new(&mut out, &mut origins, I::I32Eqz);
+                new(&mut out, &mut origins, I::BrIf(d));
+                out.extend(shifted(&b[x.clone()], -1, &mut f.labels)?);
+                origins.copy(x);
+                out.extend_from_slice(&b[n + 1..]);
+                origins.copy(n + 1..b.len());
+            }
+        }
+        Ins::Op(I::If(bt)) if !matches!(bt, BlockType::FunctionType(_)) => {
+            let starts = by_start.get_or_insert_with(|| {
+                let mut v = sites.to_vec();
+                v.sort_stable_by_key(|site| site.0);
+                v
+            });
+            let at = starts.binary_search_by_key(&c, |site| site.0).ok()?;
+            let (_, ce, cn) = starts[at];
+            let a = c + 1..ce.unwrap_or(cn);
+            let other = ce.map_or(cn..cn, |ce| ce + 1..cn);
+            // A nested short-circuit value is a value use: it stays.
+            if matches!(bt, BlockType::Result(_)) && short_circuit(&b[other.clone()]).is_some() {
+                return None;
+            }
+            // `then` is reached when the value is nonzero.
+            let (then, otherwise) = if flip { (other, a) } else { (a, other) };
+            let (outer, inner) = if k == 0 {
+                (otherwise, then)
+            } else {
+                (then, otherwise)
+            };
+            if inner.is_empty() && outer.is_empty() {
+                return None;
+            }
+            if outer.is_empty() {
+                // `T; if; X; if Inner end; end`: no path leaves through
+                // the `if` on K, as `Outer` is empty.
+                out.extend_from_slice(&b[..e]);
+                origins.copy(0..e);
+                out[s] = Ins::Op(I::If(BlockType::Empty));
+                if k == 1 {
+                    new(&mut out, &mut origins, I::I32Eqz);
+                }
+                // `Outer` is empty, so the test's `if` is void.
+                out.push(b[c]);
+                origins.copy(c..c + 1);
+                out.extend(shifted(&b[inner.clone()], 1, &mut f.labels)?);
+                origins.copy(inner);
+                out.push(b[cn]);
+                origins.copy(cn..cn + 1);
+                new(&mut out, &mut origins, I::End);
+            } else {
+                let j = operand_start(b, s, arity, &f.symbols)?;
+                out.extend_from_slice(&b[..j]);
+                origins.copy(0..j);
+                new(&mut out, &mut origins, I::Block(bt));
+                out.extend(shifted(&b[j..s], 1, &mut f.labels)?);
+                origins.copy(j..s);
+                new(&mut out, &mut origins, I::If(BlockType::Empty));
+                out.extend(shifted(&b[x.clone()], 1, &mut f.labels)?);
+                origins.copy(x);
+                if k == 1 {
+                    new(&mut out, &mut origins, I::I32Eqz);
+                }
+                if inner.is_empty() {
+                    new(&mut out, &mut origins, I::BrIf(1));
+                } else {
+                    out.push(Ins::Op(I::If(BlockType::Empty)));
+                    origins.copy(c..c + 1);
+                    let falls = !matches!(
+                        b[inner.end - 1],
+                        Ins::Op(I::Br(_) | I::BrTable(..) | I::Return | I::Unreachable)
+                    );
+                    out.extend(shifted(&b[inner.clone()], 2, &mut f.labels)?);
+                    origins.copy(inner);
+                    if falls {
+                        new(&mut out, &mut origins, I::Br(2));
+                    }
+                    new(&mut out, &mut origins, I::End);
+                }
+                new(&mut out, &mut origins, I::End);
+                out.extend_from_slice(&b[outer.clone()]);
+                origins.copy(outer);
+                out.push(b[cn]);
+                origins.copy(cn..cn + 1);
+            }
+            out.extend_from_slice(&b[cn + 1..]);
+            origins.copy(cn + 1..b.len());
+        }
+        _ => return None,
+    }
+    Some((out, origins))
+}
+
+/// K of a short-circuit value's `else` arm `i32.const K`, K 0 or 1.
+fn short_circuit(arm: &[Ins]) -> Option<u32> {
+    match arm {
+        [Ins::Op(I::I32Const(k @ (0 | 1)))] => Some(k.cast_unsigned()),
+        _ => None,
+    }
+}
+
+/// Whether the label `d` levels out from instruction `at` takes values: a
+/// branch to it then carries stack values from below its test.
+fn label_has_values(f: &Func, at: usize, mut d: u32) -> bool {
+    use wasm_encoder::BlockType;
+    let mut nested = 0u32;
+    // Only a block's start and `end` change which labels are in scope.
+    for i in f.body[..at].iter().rev() {
+        if let Ins::Op(I::End) = i {
+            nested += 1;
+        } else if let Ins::Op(I::Block(bt) | I::If(bt) | I::Loop(bt)) = i {
+            if nested > 0 {
+                nested -= 1;
+            } else if d > 0 {
+                d -= 1;
+            } else if let Ins::Op(I::Loop(_)) = i {
+                // A loop's label takes its parameters.
+                return matches!(bt, BlockType::FunctionType(_));
+            } else {
+                return !matches!(bt, BlockType::Empty);
+            }
+        }
+    }
+    !f.results.is_empty()
+}
+
+/// How far [`operand_start`] walks back.
+const OPERAND_REACH: usize = 128;
+
+/// The start of the run of instructions before `at`, in `at`'s block,
+/// that pushes the one operand `at` pops and reaches no stack value
+/// below: the place a block can open around both. Nested blocks count as
+/// one instruction each; a branch at the run's own level ends the walk.
+fn operand_start(b: &[Ins], at: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
+    use wasm_encoder::BlockType;
+    let results = |bt: &BlockType| match bt {
+        BlockType::Empty => Some(0),
+        BlockType::Result(_) => Some(1),
+        BlockType::FunctionType(_) => None,
+    };
+    let mut need = 1usize;
+    let mut k = at;
+    let mut steps = 0;
+    while need > 0 {
+        steps += 1;
+        if steps > OPERAND_REACH {
+            return None;
+        }
+        k = k.checked_sub(1)?;
+        let (pops, pushes) = match &b[k] {
+            Ins::Op(I::End) => {
+                // Back to the block's start, an instruction of `results`;
+                // an `if` pops its test too.
+                let mut nested = 0u32;
+                loop {
+                    steps += 1;
+                    if steps > OPERAND_REACH {
+                        return None;
+                    }
+                    k = k.checked_sub(1)?;
+                    if let Ins::Op(I::End) = b[k] {
+                        nested += 1;
+                    } else if let Ins::Op(I::Block(bt) | I::Loop(bt) | I::If(bt)) = b[k] {
+                        if nested == 0 {
+                            let test = usize::from(matches!(b[k], Ins::Op(I::If(_))));
+                            break (test, results(&bt)?);
+                        }
+                        nested -= 1;
+                    }
+                }
+            }
+            i => effect(i, arity, symbols)?,
+        };
+        if pushes > need {
+            return None;
+        }
+        need = need - pushes + pops;
+    }
+    Some(k)
 }
 
 /// Each `if` of `b`: its own index, its `else`'s and its `end`'s.
@@ -3016,13 +3286,19 @@ fn targets_self(r: &[Ins], labels: &[Vec<u32>]) -> bool {
     false
 }
 
-/// An arm of an `if` moved out of it: each branch past the `if` names one
-/// label fewer.
-fn lowered(r: &[Ins], labels: &mut Vec<Vec<u32>>) -> Vec<Ins> {
+/// Instructions `r` moved into `by` more blocks, or out of `-by` blocks:
+/// each branch out of `r` names `by` labels more. `None` when `r`
+/// branches to a block it moves out of.
+fn shifted(r: &[Ins], by: i32, labels: &mut Vec<Vec<u32>>) -> Option<Vec<Ins>> {
     let mut d = 0u32;
     let mut out = Vec::with_capacity(r.len());
     for i in r {
-        let down = |l: u32| if l > d { l - 1 } else { l };
+        // A branch to a block the run moves out of has no target.
+        let moved = |l: u32| match l.checked_add_signed(by) {
+            _ if l < d => Some(l),
+            Some(t) if t >= d => Some(t),
+            _ => None,
+        };
         out.push(match i {
             Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
                 d += 1;
@@ -3032,18 +3308,21 @@ fn lowered(r: &[Ins], labels: &mut Vec<Vec<u32>>) -> Vec<Ins> {
                 d = d.saturating_sub(1);
                 *i
             }
-            Ins::Op(I::Br(l)) => Ins::Op(I::Br(down(*l))),
-            Ins::Op(I::BrIf(l)) => Ins::Op(I::BrIf(down(*l))),
+            Ins::Op(I::Br(l)) => Ins::Op(I::Br(moved(*l)?)),
+            Ins::Op(I::BrIf(l)) => Ins::Op(I::BrIf(moved(*l)?)),
             Ins::Op(I::BrTable(ls, def)) => {
-                let lowered = labels[ls.0 as usize].iter().map(|l| down(*l)).collect();
+                let targets = labels[ls.0 as usize]
+                    .iter()
+                    .map(|l| moved(*l))
+                    .collect::<Option<_>>()?;
                 let id = LabelListId(u32::try_from(labels.len()).expect("branch tables"));
-                labels.push(lowered);
-                Ins::Op(I::BrTable(id, down(*def)))
+                labels.push(targets);
+                Ins::Op(I::BrTable(id, moved(*def)?))
             }
             other => *other,
         });
     }
-    out
+    Some(out)
 }
 
 /// Whether `i` may change what pure push `p` pushes.
@@ -3507,8 +3786,8 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
             let mut origins = Remap::new(f.origins.as_deref());
             origins.copy(0..i);
             let mut out: Vec<Ins> = Vec::new();
-            if !targets_self(&arm, &f.labels) {
-                out = lowered(&arm, &mut f.labels);
+            if let Some(moved) = shifted(&arm, -1, &mut f.labels) {
+                out = moved;
                 origins.copy(selected);
             } else if !(arm.is_empty() && matches!(bt, BlockType::Empty)) {
                 out.push(Ins::Op(I::Block(bt)));
@@ -4615,7 +4894,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(shapes(f, 1));
+                assert!(shapes(f, 1, &Vec::new()));
             },
         );
         assert_eq!(spans(&f), [10, 11, 11, 12, 13]);
@@ -4637,7 +4916,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(shapes(f, 1));
+                assert!(shapes(f, 1, &Vec::new()));
             },
         );
         assert_eq!(spans(&f), [10, 11, 12, 14, 15, 17]);
@@ -5640,5 +5919,105 @@ mod origin_tests {
             },
         );
         assert_eq!(f.body.len(), 4);
+    }
+
+    /// Rule 20 where its forms do not apply: a branch that carries a
+    /// value, a value that branches to its own `if`, a test with two
+    /// empty arms, and a test whose operand has no start in reach.
+    #[test]
+    fn a_short_circuit_value_stays_where_no_branch_chain_holds_it() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let i32 = BlockType::Result(wasm_encoder::ValType::I32);
+        let value = |x: Vec<Ins>, k: i32| {
+            let mut v = vec![op(I::LocalGet(0)), op(I::If(i32))];
+            v.extend(x);
+            v.extend([op(I::Else), op(I::I32Const(k)), op(I::End)]);
+            v
+        };
+        let two = Ins::Call(symbols.intern(Sym::Inst(Hash128(7))));
+        let arity = vec![Some((0, 2)); symbols.len()];
+        let shaped = |params: usize, results: Vec<Val>, body: Vec<Ins>| {
+            let mut f = tracked(&symbols, params, 0, body);
+            f.results = results;
+            let changed = shapes(&mut f, u32::try_from(params).unwrap(), &arity);
+            (changed, f.body)
+        };
+        // `&&` falls through its `br_if`; the label takes the value under
+        // the test, which a new `if` would hide.
+        for (label, stays) in [(i32, true), (BlockType::Empty, false)] {
+            let mut body = vec![op(I::Block(label)), op(I::I32Const(5))];
+            body.extend(value(vec![op(I::LocalGet(1))], 0));
+            body.extend([op(I::BrIf(0)), op(I::End)]);
+            assert_eq!(shaped(2, vec![], body).0, !stays);
+        }
+        for (label, stays) in [
+            (BlockType::FunctionType(1), true),
+            (BlockType::Empty, false),
+        ] {
+            let mut body = vec![op(I::Loop(label))];
+            body.extend(value(vec![op(I::LocalGet(1))], 0));
+            body.extend([op(I::BrIf(0)), op(I::End)]);
+            assert_eq!(shaped(2, vec![], body).0, !stays);
+        }
+        for (results, stays) in [(vec![Val::I32], true), (vec![], false)] {
+            let mut body = value(vec![op(I::LocalGet(1))], 0);
+            body.push(op(I::BrIf(0)));
+            assert_eq!(shaped(2, results, body).0, !stays);
+        }
+        // `X` branches to its own `if` with the value.
+        let mut body = vec![op(I::Block(BlockType::Empty))];
+        body.extend(value(
+            vec![op(I::LocalGet(1)), op(I::LocalGet(1)), op(I::BrIf(0))],
+            0,
+        ));
+        body.extend([op(I::BrIf(0)), op(I::End)]);
+        assert!(!shaped(2, vec![], body).0);
+        // An `if` with no code on either arm.
+        let mut body = value(vec![op(I::LocalGet(1))], 1);
+        body.extend([op(I::If(BlockType::Empty)), op(I::End)]);
+        assert!(!shaped(2, vec![], body).0);
+        // `||` into an `if` needs a block around its operand: none past
+        // a block of unknown type, nor past the walk's reach.
+        let arms = [
+            op(I::If(BlockType::Empty)),
+            op(I::LocalGet(1)),
+            op(I::Drop),
+            op(I::End),
+        ];
+        let mut body = vec![op(I::Block(BlockType::FunctionType(1))), op(I::End)];
+        body.extend(value(vec![op(I::LocalGet(1))], 1));
+        body.extend(arms);
+        body[2] = op(I::I32Eqz);
+        assert!(!shaped(2, vec![], body).0);
+        let mut body = vec![op(I::LocalGet(0))];
+        body.extend((0..OPERAND_REACH).map(|_| op(I::I32Eqz)));
+        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
+        body.extend(arms);
+        assert!(!shaped(2, vec![], body).0);
+        let mut body = vec![op(I::LocalGet(0)), op(I::Block(BlockType::Empty))];
+        body.extend((0..OPERAND_REACH).map(|_| op(I::I32Eqz)));
+        body.extend([op(I::End), op(I::I32Eqz)]);
+        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
+        body.extend(arms);
+        assert!(!shaped(2, vec![], body).0);
+        // A call that pushes a value under the test as well.
+        let mut body = vec![two];
+        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
+        body.extend(arms);
+        body.push(op(I::Drop));
+        assert!(!shaped(2, vec![], body).0);
+        // Within reach, the same chain is one block, around a void block.
+        let mut body = vec![
+            op(I::LocalGet(0)),
+            op(I::Block(BlockType::Empty)),
+            op(I::End),
+        ];
+        body.push(op(I::I32Eqz));
+        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
+        body.extend(arms);
+        let (changed, body) = shaped(2, vec![], body);
+        assert!(changed);
+        assert!(matches!(body[0], Ins::Op(I::Block(BlockType::Empty))));
     }
 }

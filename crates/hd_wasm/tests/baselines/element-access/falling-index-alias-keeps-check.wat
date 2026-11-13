@@ -9,8 +9,6 @@
     block
       loop
         local.get $start
-        i32.const 0
-        i32.gt_u
         i32.eqz
         br_if 1
     ;; 11 |         _ := other.pop()

@@ -59,8 +59,6 @@
       block
     ;; 14 |         .Completed(value) => value
         local.get $alias
-        i32.eqz
-        i32.eqz
         br_if 1
         br 0
     ;; 13 |     match block_on(append(log, alias)):

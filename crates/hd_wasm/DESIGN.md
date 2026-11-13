@@ -1530,9 +1530,13 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   - a store to a local nothing reads is a `drop`;
   - a copy of a local, a global or a constant moves to its one read in
     the same straight-line run;
-  - a `while` test's `if … else br` is a `br_if`;
+  - a `while` test's `if … else br`, and an `if` holding only a `br`, is
+    a `br_if`;
   - an `if` whose arms each end by setting one local, read once right
     after it, is a typed `if`;
+  - a typed `if` that computes `&&` or `||` only for a branch or an `if`
+    to test is a chain of branches, with no join of its arms to test
+    (#1725);
   - two values computed into locals only to be pushed in order stay on
     the stack;
   - constants fold: a zero test of a nonzero constant, `== 0`, a

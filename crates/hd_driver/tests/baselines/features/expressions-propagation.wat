@@ -10,8 +10,6 @@
     local.get $path.0
     local.get $path.1
     call $"impl string.len"
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $path.1
       i32.const 1
@@ -68,8 +66,6 @@
     local.get $path.0
     local.get $path.1
     call $"impl string.len"
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $path.1
       i32.const 1
@@ -124,8 +120,6 @@
   (func $read (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
     local.get $path.1
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $path.1
       i32.const 1

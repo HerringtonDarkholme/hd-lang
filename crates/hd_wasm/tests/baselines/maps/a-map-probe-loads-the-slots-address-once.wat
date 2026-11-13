@@ -187,17 +187,15 @@
               local.get $t14
               local.get $t9
               i32.eq
-              if (result i32)
+              if
                 local.get $t13
                 local.get $t3
                 i32.eq
-              else
-                i32.const 0
-              end
-              if
-                i32.const 1
-                local.get $t12
-                return
+                if
+                  i32.const 1
+                  local.get $t12
+                  return
+                end
               end
             end
             local.get $t7

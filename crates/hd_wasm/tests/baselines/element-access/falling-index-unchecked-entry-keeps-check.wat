@@ -6,8 +6,6 @@
   (func $shift (param $items i32) (param $start i32) (local $t0 i32) (local $t1 i32)
     ;; ...
     ;; 7 |     while j > 0:
-    i32.const 0
-    i32.gt_u
     if
       local.get $items
       local.get $items
@@ -23,8 +21,6 @@
     block
       loop
         local.get $start
-        i32.const 0
-        i32.gt_u
         i32.eqz
         br_if 1
     ;; 8 |         items[j] = items[j - 1]

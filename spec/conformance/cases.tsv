@@ -1658,6 +1658,7 @@ runtime/valid/cancellation-skips-unreached-defer.hd	runtime	accept	std/ops.md#r-
 runtime/valid/generic-partial-eq-bound-primitives.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime	accept	lang/05-expressions.md#calls
 runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime	accept	lang/05-expressions.md#evaluation-order
+runtime/valid/short-circuit-feeding-a-branch.hd	runtime	accept	lang/05-expressions.md#evaluation-order
 typing/invalid/expression-type-checked-without-running.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.static-type
 runtime/valid/reorder-keeps-state-reads-in-order.hd	runtime	accept	lang/05-expressions.md#r-expr.order.reorder
 runtime/valid/logical-operators.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators

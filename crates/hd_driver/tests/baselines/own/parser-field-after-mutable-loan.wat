@@ -54,86 +54,65 @@
         i32.load $heap
         i32.load $heap offset=4
         i32.lt_u
-        if (result i32)
-          local.get $self
-          i32.load $heap offset=4
-          local.get $self
-          i32.load $heap
-          local.set $t0
-          local.tee $t1
+        i32.eqz
+        br_if 1
+        local.get $self
+        i32.load $heap offset=4
+        local.get $self
+        i32.load $heap
+        local.set $t0
+        local.tee $t1
+        local.get $t0
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t0
+        local.get $t1
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        local.set $t0
+        block
           local.get $t0
-          i32.load $heap offset=4
-          i32.ge_u
+          i32.const 32
+          i32.le_s
           if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          local.get $t1
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap offset=16
-          local.set $t0
-          block
             local.get $t0
             i32.const 32
-            i32.le_s
-            if
+            i32.eq
+            i32.eqz
+            if (result i32)
               local.get $t0
-              i32.const 32
-              i32.eq
-              i32.eqz
+              i32.const 9
+              i32.ge_s
               if (result i32)
                 local.get $t0
-                i32.const 9
-                i32.ge_s
-                if (result i32)
-                  local.get $t0
-                  i32.const 13
-                  i32.le_s
-                else
-                  i32.const 0
-                end
+                i32.const 13
+                i32.le_s
               else
-                i32.const 1
+                i32.const 0
               end
-              local.set $t0
-              br 1
+            else
+              i32.const 1
             end
+            local.set $t0
+            br 1
+          end
+          local.get $t0
+          i32.const 8192
+          i32.lt_s
+          if
             local.get $t0
-            i32.const 8192
-            i32.lt_s
-            if
-              local.get $t0
-              i32.const 133
-              i32.eq
-              i32.eqz
-              if (result i32)
-                local.get $t0
-                i32.const 160
-                i32.eq
-              else
-                i32.const 1
-              end
-              i32.eqz
-              if (result i32)
-                local.get $t0
-                i32.const 5760
-                i32.eq
-              else
-                i32.const 1
-              end
-              local.set $t0
-              br 1
-            end
-            local.get $t0
-            i32.const 8202
-            i32.le_s
+            i32.const 133
+            i32.eq
             i32.eqz
             if (result i32)
               local.get $t0
-              i32.const 8232
+              i32.const 160
               i32.eq
             else
               i32.const 1
@@ -141,41 +120,60 @@
             i32.eqz
             if (result i32)
               local.get $t0
-              i32.const 8233
-              i32.eq
-            else
-              i32.const 1
-            end
-            i32.eqz
-            if (result i32)
-              local.get $t0
-              i32.const 8239
-              i32.eq
-            else
-              i32.const 1
-            end
-            i32.eqz
-            if (result i32)
-              local.get $t0
-              i32.const 8287
-              i32.eq
-            else
-              i32.const 1
-            end
-            i32.eqz
-            if (result i32)
-              local.get $t0
-              i32.const 12288
+              i32.const 5760
               i32.eq
             else
               i32.const 1
             end
             local.set $t0
+            br 1
           end
           local.get $t0
-        else
-          i32.const 0
+          i32.const 8202
+          i32.le_s
+          i32.eqz
+          if (result i32)
+            local.get $t0
+            i32.const 8232
+            i32.eq
+          else
+            i32.const 1
+          end
+          i32.eqz
+          if (result i32)
+            local.get $t0
+            i32.const 8233
+            i32.eq
+          else
+            i32.const 1
+          end
+          i32.eqz
+          if (result i32)
+            local.get $t0
+            i32.const 8239
+            i32.eq
+          else
+            i32.const 1
+          end
+          i32.eqz
+          if (result i32)
+            local.get $t0
+            i32.const 8287
+            i32.eq
+          else
+            i32.const 1
+          end
+          i32.eqz
+          if (result i32)
+            local.get $t0
+            i32.const 12288
+            i32.eq
+          else
+            i32.const 1
+          end
+          local.set $t0
         end
+        local.get $t0
         i32.eqz
         br_if 1
     ;; 15 |             self.at += 1

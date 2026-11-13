@@ -7,8 +7,6 @@
   (func $guard (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 7 |     if (n := s.len()) > 0: n else: 0
     local.get $s.1
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $s.1
     else
@@ -19,8 +17,6 @@
     ;; 13 |     if (ys := xs).len() > 0: ys.len() else: 0
     local.get $xs
     i32.load $heap offset=4
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $xs
       i32.load $heap offset=4

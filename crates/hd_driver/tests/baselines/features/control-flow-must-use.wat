@@ -14,8 +14,6 @@
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 11 |     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
     local.get $s.1
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $s.1
       i32.const 1
@@ -59,8 +57,6 @@
     local.get $s.0
     local.get $s.1
     call $"impl string.len"
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $s.1
       local.tee $t0
@@ -108,8 +104,6 @@
     local.get $s.0
     local.get $s.1
     call $"impl string.len"
-    i32.const 0
-    i32.gt_u
     if (result i32)
       local.get $s.1
       local.tee $t0

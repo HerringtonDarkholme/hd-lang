@@ -1,0 +1,70 @@
+# @dump: wat
+# @build: v8 release
+# `&&` and `||` whose result feeds a branch are chains of branches, with
+# no `if (result i32)` value to join and test again (#1725). A stored or
+# returned result keeps its value form.
+fn while_and(xs: &List[i32], n: usize) -> usize:
+    let i: usize = n
+    while i > 0 && xs[i - 1] != 7:
+        i -= 1
+    i
+
+fn while_or(xs: &List[i32], n: usize) -> usize:
+    let i: usize = n
+    while i == 0 || xs[i - 1] != 7:
+        if i == 0:
+            return 9
+        i -= 1
+    i
+
+fn break_and(a: i32, b: i32) -> i32:
+    let n: i32 = 0
+    while true:
+        if a > n && b > n:
+            break
+        n += 1
+    n
+
+fn break_or(a: i32, b: i32) -> i32:
+    let n: i32 = 0
+    while true:
+        if a < n || b < n:
+            break
+        n += 1
+    n
+
+fn if_and(a: i32, b: i32, c: i32) -> i32:
+    if a > 0 && b > 0 && c > 0:
+        return 1
+    2
+
+fn if_or(a: i32, b: i32, c: i32) -> i32:
+    if a > 0 || b > 0 || c > 0:
+        return 1
+    2
+
+fn if_else_or(a: i32, b: i32) -> i32:
+    let r: i32 = 0
+    if a > 0 || b > 0:
+        r = a * 3
+    else:
+        r = b * 5
+    r + a
+
+fn mixed(a: i32, b: i32, c: i32) -> i32:
+    let r: i32 = 0
+    if (a > 0 && b > 0) || c > 0:
+        r = 1
+    r + 5
+
+fn stored(a: i32, b: i32, c: i32) -> i32:
+    x := a > 0 && b > 0 && c > 0
+    y := a > 0 || b > 0
+    if x:
+        return 1
+    if y:
+        return 3
+    2
+
+fn returned(a: i32, b: i32) -> bool:
+    a > 0 && b > 0

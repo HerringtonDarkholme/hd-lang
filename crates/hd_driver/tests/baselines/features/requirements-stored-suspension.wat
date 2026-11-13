@@ -1526,8 +1526,6 @@
         block
     ;; 34 |         .Completed(v) => v.len()
           local.get $key.1
-          i32.eqz
-          i32.eqz
           br_if 1
           local.get $t1
           local.get $t0

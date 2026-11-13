@@ -6,8 +6,6 @@
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 7 |     if s.len() > 0:
     local.get $s.1
-    i32.const 0
-    i32.gt_u
     if
     ;; 8 |         return .Ok(())
       i32.const 0
@@ -39,11 +37,7 @@
     ;; 12 |     match save(s):
     block
       local.get $s.1
-      i32.const 0
-      i32.gt_u
-      if
-        br 1
-      end
+      br_if 0
       local.get $s.1
       i32.const 1
       i32.add

@@ -1,0 +1,137 @@
+# test: and and or that feed a loop test, a break or an if keep their order and skips
+# expect: test
+# Spec 05 Operators: expr.logic.short-circuit, expr.order.conditional.
+struct Log:
+    text: string
+
+fn flag(log: &mut Log, tag: string, value: bool) -> bool:
+    log.text = log.text + tag
+    value
+
+fn while_and(log: &mut Log, n: i32) -> i32:
+    let i: i32 = n
+    while flag(log, "a", i > 0) && flag(log, "b", i != 2):
+        i -= 1
+    i
+
+fn while_or(log: &mut Log, n: i32) -> i32:
+    let i: i32 = n
+    while flag(log, "a", i > 2) || flag(log, "b", i == 1):
+        i -= 1
+    i
+
+fn break_and(log: &mut Log, limit: i32) -> i32:
+    let n: i32 = 0
+    while true:
+        if flag(log, "a", n > 0) && flag(log, "b", n >= limit):
+            break
+        n += 1
+    n
+
+fn break_or(log: &mut Log, limit: i32) -> i32:
+    let n: i32 = 0
+    while true:
+        if flag(log, "a", n == limit) || flag(log, "b", n > 5):
+            break
+        n += 1
+    n
+
+fn if_and(log: &mut Log, a: bool, b: bool, c: bool) -> i32:
+    if flag(log, "a", a) && flag(log, "b", b) && flag(log, "c", c):
+        return 1
+    2
+
+fn if_or(log: &mut Log, a: bool, b: bool, c: bool) -> i32:
+    if flag(log, "a", a) || flag(log, "b", b) || flag(log, "c", c):
+        return 1
+    2
+
+fn if_else_and(log: &mut Log, a: bool, b: bool) -> i32:
+    let r: i32 = 0
+    if flag(log, "a", a) && flag(log, "b", b):
+        r = 10
+    else:
+        r = 20
+    log.text = log.text + "."
+    r
+
+fn if_else_or(log: &mut Log, a: bool, b: bool) -> i32:
+    let r: i32 = 0
+    if flag(log, "a", a) || flag(log, "b", b):
+        r = 10
+    else:
+        r = 20
+    log.text = log.text + "."
+    r
+
+fn mixed(log: &mut Log, a: bool, b: bool, c: bool) -> i32:
+    if (flag(log, "a", a) && flag(log, "b", b)) || flag(log, "c", c):
+        return 1
+    2
+
+tests:
+    use std.testing.assert_equal
+
+    it("and as a loop test stops at its first false operand"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(while_and(log, 4), 2, reason="stops when the right operand is false")
+        assert_equal(log.text, "ababab", reason="both operands each round")
+        let mut skip = &mut Log { text: "" }
+        assert_equal(while_and(skip, 0), 0, reason="a false left operand ends the loop")
+        assert_equal(skip.text, "a", reason="the right operand is skipped")
+
+    it("or as a loop test stops when both operands are false"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(while_or(log, 4), 2, reason="stops when both operands are false")
+        assert_equal(log.text, "aaab", reason="the right operand runs only after a false left")
+        let mut right = &mut Log { text: "" }
+        assert_equal(while_or(right, 1), 0, reason="the right operand keeps it going at 1")
+        assert_equal(right.text, "abab", reason="both operands each round")
+
+    it("and before a break runs its right operand only when the left is true"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(break_and(log, 2), 2, reason="breaks once both hold")
+        assert_equal(log.text, "aabab", reason="left first, right when needed")
+
+    it("or before a break skips its right operand when the left is true"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(break_or(log, 1), 1, reason="breaks on the left operand")
+        assert_equal(log.text, "aba", reason="no right operand after a true left")
+        let mut right = &mut Log { text: "" }
+        assert_equal(break_or(right, -1), 6, reason="breaks on the right operand")
+        assert_equal(right.text, "ababababababab", reason="both operands each round")
+
+    it("a chain of and in an if stops at the first false operand"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(if_and(log, true, true, true), 1, reason="all true")
+        assert_equal(if_and(log, true, false, true), 2, reason="second false")
+        assert_equal(if_and(log, false, true, true), 2, reason="first false")
+        assert_equal(log.text, "abcaba", reason="each stops at its first false operand")
+
+    it("a chain of or in an if stops at the first true operand"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(if_or(log, false, false, false), 2, reason="all false")
+        assert_equal(if_or(log, false, true, false), 1, reason="second true")
+        assert_equal(if_or(log, true, false, false), 1, reason="first true")
+        assert_equal(log.text, "abcaba", reason="each stops at its first true operand")
+
+    it("and and or with an else arm pick the arm and run the code after"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(if_else_and(log, true, true), 10, reason="and holds")
+        assert_equal(if_else_and(log, true, false), 20, reason="right false")
+        assert_equal(if_else_and(log, false, true), 20, reason="left false")
+        assert_equal(if_else_or(log, false, false), 20, reason="or fails")
+        assert_equal(if_else_or(log, false, true), 10, reason="right true")
+        assert_equal(if_else_or(log, true, false), 10, reason="left true")
+        assert_equal(log.text, "ab.ab.a.ab.ab.a.", reason="operands in order, then the join")
+
+    it("an and group inside an or skips the right operand of the or"):
+        let mut log = &mut Log { text: "" }
+        assert_equal(mixed(log, true, true, false), 1, reason="the and group holds")
+        assert_equal(mixed(log, true, false, true), 1, reason="the or operand holds")
+        assert_equal(mixed(log, false, true, false), 2, reason="nothing holds")
+        assert_equal(
+            log.text,
+            "ababcac",
+            reason="b only after a true a, c only after a false group",
+        )

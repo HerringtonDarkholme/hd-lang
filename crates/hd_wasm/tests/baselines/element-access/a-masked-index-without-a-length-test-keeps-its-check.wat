@@ -145,9 +145,7 @@
       local.get $xs
       i32.load $heap offset=8
       i32.eqz
-      if
-        br 1
-      end
+      br_if 0
       i32.const 1
       local.set $sum
     end
@@ -214,71 +212,65 @@
     local.tee $i
     local.set $t0
     local.get $i
-    i32.const 0
-    i32.gt_u
-    if (result i32)
-      local.get $ys
-      i32.load $heap offset=8
-      i32.const 0
-      i32.gt_u
-    else
-      i32.const 0
-    end
     if
-    ;; 34 |         for i in 0..n:
       local.get $ys
       i32.load $heap offset=8
-      local.set $ys
-      local.get $xs
-      i32.load $heap
-      local.set $xs
-      block
-        loop
-          local.get $t1
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $i
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-    ;; 35 |             sum += xs[(head + i) & (ys.len() - 1)]
-          local.get $head
-          local.get $i
-          i32.add
-          local.get $ys
-          i32.const 1
-          i32.sub
-          i32.and
-          local.tee $i
-          local.get $t0
-          i32.ge_u
-          if
-            i32.const 65 ;; &"index-out-of-bounds"
-            i32.const 19
-            i32.const 84 ;; &"uniq list index out of bounds"
-            i32.const 29
-            i32.const 0
-            call_indirect $table0 (param i32 i32 i32 i32)
-            unreachable
-          end
-          local.get $sum
-          local.get $xs
-          local.get $i
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap
-          i32.add
-          local.set $sum
+      if
     ;; 34 |         for i in 0..n:
-          br 0
+        local.get $ys
+        i32.load $heap offset=8
+        local.set $ys
+        local.get $xs
+        i32.load $heap
+        local.set $xs
+        block
+          loop
+            local.get $t1
+            local.get $n
+            i32.lt_u
+            i32.eqz
+            br_if 1
+            local.get $t1
+            local.set $i
+            local.get $t1
+            i32.const 1
+            i32.add
+            local.set $t1
+    ;; 35 |             sum += xs[(head + i) & (ys.len() - 1)]
+            local.get $head
+            local.get $i
+            i32.add
+            local.get $ys
+            i32.const 1
+            i32.sub
+            i32.and
+            local.tee $i
+            local.get $t0
+            i32.ge_u
+            if
+              i32.const 65 ;; &"index-out-of-bounds"
+              i32.const 19
+              i32.const 84 ;; &"uniq list index out of bounds"
+              i32.const 29
+              i32.const 0
+              call_indirect $table0 (param i32 i32 i32 i32)
+              unreachable
+            end
+            local.get $sum
+            local.get $xs
+            local.get $i
+            i32.const 4
+            i32.mul
+            i32.add
+            i32.load $heap
+            i32.add
+            local.set $sum
+    ;; 34 |         for i in 0..n:
+            br 0
+          end
         end
-      end
     ;; 33 |     if xs.len() > 0 && ys.len() > 0:
+      end
     end
     ;; 36 |     sum
     local.get $sum
@@ -288,8 +280,6 @@
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
-    i32.const 0
-    i32.gt_u
     if
     ;; 41 |         mask := xs.len() - 1
       local.get $xs
@@ -414,8 +404,6 @@
     local.get $ys
     i32.load $heap
     i32.load $heap offset=4
-    i32.const 0
-    i32.gt_u
     if
     ;; 27 |         for i in 0..n:
       local.get $xs

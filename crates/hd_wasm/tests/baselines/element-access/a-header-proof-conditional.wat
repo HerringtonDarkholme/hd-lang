@@ -18,11 +18,7 @@
         if
     ;; 26 |             if stop:
           local.get $stop
-          if
-    ;; 27 |                 break
-            br 3
-    ;; 26 |             if stop:
-          end
+          br_if 2
     ;; 28 |             total += header.length
           local.get $total
           local.get $header

@@ -38,13 +38,11 @@
         local.get $t2
         local.get $t4
         i32.lt_u
-        if (result i32)
-          local.get $t3
-          local.get $t6
-          i32.lt_u
-        else
-          i32.const 0
-        end
+        i32.eqz
+        br_if 1
+        local.get $t3
+        local.get $t6
+        i32.lt_u
         i32.eqz
         br_if 1
         local.get $t1

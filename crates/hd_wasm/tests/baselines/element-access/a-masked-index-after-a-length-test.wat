@@ -164,11 +164,7 @@
     ;; 63 |         if xs.len() == 0:
         local.get $t0
         i32.eqz
-        if
-    ;; 64 |             break
-          br 2
-    ;; 63 |         if xs.len() == 0:
-        end
+        br_if 1
     ;; 65 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
@@ -410,8 +406,6 @@
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
-    i32.const 0
-    i32.gt_u
     if
     ;; 14 |         for i in 0..n:
       local.get $xs
