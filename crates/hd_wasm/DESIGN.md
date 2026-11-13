@@ -378,7 +378,11 @@ The allocator is hd in `std.rt.alloc`, the refcount study's §6 (git history at 
   to the pool.
 - **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
   the pool's runs, coalesced with free neighbors on free; every page of a
-  run points at its first (§23.5).
+  run points at its first (§23.5). Search skips occupied prefixes after
+  growth. A failed search caches the end of a prefix with no fitting run;
+  requests at least that large reuse it until any page returns to the pool.
+  Smaller requests retain access to earlier holes. Table relocation also
+  invalidates the proof, since it frees the old table's pages.
 - **No zeroing.** Every object is initialized by its constructor before
   anything reads it, and only the collector scans, and only initialized
   objects.
