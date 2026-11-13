@@ -211,7 +211,11 @@ pub trait OwnCx {
         let _ = item;
         false
     }
-    /// Whether this intrinsic returns borrowed bits for a counted result.
+    /// A direct call forwards this argument as its borrowed result.
+    fn returned_loan(&self, _callee: &Callee) -> Option<u8> {
+        None
+    }
+    /// Whether this call returns borrowed bits for a counted result.
     /// Its own retain is stated separately after the call.
     fn retains_result(&self, callee: &Callee) -> bool {
         let _ = callee;
@@ -463,6 +467,8 @@ pub trait OwnCx {
 pub fn scoped_provider_transfers(b: &Body, topo: &Topology) -> Vec<(u32, u32, u32)> {
     call_row::transfers(b, topo)
 }
+
+pub mod return_loan;
 
 pub mod memory_effects;
 
@@ -793,6 +799,14 @@ fn consumes_operand(
         Role::Consume => !lending_coercion(b, cx, i),
         Role::Lend | Role::Dropped => false,
         // `NONE`: a sub-body's root, whose tail is the body's result.
+        Role::Tail
+            if b.sub_root.first().copied() == Some(crate::ir::u32_of(i))
+                && b.sub_flags
+                    .first()
+                    .is_some_and(|f| f & crate::ir::sub_flags::BORROWED_RESULT != 0) =>
+        {
+            false
+        }
         Role::Tail => owner == NONE || owner_takes_tail(b, owner, u32::try_from(i).expect("insts")),
         Role::Arg(k) => {
             let [a, w] = b.data[i];

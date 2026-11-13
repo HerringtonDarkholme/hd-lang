@@ -230,7 +230,7 @@ impl Em<'_, '_, '_> {
     /// `return a`: its value, with a count for the caller when the
     /// function counts, in the result locals, then out through the exit
     /// ladders of the scopes it leaves and the function's one exit.
-    pub(super) fn ret_value(&mut self, a: u32) -> StageResult<()> {
+    pub(super) fn ret_value(&mut self, a: u32, borrowed: bool) -> StageResult<()> {
         let crossing = self.ctl.iter().any(|c| matches!(c, Ctl::Scope(_)));
         if !self.counting && !crossing {
             if a != NONE {
@@ -246,8 +246,8 @@ impl Em<'_, '_, '_> {
         if a != NONE && !self.results.is_empty() {
             // The value moves out at its only use, or takes a count for
             // the caller.
-            let moved = self.counting && self.take(a);
-            let s = if self.counting && !moved {
+            let moved = self.counting && !borrowed && self.take(a);
+            let s = if self.counting && !moved && !borrowed {
                 self.retain_ref(a)?
             } else {
                 super::value::Src::Ref(a)

@@ -1,0 +1,136 @@
+use std.annotation.inline
+use std.testing.assert_equal
+
+@inline(.Never)
+fn same[T](value: T) -> T:
+    value
+
+@inline(.Never)
+fn word(i: usize) -> string:
+    "a heap string number $i with more bytes"
+
+@inline(.Never)
+fn read(value: string) -> usize:
+    same(value).len() + value.len()
+
+@inline(.Never)
+fn keep(value: string) -> string:
+    same(value)
+
+@inline(.Never)
+fn call_it(f: fn(string) -> string, value: string) -> string:
+    f(value)
+
+trait Echo:
+    fn echo(self, value: string) -> string
+    fn echo_reference(self, value: &i32) -> &i32
+    fn echo_pair(self, value: (&i32, string)) -> (&i32, string)
+
+struct Speaker:
+    label: string
+
+impl Echo for Speaker:
+    @inline(.Never)
+    fn echo(self, value: string) -> string:
+        value
+
+    @inline(.Never)
+    fn echo_reference(self, value: &i32) -> &i32:
+        value
+
+    @inline(.Never)
+    fn echo_pair(self, value: (&i32, string)) -> (&i32, string):
+        value
+
+@inline(.Never)
+fn dynamic_reference['a](speaker: &dyn Echo, value: &'a i32) -> &'a i32:
+    speaker.echo_reference(value)
+
+@inline(.Never)
+fn dynamic_pair['a](speaker: &dyn Echo, value: (&'a i32, string)) -> (&'a i32, string):
+    speaker.echo_pair(value)
+
+@inline(.Never)
+fn same_pair(value: (&i32, string)) -> (&i32, string):
+    value
+
+@inline(.Never)
+fn call_pair['a](
+    f: fn((&'a i32, string)) -> (&'a i32, string),
+    value: (&'a i32, string),
+) -> (&'a i32, string):
+    f(value)
+
+@inline(.Never)
+fn dynamic(speaker: &dyn Echo, value: string) -> string:
+    speaker.echo(value)
+
+struct Point:
+    n: usize
+
+@inline(.Never)
+fn weaken(value: *mut Point) -> *Point:
+    value
+
+@inline(.Never)
+fn returned_closure(seed: string) -> fn() -> string:
+    same(fn() -> string: seed)
+
+@inline(.Never)
+fn returned_counter() -> fn() -> usize:
+    let count = 0
+    callback := fn() -> usize:
+        count += 1
+        count
+    same(callback)
+
+struct Named:
+    name: string
+
+@inline(.Never)
+fn field_after(value: *Named, action: fn() -> void, expected: string) -> bool:
+    saved := same(value.name)
+    action()
+    saved == expected
+
+pub fn main() -> void:
+    original := word(7)
+    assert_equal(read(original), original.len() * 2)
+    assert_equal(keep(original), original)
+    assert_equal(same(word(8)), word(8))
+    assert_equal(same("inline heap string ${123}"), "inline heap string 123")
+    assert_equal(same(same(word(9))), word(9))
+    assert_equal(call_it(same, word(10)), word(10))
+    speaker := Speaker { label: word(11) }
+    assert_equal(dynamic(&speaker, word(12)), word(12))
+    assert_equal(original, word(7))
+    let changed = word(13)
+    saved := same(changed)
+    changed = word(14)
+    assert_equal(saved, word(13))
+    assert_equal(changed, word(14))
+    values := [word(15), word(16)]
+    assert_equal(same(values)[1], word(16))
+    assert_equal(values[0], word(15))
+    let mut point = box(Point { n: 17 })
+    assert_equal(weaken(point).n, 17)
+    point.n = 18
+    assert_equal(weaken(point).n, 18)
+    let mut named = box(Named { name: word(20) })
+    let mut alias = named
+    action := fn() -> void: alias.name = word(21)
+    assert_equal(field_after(named, action, word(20)), true)
+    assert_equal(named.name, word(21))
+    kept_closure := returned_closure(word(22))
+    assert_equal(kept_closure(), word(22))
+    count := returned_counter()
+    assert_equal(count(), 1)
+    assert_equal(count(), 2)
+    pointer := box(+23)
+    assert_equal(*dynamic_reference(&speaker, pointer), +23)
+    dynamic_mixed := dynamic_pair(&speaker, (pointer, word(24)))
+    assert_equal(*dynamic_mixed._0, +23)
+    assert_equal(dynamic_mixed._1, word(24))
+    callable_mixed := call_pair(same_pair, (pointer, word(25)))
+    assert_equal(*callable_mixed._0, +23)
+    assert_equal(callable_mixed._1, word(25))

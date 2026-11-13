@@ -165,7 +165,7 @@ tags! {
     Loop: Block, Block;
     Break: Label, Value;
     Continue: Label, None;
-    Return: Value, None;
+    Return: Value, Meta;
     Unreachable: None, None;
     // matching
     Match: Value, Blocks;
@@ -880,6 +880,15 @@ pub mod sub_flags {
     /// body pass only places that stage 7 lets nothing else reach for the
     /// call. The checker never sets it.
     pub const EXCLUSIVE: u8 = 2;
+    /// The root result forwards an input loan. Callers that keep its bits
+    /// state their own retain; this body returns no owned count.
+    pub const BORROWED_RESULT: u8 = 4;
+}
+
+/// Ownership mode in a `Return`'s second word. `NONE` keeps the ordinary
+/// owned result convention; only ownership planning writes this mode.
+pub mod return_word {
+    pub const BORROWED: u32 = 1;
 }
 
 /// A suspension point's side record (16 bytes).
