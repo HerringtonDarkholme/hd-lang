@@ -1,0 +1,21 @@
+# @dump: wat
+# @build: v8 release
+# The index check after an inlined helper's finite loop runs on every
+# normal return. The caller's repeated access needs no second bounds guard.
+use std.annotation.inline
+use std.collections.UniqList
+
+@inline(.Always)
+fn checked_after_loop(items: &UniqList[i32], key: usize, turns: usize) -> i32:
+    let cursor = 0
+    while cursor < turns:
+        cursor += 1
+    i32(cursor) + items[key]
+
+fn reuse(items: &UniqList[i32], key: usize, turns: usize, rounds: usize) -> i32:
+    index := key
+    let total = +0
+    for _ in 0..rounds:
+        first := checked_after_loop(items, index, turns)
+        total += first + items[index]
+    total
