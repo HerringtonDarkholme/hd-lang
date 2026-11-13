@@ -1026,7 +1026,7 @@ impl dyn InlineEnv + '_ {
         declared
             .into_iter()
             .chain(root)
-            .any(|t| holds_local(self.pool(), t, 0))
+            .any(|t| holds_local(self.pool(), t))
     }
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
@@ -1168,7 +1168,7 @@ impl dyn InlineEnv + '_ {
             && (hd_mono::default_needs_bracket(body)
                 || (self
                     .result(def)
-                    .is_some_and(|t| holds_local(self.pool(), t, 0))
+                    .is_some_and(|t| holds_local(self.pool(), t))
                     && !hd_mono::default_returns_new_object(body)))
         {
             return None;
@@ -1211,7 +1211,7 @@ impl dyn InlineEnv + '_ {
         };
         let getter = self
             .result(def)
-            .is_some_and(|r| holds_local(self.pool(), r, 0));
+            .is_some_and(|r| holds_local(self.pool(), r));
         refs.len() > 1 || (refs.len() == 1 && !getter)
     }
 
@@ -1914,23 +1914,45 @@ fn kinds_agree(copy: &Body) -> bool {
 
 /// Whether a value of type `t` holds a local reference (`&T`), outside
 /// function types.
-fn holds_local(pool: &InternPool, t: Ty, depth: u32) -> bool {
-    if depth > 32 {
-        return false;
-    }
-    let any = |l| {
-        pool.list_items(l)
-            .iter()
-            .any(|&a| holds_local(pool, a, depth + 1))
-    };
-    match pool.get(t) {
-        TyData::Ref { counted, inner, .. } => !counted || holds_local(pool, inner, depth + 1),
-        TyData::Adt { args, .. } => any(args),
-        TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| holds_local(pool, r, depth + 1))
+fn holds_local(pool: &InternPool, t: Ty) -> bool {
+    holds_local_with(pool, t, || {})
+}
+
+fn holds_local_with(pool: &InternPool, t: Ty, mut visit: impl FnMut()) -> bool {
+    let types = pool.types();
+    let mut work = Vec::new();
+    let mut seen = HashSet::default();
+    // Cached metadata skips reference-free results without allocating.
+    // Mark when enqueuing: shared parts occupy the worklist only once.
+    let mut enqueue = |t, work: &mut Vec<Ty>, seen: &mut HashSet<Ty>| {
+        visit();
+        if types.has_ref(t) && seen.insert(t) {
+            work.push(t);
         }
-        _ => false,
+    };
+    enqueue(t, &mut work, &mut seen);
+    while let Some(t) = work.pop() {
+        // The same held-reference forms as Types::ref_slots, with an
+        // existential answer. Function signatures are not held values.
+        let (elems, tail) = match pool.get(t) {
+            TyData::Ref { counted: false, .. } | TyData::Opaque { borrows: true, .. } => {
+                return true;
+            }
+            TyData::Ref { inner, .. } => (TyList::EMPTY, Some(inner)),
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } | TyData::Union(args) => {
+                (args, None)
+            }
+            TyData::Tuple { elems, rest } => (elems, rest),
+            _ => continue,
+        };
+        for &child in pool.list_items(elems) {
+            enqueue(child, &mut work, &mut seen);
+        }
+        if let Some(tail) = tail {
+            enqueue(tail, &mut work, &mut seen);
+        }
     }
+    false
 }
 
 /// Whether argument type `arg` differs from parameter type `want` only by
@@ -2414,6 +2436,146 @@ mod tests {
         for roots in [&[5, 4, 0][..], &[3, 5, 1, 4, 0], &[2, 0, 5, 4]] {
             assert_eq!(first, walk(&edges, roots), "roots {roots:?}");
         }
+    }
+
+    #[test]
+    fn local_reference_results_are_not_lost_after_32_layers() {
+        let pool = InternPool::new();
+        let local = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let mut nested = local;
+        for _ in 0..64 {
+            nested = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[nested]),
+                rest: None,
+            });
+        }
+        assert!(super::holds_local(&pool, nested));
+    }
+
+    #[test]
+    fn local_reference_results_include_sums_and_hidden_borrows() {
+        let pool = InternPool::new();
+        let local = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let sum = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, local])));
+        let opaque = pool.intern_ty(&TyData::Opaque {
+            owner: DefId::from_raw(1),
+            site: 0,
+            borrows: true,
+            args: hd_types::TyList::EMPTY,
+            bound: Ty::I32,
+        });
+        let trait_value = pool.intern_ty(&TyData::TraitValue {
+            def: DefId::from_raw(2),
+            args: pool.list(&[local]),
+            bindings: Vec::new(),
+        });
+        assert_eq!(
+            [sum, opaque, trait_value].map(|ty| super::holds_local(&pool, ty)),
+            [true; 3]
+        );
+    }
+
+    #[test]
+    fn local_reference_results_follow_value_shapes_not_function_signatures() {
+        let pool = InternPool::new();
+        let local = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: true,
+            counted: false,
+        });
+        let counted = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: true,
+        });
+        let through_counted = pool.intern_ty(&TyData::Ref {
+            inner: local,
+            mutable: true,
+            counted: true,
+        });
+        let tuple_rest = pool.intern_ty(&TyData::Tuple {
+            elems: hd_types::TyList::EMPTY,
+            rest: Some(pool.intern_ty(&TyData::Adt {
+                def: DefId::from_raw(1),
+                args: pool.list(&[local]),
+            })),
+        });
+        let function = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[local]),
+            result: local,
+            row: hd_types::RowId::EMPTY,
+            suspends: false,
+            inputs: hd_types::Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
+        });
+        let hidden = pool.intern_ty(&TyData::Opaque {
+            owner: DefId::from_raw(2),
+            site: 0,
+            borrows: false,
+            args: pool.list(&[local]),
+            bound: local,
+        });
+        for (ty, expected) in [
+            (local, true),
+            (counted, false),
+            (through_counted, true),
+            (tuple_rest, true),
+            (function, false),
+            (hidden, false),
+            (Ty::I32, false),
+        ] {
+            assert_eq!(super::holds_local(&pool, ty), expected, "{ty:?}");
+        }
+    }
+
+    /// Negative answers exhaust the shape. Repeating one child a thousand
+    /// times at each layer must scan its edges without expanding its tree.
+    #[test]
+    fn local_reference_work_is_linear_at_width_1000_depth_20() {
+        for (width, depth) in [(1usize, 1usize), (1000, 1), (1, 20), (1000, 20)] {
+            let pool = InternPool::new();
+            let mut nested = pool.intern_ty(&TyData::Ref {
+                inner: Ty::I32,
+                mutable: false,
+                counted: true,
+            });
+            for _ in 0..depth {
+                nested = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&vec![nested; width]),
+                    rest: None,
+                });
+            }
+            let mut work = 0;
+            assert!(!super::holds_local_with(&pool, nested, || work += 1));
+            assert_eq!(work, width * depth + 2);
+        }
+    }
+
+    #[test]
+    fn local_reference_results_walk_deep_types_without_native_recursion() {
+        let pool = InternPool::new();
+        let mut nested = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        for _ in 0..20_000 {
+            nested = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[nested]),
+                rest: None,
+            });
+        }
+        let mut work = 0;
+        assert!(super::holds_local_with(&pool, nested, || work += 1));
+        assert_eq!(work, 20_001);
     }
 
     /// The walk is iterative: a chain of 200,000 calls does not overflow
