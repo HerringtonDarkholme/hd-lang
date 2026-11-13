@@ -86,12 +86,11 @@ pub struct CaseRun {
 }
 
 /// A failing `snapshot` call that an update run recorded instead of
-/// failing at: the text it compared and the Wasm frames of the call,
-/// innermost first, as a trap's are.
+/// failing at: the text `std.testing.snapshot_site` wrote, its site and
+/// the text it compared (`hd_cli`'s `snapshot_update::Site::parse`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Recorded {
     pub text: String,
-    pub frames: Vec<(u32, u32)>,
 }
 
 impl CaseRun {

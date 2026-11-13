@@ -404,13 +404,10 @@ pub struct CaseRun {
 
 /// A failing `snapshot` call that an update run recorded instead of
 /// failing at: the text `std.testing.snapshot_site` wrote, its site and
-/// the text it compared (`crate::snapshot_update::Site::parse`), and the
-/// Wasm frames of the call, innermost first, which the update no longer
-/// reads.
+/// the text it compared (`crate::snapshot_update::Site::parse`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Recorded {
     pub text: String,
-    pub frames: Vec<(u32, u32)>,
 }
 
 /// A panic's category and message as the host recorded them: its report,
@@ -765,23 +762,13 @@ fn parse_case(line: &str) -> Option<CaseRun> {
     Some(r)
 }
 
-/// The `updates` of a case record: a line for each recorded snapshot, the
-/// call's frames as `function:offset` pairs joined by commas, a tab, and
-/// the text as a JSON string (`host/cases.ts`).
+/// The `updates` of a case record: a line for each recorded snapshot, its
+/// text as a JSON string (`host/cases.ts`).
 fn parse_updates(s: &str) -> Option<Vec<Recorded>> {
     s.split('\n')
         .map(|line| {
-            let (frames, text) = line.split_once('\t')?;
-            let frames = frames
-                .split(',')
-                .filter(|f| !f.is_empty())
-                .map(|f| {
-                    let (func, at) = f.split_once(':')?;
-                    Some((func.parse().ok()?, at.parse().ok()?))
-                })
-                .collect::<Option<Vec<_>>>()?;
-            let (text, rest) = json_str(text)?;
-            rest.is_empty().then_some(Recorded { text, frames })
+            let (text, rest) = json_str(line)?;
+            rest.is_empty().then_some(Recorded { text })
         })
         .collect()
 }

@@ -88,9 +88,8 @@ impl CaseRun {
                 })
                 .collect::<Result<_, _>>()?,
         };
-        // The snapshots an update run recorded: a line for each, the call's
-        // frames as `function:offset` pairs, a tab, and the text as a JSON
-        // string (`host/cases.ts`).
+        // The snapshots an update run recorded: a line for each, its text
+        // as a JSON string (`host/cases.ts`).
         let snapshots = match object.get("updates") {
             None => Vec::new(),
             Some(v) => v
@@ -98,22 +97,9 @@ impl CaseRun {
                 .ok_or("test result updates must be a string")?
                 .split('\n')
                 .map(|line| {
-                    let bad = || "a test result update is malformed".to_owned();
-                    let (frames, quoted) = line.split_once('\t').ok_or_else(bad)?;
-                    let frames = frames
-                        .split(',')
-                        .filter(|f| !f.is_empty())
-                        .map(|f| {
-                            let (func, at) = f.split_once(':')?;
-                            Some((func.parse().ok()?, at.parse().ok()?))
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .ok_or_else(bad)?;
-                    let actual = serde_json::from_str(quoted).map_err(|_| bad())?;
-                    Ok(crate::testing::Recorded {
-                        text: actual,
-                        frames,
-                    })
+                    let actual = serde_json::from_str(line)
+                        .map_err(|_| "a test result update is malformed".to_owned())?;
+                    Ok(crate::testing::Recorded { text: actual })
                 })
                 .collect::<Result<_, String>>()?,
         };
@@ -189,15 +175,7 @@ impl CaseRun {
             let records: Vec<String> = self
                 .snapshots
                 .iter()
-                .map(|r| {
-                    let frames: Vec<String> = r
-                        .frames
-                        .iter()
-                        .map(|(f, off)| format!("{f}:{off}"))
-                        .collect();
-                    let text = serde_json::to_string(&r.text).expect("serialize string");
-                    format!("{}\t{text}", frames.join(","))
-                })
+                .map(|r| serde_json::to_string(&r.text).expect("serialize string"))
                 .collect();
             write!(
                 line,
@@ -260,7 +238,6 @@ mod tests {
             frames: vec![(4, 120), (9, 77)],
             snapshots: vec![crate::testing::Recorded {
                 text: "a\tb\n\"".into(),
-                frames: vec![(3, 40), (8, 9)],
             }],
         };
         assert_eq!(

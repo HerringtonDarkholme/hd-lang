@@ -322,16 +322,10 @@ const result = (context: Dynamic, result: Dynamic, extra: DynamicRecord = {}): C
   ...(result.updates?.length ? { updates: encodeUpdates(result.updates) } : {}),
 });
 
-// The snapshots an update run recorded, as one string: a record per line,
-// the call's frames as `function:offset` pairs, a tab, and the text as a
-// JSON string.
-const encodeUpdates = (updates: Dynamic[]): string =>
-  updates
-    .map(
-      (update) =>
-        `${update.frames.map((frame: Dynamic[]) => frame.join(":")).join(",")}\t${JSON.stringify(update.text)}`,
-    )
-    .join("\n");
+// The snapshots an update run recorded, as one string: each text as a JSON
+// string, one per line.
+const encodeUpdates = (updates: string[]): string =>
+  updates.map((text) => JSON.stringify(text)).join("\n");
 
 // What one run of a property case did: the draws it recorded, its input's
 // text once shown, and what it was asked to run.

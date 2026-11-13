@@ -90,11 +90,11 @@ impl State {
     /// update run of an `it` case it records the failing call and answers
     /// true, so the case goes on; otherwise it answers false.
     #[must_use]
-    pub fn record_snapshot(&self, text: String, frames: Vec<(u32, u32)>) -> bool {
+    pub fn record_snapshot(&self, text: String) -> bool {
         let mut state = self.lock();
         let on = state.case.kind == "it" && state.case.snapshot.as_ref().is_some_and(|s| s.update);
         if on {
-            state.body.snapshots.push(Recorded { text, frames });
+            state.body.snapshots.push(Recorded { text });
         }
         on
     }

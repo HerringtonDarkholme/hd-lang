@@ -173,10 +173,7 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
         snapshots: case
             .snapshots
             .into_iter()
-            .map(|r| crate::node::Recorded {
-                text: r.text,
-                frames: r.frames,
-            })
+            .map(|r| crate::node::Recorded { text: r.text })
             .collect(),
     }
 }

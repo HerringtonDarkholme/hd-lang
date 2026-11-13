@@ -512,14 +512,14 @@ function primImports({ put, text, env }: DynamicRecord): Record<string, Provider
     parse_f64: (len) => parse(text(len)),
     // `std.testing.snapshot`'s hook (cli.test.snapshot.update): in an
     // update run of an `it` case (`env.updates` is a list) it records the
-    // text with the Wasm frames of the call and answers 1, so the case goes
+    // text, which holds the call's site, and answers 1, so the case goes
     // on; otherwise it answers 0 and the snapshot fails.
     snapshot_update: (len) => {
       const actual = text(len);
       if (!env.updates) {
         return 0;
       }
-      env.updates.push({ text: actual, frames: wasmFrames(new Error()) });
+      env.updates.push(actual);
       return 1;
     },
   };
