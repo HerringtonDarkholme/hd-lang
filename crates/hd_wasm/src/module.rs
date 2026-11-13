@@ -2131,6 +2131,16 @@ impl Module {
         self.reach();
         // Every import and global a body names; imports come first.
         let mut import_ids = Reached::default();
+        let mut imports = Vec::new();
+        // Keep the resolved import, not just the symbol whose kind proved it.
+        // Each body edge checks one bit; only distinct imports are cloned.
+        let mut import = |id| {
+            if let Sym::Import(im) = &*self.symbols.get(id)
+                && import_ids.insert(id)
+            {
+                imports.push(im.clone());
+            }
+        };
         let mut globals: BTreeSet<Global> = BTreeSet::new();
         for f in self.funcs.iter().flatten() {
             for i in &f.body {
@@ -2140,9 +2150,7 @@ impl Module {
                     | Ins::Glue(id)
                     | Ins::DrainGlue(id)
                     | Ins::Descriptor(id, _) => {
-                        if matches!(&*self.symbols.get(*id), Sym::Import(_)) {
-                            import_ids.insert(*id);
-                        }
+                        import(*id);
                     }
                     Ins::GlobalGet(g) | Ins::GlobalSet(g) => {
                         globals.insert(self.symbols.global(*g));
@@ -2159,39 +2167,17 @@ impl Module {
                     .iter()
                     .flat_map(|(slots, _, drives)| slots.iter().chain(drives)),
             ) {
-                if matches!(&*self.symbols.get(*id), Sym::Import(_)) {
-                    import_ids.insert(*id);
-                }
+                import(*id);
             }
         }
         if session {
             globals.insert(Global::Stack);
         }
-        let imports =
-            hd_base::btree_set(import_ids.iter().map(|id| match &*self.symbols.get(id) {
-                Sym::Import(im) => im.clone(),
-                _ => unreachable!("import"),
-            }));
+        let imports = hd_base::btree_set(imports);
         let mut index = Numbers::new();
         let mut next = 0u32;
         for im in &imports {
             index.insert(self.symbols.intern(Sym::Import(im.clone())), next);
-            next += 1;
-        }
-        let mut defined: Vec<SymId> = self.inst_order.clone();
-        let mut helpers: Vec<_> = self
-            .funcs
-            .iter()
-            .enumerate()
-            .filter_map(|(k, f)| {
-                let id = SymId(u32::try_from(k).expect("symbols"));
-                (f.is_some() && matches!(&*self.symbols.get(id), Sym::Helper(_))).then_some(id)
-            })
-            .collect();
-        helpers.sort_stable_by(|a, b| self.symbols.cmp(*a, *b));
-        defined.extend(helpers);
-        for s in &defined {
-            index.insert(*s, next);
             next += 1;
         }
         let undefined = |s: &SymId| {
@@ -2203,6 +2189,35 @@ impl Module {
                 ),
             )
         };
+        // Resolve definitions once. Every later linker pass receives the
+        // function together with its symbol; missing bodies are link errors.
+        let mut defined: Vec<_> = std::mem::take(&mut self.inst_order)
+            .into_iter()
+            .map(|id| {
+                self.funcs
+                    .get(id.idx())
+                    .and_then(Option::as_ref)
+                    .map(|f| (id, f))
+                    .ok_or_else(|| undefined(&id))
+            })
+            .collect::<StageResult<_>>()?;
+        let mut helpers: Vec<_> = self
+            .funcs
+            .iter()
+            .enumerate()
+            .filter_map(|(k, f)| {
+                let f = f.as_ref()?;
+                // ruled out: these positions index interned u32 symbols.
+                let id = SymId(u32::try_from(k).expect("symbols"));
+                matches!(&*self.symbols.get(id), Sym::Helper(_)).then_some((id, f))
+            })
+            .collect();
+        helpers.sort_stable_by(|(a, _), (b, _)| self.symbols.cmp(*a, *b));
+        defined.extend(helpers);
+        for &(s, _) in &defined {
+            index.insert(s, next);
+            next += 1;
+        }
         // The function table: every function a slot or a vtable names,
         // release glues first, then the rest in the order first named.
         let mut slots: Vec<u32> = Vec::new();
@@ -2268,7 +2283,7 @@ impl Module {
         let checked = false;
         // The largest glue field value a descriptor word holds.
         let mut glue_top = 0;
-        for f in defined.iter().filter_map(|s| self.funcs[s.idx()].as_ref()) {
+        for (_, f) in &defined {
             for ins in &f.body {
                 let (t, key) = match ins {
                     Ins::Glue(t) if !checked => {
@@ -2335,7 +2350,7 @@ impl Module {
         }
         // Resolve every other body slot, so the table is complete before
         // encoding.
-        for f in defined.iter().filter_map(|s| self.funcs[s.idx()].as_ref()) {
+        for (_, f) in &defined {
             for ins in &f.body {
                 if let Ins::TableSlot(t) = ins {
                     slot(t, &mut slots)?;
@@ -2454,21 +2469,12 @@ impl Module {
         // arguments, takes its place among them as a suffix. An instance
         // keeps its item's `path#sub`, which a panic's frames read.
         let mut seen: BTreeMap<&str, u32> = BTreeMap::new();
-        for s in &defined {
-            *seen
-                .entry(
-                    self.funcs[s.idx()]
-                        .as_ref()
-                        .expect("defined function")
-                        .name
-                        .as_str(),
-                )
-                .or_default() += 1;
+        for (_, f) in &defined {
+            *seen.entry(f.name.as_str()).or_default() += 1;
         }
         let mut taken: BTreeMap<&str, u32> = BTreeMap::new();
         let mut own: Vec<(u32, String)> = Vec::new();
-        for s in &defined {
-            let f = self.funcs[s.idx()].as_ref().expect("defined function");
+        for (s, f) in &defined {
             let name = if f.name.starts_with("rt:") && seen[f.name.as_str()] > 1 {
                 let k = taken.entry(f.name.as_str()).or_default();
                 *k += 1;
@@ -2476,10 +2482,10 @@ impl Module {
             } else {
                 f.name.clone()
             };
-            own.push((index[s], name));
             funcs.function(ty(&f.params, &f.results, &mut types));
             if let Some(raw) = &f.raw {
                 assert!(f.locals.is_empty() && f.body.is_empty());
+                own.push((index[s], name));
                 code.raw(raw);
                 continue;
             }
@@ -2701,7 +2707,7 @@ impl Module {
                 }
                 mapped_functions.push(crate::FunctionOrigins {
                     index: index[s],
-                    name: own.last().expect("function name").1.clone(),
+                    name: name.clone(),
                     item: f.origin_item.clone(),
                     type_args: f.origin_args.clone(),
                     before_opt: f.origins_before_opt.clone(),
@@ -2714,6 +2720,7 @@ impl Module {
             }
             body.instruction(&WasmInstruction::End);
             code.function(&body);
+            own.push((index[s], name));
             if !rows.is_empty() {
                 lines.push((index[s], rows));
             }
@@ -2837,8 +2844,7 @@ impl Module {
             exports.export("hd.session.heap", ExportKind::Memory, HEAP);
             exports.export("hd.session.stack", ExportKind::Memory, STACK);
             exports.export("hd.session.table", ExportKind::Table, 0);
-            for s in &defined {
-                let f = self.funcs[s.idx()].as_ref().expect("defined function");
+            for (s, f) in &defined {
                 let name = format!("hd.session.f.{}", index[s]);
                 exports.export(&name, ExportKind::Func, index[s]);
                 manifest.functions.insert(
@@ -2862,7 +2868,7 @@ impl Module {
                     },
                 );
             }
-            for s in &defined {
+            for (s, _) in &defined {
                 if let Some(index) = slot_of.get(*s) {
                     manifest
                         .table_slots
