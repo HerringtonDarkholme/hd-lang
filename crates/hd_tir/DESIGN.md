@@ -1404,12 +1404,18 @@ same way on every run, thread count and cache state.
 | trait resolution depth | nested subgoals | 64 | `trait-resolution-depth` |
 | body fuel | candidates, subgoals, unification steps, matrix cells, trials, joins, obligation retries; memo hits at their stored cost ([crates/hd_check/DESIGN.md (type checking) §11.1](../hd_check/DESIGN.md#111-what-counts)) | `Fuel::BODY_DEFAULT`, 2^24 steps per body (`crates/hd_base/src/lib.rs`) | see below |
 | embedding depth | nested `data` embedding | the spec's | `embedding-too-deep` |
+| type depth | type constructors on the longest path from a type down to a leaf, for a body value's type and a written one; every type walk in `hd_check` and `hd_types` stops there | 1,000 (`hd_base::limits::TYPE_DEPTH`) | `type-too-large` |
 | instantiation depth | nesting depth of an instance's type arguments; length of the request chain from a root; also row keys grown by polymorphic recursion | 32; 256 | `instantiation-too-deep`: a build error, and for rows a check error |
 
 A body that runs out of fuel is `item-too-complex` naming the item, with
 its TIR rolled back to one `Poison`
 ([crates/hd_check/DESIGN.md (type checking) §11.2](../hd_check/DESIGN.md#112-running-out)).
 
-Planned, not built: `file-too-large` (16 MiB), `type-too-large` (10,000
-nodes in one type) and `match-too-complex` (exhaustiveness out of body
-fuel). The codes exist in `hd_diag`; nothing emits them.
+Planned, not built: `file-too-large` (16 MiB) and `match-too-complex`
+(exhaustiveness out of body fuel). The codes exist in `hd_diag`; nothing
+emits them. `type-too-large` counts depth, not nodes: depth is what a
+recursive type walk spends, and a type's depth is kept in its meta word,
+so the check costs one read per body value and per written type. A body
+reports its first such value; the header check reports a written type
+once per item, as a chain of aliases (`type A1 = List[A0]`, ...) grows
+one.

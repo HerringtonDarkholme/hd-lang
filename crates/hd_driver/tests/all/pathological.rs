@@ -212,9 +212,11 @@ fn omitted_result_chains_check_once_per_function_at_depth_one() {
 }
 
 // Checker: #1776, each alias of a chain checks its own right-hand side,
-// and the walk keeps its own stack.
+// and the walk keeps its own stack. Past `TYPE_DEPTH` levels a chain is
+// `type-too-large` (`types.limit.type-size.error`), and the work stays
+// linear and the stack bounded up to 20,000 aliases.
 /// `type A1 = List[A0]`, `type A2 = List[A1]`, and so on, read by `f`.
-fn alias_chain(n: usize) -> String {
+fn alias_chain(n: u32) -> String {
     let mut s = String::from("type A0 = i32\n");
     for i in 1..=n {
         let _ = writeln!(s, "type A{i} = List[A{}]", i - 1);
@@ -223,22 +225,40 @@ fn alias_chain(n: usize) -> String {
     s
 }
 
+/// The header types an alias chain of `n` checks, and its codes.
+fn alias_chain_work(n: u32) -> (u64, Vec<String>) {
+    let (out, types) =
+        hd_check::work::count_header_types(|| compile(&alias_chain(n), &Goal::Analyze));
+    let mut codes: Vec<String> = out
+        .diags
+        .code
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect();
+    codes.dedup();
+    (types, codes)
+}
+
 #[test]
 fn alias_chain_header_types_grow_linearly() {
-    let work = |n| {
-        let (out, types) =
-            hd_check::work::count_header_types(|| compile(&alias_chain(n), &Goal::Analyze));
-        assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
-        types
-    };
     // The first build also checks the standard library's items.
-    work(1);
+    alias_chain_work(1);
     // 20,000 aborted after 33 s; 2,000 took 0.61 s.
-    let (small, large) = (work(2000), work(20_000));
+    let (small, small_codes) = alias_chain_work(2000);
+    let (large, large_codes) = alias_chain_work(20_000);
+    assert_eq!(small_codes, ["type-too-large"]);
+    assert_eq!(large_codes, ["type-too-large"]);
     assert!(
         small > 0 && large <= 10 * small + 100,
         "header types for 2,000 and 20,000 aliases: {small} and {large}",
     );
+}
+
+#[test]
+fn an_alias_chain_at_the_type_depth_checks_and_one_more_is_too_large() {
+    use hd_base::limits::TYPE_DEPTH;
+    assert_eq!(alias_chain_work(TYPE_DEPTH).1, Vec::<String>::new());
+    assert_eq!(alias_chain_work(TYPE_DEPTH + 1).1, ["type-too-large"]);
 }
 
 /// Checker: fuel spent entering expressions and solving body obligations.

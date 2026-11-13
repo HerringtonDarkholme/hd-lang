@@ -24,6 +24,10 @@ use hd_types::{ParamRef, RowId, Ty, TyData, TyList, Types};
 
 use crate::body::{TOO_COMPLEX, add_bound};
 
+/// `types.limit.type-size.error` on a written type.
+const TYPE_TOO_LARGE: &str =
+    "this type nests deeper than the compiler allows; name a struct to wrap part of it";
+
 /// What a folder's header check sees: the items of its closure, its view
 /// of the impls, the run memo and the solver.
 pub struct HeaderCx<'a> {
@@ -349,6 +353,9 @@ struct ItemCheck<'c, 'a> {
     /// Whether the fuel ran out: `item-too-complex` is reported, and no
     /// further goal is asked.
     too_complex: bool,
+    /// Whether a written type past `hd_base::limits::TYPE_DEPTH` is
+    /// reported: one `type-too-large` per item.
+    too_deep: bool,
     /// The closed types whose check reported nothing, kept across the
     /// items of one stage-B pass.
     clean: hd_base::HashSet<Ty>,
@@ -384,6 +391,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             item: it.def,
             out,
             too_complex: false,
+            too_deep: false,
             clean: hd_base::HashSet::default(),
         }
     }
@@ -1381,8 +1389,20 @@ impl<'a> ItemCheck<'_, 'a> {
     /// walk reported nothing is remembered across the module's items
     /// (`clean`): no environment changes its answer, so each alias of a
     /// chain checks its own right-hand side, not the whole expansion.
+    ///
+    /// A written type deeper than `hd_base::limits::TYPE_DEPTH` is
+    /// `type-too-large` (`types.limit.type-size.error`), once per item,
+    /// and is not walked: the type walks stop at that depth. Its depth
+    /// is one read of its meta word.
     fn check_ty(&mut self, t: Ty, slot: u32) -> StageResult<()> {
         let pool = self.pool();
+        if pool.depth(t) > hd_base::limits::TYPE_DEPTH {
+            if !self.too_deep {
+                self.too_deep = true;
+                self.report(slot, Code::TypeTooLarge, TYPE_TOO_LARGE.to_owned());
+            }
+            return Ok(());
+        }
         let mut work = vec![Work::Ty(t, slot)];
         let mut kids: Vec<Work> = Vec::new();
         while let Some(w) = work.pop() {

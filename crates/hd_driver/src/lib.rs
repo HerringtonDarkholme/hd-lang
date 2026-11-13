@@ -7414,16 +7414,15 @@ impl Run<'_> {
         let Ok(findings) = hd_check::header::private_items(&hcx, cx.lookup.own) else {
             return;
         };
+        if findings.is_empty() {
+            return;
+        }
+        let spans = hd_resolve::anchor::ModuleSpans::new(&cx.names, &cx.src, heads, cx.lookup.own);
         for f in findings {
             emit_finding(diags, &f, |slot| {
-                hd_resolve::anchor::span_in_module(
-                    &cx.names,
-                    &cx.src,
-                    heads,
-                    cx.lookup.own,
-                    (f.item, slot),
-                )
-                .unwrap_or_else(|| self.item_span(f.item, slot))
+                spans
+                    .span(&cx.src, (f.item, slot))
+                    .unwrap_or_else(|| self.item_span(f.item, slot))
             });
         }
     }
@@ -7501,15 +7500,14 @@ impl Run<'_> {
         let Ok(findings) = hd_check::header::boundary(&hcx, &roots, &returned) else {
             return;
         };
+        if findings.is_empty() {
+            return;
+        }
+        let spans = hd_resolve::anchor::ModuleSpans::new(&cx.names, &cx.src, heads, cx.lookup.own);
         for f in findings {
-            let span = hd_resolve::anchor::span_in_module(
-                &cx.names,
-                &cx.src,
-                heads,
-                cx.lookup.own,
-                (f.item, f.slot),
-            )
-            .unwrap_or_else(|| self.item_span(f.item, f.slot));
+            let span = spans
+                .span(&cx.src, (f.item, f.slot))
+                .unwrap_or_else(|| self.item_span(f.item, f.slot));
             diags.error(f.code, span, &f.message);
         }
     }

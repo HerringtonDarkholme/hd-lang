@@ -184,6 +184,36 @@ for (const [link, blocks, links] of [
 }
 console.log(`chains: ${chainLimit} links compile, ${chainLimit + 1} are nesting-too-deep`);
 
+// types.limit.type-size: a type 1,000 levels deep (`TYPE_DEPTH`) checks on
+// the browser build's stacks, inferred (`x1 := [x0]`, ...) or written
+// through a chain of aliases, and 1,001 is type-too-large. A 20,000-alias
+// chain is type-too-large too, never a thrown RangeError or a trap.
+const typeDepth = 1000;
+const nestedValues = (levels: number) => {
+  let text = "fn run() -> usize:\n    x0 := 1\n";
+  for (let i = 1; i <= levels; i++) {
+    text += `    x${i} := [x${i - 1}]\n`;
+  }
+  return `${text}    x${levels}.len()\n`;
+};
+const aliasChain = (levels: number) => {
+  let text = "type A0 = i32\n";
+  for (let i = 1; i <= levels; i++) {
+    text += `type A${i} = List[A${i - 1}]\n`;
+  }
+  return `${text}fn f(x: A${levels}) -> A${levels}: x\n`;
+};
+const checkCodes = (text: string) => {
+  const result = compile(exports, encodeRequest({ "src/lib.hd": text }, "src/lib.hd", GOAL.check));
+  return [...new Set((result.json.diagnostics ?? []).map(({ code }) => code))];
+};
+for (const shape of [nestedValues, aliasChain]) {
+  assert.deepEqual(checkCodes(shape(typeDepth)), [], `${shape.name} at ${typeDepth}`);
+  assert.deepEqual(checkCodes(shape(typeDepth + 1)), ["type-too-large"]);
+}
+assert.deepEqual(checkCodes(aliasChain(20_000)), ["type-too-large"]);
+console.log(`types: ${typeDepth} levels check, ${typeDepth + 1} are type-too-large`);
+
 // A REPL session: two inputs, each built as the session program and run
 // in the JS host's session after replaying the inputs before it, then
 // reported as joined.

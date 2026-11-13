@@ -147,24 +147,35 @@ impl<'t> Ctx<'_, 't> {
     }
 }
 
-/// Where `(def, slot)` of one module's items sits in its source, slot 0
-/// when the item has no such slot: a body task's view of its private
-/// items, which no interface anchors.
-#[must_use]
-pub fn span_in_module(
-    names: &Names<'_>,
-    src: &Src<'_>,
-    heads: &[Head<'_>],
-    items: &[Item],
-    (def, slot): (DefId, u32),
-) -> Option<Span> {
-    let index = crate::lower::ItemIndex::new(names, items);
-    let rows = collect(names, src, heads, items, &index);
-    let row = rows
-        .iter()
-        .find(|r| r.0 == def && r.1 == slot)
-        .or_else(|| rows.iter().find(|r| r.0 == def && r.1 == 0))?;
-    resolve(src, &row.2)
+/// Where the `(def, slot)`s of one module's items sit in its source: a
+/// body task's view of its private items, which no interface anchors.
+/// Built once per module that has findings to place, so placing each of
+/// `n` findings is one hash lookup, not a walk of the module.
+pub struct ModuleSpans {
+    /// Each `(def, slot)`'s first anchor.
+    rows: HashMap<(DefId, u32), Anchor>,
+}
+
+impl ModuleSpans {
+    #[must_use]
+    pub fn new(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[Item]) -> Self {
+        let index = crate::lower::ItemIndex::new(names, items);
+        let mut rows = HashMap::default();
+        for (def, slot, a) in collect(names, src, heads, items, &index) {
+            rows.entry((def, slot)).or_insert(a);
+        }
+        ModuleSpans { rows }
+    }
+
+    /// Where `(def, slot)` sits, slot 0 when the item has no such slot.
+    #[must_use]
+    pub fn span(&self, src: &Src<'_>, (def, slot): (DefId, u32)) -> Option<Span> {
+        let a = self
+            .rows
+            .get(&(def, slot))
+            .or_else(|| self.rows.get(&(def, 0)))?;
+        resolve(src, a)
+    }
 }
 
 /// The anchors of every item one module's heads produce.

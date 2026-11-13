@@ -420,7 +420,7 @@ fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: 
 /// instance at the top (`ref.local.holding`), as a function type's
 /// parameter or behind a local reference is no escape.
 fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
-    if depth > 32 || !pool.has_ref(t) {
+    if depth > hd_base::limits::TYPE_DEPTH || !pool.has_ref(t) {
         return None;
     }
     let d = depth + 1;
@@ -570,7 +570,7 @@ pub(crate) fn scoped_param(
     p: hd_types::ParamRef,
 ) -> bool {
     fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef, under: bool, depth: u32) -> bool {
-        if depth > 32 || !pool.has_param(t) {
+        if depth > hd_base::limits::TYPE_DEPTH || !pool.has_param(t) {
             return false;
         }
         let d = depth + 1;
@@ -619,7 +619,7 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32)
     if from == to {
         return true;
     }
-    if depth > 32 {
+    if depth > hd_base::limits::TYPE_DEPTH {
         return false;
     }
     let d = depth + 1;

@@ -1792,7 +1792,7 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 10. r[types.generic.call-cycle.fixed-callee] Only a call whose callee is fixed where it is written makes a step. That is a call of a function, a local function, a method, or a trait method whose implementation the receiver's type selects. A call through a bound or a trait value makes none.
 11. r[types.generic.call-cycle.impl-params] Each method of an implementation has its own copy of the implementation's type parameters.
 12. r[types.generic.call-cycle.projection] A type argument does not hold a type parameter that occurs only inside a projection, such as `P.Item`.
-13. r[types.limit.type-size] An implementation may limit the size of one type, counted in the types it is built from. The limit is implementation-defined.
+13. r[types.limit.type-size] An implementation may limit how deeply one type nests, counted in the types on the longest path from it down to a type built from no others. The limit is implementation-defined: `hd` allows 1,000.
 14. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
 15. r[types.generic.const.runtime] A const generic argument contributes to compile-time identity and specialization keys but does not add a runtime parameter by itself.
 16. r[types.generic.const.interfaces] Package interfaces preserve const parameter declarations, evaluated const arguments, and generic bodies needed by downstream compilation.

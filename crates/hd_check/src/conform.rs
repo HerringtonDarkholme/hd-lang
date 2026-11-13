@@ -16,7 +16,7 @@ use crate::body::Ck;
 /// Whether a type mentions an associated type projection, which this
 /// comparison leaves to the bodies.
 fn has_assoc(pool: Types<'_>, t: Ty, depth: u32) -> bool {
-    if depth > 32 {
+    if depth > hd_base::limits::TYPE_DEPTH {
         return true;
     }
     let d = depth + 1;

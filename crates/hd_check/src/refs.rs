@@ -157,7 +157,7 @@ impl Ck<'_, '_> {
     /// container reference. A mutable reference and an invariant argument keep
     /// their exact operands. The caller rolls back a failed inference trial.
     pub(crate) fn readonly_reference_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
-        if depth > 32 {
+        if depth > hd_base::limits::TYPE_DEPTH {
             return false;
         }
         let pool = self.pool();
@@ -248,7 +248,7 @@ impl Ck<'_, '_> {
     /// Unlike a readonly container reference, an ordinary optional or invariant
     /// argument cannot weaken permissions (`types.option.invariant`).
     pub(crate) fn variance_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
-        if depth > 32 {
+        if depth > hd_base::limits::TYPE_DEPTH {
             return false;
         }
         let pool = self.pool();
