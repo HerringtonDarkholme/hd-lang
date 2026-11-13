@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $touch (param $items i32) (param $out i32) (param $index i32) (local $t0 i32) (local $t1 i32)
+  (func $touch (param $items i32) (param $out i32) (param $index i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; ...
     ;; 14 |     out[index] = Item { ...previous, revision: previous.revision + 1 }
     call $rt:coll_copy
@@ -15,18 +15,15 @@
     local.set $items
     local.set $t1
     ;; ...
-    local.get $out
-    i32.load $heap
-    local.set $out
     local.get $index
-    local.get $out
+    local.get $t2
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $out
+    local.get $t2
     local.get $index
     i32.const 12
     i32.mul

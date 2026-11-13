@@ -315,6 +315,9 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             let mode = match tag {
                 Tag::IsUnique => match w {
                     hd_tir::ir::unique_word::HOISTED => Some("hoisted".to_owned()),
+                    hd_tir::ir::unique_word::DEFERRED_INIT => Some("deferred-init".to_owned()),
+                    hd_tir::ir::unique_word::DEFERRED => Some("deferred".to_owned()),
+                    hd_tir::ir::unique_word::DEFERRED_CACHE => Some("deferred-cache".to_owned()),
                     hd_tir::ir::unique_word::FRESH => Some("fresh".to_owned()),
                     hd_tir::ir::unique_word::REPEAT => Some("repeat".to_owned()),
                     _ => None,

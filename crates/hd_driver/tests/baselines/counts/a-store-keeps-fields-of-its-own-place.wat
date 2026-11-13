@@ -17,7 +17,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $used_after (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $used_after (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 32 |     previous := items[i]
     local.get $items
     i32.load $heap
@@ -51,23 +51,22 @@
     local.set $t2
     ;; 32 |     previous := items[i]
     local.get $items
-    local.get $items
     i32.load $heap
     call $rt:list_unique
+    local.set $t3
+    local.get $items
+    local.get $t3
     i32.store $heap
     ;; 33 |     items[i] = Item { ...previous, r: 1 }
-    local.get $items
-    i32.load $heap
-    local.set $items
     local.get $i
-    local.get $items
+    local.get $t3
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $items
+    local.get $t3
     local.get $i
     i32.const 12
     i32.mul
@@ -385,7 +384,7 @@
     i32.add
     i32.store $heap offset=8
   )
-  (func $call_between (param $items i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $call_between (param $items i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 41 |     items[i] = Item { ...items[i], r: grow(items, i) }
     local.get $items
     i32.load $heap
@@ -418,22 +417,21 @@
     local.set $t1
     local.set $t2
     local.get $items
-    local.get $items
     i32.load $heap
     call $rt:list_unique
+    local.set $t3
+    local.get $items
+    local.get $t3
     i32.store $heap
-    local.get $items
-    i32.load $heap
-    local.set $items
     local.get $i
-    local.get $items
+    local.get $t3
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $items
+    local.get $t3
     local.get $i
     i32.const 12
     i32.mul
@@ -482,7 +480,7 @@
       end
     end
   )
-  (func $grow (param $items i32) (param $i i32) (result i32) (local $t0 i32)
+  (func $grow (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 37 |     items[i].batches = [9]
     i32.const 1
     call $rt:list_buf'1
@@ -493,22 +491,21 @@
     i64.const 9
     i64.store $heap offset=16
     local.get $items
-    local.get $items
     i32.load $heap
     call $rt:list_unique
+    local.set $t1
+    local.get $items
+    local.get $t1
     i32.store $heap
-    local.get $items
-    i32.load $heap
-    local.set $items
     local.get $i
-    local.get $items
+    local.get $t1
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $items
+    local.get $t1
     local.get $i
     i32.const 12
     i32.mul
@@ -531,7 +528,7 @@
     i32.store $heap offset=16
     i32.const 7
   )
-  (func $element (param $items i32) (param $i i32) (local $previous.r i32)
+  (func $element (param $items i32) (param $i i32) (local $previous.r i32) (local $t0 i32)
     ;; 19 |     previous := items[i]
     local.get $items
     i32.load $heap
@@ -565,23 +562,22 @@
     local.set $previous.r
     ;; 19 |     previous := items[i]
     local.get $items
-    local.get $items
     i32.load $heap
     call $rt:list_unique
+    local.set $t0
+    local.get $items
+    local.get $t0
     i32.store $heap
     ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
-    local.get $items
-    i32.load $heap
-    local.set $items
     local.get $i
-    local.get $items
+    local.get $t0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $items
+    local.get $t0
     local.get $i
     i32.const 12
     i32.mul

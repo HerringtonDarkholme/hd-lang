@@ -1462,13 +1462,13 @@ impl Em<'_, '_, '_> {
     /// `IsUnique` `i`: the list's or map's buffer made the place's own
     /// (`rt:list_unique`, `rt:map_unique`), and stored there.
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
-        use hd_tir::ir::unique_word::{FRESH, HOISTED, REPEAT};
+        use hd_tir::ir::unique_word::{DEFERRED_CACHE, DEFERRED_INIT, FRESH, HOISTED, REPEAT};
         match self.b.data[i as usize][1] {
             // Of a buffer nothing else can hold, or one an earlier proof
             // left unique: no check.
             FRESH | REPEAT => return Ok(()),
             // It runs at the loop that follows (`Em::hoisted_uniques`).
-            HOISTED => {
+            HOISTED | DEFERRED_INIT | DEFERRED_CACHE => {
                 self.hoisted.push(i);
                 return Ok(());
             }
@@ -1476,6 +1476,25 @@ impl Em<'_, '_, '_> {
         }
         let h = self.unique_at(i)?;
         self.walked = self.read_after(i).map(|r| (r, h));
+        let blk = self.topo.blk[i as usize];
+        self.walked_store = (blk != NONE)
+            .then(|| {
+                self.b
+                    .record(self.b.data[blk as usize][0])
+                    .get(self.topo.pos[i as usize] as usize + 1)
+                    .copied()
+            })
+            .flatten()
+            .filter(|&s| self.b.tags[s as usize] == Tag::Store)
+            .and_then(|s| {
+                let p = self.b.decode_place(self.b.data[s as usize][0])?;
+                let header = self.b.decode_place(self.b.data[i as usize][0])?;
+                let at = p
+                    .proj
+                    .iter()
+                    .position(|step| matches!(step, hd_tir::ir::Proj::Elem(_)))?;
+                (p.root == header.root && p.proj[..at] == header.proj[..]).then_some((s, at, h))
+            });
         Ok(())
     }
 
@@ -1483,7 +1502,21 @@ impl Em<'_, '_, '_> {
     /// buffer it leaves there, and the local that holds that buffer.
     pub(super) fn unique_at(&mut self, i: u32) -> StageResult<u32> {
         let word = self.b.data[i as usize][0];
+        let deferred = (self.b.data[i as usize][1] == hd_tir::ir::unique_word::DEFERRED)
+            .then(|| self.deferred_uniques.get(&word).copied())
+            .flatten();
+        let cached = deferred.filter(|&(_, cache)| cache);
+        if let Some((flag, _)) = cached {
+            self.f.get(flag);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+        }
         let (h, t, at) = self.place_header(word)?;
+        if let Some((flag, false)) = deferred {
+            self.f.get(flag);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+        }
         self.f.get(h);
         let start = self.f.body.len();
         if self.is_map(t) {
@@ -1511,7 +1544,30 @@ impl Em<'_, '_, '_> {
         } else {
             self.put_buffer(word, h)?;
         }
-        Ok(h)
+        if let Some((flag, cache)) = deferred {
+            if cache {
+                // Runtime object payloads are 8-aligned. Keep the successful
+                // header and its validity bit in one loop-carried local;
+                // even a null header has the initialized encoding 1.
+                self.f.get(h);
+                self.f.i32(1);
+                self.f.op(I::I32Or);
+            } else {
+                self.f.i32(1);
+            }
+            self.f.set(flag);
+            self.f.op(I::End);
+        }
+        if let Some((flag, _)) = cached {
+            let header = self.f.local(Val::I32);
+            self.f.get(flag);
+            self.f.i32(-2);
+            self.f.op(I::I32And);
+            self.f.set(header);
+            Ok(header)
+        } else {
+            Ok(h)
+        }
     }
 
     /// The `copy` or `borrow` read of `IsUnique` `i`'s place, through a

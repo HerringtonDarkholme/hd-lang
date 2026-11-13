@@ -1505,7 +1505,17 @@ impl Em<'_, '_, '_> {
             _ => None,
         };
         let lead_cache = lead.and_then(|e| cached(self, e == 1).map(|c| (c, e)));
-        if let Some((cache, elem)) = lead_cache {
+        if let Some((_, elem, header)) = self.walked_store.filter(|&(store, elem, _)| {
+            store == i
+                && elem < steps.len()
+                && self.b.decode_place(self.b.data[store as usize][0]).as_ref() == Some(p)
+        }) {
+            // IsUnique just resolved this same collection. The ordinary walk
+            // resumes at its explicit element step, preserving bounds checks.
+            ty = self.walk_ty(self.at_root_ty(p.root), &steps[..elem])?;
+            at = At::Vals(vec![header]);
+            k = elem;
+        } else if let Some((cache, elem)) = lead_cache {
             // The cached buffer.
             let h = self.f.local(Val::I32);
             self.f.get(cache.buffer);

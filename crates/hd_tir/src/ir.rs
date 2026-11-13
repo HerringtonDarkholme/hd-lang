@@ -804,6 +804,12 @@ pub mod unique_word {
     /// Hoisted out of the loop that follows it in its block: it runs only
     /// when that loop's entry test lets the loop in, once before it.
     pub const HOISTED: u32 = 1;
+    /// Initialize a loop decision, without making its buffer unique yet.
+    pub const DEFERRED_INIT: u32 = 5;
+    /// Initialize a deferred decision whose successful buffer stays stable.
+    pub const DEFERRED_CACHE: u32 = 7;
+    /// Make unique on the first reached write, then reuse that decision.
+    pub const DEFERRED: u32 = 6;
     /// Of all of a fresh-buffer local (`own::hoist::fresh_locals`), whose
     /// buffer nothing else can hold: always unique, so no check runs.
     pub const FRESH: u32 = 3;

@@ -2043,6 +2043,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt_tests/ref_tests.hd", include_str!("std_rt/ref_tests.hd")),
     (
+        "rt_tests/loop_exit_tests.hd",
+        include_str!("std_rt/loop_exit_tests.hd"),
+    ),
+    (
         "rt_tests/task_tests.hd",
         include_str!("std_rt/task_tests.hd"),
     ),
@@ -2094,7 +2098,11 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
         .map(|file| {
             (
                 file,
-                checked_runtime() || file.0 == "rt_tests/room_tests.hd",
+                checked_runtime()
+                    || matches!(
+                        file.0,
+                        "rt_tests/room_tests.hd" | "rt_tests/loop_exit_tests.hd"
+                    ),
             )
         })
         .chain(

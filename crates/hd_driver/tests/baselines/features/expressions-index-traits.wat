@@ -130,25 +130,24 @@
     i32.const 16
     i32.add
   )
-  (func $"impl IndexSet[usize, string] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32)
+  (func $"impl IndexSet[usize, string] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32)
     ;; 18 |         self.items[key] = value
-    local.get $self
     local.get $self
     i32.load $heap
     call $rt:list_unique
+    local.set $t0
+    local.get $self
+    local.get $t0
     i32.store $heap
-    local.get $self
-    i32.load $heap
-    local.set $self
     local.get $key
-    local.get $self
+    local.get $t0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $self
+    local.get $t0
     local.get $key
     i32.const 8
     i32.mul

@@ -1,0 +1,141 @@
+# Checked allocation counts prove skipped writes do not copy a shared buffer.
+use std.annotation.inline
+use std.rt.checked.{allocated, unique_checks}
+
+@inline(.Never)
+fn write_until(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..xs.len():
+        if i == stop:
+            break
+        xs[i] = +5
+
+@inline(.Never)
+fn write_except(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..xs.len():
+        if i == stop:
+            continue
+        xs[i] = +5
+
+@inline(.Never)
+fn write_or_return(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..xs.len():
+        if i == stop:
+            return
+        xs[i] = +5
+
+@inline(.Never)
+fn repeat_with_snapshots(xs: &mut List[i32], rounds: usize) -> i32:
+    let total = +0
+    for round in 0..rounds:
+        snapshot := *xs
+        for i in 0..xs.len():
+            if i == 128:
+                break
+            xs[i] = i32(round)
+        total += snapshot[0]
+    total
+
+@inline(.Never)
+fn repeat_after_callback(xs: &mut List[i32], rounds: usize, tick: fn() -> i32) -> i32:
+    let total = +0
+    for round in 0..rounds:
+        total += tick()
+        for i in 0..xs.len():
+            if i == 128:
+                break
+            xs[i] = i32(round)
+        total += xs[0]
+    total
+
+@inline(.Never)
+fn grow_until(xs: &mut List[i32], stop: usize) -> void:
+    for i in 0..128:
+        if i == stop:
+            break
+        xs.push(i32(i))
+
+@inline(.Never)
+fn nested_increments(xs: &mut List[i32], rounds: usize, stop: usize) -> void:
+    for _ in 0..rounds:
+        for i in 0..128:
+            if i == stop:
+                break
+            xs[0] += +1
+
+tests:
+    use std.testing.{assert, assert_equal, it}
+
+    it("an early loop exit copies no shared buffer"):
+        let mut original: List[i32] = []
+        original.push(+7)
+        let mut xs = original
+        before := allocated()
+        write_until(&mut xs, 0)
+        assert(allocated() == before, "break before write allocated nothing")
+        write_except(&mut xs, 0)
+        assert(allocated() == before, "continue before write allocated nothing")
+        write_or_return(&mut xs, 0)
+        assert(allocated() == before, "return before write allocated nothing")
+        assert_equal(xs[0], +7)
+        assert_equal(original[0], +7)
+        write_until(&mut xs, 1)
+        assert_equal(xs[0], +5)
+        assert_equal(original[0], +7)
+
+    it("a reached write loop makes its shared buffer unique once"):
+        let mut original: List[i32] = []
+        for _ in 0..128:
+            original.push(+7)
+        let mut xs = original
+        before := unique_checks()
+        write_until(&mut xs, 128)
+        assert(unique_checks() == before + 1, "one decision for all writes")
+        assert_equal(xs[0], +5)
+        assert_equal(xs[127], +5)
+        assert_equal(original[0], +7)
+        assert_equal(original[127], +7)
+        write_until(&mut xs, 128)
+        assert(unique_checks() == before + 2, "a new call gets a new decision")
+
+    it("copies across the loop keep their snapshots unchanged"):
+        let mut xs: List[i32] = []
+        for _ in 0..128:
+            xs.push(+7)
+        assert_equal(repeat_with_snapshots(&mut xs, 3), +8)
+        assert_equal(xs[0], +2)
+        assert_equal(xs[127], +2)
+
+    it("a deferred inner decision resets after an intervening callback"):
+        let mut xs: List[i32] = []
+        for _ in 0..128:
+            xs.push(+7)
+        holder := box(xs)
+        tick := fn() -> i32: i32(holder.len())
+        before := unique_checks()
+        assert_equal(repeat_after_callback(&mut *holder, 3, tick), +387)
+        assert_equal(unique_checks() - before, 3u64)
+        assert_equal(holder[127], +2)
+
+    it("a growing deferred loop reloads its current buffer"):
+        let mut original: List[i32] = []
+        original.push(+7)
+        let mut xs = original
+        before := allocated()
+        grow_until(&mut xs, 0)
+        assert_equal(allocated(), before)
+        grow_until(&mut xs, 128)
+        assert_equal(xs.len(), 129)
+        assert_equal(xs[0], +7)
+        assert_equal(xs[128], +127)
+        assert_equal(original.len(), 1)
+        assert_equal(original[0], +7)
+
+    it("an inner loop reads the buffer made unique by its outer decision"):
+        let mut original: List[i32] = []
+        original.push(+7)
+        let mut xs = original
+        before := unique_checks()
+        nested_increments(&mut xs, 2, 128)
+        assert_equal(xs[0], +263)
+        assert_equal(original[0], +7)
+        assert_equal(unique_checks() - before, 1u64)

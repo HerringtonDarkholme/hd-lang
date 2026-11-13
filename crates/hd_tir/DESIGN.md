@@ -812,8 +812,10 @@ global root is no value.
 The ownership passes write these after decoding; the checker never does
 (invariant 22), and the wire refuses them. Each has a place in a and
 nothing in b but `IsUnique`. Its b is 0 for a plain check,
-`unique_word::HOISTED` before a loop, or `FRESH` or `REPEAT` when an
-existing fact already proves uniqueness. The type is `void`.
+`unique_word::HOISTED` before a loop, `DEFERRED_INIT` for a loop decision
+initialized without copying, `DEFERRED_CACHE` for an initialized decision
+that can also cache a stable header, `DEFERRED` for covered writes, or `FRESH`
+or `REPEAT` when an existing fact already proves uniqueness. The type is `void`.
 
 | Tag | Meaning |
 | --- | --- |
@@ -1172,7 +1174,9 @@ Those test-only queries do not require a second checker-facing fact API.
     copies it (a read of it, or of a place holding it, whose value a use
     keeps), references, writes, pins or suspends over it, and no call
     may write unless it is a whole local no closure captures; the stable
-    list rows name loops and such places, in order. A header that may
+    list rows name loops and such places, in order. Deferred initializer
+    ranges for one canonical place are disjoint; every covered check
+    stands inside its initializer's loop. A header that may
     change in place is held by one place (insertion's rule 7): with a
     local changing when an `IsUnique` or a `Pin` names a place rooted
     at it, or a value read from one, or a `&mut` reference takes its

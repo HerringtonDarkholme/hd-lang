@@ -191,9 +191,11 @@
       unreachable
     end
     local.get $ps
-    local.get $ps
     i32.load $heap
     call $rt:list_unique
+    local.set $t4
+    local.get $ps
+    local.get $t4
     i32.store $heap
     local.get $ps
     i32.const 4
@@ -205,9 +207,6 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $ps
-    i32.load $heap
-    local.set $t4
     i32.const 0
     local.get $t4
     i32.load $heap offset=4
