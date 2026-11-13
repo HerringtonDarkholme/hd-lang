@@ -1,0 +1,17 @@
+# test: a call through a bound whose trait argument is a projection stores a value that holds a local
+# Spec 13 Generic Calls: ref.generic.call; Lifetime Traits:
+# ref.lifetime.trait.bound-argument. `put` keeps its `V`, here `T::Item`,
+# which `t.make(&q)` builds from `q`.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+trait Put[V]:
+    fn put(&mut self, v: V) -> void
+
+fn bad['a, T < Shelf['a], S < Put[T::Item]](s: &mut S, t: &T) -> void:
+    q := Point { x: 1 }
+    s.put(t.make(&q)) # diagnostic: local-reference-escapes

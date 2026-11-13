@@ -1,0 +1,18 @@
+# test: a value with no slot of its own passed through a type parameter keeps its origins
+# Spec 13 Generic Calls: ref.generic.call; Lifetime Traits:
+# ref.lifetime.trait.bound-argument. `s.make(&q)` has no slot of its own
+# but holds `q`, and `id`'s result of type `T` holds what its argument for
+# `T` held.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn id[T](x: T) -> T:
+    x
+
+fn mk3['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    id(s.make(&q)) # diagnostic: local-reference-escapes

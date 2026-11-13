@@ -1,0 +1,16 @@
+# test: a value with no slot of its own passed through a type parameter inside a tuple keeps its origins
+# Spec 13 Generic Calls: ref.generic.call. `wrap`'s `(T, i32)` result holds
+# what its argument for `T` held, `q` here.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+fn wrap[T](x: T) -> (T, i32):
+    (x, 1)
+
+fn mk4['a, S < Shelf['a]](s: &S, p: &'a Point) -> (S::Item, i32):
+    q := Point { x: 1 }
+    wrap(s.make(&q)) # diagnostic: local-reference-escapes

@@ -578,6 +578,28 @@ fn wholes(ls: &Layouts<'_>, t: Ty) -> (Vec<Ty>, bool) {
     (out, other)
 }
 
+/// The type parameters `t` holds outside a projection, which a type
+/// argument with no slot of its own passes whole ([`Ck::call_sig`]), and
+/// whether it holds a trait value or an opaque type, whose own origins a
+/// result may hold besides. A projection's parameters are in what the
+/// projection holds ([`proj_holds`]), and a trait value's and an opaque
+/// type's arguments are no part of what they hold (`trait.dyn.ref.convert`,
+/// `types.opaque.borrows`).
+fn bare_parts(pool: Types<'_>, t: Ty) -> (Vec<hd_types::ParamRef>, bool) {
+    let (mut out, mut other) = (Vec::new(), false);
+    let mut stack = vec![t];
+    while let Some(t) = stack.pop() {
+        match pool.get(t) {
+            TyData::TraitValue { .. } | TyData::Opaque { .. } => other = true,
+            _ if !pool.has_param(t) => {}
+            TyData::Param(p) if !out.contains(&p) => out.push(p),
+            TyData::Param(_) | TyData::Assoc { .. } => {}
+            _ => pool.children(t, &mut stack),
+        }
+    }
+    (out, other)
+}
+
 /// Whether a slot of what type parameter `p` stands for is part of what
 /// projection `proj` holds: `p` is its base or is in its trait's
 /// arguments, as Rust's projection outlives rule has it. A trait's own
@@ -1437,7 +1459,7 @@ impl Ck<'_, '_> {
         // The caller's own lifetime of each slot of each trait argument, by
         // the bound a call through a type parameter's or an associated
         // type's bound uses.
-        let mut bound_ids: Vec<Vec<u32>> = Vec::new();
+        let (mut bound_ids, mut through_bound): (Vec<Vec<u32>>, bool) = (Vec::new(), false);
         slots(b, i, |_, v, word| {
             let arg = matches!(word, Word::Value(Role::Arg(_)));
             if (arg || receiver == Some(v)) && arg_ty(b, v).is_some_and(|t| ls.holds(t)) {
@@ -1465,6 +1487,7 @@ impl Ck<'_, '_> {
                         }
                         (ChoiceKind::Bound, _) => {
                             bound_ids = self.bound_ids(ls, self_ty, trait_, 0);
+                            through_bound = true;
                             Vec::new()
                         }
                         _ => Vec::new(),
@@ -1598,15 +1621,35 @@ impl Ck<'_, '_> {
                     (var, cat)
                 })
                 .collect::<Vec<_>>();
-            // An argument with no slot of its own for a parameter that
-            // holds projections is passed at their lifetimes as one, as
-            // each slot of a projection is (`ref.lifetime.trait.bound-argument`).
-            let slots = match self.whole_lifetimes(ls, *decl).split_first() {
-                Some((&a, rest)) if slots.is_empty() && ls.holds(t) => {
-                    proj_links.extend(rest.iter().map(|&l| (Var::Life(a), Var::Life(l))));
-                    vec![(Var::Life(a), None)]
+            // An argument with no slot of its own is passed as one origin
+            // set: at the lifetimes of the projections its parameter holds,
+            // as each slot of a projection is
+            // (`ref.lifetime.trait.bound-argument`), and as the whole of
+            // what each type parameter there stands for, slot 0 of a
+            // type argument with none, which a result of that parameter
+            // takes (`ref.generic.call`). All of them are one.
+            let mut vs: Vec<Var> = Vec::new();
+            if slots.is_empty() && ls.holds(t) {
+                vs.extend(self.whole_lifetimes(ls, *decl).into_iter().map(Var::Life));
+                for q in bare_parts(pool, *decl).0 {
+                    let v = own(q, 0).unwrap_or(Var::Param(q, 0));
+                    took.push((Key::Param(q, 0), v));
+                    vs.push(v);
+                    // A trait argument the bound fixes, as `T::Item` of
+                    // `S < Put[T::Item]`, is at that type's lifetimes, the
+                    // caller's own.
+                    if through_bound && trait_ == Some(q.owner) && q.index > 0 {
+                        let lts = self.whole_lifetimes(ls, t);
+                        proj_links.extend(lts.into_iter().map(|l| (v, Var::Own(l))));
+                    }
                 }
-                _ => slots,
+            }
+            let slots = match vs.split_first() {
+                Some((&a, rest)) => {
+                    proj_links.extend(rest.iter().map(|&v| (a, v)));
+                    vec![(a, None)]
+                }
+                None => slots,
             };
             params.push((t, slots));
         }
@@ -1670,6 +1713,21 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        // And what each type parameter it holds stood for, which writes no
+        // reference either: no lifetime elides to a result of `T` that its
+        // instance gives no slot (`ref.generic.call`, `ref.dep.elide`).
+        let (ret_params, ret_other) = bare_parts(pool, dep.ret);
+        for &q in &ret_params {
+            for v in out(Key::Param(q, 0)) {
+                if !bare.contains(&v) {
+                    bare.push(v);
+                }
+            }
+        }
+        let elides = ret_params.is_empty()
+            || ret_other
+            || !ls.of(dep.ret).slots.is_empty()
+            || bare_parts(pool, b.ty[i]).1;
         let depends = outs.iter().any(|o| !o.is_empty())
             || lifetime(dep.elided).is_some()
             || !bare.is_empty();
@@ -1715,6 +1773,7 @@ impl Ck<'_, '_> {
             result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
             bare: ([dep.elided, dep.capture_elided].map(lifetime).into_iter())
                 .flatten()
+                .filter(|_| elides)
                 .chain(bare)
                 .collect(),
             params,

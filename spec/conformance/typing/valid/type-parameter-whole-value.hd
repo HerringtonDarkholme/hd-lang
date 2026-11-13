@@ -1,0 +1,37 @@
+# test: a value with no slot of its own passes through a type parameter at its own lifetimes
+# Spec 13 Generic Calls: ref.generic.call, ref.dep.elide. `id(s.make(p))`
+# returns what `p` gave it, at `'a`. A result of type `T` writes no
+# reference, so no lifetime elides to it: `s.get(...)` through a bound
+# `Id[T::Item]` does not borrow `s`. A type parameter the result does not
+# hold adds nothing to it.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+
+trait Id[V]:
+    fn get(&self, v: V) -> V
+
+fn id[T](x: T) -> T:
+    x
+
+fn wrap[T](x: T) -> (T, i32):
+    (x, 1)
+
+fn first[T, U](x: T, y: U) -> T:
+    x
+
+fn ok['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    id(s.make(p))
+
+fn ok_tuple['a, S < Shelf['a]](s: &S, p: &'a Point) -> (S::Item, i32):
+    wrap(s.make(p))
+
+fn ok_other['a, S < Shelf['a]](s: &S, p: &'a Point) -> S::Item:
+    q := Point { x: 1 }
+    first(s.make(p), &q)
+
+fn ok_bound['a, T < Shelf['a], S < Id[T::Item]](s: &S, t: &T, p: &'a Point) -> T::Item:
+    s.get(t.make(p))
