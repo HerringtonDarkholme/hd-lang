@@ -143,10 +143,9 @@ fn weaken(h: *mut Point) -> *Point:
 > app/main/weaken
 >   local $0 h: *mut Point [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     h
->   %1 = Read move [$0] : *mut Point
+>   %1 = Read borrow [$0] : *mut Point
 >   %2 = Coerce %1 [Weaken -] : *Point
 >   %3 = Block %2 : *Point
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [] borrows [$0]

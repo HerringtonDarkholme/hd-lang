@@ -253,6 +253,17 @@ pub trait ProgramEnv: LayoutEnv {
     /// pipeline's release summaries set one
     /// (`docs/future-work/RELEASE_INTERPROC.md`).
     fn lends(&self, _item: DefId, _args: TyList) -> u64;
+    /// The checked body forwards only this parameter to its result. A
+    /// structural fact, independent of ownership-summary processing order.
+    fn pass_through_parameter(&self, _item: DefId) -> Option<u8> {
+        None
+    }
+    /// That pass-through's concrete layout can support a borrowed result:
+    /// count-bearing Copy data with no Drop and a materialized body.
+    /// This fact alone does not change a call's result convention.
+    fn return_loan_parameter(&self, _item: DefId, _args: TyList) -> Option<u8> {
+        None
+    }
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
     /// The private `DbgStructural` template's method, the `Structure` trait,
@@ -2015,6 +2026,7 @@ impl Cx<'_> {
     fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> TyList {
         let bounded = self.env.bounded(def).unwrap_or_default();
         let pinned = self.exact_params(def);
+        let returns_parameter = self.env.pass_through_parameter(def).is_some();
         let shared_args: Vec<Ty> = args
             .iter()
             .map(|t| self.shared_permission_type(*t))
@@ -2030,7 +2042,8 @@ impl Cx<'_> {
             };
             // A row argument is part of the instance (`crates/hd_mono/DESIGN.md` §12.4:
             // its keys are the instance's provider parameters).
-            let exact = k < own_from
+            let exact = returns_parameter
+                || k < own_from
                 || bounded.get(k - own_from).copied().unwrap_or(true)
                 || pinned.get(k - own_from).copied().unwrap_or(false)
                 || is_class_ref(self.pool, t)
@@ -2703,6 +2716,7 @@ impl Cx<'_> {
                 ),
             };
             reps.hash(t.key);
+            reps.u8(env.return_loan_parameter(t.item, t.args).unwrap_or(u8::MAX));
             if r != SlotRecv::Payload {
                 reps.u8(r as u8);
             }
@@ -2892,6 +2906,7 @@ impl Cx<'_> {
                 &mut self.layouts,
             ));
         }
+        reps.u8(env.return_loan_parameter(item, args).unwrap_or(u8::MAX));
         reps.u8(u8::from(env.suspends(item)));
         // A row parameter's context is a parameter too.
         reps.u8(u8::from(has_row_params(env, item)));

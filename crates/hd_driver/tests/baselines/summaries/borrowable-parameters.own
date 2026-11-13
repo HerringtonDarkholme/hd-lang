@@ -57,13 +57,12 @@ fn wrap(items: List[string]) -> Bag:
 fn same(b: Bag) -> Bag:
 > app/main/same
 >   local $0 b: Bag [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %2 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 lend last
+>   %0 = Release %2 Exit local $0 #2 : ()
     b
->   %1 = Read move [$0] : Bag
+>   %1 = Read borrow [$0] : Bag
 >   %2 = Block %1 : Bag
->   exit sub 0 drops [$0]
->   summary kept [$0] returns $0
+>   summary kept [] borrows [$0] returns $0
 
 fn add(all: &mut List[Bag], b: Bag) -> void:
 > app/main/add

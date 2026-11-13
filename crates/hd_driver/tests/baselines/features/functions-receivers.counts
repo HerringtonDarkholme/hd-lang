@@ -63,5 +63,4 @@ fn counted(b: *Vec2) -> usize:
     b.keep().name.len()
 > app/main/counted
 >   retain string (conservative: copy read)
->   release *app.main.Vec2 (last use)
 >   release string (last use)

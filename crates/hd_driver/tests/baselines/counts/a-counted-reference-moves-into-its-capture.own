@@ -76,10 +76,10 @@ fn loan(value: View[&Point]) -> View[&Point]:
     value
 > app/main/loan
 >   local $0 value: View[&Point] [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read copy [$0] : View[&Point]
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : View[&Point]
 >   %1 = Block %0 : View[&Point]
->   summary kept [$0] returns $0
+>   summary kept [] returns $0
 
 fn fresh(name: string) -> fn() -> i32:
 > app/main/fresh
@@ -139,8 +139,9 @@ fn local_view(value: &Point) -> View[&Point]:
 >   %1 = NewStruct [%0] : View[&Point]
 >   %2 = Coerce %1 [Weaken -] : View[&Point]
 >   %3 = Call app/main/loan[] (%2) : View[&Point]
->   %4 = Drop [%2] : ()
->   %5 = Block %3 : View[&Point]
+>   %4 = Retain %3 Value #0 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Block %3 : View[&Point]
 >   summary kept [$0]
 
 fn generic(value: *mut Point) -> fn() -> *mut Point:

@@ -485,7 +485,14 @@ impl OwnCx for Env<'_> {
     }
 
     fn retains_result(&self, callee: &Callee) -> bool {
-        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
+        self.returned_loan(callee).is_some()
+            || matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
+    }
+
+    fn returned_loan(&self, callee: &Callee) -> Option<u8> {
+        let chosen = self.chosen(callee);
+        let node = self.callee_node(&chosen)?;
+        self.return_loan_layout(node.0, node.1)
     }
 
     fn copies_map_snapshot(&self, callee: &Callee) -> bool {
@@ -537,6 +544,12 @@ impl OwnCx for Env<'_> {
     }
 
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+        if self
+            .returned_loan(callee)
+            .is_some_and(|p| usize::from(p) == k)
+        {
+            return Pass::Lent;
+        }
         if let Some((def, ty)) = self.cold_parameter(callee, k, n) {
             return if self.cold_transfers_declared(def, ty) || self.cold_moves(ty) {
                 self.value_parameter(ty)
@@ -618,6 +631,12 @@ impl OwnCx for Env<'_> {
     }
 
     fn call_argument_may_own(&self, callee: &Callee, k: usize, n: usize) -> bool {
+        if self
+            .returned_loan(callee)
+            .is_some_and(|p| usize::from(p) == k)
+        {
+            return false;
+        }
         let chosen = self.chosen(callee);
         let target = match chosen {
             Callee::Item { def, targs } => Some((def, targs)),
@@ -2497,8 +2516,16 @@ impl Env<'_> {
     /// `hash` (`hd_opt::inline::inline_calls`), after the ownership
     /// passes, and its hash, which changes with them; in release, its
     /// summary is recorded.
-    fn own_inlined(&self, body: Body, hash: Hash128, args: TyList) -> StageResult<(Body, Hash128)> {
+    fn own_inlined(
+        &self,
+        mut body: Body,
+        hash: Hash128,
+        args: TyList,
+    ) -> StageResult<(Body, Hash128)> {
         let node = (body.item, args);
+        if self.return_loan_layout(body.item, args).is_some() {
+            hd_tir::own::return_loan::prepare(&mut body);
+        }
         // Release: a body with a `&T` or `&mut T` parameter is kept as it
         // is before the passes, for an exclusive copy (#1118).
         let n = hd_tir::own::params(&body).len();
@@ -2682,10 +2709,68 @@ impl Env<'_> {
         kept
     }
 
+    /// Read the original checked body once, without entering an ownership
+    /// once-cell. Recursive callers therefore observe the same contract.
+    pub(super) fn return_loan_shape(&self, item: DefId) -> Option<u8> {
+        if self.run.summaries.is_none()
+            || self.called_by_glue(item)
+            || ProgramEnv::suspends(self, item)
+            || self.intrinsic(item).is_some()
+        {
+            return None;
+        }
+        let cell = lock(&self.run.own_return_shapes)
+            .entry(item)
+            .or_default()
+            .clone();
+        *cell.get_or_init(|| {
+            self.run
+                .lazy_body(self.p, item)
+                .and_then(|lazy| self.run.decode(lazy))
+                .and_then(|(body, _)| hd_tir::own::return_loan::parameter(body))
+        })
+    }
+
+    /// The selected signature's concrete layout, not the generic source
+    /// signature, decides Copy/Drop eligibility. Wide instances that reuse
+    /// an open generic body keep that body's existing result convention.
+    pub(super) fn return_loan_layout(&self, item: DefId, args: TyList) -> Option<u8> {
+        let node = self.node(item, args);
+        let cell = lock(&self.run.own_return_layouts)
+            .entry(node)
+            .or_default()
+            .clone();
+        *cell.get_or_init(|| {
+            let parameter = self.return_loan_shape(item)?;
+            if parameter >= 64 {
+                return None;
+            }
+            let signature = self.sig(item)?;
+            let declared = self.param_ty(signature, usize::from(parameter));
+            if self.is_open(declared) && instance_leaves(&self.run.pool, args) > MAX_INSTANCE_LEAVES
+            {
+                return None;
+            }
+            let ty = hd_mono::subst(&self.run.pool, self, item, args, declared);
+            let ret = hd_mono::subst(&self.run.pool, self, item, args, self.low(signature.ret));
+            (self.counted(ret)
+                && self.copies(ret) == Tri::Yes
+                && self.holds_drop(ret) == Tri::No
+                && self.counted(ty)
+                && self.copies(ty) == Tri::Yes
+                && self.holds_drop(ty) == Tri::No)
+                .then_some(parameter)
+        })
+    }
+
     pub(super) fn lent_mask(&self, node: Node) -> u64 {
-        (self.run.summaries.as_ref())
-            .and_then(|all| lock(&all.lent).get(&node).copied())
-            .unwrap_or(0)
+        let returned = self
+            .return_loan_layout(node.0, node.1)
+            .map_or(0, |p| 1u64 << p);
+        returned
+            | (self.run.summaries.as_ref())
+                .and_then(|all| lock(&all.lent).get(&node).copied())
+                .unwrap_or(0)
     }
 
     /// Release (#1151): `def`'s promoted copy at `args` and the parameters
