@@ -1,0 +1,18 @@
+# test: a function value in a field of a struct the call's argument holds keeps the caller's lifetime through the call's result
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Outer['a, T]:
+    n: i32
+    h: Holder['a, T]
+
+fn unwrap['a, T](o: &Outer['a, T]) -> Holder['a, T]:
+    o.h
+
+fn call['a, T](o: Outer['a, T]) -> T:
+    q := Point { x: 1 }
+    (unwrap(&o).f)(&q) # diagnostic: local-reference-escapes

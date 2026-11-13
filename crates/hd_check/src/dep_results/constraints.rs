@@ -1374,10 +1374,24 @@ impl Gen<'_, '_> {
         let mut v = Verdicts::default();
         let mut returns = HashSet::default();
         let violations = sol.violations(&self.c, allowed);
+        let mut passed: HashSet<Origin> = HashSet::default();
+        // A captured function value kept where it may not go is reported
+        // there, and not again where a value holding it is passed on or
+        // returned.
+        let kept = |e: &Edge| {
+            !matches!(
+                e.cat,
+                Category::Bound | Category::Result | Category::CallerPlace | Category::Flow
+            )
+        };
+        for x in violations.iter().filter(|x| kept(&x.edge)) {
+            let e = x.edge;
+            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
+            passed.extend(bad.map(|l| self.loans[l as usize]));
+        }
         // An origin a call may not pass at a bound's lifetime is reported
         // once, at the first call that passes it, and not again where a
         // value holding it is passed on, stored or returned.
-        let mut passed: HashSet<Origin> = HashSet::default();
         for x in violations.iter().filter(|x| x.edge.cat == Category::Bound) {
             let e = x.edge;
             let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
@@ -1396,19 +1410,6 @@ impl Gen<'_, '_> {
                 .map_or(NO_SOURCE, |x| x.0);
             let value = self.s.calls.get(&e.inst).is_some_and(|c| c.by_value);
             v.bounds.push((at, o, l, value));
-        }
-        // A captured function value kept where it may not go is reported
-        // there, and not again where a value holding it is returned.
-        let kept = |e: &Edge| {
-            !matches!(
-                e.cat,
-                Category::Bound | Category::Result | Category::CallerPlace | Category::Flow
-            )
-        };
-        for x in violations.iter().filter(|x| kept(&x.edge)) {
-            let e = x.edge;
-            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
-            passed.extend(bad.map(|l| self.loans[l as usize]));
         }
         for x in violations.iter().filter(|x| x.edge.cat != Category::Bound) {
             let e = x.edge;

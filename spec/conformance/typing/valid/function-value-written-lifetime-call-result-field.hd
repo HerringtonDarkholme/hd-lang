@@ -1,0 +1,58 @@
+# test: a function value read from a field of a call's result accepts an argument that outlives the caller's lifetime the field writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. The valid
+# counterparts of the call-result field forms: the argument is the
+# caller's `p`, or the field's function writes no lifetime; and a
+# field read through a counted reference, a list element or a function
+# value's result, and a field whose type writes the lifetime at one input.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Mixed['a, T]:
+    f: fn(&Point, &'a Point) -> T
+
+struct Plain[T]:
+    f: fn(&Point) -> T
+
+struct Outer['a, T]:
+    n: i32
+    h: Holder['a, T]
+
+fn relay['a, T](h: Holder['a, T], p: &'a Point) -> Holder['a, T]:
+    h
+
+fn unwrap['a, T](o: &Outer['a, T]) -> Holder['a, T]:
+    o.h
+
+fn pass_on[T](h: Plain[T]) -> Plain[T]:
+    h
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+fn call['a, T](h: Holder['a, T], o: Outer['a, T], p: &'a Point) -> T:
+    (relay(h, p).f)(p)
+    (unwrap(&o).f)(p)
+
+fn counted['a, T](h: *Holder['a, T], p: &'a Point) -> T:
+    (h.f)(p)
+
+fn first['a, T](hs: &List[Holder['a, T]], p: &'a Point) -> T:
+    (hs[0].f)(p)
+
+fn mixed['a, T](m: Mixed['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (m.f)(&q, p)
+
+fn in_result['a, T](g: fn(&'a Point) -> Holder['a, T], p: &'a Point) -> T:
+    (g(p).f)(p)
+
+fn unwritten[T](h: Plain[T]) -> T:
+    q := Point { x: 1 }
+    (pass_on(h).f)(&q)
+
+fn named(p: &Point) -> i32:
+    q := Point { x: 1 }
+    (relay(Holder { f: x_of }, p).f)(&q)

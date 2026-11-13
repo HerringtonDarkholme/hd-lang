@@ -1,0 +1,11 @@
+# test: a call through a function field of a list element passes the argument at the lifetime the field writes
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn first['a, T](hs: &List[Holder['a, T]]) -> T:
+    q := Point { x: 1 }
+    (hs[0].f)(&q) # diagnostic: local-reference-escapes

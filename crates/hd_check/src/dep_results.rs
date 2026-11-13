@@ -2031,7 +2031,7 @@ impl Ck<'_, '_> {
             let ins: Vec<u32> = (dep.params.iter())
                 .flat_map(|(t, ids)| ref_ids_of(ls, *t, ids))
                 .collect();
-            for (k, var) in self.written_inputs(ls, b, b.data[i][0], values) {
+            for (k, var) in self.written_inputs(ls, b, (b.data[i][0], Vec::new()), values) {
                 if let Some(&id) = ins.get(k) {
                     links.push((Var::Life(id), var));
                     by_value = true;
@@ -2049,10 +2049,36 @@ impl Ck<'_, '_> {
                 else {
                     continue;
                 };
-                for (k, var) in self.written_inputs(ls, b, a, values) {
+                for (k, var) in self.written_inputs(ls, b, (a, Vec::new()), values) {
                     if let Some(&l) = lts.get(k).filter(|&&l| l != 0) {
                         links.push((Var::Life(u32::from(l)), var));
                         by_value = true;
+                    }
+                }
+            }
+            // A function type declared in a field of a parameter's struct
+            // type writes the struct's lifetime, which the parameter's type
+            // gives one of the callee's: the argument's function value
+            // there makes that lifetime the value's, as a parameter of the
+            // function type does. A call's result that holds the field's
+            // value then passes its arguments at the caller's lifetime:
+            // `relay(h, p).f(&q)` with `h: Holder['a, T]`.
+            for (p, &(_, pt)) in sig.params.iter().enumerate() {
+                let ids = dep.params.get(p).map_or(&[][..], |x| &x.1[..]);
+                let arg = source_arg(b, i, p);
+                for path in self.fn_field_paths(ls, pt) {
+                    let found = self.field_inputs(ls, pt, &path, 0).unwrap_or_default();
+                    if let Some(a) = arg.filter(|_| !found.is_empty()) {
+                        let written = self.written_inputs(ls, b, (a, path), values);
+                        for ((k, slot), &(k2, var)) in found
+                            .iter()
+                            .flat_map(|f| written.iter().map(move |x| (f, x)))
+                        {
+                            if let Some(&l) = ids.get(*slot).filter(|_| *k == k2) {
+                                links.push((Var::Life(l), var));
+                                by_value = true;
+                            }
+                        }
                     }
                 }
             }
@@ -2086,7 +2112,7 @@ impl Ck<'_, '_> {
         &self,
         ls: &Layouts<'_>,
         b: &Body,
-        v: u32,
+        (v, path): (u32, Vec<Part>),
         values: &FnValues<'_>,
     ) -> Vec<(usize, Var)> {
         let mut out = Vec::new();
@@ -2101,7 +2127,7 @@ impl Ck<'_, '_> {
         // earlier values, and each local's part is traced once (`seen`),
         // which ends a cycle through a binding.
         let mut seen: HashSet<(u32, Vec<Part>)> = HashSet::default();
-        let mut stack: Vec<Trace> = vec![Trace::Value(v, Vec::new())];
+        let mut stack: Vec<Trace> = vec![Trace::Value(v, path)];
         while let Some(t) = stack.pop() {
             match t {
                 Trace::Value(v, path) => {
@@ -2139,13 +2165,20 @@ impl Ck<'_, '_> {
         // that writes one is not traced: no record keeps its written
         // lifetimes.
         let tag = b.tags[i];
+        // A reference's referent is the place it was taken of: `&h` for a
+        // `&Holder['a, T]` parameter.
+        let read = match (tag, path.split_first()) {
+            (Tag::Read, _) => Some(&path[..]),
+            (Tag::Ref, Some((Part::Proj(Proj::Deref), rest))) => Some(rest),
+            _ => None,
+        };
         if tag == Tag::Coerce {
             stack.push(Trace::Value(b.data[i][0], path));
-        } else if tag == Tag::Read
+        } else if let Some(rest) = read
             && let Some(place) = b.decode_place(b.data[i][0])
         {
             let full: Vec<Part> = (place.proj.iter().map(|&p| Part::Proj(p)))
-                .chain(path)
+                .chain(rest.iter().copied())
                 .collect();
             match place.root {
                 PlaceRoot::Local(l) => stack.push(Trace::Local(l.raw(), full)),
@@ -2199,6 +2232,52 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The paths to each struct field of type `t` whose declared type is
+    /// a function type that writes a lifetime, through a reference at the
+    /// top and through fields of struct types with lifetimes. Only a
+    /// struct with lifetimes has such a field, so another type costs one
+    /// look.
+    fn fn_field_paths(&self, ls: &Layouts<'_>, t: Ty) -> Vec<Vec<Part>> {
+        let pool = ls.pool;
+        let mut out = Vec::new();
+        let top = match pool.get(t) {
+            TyData::Ref {
+                counted: false,
+                inner,
+                ..
+            } => (inner, vec![Part::Proj(Proj::Deref)]),
+            _ => (t, Vec::new()),
+        };
+        // Each struct type to look in, with its path and the structs it
+        // lies in, which a struct held by value never repeats.
+        let mut stack: Vec<(Ty, Vec<Part>, Vec<DefId>)> = vec![(top.0, top.1, Vec::new())];
+        while let Some((t, path, mut outer)) = stack.pop() {
+            let TyData::Adt { def, .. } = pool.get(t) else {
+                continue;
+            };
+            if !(ls.lifetimed)(def) || outer.contains(&def) {
+                continue;
+            }
+            let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|it| &it.data)
+            else {
+                continue;
+            };
+            outer.push(def);
+            for (j, f) in fields.iter().enumerate() {
+                let Ok(j) = u32::try_from(j) else { break };
+                let mut here = path.clone();
+                here.push(Part::Proj(Proj::Field(j)));
+                let written = f.fn_lifetimes.iter().any(|&l| l != 0);
+                if written && matches!(pool.get(f.ty), TyData::Fn { .. }) {
+                    out.push(here);
+                } else if matches!(pool.get(f.ty), TyData::Adt { .. }) {
+                    stack.push((f.ty, here, outer.clone()));
+                }
+            }
+        }
+        out
+    }
+
     /// The input slots of a function type declared in a struct's or
     /// variant's field, which a step of `path` at or after `from` reads
     /// in a value of type `ty`, each with the slot of `ty`'s layout that
@@ -2244,7 +2323,15 @@ impl Ck<'_, '_> {
                         .collect::<Option<_>>()?;
                     ty = child;
                 }
-                Part::Proj(Proj::Elem(_)) | Part::Result => return None,
+                // A list's slots are its element's, as for any generic
+                // instance (`ref.local.holding`).
+                Part::Proj(Proj::Elem(_)) => match pool.get(ty) {
+                    TyData::Adt { def, args } if def == self.cx.names.known.list => {
+                        ty = *pool.list_items(args).first()?;
+                    }
+                    _ => return None,
+                },
+                Part::Result => return None,
             }
         }
         None
