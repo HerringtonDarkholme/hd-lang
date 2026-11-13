@@ -1,11 +1,9 @@
 # @dump: wat
-# A weak-linked program with 32,768 method slots, past the 32,767 a
-# descriptor word's glue field holds. Release glues take the function
+# A program with 32,768 method slots. Release glues take the function
 # table's first slots, so `box(Leaf ...)` writes a small descriptor (glue
 # slot plus one, plus the cycle bit when set), while the closure's code
-# takes a slot past the field's limit.
+# takes a slot past 32,767.
 use std.annotation.inline
-use std.weak.weak
 
 struct Leaf:
     value: i32
@@ -198,4 +196,4 @@ pub fn main() -> void $ Console:
     # subject
     if sum > 0:
         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
-        println("$sum ${weak(target).is_some()}")
+        println("$sum ${target.value}")

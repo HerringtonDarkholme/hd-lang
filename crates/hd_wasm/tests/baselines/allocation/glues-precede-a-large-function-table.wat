@@ -6,25 +6,22 @@
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "weak[Leaf]" (func $"weak[Leaf]" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 3))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $out i32) (local $sum i32) (local $t0 i32) (local $t5 i32) (local $g.0 i32) (local $g.1 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t6 i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $out i32) (local $sum i32) (local $t0 i32) (local $t7 i32) (local $g.0 i32) (local $g.1 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t5 i32) (local $t6 i64) (local $t4 i32)
     ;; ...
-    ;; 199 |     if sum > 0:
+    ;; 197 |     if sum > 0:
     local.get $sum
     i32.load $heap
     i32.const 0
     i32.gt_s
     if
-    ;; 200 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
-      i32.const 32775
+    ;; 198 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
+      i32.const 32773
       i32.const 4
       i32.const -2147483647
       call $rt:new/class-1
@@ -38,14 +35,12 @@
       call $apply
       local.set $out
       i32.const 4
-      i32.const 1
-      i32.const 1
-      i32.add
+      i32.const 0
       call $rt:new/class-1
       local.tee $t0
       local.get $out
       i32.store $heap
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
+    ;; 199 |         println("$sum ${target.value}")
       local.get $sum
       i32.load $heap
       i64.extend_i32_s
@@ -77,8 +72,10 @@
       i32.wrap_i64
       local.set $out
       local.get $t0
-      call $"weak[Leaf]"
-    ;; 199 |     if sum > 0:
+      i32.load $heap
+      i64.extend_i32_s
+      local.set $t2
+    ;; 197 |     if sum > 0:
       local.get $t0
       local.tee $t4
       if
@@ -93,80 +90,73 @@
           call $rt:release_ref
         end
       end
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
-      local.tee $t0
-      local.set $t5
-      block
-        block
-          block
-            local.get $t5
-            br_if 0
-            br 1
-            unreachable
-          end
-          i32.const 1
-          local.set $t6
-          br 1
-        end
-      end
-    ;; 199 |     if sum > 0:
-      local.get $t0
-      call $rt:release
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
-      local.get $t6
+    ;; 199 |         println("$sum ${target.value}")
+      local.get $t2
+      call $signed_magnitude
+      call $unsigned_width
+      local.set $t0
+      local.get $t2
+      i64.const 0
+      i64.lt_s
       if
-        i32.const 152 ;; &"true"
-        i32.const 4
+        i32.const 1
         local.set $t5
-        local.set $t0
-      else
-        i32.const 156 ;; &"false"
-        i32.const 5
-        local.set $t5
-        local.set $t0
       end
+      local.get $t0
+      i64.extend_i32_u
+      local.get $t5
+      i64.extend_i32_u
+      i64.add
+      local.tee $t6
+      i64.const 4294967295
+      i64.gt_u
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t6
+      i32.wrap_i64
+      local.set $t0
       local.get $out
-      local.tee $g.0
+      local.tee $t7
       i32.const -2
       i32.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $g.0
+      local.get $t7
       i32.const 1
       i32.add
-      local.tee $g.0
+      local.tee $t7
       i64.extend_i32_u
-    ;; 199 |     if sum > 0:
-      local.get $t5
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
+      local.get $t0
       i64.extend_i32_u
       i64.add
-      local.tee $t2
+      local.tee $t6
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t2
+      local.get $t6
       i32.wrap_i64
-      local.tee $t3
+      local.tee $g.1
       i32.const 16
-      local.set $g.1
+      local.set $g.0
       if
-        local.get $t3
+        local.get $g.1
         call $rt:str
-        local.set $g.1
+        local.set $g.0
       end
       local.get $t1
-      local.get $g.1
+      local.get $g.0
       local.get $out
       call $write_signed_sized
-    ;; 199 |     if sum > 0:
-      local.get $g.1
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
+    ;; 197 |     if sum > 0:
+      local.get $g.0
+    ;; 199 |         println("$sum ${target.value}")
       i64.extend_i32_u
       local.get $out
       i64.extend_i32_u
@@ -180,43 +170,30 @@
       end
       local.get $t1
       i32.wrap_i64
-      i32.const 161 ;; &" "
+      i32.const 152 ;; &" "
       i32.load8_u $heap
       i32.store8 $heap
-    ;; 199 |     if sum > 0:
-      local.get $g.1
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
-      i64.extend_i32_u
+      local.get $t2
+    ;; 197 |     if sum > 0:
       local.get $g.0
-      i64.extend_i32_u
-      i64.add
-      local.tee $t1
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t1
-      i32.wrap_i64
-    ;; 199 |     if sum > 0:
+    ;; 199 |         println("$sum ${target.value}")
+      local.get $t7
+      i32.add
       local.get $t0
-      local.get $t5
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
-      call $rt:memory_copy/0/0
-    ;; 199 |     if sum > 0:
+      call $write_signed_sized
+    ;; 197 |     if sum > 0:
+      local.get $g.0
+    ;; 199 |         println("$sum ${target.value}")
       local.get $g.1
-    ;; 201 |         println("$sum ${weak(target).is_some()}")
-      local.get $t3
       local.get $provider0
       local.get $provider0.vtable
       call $"println[string]"
-    ;; 199 |     if sum > 0:
+    ;; 197 |     if sum > 0:
     end
     ;; ...
   )
   (func $main#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32) (local $t0 i64)
-    ;; 200 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
+    ;; 198 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
     local.get $env
     i32.load $heap
     i32.load $heap

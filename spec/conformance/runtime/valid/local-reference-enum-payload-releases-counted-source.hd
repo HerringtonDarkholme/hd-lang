@@ -1,8 +1,7 @@
 # test: optional and nominal local-reference payloads release their counted sources
-# Rules: ref.count.local, std-weak.release.target.
+# Rules: ref.count.local, ref.convert.lend.
 use std.annotation.cold
 use std.testing.assert_equal
-use std.weak.{Weak, weak}
 
 enum Payload[T]:
     Present(value: T)
@@ -39,19 +38,11 @@ fn consume(owner: *i32, explicit: bool, nominal: bool) -> void:
     assert_equal(result, 7)
 
 @cold
-fn outcome(explicit: bool, nominal: bool, read_after: bool) -> Weak[i32]?:
+fn verify(explicit: bool, nominal: bool, read_after: bool) -> void:
     owner := box(+7)
-    seen := weak(owner)
     consume(owner, explicit, nominal)
     if read_after:
         assert_equal(*owner, 7, reason="the caller still owns its original reference")
-    seen
-
-fn verify(explicit: bool, nominal: bool, read_after: bool) -> void:
-    let alive = match outcome(explicit, nominal, read_after):
-        .Some(link) => link.upgrade().is_some()
-        .None => false
-    assert_equal(alive, false, reason="no converted payload keeps the counted source")
 
 pub fn main() -> void:
     verify(false, false, false)

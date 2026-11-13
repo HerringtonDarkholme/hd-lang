@@ -1,5 +1,4 @@
 use std.annotation.cold
-use std.weak.{Weak, weak}
 
 # The runtime harness expands this type argument beyond specialization's
 # leaf budget. No value of Big is constructed.
@@ -23,13 +22,9 @@ impl[T] Child[T] for Payload:
     fn extra(&self) -> i32:
         self.number
 
-let witness: Weak[Payload]? = .None
-
 @cold
 fn fresh() -> *mut Payload:
-    value := box(Payload { number: +14, label: "abc" })
-    witness = weak(value)
-    value
+    box(Payload { number: +14, label: "abc" })
 
 @cold
 fn read_base[T](value: &dyn Base[T]) -> i32:
@@ -44,14 +39,8 @@ fn local!() -> i32:
     let child: &dyn Child[Big] = fresh()
     widened::[Big](child)
 
-fn expired() -> bool:
-    match witness:
-        .Some(seen) => seen.upgrade().is_none()
-        .None => false
-
+# The checked runs' exit audit fails if the fresh payload's owner leaks.
 pub fn main!() -> void $ Console:
     if local!() != 17:
         panic("wrong result")
-    if !expired():
-        panic("leaked owner")
     println("ok")

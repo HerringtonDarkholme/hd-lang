@@ -4,10 +4,9 @@
 # `read` takes `(&i32, i32)` and serves as a `fn((*i32, i32)) -> i32`
 # with no wrapper (`types.variance.no-insertion`). A function value
 # borrows every input that holds a thin reference by value, so `invoke`
-# drops its tuple after the call and the weak target expires (#1693).
+# drops its tuple after the call, and its caller's box with it (#1693).
 # `read_cold` keeps its frame's own count of the tuple's referent.
 use std.annotation.cold
-use std.weak.{Weak, weak}
 
 fn read(value: (&i32, i32)) -> i32:
 > app/main/read
@@ -41,29 +40,19 @@ fn read_cold!(value: (&i32, i32)) -> i32:
 @cold
 > app/main/invoke
 >   local $0 call: fn((*i32, i32)) -> i32 [param read] value
->     uses $0: entry -> %7 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 value: *i32 [param read] value
->     uses $1: entry -> %2 lend, %8 consume last
->   local $2 seen: Weak[i32]? [:= read assigned] value
->     uses $2: %6 -> %12 consume last
->   %0 = Release %13 Exit local $0 #2 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
-fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> Weak[i32]?:
-    seen := weak(value)
->   %2 = Ref local [*$1] : &i32
->   %3 = Coerce %2 [Weaken -] : &i32
->   %4 = Call std/weak/weak[i32] (%3) : Weak[i32]?
->   %5 = LoanEnd [%3] : ()
->   %6 = Store [$2] %4 : ()
->   %13 = Block %12 : Weak[i32]?
-    _ := call((value, +3))
->   %7 = Read borrow [$0] : fn((*i32, i32)) -> i32
->   %8 = Read move [$1] : *i32
->   %9 = NewTuple - [%8 3:i32] : (*i32, i32)
->   %10 = CallValue %7 [%9] : i32
->   %11 = Drop [%9] : ()
-    seen
->   %12 = Read move [$2] : Weak[i32]?
+>     uses $1: entry -> %3 consume last
+>   %0 = Release %7 Exit local $0 #2 : ()
+>   %1 = Retain %7 Entry local $1 #0 : ()
+fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> i32:
+    call((value, +3))
+>   %2 = Read borrow [$0] : fn((*i32, i32)) -> i32
+>   %3 = Read move [$1] : *i32
+>   %4 = NewTuple - [%3 3:i32] : (*i32, i32)
+>   %5 = CallValue %2 [%4] : i32
+>   %6 = Drop [%4] : ()
+>   %7 = Block %5 : i32
 >   exit sub 0 drops [$1]
 
 fn escaped(value: *i32) -> Suspend[i32]:
@@ -94,57 +83,17 @@ fn escaped(value: *i32) -> Suspend[i32]:
 >   exit sub 0 drops [$0]
 
 fn main_like() -> bool:
-    match invoke(read, box(+7)):
+    invoke(read, box(+7)) == 10
 > app/main/main_like
 >   local $0 $ref: i32 [read assigned captured captured-assigned] place
->   local $1 seen: Weak[i32] [read assigned] value
->     uses $1: %33 -> %6 consume last
->   local $2 $ref: *i32? [read assigned captured captured-assigned] value
->     uses $2: %8 -> %9 consume last
->   local $3 self: *i32? [read] value
->     uses $3: %10 -> %11 lend last
 >   %0 = ItemRef #0 [..] : fn((&i32, i32)) -> i32
 >   %1 = Coerce %0 [Weaken -] : fn((*i32, i32)) -> i32
 >   %2 = Store [$0] 7:i32 : ()
 >   %3 = Ref take mut [$0] : *mut i32
 >   %4 = Coerce %3 [Weaken -] : *i32
->   %5 = Call app/main/invoke[] (%1, %4) : Weak[i32]?
+>   %5 = Call app/main/invoke[] (%1, %4) : i32
 >   %5 keeps %1
->   %43 = Block - : never
->   %44 = Match %5 [%43 %30 %31] : bool
->   %45 = Block %44 : bool
+>   %6 = Prim Eq [%5 10:i32] : bool
+>   %7 = Block %6 : bool
 >   %3 finds [$0] full
-        .Some(seen) => seen.upgrade().is_none()
->   %6 = Read move [$1] : Weak[i32]
->   %7 = Call std/weak/impl[T] Weak[T].upgrade[i32] (%6) : *i32?
->   %8 = Store [$2] %7 : ()
->   %9 = Read move [$2] : *i32?
->   %10 = Store [$3] %9 : ()
->   %11 = Read borrow [$3] : *i32?
->   %12 = Block 0:bool : bool
->   %13 = Block 1:bool : bool
->   %14 = Read borrow [%11] : *i32?
->   %16 = Block - : never
->   %18 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %14 [#0 %18 %20] : never
->   %22 = Block - : never
->   %23 = SwitchTag %14 [#1 %16 %22] : never
->   %24 = Block - : never
->   %25 = Match %11 [%24 %12 %13] : bool
->   %26 = Break L0 %25 : never
->   %27 = Block - : bool
->   %28 = Scope %27 [] : bool
->   %29 = Drop [$3] : ()
->   %30 = Block %28 : bool
->   %32 = Read move [%5 as #1 .0] : Weak[i32]
->   %33 = Store [$1] %32 : ()
->   %35 = Block - : never
->   %41 = Block - : never
->   %42 = SwitchTag %5 [#1 %35 %41] : never
-        .None => false
->   %31 = Block 0:bool : bool
->   %37 = Block - : never
->   %39 = Block - : never
->   %40 = SwitchTag %5 [#0 %37 %39] : never
 >   storage sub 0: $0 cell

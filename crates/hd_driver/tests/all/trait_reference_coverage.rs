@@ -1,4 +1,5 @@
-//! Exact weak-expiry oracles for cold fat-reference temporaries.
+//! Cold fat-reference temporaries keep exact owners: the checked runs' exit
+//! audit fails on a leaked owner.
 use hd_cache::MemoryStore;
 use hd_driver::{BuildProfile, Executor, Goal, Host, NoClock, OptLevel, Packages, build_packages};
 use hd_project::MemorySources;

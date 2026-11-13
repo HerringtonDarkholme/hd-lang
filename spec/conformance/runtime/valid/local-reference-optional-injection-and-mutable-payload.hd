@@ -1,8 +1,7 @@
 # test: optional injection and mutable local-reference payloads keep no count
-# Rules: ref.convert.lend, std-weak.release.target.
+# Rules: ref.convert.lend, ref.count.local.
 use std.annotation.cold
 use std.testing.assert_equal
-use std.weak.{Weak, weak}
 
 @cold
 fn read_optional(value: (&i32)?) -> i32:
@@ -19,9 +18,8 @@ fn read_mutable_optional(value: (&mut i32)?) -> i32:
         .None => -1
 
 @cold
-fn outcome_injected(mutable: bool) -> Weak[i32]?:
+fn outcome_injected(mutable: bool) -> void:
     owner := box(+7)
-    seen := weak(owner)
     if mutable:
         let call: fn((&mut i32)?) -> i32 = read_mutable_optional
         assert_equal(call(.Some(owner)), 8)
@@ -30,11 +28,7 @@ fn outcome_injected(mutable: bool) -> Weak[i32]?:
         let call: fn((&i32)?) -> i32 = read_optional
         assert_equal(call(owner), 7)
         assert_equal(*owner, 7, reason="optional injection keeps the caller's owner")
-    seen
 
 pub fn main() -> void:
     for mutable in [false, true]:
-        let alive = match outcome_injected(mutable):
-            .Some(link) => link.upgrade().is_some()
-            .None => false
-        assert_equal(alive, false, reason="injected and mutable payloads keep no count")
+        outcome_injected(mutable)

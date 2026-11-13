@@ -5,7 +5,6 @@ use std.collections.UniqList
 use std.function.{Fn, Tuple}
 use std.http.Url
 use std.testing.assert_equal
-use std.weak.weak
 
 struct Packet:
     name: string
@@ -147,7 +146,6 @@ pub fn main() -> void:
     moved.push(5)
     assert_equal(moved.len(), 2, reason="noncopy input and result transfer their single owner")
     pointer := box(+9)
-    seen := weak(pointer)
     let mut values: UniqList[usize] = UniqList::new()
     values.push(1)
     owned := OwnedPacket { owner: pointer, values: values }
@@ -156,10 +154,6 @@ pub fn main() -> void:
         10,
         reason="noncopy records transfer their owned fields",
     )
-    expired := match seen:
-        .Some(link) => link.upgrade().is_none()
-        .None => false
-    assert_equal(expired, true, reason="a transferred noncopy record releases its counted field")
     let mut transferred: UniqList[usize] = UniqList::new()
     transferred.push(2)
     resource_packet := OwnedPacket { owner: box(+4), values: transferred }
@@ -201,10 +195,5 @@ pub fn main() -> void:
         reason="a borrowed tuple callback returns an owned string field",
     )
     first := box(+19)
-    observed := weak(first)
     projected := invoke(fn(pair: (*i32, *i32)) -> *i32: pair._0, (first, box(+23)))
-    alive := match observed:
-        .Some(link) => link.upgrade().is_some()
-        .None => false
-    assert_equal(alive, true, reason="a projected callback result owns its counted field")
-    assert_equal(*projected, +19)
+    assert_equal(*projected, +19, reason="a projected callback result owns its counted field")

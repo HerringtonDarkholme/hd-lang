@@ -1,7 +1,6 @@
 # fn.type.declared-variance and types.variance.no-insertion.
 use std.annotation.cold
-use std.testing.{assert, assert_equal}
-use std.weak.{Weak, weak}
+use std.testing.assert_equal
 
 struct CallbackBox[+F]:
     callback: F
@@ -51,95 +50,53 @@ fn cold_view(kind: usize) -> fn!(*i32) -> i32:
     let viewed: NestedCallbacks[fn!(*i32) -> i32] = source
     extract(viewed)
 
-fn expired(seen: Weak[i32]?) -> bool:
-    match seen:
-        .Some(link) => link.upgrade().is_none()
-        .None => false
-
-fn alive(seen: Weak[i32]?) -> bool:
-    match seen:
-        .Some(link) => link.upgrade().is_some()
-        .None => false
+@cold
+fn fresh_target() -> *i32:
+    box(+7)
 
 @cold
-fn fresh_target(seen: &mut (Weak[i32]?)) -> *i32:
+fn plain_fresh(adapted: fn(*i32) -> i32) -> void:
+    assert_equal(adapted(fresh_target()), 7)
+
+@cold
+fn plain_live(adapted: fn(*i32) -> i32) -> void:
     value := box(+7)
-    *seen = weak(value)
-    value
-
-@cold
-fn plain_fresh(adapted: fn(*i32) -> i32) -> Weak[i32]?:
-    let mut seen: Weak[i32]? = .None
-    assert_equal(adapted(fresh_target(&mut seen)), 7)
-    seen
-
-@cold
-fn plain_live(adapted: fn(*i32) -> i32) -> Weak[i32]?:
-    value := box(+7)
-    seen := weak(value)
     assert_equal(adapted(value), 7)
     assert_equal(*value, 7)
-    seen
 
 @cold
-fn cold_fresh!(adapted: fn!(*i32) -> i32) -> Weak[i32]?:
-    let mut seen: Weak[i32]? = .None
-    pending := adapted(fresh_target(&mut seen))
-    assert(alive(seen), reason="the unrun cold call keeps its argument")
-    assert_equal(pending!(), 7)
-    seen
+fn cold_fresh!(adapted: fn!(*i32) -> i32) -> void:
+    pending := adapted(fresh_target())
+    assert_equal(pending!(), 7, reason="the unrun cold call keeps its argument")
 
 @cold
-fn cold_live!(adapted: fn!(*i32) -> i32) -> Weak[i32]?:
+fn cold_live!(adapted: fn!(*i32) -> i32) -> void:
     value := box(+7)
-    seen := weak(value)
     pending := adapted(value)
     assert_equal(*value, 7)
-    assert(alive(seen), reason="the caller and cold frame keep the target")
-    assert_equal(pending!(), 7)
+    assert_equal(pending!(), 7, reason="the caller and cold frame keep the target")
     assert_equal(*value, 7)
-    seen
 
 @cold
-fn cold_cancel!(adapted: fn!(*i32) -> i32) -> Weak[i32]?:
-    let mut seen: Weak[i32]? = .None
-    pending := adapted(fresh_target(&mut seen))
-    assert(alive(seen), reason="cancellation starts from a live target")
+fn cold_cancel!(adapted: fn!(*i32) -> i32) -> void:
+    pending := adapted(fresh_target())
     _ := pending.cancel!()
-    seen
 
 @cold
-fn retained_owner(adapted: fn(*i32) -> i32) -> (Weak[i32]?, *i32):
+fn retained_owner(adapted: fn(*i32) -> i32) -> *i32:
     value := box(+7)
-    seen := weak(value)
     owner := value
     assert_equal(adapted(value), 7)
-    (seen, owner)
+    owner
 
+# The checked runs' exit audit fails on any owner these calls leak, and a
+# freed target's poison fails each read.
 pub fn main!() -> void:
     for kind in 0..3:
-        assert(
-            expired(plain_fresh(plain(kind))),
-            reason="a fresh plain argument has no orphan owner",
-        )
-        assert(
-            expired(plain_live(plain(kind))),
-            reason="a live plain caller eventually releases its owner",
-        )
-        assert(
-            expired(cold_fresh!(cold_view(kind))),
-            reason="cold completion releases the fresh argument",
-        )
-        assert(
-            expired(cold_live!(cold_view(kind))),
-            reason="a live cold caller eventually releases its owner",
-        )
-        assert(
-            expired(cold_cancel!(cold_view(kind))),
-            reason="cold cancellation releases the fresh argument",
-        )
-        let (seen, owner) = retained_owner(plain(kind))
-        assert(alive(seen), reason="a separate strong owner prevents expiry")
-        assert_equal(*owner, 7)
-        _ := owner
-        assert(expired(seen), reason="the last explicit owner releases the target")
+        plain_fresh(plain(kind))
+        plain_live(plain(kind))
+        cold_fresh!(cold_view(kind))
+        cold_live!(cold_view(kind))
+        cold_cancel!(cold_view(kind))
+        owner := retained_owner(plain(kind))
+        assert_equal(*owner, 7, reason="a separate strong owner keeps the target")

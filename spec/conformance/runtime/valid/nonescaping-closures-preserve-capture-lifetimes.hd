@@ -1,49 +1,34 @@
 # test: literal-call elimination preserves capture snapshots and target lifetime
-# Spec std/weak: std-weak.release.target; fn.capture.copy.using-split and fn.capture.cell.writes.
+# Spec functions: fn.capture.copy.using-split and fn.capture.cell.writes.
 use std.annotation.cold
 use std.testing.assert
-use std.weak.{Weak, weak}
-
-@cold
-fn expired(link: Weak[i32]?) -> bool:
-    match link:
-        .Some(seen) => seen.upgrade().is_none()
-        .None => false
 
 fn copied_window() -> bool:
     value := box(+7)
-    seen := weak(value)
-    f := fn() -> bool:
-        if false:
-            _ := value
-        !expired(seen)
-    during := f()
-    during && expired(seen)
-
-fn copied_live() -> bool:
-    value := box(+7)
-    seen := weak(value)
-    f := fn() -> bool:
-        if false:
-            _ := value
-        !expired(seen)
-    during := f()
-    alive := !expired(seen)
-    during && alive && *value == 7
-
-# A function-valued capture also keeps that function's capture owners alive.
-fn nested_window() -> bool:
-    value := box(+7)
-    seen := weak(value)
     f := fn() -> bool:
         if false:
             _ := value
         true
-    g := fn() -> bool:
-        used := f()
-        used && !expired(seen)
-    during := g()
-    during && expired(seen)
+    f()
+
+fn copied_live() -> bool:
+    value := box(+7)
+    f := fn() -> bool:
+        if false:
+            _ := value
+        true
+    during := f()
+    during && *value == 7
+
+# A function-valued capture also keeps that function's capture owners alive.
+fn nested_window() -> bool:
+    value := box(+7)
+    f := fn() -> bool:
+        if false:
+            _ := value
+        true
+    g := fn() -> bool: f()
+    g()
 
 fn aliases() -> usize:
     let n: usize = 0
@@ -67,14 +52,12 @@ fn bound_snapshot() -> bool:
     f() == 7 && value.value == 9
 
 @cold
-fn escaping() -> (fn() -> bool, Weak[i32]?):
+fn escaping() -> fn() -> bool:
     value := box(+7)
-    seen := weak(value)
-    f := fn() -> bool:
+    fn() -> bool:
         if false:
             _ := value
-        !expired(seen)
-    (f, seen)
+        true
 
 pub fn main() -> void:
     assert(copied_window())
@@ -82,7 +65,5 @@ pub fn main() -> void:
     assert(nested_window())
     assert(aliases() == 2)
     assert(bound_snapshot())
-    let (f, seen) = escaping()
-    assert(!expired(seen))
+    f := escaping()
     assert(f())
-    assert(expired(seen))

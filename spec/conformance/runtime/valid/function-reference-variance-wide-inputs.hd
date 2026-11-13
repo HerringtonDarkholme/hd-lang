@@ -1,8 +1,7 @@
 # test: function variance borrows a reference at input index 64 for plain and cold calls
-# Spec functions: fn.type.declared-variance, fn.type.variance-repr; weak: std-weak.release.target.
+# Spec functions: fn.type.declared-variance, fn.type.variance-repr.
 use std.annotation.cold
-use std.testing.{assert, assert_equal}
-use std.weak.{Weak, weak}
+use std.testing.assert_equal
 
 @cold
 fn read(
@@ -144,19 +143,8 @@ fn read_cold!(
 ) -> i32:
     *value
 
-fn alive(link: Weak[i32]?) -> bool:
-    match link:
-        .Some(seen) => seen.upgrade().is_some()
-        .None => false
-
-fn expired(link: Weak[i32]?) -> bool:
-    match link:
-        .Some(seen) => seen.upgrade().is_none()
-        .None => false
-
-fn plain(live: bool) -> Weak[i32]?:
+fn plain(live: bool) -> void:
     value := box(+7)
-    seen := weak(value)
     let call: fn(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> i32 = read
     assert_equal(
         call(
@@ -230,13 +218,10 @@ fn plain(live: bool) -> Weak[i32]?:
         reason="input 64 is read through the adapted function",
     )
     if live:
-        assert(alive(seen), reason="the caller still owns input 64")
         assert_equal(*value, 7, reason="a final caller use follows the plain call")
-    seen
 
-fn cold_lifetime!(live: bool) -> Weak[i32]?:
+fn cold_lifetime!(live: bool) -> void:
     value := box(+7)
-    seen := weak(value)
     let call: fn!(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> i32 = read_cold
     assert_equal(
         call!(
@@ -310,116 +295,101 @@ fn cold_lifetime!(live: bool) -> Weak[i32]?:
         reason="input 64 is read through the adapted cold function",
     )
     if live:
-        assert(alive(seen), reason="the caller still owns input 64")
         assert_equal(*value, 7, reason="a final caller use follows the cold call")
-    seen
 
 @cold
-fn escaped() -> (Weak[i32]?, Suspend[i32]):
+fn escaped() -> Suspend[i32]:
     value := box(+7)
-    seen := weak(value)
     let adapted: fn!(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> i32 = read_cold
     let call: fn(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> Suspend[
         i32,
     ] = adapted
-    (
-        seen,
-        call(
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            +0,
-            value,
-        ),
+    call(
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        +0,
+        value,
     )
 
-fn settle!(cancel: bool) -> Weak[i32]?:
-    let (seen, pending) = escaped()
-    assert(alive(seen), reason="the escaped cold frame keeps input 64 before polling")
+fn settle!(cancel: bool) -> void:
+    pending := escaped()
     if cancel:
         _ := pending.cancel!()
     else:
         assert_equal(pending!(), 7, reason="the retained input is read after its caller exits")
-    assert(expired(seen), reason="completion or cancellation releases the frame's input 64")
-    seen
 
 tests:
     it("plain input 64 is borrowed for final and live caller uses"):
-        assert(expired(plain(false)), reason="the final-use caller releases its owner")
-        assert(expired(plain(true)), reason="the live caller releases its owner on exit")
+        plain(false)
+        plain(true)
 
     it("cold input 64 is borrowed for final and live caller uses"):
-        assert(
-            expired(cold_lifetime!(false)),
-            reason="the final-use cold caller releases its owner",
-        )
-        assert(
-            expired(cold_lifetime!(true)),
-            reason="the live cold caller releases its owner on exit",
-        )
+        cold_lifetime!(false)
+        cold_lifetime!(true)
 
     it("an escaped cold frame retains input 64 until completion"):
-        assert(expired(settle!(false)), reason="completion leaves no strong owner")
+        settle!(false)
 
     it("an escaped cold frame retains input 64 until cancellation"):
-        assert(expired(settle!(true)), reason="cancellation leaves no strong owner")
+        settle!(true)

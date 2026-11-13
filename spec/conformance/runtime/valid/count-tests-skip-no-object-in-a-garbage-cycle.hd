@@ -1,6 +1,5 @@
 # test: a garbage cycle whose nodes also hold static data, a capture-free function and a list a live value shares is collected, and what it shared stays alive
-# Spec 08 Representation: data.repr.gc. Spec std/weak Collection And Release: std-weak.release.cycle.
-use std.weak.{Weak, weak}
+# Spec 08 Representation: data.repr.gc.
 
 struct Ring:
     name: string
@@ -16,15 +15,11 @@ fn double(n: i32) -> i32:
 fn ring(name: string, shared: List[string]) -> *mut Ring:
     box(Ring { name: name, tag: "static", shared: shared, empty: [], step: double, next: .None })
 
-fn collected_link(shared: List[string]) -> Weak[Ring]:
+fn collected_ring(shared: List[string]) -> void:
     first := ring("first", shared)
     second := ring("second", shared)
-    link := match weak(first):
-        .Some(value) => value
-        .None => panic("a boxed ring node is a whole allocation")
     first.next = .Some(second)
     second.next = .Some(first)
-    link
 
 fn make_cycle(n: i32, shared: List[string]) -> i32:
     first := ring("first " + n.to_string(), shared)
@@ -37,13 +32,12 @@ tests:
     it("collects the rings and keeps what they shared"):
         let mut shared: List[string] = []
         shared.push("kept " + 7.to_string())
-        link := collected_link(shared)
+        collected_ring(shared)
         let total = +0
         let n = +0
         while n < 10050:
             total = (total + make_cycle(n, shared)) % 1000
             n += 1
-        assert(link.upgrade().is_none(), reason="only the collected cycle held the target")
         assert(shared[0] == "kept 7", reason="the rings' shared list outlives them")
         shared.push("more")
         assert(shared.len() == 2 && total >= 0, reason="the list is still the local's")

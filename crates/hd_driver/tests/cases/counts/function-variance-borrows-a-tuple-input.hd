@@ -3,10 +3,9 @@
 # `read` takes `(&i32, i32)` and serves as a `fn((*i32, i32)) -> i32`
 # with no wrapper (`types.variance.no-insertion`). A function value
 # borrows every input that holds a thin reference by value, so `invoke`
-# drops its tuple after the call and the weak target expires (#1693).
+# drops its tuple after the call, and its caller's box with it (#1693).
 # `read_cold` keeps its frame's own count of the tuple's referent.
 use std.annotation.cold
-use std.weak.{Weak, weak}
 
 fn read(value: (&i32, i32)) -> i32:
     *value._0 + value._1
@@ -16,10 +15,8 @@ fn read_cold!(value: (&i32, i32)) -> i32:
     *value._0 + value._1
 
 @cold
-fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> Weak[i32]?:
-    seen := weak(value)
-    _ := call((value, +3))
-    seen
+fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> i32:
+    call((value, +3))
 
 fn escaped(value: *i32) -> Suspend[i32]:
     let adapted: fn!((*i32, i32)) -> i32 = read_cold
@@ -27,6 +24,4 @@ fn escaped(value: *i32) -> Suspend[i32]:
     call((value, +3))
 
 fn main_like() -> bool:
-    match invoke(read, box(+7)):
-        .Some(seen) => seen.upgrade().is_none()
-        .None => false
+    invoke(read, box(+7)) == 10

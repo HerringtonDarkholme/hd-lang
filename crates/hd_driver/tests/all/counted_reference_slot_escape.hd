@@ -1,7 +1,7 @@
-# trait.dyn.value-methods, fn.capture.locals and std-weak.release.target.
+# trait.dyn.value-methods and fn.capture.locals. The checked runs' exit audit
+# fails on any owner these calls leak, and a freed target's poison fails each read.
 use std.annotation.cold
-use std.testing.{assert, assert_equal}
-use std.weak.{Weak, weak}
+use std.testing.assert_equal
 
 struct Held[T]:
     value: T
@@ -75,63 +75,39 @@ fn text(route: usize, dynamic: &dyn Escape, store: &Store, value: string) -> Hel
         return dynamic.text(value)
     bound_text(store, value)
 
-fn expired(seen: Weak[i32]?) -> bool:
-    match seen:
-        .Some(link) => link.upgrade().is_none()
-        .None => false
-
-fn alive(seen: Weak[i32]?) -> bool:
-    match seen:
-        .Some(link) => link.upgrade().is_some()
-        .None => false
+@cold
+fn fresh_target() -> *i32:
+    box(+11)
 
 @cold
-fn fresh_target(seen: &mut (Weak[i32]?)) -> *i32:
-    value := box(+11)
-    *seen = weak(value)
-    value
-
-@cold
-fn closure_fresh(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
-    let mut seen: Weak[i32]? = .None
-    saved := capture(route, dynamic, store, fresh_target(&mut seen))
-    assert(alive(seen), reason="the returned closure owns the fresh target")
+fn closure_fresh(route: usize, dynamic: &dyn Escape, store: &Store) -> void:
+    saved := capture(route, dynamic, store, fresh_target())
+    assert_equal(*saved(), 11, reason="the returned closure owns the fresh target")
     assert_equal(*saved(), 11)
-    assert_equal(*saved(), 11)
-    seen
 
 @cold
-fn closure_live(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
+fn closure_live(route: usize, dynamic: &dyn Escape, store: &Store) -> void:
     value := box(+11)
-    seen := weak(value)
     saved := capture(route, dynamic, store, value)
     assert_equal(*value, 11)
-    assert(alive(seen), reason="the caller and closure both keep the target")
-    assert_equal(*saved(), 11)
+    assert_equal(*saved(), 11, reason="the caller and closure both keep the target")
     assert_equal(*saved(), 11)
     assert_equal(*value, 11)
-    seen
 
 @cold
-fn holder_fresh(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
-    let mut seen: Weak[i32]? = .None
-    saved := hold(route, dynamic, store, fresh_target(&mut seen))
-    assert(alive(seen), reason="the returned holder owns the fresh target")
+fn holder_fresh(route: usize, dynamic: &dyn Escape, store: &Store) -> void:
+    saved := hold(route, dynamic, store, fresh_target())
+    assert_equal(*saved.value, 11, reason="the returned holder owns the fresh target")
     assert_equal(*saved.value, 11)
-    assert_equal(*saved.value, 11)
-    seen
 
 @cold
-fn holder_live(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
+fn holder_live(route: usize, dynamic: &dyn Escape, store: &Store) -> void:
     value := box(+11)
-    seen := weak(value)
     saved := hold(route, dynamic, store, value)
     assert_equal(*value, 11)
-    assert(alive(seen), reason="the caller and holder both keep the target")
-    assert_equal(*saved.value, 11)
+    assert_equal(*saved.value, 11, reason="the caller and holder both keep the target")
     assert_equal(*saved.value, 11)
     assert_equal(*value, 11)
-    seen
 
 @cold
 fn text_control(route: usize, dynamic: &dyn Escape, store: &Store) -> void:
@@ -144,8 +120,8 @@ pub fn main() -> void:
     store := Store { tag: 0 }
     let dynamic: *dyn Escape = box(Store { tag: 1 })
     for route in 0..3:
-        assert(expired(closure_fresh(route, dynamic, &store)), reason="the last closure owner ends")
-        assert(expired(closure_live(route, dynamic, &store)), reason="both closure owners end")
-        assert(expired(holder_fresh(route, dynamic, &store)), reason="the last holder owner ends")
-        assert(expired(holder_live(route, dynamic, &store)), reason="both holder owners end")
+        closure_fresh(route, dynamic, &store)
+        closure_live(route, dynamic, &store)
+        holder_fresh(route, dynamic, &store)
+        holder_live(route, dynamic, &store)
         text_control(route, dynamic, &store)

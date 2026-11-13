@@ -3,7 +3,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $local (param $frame i32) (result i32 i32)
     ;; ...
-    ;; 40 |     let base: &dyn Base = child
+    ;; 36 |     let base: &dyn Base = child
     i32.load $heap offset=4
     ;; ...
   )
