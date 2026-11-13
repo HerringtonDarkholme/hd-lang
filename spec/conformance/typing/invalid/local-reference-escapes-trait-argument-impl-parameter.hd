@@ -1,0 +1,9 @@
+# test: a local reference as an impl parameter's trait argument is an error, and a scalar result needs no source
+# Spec 13 Local References: ref.local.escape.trait-argument. The `i32`
+# result holds no reference position, so ref.lifetime.elide.none does not
+# apply to it.
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+fn h(s: impl Store[&i32]) -> i32: # diagnostic: local-reference-escapes
+    0

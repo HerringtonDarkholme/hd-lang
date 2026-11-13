@@ -4381,9 +4381,17 @@ impl Lower<'_, '_, '_> {
 
         let mut bounds = Vec::new();
         if let Some(bound_node) = n.children().find(|c| c.kind() == SyntaxKind::NamedType) {
+            // The bound is no part of the parameter's type, which is the
+            // type parameter and has no reference slot: its references
+            // record no slot of the signature (`FnSig::lifetimes`), as a
+            // named type parameter's bound records none.
+            let slots = self.slots.take();
+            let held = self.held.take();
             let bound = self
                 .trait_value(bound_node, gn, Some(ty))
                 .unwrap_or(Ty::POISON);
+            self.slots = slots;
+            self.held = held;
             if self.r.frozen.is_none()
                 && self
                     .names
