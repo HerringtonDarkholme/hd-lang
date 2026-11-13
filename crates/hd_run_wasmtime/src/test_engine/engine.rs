@@ -84,7 +84,7 @@ impl TestEngine {
             .total_tables(slots)
             // The function table has no limit of its own (#1568, DESIGN.md
             // §23.8); wasmtime's defaults (20,000 table elements, 1 MiB of
-            // instance metadata, about 32 bytes per function) refused a weak
+            // instance metadata, about 32 bytes per function) refused a
             // program with 32,786 functions. Both now allow 2^17 functions.
             .table_elements(1 << 17)
             .max_core_instance_size(1 << 22);

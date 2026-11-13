@@ -107,9 +107,6 @@ pub struct LObject {
     /// Whether its release glue can reach another object with the same
     /// glue (`cycle::recursive_object`), which then drains iteratively.
     pub recursive: bool,
-    /// The descriptor alias a weak reference to the type reads, when the
-    /// program makes one (`Module::weak_types`).
-    pub weak: Option<Hash128>,
     /// Whether an object of the type can be on a cycle, so the encoder
     /// marks it on its path.
     pub tracked: bool,
@@ -613,13 +610,6 @@ fn object_of(
     let (pool, env) = (input.pool, input.env);
     let mem = layout::mem(pool, env, target)?;
     let tracked = crate::cycle::holding(pool, env, &[target]);
-    let key = hd_mono::layout::canon(
-        pool,
-        &|d| env.path_hash(d),
-        &mut hd_mono::layout::CanonMemo::default(),
-        target,
-    );
-    let weak = (m.open_world || m.weak_types.contains(&key)).then_some(key);
     let elem = Elem {
         size: mem.size,
         leaves: mem.leaves,
@@ -632,7 +622,6 @@ fn object_of(
     Ok(LTy::Object(Box::new(LObject {
         elem,
         recursive: crate::cycle::recursive_object(pool, env, target),
-        weak,
         tracked,
         ty,
     })))
@@ -2576,11 +2565,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
                     drops: Vec::new(),
                 })
             });
-            if let Some(key) = o.weak {
-                crate::rt::push_typed_desc_recursive(f, glue, o.elem.cyclic, o.recursive, key);
-            } else {
-                crate::rt::push_desc_recursive(f, glue, o.elem.cyclic, o.recursive);
-            }
+            crate::rt::push_desc_recursive(f, glue, o.elem.cyclic, o.recursive);
             if m.runtime.checked.is_none()
                 && o.elem
                     .size

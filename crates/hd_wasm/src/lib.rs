@@ -34,8 +34,7 @@ pub use layout::Niche;
 mod wide;
 
 use hd_base::{DefId, Hash128, InstId, StageResult};
-use hd_mono::layout::{CanonMemo, canon};
-use hd_mono::{Collected, ProgramEnv, Target, TargetKind};
+use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty, TyData};
 
@@ -480,12 +479,6 @@ pub const CHECKED_METRICS_FNS: [&str; 5] = [
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
 pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "marking"];
 
-/// The on-demand weak-reference side table. Its functions are collected with
-/// the allocator roots, but ordinary programs emit none because no generated
-/// helper reaches them.
-pub const WEAK_MODULE: &str = "std.rt.weak";
-pub const WEAK_FNS: [&str; 6] = ["lookup", "bind", "forget", "clear", "type_of", "type_bind"];
-
 /// The ordinary std functions that implement floating operators absent
 /// from Wasm. The driver roots them so emission can call them directly.
 pub const FLOAT_MODULE: &str = "std.num";
@@ -554,7 +547,6 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
                 .map(|n| ("std.rt.checked", n)),
         )
         .chain(CYCLE_FNS.iter().map(|n| (CYCLE_MODULE, *n)))
-        .chain(WEAK_FNS.iter().map(|n| (WEAK_MODULE, *n)))
         .chain([
             (RUNTIME_MODULE, "metadata"),
             (RUNTIME_MODULE, "alloc_class"),
@@ -578,7 +570,6 @@ pub struct Runtime {
     pub block_of: Hash128,
     pub block_bytes: Hash128,
     pub cycle: Cycle,
-    pub weak: Weak,
     pub acyclic: Acyclic,
     pub checked: Option<Checked>,
     /// Private constant-class allocator entry points, unused by checked code.
@@ -615,17 +606,6 @@ pub struct Cycle {
     pub opaque: Hash128,
     pub visit: Hash128,
     pub marking: Hash128,
-}
-
-/// The weak side table's raw entry lookup and lifecycle operations.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Weak {
-    pub lookup: Hash128,
-    pub bind: Hash128,
-    pub forget: Hash128,
-    pub clear: Hash128,
-    pub type_of: Hash128,
-    pub type_bind: Hash128,
 }
 
 /// The checked runtime's audit functions (`crates/hd_wasm/DESIGN.md`
@@ -677,17 +657,6 @@ impl Runtime {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
         let (keys, [metadata, alloc_class, block_of, block_bytes]) =
             keys.split_last_chunk::<4>()?;
-        let (
-            keys,
-            [
-                weak_lookup,
-                weak_bind,
-                weak_forget,
-                weak_clear,
-                weak_type_of,
-                weak_type_bind,
-            ],
-        ) = keys.split_last_chunk::<6>()?;
         let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
@@ -761,14 +730,6 @@ impl Runtime {
                 visit,
                 marking,
             },
-            weak: Weak {
-                lookup: *weak_lookup,
-                bind: *weak_bind,
-                forget: *weak_forget,
-                clear: *weak_clear,
-                type_of: *weak_type_of,
-                type_bind: *weak_type_bind,
-            },
             acyclic: Acyclic {
                 free: acyclic_free,
                 release: acyclic_release,
@@ -841,38 +802,12 @@ fn link(
     }
     m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     m.init_insts.clone_from(&input.collected.inits);
-    let mut canons = CanonMemo::default();
-    for calls in &input.collected.calls {
-        for target in calls.values() {
-            let (Target::Call(call) | Target::Default { call, .. }) = target else {
-                continue;
-            };
-            let TargetKind::Intrinsic(key) = &call.kind else {
-                continue;
-            };
-            if !matches!(key.as_str(), "weak_new" | "weak_new_mut") {
-                continue;
-            }
-            m.uses_weak = true;
-            if let Some(&ty) = input.pool.list_items(call.args).first() {
-                m.weak_types.insert(canon(
-                    input.pool,
-                    &|d| input.env.path_hash(d),
-                    &mut canons,
-                    ty,
-                ));
-            }
-        }
-    }
     m.release = input.release;
     m.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
         m.inst_of.insert(key, *id);
         let item = input.collected.table.item[id.idx()];
-        if (input.path)(item).starts_with("std/rt.") {
-            m.runtime_insts.insert(key);
-        }
         if (input.path)(item).starts_with("std/") {
             m.std_insts.insert(key);
         }

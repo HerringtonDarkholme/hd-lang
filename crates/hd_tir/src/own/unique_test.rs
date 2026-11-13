@@ -23,10 +23,6 @@
 //! place also needs a body with no other call: a callee may reach the
 //! object behind the parameter through another path.
 //!
-//! A weak reference's upgrade also makes a second owner, from a
-//! reference to the object rather than a copy of `p`; the backend ignores
-//! both marks in a module that links weak references.
-//!
 //! The classification is a hoist of the test to the body's entry: a fresh
 //! box needs none, and a sticky one runs at most once per body entry while
 //! it finds the box shared at most each time the body replaced it.

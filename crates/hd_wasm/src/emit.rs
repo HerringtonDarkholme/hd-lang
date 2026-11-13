@@ -16,7 +16,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::op::Op as Instruction;
 use crate::op::Op as I;
 use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
-use hd_mono::layout::{CanonMemo, canon};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::count::{At as CountAt, Info as CountInfo, Part as CountPart};
 use hd_tir::ir::{
@@ -28,9 +27,7 @@ use wasm_encoder::BlockType;
 
 use crate::Input;
 use crate::layout::{Enc, Is, Pass, Test, num, vals};
-use crate::module::{
-    Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, WEAK_GLUE, mem,
-};
+use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
 use crate::rt::Helper;
 
 mod borrow;
@@ -3271,18 +3268,6 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
                 }
-                TargetKind::Intrinsic(key)
-                    if matches!(
-                        key.as_str(),
-                        "weak_new"
-                            | "weak_new_mut"
-                            | "weak_upgrade"
-                            | "weak_upgrade_mut"
-                            | "weak_weaken"
-                    ) =>
-                {
-                    self.weak_intrinsic(i, key, ct.args, &args)
-                }
                 TargetKind::Intrinsic(key) => self.intrinsic(i, key, &args),
                 TargetKind::Builtin { self_ty, .. } => {
                     let path = (self.input.path)(ct.item);
@@ -3615,83 +3600,10 @@ impl Em<'_, '_, '_> {
         self.f.global_set(Global::Forbid);
     }
 
-    fn weak_intrinsic(
-        &mut self,
-        i: u32,
-        key: &str,
-        targs: TyList,
-        args: &[u32],
-    ) -> StageResult<()> {
-        // Each result is one address word, 0 for `.None`. ruled out:
-        // another layout. std declares the five (lib/std/weak.hd) to return
-        // `Weak[T]?`, `WeakMut[T]?`, `(*T)?`, `(*mut T)?` or `Weak[T]`: a
-        // counted address, or its optional, which the address's niche keeps
-        // one word (§23.3, `layout_of_enum`).
-        match key {
-            "weak_new" | "weak_new_mut" => {
-                // `weak_new[T]` and `weak_new_mut[T]`
-                // (`ref.weak.intrinsics.construction`).
-                let target = self.pool().list_items(targs)[0];
-                let type_key = canon(
-                    self.pool(),
-                    &|d| self.env().path_hash(d),
-                    &mut CanonMemo::default(),
-                    target,
-                );
-                // The weak key is the referent's address.
-                self.comp(args[0], 0)?;
-                self.f.op(Instruction::I64ExtendI32U);
-                self.f.push(Ins::WeakType(type_key));
-                self.f.push(Ins::WeakTypeTable);
-                self.f.push(Ins::WeakTypeCount);
-                self.f.helper(Helper::WeakNew);
-                self.store_owned(i)
-            }
-            "weak_upgrade" | "weak_upgrade_mut" => {
-                // The entry holds a payload start or zero. Lower its
-                // stated result retain here to keep the known-address
-                // count, and let the adjacent statement observe it.
-                self.comp(args[0], 0)?;
-                self.f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-                self.store_owned(i)?;
-                // ruled out: own::retains_result states an adjacent Retain for
-                // every Weak::upgrade/WeakMut::upgrade intrinsic result.
-                let retain = required(
-                    hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain),
-                    "own::retains_result states every weak upgrade result Retain",
-                );
-                let address = self.computed(i)[0];
-                self.f.get(address);
-                self.f.op(Instruction::If(BlockType::Empty));
-                self.because(Reason::from_word(retain.reason), |em| {
-                    em.f.get(address);
-                    em.f.helper(Helper::RetainKnown);
-                });
-                self.f.op(Instruction::End);
-                self.retained_before_result.insert(i);
-                Ok(())
-            }
-            "weak_weaken" => {
-                let moved = self.take(args[0]);
-                self.comp(args[0], 0)?;
-                if !moved {
-                    self.comp(args[0], 0)?;
-                    self.f.helper(Helper::RetainKnown);
-                }
-                self.store_owned(i)
-            }
-            _ => unreachable!(),
-        }
-    }
-
     fn intrinsic(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         match key {
             "descriptor_glue_mask" => {
-                self.f.u32(if self.m.uses_weak || self.m.open_world {
-                    WEAK_GLUE
-                } else {
-                    GLUE
-                });
+                self.f.u32(GLUE);
                 self.store(i)
             }
             // `panic(message)`: the `explicit-panic` report.
@@ -4046,7 +3958,7 @@ impl Em<'_, '_, '_> {
             // and `it` call, and refuses those three as values (`fnref.rs`);
             // collection gives `debug_texts` and `dbg_printer` their generated body
             // (`hd_mono` `dbg_target`) and a map probe its key's probe
-            // (`Target::MapKey`); `call` above takes the `ptr_`, `weak_`,
+            // (`Target::MapKey`); `call` above takes the `ptr_`,
             // `downcast_` and `type_id_of` keys first.
             other => unreachable!("ruled out: the intrinsic `{other}` is lowered before emission"),
         }
@@ -4151,12 +4063,11 @@ impl Em<'_, '_, '_> {
     }
 
     /// `unique_mut(r)` (`module.rt.unique`): the object the `*T` at `r`
-    /// refers to, lent for writing when its count word is 1 and no weak
-    /// side entry names it, else `.None`. A counted reference is the
-    /// address of a whole object's payload (`ref.box.object`), so its
-    /// header is 8 bytes below with no page-table lookup (§23.4): one
-    /// load and one compare, of the count word alone, or of the count
-    /// and descriptor words as one `i64` where weak references are linked.
+    /// refers to, lent for writing when its count word is 1, else `.None`.
+    /// A counted reference is the address of a whole object's payload
+    /// (`ref.box.object`), so its header is 8 bytes below with no
+    /// page-table lookup (§23.4): one load and one compare of the count
+    /// word.
     /// A static object's zero count reads as shared. Cost: constant per
     /// call; `own::unique_test` drops the load for a fresh box.
     fn unique_mut(&mut self, i: u32, r: u32) -> StageResult<()> {
@@ -4183,12 +4094,10 @@ impl Em<'_, '_, '_> {
 
     /// The passes' mark on a uniqueness test's argument `Ref` `r`
     /// (`own::unique_test`), and a sticky test's flag local, which every
-    /// test of its place shares. The marks count only box copies as second
-    /// owners; a weak reference's upgrade makes one too, so a module that
-    /// links weak references runs every test.
+    /// test of its place shares. The marks count box copies as second
+    /// owners.
     fn unique_mark(&mut self, r: u32) -> (u32, Option<u32>) {
-        let weak = self.m.uses_weak || self.m.open_world;
-        let word = if self.b.tags.get(r as usize) == Some(&Tag::Ref) && !weak {
+        let word = if self.b.tags.get(r as usize) == Some(&Tag::Ref) {
             self.b.data[r as usize][1]
         } else {
             0
@@ -4205,8 +4114,8 @@ impl Em<'_, '_, '_> {
         (word, flag)
     }
 
-    /// Pushes whether the object at `address` has one counted reference
-    /// and no weak side entry: 1 with no load for a `UNIQUE` mark; a
+    /// Pushes whether the object at `address` has one counted reference:
+    /// 1 with no load for a `UNIQUE` mark; a
     /// sticky test reads its flag first and, with `tee`, sets it from the
     /// load. A static object's zero count reads as shared.
     fn unique_test(&mut self, address: u32, word: u32, flag: Option<u32>, tee: bool) {
@@ -4224,19 +4133,9 @@ impl Em<'_, '_, '_> {
         self.f.get(address);
         self.f.u32(8);
         self.f.op(I::I32Sub);
-        if self.m.uses_weak || self.m.open_world {
-            self.f.op(I::I64Load(mem(HEAP, 0, 3)));
-            self.f.op(I::I64Const(
-                (u64::from(u32::MAX) | (u64::from(crate::module::WEAK) << 32)).cast_signed(),
-            ));
-            self.f.op(I::I64And);
-            self.f.op(I::I64Const(1));
-            self.f.op(I::I64Eq);
-        } else {
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            self.f.u32(1);
-            self.f.op(I::I32Eq);
-        }
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.u32(1);
+        self.f.op(I::I32Eq);
         if let Some(flag) = flag {
             if tee {
                 self.f.op(I::LocalTee(flag));

@@ -460,7 +460,7 @@ impl Em<'_, '_, '_> {
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
         let drops = self.cell_drop_calls(ty);
-        let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, Some(ty), drops);
+        let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, drops);
         #[cfg(feature = "checked-report")]
         if self.input.runtime.checked.is_some() && shared_locals(self.b).contains(&l) {
             crate::rt::checked_kind(&mut self.f, self.m, 2);

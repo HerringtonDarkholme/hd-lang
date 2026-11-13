@@ -200,11 +200,6 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("type_id_of", &[s(1, &[], Named("TypeId"))]),
     ("unique_mut", &[s(1, &[REF_MUT], Opt)]),
     ("utf8_valid_len", &[s(0, &[LIST], USIZE)]),
-    ("weak_new", &[s(1, &[REF], Opt)]),
-    ("weak_new_mut", &[s(1, &[REF_MUT], Opt)]),
-    ("weak_upgrade", &[s(1, &[Named("Weak")], Opt)]),
-    ("weak_upgrade_mut", &[s(1, &[Named("WeakMut")], Opt)]),
-    ("weak_weaken", &[s(1, &[Named("WeakMut")], Named("Weak"))]),
 ];
 
 /// The shapes of `key`, or `None` when no intrinsic has that key.

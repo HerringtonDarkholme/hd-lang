@@ -150,7 +150,7 @@ needs no self-derivation.
 | --- | --- | --- |
 | `std.core` (`lib/std/core`) | `std.core` from `core/mod.hd`: the seeded names, and `Copy`, `Eq`, `Hash`, `Hasher` | none |
 | `std` (`lib/std`) | the root files other than `prelude.hd` and `testing.hd` | `std.core`, `std.rt` (`std.rt.bytes`) |
-| `std.rt` (`lib/std/rt`) | `std.rt.bytes`, `std.rt.memory`, `std.rt.alloc`, `std.rt.cycle`, `std.rt.weak` | `std.core` |
+| `std.rt` (`lib/std/rt`) | `std.rt.bytes`, `std.rt.memory`, `std.rt.alloc`, `std.rt.cycle` | `std.core` |
 | `std.rt.entry` (virtual `rt/entry/mod.hd`) | `std.rt.entry` | `std`, `std.core` |
 | `std.rt.checked` (`lib/std/rt/checked`) | `std.rt.checked` | `std`, `std.rt`, `std.core` |
 | `std.rt.checked_report` (`lib/std/rt/checked_report`) | `std.rt.checked_report` | `std.rt.checked`, `std.rt`, `std.core` |

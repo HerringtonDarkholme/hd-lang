@@ -293,7 +293,7 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 15 the release glue's function-table slot plus one (0 for none; in a weak-linked module bits 0 to 14, and bit 15 set while a weak side entry names the object), bits 16 to 21 the borrow state (bits 16 to 20 the shared loan count, bit 21 an exclusive loan; `docs/future-work/POINTER_LOANS.md`), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 15 the release glue's function-table slot plus one (0 for none), bits 16 to 21 the borrow state (bits 16 to 20 the shared loan count, bit 21 an exclusive loan; `docs/future-work/POINTER_LOANS.md`), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 
 - A reference to a whole object is the payload's address, slot + 8, so
@@ -302,9 +302,8 @@ the slot's start:
 - **The descriptor word** identifies shared release glue, not a nominal
   type record. Its low 16 bits are the glue's table slot plus one.
   Release glues take the function table's first slots (§23.8), so the
-  field bounds only the count of distinct glues and their weak and checked
-  aliases: at most 65,535, or 32,767 when weak references are linked or
-  the world is open, which the link asserts. A session
+  field bounds only the count of distinct glues and their checked
+  aliases: at most 65,535, which the link asserts. A session
   extension's glues follow the table it inherits, so there the inherited
   length counts too. Six bits are the borrow state, three the
   collector's state, five carry an allocator class, and the top two are

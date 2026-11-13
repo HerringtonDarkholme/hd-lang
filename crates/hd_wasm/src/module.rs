@@ -73,20 +73,13 @@ pub const LOAN_EXCL: u32 = 1 << 21;
 /// The whole borrow state: the shared count and the exclusive bit. A write
 /// through a `*T` needs all of it clear; a read only [`LOAN_EXCL`].
 pub const LOAN_STATE: u32 = (1 << COLLECTOR_SHIFT) - LOAN_SHARED;
-/// The descriptor's release glue in a module without weak references: its
-/// table slot plus one, zero for none, below the borrow state.
+/// The descriptor's release glue: its table slot plus one, zero for none,
+/// below the borrow state.
 pub const GLUE: u32 = LOAN_SHARED - 1;
-/// A weak-linked module's descriptor bit, the glue's top one: a side entry
-/// currently names the object. Programs that do not use weak references
-/// keep the 16-bit glue mask.
-pub const WEAK: u32 = 1 << (LOAN_SHIFT - 1);
-/// The descriptor's release glue in a weak-linked module: its table slot plus
-/// one, zero for none. Bit 15 is then [`WEAK`].
-pub const WEAK_GLUE: u32 = WEAK - 1;
 
 // The descriptor word's fields (§23.4) are disjoint and fill it: the glue
 // slot, the borrow state, the collector's three bits, the class and the
-// two collector flags; the weak bit is the glue's top bit.
+// two collector flags.
 const _: () = assert!(
     GLUE & LOAN_STATE == 0
         && LOAN_STATE & (7 << COLLECTOR_SHIFT) == 0
@@ -94,46 +87,18 @@ const _: () = assert!(
         && CLASS_MASK & (BUFFERED | CYCLIC) == 0
         && GLUE | LOAN_STATE | (7 << COLLECTOR_SHIFT) | CLASS_MASK | BUFFERED | CYCLIC == u32::MAX
         && LOAN_STATE == LOAN_EXCL | (31 * LOAN_SHARED)
-        && WEAK | WEAK_GLUE == GLUE
 );
 
-/// A duplicate function-table slot used as an object descriptor. The weak
-/// type key distinguishes exact allocation types; checked-report's kind is
-/// orthogonal, so both identities survive in checked builds.
+/// A duplicate function-table slot used as an object descriptor:
+/// checked-report's allocation kind gives one release glue a slot per kind.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DescriptorKey {
-    weak: [u64; 2],
-    has_weak: bool,
     pub kind: u8,
 }
 impl DescriptorKey {
-    pub fn weak(hash: Hash128) -> Self {
-        let bytes = hash.0.to_le_bytes();
-        Self {
-            weak: [
-                u64::from_le_bytes(bytes[..8].try_into().expect("hash")),
-                u64::from_le_bytes(bytes[8..].try_into().expect("hash")),
-            ],
-            has_weak: true,
-            kind: 0,
-        }
-    }
-
-    pub fn weak_hash(self) -> Option<Hash128> {
-        self.has_weak.then(|| {
-            let mut bytes = [0; 16];
-            bytes[..8].copy_from_slice(&self.weak[0].to_le_bytes());
-            bytes[8..].copy_from_slice(&self.weak[1].to_le_bytes());
-            Hash128(u128::from_le_bytes(bytes))
-        })
-    }
-
     #[cfg(feature = "checked-report")]
     pub fn checked(kind: u8) -> Self {
-        Self {
-            kind,
-            ..Self::default()
-        }
+        Self { kind }
     }
 }
 
@@ -525,13 +490,15 @@ pub enum Ins {
     /// code-only marker: [`Module::finish`] emits no Wasm instruction for it.
     DrainGlue(SymId),
     /// A descriptor alias: a distinct slot with the same release glue, keyed
-    /// by exact weak-target type and/or checked-report allocation kind.
+    /// by checked-report allocation kind.
+    #[cfg_attr(
+        all(not(feature = "checked-report"), not(test)),
+        expect(
+            dead_code,
+            reason = "ruled out: only checked-report's allocation kinds make a descriptor alias"
+        )
+    )]
     Descriptor(SymId, DescriptorKey),
-    /// The compact link-local id of an exact weak-target type.
-    WeakType(Hash128),
-    /// The static descriptor-to-type table's address and row count.
-    WeakTypeTable,
-    WeakTypeCount,
     /// `call_indirect` through the function table, at this signature.
     CallIndirect(SigId),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
@@ -636,10 +603,6 @@ impl Func {
     pub fn glue(&mut self, s: Sym) {
         let id = self.intern(s);
         self.push(Ins::Glue(id));
-    }
-    pub fn descriptor(&mut self, s: Sym, key: DescriptorKey) {
-        let id = self.intern(s);
-        self.push(Ins::Descriptor(id, key));
     }
     pub fn drain_glue(&mut self, s: Sym) {
         let id = self.intern(s);
@@ -1025,7 +988,6 @@ pub struct Session {
     globals: BTreeMap<Global, SessionGlobal>,
     table_slots: BTreeMap<Sym, u32>,
     descriptor_slots: BTreeMap<(Sym, DescriptorKey), u32>,
-    weak_type_ids: BTreeMap<Hash128, u32>,
     modules: u32,
     table_len: u32,
     inputs: BTreeSet<u32>,
@@ -1238,10 +1200,6 @@ pub struct Module {
     /// The instances of `std.rt.cycle`, whose module init an acyclic
     /// program does not run.
     pub cycle_insts: BTreeSet<Hash128>,
-    /// Every `std.rt.*` instance. Weak descriptor registration runs after
-    /// the inits among them and before user/module initializers, which can
-    /// construct weak values.
-    pub runtime_insts: BTreeSet<Hash128>,
     /// Every `std.*` instance, the runtime's included: the inits whose
     /// releases of a binding's constant link drops before it looks for
     /// quiet inits.
@@ -1261,10 +1219,6 @@ pub struct Module {
     pub inline_counts: bool,
     /// Some emitted object has a constant small allocation class.
     pub fixed_allocations: bool,
-    /// Reachable weak constructors require exact runtime type descriptors.
-    pub uses_weak: bool,
-    /// Canonical concrete types named by reachable weak constructors.
-    pub weak_types: BTreeSet<Hash128>,
     /// The release glue of the objects that take part in cycle collection,
     /// at most [`DRAIN_GLUES`]: `rt:release_drain` calls these directly
     /// when a block's descriptor names one (§23.28).
@@ -1339,14 +1293,11 @@ impl Module {
             release: Default::default(),
             acyclic: Default::default(),
             cycle_insts: BTreeSet::default(),
-            runtime_insts: BTreeSet::default(),
             std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
             cold_insts: BTreeSet::default(),
             inline_counts: Default::default(),
             fixed_allocations: Default::default(),
-            uses_weak: Default::default(),
-            weak_types: BTreeSet::default(),
             drain_glues: Vec::default(),
             wakers: Default::default(),
             idle: Default::default(),
@@ -1624,9 +1575,7 @@ impl Module {
     fn import_session(&mut self, previous: &Session) -> StageResult<()> {
         let mut imports = BTreeMap::new();
         for (symbol, export) in &previous.functions {
-            // Every extension's entry init carries that module's static weak
-            // descriptor table. Reusing an earlier identical init key would
-            // register the earlier module's rows again and miss the new ones.
+            // Every extension emits its own entry init.
             if matches!(symbol, Sym::Helper(Helper::EntryInit { .. })) {
                 continue;
             }
@@ -2235,11 +2184,6 @@ impl Module {
         // release glues first, then the rest in the order first named.
         let mut slots: Vec<u32> = Vec::new();
         let table_start = previous.map_or(0, |p| p.table_len);
-        let descriptor_limit = if self.uses_weak || self.open_world {
-            WEAK_GLUE
-        } else {
-            GLUE
-        };
         let mut slot_of = Numbers::new();
         let mut descriptor_origins = BTreeMap::new();
         let mut descriptors: BTreeMap<(SymId, DescriptorKey), u32> = BTreeMap::new();
@@ -2318,11 +2262,10 @@ impl Module {
             }
         }
         assert!(
-            glue_top <= descriptor_limit,
+            glue_top <= GLUE,
             "{} release glues after a table prefix of {table_start} need a descriptor glue \
-             field of {glue_top}, past its limit of {descriptor_limit} (65,535, or 32,767 when \
-             weak references are linked or the world is open); each type layout an allocation \
-             names in its descriptor word (`rt::push_desc`) has one glue, and weak and checked \
+             field of {glue_top}, past its limit of {GLUE}; each type layout an \
+             allocation names in its descriptor word (`rt::push_desc`) has one glue, and checked \
              descriptors add aliases",
             slots.len()
         );
@@ -2368,47 +2311,13 @@ impl Module {
             }
         }
         // Resolve every other body slot, so the table is complete before
-        // encoding; weak descriptor aliases were all numbered above, before
-        // their link-time descriptor-to-type registry is appended to
-        // static data.
+        // encoding.
         for f in defined.iter().filter_map(|s| self.funcs[s.idx()].as_ref()) {
             for ins in &f.body {
                 if let Ins::TableSlot(t) = ins {
                     slot(t, &mut slots)?;
                 }
             }
-        }
-        let mut weak_type_ids = previous
-            .map(|p| p.weak_type_ids.clone())
-            .unwrap_or_default();
-        let mut weak_hashes: Vec<_> = descriptors
-            .keys()
-            .filter_map(|(_, key)| key.weak_hash())
-            .collect();
-        weak_hashes.extend(self.weak_types.iter().copied());
-        weak_hashes.sort_stable();
-        weak_hashes.dedup();
-        let mut next_weak_type = weak_type_ids.values().copied().max().unwrap_or(0) + 1;
-        for hash in weak_hashes {
-            weak_type_ids.entry(hash).or_insert_with(|| {
-                let id = next_weak_type;
-                next_weak_type += 1;
-                id
-            });
-        }
-        let weak_type_at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
-        let mut weak_rows: Vec<_> = descriptors
-            .iter()
-            .filter_map(|((_, key), slot)| {
-                let hash = key.weak_hash()?;
-                (*slot >= table_start).then_some((*slot + 1, weak_type_ids[&hash]))
-            })
-            .collect();
-        weak_rows.sort_stable();
-        weak_rows.dedup();
-        for (descriptor, type_id) in &weak_rows {
-            self.data.extend_from_slice(&descriptor.to_le_bytes());
-            self.data.extend_from_slice(&type_id.to_le_bytes());
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         let heap_base = static_end.next_multiple_of(8);
@@ -2647,36 +2556,6 @@ impl Module {
                             body.instruction(&WasmInstruction::I32Const(at.cast_signed()))
                         }
                     }
-                    Ins::WeakType(hash) => body.instruction(&WasmInstruction::I32Const(
-                        weak_type_ids
-                            .get(hash)
-                            .copied()
-                            .ok_or_else(|| {
-                                NotImplemented::bug(
-                                    Stage::Link,
-                                    "a weak constructor without a type id",
-                                )
-                            })?
-                            .cast_signed(),
-                    )),
-                    Ins::WeakTypeTable => {
-                        if previous.is_some() {
-                            body.instruction(&WasmInstruction::GlobalGet(
-                                gindex[&Global::SessionData],
-                            ));
-                            body.instruction(&WasmInstruction::I32Const(
-                                (weak_type_at - STATIC_BASE).cast_signed(),
-                            ));
-                            body.instruction(&WasmInstruction::I32Add)
-                        } else {
-                            body.instruction(&WasmInstruction::I32Const(weak_type_at.cast_signed()))
-                        }
-                    }
-                    Ins::WeakTypeCount => body.instruction(&WasmInstruction::I32Const(
-                        u32::try_from(weak_rows.len())
-                            .expect("weak descriptor rows")
-                            .cast_signed(),
-                    )),
                     Ins::Call(c) => body.instruction(&WasmInstruction::Call(
                         *index.get(*c).ok_or_else(|| undefined(c))?,
                     )),
@@ -2974,9 +2853,6 @@ impl Module {
                     .unwrap_or_else(|| self.symbols.get(*s).clone());
                 manifest.descriptor_slots.insert((symbol, *key), *slot);
             }
-        }
-        if session {
-            manifest.weak_type_ids = weak_type_ids.clone();
         }
         manifest.table_len = table_start + u32::try_from(slots.len()).expect("table");
         let mut data = DataSection::new();
@@ -3375,38 +3251,6 @@ mod checked_descriptor_tests {
             41
         );
         assert_eq!(slots, [7, 7]);
-    }
-
-    #[test]
-    fn weak_type_and_checked_kind_are_both_descriptor_identity() {
-        let glue = SymId(3);
-        let mut index = Numbers::new();
-        index.insert(glue, 7);
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
-        let mut a1 = DescriptorKey::weak(Hash128(1));
-        a1.kind = 1;
-        let mut b1 = DescriptorKey::weak(Hash128(2));
-        b1.kind = 1;
-        let mut a2 = DescriptorKey::weak(Hash128(1));
-        a2.kind = 2;
-        assert_eq!(
-            descriptor_slot(glue, a1, 0, &index, &mut slots, &mut ids).unwrap(),
-            0
-        );
-        assert_eq!(
-            descriptor_slot(glue, b1, 0, &index, &mut slots, &mut ids).unwrap(),
-            1
-        );
-        assert_eq!(
-            descriptor_slot(glue, a2, 0, &index, &mut slots, &mut ids).unwrap(),
-            2
-        );
-        assert_eq!(
-            descriptor_slot(glue, a1, 0, &index, &mut slots, &mut ids).unwrap(),
-            0
-        );
-        assert_eq!(slots, [7, 7, 7]);
     }
 }
 

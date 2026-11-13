@@ -2322,7 +2322,6 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
 fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
     Some(match i {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::Glue(_) | Ins::VTable(_) => (0, 1),
-        // Weak descriptor constants also exist without count reporting.
         Ins::Descriptor(..) => (0, 1),
         Ins::Anchor(_) => (0, 0),
         Ins::GlobalSet(_) => (1, 0),
@@ -2737,7 +2736,7 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
                     height = top.base;
                     top.unreachable = true;
                 }
-                Ins::Static(_) | Ins::WeakType(_) | Ins::WeakTypeTable | Ins::WeakTypeCount => {
+                Ins::Static(_) => {
                     height += 1;
                 }
                 Ins::DrainGlue(_) => {}
@@ -3688,7 +3687,7 @@ mod origin_tests {
     fn an_ungenerated_helper_has_enough_shape_to_remove_fallthrough_controls() {
         let symbols = Symbols::default();
         let target = symbols.intern(Sym::Helper(Helper::NewFixed { size: 4 }));
-        let descriptor = symbols.intern(Sym::Helper(Helper::WeakNoopDrop));
+        let descriptor = symbols.intern(Sym::Helper(Helper::FreeFrame));
         let mut function = Func::default();
         function.symbols = symbols.clone();
         function.body = vec![

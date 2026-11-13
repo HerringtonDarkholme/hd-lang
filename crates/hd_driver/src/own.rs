@@ -274,7 +274,7 @@ const PURE_INTRINSICS: &[&str] = &[
 /// parameters do: `string_from_bytes` takes over the list's buffer when its
 /// argument is the buffer's one holder (`crates/hd_wasm/DESIGN.md`
 /// §23.17), so the call consumes the list, moved in at its last use.
-const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "weak_weaken"];
+const OWNING_INTRINSICS: &[&str] = &["string_from_bytes"];
 
 impl Env<'_> {
     /// The compiler-known raw-memory relation of an intrinsic. This names
@@ -486,10 +486,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn retains_result(&self, callee: &Callee) -> bool {
-        matches!(callee, Callee::Item { def, .. } if matches!(
-            self.intrinsic(*def).as_deref(),
-            Some("bytes_slice" | "weak_upgrade" | "weak_upgrade_mut")
-        ))
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
     }
 
     fn copies_map_snapshot(&self, callee: &Callee) -> bool {
@@ -3167,7 +3164,7 @@ pub(super) mod owned_cache_tests {
             .into_iter()
             .filter_map(|(kind, key)| (kind == EntryKind::Owned).then_some(key))
             .collect();
-        assert!(owned.len() > 400, "{} owned std bodies", owned.len());
+        assert!(owned.len() > 380, "{} owned std bodies", owned.len());
         // A store with only the owned bodies: the builds below check, collect
         // and link again, and take every std body from it.
         let warm = MemoryStore::default();

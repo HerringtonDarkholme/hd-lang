@@ -10,9 +10,11 @@ use wasm_encoder::BlockType;
 
 use crate::layout::{Addr, Is, Leaf, Walk};
 use crate::map::{self, KeyOps};
+#[cfg(feature = "checked-report")]
+use crate::module::DescriptorKey;
 use crate::module::{
-    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LOAN_EXCL,
-    LOAN_SHARED, LOAN_STATE, Module, Sym, Val, WEAK, WEAK_GLUE, mem,
+    BUF, CYCLIC, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LOAN_EXCL, LOAN_SHARED,
+    LOAN_STATE, Module, Sym, Val, mem,
 };
 use crate::{Entry, Input};
 
@@ -248,18 +250,6 @@ pub enum Helper {
         walk: Walk,
         drops: Vec<DropCall>,
     },
-    /// `(payload)`: a type-keyed descriptor alias for a weak-target type
-    /// whose payload has no counted fields.
-    WeakNoopDrop,
-    /// `(serial: i64, type_id, aliases, alias_count: i32) -> entry`: creates or reuses
-    /// a side entry when the reference names an exact whole allocation.
-    WeakNew,
-    /// `(entry)`: removes the raw side-table row and clears the target's
-    /// descriptor bit when the last weak value releases its entry.
-    WeakEntryDrop,
-    /// `(aliases, alias_count)`: registers this module's descriptor aliases with the shared weak
-    /// runtime before any user initializer runs.
-    WeakTypeInit,
     /// `(payload)`: one more count on each counted reference in a new
     /// object's payload, which its construction copied in.
     RetainFields {
@@ -1444,8 +1434,6 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::RetainKnown
         | H::ReleaseKnown
         | H::DropFields { .. }
-        | H::WeakNoopDrop
-        | H::WeakEntryDrop
         | H::RetainFields { .. }
         | H::DropElems { .. }
         | H::DropEntries { .. }
@@ -1465,7 +1453,6 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::RetainAny
         | H::RaceDrop { .. } => (1, 0),
         H::PanicStr
-        | H::WeakTypeInit
         | H::CopyElems { .. }
         | H::CancelLeave
         | H::IdleHook
@@ -1501,7 +1488,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         H::StrFromBytes | H::LebGet | H::CleanupPoll | H::All { part: 1, .. } => (1, 2),
         H::StrAppend => (4, 2),
         H::FmtInt { .. } => (2, 2),
-        H::StrEq | H::BytesIndex | H::BytesMismatch | H::WeakNew => (4, 1),
+        H::StrEq | H::BytesIndex | H::BytesMismatch => (4, 1),
         H::BytesIndexSet(set) => (if set.is_some() { 3 } else { 7 }, 1),
         H::BytesIndexPair => (6, 1),
         H::HostPrim { args, result, .. } => (
@@ -1671,24 +1658,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 .filter(|(k, _)| !m.quiet_inits.contains(k))
                 .copied()
                 .collect();
-            if m.uses_weak || m.open_world {
-                for (k, forbid) in inits.iter().filter(|(k, _)| m.runtime_insts.contains(k)) {
-                    if !(m.acyclic && m.cycle_insts.contains(k)) {
-                        call_init(&mut f, *k, *forbid);
-                    }
-                }
-                f.push(Ins::WeakTypeTable);
-                f.push(Ins::WeakTypeCount);
-                f.helper(Helper::WeakTypeInit);
-                for (k, forbid) in inits.iter().filter(|(k, _)| !m.runtime_insts.contains(k)) {
+            for (k, forbid) in &inits {
+                // A program that links no collector needs no collector state.
+                if !(m.acyclic && m.cycle_insts.contains(k)) {
                     call_init(&mut f, *k, *forbid);
-                }
-            } else {
-                for (k, forbid) in &inits {
-                    // A program that links no collector needs no collector state.
-                    if !(m.acyclic && m.cycle_insts.contains(k)) {
-                        call_init(&mut f, *k, *forbid);
-                    }
                 }
             }
             f
@@ -1757,7 +1730,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             let desc = f.local(Val::I32);
             f.get(1);
             f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-            glue_of(&mut f, m);
+            glue_of(&mut f);
             f.set(desc);
             f.get(desc);
             f.op(Instruction::If(BlockType::Empty));
@@ -1893,8 +1866,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.u32(HEADER);
             f.op(Instruction::I32Sub);
             f.set(block);
-            // A frame is never a weak target, so its free clears no side
-            // entry ([`free_object`]).
             f.get(block);
             if m.fixed_allocations && m.runtime.checked.is_none() {
                 f.helper(Helper::FreeClass);
@@ -1945,10 +1916,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             walk,
             drops,
         } => drop_value_glue(m, *size, leaves, walk, drops),
-        Helper::WeakNoopDrop => m.func("rt:weak_noop_drop", vec![Val::I32], vec![]),
-        Helper::WeakNew => weak_new(m),
-        Helper::WeakEntryDrop => weak_entry_drop(m),
-        Helper::WeakTypeInit => weak_type_init(m),
         Helper::RetainFields { leaves, walk } => {
             fields_glue(m, "rt:retain_fields", leaves, walk, &[], &retain_call(m))
         }
@@ -2551,33 +2518,10 @@ pub(crate) fn push_desc_recursive(f: &mut Func, glue: Option<Sym>, cyclic: bool,
     }
 }
 
-/// [`push_desc_recursive`] with an exact weak-target type alias. A type with
-/// no ordinary release glue uses one shared no-op function; the alias slot,
-/// not the function body, carries its type identity.
-pub(crate) fn push_typed_desc_recursive(
-    f: &mut Func,
-    glue: Option<Sym>,
-    cyclic: bool,
-    recursive: bool,
-    key: Hash128,
-) {
-    let glue = glue.unwrap_or(Sym::Helper(Helper::WeakNoopDrop));
-    f.descriptor(glue.clone(), DescriptorKey::weak(key));
-    f.u32(if cyclic { CYCLIC + 1 } else { 1 });
-    f.op(Instruction::I32Add);
-    if cyclic || recursive {
-        f.drain_glue(glue);
-    }
-}
-
 /// Pushes the release glue's table slot plus one from the descriptor word
 /// on the stack, without the collector and allocation-class bits.
-pub(crate) fn glue_of(f: &mut Func, m: &Module) {
-    f.u32(if m.uses_weak || m.open_world {
-        WEAK_GLUE
-    } else {
-        GLUE
-    });
+pub(crate) fn glue_of(f: &mut Func) {
+    f.u32(GLUE);
     f.op(Instruction::I32And);
 }
 
@@ -2780,206 +2724,12 @@ fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) 
 
 fn free_object(f: &mut Func, m: &Module, block: u32) {
     let r = m.runtime;
-    clear_weak(f, m, block);
     f.get(block);
     if m.fixed_allocations && r.checked.is_none() {
         f.helper(Helper::FreeClass);
     } else {
         f.call(Sym::Inst(r.free));
     }
-}
-
-/// Clears a target's side entry at logical death, before cycle buffering or
-/// allocator reuse. Session helpers are weak-capable from their base module,
-/// because a later input may introduce the first weak constructor.
-fn clear_weak(f: &mut Func, m: &Module, block: u32) {
-    if !(m.uses_weak || m.open_world) {
-        return;
-    }
-    let r = m.runtime;
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.u32(WEAK);
-    f.op(Instruction::I32And);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    f.call(Sym::Inst(r.weak.clear));
-    f.op(Instruction::End);
-}
-
-/// The common lowering of `weak` and `weak_mut`.
-fn weak_type_init(m: &Module) -> Func {
-    let mut f = m.func("rt:weak_type_init", vec![Val::I32, Val::I32], vec![]);
-    let r = m.runtime;
-    let (row, at) = (f.local(Val::I32), f.local(Val::I32));
-    f.op(Instruction::Block(BlockType::Empty));
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(row);
-    f.get(1);
-    f.op(Instruction::I32GeU);
-    f.op(Instruction::BrIf(1));
-    f.get(0);
-    f.get(row);
-    f.i32(3);
-    f.op(Instruction::I32Shl);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::LocalTee(at));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.get(at);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.call(Sym::Inst(r.weak.type_bind));
-    f.get(row);
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.set(row);
-    f.op(Instruction::Br(0));
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f
-}
-
-/// The common lowering of `weak` and `weak_mut`.
-fn weak_new(m: &Module) -> Func {
-    let mut f = m.func(
-        "rt:weak_new",
-        vec![Val::I64, Val::I32, Val::I32, Val::I32],
-        vec![Val::I32],
-    );
-    let r = m.runtime;
-    let (target, block, entry, actual, row, valid) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
-    // Erased-field serials carry their base in the high word; only a plain
-    // physical address can denote a whole allocation.
-    f.get(0);
-    f.op(Instruction::I64Const(32));
-    f.op(Instruction::I64ShrU);
-    f.op(Instruction::I64Eqz);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.op(Instruction::I32WrapI64);
-    f.set(target);
-    f.get(target);
-    f.call(Sym::Inst(r.block_of));
-    f.op(Instruction::LocalTee(block));
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    f.get(target);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.u32(WEAK_GLUE);
-    f.op(Instruction::I32And);
-    f.op(Instruction::LocalTee(actual));
-    f.call(Sym::Inst(r.weak.type_of));
-    f.get(1);
-    f.op(Instruction::I32Eq);
-    f.set(valid);
-    f.op(Instruction::Block(BlockType::Empty));
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(valid);
-    f.op(Instruction::BrIf(1));
-    f.get(row);
-    f.get(3);
-    f.op(Instruction::I32GeU);
-    f.op(Instruction::BrIf(1));
-    f.get(2);
-    f.get(row);
-    f.i32(3);
-    f.op(Instruction::I32Shl);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::LocalTee(entry));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.get(actual);
-    f.op(Instruction::I32Eq);
-    f.get(entry);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.get(1);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::I32And);
-    f.set(valid);
-    f.get(row);
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.set(row);
-    f.op(Instruction::Br(0));
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.get(valid);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::If(BlockType::Empty));
-    f.i32(0);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(target);
-    f.call(Sym::Inst(r.weak.lookup));
-    f.op(Instruction::LocalTee(entry));
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(entry);
-    f.call(Sym::Inst(r.retain_known));
-    f.get(entry);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-
-    f.u32(8);
-    push_desc(&mut f, Some(Sym::Helper(Helper::WeakEntryDrop)), false);
-    f.helper(Helper::New);
-    f.op(Instruction::LocalTee(entry));
-    f.get(target);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(target);
-    f.get(entry);
-    f.call(Sym::Inst(r.weak.bind));
-    f.get(block);
-    // Allocating the side entry may collect and therefore change the target's
-    // color or BUFFERED bits. Preserve that current descriptor word.
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.u32(WEAK);
-    f.op(Instruction::I32Or);
-    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    f.get(entry);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.i32(0);
-    f
-}
-
-fn weak_entry_drop(m: &Module) -> Func {
-    let mut f = m.func("rt:weak_entry_drop", vec![Val::I32], vec![]);
-    let r = m.runtime;
-    let target = f.local(Val::I32);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.op(Instruction::LocalTee(target));
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(target);
-    f.get(0);
-    f.call(Sym::Inst(r.weak.forget));
-    f.get(target);
-    f.u32(HEADER - 4);
-    f.op(Instruction::I32Sub);
-    f.get(target);
-    f.u32(HEADER - 4);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.u32(!WEAK);
-    f.op(Instruction::I32And);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.op(Instruction::End);
-    f
 }
 
 /// [`Helper::New`]: a block of the header and the payload from std's
@@ -3091,7 +2841,6 @@ fn release_ref(m: &Module, addr: Addr) -> Func {
     f.op(Instruction::If(BlockType::Empty));
     f.op(Instruction::Return);
     f.op(Instruction::End);
-    clear_weak(&mut f, m, block);
 
     // The final release already removed the block from cycle candidates.
     f.global_get(Global::Releasing);
@@ -3128,7 +2877,6 @@ fn take_box(m: &Module) -> Func {
     f.i32(1);
     f.op(Instruction::I32Eq);
     f.op(Instruction::If(BlockType::Empty));
-    clear_weak(&mut f, m, block);
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.set(desc);
@@ -3155,7 +2903,7 @@ fn release_drain(m: &Module) -> Func {
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.op(Instruction::LocalTee(desc));
-    glue_of(&mut f, m);
+    glue_of(&mut f);
     f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
     if m.drain_glues.is_empty() {

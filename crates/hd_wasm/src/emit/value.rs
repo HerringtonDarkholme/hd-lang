@@ -6,7 +6,6 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_mono::layout::{CanonMemo, canon};
 use hd_types::{Ty, TyData};
 use std::rc::Rc;
 
@@ -191,7 +190,7 @@ impl Em<'_, '_, '_> {
         target: Option<Ty>,
     ) -> u32 {
         let drops = target.map_or_else(Vec::new, |ty| self.drop_calls(ty));
-        self.object_drops(m, walk, cyclic, recursive, target, drops)
+        self.object_drops(m, walk, cyclic, recursive, drops)
     }
 
     pub(super) fn object_drops(
@@ -200,7 +199,6 @@ impl Em<'_, '_, '_> {
         walk: Option<&Walk>,
         cyclic: bool,
         recursive: bool,
-        target: Option<Ty>,
         drops: Vec<DropCall>,
     ) -> u32 {
         let at = self.f.local(Val::I32);
@@ -222,20 +220,7 @@ impl Em<'_, '_, '_> {
                     })
                 })
             });
-        let weak_key = target.and_then(|ty| {
-            let key = canon(
-                self.pool(),
-                &|d| self.env().path_hash(d),
-                &mut CanonMemo::default(),
-                ty,
-            );
-            (self.m.open_world || self.m.weak_types.contains(&key)).then_some(key)
-        });
-        if let Some(key) = weak_key {
-            crate::rt::push_typed_desc_recursive(&mut self.f, glue, cyclic, recursive, key);
-        } else {
-            crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
-        }
+        crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
         if self.input.runtime.checked.is_none()
             && m.size
                 .checked_add(crate::module::HEADER)
