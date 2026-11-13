@@ -254,6 +254,76 @@ fn an_if_nested_in_each_else_suite_still_nests_too_deep() {
     );
 }
 
+/// `fn f(x: T) -> T:` and one expression of `x` followed by `links`
+/// copies of `link`.
+fn chain(link: &str, links: usize) -> String {
+    format!("fn f(x: i32) -> i32:\n    x{}\n", link.repeat(links))
+}
+
+fn too_deep(source: &str) -> Vec<(u32, &'static str)> {
+    parse(source.as_bytes())
+        .diagnostics
+        .iter()
+        .map(|d| (d.primary.lo, d.code.as_str()))
+        .collect()
+}
+
+#[test]
+fn a_chain_of_ten_thousand_links_parses_and_one_more_is_too_deep() {
+    // grammar.limit.chain: a binary operator, a member, a call, an index
+    // or a `?` is one link; `.m(...)` and `T::f(...)` are one link each.
+    // A pipe step's call is a link too, and `.m!` and `::[i32]` are one
+    // each.
+    for (link, links) in [
+        (" + x", 10_000),
+        (" |> f(_)", 9_999),
+        (".a", 10_000),
+        ("()", 10_000),
+        ("[0]", 10_000),
+        ("?", 10_000),
+        (".m()", 10_000),
+        (".m!::[i32]()", 3_333),
+    ] {
+        let codes = too_deep(&chain(link, links));
+        assert!(
+            codes.iter().all(|(_, c)| *c != "nesting-too-deep"),
+            "{link}"
+        );
+    }
+    for link in [" + x", ".a", "()", "[0]", "?", ".m()"] {
+        let source = chain(link, 10_001);
+        let last = u32::try_from(source.len() - 1 - link.trim_start().len()).unwrap();
+        assert_eq!(too_deep(&source), [(last, "nesting-too-deep")], "{link}");
+    }
+}
+
+#[test]
+fn a_chain_counts_the_links_of_its_bracketed_operand() {
+    // 5,000 links inside the parentheses and 5,001 after them: the
+    // deepest path has 10,001.
+    let source = format!(
+        "fn f(x: i32) -> i32:\n    (x{}){}\n",
+        " + x".repeat(5_000),
+        " + x".repeat(5_001)
+    );
+    let codes = too_deep(&source);
+    assert_eq!(codes.len(), 1);
+    assert_eq!(codes[0].1, "nesting-too-deep");
+    let fits = format!(
+        "fn f(x: i32) -> i32:\n    (x{}){}\n",
+        " + x".repeat(5_000),
+        " + x".repeat(5_000)
+    );
+    assert!(too_deep(&fits).is_empty());
+    // Two chains side by side are not one path.
+    let wide = format!(
+        "fn f(x: i32) -> i32:\n    g(x{}, x{})\n",
+        " + x".repeat(6_000),
+        " + x".repeat(6_000)
+    );
+    assert!(too_deep(&wide).is_empty());
+}
+
 #[test]
 fn impl_types_are_scoped_to_named_function_annotations() {
     let source = "fn values[T](value: T) -> impl Iterator[T]:\n    value\n";

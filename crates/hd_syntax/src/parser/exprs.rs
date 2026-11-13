@@ -728,15 +728,23 @@ impl Parser<'_> {
     }
 
     fn binary(&mut self, min: u8) -> Done {
+        let outer = core::mem::take(&mut self.links);
         let mut lhs = self.unary();
+        let mut links = self.links;
         while let Some((power, kind)) = self.current().and_then(infix) {
             if power < min {
                 break;
             }
+            let operator = self.pos();
             let marker = self.precede(lhs);
             self.bump();
             self.binary(power + 1);
             lhs = self.complete(marker, kind);
+            links = links.max(self.links) + 1;
+            if let Some(error) = self.chain_too_long(lhs, links, operator) {
+                self.links = outer.max(links);
+                return error;
+            }
             if kind == SyntaxKind::ComparisonExpr
                 && self
                     .current()
@@ -748,6 +756,7 @@ impl Parser<'_> {
                 self.error_at(Code::ComparisonChaining, at, "comparisons do not chain");
             }
         }
+        self.links = outer.max(links);
         lhs
     }
 
@@ -842,9 +851,13 @@ impl Parser<'_> {
         let mut callee_end = start;
         let mut callee_bang = start;
         let mut type_arguments_start = start;
+        let outer = core::mem::take(&mut self.links);
         let mut lhs = self.primary();
+        let mut links = self.links;
         while let Some(kind) = self.current() {
             let same_line = !self.nth_line_first(0);
+            let link = self.pos();
+            let callee = lhs.kind();
             match kind {
                 TokenKind::Ident
                     if same_line
@@ -1020,16 +1033,6 @@ impl Parser<'_> {
                         lhs = self.complete(marker, SyntaxKind::TypeArgsExpr);
                     } else {
                         self.expect_name("an associated function name");
-                        if self.at(TokenKind::Bang)
-                            && self.nth_glued(0)
-                            && matches!(
-                                self.nth(1),
-                                Some(TokenKind::LParen | TokenKind::ColonColon)
-                            )
-                        {
-                            lhs = self.complete(marker, SyntaxKind::PathExpr);
-                            continue;
-                        }
                         lhs = self.complete(marker, SyntaxKind::PathExpr);
                     }
                 }
@@ -1051,7 +1054,23 @@ impl Parser<'_> {
                 }
                 _ => break,
             }
+            // A call of a member, a path, a type-argument list or a `!`
+            // is one link with its name, so a link is at most two levels.
+            let continues = lhs.kind() == SyntaxKind::CallExpr
+                && matches!(
+                    callee,
+                    SyntaxKind::FieldExpr
+                        | SyntaxKind::PathExpr
+                        | SyntaxKind::SuspendExpr
+                        | SyntaxKind::TypeArgsExpr
+                );
+            links = links.max(self.links) + u32::from(!continues);
+            if let Some(error) = self.chain_too_long(lhs, links, link) {
+                self.links = outer.max(links);
+                return error;
+            }
         }
+        self.links = outer.max(links);
         lhs
     }
 

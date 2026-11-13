@@ -194,6 +194,18 @@ pass. `precede` wraps a finished node through `forward_parent`;
   instead of recursing, so its length costs no stack depth; recursion is
   bounded by the number of precedence levels. Comparisons report
   `comparison-chaining`, and ranges do not chain.
+- **Chain limit.** The tree a chain builds is still one level per link,
+  and every later walk recurses over it. So `binary` and `postfix` count
+  the links on the deepest path below the node they return, brackets
+  included (`grammar.limit.chain`): each takes `Parser::links` before
+  its first operand and reads its operands' counts from it, a few
+  integer operations per operand and none per other node. A call of a
+  member or a path is one link with its name, so a link is at most two
+  levels. Past 10,000 (`MAX_CHAIN_LINKS`) the parser reports
+  `nesting-too-deep` once, at the first link past it, and skips the rest
+  of the chain into an `ERROR` node. Below it, check, fmt and build fit
+  `hd_sched::pool::WORKER_STACK`, which `hd` gives its command thread
+  too.
 - **Grammar checks.** A path-only alias such as `use a.b as c` parses.
   An associated type is only `type Name` in a trait or `type Name = Type`
   in an impl; `type Item < Eq = i32` is a `syntax-error`.

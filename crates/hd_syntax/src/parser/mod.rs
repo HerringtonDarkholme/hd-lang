@@ -147,6 +147,18 @@ impl Done {
 
 const MAX_NESTING: u32 = 160;
 
+/// Binary operators and postfix operations on one path from an expression
+/// down to an operand, brackets included (`grammar.limit.chain`). Each
+/// link is a level of the syntax tree that every later walk takes by
+/// recursion, and the nesting limit does not bound them: a chain loops in
+/// the parser. Below it, check, fmt and build fit a pool worker's stack
+/// (`hd_sched::pool::WORKER_STACK`), which `hd` gives its command thread.
+pub(crate) const MAX_CHAIN_LINKS: u32 = 10_000;
+
+/// `grammar.limit.chain.error`.
+const CHAIN_TOO_LONG: &str =
+    "an expression chains more operators and postfix operations than the implementation limit";
+
 /// `grammar.type.rest.elsewhere`.
 const REST_ELSEWHERE: &str =
     "a rest element is only allowed last in a tuple type or a function parameter list";
@@ -176,6 +188,11 @@ pub(crate) struct Parser<'t> {
     /// The last suite consumed was a same-line suite.
     suite_inline: bool,
     nesting: u32,
+    /// The most links (`MAX_CHAIN_LINKS`) on any path of an expression
+    /// finished since `binary` or `postfix` last took it: each takes it
+    /// before its first operand, reads its operands' counts from it, and
+    /// leaves the greater of the old value and its own count.
+    links: u32,
     /// Opaque type occurrences are syntax only in a named function's
     /// return annotation, including its nested type arguments.
     opaque_result: bool,
@@ -215,6 +232,7 @@ impl<'t> Parser<'t> {
             suite_closed: false,
             suite_inline: false,
             nesting: 0,
+            links: 0,
             opaque_result: false,
             opaque_bound: false,
             infer_types: false,
@@ -736,6 +754,22 @@ impl<'t> Parser<'t> {
 
     pub(crate) fn leave(&mut self) {
         self.nesting -= 1;
+    }
+
+    /// `grammar.limit.chain`: past `MAX_CHAIN_LINKS`, reports the link
+    /// that began at token `at` and skips the rest of the chain into an
+    /// error node around `done`, so no tool walks a deeper tree.
+    pub(crate) fn chain_too_long(&mut self, done: Done, links: u32, at: usize) -> Option<Done> {
+        if links <= MAX_CHAIN_LINKS {
+            return None;
+        }
+        if !self.errors.iter().any(|e| e.code == Code::NestingTooDeep) {
+            self.report(Code::NestingTooDeep, at, CHAIN_TOO_LONG);
+        }
+        self.stmt_errored = true;
+        let marker = self.precede(done);
+        self.skip_balanced();
+        Some(self.complete(marker, SyntaxKind::Error))
     }
 
     /// Past the nesting limit: skips a balanced run of tokens.

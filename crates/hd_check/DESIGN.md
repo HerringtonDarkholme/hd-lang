@@ -1513,7 +1513,8 @@ Other limits:
 | Limit | Value | Checked at | Diagnostic |
 | --- | --- | --- | --- |
 | trait resolution depth | 64 | solver | `trait-resolution-depth` |
-| nesting depth | 256 | parser; the checker relies on it | `nesting-too-deep` |
+| nesting depth | 160 | parser; the checker relies on it | `nesting-too-deep` |
+| chain length | 10,000 links | parser; the checker relies on it | `nesting-too-deep` |
 | instantiation depth of row keys | 32 | M1 row solve | `instantiation-too-deep` |
 | growing generic call cycle | none: any growth on a cycle | after a module's bodies (`inst_cycles`) | `instantiation-too-deep` |
 
@@ -1524,8 +1525,8 @@ and `match-too-complex`.
 
 | Case | Danger | Design answer |
 | --- | --- | --- |
-| a method chain of 10,000 calls, `a.b().c()...` | the syntax tree is 10,000 deep on its left spine | planned, not built: walk a postfix chain into a scratch stack and check it bottom-up in a loop; likewise left-deep operator chains |
-| deep nesting of brackets, blocks and closures | stack overflow | the nesting limit of 256 bounds native recursion |
+| a method chain of 10,000 calls, `a.b().c()...` | the syntax tree is 10,000 deep on its left spine | the parser rejects a chain past 10,000 links (`grammar.limit.chain`), and below it the walks recurse on a 32 MiB worker stack (`hd_sched::pool::WORKER_STACK`); a method chain's receivers are checked in a loop |
+| deep nesting of brackets, blocks and closures | stack overflow | the nesting limit of 160 bounds native recursion |
 | a list literal of 100,000 elements | quadratic LCT or literal grouping | the join compares a value only when the site's type changes, a bounded number of times per site; literal classes are union-find |
 | a 10,000-arm literal match | quadratic usefulness | planned one-column fast path (section 7.2) |
 | wide tuple patterns with nested enums | exponential usefulness | fuel |

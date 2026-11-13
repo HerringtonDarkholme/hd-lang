@@ -79,7 +79,26 @@ fn usage() -> ExitCode {
     ExitCode::from(HD_FAILURE)
 }
 
+/// Runs the command on a thread with a pool worker's stack
+/// (`hd_sched::pool::WORKER_STACK`), so `hd fmt` and a one-thread build,
+/// which run on this thread, take the chains a worker takes
+/// (`grammar.limit.chain`). A main thread gets 8 MiB from the OS, and a
+/// chain of 10,000 calls needs more. Untouched stack pages cost no memory.
 fn main() -> ExitCode {
+    match std::thread::Builder::new()
+        .name("main".to_owned())
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        // cost: one thread per `hd` process, whatever the input.
+        .spawn(command_main)
+    {
+        Ok(thread) => thread
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+        Err(_) => command_main(),
+    }
+}
+
+fn command_main() -> ExitCode {
     #[cfg(windows)]
     if std::env::args_os()
         .nth(1)

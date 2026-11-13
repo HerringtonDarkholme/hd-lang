@@ -80,12 +80,13 @@ impl Spawn for PoolSpawn<'_, '_> {
     }
 }
 
-/// A worker's stack: the 8 MiB a main thread gets, so a task that the
-/// serial executor runs on the main thread also fits on a worker. A
-/// syntax walk recurses once per nesting level, and a method chain is
-/// one level per link; rayon's default of 2 MiB overflowed on one
-/// expression of about 8,000 links. Untouched stack pages cost no RSS.
-pub const WORKER_STACK: usize = 8 * 1024 * 1024;
+/// A worker's stack, which `hd` gives its command thread too. A syntax
+/// walk recurses once per nesting level, and a chain link is one or two
+/// levels. At the parser's limit of 10,000 links (`grammar.limit.chain`),
+/// checking `f()()...` needs 12 to 16 MiB in a dev build, and 32 MiB is
+/// twice that; a main thread's 8 MiB overflowed. Untouched stack pages
+/// cost no RSS, so the size costs address space only.
+pub const WORKER_STACK: usize = 32 * 1024 * 1024;
 
 /// Runs the graph on `threads` rayon workers; returns it with the number
 /// of tasks that never became ready (0 unless the graph has a bug). If the
