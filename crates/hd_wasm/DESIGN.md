@@ -2281,7 +2281,7 @@ backend's is below.
   (`Em::read_part`).
 - **Uniqueness before a loop.** A hoisted `IsUnique` runs once before
   its loop, under the loop's entry test, so an empty loop copies
-  nothing (`Em::hoisted_uniques`; §23.16, "Uniqueness and pins").
+  nothing (`Em::hoisted_uniques`; §23.16, "Uniqueness checks").
 - **Loop caches.** The hoisting pass lists each loop's stable list
   places in `Body::stable_lists`: a local's list, or the list a
   reference local refers to, that nothing in the loop replaces. One
