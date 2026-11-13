@@ -26,6 +26,7 @@ function publisher(profile) {
   }
   async function inventory(directory, allowedDirectories, prefix = "") {
     const files = Object.create(null);
+    // cost: inspect only this touched generation's entries and payload bytes.
     for (const name of (await readdir(join(directory, prefix))).sort()) {
       const path = prefix ? prefix + "/" + name : name;
       const stat = await lstat(join(directory, path));
@@ -121,7 +122,38 @@ function publisher(profile) {
       return null;
     }
   }
-  async function inspect(output) {
+  async function inspectActive(generations, active) {
+    if (active === null) {
+      return null;
+    }
+    let selected;
+    try {
+      selected = profile.selected(JSON.parse(active));
+    } catch {
+      throw fail("platform configuration was changed outside the SDK");
+    }
+    // Validate before joining a path: selector text never supplies traversal.
+    if (typeof selected !== "string" || !profile.validName(selected)) {
+      throw fail("platform configuration was changed outside the SDK");
+    }
+    const inspected = await inspectGeneration(generations, selected, active);
+    if (!inspected.active) {
+      throw fail("platform configuration was changed outside the SDK");
+    }
+    return { name: selected, id: inspected.id };
+  }
+  async function inspectDestination(generations, destination) {
+    try {
+      await lstat(join(generations, destination));
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+      return null;
+    }
+    return (await inspectGeneration(generations, destination, null)).id;
+  }
+  async function ownedStore(output) {
     let stat;
     try {
       stat = await lstat(output);
@@ -138,7 +170,7 @@ function publisher(profile) {
       throw fail("refusing output without its ownership record");
     }
     // Platform caches and unrelated root files are outside the SDK's ownership.
-    // Only the selector and reserved generation store are inspected or changed.
+    // Publication checks the active/destination generations, never retained ones.
     const active = await activeConfiguration(output);
     const generations = join(output, profile.store);
     let directory;
@@ -146,24 +178,52 @@ function publisher(profile) {
       directory = await lstat(generations);
     } catch (error) {
       if (error.code === "ENOENT" && active === null) {
-        return new Set();
+        return { active, generations, present: false };
       }
       throw error;
     }
     if (!directory.isDirectory() || directory.isSymbolicLink()) {
       throw fail("generation store is not an owned directory");
     }
-    const known = new Set();
-    let activeKnown = active === null;
-    for (const name of await readdir(generations)) {
-      const inspected = await inspectGeneration(generations, name, active);
-      activeKnown ||= inspected.active;
-      known.add(inspected.id);
+    return { active, generations, present: true };
+  }
+  async function inspect(output, destination = null, fullAudit = false) {
+    const store = await ownedStore(output);
+    if (store === null) {
+      return null;
     }
-    if (!activeKnown) {
-      throw fail("platform configuration was changed outside the SDK");
+    const known = new Set();
+    if (!store.present) {
+      return known;
+    }
+    const { active, generations } = store;
+    const selected = await inspectActive(generations, active);
+    if (selected !== null) {
+      known.add(selected.id);
+    }
+    if (fullAudit) {
+      // cost: explicit full audit only, O(all retained entries and payload bytes).
+      for (const name of await readdir(generations)) {
+        if (name !== selected?.name) {
+          known.add((await inspectGeneration(generations, name, active)).id);
+        }
+      }
+    } else if (destination !== null && destination !== selected?.name) {
+      const id = await inspectDestination(generations, destination);
+      if (id !== null) {
+        known.add(id);
+      }
     }
     return known;
+  }
+
+  async function audit(outputDirectory) {
+    const output = resolve(outputDirectory);
+    const known = await inspect(output, null, true);
+    if (known === null) {
+      throw fail("output does not exist");
+    }
+    return Object.freeze({ directory: output, generations: known.size });
   }
 
   // Publish one regular configuration file, never exchange nonempty directories.
@@ -176,6 +236,7 @@ function publisher(profile) {
     const config = JSON.parse(JSON.stringify(configuration));
     const hashes = Object.fromEntries([...captured].map(([name, bytes]) => [name, hash(bytes)]));
     const generation = generationId(config, hashes);
+    const destination = profile.directory(config, generation);
     const output = resolve(outputDirectory);
     const contents = json(profile.configuration(config, generation));
     await mkdir(dirname(output), { recursive: true });
@@ -183,7 +244,7 @@ function publisher(profile) {
     await mkdir(lock);
     let stage;
     try {
-      const known = await inspect(output);
+      const known = await inspect(output, destination);
       signal?.throwIfAborted();
       stage = await mkdtemp(join(dirname(output), ".hd-" + profile.platform + "-"));
       const payload = join(stage, profile.store, profile.directory(config, generation));
@@ -210,9 +271,12 @@ function publisher(profile) {
         await rename(payload, join(output, profile.store, profile.directory(config, generation)));
       } else {
         // Recheck SDK-owned paths; unrelated root files are never traversed.
-        await inspect(output);
+        const refreshed = await inspect(output, destination);
+        if (refreshed === null) {
+          throw fail("output disappeared during publication");
+        }
         await mkdir(join(output, profile.store), { recursive: true });
-        if (!known.has(generation)) {
+        if (!refreshed.has(generation)) {
           await rename(payload, join(output, profile.store, profile.directory(config, generation)));
         }
       }
@@ -230,10 +294,10 @@ function publisher(profile) {
     }
   }
 
-  return publish;
+  return { publish, audit };
 }
 
-export const publishCloudflare = publisher({
+export const { publish: publishCloudflare, audit: auditCloudflareOutput } = publisher({
   platform: "cloudflare",
   selector: "wrangler.json",
   store: "generations",
@@ -244,6 +308,9 @@ export const publishCloudflare = publisher({
   directory(_configuration, id) {
     return id;
   },
+  selected(configuration) {
+    return /^generations\/([0-9a-f]{64})\/entry\.js$/.exec(configuration?.main)?.[1];
+  },
   check(configuration) {
     if (Object.hasOwn(configuration, "main")) {
       throw fail("the SDK chooses the entry path");
@@ -253,7 +320,7 @@ export const publishCloudflare = publisher({
     return { ...value, main: `generations/${id}/entry.js` };
   },
 });
-export const publishVercelNode = publisher({
+export const { publish: publishVercelNode, audit: auditVercelNodeOutput } = publisher({
   platform: "vercel-node",
   selector: "config.json",
   store: "functions",
@@ -263,6 +330,12 @@ export const publishVercelNode = publisher({
   },
   directory(configuration, id) {
     return `${configuration.name}-${id.slice(0, 48)}.func`;
+  },
+  selected(configuration) {
+    const destination = configuration?.routes?.[0]?.dest;
+    return typeof destination === "string" && destination.startsWith("/")
+      ? destination.slice(1) + ".func"
+      : null;
   },
   check(configuration) {
     if (

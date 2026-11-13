@@ -105,8 +105,8 @@ test("Vercel refuses unowned roots and another platform's owned output", async (
   }
 });
 
-test("changed selectors, function bytes and extra functions are preserved and refused", async () => {
-  for (const kind of ["selector", "payload", "extra", "full-digest", "missing-digest"]) {
+test("changed selectors and active function bytes or identities are preserved and refused", async () => {
+  for (const kind of ["selector", "payload", "full-digest", "missing-digest"]) {
     await fixture(async (output) => {
       await publishVercelNode(input(output));
       const before = await readFile(join(output, "config.json"), "utf8"),
@@ -118,8 +118,6 @@ test("changed selectors, function bytes and extra functions are preserved and re
         target = join(active(output, config), "sdk/value.js");
       } else if (["full-digest", "missing-digest"].includes(kind)) {
         target = join(active(output, config), ".hd-generation.json");
-      } else {
-        target = join(output, "functions/unrelated.func");
       }
       let edited = "unrelated edit";
       if (["full-digest", "missing-digest"].includes(kind)) {
@@ -133,17 +131,9 @@ test("changed selectors, function bytes and extra functions are preserved and re
         }
         edited = JSON.stringify(record);
       }
-      if (kind === "extra") {
-        await mkdir(target);
-      } else {
-        await writeFile(target, edited);
-      }
+      await writeFile(target, edited);
       await assert.rejects(publishVercelNode(input(output, "two")));
-      if (kind === "extra") {
-        assert.deepEqual(await readdir(target), []);
-      } else {
-        assert.equal(await readFile(target, "utf8"), edited);
-      }
+      assert.equal(await readFile(target, "utf8"), edited);
       if (kind !== "selector") {
         assert.equal(await readFile(join(output, "config.json"), "utf8"), before);
       }
