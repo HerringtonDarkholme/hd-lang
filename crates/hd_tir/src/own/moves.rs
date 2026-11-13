@@ -7,9 +7,9 @@
 //!    (`[$l .a .b]`), after which no path reads `$l` again before a store
 //!    replaces all of it, moves. Its local is not addressed and lives in
 //!    no cell (a `Ref` or a shared capture reaches it), no cleanup suite
-//!    touches it, no `borrow` reads it, and no `Pin` names a place in it:
-//!    a pinned collection's copy is a clone (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), which a
-//!    move would skip. A counted part or one no instance copies has a
+//!    touches it, and no `borrow` reads it. Collection copies share their
+//!    buffer by count; there is no `Pin` instruction or eager pin copy.
+//!    A counted part or one no instance copies has a
 //!    liveness bit of its own (`ref.move.field`): its read moves when no
 //!    path touches that part again, though another part of the local is
 //!    still read (`eat(p.a)` then `p.b.len()`), a temporary's too; in a

@@ -978,7 +978,7 @@ pub struct Body {
     /// own storage or a shared capture puts in a cell) that certainly holds
     /// its value where the instruction runs, so the backend reads its cell
     /// with no null test. The instruction is a `Read`, `Store`, `Ref`,
-    /// `IsUnique` or `Pin` of a place rooted at the local, a `Closure` that
+    /// `IsUnique` of a place rooted at the local, a `Closure` that
     /// captures it, or a `Loop`. Sorted, each row once. A pass output: empty
     /// in the checker's TIR (invariant 22); the wire's owned section.
     pub full_cells: Vec<(u32, u32)>,

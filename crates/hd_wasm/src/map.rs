@@ -22,8 +22,8 @@ use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
 use crate::rt::{Helper, LIST_OWN, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
-/// (removed ones included), the owner word at a list buffer's
-/// ([`LIST_OWN`]), the entry capacity (0, or a power of two of at least 4:
+/// (removed ones included), a reserved word that stays 0 at the same
+/// offset as a list buffer's ([`LIST_OWN`]), the entry capacity (0, or a power of two of at least 4:
 /// growth, literals and the boundary all round up to 4), how many
 /// times growth rebuilt the entries, a 64-bit per-map seed, then the index,
 /// the hashes and the entries.

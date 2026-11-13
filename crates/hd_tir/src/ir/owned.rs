@@ -14,7 +14,7 @@
 //!   types' counted leaves from [`OwnCx`]. A `move` read of a whole value
 //!   consumes it; a `move` read or a `Drop` of a part of one takes that
 //!   part, after which only more parts or a `Drop` of the rest may follow;
-//! - no `Read`, `IsUnique` or `Pin` of a place follows its `move` or its
+//! - no `Read` or `IsUnique` of a place follows its `move` or its
 //!   `Drop` on any path without a `Store` in between that refills it;
 //! - no `borrow` value is live across a write to an overlapping place (a
 //!   `Store`, a `Drop`, a `move` read, an `IsUnique` or a mutable `Ref`)
@@ -29,7 +29,7 @@
 //!   moved out of or addressed, nor dropped unless such a borrow keeps
 //!   its drops; a counted parameter outside the
 //!   exit set, which the body does not own, is also never stored into or
-//!   changed in place (an `IsUnique` or a `Pin` of its own storage, which
+//!   changed in place (an `IsUnique` of its own storage, which
 //!   would give up a count of its caller's); neither is in the exit set,
 //!   except a binding local whose borrow keeps its drops
 //!   ([`binding_locals`]);
@@ -1190,8 +1190,8 @@ impl Forward for Empties<'_> {
 /// is it in an exit set. A lent parameter: a counted parameter outside the exit set,
 /// which nothing stores into, drops or moves out of. Its immutable frame
 /// address may lend to one read-only call with no dependent result;
-/// otherwise it is not addressed either. Nothing changes it in place: an `IsUnique` or a `Pin` of it would give
-/// up or keep a count that is its caller's.
+/// otherwise it is not addressed either. Nothing changes it in place:
+/// an `IsUnique` of it would give up a count that is its caller's.
 fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let mut binding = vec![false; b.local_ty.len()];

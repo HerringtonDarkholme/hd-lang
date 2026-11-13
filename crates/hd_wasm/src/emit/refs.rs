@@ -524,8 +524,8 @@ impl Em<'_, '_, '_> {
         Ok(true)
     }
 
-    /// The list or map buffer at the place `word` of an `IsUnique` or a
-    /// `Pin`, in a local, with the collection's type: the place resolved
+    /// The list or map buffer at the place `word` of an `IsUnique`, in a
+    /// local, with the collection's type: the place resolved
     /// from its root's value ([`Em::walk_place`]), each element
     /// bounds-checked. Nothing takes a count: the buffer is the one the
     /// place holds. Also where the

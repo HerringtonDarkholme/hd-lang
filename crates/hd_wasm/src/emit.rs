@@ -1275,7 +1275,7 @@ struct Em<'i, 'a, 'm> {
     string_slice_comparisons: HashMap<u32, u32>,
     /// The short-loan origins (`emit/loan.rs`).
     short_origins: hd_base::HashSet<u32>,
-    /// The `IsUnique`s and `Pin`s a shared element reference's short loan
+    /// The `IsUnique`s a shared element reference's short loan
     /// makes unneeded.
     short_skips: hd_base::HashSet<u32>,
     /// The values that hold a short loan: a copy of one for a consumer
