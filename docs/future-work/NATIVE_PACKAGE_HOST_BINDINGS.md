@@ -1,6 +1,7 @@
 # Native Package Host Bindings
 
 Status: accepted design, 2026-11-02; domain: runtime and host; not built.
+Tracked by [#1822](https://github.com/HerringtonDarkholme/hd-lang/issues/1822) (owner, 2026-11-13: a package already needs it).
 Nothing here is in the specification until a spec pass applies it.
 This reviews [Package Host Capabilities](../compiler/package-host-capabilities.md),
 [`module.host.package.*`](../../spec/lang/10-modules.md#package-host-traits), and
