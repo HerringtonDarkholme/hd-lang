@@ -1,0 +1,15 @@
+# test: a result through a bound that writes a lifetime is at that lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument; Dependent
+# Results: ref.lifetime.return. `get` returns a `&'a Point`, which a `'b`
+# result may not hold.
+struct Point:
+    x: i32
+
+trait Source[T]:
+    fn get(&self) -> T
+
+fn same['a, S < Source[&'a Point]](s: &S, a: &'a Point) -> &'a Point:
+    s.get()
+
+fn other['a, 'b, S < Source[&'a Point]](s: &S, a: &'a Point, b: &'b Point) -> &'b Point:
+    s.get() # diagnostic: local-reference-escapes

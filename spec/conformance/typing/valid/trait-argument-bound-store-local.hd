@@ -1,0 +1,25 @@
+# test: a function's own binding may take its locals through a lifetime bound
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `k` is a
+# place of `local_store`, so `fill` may put `&q` there.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn fill['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+fn local_store() -> i32:
+    p := Point { x: 3 }
+    q := Point { x: 4 }
+    let mut k = Keep { last: &p }
+    fill(&mut k, &q)
+    k.last.x

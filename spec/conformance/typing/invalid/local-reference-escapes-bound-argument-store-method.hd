@@ -1,0 +1,16 @@
+# test: a method of a generic implementation calls through the implementation's bound
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. The bound is
+# the implementation's, and `'a` is its lifetime.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Holder[S]:
+    s: S
+
+impl['a, S < Store[&'a Point]] Holder[S]:
+    fn bad(&mut self, p: &'a Point) -> void:
+        q := Point { x: 7 }
+        self.s.put(&q) # diagnostic: local-reference-escapes

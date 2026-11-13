@@ -1,0 +1,15 @@
+# test: passing a parameter with a lifetime bound to a generic function relates the two bounds' lifetimes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `fill`'s `'b`
+# is `bad`'s `'a` here, since `S` meets `T`'s bound by its own.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+fn fill['b, T < Store[&'b Point]](t: &mut T, p: &'b Point) -> void:
+    t.put(p)
+
+fn bad['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    fill(s, &q) # diagnostic: local-reference-escapes

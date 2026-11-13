@@ -219,6 +219,11 @@ pub struct Generic {
     /// void & 'a` (`ref.generic.outlives`): that lifetime's 1-based place
     /// in scope, 0 for none.
     pub outlives: u16,
+    /// For each of `bounds`, the lifetime each of its local reference
+    /// slots writes, in [`hd_types::Types::ref_slots`] order: its 1-based
+    /// place in scope, 0 for none (`ref.lifetime.trait.bound-argument`).
+    /// Empty when no bound writes one.
+    pub bound_lifetimes: Vec<Vec<u16>>,
     /// A const parameter's declared scalar type
     /// (`types.generic.const.parameter`). Its argument is a
     /// [`TyData::Const`] value or a bare const parameter.
@@ -246,6 +251,7 @@ impl Generic {
             variance: 0,
             lifetime: false,
             outlives: 0,
+            bound_lifetimes: Vec::new(),
             const_type: None,
             anonymous: false,
             outer: false,
@@ -486,6 +492,10 @@ pub struct TraitData {
     pub assoc: Vec<(Symbol, DefId)>,
     /// Supertraits as trait-value types over the trait's `Self`.
     pub supers: Vec<Ty>,
+    /// For each of `supers`, the trait's lifetime each local reference
+    /// slot writes, as [`Generic::bound_lifetimes`]. Empty when none
+    /// writes one.
+    pub super_lifetimes: Vec<Vec<u16>>,
     /// `trait T < ?Copy` (`ref.copy.trait.relaxed`): its `Self` may be
     /// non-copyable.
     pub relaxed_copy: bool,
@@ -1300,6 +1310,7 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
         let outer = u8::from(g.outer) << 7;
         w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst | anonymous | outer);
         w.u32(u32::from(g.outlives));
+        put_lifetime_lists(w, &g.bound_lifetimes);
         if let Some(p) = g.const_type {
             w.u8(p as u8);
         }
@@ -1321,6 +1332,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
         let default = if d == u32::MAX { None } else { Some(t.ty(d)?) };
         let flags = r.u8();
         let outlives = u16::try_from(r.u32()).ok()?;
+        let bound_lifetimes = get_lifetime_lists(r)?;
         let const_type = if flags & 0b10_0000 == 0 {
             None
         } else {
@@ -1339,10 +1351,34 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
             },
             lifetime: flags & 0b1_0000 != 0,
             outlives,
+            bound_lifetimes,
             const_type,
             anonymous: flags & 0b100_0000 != 0,
             outer: flags & 0b1000_0000 != 0,
         });
+    }
+    Some(out)
+}
+
+/// A list of slot-lifetime lists, as [`Generic::bound_lifetimes`].
+fn put_lifetime_lists(w: &mut Writer, lists: &[Vec<u16>]) {
+    w.len_of(lists);
+    for l in lists {
+        w.len_of(l);
+        for x in l {
+            w.u32(u32::from(*x));
+        }
+    }
+}
+
+fn get_lifetime_lists(r: &mut Reader<'_>) -> Option<Vec<Vec<u16>>> {
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let mut l = Vec::new();
+        for _ in 0..r.count() {
+            l.push(u16::try_from(r.u32()).ok()?);
+        }
+        out.push(l);
     }
     Some(out)
 }
@@ -1513,6 +1549,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             put_pairs(w, t, &td.methods);
             put_pairs(w, t, &td.assoc);
             put_tys(w, t, &td.supers)?;
+            put_lifetime_lists(w, &td.super_lifetimes);
             w.u8(u8::from(td.relaxed_copy));
         }
         ItemData::Impl {
@@ -1629,6 +1666,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
             methods: get_pairs(r, t)?,
             assoc: get_pairs(r, t)?,
             supers: get_tys(r, t)?,
+            super_lifetimes: get_lifetime_lists(r)?,
             relaxed_copy: r.u8() != 0,
         }),
         3 => {

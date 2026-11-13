@@ -1,0 +1,12 @@
+# test: a lifetime written inside a bound's trait argument holds for that slot
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. The tuple's
+# reference slot is at `'a`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+fn bad['a, S < Store[(i32, &'a Point)]](s: &mut S, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    s.put((1, &q)) # diagnostic: local-reference-escapes

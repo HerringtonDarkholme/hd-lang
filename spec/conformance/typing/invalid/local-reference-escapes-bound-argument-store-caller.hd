@@ -1,0 +1,22 @@
+# test: a type argument for a parameter with a lifetime bound holds what that lifetime holds
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `fill` may put
+# `p` into `t`, so `&q` lands in the caller's `k`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn fill['b, T < Store[&'b Point]](t: &mut T, p: &'b Point) -> void:
+    t.put(p)
+
+fn helper['a](k: &mut Keep['a]) -> void:
+    q := Point { x: 7 }
+    fill(k, &q) # diagnostic: local-reference-escapes

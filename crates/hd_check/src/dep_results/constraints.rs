@@ -47,6 +47,10 @@ struct Gen<'s, 'a> {
     /// The universal region of a returned slot's lifetimes, of the
     /// function's result (`None`) or of closure `sub`'s.
     universal: HashMap<(Option<usize>, Vec<u32>), Region>,
+    /// The universal region of each of the body's own lifetimes a call
+    /// meets through a bound ([`Var::Own`]): the origins of the parameter
+    /// slots of that lifetime.
+    owns: Vec<(u32, Region)>,
 }
 
 /// What the result checks need: the function's map with what each
@@ -470,7 +474,20 @@ impl Gen<'_, '_> {
             Category::Flow
         };
         let mut vars: HashMap<Var, Region> = HashMap::default();
+        let owns = (sig.params.iter().flat_map(|p| p.1.iter().map(|x| x.0)))
+            .chain(sig.outs.iter().flatten().copied())
+            .chain(sig.links.iter().flat_map(|&(x, y)| [x, y]));
+        for v in owns {
+            if let Var::Own(l) = v {
+                let r = self.own_lifetime(l);
+                vars.insert(v, r);
+            }
+        }
         let mut var = |t: &mut RegionTable, v| *vars.entry(v).or_insert_with(|| t.fresh(1).start);
+        for &(x, y) in &sig.links {
+            let (x, y) = (var(&mut self.t, x), var(&mut self.t, y));
+            self.c.equal(x, y, self.at);
+        }
         let has = |v: Var| sig.result && sig.outs.iter().any(|o| o.contains(&v));
         let (any, held) = (has(Var::Life(ANY)), has(Var::Held));
         for (p, (pt, slots)) in sig.params.iter().enumerate() {
@@ -552,6 +569,23 @@ impl Gen<'_, '_> {
                 self.flow(r, to);
             }
         }
+    }
+
+    /// The universal region of the body's own lifetime `l`, made once:
+    /// it holds what each parameter slot of that lifetime refers to.
+    fn own_lifetime(&mut self, l: u32) -> Region {
+        if let Some(&(_, r)) = self.owns.iter().find(|x| x.0 == l) {
+            return r;
+        }
+        let r = self.t.fresh(1).start;
+        self.owns.push((l, r));
+        let params = self.s.own.map(|own| &own.params[..]).unwrap_or_default();
+        for (p, (_, ids)) in params.iter().enumerate() {
+            for (k, _) in ids.iter().enumerate().filter(|x| *x.1 == l) {
+                self.seed(r, Origin::Param(w(p), w(k)));
+            }
+        }
+        r
     }
 
     /// Every region of `from` ⊑ every variable of `rs`, through one hub
@@ -1001,6 +1035,7 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         sites: HashMap::default(),
         hidden: HashMap::default(),
         universal: HashMap::default(),
+        owns: Vec::new(),
     };
     let widths: Vec<u32> = (b.local_ty.iter().map(|&t| g.width(t)))
         .chain((0..b.tags.len()).map(|i| g.width(b.ty[i]).max(u32::from(b.tags[i] == Tag::Ref))))
@@ -1149,6 +1184,7 @@ impl Gen<'_, '_> {
                 caller.extend((s0 + 1..lay.slots[s0].end).map(|j| (rs[j], l, j)));
             }
         }
+        let own = self.s.own;
         let results: HashMap<Region, &(Option<usize>, Vec<u32>)> =
             self.universal.iter().map(|(k, &u)| (u, k)).collect();
         let allowed = |e: &Edge, l: Loan| {
@@ -1175,7 +1211,8 @@ impl Gen<'_, '_> {
                     let call = !matches!(b.tags[e.inst as usize], Tag::Store | Tag::Intrinsic);
                     (caller.iter().filter(|c| sol.same(e.to, c.0))).all(|&(_, q, j)| {
                         call && matches!(o, Origin::Param(p, _) if p == q) || self.takes(q, j, o)
-                    })
+                    }) && (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
+                        .all(|&(l, _)| global || own.is_some_and(|own| own.allows(ls, o, l)))
                 }
                 Category::Forward => global || matches!(o, Origin::Param(..)),
                 _ => global,

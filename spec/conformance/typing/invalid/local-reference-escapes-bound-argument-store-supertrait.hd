@@ -1,0 +1,15 @@
+# test: a supertrait's argument names the trait's lifetime, which the bound writes
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument, ref.lifetime.trait.
+# `Shelf['a]` makes `Store`'s argument `&'a Point`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b] < Store[&'b Point]:
+    fn size(&self) -> i32
+
+fn bad['a, S < Shelf['a]](s: &mut S, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    s.put(&q) # diagnostic: local-reference-escapes

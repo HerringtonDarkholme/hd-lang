@@ -1,0 +1,26 @@
+# test: a method of an implementation whose bound writes a lifetime relates the receiver's type argument to it
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `add` may put
+# `p` into `h.s`, so `&q` lands in the caller's `h`.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+struct Holder[S]:
+    s: S
+
+impl['a, S < Store[&'a Point]] Holder[S]:
+    fn add(&mut self, p: &'a Point) -> void:
+        self.s.put(p)
+
+fn helper['a](h: &mut Holder[Keep['a]]) -> void:
+    q := Point { x: 7 }
+    h.add(&q) # diagnostic: local-reference-escapes

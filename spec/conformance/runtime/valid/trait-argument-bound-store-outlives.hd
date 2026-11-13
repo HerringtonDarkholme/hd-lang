@@ -1,0 +1,29 @@
+# test: a reference stored through a lifetime bound that outlives the store is valid
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `relay` passes
+# its bound on, and `main`'s `k` outlives neither `p` nor `q`.
+# expect-stdout: 2
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn fill['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+fn relay['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    fill(s, p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1 }
+    q := Point { x: 2 }
+    let mut k = Keep { last: &p }
+    relay(&mut k, &q)
+    println(k.last.x)

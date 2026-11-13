@@ -1,0 +1,26 @@
+# test: a call through a bound that writes a lifetime stores a local reference at that lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument; Lifetime
+# Stores: ref.lifetime.store.call. `T` is `&'a Point` here, so `put` keeps
+# `&q` where the caller's `'a` place does, past `bad`'s return.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn bad['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    q := Point { x: 7 }
+    s.put(&q) # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1 }
+    let mut k = Keep { last: &p }
+    bad(&mut k, &p)
+    println(k.last.x)

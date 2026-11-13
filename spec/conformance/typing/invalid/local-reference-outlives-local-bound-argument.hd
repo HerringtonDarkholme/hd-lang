@@ -1,0 +1,25 @@
+# test: a local stored through a lifetime bound into a caller's binding outlives its block
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument; Local Scope:
+# ref.dep.scope.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+fn fill['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+fn last_x(p: &Point) -> i32:
+    let mut k = Keep { last: p }
+    if p.x > 0:
+        q := Point { x: 2 }
+        fill(&mut k, &q)
+    k.last.x # diagnostic: local-reference-outlives-local

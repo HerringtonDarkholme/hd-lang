@@ -4047,6 +4047,7 @@ impl Lower<'_, '_, '_> {
                 continue;
             }
             let mut bounds = Vec::new();
+            let mut bound_lifetimes = Vec::new();
             let mut lifted = false;
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
                 let me = (!row)
@@ -4058,7 +4059,8 @@ impl Lower<'_, '_, '_> {
                     // A bound that names no trait is already reported. It
                     // stays as poison, so that the parameter satisfies
                     // every trait and adds no second error.
-                    let bound = self.trait_value(b, gn, me).unwrap_or(Ty::POISON);
+                    let (bound, written) = self.with_slots(|low| low.trait_value(b, gn, me));
+                    let bound = bound.unwrap_or(Ty::POISON);
                     // `?Copy` lifts the default bound and adds none
                     // (`ref.copy.generic.relaxed`).
                     if relaxed.contains(&b.first_token().raw()) {
@@ -4084,6 +4086,7 @@ impl Lower<'_, '_, '_> {
                         );
                     }
                     bounds.push(bound);
+                    bound_lifetimes.push(written);
                 }
                 // `T < 'static` (ref.generic.static), or one declared
                 // lifetime (`F < Fn() -> void & 'a`, ref.generic.outlives).
@@ -4139,6 +4142,7 @@ impl Lower<'_, '_, '_> {
             if !row && !lifted {
                 bounds.push(self.copy_bound());
             }
+            g.bound_lifetimes = self.slot_lists(&bounds, bound_lifetimes);
             g.bounds = bounds;
             if let Some(d) = Src::child(node, SyntaxKind::TypeDefault) {
                 if row {
@@ -6178,8 +6182,9 @@ impl Lower<'_, '_, '_> {
     /// its `Self`.
     /// `?Copy` adds none, and marks the trait as one a non-copyable type
     /// may implement (`ref.copy.trait.relaxed`).
-    fn supers(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Ty) -> Vec<Ty> {
+    fn supers(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Ty) -> (Vec<Ty>, Vec<Vec<u16>>) {
         let mut supers = Vec::new();
+        let mut written_lifetimes = Vec::new();
         if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
             let relaxed = self.relaxed_tokens(bl);
             for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
@@ -6192,7 +6197,8 @@ impl Lower<'_, '_, '_> {
                     }
                     continue;
                 }
-                if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
+                let (t, written) = self.with_slots(|me| me.trait_value(b, gn, Some(self_ty)));
+                if let Some(t) = t {
                     // A supertrait bound lists a trait once
                     // (`trait.super.unique`).
                     if self.r.frozen.is_none() && supers.contains(&t) {
@@ -6204,6 +6210,7 @@ impl Lower<'_, '_, '_> {
                             .error(Code::DuplicateSupertrait, self.src.span(b), &msg);
                     }
                     supers.push(t);
+                    written_lifetimes.push(written);
                 }
             }
             self.bound_clashes(self_ty, &supers, self.src.span(bl));
@@ -6211,9 +6218,44 @@ impl Lower<'_, '_, '_> {
         if let TyData::Param(p) = self.names.pool.get(self_ty)
             && let Some(cut) = self.r.cut_supers.get(&p.owner)
         {
+            // A cycle, already reported: its lifetimes are not kept.
             cut_edges(self.names.pool, &mut supers, cut);
+            written_lifetimes.clear();
         }
-        supers
+        let lifetimes = self.slot_lists(&supers, written_lifetimes);
+        (supers, lifetimes)
+    }
+
+    /// Lowers with a slot table, as an implementation header does: the
+    /// result, and the lifetime each local reference slot writes.
+    fn with_slots<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> (R, Vec<u16>) {
+        let saved = self.slots.replace(Vec::new());
+        let r = f(self);
+        (
+            r,
+            std::mem::replace(&mut self.slots, saved).unwrap_or_default(),
+        )
+    }
+
+    /// The slot-lifetime lists of `tys` (`Generic::bound_lifetimes`): each
+    /// of `written` that has one entry per reference slot of its type,
+    /// zeros for one that does not, padded with zeros for the types past
+    /// `written`; empty when none writes a lifetime.
+    fn slot_lists(&self, tys: &[Ty], written: Vec<Vec<u16>>) -> Vec<Vec<u16>> {
+        if written.iter().all(|l| l.iter().all(|&x| x == 0)) {
+            return Vec::new();
+        }
+        let pool = self.names.pool.types();
+        let mut written = written.into_iter();
+        (tys.iter())
+            .map(|&t| {
+                let n = pool.ref_slots(t);
+                written
+                    .next()
+                    .filter(|l| l.len() == n)
+                    .unwrap_or_else(|| vec![0; n])
+            })
+            .collect()
     }
 
     /// The declarations of the associated type `name` that `tr[args]`
@@ -6491,7 +6533,7 @@ impl Lower<'_, '_, '_> {
                         }
                     }
                 }
-                let supers = self.supers(n, &gn, self_ty);
+                let (supers, super_lifetimes) = self.supers(n, &gn, self_ty);
                 self.duplicate_members(block);
                 let (methods, assoc_decls) =
                     self.members(block, h.def, h.public, true, &mut gn, out);
@@ -6519,6 +6561,7 @@ impl Lower<'_, '_, '_> {
                         methods,
                         assoc,
                         supers,
+                        super_lifetimes,
                         relaxed_copy: false,
                     }),
                 );
@@ -8977,7 +9020,7 @@ fn own_trait_supers(
             };
             low.enter(h);
             let (self_ty, gn, _) = low.trait_generics(h);
-            let supers = low.supers(h.node, &gn, self_ty);
+            let (supers, _) = low.supers(h.node, &gn, self_ty);
             out.entry(h.def).or_insert(supers);
         }
     }
