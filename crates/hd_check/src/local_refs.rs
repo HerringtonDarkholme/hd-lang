@@ -257,6 +257,15 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
                 }
             }
         }
+        // A trait value's or an opaque type's trait, its one child: its
+        // type arguments are a trait's wherever the type stands, a
+        // parameter's included. `Fn(A) -> O` writes no argument list, so
+        // its inputs and result stay a function type's.
+        SyntaxKind::DynType | SyntaxKind::ImplType => {
+            for a in n.children().flat_map(NodeRef::children) {
+                walk_ty(src, a, None, diags);
+            }
+        }
         // `ref.local.escape.trait-argument`: a trait's type arguments.
         SyntaxKind::TypeArgumentList => {
             for c in n.children() {
@@ -891,8 +900,13 @@ impl Ck<'_, '_> {
     /// local function call's type arguments
     /// (`ref.generic.local.local-function`). A written type reported
     /// already ([`declarations`]), so a type the body or its signature
-    /// writes is skipped. Body and local types report once per type; local
-    /// function call arguments report at every call site.
+    /// writes is skipped, and so is each type inside one, as the trait
+    /// value a written `*mut dyn Store[&Point]` coerces to. Body and local
+    /// types report once per type; local function call arguments report at
+    /// every call site.
+    ///
+    /// Cost: one visit per distinct type inside a written type that holds
+    /// a reference, then one set lookup per value and local.
     pub(crate) fn check_local_ref_types(&mut self) {
         let mut local_calls = std::mem::take(&mut self.local_ref_call_targs);
         for (_, args, _) in &mut local_calls {
@@ -901,7 +915,13 @@ impl Ck<'_, '_> {
             }
         }
         let pool = self.pool();
-        let declared = &self.declared_tys;
+        let mut declared: HashSet<Ty> = HashSet::default();
+        let mut parts: Vec<Ty> = self.declared_tys.iter().copied().collect();
+        while let Some(t) = parts.pop() {
+            if pool.has_ref(t) && declared.insert(t) {
+                pool.children(t, &mut parts);
+            }
+        }
         let mut seen: HashSet<(Ty, bool)> = HashSet::default();
         let mut found: Vec<(hd_base::NodeIdx, Escape)> = Vec::new();
         let body = self.b.body();

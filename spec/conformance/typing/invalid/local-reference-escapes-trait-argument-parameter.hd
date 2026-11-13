@@ -1,0 +1,10 @@
+# test: a local reference as a trait value's type argument in a parameter's type is an error
+# Spec 13 Local References: ref.local.escape.trait-argument.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+fn keep(store: &mut dyn Store[&Point]) -> i32: # diagnostic: local-reference-escapes
+    0

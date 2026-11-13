@@ -5432,6 +5432,8 @@ typing/invalid/local-reference-escapes-capture.hd	type	reject:local-reference-es
 typing/valid/function-parameter-captures-local-reference.hd	type	accept	lang/07-functions.md#r-fn.capture.local-parameter
 typing/invalid/function-parameter-capture-stored-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.capture.local-store
 typing/invalid/local-reference-escapes-trait-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
+typing/invalid/local-reference-escapes-trait-argument-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
+typing/invalid/local-reference-escapes-trait-argument-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.trait-argument
 typing/valid/list-and-map-of-local-references-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.argument
 typing/valid/dependent-result-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
 typing/valid/dependent-result-one-position.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
