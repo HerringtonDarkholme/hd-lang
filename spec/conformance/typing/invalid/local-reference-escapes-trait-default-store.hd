@@ -1,0 +1,12 @@
+# test: a trait's default method stores a local reference at the trait's own lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument; Lifetime
+# Stores: ref.lifetime.store.call. `Self` is bounded by `Store['a]`, so
+# `put` keeps `v` where the caller's `'a` place does.
+struct Point:
+    x: i32
+
+trait Store['a]:
+    fn put(&mut self, v: &'a Point) -> void
+    fn local(&mut self) -> void:
+        q := Point { x: 1 }
+        self.put(&q) # diagnostic: local-reference-escapes

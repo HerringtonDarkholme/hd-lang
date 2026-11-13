@@ -1,0 +1,14 @@
+# test: a trait's default method returns a `Self::Item` built from its local
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument, ref.dep.return.
+# In `Shelf['b]`'s own bodies `Self::Item` is at `'b`, as `S::Item` with
+# `S < Shelf['a]` is at `'a`. `make` takes `&q` at `'b`, so its result may
+# hold `q`, and `dflt` has no parameter at `'b` to return.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+    fn dflt(&self) -> Self::Item:
+        q := Point { x: 1 }
+        self.make(&q) # diagnostic: local-reference-escapes

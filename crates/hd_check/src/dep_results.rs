@@ -805,7 +805,7 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(pool: Types<'_>, suspend: DefId, t: Ty) -> Layout {
+    fn new(pool: Types<'_>, suspend: DefId, lifetimed: Lifetimed<'_>, t: Ty) -> Layout {
         let mut slots = Vec::new();
         Self::walk(pool, suspend, t, true, 0, &mut slots);
         for k in 0..slots.len() {
@@ -815,8 +815,9 @@ impl Layout {
                 && !(k > 0 && capture_slot(pool, referent(pool, slots[k - 1].ty)));
         }
         let tops: Vec<usize> = (0..slots.len()).filter(|&k| slots[k].top).collect();
-        // A trait value may hold a local reference (`trait.dyn.ref.convert`).
-        let holds = holds_local_ref(pool, t) || is_dyn(pool, t);
+        // A trait value may hold a local reference (`trait.dyn.ref.convert`),
+        // and so may a trait's own projection where the trait has lifetimes.
+        let holds = holds_local_ref(pool, t) || is_dyn(pool, t) || own_proj(pool, lifetimed, t);
         let width = if tops.is_empty() {
             usize::from(holds)
         } else {
@@ -913,15 +914,17 @@ struct Layouts<'a> {
     pool: Types<'a>,
     /// `Suspend`'s definition.
     suspend: DefId,
+    lifetimed: Lifetimed<'a>,
     types: RefCell<HashMap<Ty, Rc<Layout>>>,
     fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
 }
 
 impl<'a> Layouts<'a> {
-    fn new(pool: Types<'a>, suspend: DefId) -> Self {
+    fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
         Layouts {
             pool,
             suspend,
+            lifetimed,
             types: RefCell::default(),
             fields: RefCell::default(),
         }
@@ -931,7 +934,7 @@ impl<'a> Layouts<'a> {
         if let Some(l) = self.types.borrow().get(&t) {
             return Rc::clone(l);
         }
-        let l = Rc::new(Layout::new(self.pool, self.suspend, t));
+        let l = Rc::new(Layout::new(self.pool, self.suspend, self.lifetimed, t));
         self.types.borrow_mut().insert(t, Rc::clone(&l));
         l
     }
@@ -1069,6 +1072,50 @@ impl<'a> Layouts<'a> {
             }
             _ => None,
         }
+    }
+}
+
+/// Whether trait `def` has a lifetime parameter ([`own_proj`]).
+type Lifetimed<'f> = &'f dyn Fn(DefId) -> bool;
+
+/// Whether `t` holds a trait's own projection, as `Self::Item` in
+/// `trait Shelf['b]`'s bodies, of a trait with a lifetime parameter. It lists
+/// no trait arguments, so [`holds_local_ref`] says no to it, but it holds
+/// what the trait's lifetimes name, as `S::Item` with `S < Shelf['a]` does
+/// (`ref.lifetime.trait.bound-argument`).
+fn own_proj(pool: Types<'_>, lifetimed: Lifetimed<'_>, t: Ty) -> bool {
+    if !pool.has_assoc(t) {
+        return false;
+    }
+    let mut stack = vec![t];
+    while let Some(t) = stack.pop() {
+        if !pool.has_assoc(t) {
+            continue;
+        }
+        match pool.get(t) {
+            TyData::Assoc {
+                trait_, self_ty, ..
+            } if pool.get(self_ty)
+                == TyData::Param(hd_types::ParamRef {
+                    owner: trait_,
+                    index: 0,
+                })
+                && lifetimed(trait_) =>
+            {
+                return true;
+            }
+            _ => pool.children(t, &mut stack),
+        }
+    }
+    false
+}
+
+/// [`Lifetimed`] by `lookup`.
+fn lifetimed<'l>(lookup: &'l hd_resolve::Lookup<'_>) -> impl Fn(DefId) -> bool + 'l {
+    move |d| {
+        lookup
+            .item(d)
+            .is_some_and(|it| it.generics.iter().any(|g| g.lifetime))
     }
 }
 
@@ -1329,7 +1376,8 @@ impl Ck<'_, '_> {
         }
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
-        let ls = &Layouts::new(pool, self.cx.names.known.suspend);
+        let lifetimed = lifetimed(self.cx.lookup);
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
         DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
             .with_paths(ls, &sig.paths)
             .to_fn(ls, skip)
@@ -1351,7 +1399,8 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
-        let ls = &Layouts::new(pool, self.cx.names.known.suspend);
+        let lifetimed = lifetimed(self.cx.lookup);
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
         let dep = DepSig::new(ls, &tsig.params, is_self, tsig.ret, &tsig.lifetimes);
         let dep = if pool.has_opaque(tsig.ret) && pool.ref_slots(tsig.ret) != 0 {
             dep.open(ls, sig.ret)
@@ -1648,6 +1697,17 @@ impl Ck<'_, '_> {
             _ => Vec::new(),
         };
         links.append(&mut proj_links);
+        // A call through a bound passes at the trait's lifetimes the ones
+        // the bound writes, the caller's own: `s.put(&q)` with
+        // `S < Store['a]` stores at `'a` (`ref.lifetime.trait.bound-argument`).
+        // A trait method numbers its trait's lifetimes first.
+        if let Some(tr) = trait_.filter(|_| !bound_ids.is_empty())
+            && let Some(generics) = self.cx.lookup.item(tr).map(|it| &it.generics)
+        {
+            let lts = trait_lifetimes(generics, &bound_ids);
+            let pairs = (lts.into_iter().enumerate()).filter(|x| x.1 != 0);
+            links.extend(pairs.map(|(k, l)| (Var::Life(w(k + 1)), Var::Own(l))));
+        }
         Some(CallSig {
             links,
             paths,
@@ -2178,7 +2238,8 @@ impl Ck<'_, '_> {
         facts: &crate::moves::MoveFacts,
     ) {
         let pool = self.pool();
-        let ls = &Layouts::new(pool, self.cx.names.known.suspend);
+        let lifetimed = lifetimed(self.cx.lookup);
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
         let body = self.b.body();
         // The body's own map: parameter k is local k.
         let fn_body = body.kind == BodyKind::Fn && fun.is_some() && ls.holds(ret);

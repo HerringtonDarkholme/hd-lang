@@ -1,0 +1,39 @@
+# test: a trait's default method passes and returns at the trait's own lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. In the
+# trait's bodies `Self::Item` and `put` are at the trait's `'b`, so a
+# parameter at `'b` may be returned and stored, as a caller bounded by
+# `Store['a]` may store a parameter at `'a`. A trait with no lifetime
+# returns its `Self::Item` parameter as it was given, and a method's own
+# lifetime stays its own.
+struct Point:
+    x: i32
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+    fn again(&self, v: &'b Point) -> Self::Item:
+        self.make(v)
+    fn pair(&self, v: &'b Point) -> (Self::Item, Self::Item):
+        (self.make(v), self.again(v))
+
+trait Iter:
+    type Item
+    fn next(&mut self) -> Self::Item
+    fn pass_on(&self, x: Self::Item) -> Self::Item:
+        x
+    fn first(&mut self) -> Self::Item:
+        self.next()
+
+trait Store['b]:
+    fn put(&mut self, v: &'b Point) -> void
+    fn keep(&mut self, p: &'b Point) -> void:
+        self.put(p)
+
+trait Pick['b]:
+    fn pick['c](&self, x: &'c Point, v: &'b Point) -> &'c Point
+
+fn stored['a, S < Store['a]](s: &mut S, p: &'a Point) -> void:
+    s.put(p)
+
+fn picked['a, 'c, S < Pick['a]](s: &S, x: &'c Point, p: &'a Point) -> &'c Point:
+    s.pick(x, p)

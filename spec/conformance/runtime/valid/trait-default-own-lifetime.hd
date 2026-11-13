@@ -1,0 +1,50 @@
+# test: a trait's default method returns and stores at the trait's own lifetime
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `again` and
+# `keep` are default bodies over `Shelf['b]` and `Store['b]`; `Sh`'s `make`
+# builds its `Keep['b]` from `v`, and `Cell['b]`'s `put` keeps `v`.
+# expect-stdout: 3
+# expect-stdout: 5
+struct Point:
+    x: i32
+
+struct Keep['a]:
+    last: &'a Point
+
+trait Shelf['b]:
+    type Item
+    fn make(&self, v: &'b Point) -> Self::Item
+    fn again(&self, v: &'b Point) -> Self::Item:
+        self.make(v)
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+    fn make(&self, v: &'b Point) -> Keep['b]:
+        Keep { last: v }
+
+trait Store['b]:
+    fn put(&mut self, v: &'b Point) -> void
+    fn keep(&mut self, p: &'b Point) -> void:
+        self.put(p)
+
+struct Cell['a]:
+    last: &'a Point
+
+impl['b] Store['b] for Cell['b]:
+    fn put(&mut self, v: &'b Point) -> void:
+        self.last = v
+
+fn outlive['c](p: &'c Point) -> Keep['c]:
+    s := Sh { n: 1 }
+    s.again(p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    k := outlive(&p)
+    println(k.last.x)
+    q := Point { x: 5 }
+    let mut c = Cell { last: &p }
+    c.keep(&q)
+    println(c.last.x)
