@@ -1,8 +1,0 @@
-[package]
-name = "main_cpu"
-[dependencies]
-server_sdk = { path = "/Users/hd/code/test/hd-lane-spec/packages/server-sdk" }
-[capabilities]
-"dep.server_sdk.server.HttpServer" = true
-Http = true
-Clock = true

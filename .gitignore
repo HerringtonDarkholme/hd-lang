@@ -93,3 +93,6 @@ temp/
 .claude/hooks/
 .claude/settings.json
 website/playground/assets/hd_wat.wasm
+
+# Server SDK test caches the hd_cli tests create in the worktree.
+/.cache-muse-*/
