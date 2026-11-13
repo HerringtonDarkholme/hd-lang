@@ -18,7 +18,7 @@ use std.rt.alloc.{
     retain_known,
 }
 use std.rt.cycle.{collect, pending}
-use std.rt.memory.{grow, load_u32, store_u32, store_u8}
+use std.rt.memory.{grow, load_u32, pages, store_u32, store_u8}
 
 PAGE := 65536
 
@@ -31,14 +31,16 @@ fn unexpected_release(address: usize) -> void:
 tests:
     use std.testing.{assert, it}
 
-    it("a block's size is its class, or whole pages over 2 KiB"):
+    it("a block's size is its class, or whole pages over 32 KiB"):
         assert(block_size(0) == 16, "the smallest class")
         assert(block_size(16) == 16, "16 bytes fit class 1")
         assert(block_size(17) == 32, "17 bytes take class 2")
         assert(block_size(128) == 128, "the last class in steps of 16")
         assert(block_size(129) == 160, "then about 25% apart")
-        assert(block_size(1601) == 2048, "the largest class")
-        assert(block_size(2049) == PAGE, "a large block is a page")
+        assert(block_size(1601) == 2048, "the last one-page class")
+        assert(block_size(2049) == 2560, "the first medium class")
+        assert(block_size(32768) == 32768, "the last medium class")
+        assert(block_size(32769) == PAGE, "a large block is a page")
         assert(block_size(PAGE + 1) == 2 * PAGE, "or a run of pages")
 
     it("blocks of one class come from one page, in order"):
@@ -149,7 +151,7 @@ tests:
         retain(16)
         assert(release(16) == 0, "static data has no count")
 
-    it("every small-page offset uses the exact reciprocal quotient"):
+    it("every class-span offset uses the exact reciprocal quotient"):
         let sizes: List[usize] = [
             16,
             32,
@@ -171,12 +173,25 @@ tests:
             1280,
             1600,
             2048,
+            2560,
+            3200,
+            4096,
+            5120,
+            6400,
+            8192,
+            10240,
+            12800,
+            16384,
+            20480,
+            25600,
+            32768,
         ]
         for size in sizes:
             first := alloc(size)
             page := first / PAGE * PAGE
             let offset: usize = 0
-            while offset < PAGE - 16:
+            span := if size <= 2048: PAGE else: 4 * PAGE
+            while offset < span - 16:
                 expected := page + 16 + offset / size * size
                 assert(
                     block_of(page + 16 + offset) == expected,
@@ -251,6 +266,18 @@ tests:
             1280,
             1600,
             2048,
+            2560,
+            3200,
+            4096,
+            5120,
+            6400,
+            8192,
+            10240,
+            12800,
+            16384,
+            20480,
+            25600,
+            32768,
         ]
         for i in 0..sizes.len():
             bytes := sizes[i]
@@ -280,6 +307,67 @@ tests:
         again := alloc_class(2048, 20)
         assert(again / PAGE == first / PAGE, "the empty head page stays cached")
         free_class(again, 20)
+
+    it("medium slots cross pages and release through interior addresses"):
+        let mut blocks: List[usize] = []
+        for i in 0..12:
+            block := alloc(25600)
+            store_u32(block, 1)
+            store_u32(block + 4, 0)
+            blocks.push(block)
+        for block in blocks:
+            assert(block_bytes(block) == 25600, "later-page starts keep the span class")
+            assert(block_of(block + 25599) == block, "the last byte resolves across pages")
+            retain(block + 25599)
+            assert(release(block + 16384) == 0, "an interior retain belongs to one block")
+            assert(release(block + 25599) == block, "the final release finds the slot")
+            free(block)
+
+    it("empty medium spans return all pages to the pool"):
+        # Seven 32 KiB slots fit a four-page span after its header.
+        let mut blocks: List[usize] = []
+        for i in 0..8:
+            blocks.push(alloc_class(32768, 32))
+        first := blocks[0] / PAGE * PAGE
+        second := blocks[7] / PAGE * PAGE
+        assert(
+            second >= first + 4 * PAGE || first >= second + 4 * PAGE,
+            "the eighth slot starts a disjoint span",
+        )
+        free_class(blocks[7], 32)
+        for i in 0..7:
+            free_class(blocks[i], 32)
+        reclaim()
+        for i in 0..4:
+            assert(block_of(first + i * PAGE + 32) == 0, "every first-span page is free")
+            assert(block_of(second + i * PAGE + 32) == 0, "every second-span page is free")
+        run := alloc(4 * PAGE)
+        assert(run == first, "the earliest entire span is reusable")
+        free(run)
+
+    it("medium metadata survives page-table relocation"):
+        first := alloc_class(25600, 31)
+        _ := match grow(17000):
+            .Some(before) => before
+            .None => panic("the heap can reserve space for a table move")
+        _ := alloc(32768)
+        assert(block_bytes(first) == 25600, "the moved prefix keeps its size table")
+        assert(block_of(first + 25599) == first, "the moved prefix keeps its reciprocal")
+        free_class(first, 31)
+        assert(alloc_class(25600, 31) == first, "the moved prefix keeps freed lists")
+        free_class(first, 31)
+
+    it("one hundred thousand live 2.1 KiB lists fit the heap"):
+        before := pages()
+        let mut lists: List[List[usize]] = []
+        for i in 0..100000:
+            lists.push([for j in 0..528 => i + j])
+        after := pages()
+        assert(after - before < 6000, "medium lists share spans instead of taking pages")
+        assert(lists.len() == 100000, "every list remains live")
+        for i in 0..lists.len():
+            assert(lists[i][0] == i, "the first element stays intact")
+            assert(lists[i][527] == i + 527, "the last element stays intact")
 
     it("a failed large search preserves smaller holes and newly freed runs"):
         first := alloc(PAGE)

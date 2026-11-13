@@ -11,6 +11,6 @@
     local.get $id
     i32.store $heap
     local.get $t0
-    i32.const 356 ;; &vtable[rt:dyn_slot, rt:block_drive]
+    i32.const 388 ;; &vtable[rt:dyn_slot, rt:block_drive]
   )
 )

@@ -16,7 +16,7 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 160 ;; &vtable[func41]
+    i32.const 192 ;; &vtable[func41]
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
@@ -45,7 +45,7 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 160 ;; &vtable[func41]
+    i32.const 192 ;; &vtable[func41]
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0

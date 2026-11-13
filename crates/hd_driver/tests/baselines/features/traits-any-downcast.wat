@@ -78,6 +78,6 @@
     local.get $u.name.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 256 ;; &vtable[func39]
+    i32.const 288 ;; &vtable[func39]
   )
 )

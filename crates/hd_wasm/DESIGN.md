@@ -331,52 +331,57 @@ needs only the address; a count update finds the object's slot through
 the page table:
 
 1. `page = address >> 16`, `entry = page_table[page]`.
-2. A small page: `slot = page_start + 16 + ((address - page_start - 16) /
-   size) * size`, the division by the class size done as a multiply by
-   its reciprocal from a static table.
+2. A class span: resolve a later page to the first page, then
+   `slot = span_start + 16 + ((address - span_start - 16) / size) * size`.
+   Division uses `ceil(2^48 / size)` and a 48-bit shift. Offsets below
+   2^18 give an error below 2^-30, less than the minimum remainder gap
+   2^-15; the product fits in 64 bits.
 3. A large run: the entry names the run's first page, whose start is the
    slot.
 4. A static or free page: no count; static pages are immortal, and a live
    reference never points into a free page.
 
 The page table is one 4-byte entry per heap page, an array in memory 0
-whose base and length are allocator globals, after 256 bytes that hold
-each class's list of pages with room and the size/reciprocal tables.
-It starts at one page (16,320
-entries, almost 1 GiB of heap) and moves to a larger run when the heap
-outgrows it, so its cost follows the heap: 256 KiB for a full 4 GiB
-memory.
+whose base and length are allocator globals, after 1024 bytes holding
+each class's list of spans with room, freed lists, and size/reciprocal tables.
+It starts at one page (16,128 entries, almost 1 GiB of heap) and moves to a larger run when the heap
+outgrows it. The entries cost four bytes per heap page, plus the prefix,
+page rounding, and geometric growth slack.
 
 | Entry, top 2 bits | Low 30 bits | Page |
 | --- | --- | --- |
 | `00` | 0 | free: in the page pool, or never allocated |
-| `01` | the size class, 1 to 20; 0 for a static page | a small page of one class, or static data |
+| `01` | the size class, 1 to 32; 0 for a static page | the first page of a class span, or static data |
 | `10` | the run's page count | the first page of a large run |
-| `11` | the run's first page | a later page of a large run |
+| `11` | the span or run's first page | a later page of a class span or large run |
 
 ### 23.6 The Allocator's Geometry
 
 The allocator is hd in `std.rt.alloc`, the refcount study's §6 (git history at 7ccbb4ea8, REFCOUNT_RUNTIME.md)
 `sc` grown into a real allocator:
 
-- **Size classes**, 20 of them, sizes in bytes including the header: 16
+- **Size classes**, 32 of them, sizes in bytes including the header: 16
   to 128 in steps of 16, then 160, 208, 256, 320, 400, 512, 640, 800,
-  1024, 1280, 1600 and 2048, about 25% apart. Every size is a multiple
+  1024, 1280, 1600, 2048, 2560, 3200, 4096, 5120, 6400, 8192,
+  10240, 12800, 16384, 20480, 25600 and 32768, about 25% apart. Every size is a multiple
   of 16, so every payload at slot + 8 is 8-aligned. No object stores its
-  size: its descriptor knows the class.
-- **Pages of one class.** A small page starts with a 16-byte page header
+  size: the page table identifies the class.
+- **Spans of one class.** Classes through 2048 bytes use one page;
+  medium classes use four pages, keeping unused tail space at or below 12.5%.
+  Each span starts with a 16-byte header
   (the free-list head, the next and previous pages of its class's list,
   the live count and the bump offset), then its slots; its class is in
   its page-table entry. A fresh page is bump-allocated; freed slots go on
   the page's free list, popped and pushed in constant time; a page whose
-  live count falls to zero returns to the page pool, unless it heads its
-  class's list.
+  live count falls to zero returns to the page pool. Small classes keep
+  an empty head page; medium classes return every empty span, so mixed
+  transient sizes share those pages.
 - **Freed lists.** A block freed at its known class goes on one list per
   class instead, with no page update; allocation pops that list first.
   Its page still counts it live until the heap needs a page: then every
   listed block goes back to its page first, so empty pages still return
   to the pool.
-- **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
+- **Large blocks** (over 32 KiB) are runs of whole pages, first fit from
   the pool's runs, coalesced with free neighbors on free; every page of a
   run points at its first (§23.5). Search skips occupied prefixes after
   growth. A failed search caches the end of a prefix with no fitting run;

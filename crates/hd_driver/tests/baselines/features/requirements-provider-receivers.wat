@@ -42,7 +42,7 @@
     local.get $n
     ;; 31 |     $.with(Meter=counters):
     local.get $t0
-    i32.const 292 ;; &vtable[func69]
+    i32.const 328 ;; &vtable[func69]
     ;; 32 |         count(n)
     call $count
     ;; 31 |     $.with(Meter=counters):

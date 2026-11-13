@@ -14,7 +14,7 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $t0
-    i32.const 160 ;; &vtable[func53]
+    i32.const 192 ;; &vtable[func53]
   )
   (func $"impl Value for DynNode.value" (param $self i32) (result i32)
     ;; 12 |     fn value(&self) -> i32: +1

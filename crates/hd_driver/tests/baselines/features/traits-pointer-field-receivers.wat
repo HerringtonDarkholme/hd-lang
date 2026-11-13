@@ -80,7 +80,7 @@
     local.get $n
     i64.store $heap offset=8
     local.get $t0
-    i32.const 160 ;; &vtable[func38]
+    i32.const 192 ;; &vtable[func38]
     call $total
   )
   (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $t0 i32) (local $t1 i32) (local $sum i64) (local $x i64)

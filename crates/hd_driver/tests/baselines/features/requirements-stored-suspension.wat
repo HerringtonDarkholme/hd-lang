@@ -131,7 +131,7 @@
           end
         end
         local.get $t5
-        i32.const 356 ;; &vtable[func97]
+        i32.const 388 ;; &vtable[func97]
     ;; 43 |         tagged()
         call $tagged'1
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
