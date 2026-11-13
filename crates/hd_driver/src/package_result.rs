@@ -79,7 +79,8 @@ pub(crate) fn key(
         && packages.failed_inputs.is_empty()
         && packages.body_fuel.is_none()
         && !packages.checked
-        && !packages.verify_own;
+        && !packages.verify_own
+        && !packages.verify_tir;
     if !plain {
         return None;
     }

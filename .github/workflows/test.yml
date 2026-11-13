@@ -447,6 +447,8 @@ jobs:
   # something else has its own.
   conformance:
     name: Driver conformance (${{ matrix.mode }})
+    env:
+      HD_VERIFY: "1"
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30

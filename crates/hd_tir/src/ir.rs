@@ -1690,6 +1690,7 @@ pub trait TirSink {
 /// columns; the open block's list lives on a scratch stack until it closes.
 pub struct TirBuilder {
     body: Body,
+    verify: bool,
     scratch: Vec<u32>,
     open: Vec<u32>,
     open_caps: Vec<(SubId, LocalId)>,
@@ -1705,10 +1706,20 @@ impl TirBuilder {
         body.sub_flags.push(0);
         Self {
             body,
+            verify: true,
             scratch: vec![],
             open: vec![],
             open_caps: vec![],
         }
+    }
+
+    /// Select checked-body verification for this compiler run. Direct builder
+    /// clients verify by default; debug compilers always verify, even when
+    /// their caller disables the optional release-compiler check.
+    #[must_use]
+    pub fn with_verification(mut self, enabled: bool) -> Self {
+        self.verify = cfg!(debug_assertions) || enabled;
+        self
     }
 
     fn record(&mut self, words: &[u32]) -> u32 {
@@ -1894,6 +1905,9 @@ impl TirBuilder {
         self.body
             .cap_mode
             .resize(self.body.cap_local.len(), CaptureMode::Shared);
+        if !self.verify {
+            return Ok(self.body);
+        }
         let mut errs = verify_checked(&self.body);
         errs.retain(|e| !tolerated.contains(&e.invariant));
         if errs.is_empty() {

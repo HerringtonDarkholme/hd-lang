@@ -388,6 +388,7 @@ impl Program {
             std_leaf: None,
             checked: false,
             verify_own: false,
+            verify_tir: std::env::var_os("HD_VERIFY").is_some(),
             requires: self.requires.clone(),
             deps: self
                 .deps
