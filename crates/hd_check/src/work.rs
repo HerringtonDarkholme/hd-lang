@@ -186,6 +186,29 @@ pub(crate) fn header_type() {
     });
 }
 
+thread_local! {
+    static HELD_TYPES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the types the inline-containment walk enters on this thread
+/// (`crate::value::Containment`), one per entry, not per memo hit. Use the
+/// driver's serial executor to measure a whole build.
+pub fn count_held_types<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = HELD_TYPES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = HELD_TYPES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One type the inline-containment walk enters.
+pub(crate) fn held_type() {
+    HELD_TYPES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::{count_join_work, join_work};

@@ -261,6 +261,41 @@ fn an_alias_chain_at_the_type_depth_checks_and_one_more_is_too_large() {
     assert_eq!(alias_chain_work(TYPE_DEPTH + 1).1, ["type-too-large"]);
 }
 
+// Checker: #1828, the inline-containment walk (`recursive-value-type`)
+// keeps the types whose closure it walked to the end across the items of
+// a header pass, so a chain of structs held inline costs its length, not
+// its length per struct.
+/// `struct C0: x: i32`, `struct C1: next: C0`, and so on.
+fn struct_chain(n: u32) -> String {
+    let mut s = String::from("struct C0:\n    x: i32\n");
+    for i in 1..n {
+        let _ = writeln!(s, "\nstruct C{i}:\n    next: C{}", i - 1);
+    }
+    s
+}
+
+/// The types the containment walk enters for a chain of `n` structs.
+fn struct_chain_work(n: u32) -> u64 {
+    let (out, types) =
+        hd_check::work::count_held_types(|| compile(&struct_chain(n), &Goal::Analyze));
+    assert!(out.diags.is_empty(), "chain {n}: {}", out.render());
+    types
+}
+
+#[test]
+fn struct_chain_containment_grows_linearly() {
+    // The first build also checks the standard library's items.
+    struct_chain_work(1);
+    // Each struct's walk went down the whole chain before the walk kept
+    // its finite types across the pass: n² / 2 types.
+    let small = struct_chain_work(2000);
+    let large = struct_chain_work(20_000);
+    assert!(
+        small >= 2000 && large <= 10 * small + 100,
+        "types entered for 2,000 and 20,000 chained structs: {small} and {large}",
+    );
+}
+
 /// Checker: fuel spent entering expressions and solving body obligations.
 fn check_fuel(generate: fn(usize) -> String, small: usize, large: usize) {
     let work = |n| {

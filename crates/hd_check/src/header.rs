@@ -106,13 +106,16 @@ fn stage_b_over<'i>(
     let mut out = Vec::new();
     let mut cycles = crate::value::ProjectionCycles::default();
     let mut clean = hd_base::HashSet::default();
+    let mut values = crate::value::Containment::default();
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.cycles = cycles;
         hc.clean = clean;
+        hc.values = values;
         hc.item(it)?;
         cycles = hc.cycles;
         clean = hc.clean;
+        values = hc.values;
     }
     Ok(out)
 }
@@ -359,6 +362,9 @@ struct ItemCheck<'c, 'a> {
     /// The closed types whose check reported nothing, kept across the
     /// items of one stage-B pass.
     clean: hd_base::HashSet<Ty>,
+    /// The inline-containment walk, its finite types kept across the
+    /// items of one stage-B pass.
+    values: crate::value::Containment,
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
@@ -393,6 +399,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             too_complex: false,
             too_deep: false,
             clean: hd_base::HashSet::default(),
+            values: crate::value::Containment::default(),
         }
     }
 }
@@ -1591,10 +1598,11 @@ impl<'a> ItemCheck<'_, 'a> {
             ),
             _ => return,
         };
+        let (pool, lookup) = (self.pool(), self.cx.lookup);
         let holding: Vec<usize> = fields
             .iter()
             .enumerate()
-            .filter(|(_, f)| crate::value::holds_value(self.pool(), self.cx.lookup, f.ty, it.def))
+            .filter(|(_, f)| self.values.holds(pool, lookup, f.ty, it.def))
             .map(|(i, _)| i)
             .collect();
         let Some(&first) = holding.first() else {
@@ -1624,7 +1632,7 @@ impl<'a> ItemCheck<'_, 'a> {
     fn embeds_itself(&self, def: DefId) -> bool {
         let pool = self.pool();
         let lookup = self.cx.lookup;
-        let mut seen = Vec::new();
+        let mut seen = hd_base::HashSet::default();
         let mut stack = vec![def];
         while let Some(d) = stack.pop() {
             let Some(ItemData::Struct(fs, _)) = lookup.item(d).map(|i| &i.data) else {
@@ -1635,8 +1643,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     if e == def {
                         return true;
                     }
-                    if !seen.contains(&e) {
-                        seen.push(e);
+                    if seen.insert(e) {
                         stack.push(e);
                     }
                 }
@@ -1650,19 +1657,15 @@ impl<'a> ItemCheck<'_, 'a> {
     /// module path, then name, sorts first
     /// (`data.enum.no-recursion.group`). Each other member `Y` holds `def`,
     /// and `def` holds `Y`, through the declarations as written.
-    fn cycle_reported_elsewhere(&self, def: DefId, fields: &[&hd_resolve::Field]) -> bool {
+    fn cycle_reported_elsewhere(&mut self, def: DefId, fields: &[&hd_resolve::Field]) -> bool {
         let pool = self.pool();
-        let lookup = self.cx.lookup;
-        let key = |d: DefId| {
-            (
-                self.cx.names.module_of(d),
-                self.cx.names.display_name(d).to_owned(),
-            )
-        };
+        let cx = self.cx;
+        let lookup = cx.lookup;
+        let key = |d: DefId| (cx.names.module_of(d), cx.names.display_name(d).to_owned());
         let mut held = Vec::new();
         let mut seen = hd_base::HashSet::default();
         for f in fields {
-            crate::value::held_values(pool, lookup, f.ty, &mut seen, &mut held);
+            self.values.held(pool, lookup, f.ty, &mut seen, &mut held);
         }
         let mine = key(def);
         held.into_iter().filter(|&y| y != def).any(|y| {
@@ -1680,7 +1683,7 @@ impl<'a> ItemCheck<'_, 'a> {
             key(y) < mine
                 && own
                     .into_iter()
-                    .any(|t| crate::value::holds_value(pool, lookup, t, def))
+                    .any(|t| self.values.holds(pool, lookup, t, def))
         })
     }
 
