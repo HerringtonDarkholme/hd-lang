@@ -5,10 +5,18 @@
 use std.annotation.cold
 use std.core.Copy
 use std.rt.Drop
+use std.rt.alloc.block_size
+use std.rt.memory.size_of
 
 fn check_count(actual: usize, expected: usize) -> void:
     if actual != expected:
         panic("the destructor changed a value snapshot")
+
+# Private list ABI: an 8-byte object header precedes 16 bytes of list metadata.
+# Query the allocator instead of assuming a particular size class or growth step.
+fn one_item_capacity[T]() -> usize:
+    size := size_of::[T]()
+    (block_size(24 + size) - 24) / size
 
 struct Counter:
     value: usize
@@ -22,7 +30,8 @@ impl !Copy for Resource
 impl Drop for Resource:
     fn drop(&mut self) -> void:
         self.counter.value += 1
-        self.target.push(9)
+        for _ in 0..one_item_capacity::[usize]():
+            self.target.push(9)
 
 @cold
 fn effect(counter: *mut Counter, target: *mut List[usize]) -> void:
@@ -42,4 +51,4 @@ pub fn main() -> void:
     if observed != 1:
         panic("violated Drop snapshot invariant: length $observed")
     check_count(counter.value, 1)
-    check_count(target.len(), 2)
+    check_count(target.len(), 1 + one_item_capacity::[usize]())
