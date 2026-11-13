@@ -15,6 +15,7 @@ mod bulk;
 mod count_audit;
 mod count_tests;
 mod cycle;
+mod cycle_graph;
 mod drive;
 mod emit;
 mod frame_referents;
