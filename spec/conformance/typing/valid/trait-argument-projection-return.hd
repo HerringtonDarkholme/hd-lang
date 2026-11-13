@@ -1,0 +1,49 @@
+# test: a parameter of a projection type over a trait with a lifetime argument returns as that projection
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument,
+# ref.lifetime.return. `x: S::Item` holds what `S::Item` holds, at the
+# lifetimes its bounds and its trait's arguments name, and the result of
+# that type may depend on them: `'a` in each form here, whatever the other
+# parameters' lifetimes are. A call passes a projection on as its own, and
+# a list of projections returns as one too. A trait value's argument is no
+# part of what the trait value holds.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+
+fn pick['a, S < Shelf['a]](x: S::Item, p: &'a Point) -> S::Item:
+    x
+
+trait Shelf2['b]:
+    type Item
+
+fn pick2['a, S < Shelf2['a]](x: S::Item, p: &'a Point) -> S::Item:
+    x
+
+fn other['a, 'e, S < Shelf['a]](x: S::Item, p: &'e Point) -> S::Item:
+    x
+
+fn alone['a, S < Shelf['a]](x: S::Item) -> S::Item:
+    x
+
+fn pair['a, S < Shelf['a]](x: S::Item, p: &'a Point) -> (S::Item, i32):
+    (x, p.x)
+
+fn listed['a, S < Shelf['a]](xs: List[S::Item], p: &'a Point) -> List[S::Item]:
+    xs
+
+fn boxed['a, S < Shelf['a]](x: S::Item, b: *dyn Store[S::Item]) -> S::Item:
+    x
+
+fn passed['a, S < Shelf['a]](x: S::Item, p: &'a Point) -> S::Item:
+    pick::[S](x, p)
+
+trait Arg[V]:
+    type Item < Store[V]
+
+fn argument['a, S < Arg[&'a Point]](x: S::Item, p: &'a Point) -> S::Item:
+    x

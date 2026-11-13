@@ -114,6 +114,9 @@ pub(crate) struct DepSig {
     elided: Elided,
     /// Elision for a direct function result's hidden capture slot.
     capture_elided: Elided,
+    /// The lifetimes a result with no slot of its own may depend on as a
+    /// whole: its projections' ([`Ck::whole_lifetimes`]).
+    whole: Vec<u32>,
 }
 
 impl DepSig {
@@ -213,6 +216,7 @@ impl DepSig {
             ret,
             elided,
             capture_elided,
+            whole: Vec::new(),
         }
     }
 
@@ -292,6 +296,7 @@ impl DepSig {
             ret: result,
             elided,
             capture_elided,
+            whole: Vec::new(),
         })
     }
 
@@ -428,7 +433,9 @@ impl DepSig {
 
     /// Whether the result depends on any input.
     fn depends(&self) -> bool {
-        self.outs.iter().any(Option::is_some) || matches!(self.elided, Elided::Lifetime(_))
+        self.outs.iter().any(Option::is_some)
+            || matches!(self.elided, Elided::Lifetime(_))
+            || !self.whole.is_empty()
     }
 
     /// Every lifetime the result may depend on, for a value whose slots do
@@ -441,6 +448,7 @@ impl DepSig {
         if let Elided::Lifetime(id) = self.capture_elided {
             ids.push(id);
         }
+        ids.extend_from_slice(&self.whole);
         ids.sort_stable();
         ids.dedup();
         ids
@@ -1569,28 +1577,86 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// The lifetimes the bounds of projection `proj` write, in its scope's
-    /// numbering, sorted: each slot of what it stands for takes them all,
-    /// as a type parameter's slots take its bounds'.
+    /// The lifetimes of projection `proj`, in its scope's numbering,
+    /// sorted: those its bounds write, those its base's bounds give its
+    /// trait's arguments, and its base's own when the base is a projection
+    /// too. Each slot of what it stands for takes them all, as a type
+    /// parameter's slots take its bounds' (`ref.lifetime.trait.bound-argument`).
     fn proj_lifetimes(&self, ls: &Layouts<'_>, proj: Ty) -> Vec<u32> {
-        let pool = ls.pool;
-        let TyData::Assoc { assoc, .. } = pool.get(proj) else {
-            return Vec::new();
-        };
-        let Some(ItemData::AssocType { bounds, .. }) =
-            self.cx.lookup.item(assoc).map(|it| &it.data)
-        else {
-            return Vec::new();
-        };
-        let mut out: Vec<u32> = (bounds.iter())
-            .filter_map(|&b| pool.trait_value(b))
-            .flat_map(|(tr, _)| self.bound_ids(ls, proj, tr, 0))
-            .flatten()
-            .filter(|&l| l != 0)
-            .collect();
+        let mut out = Vec::new();
+        self.proj_lifetimes_into(ls, proj, &mut out);
+        out.retain(|&l| l != 0);
         out.sort_stable();
         out.dedup();
         out
+    }
+
+    /// [`Ck::proj_lifetimes`] unsorted. The base is a smaller type, so the
+    /// walk ends.
+    fn proj_lifetimes_into(&self, ls: &Layouts<'_>, proj: Ty, out: &mut Vec<u32>) {
+        let pool = ls.pool;
+        let TyData::Assoc {
+            assoc,
+            trait_: owner,
+            self_ty: base,
+            ..
+        } = pool.get(proj)
+        else {
+            return;
+        };
+        out.extend(self.bound_ids(ls, base, owner, 0).concat());
+        self.proj_lifetimes_into(ls, base, out);
+        let Some(ItemData::AssocType { bounds, .. }) =
+            self.cx.lookup.item(assoc).map(|it| &it.data)
+        else {
+            return;
+        };
+        (bounds.iter())
+            .filter_map(|&b| pool.trait_value(b))
+            .for_each(|(tr, _)| out.extend(self.bound_ids(ls, proj, tr, 0).concat()));
+    }
+
+    /// The lifetimes a value of type `t` holds as a whole where its layout
+    /// has no slot for them: those of each projection it holds, as
+    /// `S::Item` or `List[S::Item]` with `S < Shelf['a]`. Empty for a type
+    /// with slots of its own. A trait value's and an opaque type's
+    /// arguments are no part of what they hold (`trait.dyn.ref.convert`,
+    /// `types.opaque.borrows`).
+    fn whole_lifetimes(&self, ls: &Layouts<'_>, t: Ty) -> Vec<u32> {
+        let pool = ls.pool;
+        if !ls.of(t).slots.is_empty() || !ls.holds(t) {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        let mut stack = vec![t];
+        while let Some(t) = stack.pop() {
+            match pool.get(t) {
+                TyData::Assoc { .. } => out.extend(self.proj_lifetimes(ls, t)),
+                TyData::TraitValue { .. } | TyData::Opaque { .. } => {}
+                _ => pool.children(t, &mut stack),
+            }
+        }
+        out.sort_stable();
+        out.dedup();
+        out
+    }
+
+    /// `dep` with each parameter whose type holds projections and has no
+    /// slot at the first of their lifetimes, and its result's
+    /// [`DepSig::whole`] theirs, so `-> S::Item: x` with `x: S::Item`
+    /// returns what it was given (`ref.lifetime.return`). A caller links a
+    /// projection's lifetimes as one ([`Key::AllOf`]), so the first stands
+    /// for them all.
+    fn with_wholes(&self, ls: &Layouts<'_>, mut dep: DepSig) -> DepSig {
+        for (t, ids) in &mut dep.params {
+            if ids.is_empty()
+                && let Some(&l) = self.whole_lifetimes(ls, *t).first()
+            {
+                ids.push(l);
+            }
+        }
+        dep.whole = self.whole_lifetimes(ls, dep.ret);
+        dep
     }
 
     /// The generics of `owner`: a function's or a method's signature's,
@@ -2062,6 +2128,7 @@ impl Ck<'_, '_> {
                     &sig.lifetimes,
                 )
                 .with_paths(ls, &sig.paths);
+                let dep = self.with_wholes(ls, dep);
                 Some(if opaque { dep.open(ls, ret) } else { dep })
             }
             _ => None,
@@ -2075,7 +2142,10 @@ impl Ck<'_, '_> {
         let mine = declared.map(|sig| {
             let names = &self.cx.names;
             let is_self = |s| names.text(s) == "self";
-            DepSig::new(ls, &sig.params, is_self, Ty::VOID, &sig.lifetimes)
+            self.with_wholes(
+                ls,
+                DepSig::new(ls, &sig.params, is_self, Ty::VOID, &sig.lifetimes),
+            )
         });
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
@@ -2143,6 +2213,7 @@ impl Ck<'_, '_> {
                                 ret: result,
                                 elided: Elided::Missing,
                                 capture_elided: Elided::Missing,
+                                whole: Vec::new(),
                             });
                             let hidden = body.sub_root.get(sub).map_or(result, |&r| {
                                 body.ty.get(r as usize).copied().unwrap_or(result)

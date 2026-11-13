@@ -1,0 +1,25 @@
+# test: a call that returns a projection whose bound writes no lifetime holds what its argument holds at the trait's lifetime argument
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `Shelf2['a]`
+# gives `S::Item` the lifetime `'a` though `Item` has no bound, so `pick2`'s
+# result is at `'a` with its `Keep` argument, and `caller` returns `&q`.
+struct Point:
+    x: i32
+
+trait Shelf2['b]:
+    type Item
+
+struct Keep['a]:
+    last: &'a Point
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf2['b] for Sh:
+    type Item = Keep['b]
+
+fn pick2['a, S < Shelf2['a]](x: S::Item, p: &'a Point) -> S::Item:
+    x
+
+fn caller(p: &Point) -> Keep:
+    q := Point { x: 4 }
+    pick2::[Sh](Keep { last: &q }, p) # diagnostic: local-reference-escapes

@@ -1,0 +1,32 @@
+# test: a call that returns a projection holds what its projection argument holds
+# Spec 13 Lifetime Traits: ref.lifetime.trait.bound-argument. `S::Item` is
+# `Keep['b]` for `Sh`, and `pick`'s result is the `Keep` it was given, so
+# `caller` returns `&q` past its block.
+struct Point:
+    x: i32
+
+trait Store[T]:
+    fn put(&mut self, value: T) -> void
+
+trait Shelf['b]:
+    type Item < Store[&'b Point]
+
+struct Keep['a]:
+    last: &'a Point
+
+impl['a] Store[&'a Point] for Keep['a]:
+    fn put(&mut self, value: &'a Point) -> void:
+        self.last = value
+
+struct Sh:
+    n: i32
+
+impl['b] Shelf['b] for Sh:
+    type Item = Keep['b]
+
+fn pick['a, S < Shelf['a]](x: S::Item, p: &'a Point) -> S::Item:
+    x
+
+fn caller(p: &Point) -> Keep:
+    q := Point { x: 4 }
+    pick::[Sh](Keep { last: &q }, p) # diagnostic: local-reference-escapes
