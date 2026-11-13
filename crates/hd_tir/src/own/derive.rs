@@ -483,21 +483,17 @@ impl Tables {
                 let path = &self.wpaths[w.start as usize..(w.start + w.len) as usize];
                 let hit = (w.direct && overlap(own, path))
                     || (overlap(below, path) && (w.cut == NONE || link.len > w.cut));
-                if hit && w.dropped == Dropped::Nothing {
-                    put(&mut self.changed, bit);
-                } else if hit
-                    && !(capture_drop
-                        && own.first() == Some(&DEREF)
-                        && matches!(w.dropped, Dropped::Local(_)))
-                {
-                    self.crossed.push((
-                        bit,
-                        match w.dropped {
-                            Dropped::Value(v) => v,
-                            Dropped::Local(l) => u32_of(self.v.len()) + l,
-                            Dropped::Nothing => unreachable!("a `Drop` of a whole place"),
-                        },
-                    ));
+                if !hit {
+                    continue;
+                }
+                match w.dropped {
+                    Dropped::Nothing => put(&mut self.changed, bit),
+                    Dropped::Value(v) => self.crossed.push((bit, v)),
+                    Dropped::Local(l) => {
+                        if !(capture_drop && own.first() == Some(&DEREF)) {
+                            self.crossed.push((bit, u32_of(self.v.len()) + l));
+                        }
+                    }
                 }
             }
         }
