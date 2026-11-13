@@ -583,8 +583,9 @@ type ProjLifetimes<'f> = &'f dyn Fn(Ty) -> Vec<u32>;
 /// it holds a trait value or an opaque type besides. None for a type with slots of its own.
 /// A trait value's and an opaque type's arguments are no part of what they
 /// hold (`trait.dyn.ref.convert`, `types.opaque.borrows`). A trait's own
-/// `Self::Item` lists no trait arguments, so [`Layouts::holds`] says no to
-/// it, but it holds what the trait's lifetimes name all the same.
+/// `Self::Item` lists no trait arguments, so [`holds_local_ref`] says no to
+/// it, but it holds what the trait's lifetimes name all the same
+/// ([`own_proj`]).
 fn wholes(ls: &Layouts<'_>, t: Ty) -> (Vec<Ty>, bool) {
     let (pool, mut out, mut other) = (ls.pool, Vec::new(), false);
     if !ls.of(t).slots.is_empty() || !pool.has_assoc(t) {
@@ -688,7 +689,8 @@ enum Key {
     /// The declared type's slot `k`.
     Decl(usize),
     /// Slot `s` of what type parameter `p` stands for, a function type's
-    /// capture slot included.
+    /// capture slot included; slot 0 also for the whole of one with no
+    /// slot of its own, as [`Ck::call_sig`] passes it.
     Param(hd_types::ParamRef, usize),
     /// A slot of projection `t` of type parameter `p`, as `P::Out`: any
     /// slot of what `p` or a type parameter in its trait's arguments
@@ -1229,7 +1231,7 @@ struct CallSig {
     /// Each result slot's variables.
     outs: Vec<Vec<Var>>,
     /// What a result with no slots takes: the elided lifetimes, and what
-    /// the projections it holds hold.
+    /// the projections and type parameters it holds hold.
     bare: Vec<Var>,
     /// Whether the result takes the variables.
     result: bool,
