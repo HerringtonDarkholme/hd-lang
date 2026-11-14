@@ -1,0 +1,4 @@
+# A top-level item whose name is missing before the next item's keyword (`enum impl`) holds the syntax error reported at that keyword: it is left out, with no crash, and every other item is checked. A struct name missing at a line end leaves the next function whole: its callers' mistakes are reported.
+run: hd check --format json items.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"syntax-error","message":"expected an enum type name, found 'impl'","file":"items.hd","line":1,"column":6},{"kind":"diagnostic","code":"type-mismatch","message":"in binding: expected string, found i32","file":"items.hd","line":4,"column":24},{"kind":"diagnostic","code":"syntax-error","message":"expected a struct name, found a line ending","file":"items.hd","line":8,"column":1},{"kind":"diagnostic","code":"type-mismatch","message":"in result: expected string, found i32","file":"items.hd","line":12,"column":5},{"kind":"summary","errors":4,"warnings":0,"status":101}]

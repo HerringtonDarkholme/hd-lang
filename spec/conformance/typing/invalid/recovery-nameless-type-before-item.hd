@@ -1,0 +1,9 @@
+# test: a top-level type alias with its name missing before another item is not checked, and the rest is
+# Spec 02 Error Recovery: grammar.recovery.item.
+type struct Point: # diagnostic: syntax-error
+    x: i32
+
+pub fn main() -> void:
+    helper()
+
+fn helper() -> void: pass

@@ -67,7 +67,7 @@ fn checked() -> string:
 
 1. r[grammar.recovery.statement] After the first parsing error in a statement, an implementation must suppress further parsing errors rooted in that statement.
 2. r[grammar.recovery.unclosed] After an `unclosed-delimiter` error, an implementation must suppress parsing errors on later lines within that delimiter.
-3. r[grammar.recovery.item] A top-level item whose source holds a parsing error is not checked, and a use of a name it declares or binds reports nothing more. Every other top-level item of the file is checked. An item's source runs from its first token to the next top-level item.
+3. r[grammar.recovery.item] A top-level item whose source holds a parsing error is not checked, and a use of a name it declares or binds reports nothing more. Every other top-level item of the file is checked. An item's source runs from its first token to the next top-level item, and an error found while parsing an item is its own wherever it is reported: in `enum impl`, the missing name reported at `impl` is the enum's.
 
 > **Why.** One diagnostic identifies the root cause without presenting its
 > syntactic fallout as independent mistakes. Checking the other items

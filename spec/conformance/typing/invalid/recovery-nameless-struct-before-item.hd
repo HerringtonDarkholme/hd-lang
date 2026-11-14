@@ -1,0 +1,9 @@
+# test: a top-level struct with its name missing before another item is not checked, and the rest is
+# Spec 02 Error Recovery: grammar.recovery.item.
+struct enum Shade: # diagnostic: syntax-error
+    Light
+
+pub fn main() -> void:
+    helper()
+
+fn helper() -> void: pass

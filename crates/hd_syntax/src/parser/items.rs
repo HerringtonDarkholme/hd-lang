@@ -65,11 +65,18 @@ impl Parser<'_> {
             }
             let before = self.pos();
             self.stmt_errored = false;
+            self.item_errored = false;
+            self.in_item = true;
             self.bound_keywords.clear();
             self.item(Place::Top);
             self.statement_end();
             if self.pos() == before && self.layout().is_none() && !self.at_eof() {
                 self.junk();
+            }
+            self.in_item = false;
+            if self.item_errored {
+                self.errored_items
+                    .push(u32::try_from(before).unwrap_or(u32::MAX));
             }
         }
         self.complete(root, SyntaxKind::Root);

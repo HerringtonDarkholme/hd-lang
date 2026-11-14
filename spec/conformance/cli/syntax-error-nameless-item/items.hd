@@ -1,0 +1,12 @@
+enum impl
+
+fn label(n: i32) -> string:
+    let text: string = n
+    text
+
+struct
+fn three() -> i32:
+    +3
+
+fn use_three() -> string:
+    three()

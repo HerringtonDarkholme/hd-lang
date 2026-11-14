@@ -57,8 +57,8 @@ pub struct Parse {
     pub diagnostics: Vec<Diagnostic>,
     pub items: ItemIndex,
     pub symbols: Interner,
-    /// The top-level children whose source holds a diagnostic, in tree
-    /// order ([`broken_items`]). Empty, with no work done, for a clean
+    /// The top-level children that hold a parse error, in tree order
+    /// ([`broken_items`]). Empty, with no work done, for a clean
     /// parse.
     pub broken: Vec<NodeIdx>,
     /// The parsed text's line index, built on the first
@@ -155,12 +155,15 @@ pub fn parse(source: &[u8]) -> Parse {
     let mut parser = Parser::new(text, &lexed.tokens, &lexed.diagnostics);
     parser.source_file();
     let mut diagnostics = lexed.diagnostics.clone();
-    diagnostics.extend(parser.finish_diagnostics());
+    let (parsed, mut placed) = parser.finish_diagnostics();
+    diagnostics.extend(parsed);
+    placed.extend(lexed.diagnostics.iter().map(|d| d.primary.lo));
+    placed.sort_stable();
     let tree = build(&mut parser.events);
     let (items, symbols) = build_item_index(&tree, &lexed.tokens, text);
     diagnostics.sort_stable_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
     diagnostics.dedup_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
-    let broken = broken_items(&tree, &lexed.tokens, &diagnostics);
+    let broken = broken_items(&tree, &lexed.tokens, &placed, &parser.errored_items);
     Parse {
         tokens: lexed.tokens,
         tree,
@@ -274,6 +277,17 @@ pub(crate) struct Parser<'t> {
     unclosed: Vec<(u32, u32)>,
     /// The current statement already reported its error.
     stmt_errored: bool,
+    /// A top-level item is being parsed: an error raised now is its own,
+    /// wherever it stands.
+    in_item: bool,
+    /// The top-level item being parsed raised an error, which may stand
+    /// at a token past its end: a name missing before the next item's
+    /// keyword is reported at that keyword.
+    item_errored: bool,
+    /// The first token of each top-level item that raised an error.
+    errored_items: Vec<u32>,
+    /// Alongside `errors`: whether a top-level item raised it.
+    raised_in_item: Vec<bool>,
     /// The last construct consumed ended in a suite.
     suite_closed: bool,
     /// The last suite consumed was a same-line suite.
@@ -320,6 +334,10 @@ impl<'t> Parser<'t> {
             lexed: spans,
             unclosed: unclosed_scopes(toks, lexed),
             stmt_errored: false,
+            in_item: false,
+            item_errored: false,
+            errored_items: Vec::new(),
+            raised_in_item: Vec::new(),
             suite_closed: false,
             suite_inline: false,
             nesting: 0,
@@ -332,7 +350,10 @@ impl<'t> Parser<'t> {
         }
     }
 
-    fn finish_diagnostics(&mut self) -> Vec<Diagnostic> {
+    /// The parse's diagnostics, and the starts of those no top-level item
+    /// raised, which belong to the item whose source holds them
+    /// ([`broken_items`]).
+    fn finish_diagnostics(&mut self) -> (Vec<Diagnostic>, Vec<u32>) {
         let mut out = Vec::new();
         for (code, at, message) in &self.cur.errors {
             let (lo, hi) = self.token_span(*at);
@@ -340,9 +361,17 @@ impl<'t> Parser<'t> {
                 out.push(diag(*code, lo, hi, message.clone()));
             }
         }
+        let mut placed: Vec<u32> = out.iter().map(|d| d.primary.lo).collect();
+        for (d, &raised) in self.errors.iter().zip(&self.raised_in_item) {
+            if !raised {
+                placed.push(d.primary.lo);
+            }
+        }
         out.extend(self.errors.iter().cloned());
+        let docs = out.len();
         self.doc_comments(&mut out);
-        out
+        placed.extend(out[docs..].iter().map(|d| d.primary.lo));
+        (out, placed)
     }
 
     // ------------------------------------------------------------ tokens
@@ -583,6 +612,7 @@ impl<'t> Parser<'t> {
     }
 
     fn raise(&mut self, code: Code, at: usize, message: impl FnOnce(&Self) -> String) {
+        self.item_errored = true;
         if self.stmt_errored {
             return;
         }
@@ -601,15 +631,21 @@ impl<'t> Parser<'t> {
         }
         self.cur.peek();
         let message = message(self);
-        self.errors.push(diag(code, lo, hi, message));
+        self.push_error(diag(code, lo, hi, message));
+    }
+
+    fn push_error(&mut self, diagnostic: Diagnostic) {
+        self.errors.push(diagnostic);
+        self.raised_in_item.push(self.in_item);
     }
 
     /// A diagnostic that does not end the statement's reporting (a rule
     /// with its own code whose construct still parses).
     pub(crate) fn report(&mut self, code: Code, at: usize, message: &str) {
+        self.item_errored = true;
         let (lo, hi) = self.token_span(at);
         if !self.lexed_covers(lo) {
-            self.errors.push(diag(code, lo, hi, message));
+            self.push_error(diag(code, lo, hi, message));
         }
     }
 
@@ -980,33 +1016,47 @@ fn diag(code: Code, lo: u32, hi: u32, message: impl Into<String>) -> Diagnostic 
     )
 }
 
-/// The top-level children a diagnostic falls in (`grammar.recovery.item`):
+/// The top-level children that hold a parse error (`grammar.recovery.item`).
+/// An error a top-level item's parse raised is that item's, wherever it
+/// stands: `enum impl` reports the missing enum name at `impl`, the next
+/// child's first token, and leaves an `EnumDecl` with no name, while the
+/// next item may be whole. `errored` lists those items' first tokens, in
+/// order. Any other diagnostic (the lexer's, layout's, a doc comment's, or
+/// one raised between items) belongs to the child whose source holds it:
 /// each child owns the source from its first token to the next child's
-/// first token, so a diagnostic at a line end or at the end of the file
-/// belongs to the item it ends. `diagnostics` is sorted by start. One pass
-/// over the root's children, with a binary search each, and only when
-/// the parse reported something.
-fn broken_items(tree: &GreenTree, tokens: &TokenBuf, diagnostics: &[Diagnostic]) -> Vec<NodeIdx> {
-    if diagnostics.is_empty() {
+/// first token, so one at a line end or at the end of the file belongs to
+/// the item it ends. `placed` holds those diagnostics' starts, sorted. A
+/// child that is junk (`ERROR`) is broken too.
+/// One pass over the root's children, with a binary search each, and only
+/// when the parse reported something.
+fn broken_items(
+    tree: &GreenTree,
+    tokens: &TokenBuf,
+    placed: &[u32],
+    errored: &[u32],
+) -> Vec<NodeIdx> {
+    if placed.is_empty() && errored.is_empty() {
         return Vec::new();
     }
-    let starts: Vec<(NodeIdx, u32)> = tree
+    let starts: Vec<(NodeIdx, u32, u32)> = tree
         .root()
         .children()
         .filter_map(|child| {
             // A node with no token has a `NONE` first token.
             let (first, _) = tree.span_tokens(child.index());
-            let first = first.raw() as usize;
-            (first < tokens.len()).then(|| (child.index(), tokens.start[first]))
+            let first = first.raw();
+            ((first as usize) < tokens.len())
+                .then(|| (child.index(), first, tokens.start[first as usize]))
         })
         .collect();
     let mut out = Vec::new();
-    for (i, &(node, lo)) in starts.iter().enumerate() {
-        let hi = starts.get(i + 1).map_or(u32::MAX, |&(_, next)| next);
-        let at = diagnostics.partition_point(|diagnostic| diagnostic.primary.lo < lo);
-        if diagnostics
-            .get(at)
-            .is_some_and(|diagnostic| diagnostic.primary.lo < hi)
+    for (i, &(node, first, lo)) in starts.iter().enumerate() {
+        let hi = starts.get(i + 1).map_or(u32::MAX, |&(_, _, next)| next);
+        let at = placed.partition_point(|&p| p < lo);
+        // Junk a line's recovery skipped is never an item to check.
+        if errored.binary_search(&first).is_ok()
+            || placed.get(at).is_some_and(|&p| p < hi)
+            || tree.node(node).kind() == SyntaxKind::Error
         {
             out.push(node);
         }

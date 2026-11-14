@@ -1,0 +1,9 @@
+# test: a top-level enum with its name missing before another item is not checked, and the rest is
+# Spec 02 Error Recovery: grammar.recovery.item.
+enum impl Show for i32: # diagnostic: syntax-error
+    fn show(self) -> string: "i32"
+
+pub fn main() -> void:
+    helper()
+
+fn helper() -> void: pass

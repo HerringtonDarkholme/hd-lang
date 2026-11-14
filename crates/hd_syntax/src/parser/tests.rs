@@ -435,3 +435,40 @@ fn an_opaque_bound_rejects_another_opaque_occurrence() {
         );
     }
 }
+
+/// `grammar.recovery.item` (#1879): the kinds of the top-level children a
+/// parse leaves out.
+fn broken_kinds(source: &str) -> Vec<SyntaxKind> {
+    let parsed = parse(source.as_bytes());
+    parsed
+        .tree
+        .root()
+        .children()
+        .filter(|c| parsed.is_broken(c.index()))
+        .map(crate::green::NodeRef::kind)
+        .collect()
+}
+
+/// A name missing before the next item's keyword is reported at that
+/// keyword, yet the item that lacks it is the broken one: an item's own
+/// errors are its own wherever they stand, so no nameless declaration
+/// reaches a check, and a whole item after it still does.
+#[test]
+fn a_name_missing_before_the_next_item_breaks_the_item_that_lacks_it() {
+    // The `impl` the enum's line recovery skips is junk, broken too.
+    assert_eq!(
+        broken_kinds("enum impl\n"),
+        [SyntaxKind::EnumDecl, SyntaxKind::Error]
+    );
+    // At a line end, the error stands at the next line's first token.
+    assert_eq!(
+        broken_kinds("struct\nfn f() -> i32:\n    +1\n"),
+        [SyntaxKind::StructDecl]
+    );
+    // An error raised between items, at a stray indent, still belongs to
+    // the child whose source holds it.
+    assert_eq!(
+        broken_kinds("fn f() -> i32:\n    +1\n  x := 2\nfn g() -> i32:\n    +2\n").len(),
+        1
+    );
+}

@@ -78,6 +78,8 @@ const SPEC_CONFLICTS: &[&str] = &[
     // A check case whose broken function hides none of the others' errors
     // (`grammar.recovery.item`).
     "cli/syntax-error-other-items/items.hd",
+    // A check case whose nameless items leave the next ones whole (#1879).
+    "cli/syntax-error-nameless-item/items.hd",
     // A lint case whose identifier is deliberately not NFC, to show that
     // lint reports compiler errors first.
     "cli/lint-mixed-script-prerequisites/src/main.hd",

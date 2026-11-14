@@ -1,0 +1,9 @@
+# test: a top-level function with its name missing before another item is not checked, and the rest is
+# Spec 02 Error Recovery: grammar.recovery.item.
+fn trait Named: # diagnostic: syntax-error
+    fn name(self) -> string
+
+pub fn main() -> void:
+    helper()
+
+fn helper() -> void: pass

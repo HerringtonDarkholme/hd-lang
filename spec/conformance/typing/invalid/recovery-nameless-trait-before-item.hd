@@ -1,0 +1,8 @@
+# test: a top-level trait with its name missing before another item is not checked, and the rest is
+# Spec 02 Error Recovery: grammar.recovery.item.
+trait type Count = i32 # diagnostic: syntax-error
+
+pub fn main() -> void:
+    helper()
+
+fn helper() -> void: pass

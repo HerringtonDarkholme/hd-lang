@@ -1,0 +1,8 @@
+# test: a top-level impl with its implemented type missing before another item is not checked, and the rest is
+# Spec 02 Error Recovery: grammar.recovery.item.
+impl fn twice(n: i32) -> i32: n * 2 # diagnostic: syntax-error
+
+pub fn main() -> void:
+    helper()
+
+fn helper() -> void: pass
