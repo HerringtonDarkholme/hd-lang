@@ -1,0 +1,13 @@
+# test: a call's result element a type parameter fills depends on the same argument element
+# Spec 13 Generic Calls: ref.generic.call. With `T` the tuple
+# `(&Point, &Point)`, `pick(t)._0` depends on `t._0`, here a local `q`.
+struct Point:
+    x: i32
+
+fn pick[T](x: T) -> T:
+    x
+
+fn first_past_first(p: &Point) -> &Point:
+    q := Point { x: 1 }
+    t := (&q, p)
+    pick(t)._0 # diagnostic: local-reference-escapes

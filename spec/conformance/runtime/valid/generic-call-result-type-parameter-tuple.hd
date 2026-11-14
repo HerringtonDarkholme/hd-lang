@@ -1,0 +1,35 @@
+# test: a call's result element a type parameter fills depends on the same argument element only
+# Spec 13 Generic Calls: ref.generic.call. With `T` the tuple
+# `(&Point, &Point)`, `pick(t)._0` depends on `t._0` and not on `t._1`, so
+# it outlives the local `q` passed second. With `T` in two parameters, the
+# result's first element depends on the first element of each.
+# expect-stdout: 3
+# expect-stdout: 4
+# expect-stdout: 5
+struct Point:
+    x: i32
+
+fn pick[T](x: T) -> T:
+    x
+
+fn pick2[T](x: T, y: T) -> T:
+    x
+
+fn first_past_second(p: &Point) -> &Point:
+    q := Point { x: 1 }
+    t := (p, &q)
+    pick(t)._0
+
+fn first_of_both['a](p: &'a Point, q: &Point) -> &'a Point:
+    pick2((p, q), (p, q))._0
+
+fn tuple_parameter['a, 'b](t: (&'a Point, &'b Point)) -> &'a Point:
+    pick(t)._0
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    println(first_past_second(&p).x)
+    r := Point { x: 4 }
+    println(first_of_both(&r, &p).x)
+    s := Point { x: 5 }
+    println(tuple_parameter((&s, &p)).x)
