@@ -268,7 +268,6 @@ impl NodeInstance {
         }
         let _ = std::io::stdout().flush();
         let status = Command::new("node")
-            .arg("--experimental-wasm-jspi")
             .arg(dir.0.join("run.js"))
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
@@ -642,7 +641,6 @@ pub fn run_cases(
         .map_err(|e| format!("{}: {e}", config.display()))?;
     let mut command = Command::new("node");
     command
-        .arg("--experimental-wasm-jspi")
         .arg(dir.0.join("test.js"))
         .arg(dir.0.join("main.wasm"))
         .arg(&config);

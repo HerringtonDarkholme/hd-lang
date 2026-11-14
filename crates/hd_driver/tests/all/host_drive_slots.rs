@@ -377,6 +377,10 @@ const {{ createCoreHost }} = await import(new URL('host/core.ts', root));
 const {{ cycleReport }} = await import(new URL('host/checked-report.ts', root));
 const {{ createPackageRuntime }} = await import(new URL('host/package-providers.ts', root));
 const generated = await import(pathToFileURL({glue_path:?}));
+// Exercise hosts without JSPI explicitly: Node 26 enables it by default.
+if (!{jspi}) {{
+  Object.defineProperties(WebAssembly, {{ Suspending: {{ value: undefined }}, promising: {{ value: undefined }} }});
+}}
 const {{ default: provider }} = await import(pathToFileURL({provider_path:?}));
 const module = new WebAssembly.Module(readFileSync({wasm_path:?}));
 let diagnostics = '';
@@ -400,9 +404,6 @@ try {{
         );
         // cost: one Node process per fixed build mode, never per accumulated entry.
         let mut command = std::process::Command::new("node");
-        if jspi {
-            command.arg("--experimental-wasm-jspi");
-        }
         let ran = command
             .args(["--input-type=module", "-e", &script])
             .output()?;
@@ -599,12 +600,7 @@ try {{
         );
         // cost: one Node process per five fixed build modes, never accumulated state.
         let ran = std::process::Command::new("node")
-            .args([
-                "--experimental-wasm-jspi",
-                "--input-type=module",
-                "-e",
-                &script,
-            ])
+            .args(["--input-type=module", "-e", &script])
             .output()?;
         assert!(
             ran.status.success(),
