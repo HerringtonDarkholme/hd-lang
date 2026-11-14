@@ -66,6 +66,43 @@ B2 87, B3 43, B8 32, B5 20, B4 19, B6 13. The precision seen in hand checks
 was about 3 in 4 for B1, B2 and B3, and lower for C1 and B6. The B7 and B1
 rows are mostly plausible and need a human pass before editing.
 
+## Verification (orchestrator, 2026-11-14, main 9ba8fa972)
+
+What has been rechecked, and what is still unverified. Every action item says
+which kind of row it rests on.
+
+- **Script checks: verified.** Rerun on main, A8–A17 give the recorded counts.
+  A10 40, A10b 87, A10c 22, A11 13, A14 17, A15 9, A16 3, A17 25 and A8 0 are
+  unchanged. A12 (13 against 12), A13 (12 against 11) and A9 (1,281 against
+  1,269) grew by fixtures added since.
+- **P0 item 1: confirmed.** `crates/hd_driver/tests/conformance.rs:1812`
+  returns `Verdict::Pass` on `missing-entry-point`. `runtime/valid/result-ok-unit.hd`
+  has a private `main` and no tests, so its body never runs.
+- **P0 item 2: confirmed.** `runtime/valid/crlf-line-endings.hd` had 18 CRLF
+  line endings when 8f8f62c46 added it and 0 after edea876ae. The format commit
+  folded the nested suite inside the header of
+  `parse/valid/header-resumes-after-nested-suite.hd`, the feature it tests.
+  `.gitattributes` has no line for either fixture.
+- **Hand findings, sampled:**
+  - B2 `typing/invalid/derived-hash-field-not-hash.hd`: confirmed. The error
+    names `Eq`, not `Hash`.
+  - B4 `runtime/valid/pointer-loan-extra-deep-shared-loans-kept.hd`: **wrong**.
+    Its `if n > 1000` never runs on purpose. The write that exists statically
+    is what keeps the loans, so its verdict line says "loan needed" against the
+    plain twin's "elided".
+  - The hidden-second-error rejects (`orphan-impl`, `let-else-falls-through`,
+    `module-qualified-without-use`, `template-outside-trait-module`) each report
+    exactly their one marked code. The hidden-error claim still needs the
+    remove-the-violation test.
+- **Spec questions:** each was checked against the spec text before the owner
+  decided it (#1954–#1962). b040's question was already answered by the spec:
+  `expr.assign.compound.meaning` with `expr.call.apply.not-callable` gives
+  `not-callable` (#1956). b008's `**` is a binary operator that
+  `grammar.limit.chain` already covers (#1955).
+- **Unverified:** the rubric rows (B7 286, B1 236, C1 118, B2 87, B3 43, B8 32,
+  B5 20, B4 19, B6 13). They are Haiku output. The issues built on them
+  (#1943–#1947, #1963, #1964) require showing each defect before fixing it.
+
 ## Action Items
 
 Ordered by priority. **[decide]** marks an item that waits for an owner decision;
