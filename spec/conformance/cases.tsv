@@ -740,6 +740,8 @@ runtime/panic/integer-add-overflow.hd	runtime	panic:integer-overflow	lang/04-typ
 runtime/panic/invalid-shift.hd	runtime	panic:invalid-shift	lang/05-expressions.md#unary-and-binary-operators
 runtime/panic/deep-reference-holders-keep-their-loans.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/deep-reference-holders-end-their-loans.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/panic/tuple-rest-reference-keeps-its-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/valid/tuple-rest-reference-ends-at-last-use.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/list-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing
 runtime/valid/counted-index-guards-preserve-early-exits.hd	runtime	accept	lang/05-expressions.md#indexing
 runtime/panic/counted-index-guards-keep-out-of-range-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#indexing

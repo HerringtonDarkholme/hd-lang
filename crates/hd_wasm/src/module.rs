@@ -1164,6 +1164,8 @@ pub struct Module {
     /// Shared groups are prepared once per distinct checked body before
     /// loan analysis; the stable instance number is the only lookup key.
     pub(crate) loan_stores: Vec<std::sync::Arc<[usize]>>,
+    /// Immutable origin-query topology, shared by instances of each body.
+    pub(crate) loan_origins: Vec<std::sync::Arc<crate::emit::OriginIndex>>,
     /// Straight-line element checks, indexed by instance. An owned body
     /// contributes one proof, shared by its sub-bodies and instances.
     pub(crate) element_checks: Vec<Option<std::sync::Arc<hd_tir::own::ElementChecks>>>,
@@ -1285,6 +1287,7 @@ impl Module {
             runtime: *runtime,
             inst_of: hd_base::HashMap::default(),
             loan_stores: Vec::default(),
+            loan_origins: Vec::default(),
             element_checks: Vec::default(),
             boundary_counts: Vec::default(),
             loan_uses: Vec::default(),
