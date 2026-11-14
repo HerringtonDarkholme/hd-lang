@@ -323,9 +323,10 @@ obj/
       head                    linear hash level, split pointer, rows, generation
       <16 hex>                one bucket: a page of sorted rows, replaced whole
       packs                   the pack table: each footed pack and its length
-    lock                      stable publication/GC writer lock
+    lock                      writer lock for index commits; holds the running total
   clpack/<2 hex>/<32 hex>      private native code, with the existing owner checks
   stats                       legacy/private shard ledger (§5.7)
+  gc                          the collection lock and the last collection's time and cap
 ```
 
 - **Logical framing is unchanged.** Each range in a data pack is one complete
@@ -410,17 +411,20 @@ obj/
   that stopped. An older hd finds a directory where its index was: it reads
   misses, and its publication and GC fail with the cache warning before
   they write or delete anything.
-- **Crash recovery and GC races.** GC uses the same writer lock and tries a
-  pending/orphan pack's file lock before deleting it. It cannot observe a
-  newly created but not yet leased file because creation and locking share
-  that writer lock. A live lease is retained; process death releases it,
+- **Crash recovery and GC races.** The collection walks with no lock,
+  then tries a pending file's lock under the writer lock before deleting
+  it. It cannot catch a lease between creation and locking, since both
+  happen under that writer lock. A live lease is retained; process death releases it,
   so no age heuristic delays orphan recovery. A corrupt page or head reads
   as misses and is replaced under the writer lock on the next write/GC (a
   corrupt head starts an empty index); active leases remain protected.
   Missing or truncated packs/ranges are misses. Recognized stale temporary
-  files, and pages past the last bucket, are reclaimable by a walk because
-  their writer also held the stable lock. Foreign filenames and symbolic
-  links stay.
+  files, and pages past the last bucket, are removed under the writer lock
+  because their writer also held it. A pack the walk found and no row
+  names is removed only after a check under the lock: no key in its
+  footer has a row naming it. A pack an older hd wrote has no footer and
+  never gains rows, so a whole-index read whose head did not change
+  proves it unnamed. Foreign filenames and symbolic links stay.
 - **Write failures** warn once and disable further puts for that command;
   the build still succeeds. If GC cannot write, it reports the physical
   bytes it could not remove rather than pretending the packed cache is
@@ -867,29 +871,36 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   final packs and dead pending files are reclaimed by lease-aware GC.
 - **Running total (#1501).** The publication lock file records the
   physical total (final packs plus the index's files) with the generation
-  of the head it describes, written only under that lock. A commit adds its
-  pack and index growth, counting a split bucket at its larger first
-  write, before any of it becomes final, and records the exact total after;
-  a full walk records its exact result. A record naming another generation
-  is unknown: the index was migrated from an older hd's file, or a writer
-  died between recording and its head commit. Unknown counts as over the
-  cap, so a crash or a migration costs one walk and never hides bytes.
+  of the head it describes and a checksum (magic `HDBYTES2`, 48 bytes),
+  written only under that lock. A commit adds its pack and index growth,
+  counting a split bucket at its larger first write, before any of it
+  becomes final, and records the exact total after. A collection records
+  its walk's total plus the tracked packs published since. A command reads
+  the record and the head with no lock; a torn record fails its checksum.
+  A record naming another generation is unknown: the index was migrated
+  from an older hd's file, or a writer died between recording and its
+  head commit. A namespace a writer creates starts with a known zero.
   Deletions without an index change only lower the true total.
-- **Compaction.** A referenced pack over 25% dead, or needing space under
-  the physical cap, is copied by live frame range into a new leased pack.
-  Commit the new locations before removing the old file. An older reader
-  can retain the old descriptor; Windows may postpone deletion until that
-  descriptor closes, and later GC retries it. Index loading and directory
-  scans are included in a command's settlement work.
+- **Compaction.** In a collection, a referenced pack over 25% dead, or any
+  pack with dead bytes when the walk found the cache over the cap, is
+  copied by live frame range into a new leased pack. The copy takes no
+  lock. The commit, under the writer lock, repoints each row still at its
+  old range, and removes the old pack once no key of its footer names it.
+  A row replaced or evicted meanwhile keeps its new state; a copy no row
+  takes is dropped with its lease. An older reader can retain the old
+  descriptor; Windows may postpone deletion until that descriptor closes,
+  and a later collection retries it.
 - **Bounded pack count.** Every command that publishes adds a pack, so its
   settlement merges small packs without a walk: the pack table (in the
   index, read only by a publishing run) groups packs under 8 MiB by power
   of two, and once a class holds four, their live frames, found from each
   pack's footer and its rows' pages, are copied into one pack and the four
-  removed. A frame is copied once per class it climbs; packs stay at most
-  three per class plus the 8 MiB packs, which the cap bounds. 1,000
-  publishing commands leave at most 14 packs. Packs an older hd wrote
-  have no footer and are never merged; compaction still reclaims them.
+  removed. The copy is the compaction's: no lock while copying, the writer
+  lock for the commit and at most four unlinks. A frame is copied once per
+  class it climbs; packs stay at most three per class plus the 8 MiB packs,
+  which the cap bounds. 1,000 publishing commands leave at most 14 packs.
+  Packs an older hd wrote have no footer and are never merged; compaction
+  still reclaims them.
 - **Private/legacy accounting.** `obj/stats` tracks 256 shard sizes and the
   packed-migration state. Publication and eviction serialize file changes
   and their size updates with the ledger lock. Replacing a key subtracts
@@ -905,20 +916,43 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   `hd cache gc` scans both namespaces and uses exact remaining legacy bytes
   as the packed budget; incomplete loose inventory returns an error before
   packed reclamation. The two stores do not each get a fresh 10 GiB.
-- **Automatic eviction.** Drop shares one soft 20 ms budget between legacy
-  scanning and packed cleanup. Packed cleanup reads the running total and,
-  when it fits the cap, walks no directory: it only merges pending recency
-  marks and, after a publication, small packs. Otherwise it walks
-  `pack-v1/` and `pack-v1/index/` whole, since a partial walk cannot
-  establish the total, then evicts and compacts as above. Eviction leaves
-  90% of the cap, so walks are rare; one also runs whenever the record is
-  unknown. Until a walk, dead pending files and unrecorded orphans stay
-  (`hd cache gc` always walks). The first shard/pack operation completes
-  even when scanning exhausted the budget; subsequent commands continue
-  reclamation. Scanning and a single large compaction can exceed that soft
-  budget. Publication and compaction serialize writers; readers take no
-  cross-process lock. `hd cache gc` has no time limit and prints physical
-  bytes before/after, subject to outstanding readers preventing deletion.
+- **A command never walks (#1932).** A command's settlement applies its
+  recency marks and, after a publication, one small-pack merge: O(entries
+  written and marked). It then reads the 64-byte head and the 48-byte
+  record with no lock. Over the cap, or unknown, it asks for a collection.
+  It also asks when the ledger knows no size for some legacy shard. Known
+  legacy shards that its writes put over budget are cleaned within a soft
+  20 ms bound, as before; unknown ones are left to the collection.
+- **Collection, once per interval.** `<obj>/gc` holds a lock and the start
+  time and cap of the last collection. A request is dropped when that
+  collection started less than an hour ago under a cap no smaller, or
+  when another process holds the lock (`try_lock`), so no command waits.
+  The CLI starts a detached `hd cache gc` with `HD_CACHE_GC=auto` for it,
+  as `git gc --auto` detaches (`gc.autoDetach`); a store with no spawner
+  collects on drop. A collection walks `pack-v1/` and `pack-v1/index/`
+  and reads every page, with no lock, retrying while the head changes.
+  It evicts the oldest rows until the live set and its index fit 90% of
+  the cap, in one commit under the writer lock that keeps rows hit or
+  replaced since the read. Then it removes unnamed packs with no lock,
+  compacts, merges one size class, sweeps crashed files, walks again and
+  records the total. Every legacy shard is cleaned too. Cost: O(packs +
+  rows) once per interval, plus the bytes it reclaims; the writer lock
+  covers index commits only. Writes within the interval can take the
+  cache past the cap, as ccache's cleanup lags its counters.
+- **References.** cargo's global cache GC runs at most once per
+  `gc.auto.frequency` (a day), its last run recorded in its SQLite
+  tracker, and holds the package-cache lock that other cargos wait for;
+  hd's collector holds a lock no publisher or reader takes. ccache keeps
+  per-directory size counters and cleans a full directory down to
+  `limit_multiple` of its share; hd's legacy ledger works the same way,
+  but the packed store needs a whole walk to find orphans, so it collects
+  whole, per interval. sccache's single server walks once at startup and
+  evicts on insert; hd has no server, so LRU order lives in the shared
+  index. rustc's incremental GC try-locks other sessions' lock files and
+  deletes only those it can lock, as hd's lease and collection locks do.
+- `hd cache gc` takes the collection lock, waiting for a running
+  collection, has no time limit and prints physical bytes before/after,
+  subject to outstanding readers preventing deletion.
 - **The cap** comes from `HD_CACHE_MAX_SIZE` (bytes, with `K`, `M`, `G`
   suffixes). GC follows no links, removes only recognized managed names,
   and never touches fetched versions in `pkg/`.

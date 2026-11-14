@@ -25,6 +25,12 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(cap) => cap,
         Err(error) => return fail(&error),
     };
+    // A command's detached collection (#1932) prints nothing and leaves a
+    // collection another process runs, or one an interval covers.
+    if std::env::var_os("HD_CACHE_GC").is_some_and(|v| v == "auto") {
+        DiskStore::new(cache_dir()).with_cap(cap).collect_due();
+        return ExitCode::SUCCESS;
+    }
     let sizes = match DiskStore::new(cache_dir()).with_cap(cap).collect() {
         Ok(sizes) => sizes,
         Err(error) => return fail(&format!("cannot collect compiled cache: {error}")),

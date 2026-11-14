@@ -258,11 +258,15 @@ fn commands_evict_over_the_cap_from_hd_cache_max_size() {
     let r = hd(&pkg, &cache, None, &["build"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     assert!(total(&obj) > 64 * 1024);
-    // Each command cleans for a bounded time and later ones carry on, so
-    // warm runs that write nothing bring the cache under the cap.
-    for _ in 0..20 {
+    // A command under a smaller cap than the last collection's asks for a
+    // collection, which a detached `hd cache gc` runs to the low-water
+    // mark (#1932); the command itself walks nothing. A request made while
+    // the build's own collection still runs is dropped, so a later
+    // command asks again.
+    for _ in 0..100 {
         let r = hd(&pkg, &cache, Some("16K"), &["check"]);
         assert_eq!(r.code, Some(0), "{}", r.err);
+        std::thread::sleep(Duration::from_millis(100));
         if total(&obj) <= 16 * 1024 {
             break;
         }

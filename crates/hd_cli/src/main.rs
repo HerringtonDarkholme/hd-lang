@@ -338,12 +338,34 @@ pub(crate) fn cache_cap() -> Result<u64, String> {
 }
 
 /// The store of the compiled entries under their cap. Dropping it records
-/// what it wrote and runs the bounded eviction (`cli.cache.obj.evict`).
-/// A command that compiles rejects an invalid cap before it gets here.
+/// what it wrote; a cache over its cap or of unknown size is collected by
+/// a detached `hd cache gc`, so the command never waits for a walk
+/// (`cli.cache.obj.evict`, #1932). A command that compiles rejects an
+/// invalid cap before it gets here.
 pub(crate) fn disk_store() -> DiskStore {
     DiskStore::new(cache_dir())
         .with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))
         .on_write_failure(warn_cache_write)
+        .on_collection_due(spawn_collection)
+}
+
+/// Starts `hd cache gc` in the background, with `HD_CACHE_GC=auto`: it
+/// collects only when no other process is collecting and the last
+/// collection is an interval old. The command does not wait for it, and
+/// a failed start leaves the collection to a later command.
+fn spawn_collection(_root: &std::path::Path) {
+    if let Ok(exe) = std::env::current_exe() {
+        // cost: one process per collection interval, not waited for.
+        let mut command = std::process::Command::new(exe);
+        command
+            .args(["cache", "gc"])
+            .env("HD_CACHE_GC", "auto")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        // cost: the same one process.
+        let _ = command.spawn();
+    }
 }
 
 /// Warns once per command that the compiled cache cannot be written; the

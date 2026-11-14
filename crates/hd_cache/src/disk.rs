@@ -4,15 +4,16 @@
 //! §5.7.
 //! Only this module touches the file system (design-overview §2.2 rule 1).
 //!
-//! Pack readers take no publication lock. A pending pack's file lock
-//! leases it while its writer runs; index publication and GC share one
-//! writer lock. Every addressed range remains an unchanged HDCE frame.
-//! Last-use marks are per entry, at most once an hour, and compaction
-//! preserves them. The index and physical pack bytes count toward the cap.
-//! Automatic cleanup walks the pack directory only when the running total
-//! in the lock file is over the cap or unknown. It has a soft time budget,
-//! completing its first pack operation even if scanning used that budget;
-//! later runs finish the rest.
+//! Pack readers take no lock. A pending pack's file lock leases it while
+//! its writer runs; the writer lock covers index commits only, never a
+//! directory walk or a pack copy. Every addressed range remains an
+//! unchanged HDCE frame. Last-use marks are per entry, at most once an
+//! hour, and compaction preserves them. The index and physical pack bytes
+//! count toward the cap.
+//! A command's settlement is O(entries written and marked) and never
+//! walks (#1932). A total over the cap or unknown asks for a collection,
+//! which runs at most once per [`GC_INTERVAL`] under `<root>/gc`'s lock,
+//! detached when the caller installs a spawner, and evicts to 90%.
 //! GC follows no links and deletes only recognized managed file names.
 //! The legacy shard ledger and use marks still serve private Clpack data;
 //! obsolete ordinary loose files are retired by that same bounded scanner.
@@ -47,6 +48,10 @@ mod cost {
         pub index_written: u64,
         /// Pack files opened for reading.
         pub packs_opened: u64,
+        /// Walks of the whole pack namespace: a collection makes two.
+        pub walks: u64,
+        /// Times the publication writer lock was taken.
+        pub writer_locks: u64,
     }
 
     thread_local! {
@@ -78,9 +83,21 @@ macro_rules! count {
 /// The default size cap of the compiled entries, 10 GiB (`cli.cache.obj.cap`).
 pub const DEFAULT_CAP: u64 = 10 << 30;
 
-/// How long a command's automatic eviction may run before it leaves the
-/// rest to later commands. One shard is always cleaned whole.
+/// How long a command may clean legacy shards that its writes put over
+/// their budget before it leaves the rest to later commands. One shard is
+/// always cleaned whole.
 pub const EVICT_BOUND: Duration = Duration::from_millis(20);
+
+/// How often automatic collection may run (#1932), as cargo's automatic
+/// cache GC runs at most once per `gc.auto.frequency`. A smaller cap than
+/// the last collection's collects again sooner.
+pub const GC_INTERVAL: Duration = Duration::from_hours(1);
+
+/// The last collection's start, in Unix seconds, and its cap, under
+/// `<root>/gc`, whose lock one collector holds.
+const GC: &str = "gc";
+const GC_MAGIC: &[u8; 8] = b"HDGCRUN1";
+const GC_LEN: usize = 24;
 
 /// An entry used again within this age keeps its mtime.
 const USE_MARK_AGE: Duration = Duration::from_hours(1);
@@ -104,6 +121,9 @@ pub struct DiskStore {
     write_failed: AtomicBool,
     /// Told of the first failed publish, with the store's root (§5.4).
     on_write_failure: Option<fn(&Path, &std::io::Error)>,
+    /// Asked to collect `root` elsewhere when a collection is due; without
+    /// one the dropping store collects itself.
+    on_collection_due: Option<fn(&Path)>,
 }
 
 /// What [`DiskStore::collect`] found and left, in bytes.
@@ -141,7 +161,18 @@ impl DiskStore {
             used: AtomicBool::new(false),
             write_failed: AtomicBool::new(false),
             on_write_failure: None,
+            on_collection_due: None,
         }
+    }
+
+    /// The same store, calling `spawn` with its root, instead of
+    /// collecting itself, when its drop finds a collection due. The CLI
+    /// starts a detached `hd cache gc` this way, so no command waits for
+    /// a walk (#1932).
+    #[must_use]
+    pub fn on_collection_due(mut self, spawn: fn(&Path)) -> Self {
+        self.on_collection_due = Some(spawn);
+        self
     }
 
     /// The same store, calling `warn` on its first failed publish, such as
@@ -203,40 +234,172 @@ impl DiskStore {
         self.packed.set_used(kind, key, unix_secs).unwrap_or(false)
     }
 
-    /// `hd cache gc` (`cli.cache.gc`): cleans every shard now, with no time
-    /// bound, and writes the exact shard sizes to the ledger.
+    /// `hd cache gc` (`cli.cache.gc`): collects now, with no time bound,
+    /// after any collection another process is running, and writes the
+    /// exact shard sizes to the ledger.
     pub fn collect(&self) -> std::io::Result<Collected> {
-        let loose = self.clean(&(0..=u8::MAX).collect::<Vec<_>>(), None)?;
-        let packed_before = self.packed.bytes();
+        let claim = self.gc_file().and_then(|file| {
+            file.lock().ok()?;
+            Some(file)
+        });
+        if let Some(mut file) = claim {
+            self.claim(&mut file);
+            self.collect_now(false)
+        } else {
+            self.collect_now(false)
+        }
+    }
+
+    /// The collection: every legacy shard, then the packed store under
+    /// the cap the legacy bytes leave. Automatic collection tolerates an
+    /// unreadable ledger, counting the legacy bytes it knows; `hd cache
+    /// gc` reports it before reclaiming packed data.
+    fn collect_now(&self, automatic: bool) -> std::io::Result<Collected> {
+        let loose = match self.clean(&(0..=u8::MAX).collect::<Vec<_>>(), None) {
+            Ok(loose) => loose,
+            Err(_) if automatic => {
+                let known = self.known_loose();
+                Collected {
+                    before: known,
+                    after: known,
+                }
+            }
+            Err(error) => return Err(error),
+        };
         Ok(
-            match self
-                .packed
-                .maintain(self.cap.saturating_sub(loose.after), None)
-            {
+            match self.packed.collect(self.cap.saturating_sub(loose.after)) {
                 Ok(packed) => Collected {
                     before: loose.before.saturating_add(packed.before),
                     after: loose.after.saturating_add(packed.after),
                 },
+                // A collection that fails reports the bytes it left; one
+                // that cannot take the writer lock removed none.
                 Err(error) => {
                     self.warn(&error);
+                    let left = loose.after.saturating_add(self.packed.bytes());
                     Collected {
-                        before: loose.before.saturating_add(packed_before),
-                        after: loose.after.saturating_add(self.packed.bytes()),
+                        before: left.max(loose.before),
+                        after: left,
                     }
                 }
             },
         )
     }
 
-    /// Runs bounded automatic eviction only for unknown or over-budget
-    /// shards. Called on drop; a store never used does nothing.
-    fn settle(&self) {
-        if !self.used.load(Ordering::Relaxed) {
+    /// `<root>/gc`, opened for its lock; `None` when the root is no
+    /// directory, so a collection of a missing cache creates nothing.
+    fn gc_file(&self) -> Option<File> {
+        if !self.root.is_dir() {
+            return None;
+        }
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(self.root.join(GC))
+            .ok()
+    }
+
+    /// Whether the last collection, as `<root>/gc` holds it, still covers
+    /// this store: it started less than [`GC_INTERVAL`] ago, under a cap
+    /// no smaller than this one. A missing, torn or foreign record, or one
+    /// from the future, does not.
+    fn covered(&self, mut file: impl Read) -> bool {
+        let mut bytes = Vec::with_capacity(GC_LEN);
+        if file
+            .by_ref()
+            .take(u64::try_from(GC_LEN + 1).expect("small"))
+            .read_to_end(&mut bytes)
+            .is_err()
+            || bytes.len() != GC_LEN
+            || &bytes[..8] != GC_MAGIC
+        {
+            return false;
+        }
+        let word = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().expect("8 bytes"));
+        let (at, cap) = (word(8), word(16));
+        let now = unix_now();
+        at <= now && now - at < GC_INTERVAL.as_secs() && self.cap >= cap
+    }
+
+    /// Records that a collection with this store's cap starts now.
+    fn claim(&self, file: &mut File) {
+        let mut bytes = Vec::with_capacity(GC_LEN);
+        bytes.extend_from_slice(GC_MAGIC);
+        bytes.extend_from_slice(&unix_now().to_le_bytes());
+        bytes.extend_from_slice(&self.cap.to_le_bytes());
+        let _ = file
+            .seek(SeekFrom::Start(0))
+            .and_then(|_| file.write_all(&bytes))
+            .and_then(|()| file.set_len(GC_LEN as u64));
+    }
+
+    /// Automatic collection (#1932): at most once per [`GC_INTERVAL`], or
+    /// sooner under a smaller cap, and never waiting for another process
+    /// that is collecting. With a spawner installed it only asks for one,
+    /// so the command itself never walks.
+    fn collect_if_due(&self) {
+        // cost: one 24-byte read, only when the total is over or unknown.
+        if std::fs::File::open(self.root.join(GC)).is_ok_and(|file| self.covered(file)) {
             return;
+        }
+        if let Some(spawn) = self.on_collection_due {
+            // cost: one detached process per interval at most; the
+            // command does not wait for it.
+            spawn(&self.root);
+            return;
+        }
+        self.collect_due();
+    }
+
+    /// Collects when no other process is collecting and no collection
+    /// covers this store; what a detached `hd cache gc` runs for a command
+    /// that asked for one.
+    pub fn collect_due(&self) {
+        let Some(mut file) = self.gc_file() else {
+            return;
+        };
+        if file.try_lock().is_err() || self.covered(&mut file) {
+            return;
+        }
+        self.claim(&mut file);
+        let _ = self.collect_now(true);
+    }
+
+    /// The legacy bytes the ledger knows, unknown shards counting none.
+    fn known_loose(&self) -> u64 {
+        File::open(self.root.join(STATS))
+            .ok()
+            .and_then(|file| {
+                let mut bytes = Vec::with_capacity(STATS_LEN);
+                file.take(u64::try_from(STATS_LEN + 1).expect("ledger limit"))
+                    .read_to_end(&mut bytes)
+                    .ok()?;
+                Some(bytes)
+            })
+            .map_or(0, |bytes| {
+                Ledger::decode(&bytes)
+                    .sizes
+                    .into_iter()
+                    .filter(|&n| n != UNKNOWN)
+                    .fold(0_u64, u64::saturating_add)
+            })
+    }
+
+    /// A command's legacy settlement: cleans the known shards over their
+    /// budget, within the time bound, and says whether any shard's size
+    /// is unknown, which wants a collection. A command never lists an
+    /// unknown shard: only a collection does (#1932). Called on drop; a
+    /// store never used does nothing.
+    fn settle(&self) -> bool {
+        if !self.used.load(Ordering::Relaxed) {
+            return false;
         }
         let deadline = Instant::now() + self.evict_bound;
         let budget = self.budget();
         let mut work = Vec::new();
+        let mut unknown = false;
         let snapshot = Ledger::update(&self.root, |l| {
             // The first packed publication retires ordinary loose files,
             // even when their previously recorded sizes fit the budget.
@@ -244,21 +407,18 @@ impl DiskStore {
                 l.migrated = true;
                 l.sizes.fill(UNKNOWN);
             }
-            let shards = || (0..=u8::MAX).zip(l.sizes);
+            unknown = l.sizes.contains(&UNKNOWN);
             work.extend(
-                shards()
+                (0..=u8::MAX)
+                    .zip(l.sizes)
                     .filter(|(_, size)| *size != UNKNOWN && *size > budget)
-                    .map(|(s, _)| s),
-            );
-            work.extend(
-                shards()
-                    .filter(|(_, size)| *size == UNKNOWN)
                     .map(|(s, _)| s),
             );
         });
         if snapshot.is_some() {
             let _ = self.clean(&work, Some(deadline));
         }
+        snapshot.is_some() && unknown
     }
 
     /// Cleans `shards` in order, each down to 90% of its budget when it is
@@ -375,37 +535,26 @@ impl DiskStore {
 }
 
 impl Drop for DiskStore {
+    /// A command's settlement: O(entries written and marked), no walk
+    /// (#1932). A total over the cap or unknown asks for a collection.
     fn drop(&mut self) {
-        let started = Instant::now();
         if self.packed.was_used() && (!self.kinds().is_empty() || self.root.join(STATS).is_file()) {
             self.used.store(true, Ordering::Relaxed);
         }
-        self.settle();
+        let mut wanted = self.settle();
         if self.packed.was_used() {
-            // The legacy ledger is approximate during automatic eviction;
-            // explicit collect scans both namespaces and uses exact bytes.
-            let loose = File::open(self.root.join(STATS))
-                .ok()
-                .and_then(|file| {
-                    let mut bytes = Vec::with_capacity(STATS_LEN);
-                    file.take(u64::try_from(STATS_LEN + 1).expect("ledger limit"))
-                        .read_to_end(&mut bytes)
-                        .ok()?;
-                    Some(bytes)
-                })
-                .map_or(0, |bytes| {
-                    Ledger::decode(&bytes)
-                        .sizes
-                        .into_iter()
-                        .filter(|&n| n != UNKNOWN)
-                        .fold(0_u64, u64::saturating_add)
-                });
-            if let Err(error) = self.packed.maintain(
-                self.cap.saturating_sub(loose),
-                Some(self.evict_bound.saturating_sub(started.elapsed())),
-            ) {
-                self.warn(&error);
+            // The legacy ledger is approximate between collections; a
+            // collection scans both namespaces and uses exact bytes.
+            match self
+                .packed
+                .settle(self.cap.saturating_sub(self.known_loose()))
+            {
+                Ok(over) => wanted |= over,
+                Err(error) => self.warn(&error),
             }
+        }
+        if wanted {
+            self.collect_if_due();
         }
     }
 }
@@ -625,6 +774,13 @@ fn mark_used(path: &Path) {
     }
 }
 
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 fn mtime_s(meta: &std::fs::Metadata) -> i64 {
     meta.modified()
         .ok()
@@ -750,7 +906,7 @@ mod packed {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard};
-    use std::time::{Duration, Instant, SystemTime};
+    use std::time::SystemTime;
 
     use hd_base::{Hash128, StableHasher};
 
@@ -790,8 +946,10 @@ mod packed {
     /// The running total in the lock file: magic, managed bytes (final
     /// packs and the index files), and the generation of the index head it
     /// describes.
-    const TOTAL_MAGIC: &[u8; 8] = b"HDBYTES1";
-    const RECORD: usize = 32;
+    const TOTAL_MAGIC: &[u8; 8] = b"HDBYTES2";
+    /// The record's magic, total and generation, then a checksum of them,
+    /// so a torn read with no lock is unknown, not a wrong total.
+    const RECORD: usize = 48;
     type Key = (u16, u128);
     type Entries = BTreeMap<Key, Location>;
     type Batch = [(EntryKind, Hash128, Arc<[u8]>)];
@@ -839,6 +997,34 @@ mod packed {
         used: AtomicU64,
         /// This process published a pack, so its settlement may merge.
         published: AtomicBool,
+        /// Called at a collection's walk and a rewrite's copy, so a test can
+        /// act while one is in progress.
+        #[cfg(test)]
+        pub(super) on_pause: Option<Arc<dyn Fn(&'static str) + Send + Sync>>,
+    }
+
+    /// What a collection's walk found.
+    #[derive(Default)]
+    struct Inventory {
+        /// Final packs and their lengths.
+        packs: BTreeMap<u128, u64>,
+        /// Lease files, live or crashed.
+        pending: Vec<PathBuf>,
+        /// Crashed writers' temporary index files.
+        temps: Vec<PathBuf>,
+        /// The index's page files, by bucket, and their bytes.
+        pages: Vec<u64>,
+        page_bytes: u64,
+        /// Managed bytes: final packs and the index's files.
+        total: u64,
+    }
+
+    /// A pack a rewrite copies out of: the frames to copy, and every key
+    /// whose row may name it, `None` when they are unknown, which keeps it.
+    struct Source {
+        id: u128,
+        copy: Frames,
+        keys: Option<Vec<Key>>,
     }
 
     /// A live writer owns the file lock before it drops the index lock.
@@ -1443,7 +1629,8 @@ mod packed {
             Ok(())
         }
 
-        /// Every row, reading every page: the slow path's whole view.
+        /// Every row, reading every page: for tests.
+        #[cfg(test)]
         fn all(&mut self) -> io::Result<Entries> {
             let mut entries = Entries::new();
             for bucket in 0..self.head.buckets() {
@@ -1492,20 +1679,6 @@ mod packed {
                     *delta -= i128::from(len);
                 }
             }
-        }
-
-        /// The bytes of the pages this writer holds, as it would leave them.
-        fn page_bytes(&self) -> u64 {
-            self.pages
-                .values()
-                .map(|p| {
-                    if p.dirty {
-                        page_len(p.rows.len()) as u64
-                    } else {
-                        p.len
-                    }
-                })
-                .sum()
         }
 
         fn head_dirty(&self) -> bool {
@@ -1663,6 +1836,15 @@ mod packed {
                 snapshot: Mutex::new(None),
                 used: AtomicU64::new(0),
                 published: AtomicBool::new(false),
+                #[cfg(test)]
+                on_pause: None,
+            }
+        }
+
+        #[cfg(test)]
+        fn pause(&self, at: &'static str) {
+            if let Some(pause) = &self.on_pause {
+                pause(at);
             }
         }
 
@@ -1689,6 +1871,18 @@ mod packed {
         }
 
         fn lock(&self) -> io::Result<File> {
+            // A namespace this call creates is empty: its total is known.
+            // Any other failure is `ensure_root`'s to report.
+            let created = match std::fs::create_dir(&self.root) {
+                Ok(()) => true,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    self.root
+                        .parent()
+                        .is_some_and(|parent| std::fs::create_dir_all(parent).is_ok())
+                        && std::fs::create_dir(&self.root).is_ok()
+                }
+                Err(_) => false,
+            };
             self.ensure_root()?;
             let path = self.root.join("lock");
             if std::fs::symlink_metadata(&path).is_ok_and(|m| !m.file_type().is_file()) {
@@ -1700,7 +1894,11 @@ mod packed {
                 .create(true)
                 .truncate(false)
                 .open(path)?;
+            count!(writer_locks, 1);
             file.lock()?;
+            if created && Self::recorded(&file, 0).is_none() && !self.index_dir().exists() {
+                Self::record(&file, 0, 0);
+            }
             Ok(file)
         }
 
@@ -2065,15 +2263,24 @@ mod packed {
             name.strip_suffix(".pack").and_then(parse_key).map(|k| k.0)
         }
 
-        /// Scans managed files with bounded memory, including orphan bytes:
-        /// the total and the sizes of the `wanted` packs. It never follows
-        /// a link or counts a foreign filename.
-        fn scan(&self, wanted: &BTreeSet<u128>) -> io::Result<(u64, BTreeMap<u128, u64>)> {
-            let mut total = 0_u64;
-            let mut sizes = BTreeMap::new();
-            // cost: walks the pack directory only for `hd cache gc`, or when the
-            // recorded total is over the cap or unknown (#1501).
+        /// Walks `pack-v1/` and its index, taking no lock: the collection's
+        /// inventory. A file another process removes meanwhile is skipped.
+        /// It never follows a link or counts a foreign filename.
+        fn walk(&self) -> io::Result<Inventory> {
+            #[cfg(test)]
+            self.pause("walk");
+            // cost: the interval collection and `hd cache gc` only (#1932);
+            // no command path walks.
+            count!(walks, 1);
+            let mut inv = Inventory::default();
+            let len = |e: &std::fs::DirEntry| match e.metadata() {
+                Ok(meta) => Ok(Some(meta.len())),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(error),
+            };
             count!(dirs_listed, 1);
+            // cost: O(files), in a collection only: once per interval or
+            // `hd cache gc`.
             for e in std::fs::read_dir(&self.root)? {
                 count!(entries_listed, 1);
                 let e = e?;
@@ -2083,189 +2290,208 @@ mod packed {
                 let name = e.file_name();
                 let Some(name) = name.to_str() else { continue };
                 if let Some(id) = Self::pack_id(name) {
-                    let len = e.metadata()?.len();
-                    total = total.saturating_add(len);
-                    if wanted.contains(&id) {
-                        sizes.insert(id, len);
+                    if let Some(n) = len(&e)? {
+                        inv.total = inv.total.saturating_add(n);
+                        inv.packs.insert(id, n);
                     }
+                } else if name.strip_suffix(".pending").and_then(parse_key).is_some() {
+                    inv.pending.push(e.path());
                 } else if name == "index" || name == "index.old" {
-                    total = total.saturating_add(e.metadata()?.len());
-                }
-            }
-            let index = self.index_dir();
-            if is_real_dir(&index) {
-                // cost: the same slow path; the index holds one page per
-                // forty entries.
-                count!(dirs_listed, 1);
-                for e in std::fs::read_dir(index)? {
-                    count!(entries_listed, 1);
-                    let e = e?;
-                    if e.file_type()?.is_file()
-                        && e.file_name().to_str().is_some_and(Self::index_file)
-                    {
-                        total = total.saturating_add(e.metadata()?.len());
-                    }
-                }
-            }
-            Ok((total, sizes))
-        }
-
-        fn prune_orphans(
-            &self,
-            live: &BTreeSet<u128>,
-            buckets: u64,
-            deadline: Option<Instant>,
-        ) -> io::Result<()> {
-            let mut attempted = false;
-            count!(dirs_listed, 1);
-            // cost: the slow path of `scan` only: `hd cache gc`, or a recorded
-            // total over the cap or unknown.
-            for e in std::fs::read_dir(&self.root)? {
-                if attempted && deadline.is_some_and(|d| Instant::now() >= d) {
-                    break;
-                }
-                count!(entries_listed, 1);
-                let e = e?;
-                if !e.file_type()?.is_file() {
-                    continue;
-                }
-                let name = e.file_name();
-                let Some(name) = name.to_str() else { continue };
-                let pending = name
-                    .strip_suffix(".pending")
-                    .and_then(parse_key)
-                    .map(|key| key.0);
-                if let Some(id) = Self::pack_id(name).or(pending) {
-                    if pending.is_none() && live.contains(&id) {
-                        continue;
-                    }
-                    let file = OpenOptions::new().read(true).write(true).open(e.path())?;
-                    match file.try_lock() {
-                        Ok(()) => {
-                            let _ = std::fs::remove_file(e.path());
-                            attempted = true;
-                        }
-                        Err(TryLockError::WouldBlock) => {}
-                        Err(TryLockError::Error(error)) => return Err(error),
-                    }
+                    inv.total = inv.total.saturating_add(len(&e)?.unwrap_or(0));
                 } else if name
                     .strip_prefix("index.")
                     .and_then(|n| n.strip_suffix(".tmp"))
                     .and_then(parse_key)
                     .is_some()
                 {
-                    let _ = std::fs::remove_file(e.path());
-                    attempted = true;
+                    inv.temps.push(e.path());
                 }
             }
             let index = self.index_dir();
-            if !is_real_dir(&index) {
-                return Ok(());
-            }
-            // cost: the same slow path. Temporary files and pages past the
-            // last bucket are crashed writers'.
-            count!(dirs_listed, 1);
-            for e in std::fs::read_dir(index)? {
-                count!(entries_listed, 1);
-                let e = e?;
-                let name = e.file_name();
-                let Some(name) = name.to_str() else { continue };
-                let stale = name.rsplit_once('.').is_some_and(|(_, ext)| ext == "tmp")
-                    || u64::from_str_radix(name, 16)
-                        .is_ok_and(|b| name.len() == 16 && b >= buckets);
-                if stale && Self::index_file(name) && e.file_type()?.is_file() {
-                    let _ = std::fs::remove_file(e.path());
-                }
-            }
-            Ok(())
-        }
-
-        /// Copies the live frames of `ids` into one new pack, by their
-        /// rows `frames`, and commits their new locations. Returns the
-        /// bytes of the removed old packs.
-        fn rewrite(&self, lock: &File, txn: &mut Txn, ids: &[(u128, Frames)]) -> io::Result<u64> {
-            let mut lease = self.lease()?;
-            let mut offset = 0_u64;
-            let mut frames = Frames::new();
-            for (id, rows) in ids {
-                let mut source = self.open(*id)?.file;
-                for &(key, from, len) in rows {
-                    let Some(loc) = txn.get(key)? else { continue };
-                    if (loc.pack, loc.offset, loc.len) != (*id, from, len) {
+            if is_real_dir(&index) {
+                count!(dirs_listed, 1);
+                // cost: O(pages), in a collection only.
+                for e in std::fs::read_dir(index)? {
+                    count!(entries_listed, 1);
+                    let e = e?;
+                    let name = e.file_name();
+                    let Some(name) = name.to_str() else { continue };
+                    if !Self::index_file(name) || !e.file_type()?.is_file() {
                         continue;
                     }
-                    source.seek(SeekFrom::Start(from))?;
-                    let got = io::copy(&mut (&mut source).take(len), &mut lease.file)?;
+                    if name.rsplit_once('.').is_some_and(|(_, ext)| ext == "tmp") {
+                        inv.temps.push(e.path());
+                        continue;
+                    }
+                    let n = len(&e)?.unwrap_or(0);
+                    inv.total = inv.total.saturating_add(n);
+                    if let Ok(bucket) = u64::from_str_radix(name, 16)
+                        && name.len() == 16
+                    {
+                        inv.pages.push(bucket);
+                        inv.page_bytes += n;
+                    }
+                }
+            }
+            Ok(inv)
+        }
+
+        /// Every row, read with no lock, and whether the head was the same
+        /// before and after, so that no split or merge moved a row past the
+        /// read. Up to three tries.
+        fn read_all(&self) -> io::Result<(Entries, bool)> {
+            let dir = self.index_dir();
+            let mut last = Entries::new();
+            for _ in 0..3 {
+                let head = match read_head(&dir) {
+                    Ok(Some(head)) => head,
+                    // No head, or a corrupt one: writers start an empty index.
+                    Ok(None) => return Ok((Entries::new(), true)),
+                    Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+                        return Ok((Entries::new(), true));
+                    }
+                    Err(e) => return Err(e),
+                };
+                let mut entries = Entries::new();
+                for bucket in 0..head.buckets() {
+                    match read_page(&dir, bucket) {
+                        Ok(Some((rows, _))) => entries
+                            .extend(rows.into_iter().filter(|(k, _)| head.bucket(k.1) == bucket)),
+                        // A corrupt page is empty to writers too.
+                        Ok(None) => {}
+                        Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+                if read_head(&dir).ok().flatten() == Some(head) {
+                    return Ok((entries, true));
+                }
+                last = entries;
+            }
+            Ok((last, false))
+        }
+
+        /// The keys whose rows may name pack `id`: its footer's. `None` when
+        /// it has none (an older hd wrote it) or it cannot be read.
+        fn footer_keys(&self, id: u128) -> Option<Vec<Key>> {
+            let mut opened = self.open(id).ok()?;
+            let frames = read_footer(&mut opened.file, opened.len).ok()?;
+            Some(frames.into_iter().map(|(key, _, _)| key).collect())
+        }
+
+        /// Copies `sources`' frames into one new pack, taking no lock, then
+        /// under the writer lock repoints each row still at its old range
+        /// and removes each source no row names any more. A row that moved
+        /// meanwhile keeps its new place, and a copy nobody needs is
+        /// dropped. Returns the removed sources' bytes. Cost: the copied
+        /// bytes, unlocked; the pages of the sources' keys, locked.
+        fn rewrite(&self, sources: &[Source]) -> io::Result<u64> {
+            let mut lease = {
+                let _lock = self.lock()?;
+                self.lease()?
+            };
+            #[cfg(test)]
+            self.pause("copy");
+            let mut offset = 0_u64;
+            let mut frames = Frames::new();
+            let mut moved = Vec::new();
+            for source in sources {
+                let mut file = match self.open(source.id) {
+                    Ok(opened) => opened.file,
+                    // Another collection or merge took it first.
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(0),
+                    Err(e) => return Err(e),
+                };
+                for &(key, from, len) in &source.copy {
+                    file.seek(SeekFrom::Start(from))?;
+                    let got = io::copy(&mut (&mut file).take(len), &mut lease.file)?;
                     if got != len {
                         return Err(invalid("truncated cache pack during compaction"));
                     }
-                    txn.set(
-                        key,
-                        Location {
-                            pack: lease.id,
-                            offset,
-                            ..loc
-                        },
-                    )?;
                     frames.push((key, offset, len));
+                    moved.push((key, source.id, from, len, offset));
                     offset += len;
                 }
             }
             let foot = footer(&frames);
             lease.file.write_all(&foot)?;
             let len = offset + foot.len() as u64;
-            txn.track(lease.id, len)?;
-            for (id, _) in ids {
-                txn.untrack(*id)?;
+            let (lock, mut txn) = self.begin()?;
+            let mut repointed = false;
+            for &(key, id, from, n, to) in &moved {
+                if let Some(loc) = txn.get(key)?
+                    && (loc.pack, loc.offset, loc.len) == (id, from, n)
+                {
+                    txn.set(
+                        key,
+                        Location {
+                            pack: lease.id,
+                            offset: to,
+                            ..loc
+                        },
+                    )?;
+                    repointed = true;
+                }
             }
-            // Readers holding pages from before this commit may still name
-            // the old packs; they read the index again when one is gone.
-            txn.commit(Some(lock), len, || self.finish(&mut lease))?;
+            let mut doomed = Vec::new();
+            for source in sources {
+                if Self::unnamed(&mut txn, source.id, source.keys.as_deref())? {
+                    txn.untrack(source.id)?;
+                    doomed.push(source.id);
+                }
+            }
+            if repointed {
+                txn.track(lease.id, len)?;
+                // Readers holding pages from before this commit may still
+                // name the old packs; they read the index again when one is
+                // gone.
+                txn.commit(Some(&lock), len, || self.finish(&mut lease))?;
+            } else if txn.dirty() {
+                txn.commit(Some(&lock), 0, || Ok(()))?;
+            }
+            self.adopt(&txn);
+            // At most `FANOUT` files, under the lock, so the record never
+            // counts a removal before it happens.
             let mut removed = 0;
-            for (id, _) in ids {
-                let path = self.path(*id);
+            for id in doomed {
+                let path = self.path(id);
                 let size = std::fs::symlink_metadata(&path).map_or(0, |m| m.len());
                 // An open reader on Windows may postpone this; GC retries.
                 if std::fs::remove_file(path).is_ok() {
                     removed += size;
                 }
             }
-            if let Some(total) = Self::recorded(lock, txn.generation()) {
-                Self::record(lock, total.saturating_sub(removed), txn.generation());
+            if removed > 0
+                && let Some(total) = Self::recorded(&lock, txn.generation())
+            {
+                Self::record(&lock, total.saturating_sub(removed), txn.generation());
             }
             Ok(removed)
         }
 
-        /// Compacts pack `id` by the rows of `entries`, which follow.
-        fn compact(
-            &self,
-            lock: &File,
-            txn: &mut Txn,
-            entries: &mut Entries,
-            id: u128,
-        ) -> io::Result<()> {
-            let frames: Frames = entries
-                .iter()
-                .filter(|(_, loc)| loc.pack == id)
-                .map(|(&key, loc)| (key, loc.offset, loc.len))
-                .collect();
-            self.rewrite(lock, txn, &[(id, frames.clone())])?;
-            for (key, _, _) in frames {
-                if let Some(loc) = txn.get(key)? {
-                    entries.insert(key, loc);
+        /// Caller holds the writer lock: true when no row names pack `id`,
+        /// asking each key in `keys`; `None` keys keep it.
+        fn unnamed(txn: &mut Txn, id: u128, keys: Option<&[Key]>) -> io::Result<bool> {
+            let Some(keys) = keys else { return Ok(false) };
+            for &key in keys {
+                if txn.get(key)?.is_some_and(|loc| loc.pack == id) {
+                    return Ok(false);
                 }
             }
-            Ok(())
+            Ok(true)
         }
 
         /// Merges the smallest size class of tracked packs once it holds
         /// [`FANOUT`] packs, so their count stays bounded: about
         /// `FANOUT` per power of two up to [`FULL`]. Each frame is copied
-        /// once per class it climbs. Cost: the merged bytes, their footers
-        /// and the pages of their rows; no directory walk.
-        fn merge_small(&self, lock: &File, txn: &mut Txn) -> io::Result<()> {
+        /// once per class it climbs. The table, footers and pages are read
+        /// with no lock and the copy is made with none (`rewrite`). Cost:
+        /// the merged bytes, their footers and the pages of their rows; no
+        /// directory walk.
+        fn merge_small(&self) -> io::Result<()> {
+            let mut view = Txn::open(self.index_dir())?;
             let mut classes = BTreeMap::<u32, Vec<u128>>::new();
-            for (&id, &len) in txn.table()?.iter() {
+            for (&id, &len) in view.table()?.iter() {
                 if len < FULL {
                     classes.entry(len.max(1).ilog2()).or_default().push(id);
                 }
@@ -2273,83 +2499,205 @@ mod packed {
             let Some((_, ids)) = classes.into_iter().find(|(_, ids)| ids.len() >= FANOUT) else {
                 return Ok(());
             };
-            let mut packs = Vec::with_capacity(FANOUT);
+            let mut sources = Vec::with_capacity(FANOUT);
+            let mut lost = Vec::new();
             for id in ids.into_iter().take(FANOUT) {
                 match self
                     .open(id)
                     .and_then(|mut opened| read_footer(&mut opened.file, opened.len))
                 {
-                    Ok(frames) => packs.push((id, frames)),
-                    // A pack another GC removed, or one without a footer,
-                    // is left to the slow path.
-                    Err(_) => txn.untrack(id)?,
+                    Ok(frames) => {
+                        let mut copy = Frames::new();
+                        for &(key, from, len) in &frames {
+                            if view
+                                .get(key)?
+                                .is_some_and(|l| (l.pack, l.offset, l.len) == (id, from, len))
+                            {
+                                copy.push((key, from, len));
+                            }
+                        }
+                        let keys = frames.into_iter().map(|(key, _, _)| key).collect();
+                        sources.push(Source {
+                            id,
+                            copy,
+                            keys: Some(keys),
+                        });
+                    }
+                    // A pack another merge removed, or one without a footer,
+                    // leaves the table; a collection's walk still finds it.
+                    Err(_) => lost.push(id),
                 }
             }
-            if packs.len() >= 2 {
-                self.rewrite(lock, txn, &packs)?;
-            } else if txn.dirty() {
-                txn.commit(Some(lock), 0, || Ok(()))?;
+            if sources.len() >= 2 {
+                self.rewrite(&sources)?;
+            }
+            if !lost.is_empty() {
+                let (lock, mut txn) = self.begin()?;
+                for id in lost {
+                    txn.untrack(id)?;
+                }
+                if txn.dirty() {
+                    txn.commit(Some(&lock), 0, || Ok(()))?;
+                }
+                self.adopt(&txn);
             }
             Ok(())
         }
 
-        pub(super) fn maintain(&self, cap: u64, bound: Option<Duration>) -> io::Result<Collected> {
+        /// A command's settlement (#1932): this run's recency marks and,
+        /// after a publication, one small merge. Then, reading the head and
+        /// the running total with no lock, whether the cache is over `cap`
+        /// or its total unknown, which wants a collection. It never walks
+        /// or reads the whole index. Cost: O(marks), one bounded merge,
+        /// and 104 bytes.
+        pub(super) fn settle(&self, cap: u64) -> io::Result<bool> {
+            if !is_real_dir(&self.root) {
+                return Ok(false);
+            }
+            if self.state().as_ref().is_some_and(|s| !s.touched.is_empty()) {
+                let (lock, mut txn) = self.begin()?;
+                self.merge_touches(&mut txn)?;
+                if txn.dirty() {
+                    txn.commit(Some(&lock), 0, || Ok(()))?;
+                }
+                self.adopt(&txn);
+            }
+            if self.published.swap(false, Ordering::Relaxed) {
+                self.merge_small()?;
+            }
+            Ok(self.total().is_none_or(|total| total > cap))
+        }
+
+        /// The recorded total of the current head, read with no lock;
+        /// `None` when unknown or torn.
+        fn total(&self) -> Option<u64> {
+            let generation = match read_head(&self.index_dir()) {
+                Ok(head) => head.map_or(0, |h| h.generation),
+                Err(_) => return None,
+            };
+            let file = File::open(self.root.join("lock")).ok()?;
+            Self::recorded(&file, generation)
+        }
+
+        /// The collection (#1932): the only work that grows with the
+        /// cache, run by `hd cache gc` and at most once per interval. It
+        /// walks and reads the whole index with no lock, evicts the least
+        /// recently used rows down to 90% of `cap`, removes packs no row
+        /// names, compacts packs with dead bytes, sweeps crashed writers'
+        /// files, and records the total. The writer lock covers its index
+        /// commits only, never the walk or a copy.
+        pub(super) fn collect(&self, cap: u64) -> io::Result<Collected> {
             if !is_real_dir(&self.root) {
                 return Ok(Collected {
                     before: 0,
                     after: 0,
                 });
             }
-            let (lock, mut txn) = self.begin()?;
-            let recorded = Self::recorded(&lock, txn.generation()).filter(|&total| total <= cap);
-            if let (Some(_), Some(total)) = (bound, recorded) {
-                // The running total fits: no directory walk, only the
-                // pending recency marks and, after a publication, merging
-                // small packs.
+            {
+                // Migrates an older index; eviction sees this run's marks.
+                let (lock, mut txn) = self.begin()?;
                 self.merge_touches(&mut txn)?;
                 if txn.dirty() {
                     txn.commit(Some(&lock), 0, || Ok(()))?;
                 }
-                if self.published.swap(false, Ordering::Relaxed) {
-                    self.merge_small(&lock, &mut txn)?;
-                }
                 self.adopt(&txn);
-                let after = Self::recorded(&lock, txn.generation()).unwrap_or(total);
-                return Ok(Collected {
-                    before: total,
-                    after,
-                });
             }
-            let deadline = bound.map(|b| Instant::now() + b);
-            self.merge_touches(&mut txn)?;
-            let mut entries = txn.all()?;
-            let wanted = entries.values().map(|loc| loc.pack).collect();
-            let (before, sizes) = self.scan(&wanted)?;
-            let invalid: Vec<Key> = entries
-                .iter()
-                .filter(|(_, loc)| {
-                    !sizes.get(&loc.pack).is_some_and(|len| {
-                        loc.offset
-                            .checked_add(loc.len)
-                            .is_some_and(|end| end <= *len)
-                    })
+            let inv = self.walk()?;
+            let before = inv.total;
+            let (mut entries, consistent) = self.read_all()?;
+            // A row past its walked pack is dead for good: packs are
+            // immutable. One naming a pack the walk missed may be newer
+            // than the walk; the commit looks again.
+            let mut suspects = Vec::new();
+            entries.retain(|&key, loc| {
+                let fits = inv.packs.get(&loc.pack).is_some_and(|len| {
+                    loc.offset
+                        .checked_add(loc.len)
+                        .is_some_and(|end| end <= *len)
+                });
+                if !fits {
+                    suspects.push((key, *loc));
+                }
+                fits
+            });
+            let victims = Self::victims(&entries, cap, inv.page_bytes);
+            for (key, _) in &victims {
+                entries.remove(key);
+            }
+            let mut rows_of = BTreeMap::<u128, Frames>::new();
+            for (&key, loc) in &entries {
+                rows_of
+                    .entry(loc.pack)
+                    .or_default()
+                    .push((key, loc.offset, loc.len));
+            }
+            // Footers are immutable: read them before taking the lock.
+            let dead: Vec<(u128, Option<Vec<Key>>)> = inv
+                .packs
+                .keys()
+                .filter(|id| !rows_of.contains_key(id))
+                .map(|&id| {
+                    let keys = self.footer_keys(id);
+                    // A pack an older hd wrote never gains rows, so a
+                    // consistent read that names none proves it dead.
+                    (id, keys.or_else(|| consistent.then(Vec::new)))
                 })
-                .map(|(&key, _)| key)
                 .collect();
-            for key in invalid {
-                entries.remove(&key);
-                txn.remove(key)?;
+            let doomed = self.evict(&inv, &suspects, &victims, &dead)?;
+            // Packs no row names: no lock, as no row can name them again.
+            for id in doomed {
+                let _ = std::fs::remove_file(self.path(id));
+            }
+            let over = before > cap;
+            for (id, copy) in rows_of {
+                let physical = inv.packs.get(&id).copied().unwrap_or(0);
+                let live = copy
+                    .iter()
+                    .map(|&(_, _, len)| len + FOOT_ROW as u64)
+                    .sum::<u64>()
+                    + HEADER as u64;
+                if live < physical && (over || live.saturating_mul(4) < physical.saturating_mul(3))
+                {
+                    let keys = self.footer_keys(id).or_else(|| {
+                        consistent.then(|| copy.iter().map(|&(key, _, _)| key).collect())
+                    });
+                    if keys.is_some() {
+                        self.rewrite(&[Source { id, copy, keys }])?;
+                    }
+                }
+            }
+            self.merge_small()?;
+            let after = self.walk()?;
+            let lock = self.lock()?;
+            let mut txn = Txn::open(self.index_dir())?;
+            // Packs published since the walk are tracked; count them.
+            let added: u64 = txn
+                .table()?
+                .iter()
+                .filter(|(id, _)| !after.packs.contains_key(id))
+                .map(|(_, len)| len)
+                .sum();
+            let total = after.total.saturating_add(added);
+            Self::record(&lock, total, txn.generation());
+            Ok(Collected {
+                before,
+                after: total,
+            })
+        }
+
+        /// The least recently used rows to evict, oldest first, ties by
+        /// key, when the live set and the index it needs exceed `cap`: down
+        /// to 90% of it. Dead bytes never evict a live set that fits.
+        fn victims(entries: &Entries, cap: u64, pages: u64) -> Vec<(Key, Location)> {
+            let mut rows_per_pack = BTreeMap::<u128, usize>::new();
+            for loc in entries.values() {
+                *rows_per_pack.entry(loc.pack).or_default() += 1;
             }
             // The index's bytes for `n` live rows once merged buckets go.
             // What the live set keeps: each frame with its footer row, each
             // pack with its trailer and table row, and the head and pages.
             // Merging buckets leaves at most one page per half load, never
             // more pages than now.
-            let mut rows_per_pack = BTreeMap::<u128, usize>::new();
-            for loc in entries.values() {
-                *rows_per_pack.entry(loc.pack).or_default() += 1;
-            }
-            let pages = txn.page_bytes();
             let overhead = |n: usize, packs: usize| -> u64 {
                 if n == 0 {
                     0
@@ -2359,98 +2707,138 @@ mod packed {
                     (fixed as u64).saturating_add(pages.min((buckets * page_len(0)) as u64))
                 }
             };
-            let mut live_bytes = entries
+            let mut live = entries
                 .values()
                 .map(|loc| loc.len + FOOT_ROW as u64)
                 .sum::<u64>();
-            let kept =
-                |bytes: u64, n: usize, packs: usize| bytes.saturating_add(overhead(n, packs));
-            // Dead records and orphans must be reclaimed before they cost
-            // live entries: only evict when the live set itself exceeds cap.
-            if kept(live_bytes, entries.len(), rows_per_pack.len()) > cap {
-                let mut order = entries
-                    .iter()
-                    .map(|(&key, loc)| (loc.used, key))
-                    .collect::<Vec<_>>();
-                order.sort_stable();
-                for (_, key) in order {
-                    if kept(live_bytes, entries.len(), rows_per_pack.len())
-                        <= cap.saturating_mul(9) / 10
-                    {
-                        break;
+            let mut n = entries.len();
+            let kept = |live: u64, n: usize, packs: usize| live.saturating_add(overhead(n, packs));
+            let mut victims = Vec::new();
+            if kept(live, n, rows_per_pack.len()) <= cap {
+                return victims;
+            }
+            let mut order = entries
+                .iter()
+                .map(|(&key, loc)| (loc.used, key))
+                .collect::<Vec<_>>();
+            order.sort_stable();
+            for (_, key) in order {
+                if kept(live, n, rows_per_pack.len()) <= cap.saturating_mul(9) / 10 {
+                    break;
+                }
+                let loc = entries[&key];
+                live -= loc.len + FOOT_ROW as u64;
+                n -= 1;
+                if let Some(rows) = rows_per_pack.get_mut(&loc.pack) {
+                    *rows -= 1;
+                    if *rows == 0 {
+                        rows_per_pack.remove(&loc.pack);
                     }
-                    if let Some(loc) = entries.remove(&key) {
-                        live_bytes -= loc.len + FOOT_ROW as u64;
-                        if let Some(rows) = rows_per_pack.get_mut(&loc.pack) {
-                            *rows -= 1;
-                            if *rows == 0 {
-                                rows_per_pack.remove(&loc.pack);
-                            }
-                        }
-                        txn.remove(key)?;
+                }
+                victims.push((key, loc));
+            }
+            victims
+        }
+
+        /// The collection's one eviction commit, under the writer lock:
+        /// rows whose pack is gone or too short, unchanged victims, and the
+        /// dead packs no key's row names (untracked here, removed by the
+        /// caller); then crashed leases, temporary files and pages past
+        /// the last bucket, whose writers would hold this lock. Cost: the
+        /// pages of those rows and keys, and the crashed files.
+        fn evict(
+            &self,
+            inv: &Inventory,
+            suspects: &[(Key, Location)],
+            victims: &[(Key, Location)],
+            dead: &[(u128, Option<Vec<Key>>)],
+        ) -> io::Result<Vec<u128>> {
+            let (lock, mut txn) = self.begin()?;
+            for &(key, loc) in suspects {
+                if txn.get(key)? != Some(loc) {
+                    continue;
+                }
+                let gone = match std::fs::symlink_metadata(self.path(loc.pack)) {
+                    Ok(meta) => {
+                        !meta.file_type().is_file()
+                            || loc
+                                .offset
+                                .checked_add(loc.len)
+                                .is_none_or(|end| end > meta.len())
                     }
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => true,
+                    Err(e) => return Err(e),
+                };
+                if gone {
+                    txn.remove(key)?;
+                }
+            }
+            for &(key, loc) in victims {
+                // A row hit or replaced since the read stays.
+                if txn.get(key)? == Some(loc) {
+                    txn.remove(key)?;
                 }
             }
             txn.shrink()?;
-            if txn.dirty() {
-                txn.commit(Some(&lock), 0, || Ok(()))?;
+            let mut doomed = Vec::new();
+            for (id, keys) in dead {
+                if Self::unnamed(&mut txn, *id, keys.as_deref())? {
+                    txn.untrack(*id)?;
+                    doomed.push(*id);
+                }
             }
-            // A pack's live bytes include the footer its rows would keep.
-            let mut live_per_pack = BTreeMap::<u128, u64>::new();
-            for loc in entries.values() {
-                *live_per_pack.entry(loc.pack).or_insert(HEADER as u64) +=
-                    loc.len + FOOT_ROW as u64;
-            }
-            // Packs no row names any more leave the table.
+            // Tracked packs that no longer exist leave the table.
             let tracked: Vec<u128> = txn.table()?.keys().copied().collect();
             for id in tracked {
-                if !live_per_pack.contains_key(&id) {
+                if !inv.packs.contains_key(&id) && !self.path(id).try_exists()? {
                     txn.untrack(id)?;
                 }
             }
-            let mut compacted = false;
-            for (id, live) in live_per_pack {
-                let physical = sizes.get(&id).copied().unwrap_or(0);
-                if live < physical
-                    && (before > cap || live.saturating_mul(4) < physical.saturating_mul(3))
-                {
-                    if compacted && deadline.is_some_and(|d| Instant::now() >= d) {
-                        break;
-                    }
-                    self.compact(&lock, &mut txn, &mut entries, id)?;
-                    compacted = true;
-                }
-            }
-            if !compacted || deadline.is_none_or(|d| Instant::now() < d) {
-                self.merge_small(&lock, &mut txn)?;
-            }
             if txn.dirty() {
                 txn.commit(Some(&lock), 0, || Ok(()))?;
             }
-            let live = txn
-                .all()?
-                .values()
-                .map(|loc| loc.pack)
-                .chain(txn.table()?.keys().copied())
-                .collect();
-            self.prune_orphans(&live, txn.head.buckets(), deadline)?;
+            // Lease creation and locking share this lock, so a lease this
+            // lock holder can lock belongs to a dead writer.
+            for path in &inv.pending {
+                let file = match OpenOptions::new().read(true).write(true).open(path) {
+                    Ok(file) => file,
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                    Err(e) => return Err(e),
+                };
+                match file.try_lock() {
+                    Ok(()) => {
+                        let _ = std::fs::remove_file(path);
+                    }
+                    Err(TryLockError::WouldBlock) => {}
+                    Err(TryLockError::Error(error)) => return Err(error),
+                }
+            }
+            for path in &inv.temps {
+                let _ = std::fs::remove_file(path);
+            }
+            let buckets = txn.head.buckets();
+            for &bucket in &inv.pages {
+                if bucket >= buckets {
+                    let _ = std::fs::remove_file(self.index_dir().join(page_name(bucket)));
+                }
+            }
             self.adopt(&txn);
-            let (after, _) = self.scan(&BTreeSet::new())?;
-            // Under the lock the walk is exact: record it for later runs.
-            Self::record(&lock, after, txn.generation());
-            Ok(Collected { before, after })
+            Ok(doomed)
         }
 
         /// The managed bytes recorded for the current index, or `None` when
-        /// the record describes another head: one written before a
-        /// migration, or by a writer that died before its commit. Caller
-        /// holds `lock`, the publication lock file, which stores the record.
+        /// the record describes another head (one written before a
+        /// migration, or by a writer that died before its commit) or is
+        /// torn. Readers check it with no lock; writers hold `lock`, the
+        /// publication lock file, which stores the record.
         fn recorded(mut lock: &File, generation: u128) -> Option<u64> {
             let mut bytes = [0; RECORD];
             lock.seek(SeekFrom::Start(0)).ok()?;
             lock.read_exact(&mut bytes).ok()?;
-            (&bytes[..8] == TOTAL_MAGIC && u128_at(&bytes, 16) == generation)
-                .then(|| u64_at(&bytes, 8))
+            (&bytes[..8] == TOTAL_MAGIC
+                && u128_at(&bytes, 16) == generation
+                && checksum(&bytes[..32]) == u128_at(&bytes, 32))
+            .then(|| u64_at(&bytes, 8))
         }
 
         /// Records `total` managed bytes for the head of `generation`. A
@@ -2459,7 +2847,9 @@ mod packed {
             let mut bytes = [0; RECORD];
             bytes[..8].copy_from_slice(TOTAL_MAGIC);
             bytes[8..16].copy_from_slice(&total.to_le_bytes());
-            bytes[16..].copy_from_slice(&generation.to_le_bytes());
+            bytes[16..32].copy_from_slice(&generation.to_le_bytes());
+            let sum = checksum(&bytes[..32]);
+            bytes[32..].copy_from_slice(&sum.to_le_bytes());
             let _ = lock
                 .seek(SeekFrom::Start(0))
                 .and_then(|_| lock.write_all(&bytes));
@@ -2471,7 +2861,7 @@ mod packed {
             if !is_real_dir(&self.root) {
                 return 0;
             }
-            self.scan(&BTreeSet::new()).map_or(0, |(bytes, _)| bytes)
+            self.walk().map_or(0, |inv| inv.total)
         }
 
         pub(super) fn was_used(&self) -> bool {
@@ -2551,6 +2941,7 @@ mod packed {
         use super::super::DiskStore;
         use super::*;
         use crate::store::CacheStore;
+        use std::time::{Duration, Instant};
 
         fn scratch(label: &str) -> PathBuf {
             let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2698,7 +3089,7 @@ mod packed {
                 assert!(reader.get(EntryKind::Check, &key).is_some(), "{k}");
             }
             // Eviction merges buckets back and leaves no file at all.
-            assert_eq!(store.maintain(0, None).unwrap().after, 0);
+            assert_eq!(store.collect(0).unwrap().after, 0);
             assert!(
                 std::fs::read_dir(store.index_dir())
                     .unwrap()
@@ -2717,7 +3108,7 @@ mod packed {
             };
             lease.file.write_all(b"unpublished").unwrap();
             let collector = Store::new(&root);
-            assert_eq!(collector.maintain(0, None).unwrap().after, 0);
+            assert_eq!(collector.collect(0).unwrap().after, 0);
             assert!(
                 lease.path.exists(),
                 "GC must not delete an active writer's pack"
@@ -2727,7 +3118,7 @@ mod packed {
             // normal error cleanup; the file has never entered the index.
             lease.committed = true;
             drop(lease);
-            assert_eq!(collector.maintain(0, None).unwrap().after, 0);
+            assert_eq!(collector.collect(0).unwrap().after, 0);
             assert!(!path.exists());
         }
 
@@ -2753,7 +3144,7 @@ mod packed {
             }
             let started = marker.exists();
             let kept = if started {
-                Store::new(&root).maintain(0, None).unwrap();
+                Store::new(&root).collect(0).unwrap();
                 std::fs::read_dir(root.join("pack-v1"))
                     .unwrap()
                     .filter_map(Result::ok)
@@ -2769,7 +3160,7 @@ mod packed {
             child.wait().unwrap();
             assert!(started, "writer fixture started");
             assert!(kept, "a live subprocess lease survives GC");
-            assert_eq!(Store::new(&root).maintain(0, None).unwrap().after, 0);
+            assert_eq!(Store::new(&root).collect(0).unwrap().after, 0);
         }
 
         #[test]
@@ -2809,7 +3200,7 @@ mod packed {
             let reader = Store::new(&root);
             assert!(reader.get(EntryKind::Check, &Hash128(2)).is_none());
             reader.touch(EntryKind::Check, &Hash128(2));
-            assert_eq!(reader.maintain(0, None).unwrap().after, 0);
+            assert_eq!(reader.collect(0).unwrap().after, 0);
             assert!(!path.exists());
         }
 
@@ -2917,7 +3308,7 @@ mod packed {
                 assert!(legacy.is_file(), "a reader migrates nothing");
                 // No table: the old pack has no footer to merge by.
                 assert_eq!(
-                    store.maintain(u64::MAX, None).unwrap().after,
+                    store.collect(u64::MAX).unwrap().after,
                     6 + index_len(0) - HEADER as u64
                 );
                 assert!(is_real_dir(&store.index_dir()));
@@ -2942,7 +3333,7 @@ mod packed {
                 .unwrap();
             ages(&store, &[(1, 1), (2, 2), (3, 3)]);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
-            let result = store.maintain(14_000, None).unwrap();
+            let result = store.collect(14_000).unwrap();
             assert_eq!(result.before, pack_len(3, 4000) + index_len(1));
             assert_eq!(result.after, pack_len(2, 4000) + index_len(1));
             let entries = load(&store);
@@ -2957,66 +3348,75 @@ mod packed {
             );
         }
 
+        /// Three dead packs put the cache over a cap its one live record
+        /// fits. One collection reclaims them all, down to the cap,
+        /// without evicting that record (#1932).
         #[test]
-        fn exhausted_automatic_budget_reclaims_garbage_without_evicting_a_fitting_live_set() {
+        fn one_collection_reclaims_garbage_without_evicting_a_fitting_live_set() {
             let root = scratch("bounded-progress");
             let store = Store::new(&root);
             for _ in 0..4 {
                 store.publish(&[item(1, &[7; 64])]).unwrap();
             }
-            // One live record and its index fit the cap. Three old packs
-            // exceed it but must not evict that still useful record.
             let cap = pack_len(1, 64) + index_len(1);
-            let mut after = u64::MAX;
-            for _ in 0..4 {
-                after = store.maintain(cap, Some(Duration::ZERO)).unwrap().after;
-                assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
-                if after <= cap {
-                    break;
-                }
-            }
-            assert!(after <= cap, "bounded runs make physical progress");
+            let run = store.collect(cap).unwrap();
+            assert!(run.before > cap);
+            assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
+            assert_eq!(run.after, cap);
         }
 
+        /// A command's settlement never walks (#1932). It reads the
+        /// recorded total and wants a collection when it is over the cap or
+        /// unknown. Only a collection walks, and it records the total that
+        /// the commands after it read.
         #[test]
         fn a_recorded_total_under_the_cap_skips_the_walk_and_a_stale_one_rescans() {
             let root = scratch("total");
             let store = Store::new(&root);
-            let bounded = |cap| store.maintain(cap, Some(Duration::from_mins(1))).unwrap();
+            let settle = |cap| {
+                cost::take();
+                let wanted = store.settle(cap).unwrap();
+                let counts = cost::take();
+                assert_eq!((counts.walks, counts.dirs_listed), (0, 0), "{counts:?}");
+                wanted
+            };
             let one = pack_len(1, 64) + index_len(1);
             store.publish(&[item(1, &[7; 64])]).unwrap();
-            // Nothing is recorded yet: the first bounded run walks.
-            assert_eq!(bounded(u64::MAX).after, one);
+            // A namespace the store created starts at a known zero.
+            assert!(!settle(one));
+            assert!(settle(one - 1), "over the cap");
             // An unindexed pack no writer recorded: only a walk sees it.
             let stray = store.path(unique());
-            let plant = || std::fs::write(&stray, [0; 100]).unwrap();
-            plant();
+            std::fs::write(&stray, [0; 100]).unwrap();
             store.publish(&[item(1, &[8; 64])]).unwrap();
-            let run = bounded(u64::MAX);
             let added = pack_len(1, 64) + TABLE_ROW as u64;
-            assert_eq!(run.after, one + added, "a publication adds its pack");
+            assert!(!settle(one + added), "a publication adds its pack");
             assert!(stray.exists(), "a fitting total walks nothing");
-            // Over the cap, the bounded run walks and reclaims dead bytes
-            // without evicting the fitting live set.
-            let run = bounded(one + 63);
+            // The collection reclaims dead bytes without evicting the
+            // fitting live set, and records the exact total.
+            let run = store.collect(one + 63).unwrap();
             assert_eq!((run.before, run.after), (one + added + 100, one));
             assert!(!stray.exists());
             assert_eq!(store.get(EntryKind::Check, &Hash128(1)).unwrap()[0], 8);
-            // A head no record names rescans.
+            assert!(!settle(one));
+            // A head no record names is unknown until a collection.
             ages(&store, &[(1, 5)]);
             unrecorded(&store);
-            plant();
-            assert_eq!(bounded(u64::MAX).after, one, "an unrecorded index rescans");
-            assert!(!stray.exists());
+            assert!(settle(u64::MAX), "an unrecorded index wants a collection");
+            assert_eq!(store.collect(u64::MAX).unwrap().after, one);
+            assert!(!settle(u64::MAX));
             // A hit's recency mark rewrites its page and keeps the record.
             store.get(EntryKind::Check, &Hash128(1)).unwrap();
-            plant();
-            assert_eq!(bounded(u64::MAX).after, one);
+            assert!(!settle(one));
             assert!(load(&store).values().all(|loc| loc.used > 5));
-            assert!(stray.exists());
-            // Explicit collection always walks.
-            assert_eq!(store.maintain(u64::MAX, None).unwrap().after, one);
-            assert!(!stray.exists());
+            // A torn record is unknown, not a wrong total.
+            let mut lock = OpenOptions::new()
+                .write(true)
+                .open(root.join("pack-v1/lock"))
+                .unwrap();
+            lock.seek(SeekFrom::Start(8)).unwrap();
+            lock.write_all(&[0xff; 4]).unwrap();
+            assert!(settle(u64::MAX), "a torn record wants a collection");
         }
 
         /// The index files' names, bytes and modification times.
@@ -3042,7 +3442,7 @@ mod packed {
             let before = index_files(&store);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
             store.touch(EntryKind::Check, &Hash128(1));
-            store.maintain(u64::MAX, None).unwrap();
+            store.collect(u64::MAX).unwrap();
             assert_eq!(index_files(&store), before);
         }
 
@@ -3066,7 +3466,7 @@ mod packed {
             }
             let mut pinned = options.open(&path).unwrap();
             let cap = 14_000;
-            let result = store.maintain(cap, None).unwrap();
+            let result = store.collect(cap).unwrap();
             #[cfg(windows)]
             {
                 assert!(path.exists(), "a reader denied deletion");
@@ -3087,7 +3487,7 @@ mod packed {
                 Some(data.as_slice())
             );
             drop(pinned);
-            assert!(store.maintain(cap, None).unwrap().after <= cap);
+            assert!(store.collect(cap).unwrap().after <= cap);
             assert!(!path.exists());
         }
 
@@ -3140,7 +3540,7 @@ mod packed {
                 reader.get(EntryKind::Check, &Hash128(1)).as_deref(),
                 Some(data.as_slice())
             );
-            Store::new(&root).maintain(u64::MAX, None).unwrap();
+            Store::new(&root).collect(u64::MAX).unwrap();
             assert_eq!(indexed_packs(&root).len(), 1, "the four packs merged");
             let _ = cost::take();
             for key in 2..=FANOUT as u128 {
@@ -3173,9 +3573,7 @@ mod packed {
                     for key in 0..N {
                         let store = Store::new(root);
                         store.publish(&[item(1_000 + key, &[1; 64])]).unwrap();
-                        store
-                            .maintain(u64::MAX, Some(Duration::from_secs(5)))
-                            .unwrap();
+                        store.settle(u64::MAX).unwrap();
                     }
                 });
                 let store = Store::new(root);
@@ -3195,6 +3593,7 @@ mod packed {
 
         /// The keys a warm run reads, the same at every cache size.
         const READ: u128 = 8;
+        const DEFAULT: u64 = super::super::DEFAULT_CAP;
 
         /// A cache of `n` entries that earlier runs published. With
         /// `stale`, every entry was last used two hours ago, so each hit is
@@ -3218,7 +3617,7 @@ mod packed {
                 }
                 // Record the total for the rewritten index, as the
                 // command that wrote it would have.
-                store.maintain(super::super::DEFAULT_CAP, None).unwrap();
+                store.collect(super::super::DEFAULT_CAP).unwrap();
             }
             root
         }
@@ -3362,11 +3761,260 @@ mod packed {
                 );
             }
             assert!(reader.state().as_ref().unwrap().files.len() <= MAX_HANDLES);
-            let collected = store.maintain(16 * 1024, None).unwrap();
+            let collected = store.collect(16 * 1024).unwrap();
             assert!(collected.after <= 16 * 1024, "{collected:?}");
             eprintln!(
                 "1000 packs: load {load_time:?}, publication including merge {merge:?}, bytes {} -> {}",
                 collected.before, collected.after
+            );
+        }
+
+        /// A collection in another process never delays a publication
+        /// (#1932). One store collects and stops at its walk, then at its
+        /// compaction copy. At each stop the writer lock is free, and a
+        /// second store over the same cache publishes and reads back.
+        #[test]
+        fn publication_never_waits_for_a_collection() {
+            let root = scratch("gc-beside-publish");
+            let data = [3; 4000];
+            let writer = Store::new(&root);
+            writer
+                .publish(&[item(1, &data), item(2, &data), item(3, &data)])
+                .unwrap();
+            ages(&writer, &[(1, 1), (2, 2), (3, 3)]);
+            let (at, stopped) = std::sync::mpsc::channel::<&'static str>();
+            let (resume, go) = std::sync::mpsc::channel::<()>();
+            let go = Mutex::new(go);
+            let mut collector = Store::new(&root);
+            collector.on_pause = Some(Arc::new(move |stop| {
+                at.send(stop).unwrap();
+                go.lock().unwrap().recv().unwrap();
+            }));
+            std::thread::scope(|scope| {
+                // Evicting key 1 leaves its pack a third dead: compacted.
+                // cost: one test thread, one collection of three entries.
+                let collecting = scope.spawn(|| collector.collect(14_000).unwrap());
+                let mut stops = Vec::new();
+                for key in 10.. {
+                    let Ok(stop) = stopped.recv_timeout(Duration::from_secs(10)) else {
+                        break;
+                    };
+                    stops.push(stop);
+                    let lock = OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .open(root.join("pack-v1/lock"))
+                        .unwrap();
+                    assert!(lock.try_lock().is_ok(), "the writer lock is held at {stop}");
+                    lock.unlock().unwrap();
+                    let publisher = Store::new(&root);
+                    publisher.publish(&[item(key, b"beside")]).unwrap();
+                    assert_eq!(
+                        Store::new(&root)
+                            .get(EntryKind::Check, &Hash128(key))
+                            .as_deref(),
+                        Some(b"beside".as_slice())
+                    );
+                    resume.send(()).unwrap();
+                    if stops.len() == 3 {
+                        break;
+                    }
+                }
+                drop(resume);
+                assert_eq!(stops, ["walk", "copy", "walk"]);
+                collecting.join().unwrap();
+            });
+            let rows = load(&writer);
+            for key in [2, 3, 10, 11, 12] {
+                assert!(rows.contains_key(&(EntryKind::Check as u16, key)), "{key}");
+            }
+            assert!(!rows.contains_key(&(EntryKind::Check as u16, 1)));
+            indexed_packs(&root);
+        }
+
+        /// One command: a fresh store reads [`READ`] keys, writes one new
+        /// entry and is dropped; its counts, and whether it asked for a
+        /// collection. Its spawner records the request, so the command
+        /// never collects itself.
+        fn command(root: &Path, cap: u64, new: u128) -> (cost::Counts, bool) {
+            static ASKED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+            fn ask(root: &Path) {
+                ASKED.lock().unwrap().push(root.to_path_buf());
+            }
+            let asked = |root: &Path| ASKED.lock().unwrap().iter().filter(|r| *r == root).count();
+            let before = asked(root);
+            cost::take();
+            {
+                let store = DiskStore::new(root.to_path_buf())
+                    .with_cap(cap)
+                    .on_collection_due(ask);
+                for key in 0..READ {
+                    store.get(EntryKind::Check, &Hash128(key));
+                }
+                store.put_many(&[item(new, &[9; 16])]);
+            }
+            (cost::take(), asked(root) > before)
+        }
+
+        /// The cache's invariant (#1932): a command never does more work
+        /// with the cache than with none. The same command runs on an
+        /// empty cache, then under every state a cache can be in. No
+        /// cached run lists a directory or walks; none takes the writer
+        /// lock more often than the cold run, or reads or writes more
+        /// index bytes beyond the pages of the entries it reads, writes
+        /// and marks, and it opens only the packs of its hits.
+        #[test]
+        fn a_command_does_no_more_work_with_the_cache_than_without() {
+            // The cache directory does not exist yet, as under a new HD_CACHE.
+            let (cold, asked) = command(&scratch("no-cache").join("obj"), DEFAULT, u128::MAX);
+            assert!(!asked, "an empty cache's total is known");
+            assert_eq!((cold.dirs_listed, cold.walks), (0, 0), "{cold:?}");
+            let mut states: Vec<(&str, PathBuf, u64, bool)> = Vec::new();
+            for n in [1000, 10_000] {
+                let under = cache(n, false);
+                states.push(("under the cap", under, DEFAULT, false));
+                states.push(("over the cap", cache(n, false), 1, true));
+                let unknown = cache(n, false);
+                unrecorded(&Store::new(&unknown));
+                states.push(("total unknown", unknown, DEFAULT, true));
+                let ledger = cache(n, true);
+                {
+                    let store = DiskStore::new(ledger.clone());
+                    store.put_private(EntryKind::Clpack, &Hash128(5), b"native code");
+                }
+                std::fs::write(ledger.join("stats"), b"stale").unwrap();
+                // No collection covers it yet.
+                std::fs::remove_file(ledger.join("gc")).unwrap();
+                states.push(("stale ledger", ledger, DEFAULT, true));
+                let collecting = cache(n, false);
+                unrecorded(&Store::new(&collecting));
+                let gc = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(collecting.join("gc"))
+                    .unwrap();
+                gc.lock().unwrap();
+                std::mem::forget(gc);
+                states.push(("another process collecting", collecting, DEFAULT, true));
+                let crashed = cache(n, false);
+                let store = Store::new(&crashed);
+                let mut lease = {
+                    let _lock = store.lock().unwrap();
+                    store.lease().unwrap()
+                };
+                lease.file.write_all(b"partial").unwrap();
+                lease.committed = true;
+                drop(lease);
+                states.push(("crashed lease", crashed, DEFAULT, false));
+            }
+            // The head twice, the pages of the keys it reads and writes,
+            // their pages again for the marks of stale hits, and a pack
+            // table of a few rows, read and read again.
+            let read = usize::try_from(READ).unwrap();
+            let reads =
+                (2 * HEAD_LEN + (2 * read + 1) * page_len(1) + 2 * (HEADER + 4 * TABLE_ROW)) as u64;
+            let marks = (2 * read * page_len(1)) as u64;
+            for (state, root, cap, wants) in states {
+                let (run, asked) = command(&root, cap, u128::MAX);
+                eprintln!("{state}: {run:?} cold {cold:?}");
+                assert_eq!(asked, wants, "{state}");
+                assert_eq!(
+                    (run.dirs_listed, run.entries_listed, run.walks),
+                    (0, 0, 0),
+                    "{state}: {run:?}"
+                );
+                assert!(
+                    run.writer_locks <= cold.writer_locks + 1,
+                    "{state}: {run:?}"
+                );
+                assert!(run.packs_opened <= read as u64, "{state}: {run:?}");
+                assert!(
+                    run.index_read <= cold.index_read + reads,
+                    "{state}: {run:?} {cold:?}"
+                );
+                assert!(
+                    run.index_written <= cold.index_written + marks,
+                    "{state}: {run:?} {cold:?}"
+                );
+            }
+            // Readers never take the writer lock: a run of hits finishes
+            // while another process holds it.
+            let root = cache(1000, false);
+            let held = Store::new(&root).lock().unwrap();
+            let (tx, rx) = std::sync::mpsc::channel();
+            // cost: one test thread reading eight keys.
+            let reader = std::thread::spawn(move || {
+                cost::take();
+                {
+                    let store = DiskStore::new(root);
+                    for key in 0..READ {
+                        assert!(store.get(EntryKind::Check, &Hash128(key)).is_some());
+                    }
+                }
+                tx.send(cost::take()).unwrap();
+            });
+            let run = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+            assert_eq!(run.writer_locks, 0, "{run:?}");
+            drop(held);
+            reader.join().unwrap();
+        }
+
+        /// Convergence (#1932): 10,000 packs, most of them dead, and a live
+        /// set over the cap. Commands keep listing nothing and ask for a
+        /// collection; one collection brings the bytes on disk to the
+        /// low-water mark, and the commands after it ask for none.
+        #[test]
+        fn an_over_cap_cache_of_ten_thousand_packs_reaches_the_low_water_mark_in_one_collection() {
+            const PACKS: u128 = 10_000;
+            const LIVE: u128 = 2_000;
+            let root = scratch("converge");
+            let store = Store::new(&root);
+            {
+                let (lock, mut txn) = store.begin().unwrap();
+                for key in 0..PACKS {
+                    let id = unique();
+                    let frame = vec![u8::try_from(key % 251).unwrap(); 100];
+                    let mut bytes = frame.clone();
+                    bytes.extend(footer(&vec![((EntryKind::Check as u16, key), 0, 100)]));
+                    std::fs::write(store.path(id), &bytes).unwrap();
+                    txn.track(id, bytes.len() as u64).unwrap();
+                    if key < LIVE {
+                        let used = 1_000 + u64::try_from(key).unwrap();
+                        let loc = Location {
+                            pack: id,
+                            offset: 0,
+                            len: 100,
+                            used,
+                        };
+                        txn.set((EntryKind::Check as u16, key), loc).unwrap();
+                    }
+                }
+                txn.commit(Some(&lock), 0, || Ok(())).unwrap();
+            }
+            let physical = || DiskStore::new(root.clone()).packed.bytes();
+            let cap = 200_000;
+            assert!(physical() > 5 * cap);
+            for new in 0..3 {
+                let (run, asked) = command(&root, cap, PACKS + new);
+                assert!(asked);
+                assert_eq!((run.dirs_listed, run.walks), (0, 0), "{run:?}");
+            }
+            cost::take();
+            DiskStore::new(root.clone()).with_cap(cap).collect_due();
+            assert_eq!(cost::take().walks, 2, "one collection walks twice");
+            let after = physical();
+            eprintln!("after one collection: {after} bytes, cap {cap}");
+            assert!(after <= cap * 9 / 10 + page_len(1) as u64, "{after}");
+            let (run, asked) = command(&root, cap, PACKS + 10);
+            assert!(!asked);
+            assert_eq!((run.dirs_listed, run.walks), (0, 0), "{run:?}");
+            // The newest live entries survived.
+            assert!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(LIVE - 1))
+                    .is_some()
             );
         }
 

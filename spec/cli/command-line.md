@@ -2207,9 +2207,9 @@ hd cache gc                      # evicts now, and prints the size before and af
 1. r[cli.cache.obj] `hd` stores its **compiled entries** in the directory `obj` of the [cache directory](command-line.md#r-cli.cache.directory). Every package and worktree of the user shares them.
 2. r[cli.cache.obj.derived] A compiled entry holds only derived data. Removing one changes no command's result, only how long the command takes.
 3. r[cli.cache.obj.cap] The compiled entries have a size cap of 10 GiB. The environment variable `HD_CACHE_MAX_SIZE` sets another cap, as a SIZE of [Program Limits](#program-limits).
-4. r[cli.cache.obj.evict] When a command finds the compiled entries over the cap, it removes the least recently used ones. That eviction may continue over later commands, so a command does not wait for all of it.
+4. r[cli.cache.obj.evict] When a command finds the compiled entries over the cap, or cannot tell their size, it starts their eviction in the background and does not wait for it. The eviction removes the least recently used entries until the rest fit in 90% of the cap. It runs at most once an hour, or sooner under a smaller cap than the last eviction's, so writes within that hour can take the entries past the cap.
 5. r[cli.cache.obj.evict.scope] Eviction removes only compiled entries, never a fetched version.
-6. r[cli.cache.gc] `hd cache gc` runs that eviction now, until the compiled entries are within the cap. It prints their size before and after.
+6. r[cli.cache.gc] `hd cache gc` runs that eviction now, after any eviction already running, until the compiled entries are within the cap. It prints their size before and after.
 7. r[cli.cache.gc.anywhere] `hd cache gc` works inside a package, in a workspace, and outside any package, and it reads no manifest.
 
 > **Why.** Keys are content hashes, so worktrees on one commit share
