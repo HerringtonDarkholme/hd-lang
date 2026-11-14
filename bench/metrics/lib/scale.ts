@@ -127,6 +127,7 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   // Generics and rows.
   "generic-fns": { construct: "generic functions and instances" },
   "generic-params": { construct: "type parameters of one function", n: 100 },
+  "param-bounds": { construct: "bounds of one type parameter, each method called", n: 100 },
   "type-defaults": { construct: "defaulted type parameters" },
   "row-chain": { construct: "requirement rows along a call chain" },
   "row-traits": { construct: "traits of one requirement row and `$.use`", n: 100 },

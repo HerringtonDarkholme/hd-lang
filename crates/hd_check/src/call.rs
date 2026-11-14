@@ -29,6 +29,8 @@ pub struct MethodIndex {
     pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
     /// Each trait's method by name, for the traits of `traits`.
     of_trait: HashMap<(DefId, Symbol), DefId>,
+    /// Each trait's method names, for the traits of `traits`.
+    names: HashMap<DefId, Vec<Symbol>>,
     /// Each item indexed, by the order it was indexed in.
     seen: HashMap<DefId, u32>,
     shared: Option<std::sync::Arc<Self>>,
@@ -98,6 +100,7 @@ impl MethodIndex {
                     for (n, m) in &t.methods {
                         self.traits.entry(*n).or_default().push((it.def, *m));
                         self.of_trait.entry((it.def, *n)).or_insert(*m);
+                        self.names.entry(it.def).or_default().push(*n);
                     }
                 }
                 // No methods of their own: a method item is its owner's.
@@ -157,6 +160,15 @@ impl MethodIndex {
         self.shared.as_ref()?.of_trait.get(&(tr, sym)).copied()
     }
 
+    /// The method names trait `tr` declares, as [`Self::method_of`] finds
+    /// them: one probe.
+    pub(crate) fn names_of(&self, tr: DefId) -> &[Symbol] {
+        let own = self.seen.contains_key(&tr).then_some(self);
+        let ix = own.or(self.shared.as_deref());
+        ix.and_then(|ix| ix.names.get(&tr))
+            .map_or(&[], Vec::as_slice)
+    }
+
     fn names(&self) -> impl Iterator<Item = Symbol> + '_ {
         self.inherent
             .keys()
@@ -172,6 +184,16 @@ impl MethodIndex {
                     .map(|(name, _)| *name),
             )
     }
+}
+
+/// One bounded type's clauses by method name ([`Ck::bound_clause`]): for
+/// each name a clause's trait declares, the first such clause; how many
+/// of the type's clauses are indexed, and at which environment epoch.
+#[derive(Default)]
+pub(crate) struct BoundMethods {
+    epoch: u64,
+    scanned: usize,
+    by_name: HashMap<Symbol, u32>,
 }
 
 /// A resolved method.
@@ -4580,19 +4602,16 @@ impl Ck<'_, '_> {
             TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
         ) {
             self.add_projection_clauses(t);
-            for i in self.env.clauses_of(t).iter().map(|&i| i as usize) {
-                let tr = self.env.clause_trait()[i];
-                crate::work::trait_lookup(1);
-                if let Some(m) = self.method_index().method_of(tr, sym) {
-                    return Ok(Some(Hit::Trait {
-                        trait_: tr,
-                        method: m,
-                        args: pool.list_items(self.env.clause_args()[i]).to_vec(),
-                        choice: (ChoiceKind::Bound, u32::try_from(i).unwrap_or(0)),
-                    }));
-                }
-            }
-            return Ok(None);
+            let Some(i) = self.bound_clause(t, sym) else {
+                return Ok(None);
+            };
+            let tr = self.env.clause_trait()[i];
+            return Ok(self.method_index().method_of(tr, sym).map(|m| Hit::Trait {
+                trait_: tr,
+                method: m,
+                args: pool.list_items(self.env.clause_args()[i]).to_vec(),
+                choice: (ChoiceKind::Bound, u32::try_from(i).unwrap_or(0)),
+            }));
         }
         // A trait value: its trait and supertraits, a supertrait at the
         // arguments the value's trait gives it (trait.dyn.value-methods).
@@ -4740,6 +4759,37 @@ impl Ck<'_, '_> {
                 cands,
             })
         }))
+    }
+
+    /// The first clause on `t`, in the environment's order, whose trait
+    /// declares the method `sym`: one probe of the
+    /// body's index of `t`'s clauses by method name. The index covers the
+    /// clauses up to the count it last saw, and takes the ones pushed
+    /// since on the next ask; a truncation that dropped clauses
+    /// ([`ParamEnv::epoch`]) rebuilds it. Each clause is indexed once per
+    /// epoch, at one step per method of its trait, where every call walked
+    /// the clauses in order.
+    fn bound_clause(&mut self, t: Ty, sym: Symbol) -> Option<usize> {
+        let epoch = self.env.epoch();
+        let list = self.env.clauses_of(t);
+        let index = &self.cx.methods;
+        let entry = self.bound_methods.entry(t).or_default();
+        if entry.epoch != epoch || entry.scanned > list.len() {
+            *entry = BoundMethods {
+                epoch,
+                ..BoundMethods::default()
+            };
+        }
+        for &i in &list[entry.scanned..] {
+            let tr = self.env.clause_trait()[i as usize];
+            for &name in index.names_of(tr) {
+                crate::work::trait_lookup(1);
+                entry.by_name.entry(name).or_insert(i);
+            }
+        }
+        entry.scanned = list.len();
+        crate::work::trait_lookup(1);
+        entry.by_name.get(&sym).map(|&i| i as usize)
     }
 
     /// The candidates of `trait_` for the receiver `t`, indexed by their

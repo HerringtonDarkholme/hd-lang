@@ -1,0 +1,61 @@
+# test: a call on a type parameter finds its method in any of the parameter's bounds, a bound's supertrait, or an associated type's bound, in clause order
+# Spec lang/09-traits.md: trait.bound.compose-and, trait.bound.supertraits.
+# expect-stdout: 1 2 3 4 5 6
+trait Base:
+    fn one(&self) -> i32
+
+trait Two < Base:
+    fn two(&self) -> i32
+
+trait Three:
+    fn three(&self) -> i32
+
+trait Source:
+    type Item < Three
+    fn item(&self) -> Self::Item
+
+struct V:
+    n: i32
+
+impl Base for V:
+    fn one(&self) -> i32: 1
+
+impl Two for V:
+    fn two(&self) -> i32: 2
+
+impl Three for V:
+    fn three(&self) -> i32: 3
+
+struct S:
+    n: i32
+
+impl Source for S:
+    type Item = V
+    fn item(&self) -> V: V { n: 0 }
+
+fn bounded[T < Two & Three](x: T) -> (i32, i32, i32):
+    (x.one(), x.two(), x.three())
+
+fn projected[P < Source](p: P) -> i32:
+    p.item().three() + 1
+
+trait Go[A]:
+    fn go(&self, a: A) -> A
+
+impl Go[i32] for V:
+    fn go(&self, a: i32) -> i32: a + 2
+
+impl Go[i64] for V:
+    fn go(&self, a: i64) -> i64: a
+
+fn tried[P < Source](p: P, v: V) -> i32:
+    r := v.go(if true: p.item().three() + 1 else: +0)
+    r
+
+fn opaque() -> impl Two:
+    V { n: 0 }
+
+pub fn main() -> void $ Console:
+    t := bounded(V { n: 0 })
+    o := opaque()
+    println("${t._0} ${t._1} ${t._2} ${projected(S { n: 0 })} ${o.two() + o.one() + 2} ${tried(S { n: 0 }, V { n: 0 })}")

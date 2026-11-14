@@ -133,9 +133,21 @@ pub struct ParamEnv {
     /// the record with the clauses.
     elaborated: Vec<(Ty, u32)>,
     elaborated_set: HashSet<Ty>,
+    /// How many truncations dropped clauses: an index over the clauses
+    /// made at one count stays valid while this does, and needs only the
+    /// clauses pushed since ([`Self::epoch`]).
+    truncations: u64,
 }
 
 impl ParamEnv {
+    /// The number of truncations that dropped clauses so far: a reader's
+    /// index of the clauses is valid while it is unchanged, and covers a
+    /// prefix of each self type's list.
+    #[must_use]
+    pub fn epoch(&self) -> u64 {
+        self.truncations
+    }
+
     /// How many clauses the environment holds.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -192,6 +204,9 @@ impl ParamEnv {
     /// projection elaborated into them. A self type's clause indices
     /// ascend, so the dropped ones are the tail of its list.
     pub fn truncate(&mut self, n: usize) {
+        if n < self.clause_self.len() {
+            self.truncations += 1;
+        }
         let dropped = self
             .clause_self
             .drain(n..)

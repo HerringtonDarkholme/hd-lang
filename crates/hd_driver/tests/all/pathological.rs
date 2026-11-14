@@ -2390,3 +2390,43 @@ fn method_choice_narrows_by_argument_and_result_heads() {
         );
     });
 }
+
+/// One type parameter bounded by `n` traits, each declaring one method,
+/// and one call of each method on a value of it: the scale check's
+/// `param-bounds` shape.
+fn param_bounds(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = write!(s, "trait B{i}:\n    fn b{i}(&self) -> i32\n\n");
+    }
+    let bounds: Vec<String> = (0..n).map(|i| format!("B{i}")).collect();
+    let _ = writeln!(s, "fn bounded[T < {}](x: T) -> i32:", bounds.join(" & "));
+    s.push_str("    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    t = t + x.b{i}()");
+    }
+    s.push_str("    t\n\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker: #1937, a call on a bounded type finds its method's clause by
+// one probe of the body's index of the type's clauses by method name:
+// each call walked the clauses in order, asking each one's trait.
+#[test]
+fn bounded_parameter_calls_find_their_clause_by_one_probe() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) = hd_check::work::count_trait_lookup_work(|| {
+                compile(&param_bounds(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        // Per bound: its method name indexed once; per call: one probe.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "trait lookups for 100 and 1,000 bounds: {small} and {large}"
+        );
+    });
+}

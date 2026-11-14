@@ -1,0 +1,19 @@
+{{! One type parameter bounded by one trait per `items` entry, each trait's method called once on a value of it; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+trait Base:
+    fn base(&self) -> i32
+
+{{#each items}}
+trait B{{i}}:
+    fn b{{i}}(&self) -> i32
+
+{{/each}}
+fn bounded[T < Base{{rep ~&~B@}}](x: T) -> i32:
+    let t = x.base()
+{{#each items}}
+    t = t + x.b{{i}}()
+{{/each}}
+    t
+
+pub fn main() -> void $ Console:
+    let t = +0
+    println("$t")

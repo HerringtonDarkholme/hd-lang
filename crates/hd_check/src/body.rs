@@ -594,6 +594,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Arguments of an instantiation choice inferred once, before its
     /// trials (`crates/hd_check/DESIGN.md` (type checking) §2.5 "Trial cost"): node, value, type.
     pub pre_args: Vec<(NodeRefIdx, Ref, Ty)>,
+    /// Each bounded type's clauses indexed by the method names their
+    /// traits declare ([`crate::call::BoundMethods`]).
+    pub(crate) bound_methods: HashMap<Ty, crate::call::BoundMethods>,
     /// Call parameters named only in bounds that call inference left
     /// unsolved (§2.4 step 9): variable, call, and whether a bound allows
     /// several instantiations. Decided at the end of the statement.
@@ -840,6 +843,7 @@ pub(crate) fn new_ck<'a, 'c>(
         header_tys: Vec::new(),
         norm_cut: None,
         pre_args: Vec::new(),
+        bound_methods: HashMap::default(),
         open_params: Vec::new(),
         ref_params: Vec::new(),
         call_params: Vec::new(),
