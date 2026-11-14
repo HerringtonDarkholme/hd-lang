@@ -1351,7 +1351,6 @@ fn ensure_worker(slot: &mut Option<EntryWorker>) -> std::io::Result<()> {
                 "NODE_COMPILE_CACHE",
                 Path::new(env!("CARGO_TARGET_TMPDIR")).join("node-compile-cache"),
             )
-            .arg("--experimental-wasm-jspi")
             .arg(worker_script())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
