@@ -36,7 +36,6 @@ Ranked by how many misses a cause explains and how far they are from target.
 | -- | ------------------------------------------------------------------ | ------ | ---------------------------------------------------------- | --------- |
 | C1 | No cross-process single-flight in the two caches                   | 2      | cache-contention ×2, concurrency ×3                         | verified  |
 | C2 | Most diagnostics carry no structured fix-it                        | 1      | fix-it resolves 33%                                        | verified  |
-| C3 | A syntax error blocks every check of its module and folder         | 1      | errors-per-run mixed 2 of 10                               | verified  |
 | C4 | No early cutoff: a module's key hashes its whole closure           | 1      | recheck-precision 9 vs 3                                   | verified  |
 | C5 | REPL input N rechecks the chain of all N earlier inputs            | 2      | long-session RSS +96 MB, build 89 ms → 982 ms per input    | verified  |
 | C6 | No integer range facts, so provably safe `+ 1` keeps its check     | 1      | check-cost 1.93x                                           | verified  |
@@ -50,7 +49,7 @@ Ranked by how many misses a cause explains and how far they are from target.
 | C14 | JSON makes two passes and checks keys at run time                 | 3      | serde-throughput ×2                                        | verified  |
 | C15 | Regex search always runs the Pike VM                              | 3      | regex find_all 0.09x                                       | verified  |
 
-Suggested order: C1, C2, C3 and C10 give the most targets per unit of
+Suggested order: C1, C2 and C10 give the most targets per unit of
 work. C4 and C5 share the early-cutoff machinery. C13 and C12 share the
 host ABI.
 
@@ -93,23 +92,6 @@ host ABI.
   `hd_syntax`: every message that names a single edit also emits it as a
   fix. Messages with two options (`mixed-signedness`, `mut-on-binding-type`)
   stay prose or offer both as alternatives, which the metric skips.
-
-### C3. A syntax error blocks every check of its module and folder
-
-- **Miss.** `errors-per-run`, mixed: 2 of 10 reported. The file has 2
-  syntax errors and 8 semantic ones; only the syntax errors are reported.
-- **Evidence (verified).** `crates/hd_driver/src/lib.rs:4400` stops the
-  folder interface when any module of the folder fails `parses`, and
-  `:6331` and `:6347` block `ModulePrep`, `Body` and `ModuleFinish` for a
-  module that does not parse. The parser already recovers (it reports both
-  syntax errors), but the checker discards its tree.
-- **State of the art.** rustc, Swift and TypeScript type-check a tree with
-  error nodes. Items that parsed are checked; a broken item gets an error
-  signature that suppresses follow-on errors.
-- **Fix.** Check the items whose spans hold no parse error. Give a broken
-  item a poisoned signature, so uses of it report nothing more. The #310
-  rule "a warm run reports what a clean one does" still holds, because both
-  runs use the same item-level rule.
 
 ### C4. No early cutoff: a module's key hashes its whole closure
 

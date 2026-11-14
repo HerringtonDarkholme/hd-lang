@@ -88,13 +88,12 @@ not measured.
 | 6 | [E1](#e1) wasmtime in-process with a module cache **owner** | 3 | start-up, test set-up, unit tests |
 | 7 | [C1](#c1) a faster global allocator (measured: -13% instructions, -4% to -10% cycles) | 1, 2 | cold check, concurrency |
 | 8 | [I1](#i1) early cutoff by recorded reads (#49) | 1 | recheck precision, REPL, warm check |
-| 9 | [D10](#d10) check the items that parsed | 1 | errors per run |
-| 10 | [R1](#r1) a lazy DFA for regex search | 3 | regex throughput |
-| 11 | [E6](#e6) hot loops in `main` stay in V8's baseline tier | 3 | `sum`, every loop-in-`main` program |
-| 12 | [M1](#m1) stream cache entries instead of holding them to the end | 2 | peak RSS, `resources` |
-| 13 | [R5](#r5) a short path for small-map hits, lost in `f13fdb35c` | 3 | map lookups, 28% on small maps |
-| 14 | [N4](#n4) one driver run for `hd check --tests` | 1 | the per-edit check agents run, +39% today |
-| 15 | [N1](#n1) float text and ASCII case mapping in the guest | 3 | `serde-throughput`, text throughput |
+| 9 | [R1](#r1) a lazy DFA for regex search | 3 | regex throughput |
+| 10 | [E6](#e6) hot loops in `main` stay in V8's baseline tier | 3 | `sum`, every loop-in-`main` program |
+| 11 | [M1](#m1) stream cache entries instead of holding them to the end | 2 | peak RSS, `resources` |
+| 12 | [R5](#r5) a short path for small-map hits, lost in `f13fdb35c` | 3 | map lookups, 28% on small maps |
+| 13 | [N4](#n4) one driver run for `hd check --tests` | 1 | the per-edit check agents run, +39% today |
+| 14 | [N1](#n1) float text and ASCII case mapping in the guest | 3 | `serde-throughput`, text throughput |
 
 ## Pillar 1: Single-Agent Cost
 
@@ -248,20 +247,6 @@ not measured.
    type, and give one message: "this is a Result: match `.Ok` and
    `.Err`".
 
-<a id="d10"></a>
-11. **D10. A syntax error blocks every check of its module and its folder.
-    [V]**
-    - Evidence: `crates/hd_driver/src/lib.rs:4400` stops the folder
-      interface when a module of the folder fails to parse. `:6331` and
-      `:6347` block preparation, body checks and finishing for that
-      module. The parser has already recovered by then.
-    - Effect: the mixed file reports 2 of its 10 mistakes.
-    - Fix: check the items whose spans hold no parse error, and give a
-      broken item a poisoned signature. The #310 rule that a warm run
-      reports what a clean one does still holds.
-    - Reference: rustc, Swift and TypeScript check trees with error
-      nodes.
-
 ### Warm Check And Edit Latency
 
 Profile of 40 warm `hd check --jobs 1` runs, each after a one-line body
@@ -387,21 +372,6 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
       output on an I/O thread. Reuse one encode buffer per worker.
     - Reference: rustc's `FileEncoder` writes through one fixed buffer.
 
-20. **C3. The TIR verifier runs on every body in release builds. [M]**
-    - Evidence: `hd_tir::ir::verify` is 5.1% of the cold check, called
-      unconditionally from `TirBuilder::finish_tolerating`
-      (`crates/hd_tir/src/ir.rs:1781`). It is 28% of derived-method
-      generation.
-    - Tried [M]: one build of `a45fdfc17` with the call behind an
-      environment switch, run both ways on a cold serial check of 50k
-      lines. With the verifier, 10,840M and 10,751M instructions; without,
-      10,148M and 10,102M. That is 650-740M instructions (6.5%) and 5-9% of
-      cycles. The switch's own `var_os` per body adds to both runs equally.
-    - Fix: verify in debug builds, in the checked profile, and under an
-      `HD_VERIFY` switch that CI's conformance run sets.
-    - Reference: rustc runs MIR validation only in debug builds or with
-      `-Zvalidate-mir`. LLVM verifies only on request.
-
 21. **C4. 385 `@derive(Eq)` enums cost 21% of the cold check. [M, V]**
     - Evidence: `Run::opt_ins` is 21.2%. Within it:
       - `structure_bodies` with `hd_structure::derivation`, 10.0%. It
@@ -414,7 +384,6 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
       - Derived-header lowering, 3.7%.
       That is about 0.35 ms per four-variant enum.
     - Fix:
-      - C3 removes about 3 points.
       - `structure_bodies` produces code and no findings, so `check` can
         skip it and `build` can produce it when it reaches an instance.
       - The template check per deriving type could run once per template.
@@ -471,24 +440,8 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
 
 ### Robustness Of Compile Time
 
-24. **R0. Native recursion over left-deep chains crashes. [V, review F3,
-    F4, F5]** A chain of private functions with omitted result types
-    aborts at 500. `x + x + …` aborts at 100,000, and `.trim()` chains at
-    100,000. Type alias chains abort at 20,000. The browser build fails
-    5 to 25 times earlier. The parser's nesting guard does not cover
-    binary and postfix loops (`parser/exprs.rs:730`, `:839`). Fix: walk
-    these chains with an explicit stack, as
-    `crates/hd_check/DESIGN.md` §11.3 plans. AGENTS.md forbids native
-    recursion to an input-controlled depth.
-
-25. **R0b. Depth caps return a default answer instead of an error. [V,
-    review F1, F2]** A 64-field struct pattern makes later arms
-    unreachable, and a 33-level nested move is missed. About 18 such
-    sites are listed in the review. Fix: a diagnostic or a worklist at
-    each.
-
 26. **R0c. Exponential and quadratic checker paths. [V, review F8 to
-    F16]**
+    F15]**
     - Doubled tuple types, a walk per tree node (F8, F14, `unify.rs:233`).
     - Speculative method trials re-check the argument per candidate (F9,
       F10, `trial.rs:400`, `:483`).
@@ -497,7 +450,6 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
     - `line_column` scans from the file start per diagnostic (F13,
       `lib.rs:687`).
     - A per-body field walk (F15).
-    - Usefulness over tuple columns, with no fuel charged (F16).
     - Fixes: hash-consed type walks with a visited set, an argument cache
       across trials (rustc's `DeepRejectCtxt` fast reject is planned in
       `crates/hd_check/DESIGN.md`), an id index, and a line-start table.
@@ -1007,24 +959,12 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
 
 ### Optimizer And Emission
 
-54. **O1. The heap allocator: page search quadratic in pages, and medium
-    blocks taking whole 64 KiB pages. [V, layout L1 to L3]** 8,000 lists
-    of 520 `i32` take 4.1 s, and 65,536 blocks of 2.1 KiB exhaust the
-    address space. A list's capacity ignores its block's slack. Fix: a
-    page hint that advances, and medium size classes.
-    - These are **not** the cause of `map` at 2.70x Node [M]. `map` grows
-      linearly: in instructions per operation, hd costs 1,771 at
-      n = 25,000, 620 at 100,000 and 352 at 400,000. JS costs 512, 335
-      and 236. The marginal cost from 200,000 to 400,000 is about 255
-      per operation against JS's 202, or 1.26x. The gap at the benchmark's
-      size is the fixed host and runtime cost of E1, plus harness bias H4.
-
-55. **O2. Emitted-Wasm gaps. [V, layout W1 to W9]** In order of value: a
+55. **O2. Emitted-Wasm gaps. [V, layout W1 to W8]** In order of value: a
     value-origin fact ("starts a block", "nonzero") that turns slow count
     calls into known ones and removes null tests (W2, W5); local value
     numbering over memory plus merging same-condition `if`s (W3, W4);
     count-site locals (W1); count pairing after inlining (W7); and the
-    small ones, W6, W8 and W9.
+    small ones, W6 and W8.
 
 56. **O3. The planned optimization passes are stubs. [V]** In
     `crates/hd_mono/DESIGN.md`'s table, constant folding during the walk,
@@ -1176,11 +1116,11 @@ is within 15% of its limit.
 | answer-size | one failing test, JSON object | 139 B | ≤ 400 B | met |  |
 | answer-size | one diagnostic, JSON object | 170 B | ≤ 600 B | met |  |
 | determinism | inputs with byte-identical output | 8 of 8 | all identical | met |  |
-| pathological | 30 lines | | | 27 met, 3 missed; missed: iterator-chain | K2 for iterator-chain; R0, R0c for shapes outside the metric |
+| pathological | 30 lines | | | 27 met, 3 missed; missed: iterator-chain | K2 for iterator-chain; R0c for shapes outside the metric |
 | recheck-precision | modules rechecked, private body edit | 1 | ≤ 1 | met |  |
 | recheck-precision | modules rechecked, public signature edit | 9 | ≤ 3 | missed | I1 |
 | errors-per-run | semantic: 10 mistakes reported once | 10 of 10 | all, once | met |  |
-| errors-per-run | mixed: 10 mistakes reported once | 2 of 10 | all, once | missed | D10 |
+| errors-per-run | mixed: 10 mistakes reported once | 10 of 10 | all, once | met |  |
 | diag-location | diagnostics on the mistake's line | 98.6% | ≥ 95.0% | met |  |
 | fixit-safety | fix-its that add no error | 100.0% | ≥ 100.0% | met |  |
 | lookup-latency | p95 hd callers | - | ≤ 100 ms | n/a | K3 |
@@ -1256,18 +1196,17 @@ Every missed or n/a line has at least one item.
 | Stage | Items |
 | --- | --- |
 | reading sources, the settle window | C6, I2, S4, N7 |
-| lexing and parsing | R0, D6 (parser fixes), D10 |
+| lexing and parsing | D6 (parser fixes) |
 | skims and module discovery | S2, S4 |
 | interfaces, decoding from the cache | W1, W2, W3, W4, S2 |
 | invalidation and early cutoff | I1, W4 |
-| type checking and the trait solver | C5, S3, R0b, R0c, K2, D1, D2, D3, D9 |
-| derives and structure | C4, C3 |
-| TIR: build, verify, serialize | C2, C3, M1 |
+| type checking and the trait solver | C5, S3, R0c, K2, D1, D2, D3, D9 |
+| derives and structure | C4 |
+| TIR: build, verify, serialize | C2, M1 |
 | the cache store | W3, M1, S6, S4 (publish) |
 | scheduling and threads | S1, S3, S4 |
 | monomorphization and the optimizer | O3, O4, O6, K1 |
 | Wasm emission and linking | O2, O5, O6, S8, E6, R5 |
-| the run-time allocator | O1 |
 | the standard library | R1, R2, R3, R4, R5, N1, N3 |
 | the engine and host | E1, E2, E3, E4, E5, E6, N1, N2 |
 | the test runner | E2, E3, E5, S5, N6, N8 |

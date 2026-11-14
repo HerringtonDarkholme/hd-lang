@@ -21,20 +21,17 @@ the growth between sizes is meaningful.
 
 ## 2. Summary
 
-The value layout is good and in places better than the references. The
-allocator under it has two defects that a common program hits:
+The value layout is good and in places better than the references. One
+doc conflict is left:
 
 | # | Finding | Severity | Fix cost |
 | --- | --- | --- | --- |
-| L1 | The page search is quadratic in heap pages: `take` never advances its hint after growing the heap. | high: 8,000 lists of 520 `i32` take 4.1 s, 70,000 did not finish in 300 s | small |
-| L2 | Every block over 2 KiB takes whole 64 KiB pages. A 2.1 KiB list wastes 97% of its block, and 65,536 such blocks exhaust the 4 GiB address space. | high | medium |
-| L3 | A list's capacity ignores its block's slack, so a list growing past 2 KiB reallocates and copies 5 times inside blocks of one page. | medium | small |
 | L4 | §23.8 says a `dyn` value's data may be "a box of it"; §23.19 says trait values are references with no box. | doc only | trivial |
 
 The emitted Wasm has no careless code at the small scale. Its gaps are
 optimizer capabilities that LLVM and Swift have and `hd_wasm`'s `opt.rs`
 lacks: facts about memory, about where a value came from, and about
-count pairs after inlining (W1 to W9, §4).
+count pairs after inlining (W1 to W8, §4).
 
 The other 1,062 snapshots (§5) show the layout matching rustc's, and
 nothing unsound in ownership. Their largest cost sits upstream of the
@@ -68,110 +65,7 @@ addresses. The cost is accepted by the design and shrinks with count
 elision (§23.25) and the planned removal of reference counts
 (`POINTER_LOANS.md` phase 10, git history at 7ccbb4ea8; now [ownership.md](../compiler/ownership.md#references-count-nothing-formerly-phase-10)), so it is not raised here.
 
-### 3.2 L1: The Page Search Is Quadratic In Heap Pages
-
-`take(count)` in `lib/std/rt/alloc.hd` scans the page table from `hint`
-for `count` free pages. It moves `hint` only when the fit starts at
-`hint`. When nothing fits, it returns `extend(count)`, which grows the
-heap, and `hint` stays where it was [V]:
-
-```hd
-fn take(count: usize) -> usize:
-    let first = hint
-    ...
-    while page_number < known && run < count:
-        ...
-    if run < count:
-        return extend(count)     # hint is not advanced
-    if first == hint:
-        hint = first + count
-    first
-```
-
-After the first growth, every new page rescans every page the heap
-already holds. Small objects call `take(1)` once per 64 KiB page, so they
-are only slow in heaps of gigabytes. Blocks over 2 KiB call it once per
-block (L2), so they are quadratic in the number of blocks.
-
-Measurement [V]: each list is `reserve(520)` then 520 `push`es of `i32`
-(2,112-byte payload), all kept in an outer list.
-
-| Lists | Wall time |
-| --- | --- |
-| 2,000 | 0.64 s |
-| 4,000 | 1.15 s |
-| 8,000 | 4.07 s |
-| 70,000 | not done after 300 s (stopped) |
-
-The same program with `reserve(500)` (2,032 bytes, a small class) runs
-70,000 lists in 0.66 s.
-
-That the scan causes the growth is [I]: it is the only loop whose length
-follows the page count, and the growth matches it. The fix was not built
-and timed.
-
-**Direction.** When `take` extends the heap and the scan saw no free page
-from `hint` on, set `hint` to the new `known`. Then the scan is linear in
-the free pages it passes. A free-run index (§23.13 calls it "a later
-speed-up") makes large allocations O(log pages). mimalloc keeps a free
-bitmap per segment, and jemalloc keeps a free-extent heap. Add a
-generated test that counts the scan's steps (AGENTS.md "Performant").
-
-### 3.3 L2: Blocks Over 2 KiB Take Whole 64 KiB Pages
-
-`alloc` gives any request over 2,048 bytes `ceil(size / 65536)` whole
-pages [V]. There is no class between 2 KiB and 64 KiB, so:
-
-- A 2.1 KiB block uses 64 KiB, which is 97% waste. A 33 KiB block uses
-  64 KiB, which is 48% waste.
-- The 4 GiB wasm32 address space holds 65,536 pages. So at most about
-  65,000 live blocks over 2 KiB can exist, whatever their real size [I]
-  (arithmetic; the 70,000-list run was stopped before it reached the
-  panic).
-- Peak resident memory rose by 28 MB for 2,000 lists of 2.1 KiB against
-  2.0 KiB (106 MB to 135 MB) [V]. The host touches only one 16 KiB OS
-  page per block, so the memory a browser commits for the Wasm memory is
-  larger [I].
-
-Lists of a few hundred elements, strings over 2 KiB (file contents, JSON
-text) and map tables in that range all land here.
-
-| Allocator | Granularity from 2 KiB to 64 KiB |
-| --- | --- |
-| hd | 64 KiB |
-| mimalloc | small and medium size classes up to 128 KiB, about 12.5% apart, in 64 KiB or 512 KiB pages |
-| jemalloc | small classes to 14 KiB, then large classes 4 per doubling, at 4 KiB granularity |
-| dlmalloc (Rust's wasm32 default) | 8-byte granularity |
-
-**Direction.** Extend the size classes past 2 KiB at the same spacing,
-about 25% apart, up to 16 or 32 KiB. Lay out the larger classes in
-multi-page spans so each holds several slots: a span records its class
-in its first page-table entry, and its later pages point at it, as large
-runs already do. The interior lookup (§23.5) then needs the span's start
-instead of the page's, which costs one more table read for those classes.
-Above the last class, keep the page runs. This bounds internal waste near
-25% at every size, as below 2 KiB.
-
-### 3.4 L3: List Capacity Ignores The Block's Slack
-
-`list_buf` allocates exactly `capacity * elem + 16` bytes and stores the
-requested capacity. `list_grow` asks for `2 * length + 4` [V]. Neither
-reads `block_bytes`, so the class or page slack is never used as room.
-String append does read it (`rt.rs`, around line 3710).
-
-For an `i32` list growing from empty, the capacities are 4, 12, 28, 60,
-124, 252, 508, 1020, 2044, 4092, 8188 and 16380. From 508 on, each buffer
-is one 64 KiB page, so the growths to 1020, 2044, 4092 and 8188 each
-allocate a new page and copy, where one page already holds 16,378
-elements.
-
-**Direction.** After allocating, set the capacity to
-`(block_bytes(block) - header) / elem`, as Swift's `Array` does with
-`malloc_size` and folly's `fbvector` does with `goodMallocSize`. This
-costs one call per growth. With L2 fixed it still saves up to 25% of
-growths below 2 KiB.
-
-### 3.5 L4: §23.8 Disagrees With §23.19
+### 3.2 L4: §23.8 Disagrees With §23.19
 
 §23.8 says a `dyn` value's data is "the value itself, or a box of it".
 §23.19 and the code describe only reference forms, so there is no box
@@ -184,7 +78,7 @@ growths below 2 KiB.
 One agent read all 483 tracked `.wat` baselines: 89,499 instructions,
 not counting comments and headers. It counted patterns with scripts that
 walk the instruction lines, and treated the `;; ...` elisions in 64 files
-as barriers. I reran the excerpts of W1, W2, W7 and W9 and the counts of
+as barriers. I reran the excerpts of W1, W2 and W7 and the counts of
 W1 and W6. `stage_fixtures_match` enforces the baselines, so they match
 the current compiler.
 
@@ -205,7 +99,6 @@ from careless emission.
 | W6 | `string.len` stays a call, which forces its receiver into a frame slot | 56 calls in 31 files [V]; 115 copies of the 24-instruction frame prologue with `memory.grow` in 87 files [agent] | inline it, or promote it by value as `arg-promotion` does for user code; move the grow path into one shared helper | rustc inlines `#[inline]` std accessors across crates |
 | W7 | Retain and release pairs that cancel, left after inlining | 10 back-to-back pairs in 8 files; up to 86 farther apart in 57 files [V for the excerpt] | pair counts again after inlining | Swift ARCSequenceOpts, LLVM ObjCARCOpts |
 | W8 | One poll and cancel wrapper per instance | 90 `.poll` wrappers with 21 distinct shapes, 89 `.cancel` with 19 [agent] | one wrapper per result signature, reaching the body through the frame | Rust has none: the state machine is `poll` |
-| W9 | Literal bytes loaded from static data at run time | 71 sites in 49 files [V for the excerpt] | fold short copies whose source is immutable static data into constant stores | LLVM folds a memcpy from a constant global |
 
 ### 4.3 Excerpts
 
@@ -276,11 +169,6 @@ if
 end
 ```
 
-**W9.** `crates/hd_driver/tests/baselines/drive/block-on-drives-a-known-call-at-once.wat:59`
-emits `i32.const 65 ;; &"?"`, `i32.load8_u`, `i32.store8`. This should
-be `i32.const 63`, `i32.store8`. `bulk::lower` already scalarizes short
-constant-length copies, but does not fold their source.
-
 ### 4.4 Checked And Fine
 
 - **`call_indirect` through a constant index** (169 sites) is the cold
@@ -300,16 +188,14 @@ constant-length copies, but does not fold their source.
 AGENTS.md "Performance Work" asks for one ticket per cause, measured on
 every workload the cause touches. In order of expected value:
 
-1. L1 and L2 together: the allocator's page hint and medium size
-   classes. Measure with §6's generator and the runtime benches.
-2. W2 and W5: a value-origin fact ("starts a block", "nonzero") carried
+1. W2 and W5: a value-origin fact ("starts a block", "nonzero") carried
    through emission. It turns slow count calls into known ones and
    removes null tests.
-3. W4 with W3: local value numbering over linear memory, plus merging
+2. W4 with W3: local value numbering over linear memory, plus merging
    same-condition `if`s. One pass covers both.
-4. W1: count-site locals. Mostly a size and baseline-tier win.
-5. W7: count pairing after inlining.
-6. W6, W8, W9 and L3: each local and small.
+3. W1: count-site locals. Mostly a size and baseline-tier win.
+4. W7: count pairing after inlining.
+5. W6 and W8: each local and small.
 
 Each ticket states its run-time and code-size change on `bench/runtime`
 and `bench/study`, not only on the snapshot that shows it.
@@ -355,8 +241,7 @@ Rust's `Duration` keeps its nanoseconds in a type whose range leaves
 spare values, so `Option<Duration>` is free [I]. This is a std design
 choice, not a layout defect.
 
-No layout snapshot pins a type over 2 KiB or a list buffer's header, so
-none of L1 to L3 shows here. A `.layout` view of `List[T]`'s buffer
+No layout snapshot pins a type over 2 KiB or a list buffer's header. A `.layout` view of `List[T]`'s buffer
 (header, owner word, element stride) would pin §23.7.
 
 ### 5.2 Lexer And Parser Snapshots
@@ -384,13 +269,11 @@ them bears on generated code. Two observations:
 script: 371 `.own`, 352 `.counts` and 269 `.tir`. It parsed the
 `> %N = ...` lines, the `summary kept [...]` lines, the `uses $k:` lines
 and the count lines with their reasons, and read about 60 files by hand
-across every topic folder. I reread the excerpts of S1b, S3 and S4.
+across every topic folder. I reread the excerpts of S1b and S3.
 
 **Correctness.** Nothing unsound was found: no use after a move or a
-drop. Two oddities:
+drop. One oddity:
 
-- S4's `IsUnique` through a `&List` parameter may write a new buffer
-  address through a shared reference. Values cannot observe it.
 - `summary kept` lists 29 `&T` parameters in 26 files, such as `self:
   &Dog` in `features/dyn-calls.own`. The metadata disagrees with the
   type, but no harm was found.
@@ -402,7 +285,6 @@ drop. Two oddities:
 | S1 | By-value parameters are judged owned ("kept") when the body only lends them | 331 kept parameters in 120 `.own` files; 132 bodies keep a counted parameter but return a scalar. "last use" is 938 of the 1,822 `.counts` lines | `hd_tir/src/own/derive.rs`, `solve` and `kept()` [V] | Lean 4 borrow inference; Swift `@guaranteed` with OSSA |
 | S2 | Inlined bodies are not simplified before ownership: aggregates and options are built only to be projected or matched | `an-inlined-user-leaf-counts-as-its-call`, `generics/use_generic` (6 count operations where 0 do); range structs built and read back in 23 `.own` and 7 `.tir` files | no construction-then-projection or known-constructor fold before `hd_tir::own` [I] | GHC case-of-known-constructor; SIL `destructure_struct`; Perceus fusion after inlining |
 | S3 | An exhaustive match tests its last variant, with an unreachable `never` block | 33 scrutinees in 24 `.tir` files, 60 in 42 `.own` files | `hd_check/src/pat.rs`, `switch` and `switch_from` [V] | rustc's one `SwitchInt` with `otherwise: unreachable` |
-| S4 | A uniqueness check before a shared element reference | 15 in 8 `.own` files | `hd_tir/src/own/insert.rs` rule 6 [V] | Rust and Swift check nothing on a read |
 | S5 | The iterator protocol pays per element | `Iterator.next` stays a call in 5 `.own` files; `release T? (last use)` per step in 14 `.counts` files | `ListIter` takes the list by move, so the list parameter is kept | Rust yields `&T`; Swift inlines `next` and cancels the pair |
 | S6 | Suspension frames retain and at once release; 37% of count lines say only "counted reference" | 108 adjacent pairs in 40 `.counts` files; 680 of 1,822 lines unlabelled | provider rows and children (`Retain Cold row`, `Release FrameDrop row`); part is #1355 by design | — |
 | S7 | `.own` and `.counts` disagree by construction | in 204 cases with both: 782 `Retain` in `.own` against 402 in `.counts`; 1,303 `Release`/`Drop` against 915 | `Retain Entry`, `Release Exit` and operand retains are ABI adapters that may lower to nothing | — |
@@ -441,19 +323,6 @@ chains `SwitchTag %0 [#0 %4 %10]` into a second `SwitchTag` on `#1`
 whose fail block is `Block - : never`. Whether the Wasm keeps the extra
 compare was not checked.
 
-**S4.** `crates/hd_driver/tests/baselines/features/values-dependent-results.own:24`,
-`first_name(us: &List[User])`:
-
-```text
-%0 = IsUnique [*$0] : ()
-%1 = Ref local [*$0 [0:usize] .name] : &string
-```
-
-The WAT calls `rt:list_unique`, which may copy the whole list for a
-read. The case's `expected:` line says no count. Rule 6 adds the check
-so that an element reference can pin. A shared loan has nothing to pin
-against.
-
 **S8, the list.**
 
 - Feature cases: `branch-values` (11 releases against "no count
@@ -484,7 +353,7 @@ paths).
 upstream of W2 and W7: a parameter that is lent needs no count at all.
 It belongs first among the count tickets of §4.5, before W2. S2 is the
 same pass as O3 in `optimization-audit-2026-11-13.md` (scalar
-replacement before ownership). S3, S4 and S8 are each small.
+replacement before ownership). S3 and S8 are each small.
 
 ## 6. Generators
 
