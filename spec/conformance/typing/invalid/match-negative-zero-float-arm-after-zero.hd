@@ -1,0 +1,7 @@
+# test: a `-0.0` arm after a `0.0` arm is unreachable, since the two compare equal
+# Spec 06 Exhaustiveness: flow.match.unreachable.
+fn zero(x: f64) -> i32:
+    match x:
+        0.0 => 1
+        -0.0 => 2 # diagnostic: unreachable-match-arm
+        _ => 3

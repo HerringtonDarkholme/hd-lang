@@ -1,0 +1,36 @@
+# test: negative float arms split by value pick the first equal arm
+# Rules: flow.match.literal, flow.match.unreachable.
+# expect-stdout: 1
+# expect-stdout: 2
+# expect-stdout: 3
+# expect-stdout: 4
+# expect-stdout: 4
+# expect-stdout: 6
+# expect-stdout: 7
+# expect-stdout: 8
+# expect-stdout: 9
+fn pick(value: f64, flag: bool) -> i32:
+    match value:
+        -1.5 if flag => 1
+        -1.5 => 2
+        -2.5 => 3
+        0.0 => 4
+        -3.5 => 5
+        _ => 6
+
+fn narrow(value: f32) -> i32:
+    match value:
+        -0.1 => 7
+        -2.5 => 8
+        _ => 9
+
+pub fn main() -> void $ Console:
+    println(pick(-1.5, true))
+    println(pick(-1.5, false))
+    println(pick(-2.5, true))
+    println(pick(-0.0, true))
+    println(pick(0.0, false))
+    println(pick(1.5, true))
+    println(narrow(-0.1))
+    println(narrow(-2.5))
+    println(narrow(2.5))

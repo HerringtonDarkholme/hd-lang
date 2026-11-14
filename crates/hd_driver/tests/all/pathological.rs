@@ -862,6 +862,16 @@ fn string_match(n: usize) -> String {
     s
 }
 
+/// `n` negative float literal arms, and a final `_`.
+fn negative_float_match(n: usize) -> String {
+    let mut s = String::from("fn run(a: f64) -> i32:\n    match a:\n");
+    for k in 0..n {
+        let _ = writeln!(s, "        -{k}.5 => {}", k % 7);
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
 /// `n` guarded arms, each a leaf whose fail side is the arms below.
 fn guarded_match(n: usize) -> String {
     let mut s = String::from("fn run(a: i32, g: bool) -> i32:\n    match a:\n");
@@ -938,6 +948,13 @@ fn guarded_match_decisions_grow_linearly() {
 #[test]
 fn literal_and_range_match_decisions_grow_linearly() {
     decision_rows_grow_linearly(literal_range_match, &[1000, 10_000]);
+}
+
+// Checker: #1852, a negative float pattern is read as its value, so its
+// column is split by value: n rows, not n² / 2.
+#[test]
+fn negative_float_match_decisions_grow_linearly() {
+    decision_rows_grow_linearly(negative_float_match, &[1000, 10_000]);
 }
 
 #[test]

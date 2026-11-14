@@ -2302,8 +2302,8 @@ impl Ck<'_, '_> {
 
     /// The one value a literal pattern names, when known: two patterns
     /// with one key match the same values, two with different keys no
-    /// common value. A float's key is its bits, `-0.0` taken as `0.0`,
-    /// since the two compare equal; a range is no key.
+    /// common value. A float's key is its bits, which `Ck::float_value`
+    /// keeps canonical; a range is no key.
     fn lit_key(&self, p: NodeRef<'_>, t: Ty, lits: &mut HashMap<NodeIdx, P>) -> Option<LitKey> {
         if p.kind() != SyntaxKind::LiteralPattern {
             return None;
@@ -2315,11 +2315,7 @@ impl Ck<'_, '_> {
             P::Int(lo, hi) if lo == hi => Some(LitKey::Int(*lo)),
             P::Str(s) => Some(LitKey::Str(s.clone())),
             P::Ctor(name, args) if args.is_empty() => Some(LitKey::Ctor(name.clone())),
-            P::Flt(bits) => Some(LitKey::Flt(if f64::from_bits(*bits) == 0.0 {
-                0
-            } else {
-                *bits
-            })),
+            P::Flt(bits) => Some(LitKey::Flt(*bits)),
             _ => None,
         }
     }
@@ -2372,7 +2368,7 @@ impl Ck<'_, '_> {
                     apart
                 }
             }
-            // `0.0` and `-0.0` differ in bits and compare equal.
+            // Float bits are canonical: `-0.0` is read as `0.0`.
             (P::Flt(x), P::Flt(y)) if x == y => same,
             _ => Rel::default(),
         }
@@ -2446,14 +2442,31 @@ impl Ck<'_, '_> {
         Some(out)
     }
 
-    /// The bits of a float literal pattern, parsed as expressions parse
-    /// one: an integer text or anything unparsable stays opaque (`None`).
-    fn float_value(&self, p: NodeRef<'_>) -> Option<u64> {
-        let text = self.cx.src.text(self.cx.src.first(p)).replace('_', "");
+    /// The value of a float literal pattern, `-1.5` as well as `1.5`, as
+    /// `f64` bits: the decimal text rounds once to the subject's width,
+    /// as an expression's literal does (`types.literal.float-expected`),
+    /// and the sign applies after. `-0.0` is read as `0.0`, since the two
+    /// compare equal, so equal values have equal bits. An integer text or
+    /// anything unparsable stays opaque (`None`).
+    fn float_value(&self, p: NodeRef<'_>, f32: bool) -> Option<u64> {
+        let first = self.cx.src.first(p);
+        let neg = self.cx.src.tkind(first) == Some(TokenKind::Minus);
+        let tok = if neg {
+            hd_base::TokenIdx::from_raw(first.raw() + 1)
+        } else {
+            first
+        };
+        let text = self.cx.src.text(tok).replace('_', "");
         if text.parse::<u64>().is_ok() {
             return None;
         }
-        text.parse::<f64>().ok().map(f64::to_bits)
+        let v = if f32 {
+            f64::from(text.parse::<f32>().ok()?)
+        } else {
+            text.parse::<f64>().ok()?
+        };
+        let v = if neg { -v } else { v };
+        Some(if v == 0.0 { 0 } else { v.to_bits() })
     }
 
     /// The scalar value of a char literal pattern, decoding escapes.
@@ -2506,8 +2519,11 @@ impl Ck<'_, '_> {
                 Some(TokenKind::String) if self.strip(t) == Ty::STRING => {
                     self.string_value(p).map_or(P::Lit, P::Str)
                 }
-                Some(TokenKind::Number) if matches!(self.pool().get(self.strip(t)), TyData::Prim(p) if p.is_float()) => {
-                    self.float_value(p).map_or(P::Lit, P::Flt)
+                // `-1.5` starts with `-`: its value is read too.
+                Some(TokenKind::Number | TokenKind::Minus) if matches!(self.pool().get(self.strip(t)), TyData::Prim(p) if p.is_float()) =>
+                {
+                    let f32 = matches!(self.pool().get(self.strip(t)), TyData::Prim(Prim::F32));
+                    self.float_value(p, f32).map_or(P::Lit, P::Flt)
                 }
                 _ => P::Lit,
             },

@@ -1,0 +1,7 @@
+# test: an f32 arm whose text rounds to an earlier arm's value is unreachable
+# Spec 06 Exhaustiveness: flow.match.unreachable; types.literal.float-expected.
+fn near(x: f32) -> i32:
+    match x:
+        -1.0 => 1
+        -1.00000001 => 2 # diagnostic: unreachable-match-arm
+        _ => 3

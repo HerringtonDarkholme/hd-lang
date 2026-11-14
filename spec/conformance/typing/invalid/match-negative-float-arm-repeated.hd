@@ -1,0 +1,8 @@
+# test: a repeated negative float arm is unreachable
+# Spec 06 Exhaustiveness: flow.match.unreachable.
+fn sign(x: f64) -> i32:
+    match x:
+        -1.5 => 1
+        1.5 => 2
+        -1.5 => 3 # diagnostic: unreachable-match-arm
+        _ => 4

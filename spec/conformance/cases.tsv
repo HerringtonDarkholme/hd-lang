@@ -4663,6 +4663,9 @@ typing/valid/match-data-pattern-covers.hd	type	accept	lang/06-control-flow.md#r-
 typing/invalid/match-string-literals-need-catch-all.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.cover.other-values
 typing/invalid/match-catch-all-not-final.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.catch-all.final
 typing/invalid/match-duplicate-literal.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.unreachable
+typing/invalid/match-negative-float-arm-repeated.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.unreachable
+typing/invalid/match-negative-zero-float-arm-after-zero.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.unreachable
+typing/invalid/match-f32-arm-rounding-to-an-earlier-value.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.unreachable
 typing/valid/match-struct-patterns-on-64-fields.hd	type	accept	lang/06-control-flow.md#r-flow.match.unreachable
 typing/valid/match-struct-patterns-on-100-fields.hd	type	accept	lang/06-control-flow.md#r-flow.match.unreachable
 typing/invalid/match-arm-covered-by-earlier.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.duplicate.covered
@@ -5271,6 +5274,7 @@ runtime/valid/values-are-found-by-type-in-source-order.hd	runtime	accept	lang/14
 runtime/valid/an-undecorated-function-holds-no-facts.hd	runtime	accept	lang/14-annotations.md#function-facts
 runtime/valid/negative-and-positive-float-patterns-match-their-values.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 runtime/valid/a-negative-float-pattern-on-f32-and-negative-int-patterns-match.hd	runtime	accept	lang/06-control-flow.md#match-expressions
+runtime/valid/negative-float-arms-split-by-value.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 runtime/panic/block-on-in-a-defer-suite-of-a-suspending-function-panics.hd	runtime	panic:suspension-forbidden-context	std/task.md#block-on
 runtime/panic/block-on-through-a-helper-in-non-entry-module-init-panics.hd	runtime	panic:suspension-forbidden-context	std/task.md#block-on
 runtime/valid/block-on-outside-forbidden-contexts-runs.hd	runtime	accept	std/task.md#block-on
