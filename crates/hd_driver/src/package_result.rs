@@ -360,10 +360,8 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
 }
 
 fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option<DiagBuf> {
-    let mut d = DiagBuf {
-        text: r.str().to_owned(),
-        ..DiagBuf::default()
-    };
+    let mut d = DiagBuf::default();
+    r.str().clone_into(&mut d.text);
     for _ in 0..r.count() {
         d.code.push(code(r.str())?);
         d.severity.push(if r.u8() == 0 {

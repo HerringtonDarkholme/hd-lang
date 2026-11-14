@@ -76,6 +76,15 @@ pub struct DiagBuf {
     pub fix_edits: Vec<Range32>,
     pub edits: Vec<FixEdit>,
     pub text: String,
+    /// The row that reports each root (§4.14), for the rows below
+    /// `rooted`: one hash probe per push instead of a scan of the `root`
+    /// column. A row a decoder pushes onto the columns directly is
+    /// indexed by the next [`Self::push`], so every row is indexed once.
+    root_row: hd_base::HashMap<RootKey, u32>,
+    rooted: u32,
+    /// Index steps taken: probes, rows indexed and rows unindexed.
+    #[cfg(test)]
+    root_work: usize,
 }
 
 impl DiagBuf {
@@ -99,8 +108,20 @@ impl DiagBuf {
         message: &str,
         root: Option<RootKey>,
     ) -> bool {
-        if root.is_some() && self.root.contains(&root) {
-            return false;
+        if let Some(key) = root {
+            self.index_roots();
+            #[cfg(test)]
+            {
+                self.root_work += 1;
+            }
+            let row = u32::try_from(self.root.len()).expect("diags");
+            match self.root_row.entry(key) {
+                std::collections::hash_map::Entry::Occupied(_) => return false,
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(row);
+                }
+            }
+            self.rooted = row + 1;
         }
         let message = self.text(message);
         self.code.push(code);
@@ -113,6 +134,22 @@ impl DiagBuf {
         self.fixes.push(Range32::new(nf, 0));
         self.root.push(root);
         true
+    }
+
+    /// Indexes the rows pushed onto the `root` column since the last
+    /// [`Self::push`] without it, keeping the first row of each root.
+    fn index_roots(&mut self) {
+        let n = u32::try_from(self.root.len()).expect("diags");
+        for row in self.rooted..n {
+            #[cfg(test)]
+            {
+                self.root_work += 1;
+            }
+            if let Some(key) = self.root[row as usize] {
+                self.root_row.entry(key).or_insert(row);
+            }
+        }
+        self.rooted = n;
     }
 
     /// Attaches a fix-it to the diagnostic pushed last: its title and the
@@ -311,6 +348,18 @@ impl DiagBuf {
     /// Drops every diagnostic pushed since `m`.
     pub fn truncate(&mut self, m: DiagMark) {
         let rows = m.rows as usize;
+        for row in m.rows..self.rooted {
+            #[cfg(test)]
+            {
+                self.root_work += 1;
+            }
+            if let Some(key) = self.root[row as usize]
+                && self.root_row.get(&key) == Some(&row)
+            {
+                self.root_row.remove(&key);
+            }
+        }
+        self.rooted = self.rooted.min(m.rows);
         self.code.truncate(rows);
         self.severity.truncate(rows);
         self.primary.truncate(rows);
@@ -428,7 +477,7 @@ impl DiagBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{CauseKind, DiagBuf, RootKey};
+    use super::{CauseKind, DiagBuf, DiagMark, RootKey};
     use crate::{Code, Severity};
     use hd_base::{DefId, FileId, Span};
 
@@ -451,6 +500,66 @@ mod tests {
         let text = b.render_compact(&|_| "a.hd:1:1".into());
         assert!(text.find("early").expect("early") < text.find("late").expect("late"));
         assert!(b.render_json().starts_with("[{\"code\":\"syntax-error\""));
+    }
+
+    /// A buffer of `n` rooted rows: pushed, appended, decoded onto bare
+    /// columns and rolled back. Returns the index steps taken.
+    fn rooted_rows(n: u32) -> usize {
+        let key = |v: u32| {
+            Some(RootKey {
+                item: DefId::from_raw(v % 7),
+                cause: CauseKind::Name,
+                value: v,
+            })
+        };
+        let at = Span {
+            file: FileId::from_raw(0),
+            lo: 0,
+            hi: 0,
+        };
+        let mut b = DiagBuf::default();
+        for v in 0..n {
+            assert!(b.push(Code::SyntaxError, Severity::Error, at, "x", key(v)));
+            assert!(!b.push(Code::SyntaxError, Severity::Error, at, "y", key(v)));
+        }
+        let mut all = DiagBuf::default();
+        all.append(&b);
+        all.append(&b);
+        assert_eq!(all.len(), n as usize);
+        // A decoder's rows, pushed onto the columns directly
+        // (`hd_driver::package_result`), are indexed by the next push.
+        let mut decoded = DiagBuf::default();
+        decoded.text.clone_from(&b.text);
+        decoded.code.clone_from(&b.code);
+        decoded.severity.clone_from(&b.severity);
+        decoded.primary.clone_from(&b.primary);
+        decoded.message.clone_from(&b.message);
+        decoded.labels.clone_from(&b.labels);
+        decoded.fixes.clone_from(&b.fixes);
+        decoded.root.clone_from(&b.root);
+        let half = decoded.mark();
+        decoded.append(&b);
+        assert_eq!(decoded.len(), n as usize);
+        assert!(decoded.push(Code::SyntaxError, Severity::Error, at, "z", key(n)));
+        // A rollback forgets the roots of the rows it drops, and only those.
+        let mark = DiagMark {
+            rows: n / 2,
+            ..half
+        };
+        decoded.truncate(mark);
+        assert!(!decoded.push(Code::SyntaxError, Severity::Error, at, "z", key(0)));
+        assert!(decoded.push(Code::SyntaxError, Severity::Error, at, "z", key(n - 1)));
+        assert!(decoded.push(Code::SyntaxError, Severity::Error, at, "z", key(n)));
+        b.root_work + all.root_work + decoded.root_work
+    }
+
+    #[test]
+    fn pathological_rooted_rows_take_linear_index_work() {
+        let small = rooted_rows(2_000);
+        let large = rooted_rows(20_000);
+        assert!(small <= 8 * 2_000, "2,000 rows: {small} steps");
+        assert!(large <= 8 * 20_000, "20,000 rows: {large} steps");
+        assert!(large <= 11 * small, "{small} then {large} steps");
     }
 
     #[test]
