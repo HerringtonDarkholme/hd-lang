@@ -1352,7 +1352,8 @@ with its per-item interface hash), for code keys.
    the item, plus the name or span that caused it. Only the first
    diagnostic per root key is kept.
 3. An unknown name reports once per body, a broken header once per item, a
-   failed import once per use.
+   failed import once per use, and arms naming unknown variants once per
+   match and subject type.
 4. A header error in module `m` is reported in `m`, never again in its
    dependents, which see poison.
 

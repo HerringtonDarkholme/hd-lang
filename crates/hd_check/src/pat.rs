@@ -701,9 +701,12 @@ impl Ck<'_, '_> {
                         return self.declare_poisoned_fields(p, binds);
                     }
                     // The arm is rejected: it neither counts toward coverage
-                    // nor hides later arms, and its names bind to poison.
-                    let msg = format!("no variant `.{name}` of {}", self.show(t));
-                    self.err(Code::UnknownVariant, p, &msg);
+                    // nor hides later arms, and its names bind to poison. An
+                    // unknown variant reports once per subject type.
+                    if self.first_unknown_variant(t) {
+                        let msg = self.unknown_variant_msg(&name, t);
+                        self.err(Code::UnknownVariant, p, &msg);
+                    }
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);
                 };
@@ -1292,6 +1295,7 @@ impl Ck<'_, '_> {
             let mut arms = Vec::new();
             let mut rejected_arms: Vec<bool> = Vec::new();
             let mut all_never = true;
+            let mut unknown_tys = Vec::new();
             let arm_nodes: Vec<NodeRef<'_>> = n
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::MatchArm)
@@ -1309,7 +1313,9 @@ impl Ck<'_, '_> {
                 this.scopes.push(HashMap::default());
                 let mut binds = Vec::new();
                 let outer_rejected = std::mem::replace(&mut this.pattern_rejected, false);
+                this.unknown_variant_tys = Some(std::mem::take(&mut unknown_tys));
                 this.declare_pattern(pat, st, &mut binds)?;
+                unknown_tys = this.unknown_variant_tys.take().unwrap_or_default();
                 let rejected = std::mem::replace(&mut this.pattern_rejected, outer_rejected);
                 rejected_arms.push(rejected);
                 let guard = if second.kind() == SyntaxKind::MatchGuard {
@@ -3059,6 +3065,46 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether an unknown variant of `t` is the first one this match arm's
+    /// match reports: arms that name several variants `t` lacks share one
+    /// cause, a wrong idea of `t`. Outside a match, each is reported.
+    fn first_unknown_variant(&mut self, t: Ty) -> bool {
+        let t = self.infer.resolve(self.pool(), t);
+        let Some(seen) = &mut self.unknown_variant_tys else {
+            return true;
+        };
+        if seen.contains(&t) {
+            return false;
+        }
+        seen.push(t);
+        true
+    }
+
+    /// `unknown-variant` on a pattern naming `.{name}` of `t`, listing the
+    /// variants `t` has when it is an enum: the fix is one of them.
+    fn unknown_variant_msg(&self, name: &str, t: Ty) -> String {
+        let shown = self.show(t);
+        let pool = self.pool();
+        let st = self.strip(t);
+        let variants = match pool.get(st) {
+            TyData::Adt { def, .. } => match self.cx.lookup.item(def).map(|i| &i.data) {
+                Some(ItemData::Enum { variants, .. }) => variants
+                    .iter()
+                    .map(|v| self.cx.names.text(v.name))
+                    .collect::<Vec<_>>(),
+                _ => Vec::new(),
+            },
+            _ => Vec::new(),
+        };
+        if variants.is_empty() {
+            return format!("no variant `.{name}` of {shown}");
+        }
+        format!(
+            "no variant `.{name}` of {shown}; {}",
+            variant_list(&variants)
+        )
+    }
+
     /// The top-level constructors of `t` with a value no unguarded row
     /// matches, as `nonexhaustive-match` names them; `_` for a type with
     /// an open set of values.
@@ -3120,5 +3166,43 @@ pub(crate) fn binding_parts(s: NodeRef<'_>) -> (NodeRef<'_>, Option<NodeRef<'_>>
         (pat, Some(second), rhs)
     } else {
         (pat, None, second)
+    }
+}
+
+/// The variants of an enum as `unknown-variant` lists them: all of a
+/// small enum, the first few and a count of the rest of a large one, so
+/// the message stays short for an enum of any size.
+fn variant_list(names: &[&str]) -> String {
+    const SHOWN: usize = 4;
+    let dotted = |n: &&str| format!("`.{n}`");
+    match names {
+        [one] => format!("its only variant is {}", dotted(one)),
+        [first @ .., last] if names.len() <= SHOWN => {
+            let head: Vec<String> = first.iter().map(dotted).collect();
+            format!("its variants are {} and {}", head.join(", "), dotted(last))
+        }
+        _ => {
+            let head: Vec<String> = names[..SHOWN].iter().map(dotted).collect();
+            let rest = names.len() - SHOWN;
+            format!("its variants are {} and {rest} more", head.join(", "))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::variant_list;
+
+    #[test]
+    fn variant_lists_stay_short() {
+        assert_eq!(variant_list(&["Only"]), "its only variant is `.Only`");
+        assert_eq!(
+            variant_list(&["Ok", "Err"]),
+            "its variants are `.Ok` and `.Err`"
+        );
+        assert_eq!(
+            variant_list(&["A", "B", "C", "D", "E", "F"]),
+            "its variants are `.A`, `.B`, `.C`, `.D` and 2 more"
+        );
     }
 }

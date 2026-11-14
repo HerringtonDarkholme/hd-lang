@@ -1,0 +1,7 @@
+# test: arms of one match that name variants of a union subject are one mistake, reported once
+# Spec 04 Unions: types.union.case names a union's cases `_k`, so `.Small` is unknown.
+fn size(x: i32 | string) -> i32:
+    match x:
+        .Small => 1 # diagnostic: unknown-variant
+        .Large => 2
+        _ => 0

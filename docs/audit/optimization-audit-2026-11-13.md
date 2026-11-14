@@ -188,12 +188,6 @@ not measured.
      Shorten the summary, or drop it when diagnostics were printed.
      Measure JSON size in the metric too.
 
-10. **D9. The root key is never used by the checker. [V by agent]**
-   `RootKey` is set only at `hd_driver/src/package_result.rs:387`, so two
-   bad arms in one match report twice. Key them by item, name and matched
-   type, and give one message: "this is a Result: match `.Ok` and
-   `.Err`".
-
 ### Warm Check And Edit Latency
 
 Profile of 40 warm `hd check --jobs 1` runs, each after a one-line body
@@ -1049,7 +1043,7 @@ is within 15% of its limit.
 | mistakes | programs with exactly one diagnostic | 98.6% | ≥ 95.0% | met |  |
 | mistakes | one diagnostic with the expected code | 98.6% | ≥ 95.0% | met |  |
 | mistakes | fix-it makes hd check pass | 33.3% | ≥ 80.0% | missed | D4, D5, D6, D11 |
-| mistakes | largest diagnostic text (bytes / 4) | 92 tokens | ≤ 60 tokens | missed | D9, D8, D7 |
+| mistakes | largest diagnostic text (bytes / 4) | 92 tokens | ≤ 60 tokens | missed | D8, D7 |
 | answer-size | hd doc of a data type | 153 B | ≤ 1000 B | met |  |
 | answer-size | one failing hd test, text | 318 B | ≤ 800 B | met |  |
 | answer-size | one failing test, JSON object | 139 B | ≤ 400 B | met |  |
@@ -1138,7 +1132,7 @@ Every missed or n/a line has at least one item.
 | skims and module discovery | S2, S4 |
 | interfaces, decoding from the cache | W1, W2, W3, W4, S2 |
 | invalidation and early cutoff | I1, W4 |
-| type checking and the trait solver | C5, S3, R0c, K2, D9 |
+| type checking and the trait solver | C5, S3, R0c, K2 |
 | derives and structure | C4 |
 | TIR: build, verify, serialize | C2, M1 |
 | the cache store | W3, M1, S6, S4 (publish) |

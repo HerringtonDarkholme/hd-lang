@@ -1,0 +1,14 @@
+# test: a let pattern that names a variant the value's enum lacks is an error
+# Spec 08 Enums: data.enum.unknown-variant, outside a match.
+enum Light:
+    Red
+    Amber
+    Green
+    Flashing
+    Off
+    Broken(i32)
+
+fn wait(light: Light) -> i32:
+    let .Blue = light else: # diagnostic: unknown-variant
+        return 0
+    1

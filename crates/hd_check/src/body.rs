@@ -517,6 +517,12 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set when `declare_pattern` rejected a pattern; its arm then takes
     /// no part in the reachability and exhaustiveness checks.
     pub pattern_rejected: bool,
+    /// While a match arm's pattern is declared: the subject types its arms
+    /// so far named an unknown variant of. One mistaken idea of the type
+    /// (`.Some` and `.None` on a `Result`) is one `unknown-variant` per
+    /// match and type, not one per arm (§4.14). Cost: a scan of this list,
+    /// on an error only; it holds one entry per distinct mistaken type.
+    pub unknown_variant_tys: Option<Vec<Ty>>,
     /// While a pattern is declared below a local reference's read: the
     /// binding mode, `Some(true)` for `&mut`, `Some(false)` once a `&`
     /// is crossed (`ref.match.borrow`).
@@ -784,6 +790,7 @@ pub(crate) fn new_ck<'a, 'c>(
         written_row: None,
         let_view: None,
         pattern_rejected: false,
+        unknown_variant_tys: None,
         pattern_below_ref: None,
         ref_bound: HashMap::default(),
         user_locals: Vec::new(),

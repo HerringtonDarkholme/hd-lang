@@ -1,0 +1,10 @@
+# test: two arms of one match that name variants the subject's enum lacks are one mistake, reported once
+# Spec 08 Enums: data.enum.unknown-variant; one diagnostic per root cause.
+fn parse(text: string) -> Result[i32, string]:
+    if text == "": .Err("empty") else: .Ok(1)
+
+fn value(text: string) -> i32:
+    match parse(text):
+        .Some(_) => 1 # diagnostic: unknown-variant
+        .None => 0
+        _ => 2

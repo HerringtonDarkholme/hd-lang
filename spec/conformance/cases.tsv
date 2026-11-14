@@ -3981,6 +3981,8 @@ typing/invalid/module-named-pkg.hd	type	reject:reserved-module-name	lang/10-modu
 typing/invalid/duplicate-variant.hd	type	reject:duplicate-variant	lang/08-data-and-enums.md#r-data.enum.unique
 typing/invalid/unknown-variant.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
 typing/invalid/an-unknown-variant-through-an-enum-alias.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
+typing/invalid/two-match-arms-naming-unknown-variants-report-once.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
+typing/invalid/a-let-pattern-naming-an-unknown-variant.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
 typing/warnings/mixed-script-identifier.hd	parse	accept	lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
 parse/invalid/unclosed-delimiter.hd	parse	reject:unclosed-delimiter	lang/01-lexical-structure.md#r-lex.delim.unclosed
 parse/invalid/unmatched-delimiter.hd	parse	reject:unmatched-delimiter	lang/01-lexical-structure.md#r-lex.delim.unmatched
@@ -6027,6 +6029,7 @@ typing/valid/union-map-err-constructor.hd	type	accept	std/result.md#r-std-result
 typing/invalid/union-constructor-without-result-context.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.union.constructor-context
 typing/invalid/union-constructor-unknown-case.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
 typing/invalid/a-union-case-past-its-arity-in-a-value-path.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
+typing/invalid/a-union-pattern-naming-a-variant-reports-once-per-match.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
 typing/invalid/union-constructor-payload-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.construct
 typing/invalid/union-match-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/04-type-system.md#r-types.union.match
 runtime/valid/union-members-name-self-and-hold-a-reference.hd	runtime	accept	lang/04-type-system.md#r-types.union.match
