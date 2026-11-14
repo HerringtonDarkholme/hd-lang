@@ -2275,7 +2275,11 @@ impl Lower<'_, '_, '_> {
     /// A written use of `def` with its written arguments `args`, after
     /// the arguments of the parameters it takes from around it: each the
     /// type, const or row parameter of the same name in scope here. `None` when it takes
-    /// none. One not in scope is an enclosing parameter a local impl does
+    /// none. A const or row parameter is in scope in a local impl whose
+    /// local target takes it: `impl Held` inside `fn measure[N < const i32]`
+    /// (conformance `a-local-type-names-an-enclosing-const-parameter`) or
+    /// inside `fn run[$ R]` (`a-local-row-holder-method-uses-the-enclosing-context`).
+    /// One not in scope is an enclosing parameter a local impl does
     /// not take (`names.local-type.refs.impl`), reported at `span`.
     fn with_outer_args(
         &mut self,
