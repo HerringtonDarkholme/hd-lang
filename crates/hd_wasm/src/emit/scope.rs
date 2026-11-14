@@ -176,15 +176,13 @@ impl Em<'_, '_, '_> {
     /// its suites and then takes `e` again; else directly.
     pub(super) fn exit(&mut self, e: Exit) -> StageResult<()> {
         let floor = match e {
-            Exit::Brk(t) => self.ctl.iter().rposition(|c| *c == Ctl::Brk(t)),
-            Exit::Cont(t) => self.ctl.iter().rposition(|c| *c == Ctl::Cont(t)),
+            Exit::Brk(t) => self.ctl.position(Ctl::Brk(t)),
+            Exit::Cont(t) => self.ctl.position(Ctl::Cont(t)),
             Exit::Ret | Exit::Cancel => None,
         };
-        let scope = (self.ctl.iter().enumerate().rev())
-            .find_map(|(p, c)| match c {
-                Ctl::Scope(s) => Some((p, *s)),
-                _ => None,
-            })
+        let scope = self
+            .ctl
+            .last_scope()
             .filter(|(p, _)| floor.is_none_or(|f| *p > f));
         if let Some((p, s)) = scope {
             // A scope's ladder lives while its body is open.
@@ -231,7 +229,7 @@ impl Em<'_, '_, '_> {
     /// function counts, in the result locals, then out through the exit
     /// ladders of the scopes it leaves and the function's one exit.
     pub(super) fn ret_value(&mut self, a: u32, borrowed: bool) -> StageResult<()> {
-        let crossing = self.ctl.iter().any(|c| matches!(c, Ctl::Scope(_)));
+        let crossing = self.ctl.last_scope().is_some();
         if !self.counting && !crossing {
             if a != NONE {
                 self.push(a)?;

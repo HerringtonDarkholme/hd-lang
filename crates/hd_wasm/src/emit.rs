@@ -35,6 +35,7 @@ mod loan_facts;
 pub(crate) use borrow::{StorageRoots, global_root};
 pub(crate) use hd_tir::own::pointer::LoanSite;
 mod closure;
+mod control;
 mod count;
 pub(crate) use count::LoanCell;
 mod ctx;
@@ -1170,7 +1171,7 @@ pub(super) fn param_locals(b: &Body) -> Vec<usize> {
 }
 
 /// An open Wasm block, for branch depths.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Ctl {
     Plain,
     /// The end of a `Loop`, a `Match` or a labelled `Block`.
@@ -1300,7 +1301,7 @@ struct Em<'i, 'a, 'm> {
     /// How many of `providers` the body had on entry: those after them
     /// are a `$.with` scope's, which go in front of the open context.
     open_base: usize,
-    ctl: Vec<Ctl>,
+    ctl: control::Stack,
     /// The `Match` instructions whose decision trees are being emitted.
     deciding: Vec<u32>,
     /// How many `Loop`s the instruction being emitted is inside.
@@ -1566,7 +1567,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             transferred_providers: hd_base::HashSet::default(),
             open_ctx: None,
             open_base: 0,
-            ctl: Vec::new(),
+            ctl: control::Stack::default(),
             deciding: Vec::new(),
             loops: 0,
             counting: false,
@@ -2191,7 +2192,7 @@ impl Em<'_, '_, '_> {
 
     /// The branch depth of the open block `c`.
     fn depth(&self, c: Ctl) -> u32 {
-        let depth = self.ctl.iter().rev().position(|x| *x == c);
+        let depth = self.ctl.position(c).map(|at| self.ctl.len() - 1 - at);
         // ruled out: block_into, Match, Loop and the common exit open
         // their control target before emitting its nested branches.
         assert!(depth.is_some());
@@ -2205,26 +2206,16 @@ impl Em<'_, '_, '_> {
         if blk == NONE {
             return Ok(());
         }
-        // ruled out: Builder::block and TIR verification restrict block
-        // operands to blocks; NONE was handled above.
-        assert_eq!(self.b.tags[blk as usize], Tag::Block);
-        let [list, mut tail] = self.b.data[blk as usize];
-        let labelled = self.topo.label_of[blk as usize] != NONE;
-        if labelled {
-            self.open(Ctl::Brk(blk));
-        }
-        let mut items = self.items(list);
-        if let Some(k) = self.dead_from(&items, tail) {
-            tail = items[k];
-            items.truncate(k + 1);
-        }
-        if self.range(blk).is_some() {
-            self.resume_list(&items)?;
-        } else {
-            for i in items {
-                self.inst(i)?;
-            }
-        }
+        self.control(control::Task::Block(blk, dest))
+    }
+
+    fn end_block(
+        &mut self,
+        blk: u32,
+        dest: Option<u32>,
+        tail: u32,
+        labelled: bool,
+    ) -> StageResult<()> {
         if !self.hoisted.is_empty() {
             self.hoisted_uniques(None)?;
         }
@@ -2280,6 +2271,15 @@ impl Em<'_, '_, '_> {
     /// Emits instruction `i`; the operands whose counts it took are zeroed
     /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
+        let state = self.begin_inst(i)?;
+        let r = match self.walked.take() {
+            Some((x, h)) if x == i => self.read_walked(i, h),
+            _ => self.inst_body(i),
+        };
+        self.end_inst(i, state, r)
+    }
+
+    fn begin_inst(&mut self, i: u32) -> StageResult<control::InstState> {
         // A hoisted `IsUnique` waits for its loop; anything else first
         // runs any that wait, unguarded (a body a default argument's
         // specialization folded may have lost the loop's test).
@@ -2314,12 +2314,21 @@ impl Em<'_, '_, '_> {
                 .or_else(|| hd_tir::own::reason(self.b, i as usize))
                 .or_else(|| glue_site(self.b.tags[i as usize]));
         }
-        let mut r = match self.walked.take() {
-            Some((x, h)) if x == i => self.read_walked(i, h),
-            _ => self.inst_body(i),
-        };
+        Ok(control::InstState {
+            at: outer,
+            origin_at: origin_outer,
+            reason: was,
+        })
+    }
+
+    fn end_inst(
+        &mut self,
+        i: u32,
+        state: control::InstState,
+        mut r: StageResult<()>,
+    ) -> StageResult<()> {
         self.emitting.pop();
-        self.f.at = outer;
+        self.f.at = state.at;
         // Its value, when nothing uses it, ends here.
         self.f.reason = Some(Reason::LastUse);
         if r.is_ok()
@@ -2328,9 +2337,9 @@ impl Em<'_, '_, '_> {
         {
             r = self.release_value(i);
         }
-        self.f.reason = was;
+        self.f.reason = state.reason;
         self.settle(i);
-        self.f.origin_at = origin_outer;
+        self.f.origin_at = state.origin_at;
         r
     }
 
@@ -2588,20 +2597,7 @@ impl Em<'_, '_, '_> {
             Tag::If if self.susp.is_none() && self.headers.proven_guards.contains(&i) => {
                 self.slot(i)?;
             }
-            Tag::If => {
-                let r = self.rec(bw);
-                self.slot(i)?;
-                self.push(a)?;
-                self.resume_branch(i, r[0]);
-                self.f.op(Instruction::If(BlockType::Empty));
-                self.ctl.push(Ctl::Plain);
-                self.block_into(r[0], Some(i))?;
-                if let Some(&els) = r.get(1).filter(|e| **e != NONE) {
-                    self.f.op(Instruction::Else);
-                    self.block_into(els, Some(i))?;
-                }
-                self.close();
-            }
+            Tag::If => self.control(control::Task::If(i))?,
             Tag::Loop => {
                 self.slot(i)?;
                 let caches = self.begin_list_loop(i)?;
