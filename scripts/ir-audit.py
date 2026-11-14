@@ -41,7 +41,7 @@ DESCRIBE = {
     "br-to-end": "`br 0` straight before the `end` or `else` of the block or `if` it jumps to",
     "empty-block": "a `block` with nothing in it: size only. c40ea434b folded such blocks and saved 784 B (0.18%) on 32 release programs, with no time measured. Release cases still show them, because a pass after the fold empties the block (#1680)",
     "empty-else": "an `else` with nothing in it",
-    "set-then-get": "`local.set $x` straight before `local.get $x` (a tee saves bytes)",
+    "set-then-get": "`local.set $x` straight before `local.get $x`: bytes only, a tee saves one byte. On 2026-11-13 the 34 bench modules (625,184 B) held 8 sites, about 8 B, and V8 compiles set+get and tee alike, so it predicts no time",
     # IR
     "ir-ref-drop": "a Drop of a reference type: the link folds it in a view-free module, so it predicts no time or size (#1399 20a: byte-identical with it gone); it matters only to #1360 and #1448",
     "ir-copy-only-lends": "a counted Read copy whose only uses lend it, then a Drop: one retain and one release",
