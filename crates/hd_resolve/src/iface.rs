@@ -2380,47 +2380,11 @@ pub fn mentioned_defs<'a>(
         }
     };
     let mut tys = Vec::new();
-    let gens = |gs: &[Generic], tys: &mut Vec<Ty>| {
-        for g in gs {
-            tys.extend(g.bounds.iter().copied());
-            tys.extend(g.default);
-        }
-    };
-    let sig = |s: &FnSig, tys: &mut Vec<Ty>| {
-        gens(&s.generics, tys);
-        tys.extend(s.params.iter().map(|p| p.1));
-        tys.push(s.ret);
-        tys.extend(pool.row_data(s.row).keys);
-    };
+    let mut defs = Vec::new();
     for it in items {
-        gens(&it.generics, &mut tys);
-        match &it.data {
-            ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => sig(s, &mut tys),
-            ItemData::Struct(fs, _) => tys.extend(fs.iter().map(|f| f.ty)),
-            ItemData::Enum {
-                shared, variants, ..
-            } => {
-                tys.extend(shared.iter().map(|f| f.ty));
-                for v in variants {
-                    tys.extend(v.fields.iter().map(|f| f.ty));
-                }
-            }
-            ItemData::Trait(t) => tys.extend(t.supers.iter().copied()),
-            ItemData::Impl {
-                trait_,
-                trait_args,
-                self_ty,
-                assoc,
-                ..
-            } => {
-                push(*trait_, &mut out);
-                tys.extend(pool.list_items(*trait_args));
-                tys.push(*self_ty);
-                tys.extend(assoc.iter().map(|a| a.1));
-            }
-            ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
-            ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
-            ItemData::Builtin => {}
+        header_parts(pool, it, &mut defs, &mut tys);
+        for d in defs.drain(..) {
+            push(d, &mut out);
         }
     }
     for e in exports {
@@ -2432,62 +2396,118 @@ pub fn mentioned_defs<'a>(
         if !seen_ty.insert(t) {
             continue;
         }
-        match pool.get(t) {
-            TyData::Adt { def, args } => {
-                push(def, &mut out);
-                stack.extend(pool.list_items(args));
-            }
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => {
-                push(def, &mut out);
-                stack.extend(pool.list_items(args));
-                stack.extend(bindings.iter().map(|b| b.1));
-            }
-            TyData::Opaque { args, bound, .. } => {
-                stack.extend(pool.list_items(args));
-                stack.push(bound);
-            }
-            TyData::Tuple { elems, rest } => {
-                stack.extend(pool.list_items(elems));
-                stack.extend(rest);
-            }
-            TyData::Union(members) => stack.extend(pool.list_items(members)),
-            TyData::Ref { inner: i, .. } => stack.push(i),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => {
-                stack.extend(pool.list_items(params));
-                stack.push(result);
-                stack.extend(pool.row_data(row).keys);
-            }
-            TyData::Row(row) | TyData::Context(row) => stack.extend(pool.row_data(row).keys),
-            TyData::Assoc {
-                trait_,
-                self_ty,
-                args,
-                ..
-            } => {
-                push(trait_, &mut out);
-                stack.push(self_ty);
-                stack.extend(pool.list_items(args));
-            }
-            // No declaration and no part.
-            TyData::Param(_)
-            | TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Const(_)
-            | TyData::Infer(_)
-            | TyData::Canon(_) => {}
+        ty_parts(pool, t, &mut defs, &mut stack);
+        for d in defs.drain(..) {
+            push(d, &mut out);
         }
     }
     out
+}
+
+/// The written types of `it`'s header, onto `tys`, and the items it
+/// names outside them (an impl's trait), onto `defs`: where
+/// [`mentioned_defs`] starts.
+pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &mut Vec<Ty>) {
+    let gens = |gs: &[Generic], tys: &mut Vec<Ty>| {
+        for g in gs {
+            tys.extend(g.bounds.iter().copied());
+            tys.extend(g.default);
+        }
+    };
+    gens(&it.generics, tys);
+    match &it.data {
+        ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => {
+            gens(&s.generics, tys);
+            tys.extend(s.params.iter().map(|p| p.1));
+            tys.push(s.ret);
+            tys.extend(pool.row_data(s.row).keys);
+        }
+        ItemData::Struct(fs, _) => tys.extend(fs.iter().map(|f| f.ty)),
+        ItemData::Enum {
+            shared, variants, ..
+        } => {
+            tys.extend(shared.iter().map(|f| f.ty));
+            for v in variants {
+                tys.extend(v.fields.iter().map(|f| f.ty));
+            }
+        }
+        ItemData::Trait(t) => tys.extend(t.supers.iter().copied()),
+        ItemData::Impl {
+            trait_,
+            trait_args,
+            self_ty,
+            assoc,
+            ..
+        } => {
+            defs.push(*trait_);
+            tys.extend(pool.list_items(*trait_args));
+            tys.push(*self_ty);
+            tys.extend(assoc.iter().map(|a| a.1));
+        }
+        ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
+        ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
+        ItemData::Builtin => {}
+    }
+}
+
+/// The items the type `t` names itself, onto `defs` (`DefId::NONE` may
+/// be among them), and the types it is made of, onto `tys`: one step of
+/// [`mentioned_defs`]'s walk.
+pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<Ty>) {
+    match pool.get(t) {
+        TyData::Adt { def, args } => {
+            defs.push(def);
+            tys.extend(pool.list_items(args));
+        }
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => {
+            defs.push(def);
+            tys.extend(pool.list_items(args));
+            tys.extend(bindings.iter().map(|b| b.1));
+        }
+        TyData::Opaque { args, bound, .. } => {
+            tys.extend(pool.list_items(args));
+            tys.push(bound);
+        }
+        TyData::Tuple { elems, rest } => {
+            tys.extend(pool.list_items(elems));
+            tys.extend(rest);
+        }
+        TyData::Union(members) => tys.extend(pool.list_items(members)),
+        TyData::Ref { inner: i, .. } => tys.push(i),
+        TyData::Fn {
+            params,
+            result,
+            row,
+            ..
+        } => {
+            tys.extend(pool.list_items(params));
+            tys.push(result);
+            tys.extend(pool.row_data(row).keys);
+        }
+        TyData::Row(row) | TyData::Context(row) => tys.extend(pool.row_data(row).keys),
+        TyData::Assoc {
+            trait_,
+            self_ty,
+            args,
+            ..
+        } => {
+            defs.push(trait_);
+            tys.push(self_ty);
+            tys.extend(pool.list_items(args));
+        }
+        // No declaration and no part.
+        TyData::Param(_)
+        | TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_) => {}
+    }
 }
 
 /// A folder interface over items (already filtered), exports and their

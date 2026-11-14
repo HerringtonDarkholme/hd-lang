@@ -302,20 +302,26 @@ fn waiting_bodies_check_at_most_twice_at_depth_one() {
 // and the walk keeps its own stack. Past `TYPE_DEPTH` levels a chain is
 // `type-too-large` (`types.limit.type-size.error`), and the work stays
 // linear and the stack bounded up to 20,000 aliases.
-/// `type A1 = List[A0]`, `type A2 = List[A1]`, and so on, read by `f`.
-fn alias_chain(n: u32) -> String {
-    let mut s = String::from("type A0 = i32\n");
+/// `type A1 = List[A0]`, `type A2 = List[A1]`, and so on, read by `f`;
+/// each `pub` when `public`.
+fn alias_chain(n: u32, public: bool) -> String {
+    let vis = if public { "pub " } else { "" };
+    let mut s = format!("{vis}type A0 = i32\n");
     for i in 1..=n {
-        let _ = writeln!(s, "type A{i} = List[A{}]", i - 1);
+        let _ = writeln!(s, "{vis}type A{i} = List[A{}]", i - 1);
     }
-    let _ = writeln!(s, "fn f(x: A{n}) -> A{n}: x");
+    let _ = writeln!(s, "{vis}fn f(x: A{n}) -> A{n}: x");
     s
 }
 
 /// The header types an alias chain of `n` checks, and its codes.
 fn alias_chain_work(n: u32) -> (u64, Vec<String>) {
+    alias_chain_work_of(n, false)
+}
+
+fn alias_chain_work_of(n: u32, public: bool) -> (u64, Vec<String>) {
     let (out, types) =
-        hd_check::work::count_header_types(|| compile(&alias_chain(n), &Goal::Analyze));
+        hd_check::work::count_header_types(|| compile(&alias_chain(n, public), &Goal::Analyze));
     let mut codes: Vec<String> = out
         .diags
         .code
@@ -338,6 +344,23 @@ fn alias_chain_header_types_grow_linearly() {
     assert!(
         small > 0 && large <= 10 * small + 100,
         "header types for 2,000 and 20,000 aliases: {small} and {large}",
+    );
+}
+
+// Checker: #1825, a public alias chain's interface and signature walks
+// (`InterfaceCheck`, `ItemCheck::private_in`) keep each type's answer
+// across the items of a pass, with their own stacks, so each alias costs
+// its own type, not its expansion again: 20,000 took 19 s.
+#[test]
+fn public_alias_chain_header_types_grow_linearly() {
+    alias_chain_work_of(1, true);
+    let (small, small_codes) = alias_chain_work_of(2000, true);
+    let (large, large_codes) = alias_chain_work_of(20_000, true);
+    assert_eq!(small_codes, ["type-too-large"]);
+    assert_eq!(large_codes, ["type-too-large"]);
+    assert!(
+        small > 0 && large <= 10 * small + 100,
+        "header types for 2,000 and 20,000 public aliases: {small} and {large}",
     );
 }
 

@@ -65,12 +65,8 @@ pub struct Finding {
 /// (`trait.bound.no-implied`), the supertraits of each impl
 /// (`trait.super.impl-bounds`), and delegation targets.
 pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<Finding>> {
-    stage_b_over(
-        cx,
-        items
-            .iter()
-            .filter(|it| in_interface_check(&cx.names, cx.lookup, it)),
-    )
+    let mut held = InterfaceCheck::new(&cx.names, cx.lookup);
+    stage_b_over(cx, items.iter().filter(|it| held.checks(it)))
 }
 
 /// Stage B over the items of one module that `HeaderCheck` leaves out
@@ -78,25 +74,76 @@ pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<
 /// one. `cx`'s lookup holds the module's own items, private ones included:
 /// a body check's view, not an interface's.
 pub fn private_items(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
-    stage_b_over(
-        cx,
-        items
-            .iter()
-            .filter(|it| !in_interface_check(&cx.names, cx.lookup, it)),
-    )
+    let mut held = InterfaceCheck::new(&cx.names, cx.lookup);
+    stage_b_over(cx, items.iter().filter(|it| !held.checks(it)))
 }
 
-/// Whether `HeaderCheck(F)` checks `it`: an item that the interfaces of
+/// Which items `HeaderCheck(F)` checks: an item that the interfaces of
 /// `lookup` hold, whose header names only items they hold. Any other item,
 /// a private one or an impl that names one, is checked with its module's
 /// bodies ([`private_items`]), where its private names are seen.
-#[must_use]
-pub fn in_interface_check(names: &Names<'_>, lookup: &Lookup<'_>, it: &Item) -> bool {
-    let held = |d: DefId| lookup.ifaces.iter().any(|f| f.item(d).is_some());
-    held(it.def)
-        && hd_resolve::mentioned_defs(names.pool, std::slice::from_ref(it), &[])
-            .into_iter()
-            .all(held)
+///
+/// Whether a type names only held items is kept per type across the
+/// items asked, so a header costs its own types, not the types an alias
+/// it names expands to again (#1825): a chain of n public aliases costs
+/// n types, not n² / 2.
+pub struct InterfaceCheck<'n, 'a> {
+    pool: &'n hd_types::InternPool,
+    lookup: &'n Lookup<'a>,
+    held: hd_base::HashMap<Ty, bool>,
+}
+
+impl<'n, 'a> InterfaceCheck<'n, 'a> {
+    #[must_use]
+    pub fn new(names: &'n Names<'_>, lookup: &'n Lookup<'a>) -> Self {
+        InterfaceCheck {
+            pool: names.pool,
+            lookup,
+            held: hd_base::HashMap::default(),
+        }
+    }
+
+    fn holds(&self, d: DefId) -> bool {
+        d == DefId::NONE || self.lookup.ifaces.iter().any(|f| f.item(d).is_some())
+    }
+
+    /// Whether `HeaderCheck(F)` checks `it`.
+    pub fn checks(&mut self, it: &Item) -> bool {
+        if !self.lookup.ifaces.iter().any(|f| f.item(it.def).is_some()) {
+            return false;
+        }
+        let (mut defs, mut tys) = (Vec::new(), Vec::new());
+        hd_resolve::header_parts(self.pool, it, &mut defs, &mut tys);
+        defs.iter().all(|&d| self.holds(d)) && tys.into_iter().all(|t| self.ty_held(t))
+    }
+
+    /// Whether every item `t` names, through its parts, is held: a walk
+    /// of the types not asked before with its own stack, each type's
+    /// answer after its parts'.
+    fn ty_held(&mut self, t: Ty) -> bool {
+        let mut stack = vec![(t, false)];
+        let (mut defs, mut parts) = (Vec::new(), Vec::new());
+        while let Some((u, ready)) = stack.pop() {
+            if !ready && self.held.contains_key(&u) {
+                continue;
+            }
+            hd_resolve::ty_parts(self.pool, u, &mut defs, &mut parts);
+            if ready {
+                let ok = defs.iter().all(|&d| self.holds(d))
+                    && parts
+                        .iter()
+                        .all(|p| self.held.get(p).copied().unwrap_or(true));
+                self.held.insert(u, ok);
+            } else {
+                crate::work::header_type();
+                stack.push((u, true));
+                stack.extend(parts.iter().map(|&p| (p, false)));
+            }
+            defs.clear();
+            parts.clear();
+        }
+        self.held.get(&t).copied().unwrap_or(true)
+    }
 }
 
 fn stage_b_over<'i>(
@@ -107,15 +154,18 @@ fn stage_b_over<'i>(
     let mut cycles = crate::value::ProjectionCycles::default();
     let mut clean = hd_base::HashSet::default();
     let mut values = crate::value::Containment::default();
+    let mut private = hd_base::HashMap::default();
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.cycles = cycles;
         hc.clean = clean;
         hc.values = values;
+        hc.private = private;
         hc.item(it)?;
         cycles = hc.cycles;
         clean = hc.clean;
         values = hc.values;
+        private = hc.private;
     }
     Ok(out)
 }
@@ -365,6 +415,9 @@ struct ItemCheck<'c, 'a> {
     /// The inline-containment walk, its finite types kept across the
     /// items of one stage-B pass.
     values: crate::value::Containment,
+    /// [`Self::private_in`]'s answers, kept across the items of one
+    /// stage-B pass.
+    private: hd_base::HashMap<Ty, Option<DefId>>,
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
@@ -400,6 +453,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             too_deep: false,
             clean: hd_base::HashSet::default(),
             values: crate::value::Containment::default(),
+            private: hd_base::HashMap::default(),
         }
     }
 }
@@ -684,8 +738,13 @@ impl<'a> ItemCheck<'_, 'a> {
             return;
         }
         let pool = self.pool();
-        let open = pool.list_items(*trait_args).iter().chain([self_ty]);
-        if open.into_iter().any(|&t| self.private_in(t).is_some()) {
+        let open: Vec<Ty> = pool
+            .list_items(*trait_args)
+            .iter()
+            .chain([self_ty])
+            .copied()
+            .collect();
+        if open.into_iter().any(|t| self.private_in(t).is_some()) {
             return;
         }
         for (slot, &(_, t)) in (1u32..).zip(assoc) {
@@ -700,52 +759,38 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// The first module-private declaration that the written type `t`
-    /// reaches, nested types, arguments and requirement keys included.
-    fn private_in(&self, t: Ty) -> Option<DefId> {
-        let pool = self.pool();
-        let any = |ts: &[Ty]| ts.iter().find_map(|&x| self.private_in(x));
-        let keys = |row: RowId| any(&pool.row_data(row).keys);
-        match pool.get(t) {
-            TyData::Adt { def, args } => self
-                .is_private(def)
-                .then_some(def)
-                .or_else(|| any(pool.list_items(args))),
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => self.is_private(def).then_some(def).or_else(|| {
-                any(pool.list_items(args))
-                    .or_else(|| bindings.iter().find_map(|b| self.private_in(b.1)))
-            }),
-            TyData::Assoc {
-                trait_,
-                self_ty,
-                args,
-                ..
-            } => self
-                .is_private(trait_)
-                .then_some(trait_)
-                .or_else(|| self.private_in(self_ty))
-                .or_else(|| any(pool.list_items(args))),
-            TyData::Ref { inner: i, .. } => self.private_in(i),
-            TyData::Tuple { elems, rest } => {
-                any(pool.list_items(elems)).or_else(|| rest.and_then(|r| self.private_in(r)))
-            }
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => any(pool.list_items(params))
-                .or_else(|| self.private_in(result))
-                .or_else(|| keys(row)),
-            TyData::Row(row) | TyData::Context(row) => keys(row),
-            TyData::Opaque { args, bound, .. } => {
-                any(pool.list_items(args)).or_else(|| self.private_in(bound))
-            }
-            _ => None,
+    /// reaches, nested types, arguments and requirement keys included: a
+    /// type's own declaration first, then its parts in order. A walk of the
+    /// types not asked before in this stage-B pass, with its own stack,
+    /// each type's answer after its parts', so a header costs its own
+    /// types, not each alias's expansion again (#1825).
+    fn private_in(&mut self, t: Ty) -> Option<DefId> {
+        if let Some(&found) = self.private.get(&t) {
+            return found;
         }
+        let pool = self.pool();
+        let mut stack = vec![(t, false)];
+        let mut parts = Vec::new();
+        while let Some((u, ready)) = stack.pop() {
+            if !ready && self.private.contains_key(&u) {
+                continue;
+            }
+            let own = private_parts(pool, u, &mut parts);
+            if ready {
+                let found = own.filter(|&d| self.is_private(d)).or_else(|| {
+                    parts
+                        .iter()
+                        .find_map(|p| self.private.get(p).copied().flatten())
+                });
+                self.private.insert(u, found);
+            } else {
+                crate::work::header_type();
+                stack.push((u, true));
+                stack.extend(parts.iter().rev().map(|&p| (p, false)));
+            }
+            parts.clear();
+        }
+        self.private.get(&t).copied().flatten()
     }
 
     /// A written type of a public signature may not reach a module-private
@@ -1776,6 +1821,69 @@ impl<'a> ItemCheck<'_, 'a> {
             self.report(0, Code::InvalidDelegation, message);
         }
         Ok(())
+    }
+}
+
+/// The declaration the type `t` names itself, and its parts onto
+/// `parts`, in the order [`ItemCheck::private_in`] reads them; the parts
+/// of a type no other module can reach a private declaration through
+/// (a parameter, a primitive) are none.
+fn private_parts(pool: Types<'_>, t: Ty, parts: &mut Vec<Ty>) -> Option<DefId> {
+    let keys = |row: RowId, parts: &mut Vec<Ty>| parts.extend(pool.row_data(row).keys.iter());
+    match pool.get(t) {
+        TyData::Adt { def, args } => {
+            parts.extend(pool.list_items(args));
+            Some(def)
+        }
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => {
+            parts.extend(pool.list_items(args));
+            parts.extend(bindings.iter().map(|b| b.1));
+            Some(def)
+        }
+        TyData::Assoc {
+            trait_,
+            self_ty,
+            args,
+            ..
+        } => {
+            parts.push(self_ty);
+            parts.extend(pool.list_items(args));
+            Some(trait_)
+        }
+        TyData::Ref { inner, .. } => {
+            parts.push(inner);
+            None
+        }
+        TyData::Tuple { elems, rest } => {
+            parts.extend(pool.list_items(elems));
+            parts.extend(rest);
+            None
+        }
+        TyData::Fn {
+            params,
+            result,
+            row,
+            ..
+        } => {
+            parts.extend(pool.list_items(params));
+            parts.push(result);
+            keys(row, parts);
+            None
+        }
+        TyData::Row(row) | TyData::Context(row) => {
+            keys(row, parts);
+            None
+        }
+        TyData::Opaque { args, bound, .. } => {
+            parts.extend(pool.list_items(args));
+            parts.push(bound);
+            None
+        }
+        _ => None,
     }
 }
 
