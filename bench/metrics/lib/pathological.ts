@@ -71,14 +71,16 @@ export const CASES: readonly PathologicalCase[] = [
   },
   {
     name: "iterator-chain",
-    describe: "one iterator chain of 200 `map` and `filter` stages with typed closures",
+    describe: "four iterator chains of 32 `map` and `filter` stages each, with typed closures",
     ...budget,
-    scope: (scale) => ({
-      pairs: range(25 * scale).map((pair) => ({
+    scope: (scale) => {
+      // Keep each proof below trait.bound.depth.limit; scale independent chains.
+      const pairs = range(16).map((pair) => ({
         add: 2 * pair,
         modulus: ((2 * pair + 1) % 7) + 2,
-      })),
-    }),
+      }));
+      return { chains: range(scale).map((i) => ({ i, pairs })) };
+    },
   },
   {
     name: "wide-list-literal",

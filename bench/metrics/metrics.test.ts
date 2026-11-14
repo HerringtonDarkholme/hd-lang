@@ -359,6 +359,20 @@ describe("corpora", () => {
     }
   });
 
+  it("scales iterator work by independent chains below the fixed proof-depth limit", () => {
+    const entry = CASES.find((entry) => entry.name === "iterator-chain")!;
+    for (const scale of [1, 2, 4]) {
+      const source = generate(entry, scale);
+      const chains = source.split(/(?=^fn run_)/m).filter((part) => part.startsWith("fn run_"));
+      assert.equal(chains.length, scale);
+      for (const chain of chains) {
+        assert.equal(chain.match(/\.map\(/g)?.length, 16);
+        assert.equal(chain.match(/\.filter\(/g)?.length, 16);
+        assert.equal(chain.match(/\.count\(\)/g)?.length, 1);
+      }
+    }
+  });
+
   it("marks ten mistakes in each errors-per-run file", () => {
     for (const label of FILES) {
       assert.equal(markedLines(fixture(`errors-per-run/${label}.hd`)).length, 10, label);

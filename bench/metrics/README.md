@@ -375,7 +375,7 @@ source is a `nesting-too-deep` error, not a stress case.
 | `deep-blocks`       | `if` blocks nested 72 deep                                                             |
 | `deep-parens`       | an expression nested 144 parentheses deep                                              |
 | `method-chain`      | 2,000 chained string method calls                                                      |
-| `iterator-chain`    | 200 `map` and `filter` stages with typed closures                                      |
+| `iterator-chain`    | 4 independent chains of 32 `map` and `filter` stages each, with typed closures                                      |
 | `wide-list-literal` | one list literal of 20,000 integers                                                    |
 | `large-enum-match`  | a 1,000-variant enum and an exhaustive match                                           |
 | `deep-generic`      | `Wrap[Wrap[...[i32]]]` 64 levels deep                                                  |
