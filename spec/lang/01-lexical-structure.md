@@ -242,14 +242,18 @@ fn main() -> void:
 7. r[lex.closure.body-line] A line at body indentation belongs to the body.
 
 ```text
+fn choice(first: fn(i32) -> void, second: fn(i32) -> void) -> void:
+    first(1)
+    second(2)
+
 choice(fn(a):
-    println(a)
+    return
 , fn(b):
-    println(b)
+    return
 )
 
 choice(fn(a):
-    println(a)
+    return
     fallback)       # error: syntax-error
 ```
 

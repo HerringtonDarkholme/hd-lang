@@ -665,7 +665,7 @@ associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
 20. r[grammar.impl.intrinsic-method] An `intrinsic_method` is an implementation method without a body. [Intrinsic Methods](09-traits.md#intrinsic-methods) defines where one is valid.
 
 ```text
-pub trait Display:
+pub trait Printable:
     pub fn to_string(&self) -> string  # error: trait-method-visibility
 
 trait Named:
@@ -1570,13 +1570,13 @@ fn describe(text: string) -> string:
         _ => "other"
 ```
 
-1. r[grammar.primary.prefix-after-dot] A prefixed string directly after `.` is an error. This holds whether a module path stands before the dot, as in `marks.tag"item"`, or a value, as in `value.tag"item"`. Error: `qualified-string-prefix`.
+1. r[grammar.primary.prefix-after-dot] A prefixed string directly after `.` is an error. This holds whether a module path stands before the dot, as in `text.r"item"`, or a value, as in `value.tag"item"`. Error: `qualified-string-prefix`.
 
 ```text
-use pkg.marks
+use std.text
 
 fn label() -> string:
-    marks.tag"item"  # error: qualified-string-prefix
+    text.r"item"  # error: qualified-string-prefix
 
 fn quote(value: string) -> string:
     value.tag"item"  # error: qualified-string-prefix

@@ -1105,6 +1105,12 @@ transaction:
 11. r[fn.trailing.fn-bound] A final parameter whose type is a bare type parameter `F` with a zero-argument bound `F < Fn() -> T` or `F < FnMut() -> T` takes a trailing block as a function type does. The block is a closure checked against that bound, so under `Fn` it changes no capture by [`fn.trait.read-only`](#r-fn.trait.read-only).
 
 ```text
+fn transaction(body: fn() -> void) -> void:
+    body()
+
+fn save_user() -> void:
+    return
+
 transaction:
     save_user()
 :  # error: trailing-block-position
