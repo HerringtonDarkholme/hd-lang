@@ -14,9 +14,9 @@
     {
       "program": "bench/runtime/progs/expr-eval.hd",
       "retained": "0",
-      "released": "3650978",
+      "released": "3650726",
       "uniques": "0",
-      "total": "3650978",
+      "total": "3650726",
       "noOpsAndSkipped": "5166006"
     },
     {
@@ -30,44 +30,41 @@
     {
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "0",
-      "released": "522",
+      "released": "521",
       "uniques": "6400002",
-      "total": "6400524",
-      "noOpsAndSkipped": "6401029",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "total": "6400523",
+      "noOpsAndSkipped": "6401029"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
       "retained": "2000",
-      "released": "4016",
+      "released": "4012",
       "uniques": "20000",
-      "total": "26016",
-      "noOpsAndSkipped": "1",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "total": "26012",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
       "retained": "0",
-      "released": "14",
+      "released": "13",
       "uniques": "1",
-      "total": "15",
+      "total": "14",
       "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
       "retained": "1",
-      "released": "44",
+      "released": "41",
       "uniques": "4000",
-      "total": "4045",
-      "noOpsAndSkipped": "4",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "total": "4042",
+      "noOpsAndSkipped": "4"
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "5760129",
-      "released": "6660314",
+      "released": "6660278",
       "uniques": "8",
-      "total": "12420451",
+      "total": "12420415",
       "noOpsAndSkipped": "1440025"
     },
     {
@@ -115,9 +112,9 @@
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
-      "released": "614481",
+      "released": "614171",
       "uniques": "2476270",
-      "total": "3090751",
+      "total": "3090441",
       "noOpsAndSkipped": "21099052"
     },
     {
@@ -156,11 +153,10 @@
     {
       "program": "bench/runtime/progs/uniq-list-sort.hd",
       "retained": "0",
-      "released": "7",
+      "released": "6",
       "uniques": "4000",
-      "total": "4007",
-      "noOpsAndSkipped": "2",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "total": "4006",
+      "noOpsAndSkipped": "2"
     },
     {
       "program": "bench/study/binary_trees.hd",
@@ -206,11 +202,10 @@
     {
       "program": "bench/study/json.hd",
       "retained": "2380002",
-      "released": "3400103",
+      "released": "3400096",
       "uniques": "12240015",
-      "total": "18020120",
-      "noOpsAndSkipped": "22610132",
-      "reason": "#1709 makes the three initially empty TextReadFrame.positions maps at the reader's root-list, record-object and tags-list depths own 40-byte seed-bearing allocations. Cleanup performs three counted releases instead of three static-empty-buffer no-op calls: releases 3400100 -> 3400103, no-op/skipped calls 22610135 -> 22610132; retains and uniqueness are unchanged. Full 33-program optimized-release-checked measurement, default Node and host seed 0."
+      "total": "18020113",
+      "noOpsAndSkipped": "22610132"
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -223,9 +218,9 @@
     {
       "program": "bench/study/map_count.hd",
       "retained": "5000000",
-      "released": "7500039",
+      "released": "7500035",
       "uniques": "2500000",
-      "total": "15000039",
+      "total": "15000035",
       "noOpsAndSkipped": "2"
     },
     {
@@ -240,9 +235,9 @@
     {
       "program": "bench/study/points.hd",
       "retained": "10",
-      "released": "232",
+      "released": "202",
       "uniques": "1",
-      "total": "243",
+      "total": "213",
       "noOpsAndSkipped": "11"
     },
     {
