@@ -2442,7 +2442,7 @@ impl Lower<'_, '_, '_> {
             .module_folder_node(&self.names, root)
             .and_then(|folder| world.iface(folder))
             .map_or_else(crate::iface::ImportHint::default, |iface| {
-                crate::iface::std_import_hint(&self.names, &iface.exports, name)
+                crate::iface::std_import_hint(&self.names, [&*iface], name)
             })
     }
 

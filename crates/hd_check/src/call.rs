@@ -530,7 +530,7 @@ impl Ck<'_, '_> {
     pub(crate) fn import_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
         hd_resolve::iface::std_import_hint(
             &self.cx.names,
-            self.cx.lookup.ifaces.iter().flat_map(|f| &f.exports),
+            self.cx.lookup.ifaces.iter().copied(),
             name,
         )
     }

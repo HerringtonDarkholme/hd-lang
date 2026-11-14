@@ -1623,3 +1623,60 @@ fn unknown_names_in_a_local_function_ask_the_enclosing_index_once_each() {
         }
     });
 }
+
+/// A struct whose `n` fields each name an unknown type, every other one a
+/// name std exports (`StringBuilder`), so each asks for an import hint.
+fn unknown_field_types(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void: pass\n\nstruct Wide:\n");
+    for i in 0..n {
+        if i % 2 == 0 {
+            let _ = writeln!(s, "    f{i}: Unknown{i}");
+        } else {
+            let _ = writeln!(s, "    f{i}: StringBuilder");
+        }
+    }
+    s
+}
+
+// Resolver and checker: #1876, an unknown name's import hint asks each
+// interface's index of std exports by name, built once, with one probe:
+// a pass over every export of std per unknown name cost about 175 µs each.
+#[test]
+fn import_hints_probe_one_index_per_interface() {
+    on_test_stack(|| {
+        for n in [1_000, 10_000] {
+            let (out, work) = hd_resolve::work::count_hint_work(|| {
+                compile(&unknown_field_types(n), &Goal::Analyze)
+            });
+            let shown = out.render();
+            let hinted = shown.matches("; add `use std.text.StringBuilder`").count();
+            assert_eq!(hinted, n / 2, "{n}: {shown}");
+            // The interfaces' exports indexed once (412 measured), then a
+            // few probes per unknown name (4.5 measured): not std's
+            // exports per name.
+            assert!(
+                work <= 600 + 5 * n as u64,
+                "hint work for {n} unknown names: {work}"
+            );
+        }
+    });
+}
+
+// #1876: the index answers for a module's last segment too: an unknown
+// `json` is std's module, an unknown `min` has several homes.
+#[test]
+fn import_hints_name_a_module_and_several_homes_from_the_index() {
+    let out = compile(
+        "pub fn main() -> void:\n    a := json\n    b := min\n",
+        &Goal::Analyze,
+    );
+    let shown = out.render();
+    assert!(
+        shown.contains("`json` is not defined; add `use std.json`"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("`min` has several public std homes"),
+        "{shown}"
+    );
+}

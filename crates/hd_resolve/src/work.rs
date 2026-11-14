@@ -102,3 +102,26 @@ pub(crate) fn enclosing_names(n: u64) {
         }
     });
 }
+
+thread_local! {
+    static HINT: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the work of std import hints on this thread
+/// ([`crate::iface::std_import_hint`]): one per export indexed, one per
+/// interface asked, and one per export of the asked name.
+pub fn count_hint_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = HINT.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = HINT.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of import-hint work.
+pub(crate) fn hint_work(n: u64) {
+    HINT.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n));
+        }
+    });
+}

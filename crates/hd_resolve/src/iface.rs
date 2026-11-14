@@ -946,40 +946,87 @@ impl ImportHint {
     }
 }
 
-/// An import hint from public std exports, including the modules that
-/// contain them. Re-exports of one declaration count as one item, with
-/// its declaring module preferred over a re-export's path, except that a
-/// re-export is preferred over `std.core`.
-#[must_use]
-pub fn std_import_hint<'a>(
-    names: &Names<'_>,
-    exports: impl IntoIterator<Item = &'a Export>,
-    name: &str,
-) -> ImportHint {
-    let mut items = HashMap::<DefId, (bool, String)>::default();
-    let mut modules = std::collections::BTreeSet::new();
-    for e in exports {
-        let declared = names.module_of(e.def);
-        let runtime = crate::lower::runtime_module;
-        if !e.module.starts_with("std.") || runtime(&e.module) || runtime(&declared) {
-            continue;
-        }
-        if e.module.rsplit('.').next() == Some(name) {
-            modules.insert(e.module.clone());
-        }
-        if names.text(e.name) == name {
-            // A trait of std's leaf layer `std.core` is named by the std
-            // module that re-exports it (`std.hash.Hasher`), as Rust's std
-            // names core's.
+/// One folder interface's public std exports by the name an import hint
+/// asks for (#1876): built once, on the first hint that reads the
+/// interface, so a hint costs one probe per interface instead of a pass
+/// over every export.
+#[derive(Debug, Default)]
+pub struct ImportIndex {
+    /// By name, each std export of it: its module path, its item, and
+    /// whether that path is a re-export rather than the declaring module
+    /// (a trait of `std.core` is named by the module that re-exports it,
+    /// as Rust's std names core's).
+    by_name: HashMap<Symbol, Vec<(String, DefId, bool)>>,
+    /// By last segment, the std modules that export something.
+    by_leaf: HashMap<String, Vec<String>>,
+}
+
+impl ImportIndex {
+    fn new(names: &Names<'_>, exports: &[Export]) -> ImportIndex {
+        let mut out = ImportIndex::default();
+        let mut modules = hd_base::HashSet::default();
+        for e in exports {
+            crate::work::hint_work(1);
+            let runtime = crate::lower::runtime_module;
+            if !e.module.starts_with("std.") || runtime(&e.module) {
+                continue;
+            }
+            let declared = names.module_of(e.def);
+            if runtime(&declared) {
+                continue;
+            }
+            if modules.insert(e.module.as_str()) {
+                let leaf = e.module.rsplit('.').next().unwrap_or(&e.module);
+                out.by_leaf
+                    .entry(leaf.to_owned())
+                    .or_default()
+                    .push(e.module.clone());
+            }
             let reexport = if declared == "std.core" {
                 e.module == "std.core"
             } else {
                 declared != e.module
             };
-            let path = format!("{}.{name}", e.module);
-            let found = items.entry(e.def).or_insert((reexport, path.clone()));
-            if (reexport, &path) < (found.0, &found.1) {
-                *found = (reexport, path);
+            out.by_name
+                .entry(e.name)
+                .or_default()
+                .push((e.module.clone(), e.def, reexport));
+        }
+        out
+    }
+}
+
+/// An import hint from the public std exports of `ifaces`, including the
+/// modules that contain them. Re-exports of one declaration count as one
+/// item, with its declaring module preferred over a re-export's path,
+/// except that a re-export is preferred over `std.core`. Each interface
+/// answers from its [`ImportIndex`].
+#[must_use]
+pub fn std_import_hint<'a>(
+    names: &Names<'_>,
+    ifaces: impl IntoIterator<Item = &'a FolderIface>,
+    name: &str,
+) -> ImportHint {
+    let mut items = HashMap::<DefId, (bool, String)>::default();
+    let mut modules = std::collections::BTreeSet::new();
+    let sym = names.syms.find(name);
+    for iface in ifaces {
+        crate::work::hint_work(1);
+        let index = iface
+            .import_index
+            .get_or_init(|| ImportIndex::new(names, &iface.exports));
+        if let Some(found) = index.by_leaf.get(name) {
+            modules.extend(found.iter().cloned());
+        }
+        let Some(exports) = sym.and_then(|s| index.by_name.get(&s)) else {
+            continue;
+        };
+        for (module, def, reexport) in exports {
+            crate::work::hint_work(1);
+            let path = format!("{module}.{name}");
+            let found = items.entry(*def).or_insert((*reexport, path.clone()));
+            if (*reexport, &path) < (found.0, &found.1) {
+                *found = (*reexport, path);
             }
         }
     }
@@ -1285,6 +1332,9 @@ pub struct FolderIface {
     /// exports, so a key over the reads of a folder's header lowering
     /// takes it with the deep hash (#248). Zero until the driver sets it.
     pub names_hash: Hash128,
+    /// The std exports by name, for import hints ([`ImportIndex`]): made
+    /// on the first hint that reads this interface. Outside every hash.
+    pub import_index: std::sync::OnceLock<ImportIndex>,
     /// The modules a REPL input's `use`s name, as (input module path,
     /// local name, module path): what the input leaves in the session
     /// besides its exports (`cli.repl.uses.other`). Empty for any other
@@ -2610,6 +2660,7 @@ pub fn folder_iface(
         loop_names: hd_base::HashSet::default(),
         broken_names: hd_base::HashSet::default(),
         names_hash: Hash128::default(),
+        import_index: std::sync::OnceLock::new(),
         module_uses,
     }
 }
