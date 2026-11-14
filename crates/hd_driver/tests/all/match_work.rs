@@ -9,31 +9,36 @@ use hd_project::MemorySources;
 use std::fmt::Write as _;
 
 /// A match over `(i32, i32, i32)` whose usefulness work is exactly
-/// `work`: `n` arms `(0, k, _)` and a final `_` cost `(3n² + 29n + 62) / 2`
-/// (one plus the rows of each state of the work stack), and guarded arms
-/// before them cost 2 for `_` and 5 for `(_, _, _)`, since a guarded arm
-/// is never an earlier row.
+/// `work`, one plus the rows of each class the pass splits: `g` guarded
+/// wildcard arms, `a` arms `(0, k, _)`, `b` arms `(0, k, 0)` and a final
+/// `_` cost `(2g + 9)a + (3g + 11)b + 8g + 16`, since every class holds
+/// the guarded rows. With `g + 2` not a multiple of 5 the two arm costs
+/// are coprime, so some `a` and `b` give any work past their product.
 fn match_of_work(work: u64) -> String {
-    let cost = |n: u64| (3 * n * n + 29 * n + 62) / 2;
-    let mut n = 1;
-    while cost(n + 1) + 5 <= work {
-        n += 1;
-    }
-    let rest = work - cost(n);
-    let triples = rest % 2;
-    let wilds = (rest - 5 * triples) / 2;
+    let (g, a, b) = (0..=700u64)
+        .rev()
+        .filter(|g| (g + 2) % 5 != 0)
+        .find_map(|g| {
+            let left = work.checked_sub(8 * g + 16)?;
+            let (ca, cb) = (2 * g + 9, 3 * g + 11);
+            (0..ca)
+                .take_while(|b| cb * b <= left)
+                .find(|b| (left - cb * b) % ca == 0)
+                .map(|b| (g, (left - cb * b) / ca, b))
+        })
+        .expect("a match of this work");
     let mut s =
         String::from("fn pick(a: i32, b: i32, c: i32, g: bool) -> i32:\n    match (a, b, c):\n");
-    for _ in 0..wilds {
+    for _ in 0..g {
         s.push_str("        _ if g => 0\n");
     }
-    for _ in 0..triples {
-        s.push_str("        (_, _, _) if g => 0\n");
-    }
-    for k in 0..n {
+    for k in 0..a {
         let _ = writeln!(s, "        (0, {k}, _) => {k}");
     }
-    let _ = writeln!(s, "        _ => {n}");
+    for k in a..a + b {
+        let _ = writeln!(s, "        (0, {k}, 0) => {k}");
+    }
+    let _ = writeln!(s, "        _ => {}", a + b);
     s
 }
 

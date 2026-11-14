@@ -1134,11 +1134,18 @@ Bindings take access types by the path rules. A generic field keeps its substitu
 
 ### 7.2 Usefulness
 
-Exhaustiveness and unreachable arms use Maranget's usefulness algorithm
-over the pattern matrix (`pat.rs`, `useful`), as rustc and OCaml do.
-`useful` takes one column at a time from a work stack, not by recursion:
-a data pattern adds a column per field, so recursion would grow with a
-type's width.
+Exhaustiveness and unreachable arms are one pass of Maranget's
+usefulness algorithm over the pattern matrix (`pat.rs`, `usefulness`),
+as rustc's `compute_exhaustiveness_and_usefulness` does. A class of
+values splits on its first column into one class per constructor,
+integer segment, string or float its rows name, each with the rows that
+match it, and one class for the values no row names, with the wildcard
+rows. A class with no column left marks its rows useful up to the first
+unguarded one; a class with no row is a value no arm matches. Classes
+come from a work stack, not recursion: a data pattern adds a column per
+field, so recursion would grow with a type's width. A row's pattern list
+is linked cells, so specializing pushes the head's fields and shares the
+rest.
 
 1. Rows are the arms in source order. A guarded arm adds no coverage
    ([`flow.match.guard.coverage`](../../spec/lang/06-control-flow.md#r-flow.match.guard.coverage)),
@@ -1149,9 +1156,9 @@ type's width.
    are infinite, so only a catch-all covers them.
 3. An arm that is not useful is `unreachable-match-arm`, an error
    ([`flow.match.unreachable`](../../spec/lang/06-control-flow.md#r-flow.match.unreachable)).
-4. If the wildcard row is still useful after every arm, the match is
-   `nonexhaustive-match`, naming the top-level constructors no arm
-   covers.
+4. If some class holds no unguarded row, the match is
+   `nonexhaustive-match`, naming the top-level constructors whose
+   classes hold such a value.
 
 **Decisions.** `decide` compiles the matrix into a decision tree, so a
 shared arm appears once and no pattern is tested twice on a path. The
@@ -1167,15 +1174,17 @@ it, in source order (`flow.match.guard.*`). A row with no test in a
 switched column repeats under each outcome, as in any decision tree; a
 nested-enum match stays linear in TIR size.
 
-Reachability asks one usefulness question per arm, against only the
-earlier unguarded arms whose head can share a value with it: the arms
-are indexed by head variant, string, float and integer value, so a flat
-match of literal or variant arms costs a few rows per arm. One match's
-questions share a work budget, `hd_base::limits::MATCH_WORK`: a state of
-the usefulness work stack costs one plus its rows, as rustc's pattern
-complexity counts, and the work also charges the body's fuel. Past the
-budget the match is `match-too-complex` (`flow.match.limit.error`) and
-its decision tree is a poison value.
+A row is in one class per value its head names, so a flat match of n
+arms over c columns costs about n · c, whether its arms differ in the
+head column or share a tuple or struct constructor; a wildcard row costs
+a place in each class of its column. A class whose rows are all useful
+already, under a top-level constructor already known unmatched, decides
+nothing more and is not split. The pass has a work budget,
+`hd_base::limits::MATCH_WORK`: a class costs one plus its rows, as
+rustc's pattern complexity counts, and the work also charges the body's
+fuel. Past the budget the match is `match-too-complex`
+(`flow.match.limit.error`), neither check reports, and its decision tree
+is a poison value.
 
 Planned, not built: a witness deeper than the top-level constructor.
 
@@ -1187,8 +1196,8 @@ Planned, not built: a witness deeper than the top-level constructor.
 - The `else` block must diverge: its type must be `never`. Otherwise it
   is `let-else-falls-through`
   ([`flow.let.else.diverge`](../../spec/lang/06-control-flow.md#r-flow.let.else.diverge)).
-- Refutability is one usefulness question: is the wildcard useful after
-  the single row `p`?
+- Refutability is the same pass over the single row `p`: does a class
+  hold no row? It stops at the first such class.
 
 ## 8. Mutability, Access And Initialization
 
@@ -1557,7 +1566,7 @@ Other limits:
 | a method chain of 10,000 calls, `a.b().c()...` | the syntax tree is 10,000 deep on its left spine | the parser rejects a chain past 10,000 links (`grammar.limit.chain`), and below it the walks recurse on a 32 MiB worker stack (`hd_sched::pool::WORKER_STACK`); a method chain's receivers are checked in a loop |
 | deep nesting of brackets, blocks and closures | stack overflow | the nesting limit of 160 bounds native recursion |
 | a list literal of 100,000 elements | quadratic LCT or literal grouping | the join compares a value only when the site's type changes, a bounded number of times per site; literal classes are union-find |
-| a 10,000-arm literal match | quadratic usefulness | earlier arms indexed by head value (section 7.2) |
+| a 10,000-arm literal, tuple or struct match | quadratic usefulness | one usefulness pass over the matrix (section 7.2) |
 | wide tuple patterns with nested enums | exponential usefulness | the match work limit, `match-too-complex` |
 | nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | the head prefilter; arguments inferred once outside trials; the trial memo (#49); fuel |
 | many pending goals | quadratic retries | a statement settles only its own goals |

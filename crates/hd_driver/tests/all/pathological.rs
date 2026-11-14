@@ -767,6 +767,55 @@ fn wide_enum_exhaustiveness_checker_fuel() {
     check_fuel(enum_match, 1250, 5000);
 }
 
+// Checker: #1832, a match's reachability and coverage are one usefulness
+// pass, so a flat match whose arms share a head constructor costs its
+// rows times its columns. Asking per arm against the earlier arms cost
+// (3n² + 29n + 62) / 2 for the tuple match, and 1,670 arms passed
+// `MATCH_WORK`.
+/// `n` arms `(0, k, _)` over `(i32, i32, i32)`, and a final `_`.
+fn flat_tuple_match(n: usize) -> String {
+    let mut s = String::from("fn run(a: i32, b: i32, c: i32) -> i32:\n    match (a, b, c):\n");
+    for k in 0..n {
+        let _ = writeln!(s, "        (0, {k}, _) => {k}");
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
+/// `n` arms `Point { x: 0, y: k }` over a struct, and a final `_`.
+fn flat_struct_match(n: usize) -> String {
+    let mut s = String::from(
+        "struct Point:\n    x: i32\n    y: i32\n    z: i32\n\nfn run(p: Point) -> i32:\n    match p:\n",
+    );
+    for k in 0..n {
+        let _ = writeln!(s, "        Point {{ x: 0, y: {k} }} => {k}");
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
+/// `check_fuel` on the compiler worker's stack: the decision tree of a
+/// flat literal column nests one test per arm (`Ck::tree`), deeper than a
+/// test thread's stack at 10,000 arms.
+fn check_fuel_on_worker_stack(generate: fn(usize) -> String, small: usize, large: usize) {
+    std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(move || check_fuel(generate, small, large))
+        .expect("thread")
+        .join()
+        .expect("linear checker fuel");
+}
+
+#[test]
+fn flat_tuple_match_usefulness_checker_fuel() {
+    check_fuel_on_worker_stack(flat_tuple_match, 1000, 10_000);
+}
+
+#[test]
+fn flat_struct_match_usefulness_checker_fuel() {
+    check_fuel_on_worker_stack(flat_struct_match, 1000, 10_000);
+}
+
 #[test]
 fn nested_generic_instantiation_emitted_operators() -> Result<(), wasmparser::BinaryReaderError> {
     check_operators(generic_instances, 5, 20, 0)
