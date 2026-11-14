@@ -1889,6 +1889,16 @@ impl Env<'_> {
 /// The inliner's view of the program (`hd_opt::inline`): the driver's
 /// tables and decoded bodies, and the backend's layout facts.
 impl InlineEnv for Env<'_> {
+    fn inline_work(&self, work: hd_opt::inline::InlineWork) {
+        let mut counters = lock(&self.run.counters);
+        let total = &mut counters.inline_work;
+        total.preparations += work.preparations;
+        total.polls += work.polls;
+        total.rows += work.rows;
+        total.ancestor_queries += work.ancestor_queries;
+        total.depth = total.depth.max(work.depth);
+    }
+
     fn pool(&self) -> &hd_types::InternPool {
         &self.run.pool
     }

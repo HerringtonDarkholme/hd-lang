@@ -6,7 +6,12 @@
 //! build owns bodies in, callees first.
 
 use std::borrow::Cow;
+use std::cell::{Cell, RefCell};
+use std::future::Future;
+use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::task::{Context, Poll, Waker};
 
 use hd_base::{DefId, Hash128, HashMap, HashSet, SliceSort, StableHasher};
 use hd_mono::ProgramEnv;
@@ -67,9 +72,21 @@ pub enum InlineHint {
     Never,
 }
 
+/// Counted work of one trampoline, independent of elapsed time or native stack.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct InlineWork {
+    pub preparations: usize,
+    pub polls: usize,
+    pub rows: usize,
+    pub ancestor_queries: usize,
+    pub depth: usize,
+}
+
 /// What the inliner reads of the program beyond collection's view: the
 /// driver's tables, its decoded bodies and the backend's layout facts.
 pub trait InlineEnv: ProgramEnv {
+    /// Accumulate this trampoline's work in the run's existing counters.
+    fn inline_work(&self, work: InlineWork);
     /// The run's type pool.
     fn pool(&self) -> &InternPool;
     /// The run's [`Memo`] in a release build; `None` in a dev build,
@@ -188,7 +205,12 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// each parameter bound by its pass mode, and returns the body's hash with
 /// each copied callee's TIR hash.
 pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, hash: Hash128) -> Hash128 {
-    env.inline_into(body, hash, &mut Stack::new((body.item, None), false))
+    run_inline(
+        env,
+        body,
+        hash,
+        &Stack::new((body.item, None), false, env.inline_hint(body.item)),
+    )
 }
 
 /// The inliner's stack of copies ([`Frame`]), the caller first, and
@@ -197,8 +219,94 @@ pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, hash: Hash128) -> Hash
 /// call not yet solved is one of the solve's members (its scan adds those
 /// the copy keeps), so it stays a call (`FlagSite::Kept`).
 struct Stack {
-    frames: Vec<Frame>,
+    frames: RefCell<Vec<Frame>>,
+    by_def: RefCell<HashMap<DefId, Vec<usize>>>,
+    by_key: RefCell<HashMap<Frame, Vec<usize>>>,
+    pending: RefCell<Option<CopyRequest>>,
+    work: Cell<InlineWork>,
+    marks: RefCell<CycleMarks>,
     solving: bool,
+}
+
+/// Every cycle selects a suffix. Sorted stacks need only inspect/pop their
+/// tails: each active frame is marked at most once, including repeated back
+/// edges. Non-Always membership must survive marking to retain the policy.
+#[derive(Default)]
+struct CycleMarks {
+    non_always: Vec<usize>,
+    pending_non_always: Vec<usize>,
+    pending_all: Vec<usize>,
+}
+
+type Reply = Rc<RefCell<Option<Option<Inlined>>>>;
+struct CopyRequest {
+    def: DefId,
+    args: TyList,
+    reply: Reply,
+}
+
+/// A callee request suspends only this frame. It never polls its child:
+/// the trampoline owns that child's future in a separate heap work frame.
+struct CopyWait<'a> {
+    stack: &'a Stack,
+    def: DefId,
+    args: TyList,
+    reply: Reply,
+}
+impl Future for CopyWait<'_> {
+    type Output = Option<Inlined>;
+    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(made) = self.reply.borrow_mut().take() {
+            return Poll::Ready(made);
+        }
+        *self.stack.pending.borrow_mut() = Some(CopyRequest {
+            def: self.def,
+            args: self.args,
+            reply: self.reply.clone(),
+        });
+        Poll::Pending
+    }
+}
+
+type CopyTask<'a> = (Pin<Box<dyn Future<Output = Option<Inlined>> + 'a>>, Reply);
+
+/// Poll only the deepest unfinished callee. Native poll depth is constant;
+/// suspended rounds retain their cursor, sites and borrowed effect indexes.
+/// Flag solving may enter one separate trampoline; solving mode prevents
+/// another flag solve, so that nesting is bounded by two, not call depth.
+fn run_inline(env: &dyn InlineEnv, body: &mut Body, hash: Hash128, stack: &Stack) -> Hash128 {
+    let mut root = std::pin::pin!(env.inline_into(body, hash, stack));
+    let mut work: Vec<CopyTask<'_>> = Vec::new();
+    let mut cx = Context::from_waker(Waker::noop());
+    loop {
+        let mut counts = stack.work.get();
+        counts.polls += 1;
+        stack.work.set(counts);
+        if let Some((task, reply)) = work.last_mut() {
+            if let Poll::Ready(made) = task.as_mut().poll(&mut cx) {
+                *reply.borrow_mut() = Some(made);
+                work.pop();
+                continue;
+            }
+        } else if let Poll::Ready(hash) = root.as_mut().poll(&mut cx) {
+            env.inline_work(stack.work.get());
+            return hash;
+        }
+        let pending = stack.pending.borrow_mut().take();
+        // ruled out: these private futures await only CopyWait; every Pending
+        // poll posts exactly one request and only its child can resume it.
+        assert!(
+            pending.is_some(),
+            "inliner suspended without a callee request"
+        );
+        if let Some(CopyRequest { def, args, reply }) = pending {
+            work.push((Box::pin(env.prepare_callee(def, args, stack)), reply));
+            let mut counts = stack.work.get();
+            counts.preparations += 1;
+            counts.depth = counts.depth.max(work.len());
+            stack.work.set(counts);
+        }
+    }
 }
 
 impl Memo {
@@ -223,24 +331,95 @@ impl Memo {
 }
 
 impl Stack {
-    fn new(first: Frame, solving: bool) -> Self {
-        Self {
-            frames: vec![first],
+    fn new(first: Frame, solving: bool, hint: InlineHint) -> Self {
+        let stack = Self {
+            frames: RefCell::new(Vec::new()),
+            by_def: RefCell::new(HashMap::default()),
+            by_key: RefCell::new(HashMap::default()),
+            pending: RefCell::new(None),
+            work: Cell::new(InlineWork::default()),
+            marks: RefCell::new(CycleMarks::default()),
             solving,
+        };
+        stack.push(first, hint);
+        stack
+    }
+    fn push(&self, frame: Frame, hint: InlineHint) {
+        let at = self.frames.borrow().len();
+        self.by_def
+            .borrow_mut()
+            .entry(frame.0)
+            .or_default()
+            .push(at);
+        self.by_key.borrow_mut().entry(frame).or_default().push(at);
+        self.frames.borrow_mut().push(frame);
+        let mut marks = self.marks.borrow_mut();
+        marks.pending_all.push(at);
+        if hint != InlineHint::Always {
+            marks.non_always.push(at);
+            marks.pending_non_always.push(at);
         }
     }
-}
-
-impl std::ops::Deref for Stack {
-    type Target = Vec<Frame>;
-    fn deref(&self) -> &Vec<Frame> {
-        &self.frames
+    fn pop(&self) {
+        let mut frames = self.frames.borrow_mut();
+        if let Some(frame) = frames.pop() {
+            let at = frames.len();
+            let mut marks = self.marks.borrow_mut();
+            let CycleMarks {
+                non_always,
+                pending_non_always,
+                pending_all,
+            } = &mut *marks;
+            for indices in [non_always, pending_non_always, pending_all] {
+                if indices.last() == Some(&at) {
+                    indices.pop();
+                }
+            }
+            if let Some(indices) = self.by_def.borrow_mut().get_mut(&frame.0) {
+                indices.pop();
+            }
+            if let Some(indices) = self.by_key.borrow_mut().get_mut(&frame) {
+                indices.pop();
+            }
+        }
     }
-}
-
-impl std::ops::DerefMut for Stack {
-    fn deref_mut(&mut self) -> &mut Vec<Frame> {
-        &mut self.frames
+    /// First matching concrete/wildcard ancestor; hash lookups do not walk depth.
+    fn exact(&self, def: DefId, args: TyList) -> Option<usize> {
+        let mut counts = self.work.get();
+        counts.ancestor_queries += 1;
+        self.work.set(counts);
+        let keys = self.by_key.borrow();
+        [(def, None), (def, Some(args))]
+            .into_iter()
+            .filter_map(|key| keys.get(&key).and_then(|v| v.first()).copied())
+            .min()
+    }
+    fn cycle(&self, def: DefId, args: TyList) -> Option<usize> {
+        self.exact(def, args).or_else(|| {
+            let defs = self.by_def.borrow();
+            let indices = defs.get(&def)?;
+            (indices.len() >= usize::from(hd_mono::layout::MAX_DEPTH))
+                .then(|| indices.first().copied())
+                .flatten()
+        })
+    }
+    fn mark_cycle(&self, at: usize, mut mark: impl FnMut(Frame)) {
+        let mut marks = self.marks.borrow_mut();
+        let pending = if marks.non_always.last().is_some_and(|&i| i >= at) {
+            &mut marks.pending_non_always
+        } else {
+            &mut marks.pending_all
+        };
+        let frames = self.frames.borrow();
+        while pending.last().is_some_and(|&i| i >= at) {
+            if let Some(i) = pending.pop() {
+                mark(frames[i]);
+            }
+        }
+    }
+    #[cfg(test)]
+    fn members(&self, at: usize) -> Vec<Frame> {
+        self.frames.borrow()[at..].to_vec()
     }
 }
 
@@ -254,7 +433,7 @@ impl dyn InlineEnv + '_ {
 
     /// [`inline_calls`] inside the copies on `stack`, the caller first: a
     /// call of one of them stays a call, so recursion never inlines.
-    fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Stack) -> Hash128 {
+    async fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &Stack) -> Hash128 {
         let mut hash = hash;
         // A call through a function reference the body knows is a call
         // of its item, which may copy in turn. A copy may bring more: a
@@ -292,7 +471,7 @@ impl dyn InlineEnv + '_ {
                 )
                 .unwrap_or(false);
             let defaults = body.tags.contains(&Tag::DefaultCall);
-            let (h, copied, writer) = self.inline_round(body, hash, stack, loops_only);
+            let (h, copied, writer) = self.inline_round(body, hash, stack, loops_only).await;
             let copied = copied || literals;
             if copied {
                 let pool = self.pool();
@@ -403,11 +582,11 @@ impl dyn InlineEnv + '_ {
 
     /// One round of [`Self::inline_into`]: the body's hash with each copied
     /// callee's, and whether it copied any.
-    fn inline_round(
+    async fn inline_round(
         &self,
         body: &mut Body,
         hash: Hash128,
-        stack: &mut Stack,
+        stack: &Stack,
         loops_only: bool,
     ) -> (Hash128, bool, bool) {
         let mut k = StableHasher::new("inline");
@@ -431,6 +610,9 @@ impl dyn InlineEnv + '_ {
         };
         let mut caller_effects = None;
         for c in (0..body.len()).rev() {
+            let mut counts = stack.work.get();
+            counts.rows += 1;
+            stack.work.set(counts);
             let in_loop = loops[c] != hd_tir::ir::NONE;
             let Some((def, targs)) =
                 hd_tir::inline::known_call(body, c).and_then(|callee| match callee {
@@ -469,19 +651,16 @@ impl dyn InlineEnv + '_ {
             // derived flag asking a member's), up to `MAX_DEPTH` copies of
             // one function, collection's own bound on instance nesting,
             // which stops a polymorphic recursion's ever-larger types.
-            let same = |&(d, a): &Frame| d == def && a.is_none_or(|a| a == targs);
-            let again = stack.iter().filter(|f| f.0 == def).count();
             if folded.is_none()
-                && let Some(at) = stack.iter().position(same).or_else(|| {
-                    (again >= usize::from(hd_mono::layout::MAX_DEPTH))
-                        .then(|| stack.iter().position(|f| f.0 == def))
-                        .flatten()
-                })
+                && let Some(at) = stack.cycle(def, targs)
             {
-                self.found_cycle(&stack[at..]);
+                self.found_stack_cycle(stack, at);
                 continue;
             }
-            let ordinary = folded.or_else(|| self.callee_copy(def, targs, stack));
+            let ordinary = match folded {
+                Some(copy) => Some(copy),
+                None => self.callee_copy(def, targs, stack).await,
+            };
             let consumer = ordinary.is_none();
             let Some((mut copy, callee_hash)) = ordinary.or_else(|| {
                 self.literal_consumer(
@@ -494,8 +673,8 @@ impl dyn InlineEnv + '_ {
                 continue;
             };
             // A copy made for another caller may call one on the way down.
-            if let Some(at) = stack.iter().position(|&f| self.calls_frame(&copy, f)) {
-                self.found_cycle(&stack[at..]);
+            if let Some(at) = self.calls_active(&copy, stack) {
+                self.found_stack_cycle(stack, at);
                 self.found_cycle(&[(def, Some(targs))]);
                 continue;
             }
@@ -625,6 +804,17 @@ impl dyn InlineEnv + '_ {
         }
     }
 
+    fn found_stack_cycle(&self, stack: &Stack, at: usize) {
+        if let Some(memo) = self.memo() {
+            let mut recursive = lock(&memo.recursive);
+            stack.mark_cycle(at, |(def, args)| {
+                if let Some(args) = args {
+                    recursive.insert((def, args));
+                }
+            });
+        }
+    }
+
     /// Records where `members`, a run of calls that reaches its first
     /// member again, must break in a release build. An all-`.Always`
     /// cycle is rejected by the package check and none is copied. A mixed
@@ -645,17 +835,18 @@ impl dyn InlineEnv + '_ {
         }
     }
 
-    /// Whether `body` calls an instance of `frame`, by name or through a
-    /// trait method's impl.
-    fn calls_frame(&self, body: &Body, (def, args): Frame) -> bool {
-        (0..body.len()).any(|c| {
-            hd_tir::inline::known_call(body, c)
-                .and_then(|callee| match callee {
-                    Callee::Item { def, targs } => Some((def, targs)),
-                    Callee::TraitMethod { .. } => self.impl_target(&callee),
-                })
-                .is_some_and(|(d, t)| d == def && args.is_none_or(|a| a == t))
-        })
+    /// Query each copied call against the indexed active ancestors. Scanning
+    /// ancestors first multiplied call depth by copy size on an acyclic chain.
+    fn calls_active(&self, body: &Body, stack: &Stack) -> Option<usize> {
+        (0..body.len())
+            .filter_map(|c| {
+                let (def, args) = match hd_tir::inline::known_call(body, c)? {
+                    Callee::Item { def, targs } => (def, targs),
+                    callee @ Callee::TraitMethod { .. } => self.impl_target(&callee)?,
+                };
+                stack.exact(def, args)
+            })
+            .min()
     }
 
     /// Whether `body` calls `def`, by name or through a trait method's
@@ -683,7 +874,25 @@ impl dyn InlineEnv + '_ {
     /// makes one per explicit call site. Dev builds consider only explicitly
     /// decorated user functions; release builds also consider ordinary user
     /// functions.
-    fn callee_copy(&self, def: DefId, targs: TyList, stack: &mut Stack) -> Option<(Body, Hash128)> {
+    async fn callee_copy(&self, def: DefId, targs: TyList, stack: &Stack) -> Option<Inlined> {
+        if let Some(memo) = self.memo() {
+            if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
+                return made.clone();
+            }
+            if lock(&memo.recursive).contains(&(def, targs)) {
+                return None;
+            }
+        }
+        CopyWait {
+            stack,
+            def,
+            args: targs,
+            reply: Rc::new(RefCell::new(None)),
+        }
+        .await
+    }
+
+    async fn prepare_callee(&self, def: DefId, targs: TyList, stack: &Stack) -> Option<Inlined> {
         let memo = self.memo();
         if let Some(memo) = memo {
             if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
@@ -696,6 +905,7 @@ impl dyn InlineEnv + '_ {
         if self.const_fold()
             && let Some(c) = self
                 .quiet_constant(def, targs, stack)
+                .await
                 .filter(|(body, _)| self.copy_metadata_fits(def, body))
         {
             if let Some(memo) = memo {
@@ -703,22 +913,25 @@ impl dyn InlineEnv + '_ {
             }
             return Some(c);
         }
-        let made = self.instance(def, targs).and_then(|(copy, hash, fits)| {
-            let nested = (!hd_tir::inline::leaf(&copy)).then(|| {
-                let mut nested = copy.clone();
-                stack.push((def, Some(targs)));
-                let h = self.inline_into(&mut nested, hash, stack);
-                stack.pop();
-                // The decisions the copied callees' constants settle fold
-                // before the copy's size is judged, as its instance's own
-                // body folds them (#1445).
-                if self.const_fold()
-                    && let Some(folded) = hd_mono::defaults::specialize(&nested, &[])
-                {
-                    nested = folded;
-                }
-                (nested, h)
-            });
+        let instance = self.instance(def, targs);
+        let nested = if let Some((copy, hash, _)) =
+            instance.as_ref().filter(|c| !hd_tir::inline::leaf(&c.0))
+        {
+            let mut nested = copy.clone();
+            stack.push((def, Some(targs)), self.inline_hint(def));
+            let h = self.inline_into(&mut nested, *hash, stack).await;
+            stack.pop();
+            // Settle the decisions exposed by copied constants before judging size.
+            if self.const_fold()
+                && let Some(folded) = hd_mono::defaults::specialize(&nested, &[])
+            {
+                nested = folded;
+            }
+            Some((nested, h))
+        } else {
+            None
+        };
+        let made = instance.and_then(|(copy, hash, fits)| {
             if memo.is_some_and(|memo| lock(&memo.recursive).contains(&(def, targs))) {
                 return None;
             }
@@ -762,18 +975,18 @@ impl dyn InlineEnv + '_ {
     /// whose effects all stay in its frame (a derived flag's describer
     /// walk, #1445). `None` when those folds change nothing, so every
     /// other callee keeps the ordinary path, or no constant results.
-    fn quiet_constant(
+    async fn quiet_constant(
         &self,
         def: DefId,
         targs: TyList,
-        stack: &mut Stack,
+        stack: &Stack,
     ) -> Option<(Body, Hash128)> {
         let (mut scratch, hash, prepared) = self.prepared(def, targs)?;
         if prepared == hash {
             return None;
         }
-        stack.push((def, Some(targs)));
-        let h = self.inline_into(&mut scratch, prepared, stack);
+        stack.push((def, Some(targs)), self.inline_hint(def));
+        let h = self.inline_into(&mut scratch, prepared, stack).await;
         stack.pop();
         let quiet = |b: &Body, i: usize| self.quiet(b, i);
         let mut c = hd_mono::defaults::collapse_quiet(&scratch, &quiet)?;
@@ -866,7 +1079,12 @@ impl dyn InlineEnv + '_ {
         let (mut from, mut callees) = (vec![0u32], Vec::new());
         while let Some(&(def, targs)) = nodes.get(bodies.len()) {
             let body = self.prepared(def, targs).map(|(mut b, _, prepared)| {
-                self.inline_into(&mut b, prepared, &mut Stack::new((def, Some(targs)), true));
+                run_inline(
+                    self,
+                    &mut b,
+                    prepared,
+                    &Stack::new((def, Some(targs)), true, self.inline_hint(def)),
+                );
                 hd_mono::defaults::specialize(&b, &[]).unwrap_or(b)
             });
             let mut mine = Vec::new();
@@ -2046,6 +2264,110 @@ mod tests {
     use hd_types::{InternPool, Ty, TyData};
 
     use super::{bottom_up, keep_parameter_kind};
+
+    #[test]
+    fn active_copy_index_preserves_wildcards_polymorphic_limits_and_pop() {
+        let def = hd_base::DefId::from_raw;
+        let root = super::Stack::new((def(1), None), false, super::InlineHint::Default);
+        assert_eq!(root.exact(def(1), hd_types::TyList(99)), Some(0));
+        root.push(
+            (def(2), Some(hd_types::TyList(1))),
+            super::InlineHint::Default,
+        );
+        assert_eq!(root.exact(def(2), hd_types::TyList(1)), Some(1));
+        assert_eq!(root.cycle(def(2), hd_types::TyList(2)), None);
+        for i in 0..u32::from(hd_mono::layout::MAX_DEPTH) {
+            root.push(
+                (def(3), Some(hd_types::TyList(i))),
+                super::InlineHint::Default,
+            );
+        }
+        assert_eq!(root.cycle(def(3), hd_types::TyList(u32::MAX)), Some(2));
+        assert_eq!(
+            root.members(2).len(),
+            usize::from(hd_mono::layout::MAX_DEPTH)
+        );
+        for _ in 0..hd_mono::layout::MAX_DEPTH {
+            root.pop();
+        }
+        assert_eq!(root.cycle(def(3), hd_types::TyList(0)), None);
+        root.pop();
+        root.push(
+            (def(2), Some(hd_types::TyList(2))),
+            super::InlineHint::Default,
+        );
+        assert_eq!(root.exact(def(2), hd_types::TyList(1)), None);
+        assert_eq!(root.exact(def(2), hd_types::TyList(2)), Some(1));
+        root.pop();
+        root.pop();
+        root.pop();
+        assert!(root.members(0).is_empty());
+    }
+
+    #[test]
+    fn pathological_active_copy_queries_do_not_walk_chain_depth() {
+        let mut counts = Vec::new();
+        for depth in [1000u32, 10000] {
+            let stack = super::Stack::new(
+                (DefId::from_raw(0), None),
+                false,
+                super::InlineHint::Default,
+            );
+            for i in 1..=depth {
+                stack.push(
+                    (DefId::from_raw(i), Some(hd_types::TyList(0))),
+                    super::InlineHint::Default,
+                );
+            }
+            for i in 1..=depth {
+                assert_eq!(
+                    stack.cycle(DefId::from_raw(i), hd_types::TyList(0)),
+                    Some(i as usize)
+                );
+            }
+            counts.push(stack.work.get().ancestor_queries);
+            assert_eq!(stack.work.get().ancestor_queries, depth as usize);
+        }
+        assert_eq!(counts[1], 10 * counts[0]);
+    }
+
+    #[test]
+    fn pathological_cycle_back_edges_mark_each_active_frame_once() {
+        use super::{InlineHint, Stack};
+        for depth in [1000u32, 10000] {
+            let stack = Stack::new((DefId::from_raw(0), None), false, InlineHint::Default);
+            for i in 1..=depth {
+                stack.push(
+                    (DefId::from_raw(i), Some(hd_types::TyList(0))),
+                    InlineHint::Default,
+                );
+            }
+            let mut marked = 0;
+            for _ in 0..1000 {
+                stack.mark_cycle(0, |_| marked += 1);
+            }
+            assert_eq!(marked, depth as usize + 1);
+        }
+        let stack = Stack::new((DefId::from_raw(0), None), false, InlineHint::Default);
+        let frame = |i| (DefId::from_raw(i), Some(hd_types::TyList(0)));
+        stack.push(frame(1), InlineHint::Always);
+        stack.push(frame(2), InlineHint::Always);
+        let mut marked = Vec::new();
+        stack.mark_cycle(1, |f| marked.push(f.0));
+        assert_eq!(marked, [DefId::from_raw(2), DefId::from_raw(1)]);
+        stack.mark_cycle(0, |f| marked.push(f.0));
+        assert_eq!(marked.len(), 3);
+        stack.pop();
+        stack.push(frame(2), InlineHint::Always);
+        stack.mark_cycle(1, |f| marked.push(f.0));
+        assert_eq!(marked.len(), 4);
+        stack.push(frame(3), InlineHint::Default);
+        stack.push(frame(4), InlineHint::Always);
+        stack.mark_cycle(1, |f| marked.push(f.0));
+        assert_eq!(marked.last(), Some(&DefId::from_raw(3)));
+        stack.mark_cycle(4, |f| marked.push(f.0));
+        assert_eq!(marked.last(), Some(&DefId::from_raw(4)));
+    }
 
     #[test]
     fn consumer_query_prepares_once_across_site_width_and_instance_depth() {
