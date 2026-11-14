@@ -4,7 +4,7 @@ use std.function.Fn
 use std.hash.Hash
 use std.http.Url as HttpUrl
 use std.inspect.Inspectable
-use std.regex.Regex
+use std.regex.{Regex, RegexError}
 use std.structure.{Facts, Field, Member, Structure, Variant, Walker}
 use std.text.r
 
@@ -704,7 +704,7 @@ impl[F < Validate] Rule[F] for ByteLength[F]:
 
 @annotate::[F](.Field)
 pub struct Pattern[F]:
-    source: string
+    compiled: Result[Regex, RegexError]
     message: string?
 
 impl[F < Validate] Rule[F] for Pattern[F]:
@@ -714,7 +714,7 @@ impl[F < Validate] Rule[F] for Pattern[F]:
             .None =>
                 context.definition("pattern requires text")
                 return
-        regex := match Regex::new(self.source):
+        regex := match self.compiled:
             .Ok(regex) => regex
             .Err(error) =>
                 context.definition("invalid pattern: $error")
@@ -958,7 +958,7 @@ pub fn byte_length(minimum: usize, maximum: usize, message: string? = .None) -> 
 
 ## A regular expression that must match the text.
 pub fn pattern(source: string, message: string? = .None) -> Pattern[string]:
-    Pattern::[string] { source: source, message: message }
+    Pattern::[string] { compiled: Regex::new(source), message: message }
 
 ## A WHATWG HTML valid email address.
 pub fn email(message: string? = .None) -> Email[string]:

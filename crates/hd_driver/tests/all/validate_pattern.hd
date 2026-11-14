@@ -1,0 +1,40 @@
+use std.regex.pattern_compiles
+use std.testing.{assert, assert_equal}
+use std.validate.{Pattern, Rule, Validate, ValidationContext, pattern}
+
+struct Repeated:
+    rule: Pattern[string]
+    text: string
+
+impl Validate for Repeated:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        let index: usize = 0
+        while index < 10000:
+            self.rule.apply(&self.text, context)
+            index += 1
+
+pub fn main() -> void $ Console:
+    value := Repeated { rule: pattern("^[a-z][a-z0-9_]{2,31}$"), text: "valid_user42" }
+    assert(value.validated().is_ok())
+    assert_equal(pattern_compiles(), 1)
+    broken := Repeated { rule: pattern("["), text: "anything" }
+    assert_equal(pattern_compiles(), 2)
+    match broken.validated():
+        .Err(.Definition(path, reason)) =>
+            assert(path.is_empty())
+            assert_equal(reason, "invalid pattern: missing closing ] at byte 0")
+        _ => panic("expected the cached pattern error during validation")
+    assert_equal(pattern_compiles(), 2)
+    other := Repeated {
+        rule: pattern("^other$", message= .Some("custom mismatch")),
+        text: "valid_user42",
+    }
+    assert_equal(pattern_compiles(), 3)
+    match other.validated():
+        .Err(.Invalid(issues, _)) =>
+            assert_equal(issues.len(), 64)
+            assert_equal(issues[0].problem.code, "pattern")
+            assert_equal(issues[0].problem.message, "custom mismatch")
+        _ => panic("expected rejection from a separate compiled pattern")
+    assert_equal(pattern_compiles(), 3)
+    println("pattern compiled once")

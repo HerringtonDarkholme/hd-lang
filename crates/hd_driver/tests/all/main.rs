@@ -148,6 +148,7 @@ mod unreachable_code;
 mod unread_facts;
 mod unread_must_use_binding;
 mod unsigned_comparison;
+mod validate_pattern;
 mod variant_binding_names;
 mod warm_source_reads;
 
