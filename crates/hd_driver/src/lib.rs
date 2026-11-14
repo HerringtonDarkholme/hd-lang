@@ -7009,6 +7009,21 @@ impl Run<'_> {
         // implementation directly: only the position findings are
         // reported here, and no adapter bodies are built (spec 09
         // `trait.derive.newtype.base`).
+        // The derived impls by the type they target, indexed once, so each
+        // newtype reads its own (#1928).
+        let mut derived_of: HashMap<DefId, Vec<&hd_resolve::Item>> = HashMap::default();
+        hd_resolve::work::derive_work(cx.lookup.own.len());
+        for it in cx.lookup.own {
+            if let ItemData::Impl {
+                self_ty,
+                kind: hd_resolve::ImplKind::Derived,
+                ..
+            } = &it.data
+                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+            {
+                derived_of.entry(def).or_default().push(it);
+            }
+        }
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Newtype)
@@ -7016,7 +7031,10 @@ impl Run<'_> {
             if failed.is_some() && !self.analyze() {
                 break;
             }
-            match hd_check::newtype::derived_newtype_findings(&cx, h.def, h.node, &mut diags) {
+            let derived = derived_of.get(&h.def).into_iter().flatten().copied();
+            match hd_check::newtype::derived_newtype_findings(
+                &cx, h.def, derived, h.node, &mut diags,
+            ) {
                 Ok(findings) => {
                     for f in findings {
                         diags.error(
@@ -7636,6 +7654,7 @@ impl Run<'_> {
         let mut decl: HashMap<DefId, Option<FactBodies>> = HashMap::default();
         let mut decl_types: HashMap<DefId, Option<hd_check::SlotTypes>> = HashMap::default();
         let mut derived = Derived::default();
+        let hx = HeadIndex::new(heads);
         for (i, it) in cx.lookup.own.iter().enumerate() {
             let ItemData::Impl { trait_, kind, .. } = &it.data else {
                 continue;
@@ -7648,7 +7667,7 @@ impl Run<'_> {
                 continue;
             }
             // A rejected block (`misplaced-derivation`) derives nothing.
-            if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup.own, it).is_some() {
+            if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup, it).is_some() {
                 continue;
             }
             let template = hd_resolve::lower::template_of(cx.lookup, *trait_);
@@ -7665,7 +7684,7 @@ impl Run<'_> {
             .contains(trait_);
             if *kind == hd_resolve::ImplKind::Derivation && (template.is_none() || comparison) {
                 if hd_resolve::lower::names_std_structure(&names, cx.scope)
-                    && let Some(h) = heads.iter().find(|h| h.def == it.def)
+                    && let Some(h) = hx.first(it.def)
                 {
                     let name = names.display_name(*trait_);
                     let why = if comparison {
@@ -7691,11 +7710,15 @@ impl Run<'_> {
                     && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
                     && !cx
                         .lookup
-                        .own
-                        .iter()
-                        .any(|i| i.def == def && matches!(i.data, ItemData::Newtype(_)))
+                        .own_index
+                        .get(&def)
+                        .is_some_and(|&i| matches!(cx.lookup.own[i].data, ItemData::Newtype(_)))
                     && let Some(span) = hd_resolve::lower::derive_span(
-                        &names, cx.scope, &cx.src, heads, def, *trait_,
+                        &names,
+                        cx.scope,
+                        &cx.src,
+                        hx.of(def),
+                        *trait_,
                     )
                 {
                     let name = names.display_name(*trait_);
@@ -7710,7 +7733,7 @@ impl Run<'_> {
             let Some(tm) = self.item_module(template) else {
                 continue;
             };
-            let block = heads.iter().find(|h| h.def == it.def).map(|h| h.node);
+            let block = hx.first(it.def).map(|h| h.node);
             let omitted = block
                 .map(|b| hd_check::derive::omitted_members(&cx.src, b))
                 .unwrap_or_default();
@@ -7733,14 +7756,14 @@ impl Run<'_> {
                 // was built. A later input's traitless block must not reuse
                 // an earlier derivation's declaration Structure owner.
                 opt.lines = !lines.is_empty() || self.repl_number(m).is_some();
-                if heads.iter().any(|h| h.def == opt.data)
+                if hx.first(opt.data).is_some()
                     && let Some(types) =
-                        derivation_fact_types(cx, heads, (&opt, &lines), &mut decl_types)
+                        derivation_fact_types(cx, &hx, (&opt, &lines), &mut decl_types)
                 {
                     opt.set_fact_types(&types);
                 }
-                let facts = if heads.iter().any(|h| h.def == opt.data) {
-                    derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived)
+                let facts = if hx.first(opt.data).is_some() {
+                    derivation_facts(cx, &hx, (&opt, &lines), &mut decl, &mut derived)
                 } else {
                     self.foreign_facts(
                         m,
@@ -7890,12 +7913,13 @@ impl Run<'_> {
         let Some(mut prior) = self
             .in_module(m, dm, (&[], impls.own), |dcx, dheads| {
                 let item = dcx.lookup.item(data)?;
-                let node = dheads.iter().find(|x| x.def == data)?.node;
+                let dx = HeadIndex::new(dheads);
+                let node = dx.first(data)?.node;
                 let view = hd_check::structure::declaration_facts(
                     dcx,
                     item,
                     node,
-                    traitless(dcx, dheads, data),
+                    traitless(dcx, &dx, data),
                 );
                 Some(hd_check::declaration_types(dcx, data, &view))
             })
@@ -7954,7 +7978,7 @@ impl Run<'_> {
         let dm = self.item_module(data)?.idx();
         let base = self
             .in_module(m, dm, (&[], impls.own), |dcx, dheads| {
-                declaration_bodies(dcx, dheads, data, derived)
+                declaration_bodies(dcx, &HeadIndex::new(dheads), data, derived)
             })
             .flatten()?;
         // The type has at most one block with no trait
@@ -13040,7 +13064,7 @@ fn add_derived_methods(names: &Names<'_>, items: &mut Vec<Item>, derived: &[Item
 /// when a fact is not generated yet.
 fn derivation_facts<'t>(
     cx: &BodyCx<'t>,
-    heads: &[hd_resolve::Head<'t>],
+    heads: &HeadIndex<'_, 't>,
     (opt, lines): (
         &hd_check::derive::OptIn,
         &[hd_check::derive::MemberLine<'t>],
@@ -13058,7 +13082,7 @@ fn derivation_facts<'t>(
         return Some(base);
     }
     let item = cx.lookup.item(data)?;
-    let node = heads.iter().find(|h| h.def == data)?.node;
+    let node = heads.first(data)?.node;
     let mut view =
         hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
     let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
@@ -13084,7 +13108,7 @@ fn derivation_facts<'t>(
 /// into `cache`.
 fn derivation_fact_types<'t>(
     cx: &BodyCx<'t>,
-    heads: &[hd_resolve::Head<'t>],
+    heads: &HeadIndex<'_, 't>,
     (opt, lines): (
         &hd_check::derive::OptIn,
         &[hd_check::derive::MemberLine<'t>],
@@ -13094,7 +13118,7 @@ fn derivation_fact_types<'t>(
     let data = opt.data;
     let typed = || {
         let item = cx.lookup.item(data)?;
-        let node = heads.iter().find(|h| h.def == data)?.node;
+        let node = heads.first(data)?.node;
         let mut view =
             hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
         hd_check::structure::edit_facts(cx, item, &mut view, lines);
@@ -13111,22 +13135,90 @@ fn derivation_fact_types<'t>(
 /// items of module `cx`, if it has one.
 fn traitless<'t>(
     cx: &BodyCx<'t>,
-    heads: &[hd_resolve::Head<'t>],
+    heads: &HeadIndex<'_, 't>,
     data: DefId,
 ) -> Option<hd_syntax::NodeRef<'t>> {
-    let it = cx
-        .lookup
-        .own
-        .iter()
-        .find(|it| traitless_for(cx.names.pool, it, data))?;
-    heads.iter().find(|h| h.def == it.def).map(|h| h.node)
+    let block = *heads
+        .traitless
+        .get_or_init(|| {
+            let mut by_data: HashMap<DefId, DefId> = HashMap::default();
+            hd_resolve::work::derive_work(cx.lookup.own.len());
+            for it in cx.lookup.own {
+                if let Some(def) = traitless_target(cx.names.pool, it) {
+                    by_data.entry(def).or_insert(it.def);
+                }
+            }
+            by_data
+        })
+        .get(&data)?;
+    heads.first(block).map(|h| h.node)
+}
+
+/// A module's heads by item, and its derivation blocks with no trait by
+/// target, indexed once for the module's derivations (#1928): a
+/// derivation asks each by one probe, not a scan of the heads or items.
+struct HeadIndex<'h, 't> {
+    heads: &'h [hd_resolve::Head<'t>],
+    /// Each item's heads, in order.
+    by_def: HashMap<DefId, Vec<usize>>,
+    /// The first block with no trait of each target among the items
+    /// ([`traitless`]), made on the first derivation that asks.
+    traitless: std::cell::OnceCell<HashMap<DefId, DefId>>,
+}
+
+impl<'h, 't> HeadIndex<'h, 't> {
+    fn new(heads: &'h [hd_resolve::Head<'t>]) -> Self {
+        hd_resolve::work::derive_work(heads.len());
+        let mut by_def: HashMap<DefId, Vec<usize>> = HashMap::default();
+        for (i, h) in heads.iter().enumerate() {
+            by_def.entry(h.def).or_default().push(i);
+        }
+        HeadIndex {
+            heads,
+            by_def,
+            traitless: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// The heads of `def`, in order.
+    fn of(&self, def: DefId) -> impl Iterator<Item = &'h hd_resolve::Head<'t>> + '_ {
+        hd_resolve::work::derive_work(1);
+        let heads = self.heads;
+        self.by_def
+            .get(&def)
+            .into_iter()
+            .flatten()
+            .map(move |&i| &heads[i])
+    }
+
+    /// The first head of `def`.
+    fn first(&self, def: DefId) -> Option<&'h hd_resolve::Head<'t>> {
+        hd_resolve::work::derive_work(1);
+        let &i = self.by_def.get(&def)?.first()?;
+        self.heads.get(i)
+    }
 }
 
 /// Whether `it` is a derivation block with no trait for `data`.
 fn traitless_for(pool: &InternPool, it: &Item, data: DefId) -> bool {
-    matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
-        if *trait_ == DefId::NONE
-            && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
+    traitless_target(pool, it) == Some(data)
+}
+
+/// The struct or enum that `it` targets, when it is a derivation block
+/// with no trait.
+fn traitless_target(pool: &InternPool, it: &Item) -> Option<DefId> {
+    match &it.data {
+        ItemData::Impl {
+            trait_,
+            by: Some(_),
+            self_ty,
+            ..
+        } if *trait_ == DefId::NONE => match pool.get(*self_ty) {
+            TyData::Adt { def, .. } => Some(def),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// The declaration facts bodies of the struct or enum `data`, which
@@ -13135,12 +13227,12 @@ fn traitless_for(pool: &InternPool, it: &Item, data: DefId) -> bool {
 /// `derived`. `None` when a fact is not generated yet.
 fn declaration_bodies<'t>(
     cx: &BodyCx<'t>,
-    heads: &[hd_resolve::Head<'t>],
+    heads: &HeadIndex<'_, 't>,
     data: DefId,
     derived: &mut Derived,
 ) -> Option<FactBodies> {
     let item = cx.lookup.item(data)?;
-    let node = heads.iter().find(|h| h.def == data)?.node;
+    let node = heads.first(data)?.node;
     let facts = hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
     let (b, bodies) = hd_check::structure::fact_bodies(cx, (data, ""), (&facts, node), None)?;
     derived.bodies.extend(bodies);

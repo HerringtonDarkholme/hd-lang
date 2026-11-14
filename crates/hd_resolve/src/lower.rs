@@ -7705,10 +7705,18 @@ impl ItemIndex {
 pub fn misplaced_block(
     names: &Names<'_>,
     session: &[PathId],
-    items: &[Item],
+    lookup: &Lookup<'_>,
     it: &Item,
 ) -> Option<&'static str> {
-    misplaced_block_in(names, session, &|d| items.iter().find(|i| i.def == d), it)
+    misplaced_block_in(
+        names,
+        session,
+        &|d| {
+            crate::work::item_probe();
+            lookup.own.get(*lookup.own_index.get(&d)?)
+        },
+        it,
+    )
 }
 
 /// `misplaced_block`, with `item` finding an item of `module` by `DefId`.
@@ -8198,28 +8206,21 @@ pub fn names_std_structure(names: &Names<'_>, scope: &ModuleScope) -> bool {
 /// is never lowered (`annot.template.module`), so it derives nothing.
 #[must_use]
 pub fn template_of(lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
-    let is = |it: &&Item| matches!(&it.data, ItemData::Impl { trait_: t, kind: ImplKind::Template, .. } if *t == trait_);
-    lookup
-        .own
-        .iter()
-        .find(is)
-        .or_else(|| lookup.ifaces.iter().find_map(|f| f.items.impls().find(is)))
-        .map(|it| it.def)
+    lookup.template_of(trait_)
 }
 
 /// The `@derive` line of `ty`'s declaration that names `trait_`, if one
 /// resolves: its span, for `underivable-trait` (`annot.derive.other`,
 /// `annot.derive.error-trait`).
 #[must_use]
-pub fn derive_span(
+pub fn derive_span<'h, 't: 'h>(
     names: &Names<'_>,
     scope: &ModuleScope,
     src: &Src<'_>,
-    heads: &[Head<'_>],
-    ty: DefId,
+    heads_of_ty: impl IntoIterator<Item = &'h Head<'t>>,
     trait_: DefId,
 ) -> Option<Span> {
-    for h in heads.iter().filter(|h| h.def == ty) {
+    for h in heads_of_ty {
         for d in h
             .node
             .children()

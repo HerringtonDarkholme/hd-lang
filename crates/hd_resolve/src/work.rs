@@ -199,3 +199,30 @@ pub(crate) fn member_pairs(n: u64) {
         }
     });
 }
+
+thread_local! {
+    static DERIVE_WORK: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the work of finding what each derivation needs on this thread:
+/// one per head or item indexed, one per lookup of a derivation's heads,
+/// template or target (`template_of`, `derive_span`, the driver's
+/// derivation pass). Use the driver's serial executor to measure a whole
+/// build.
+pub fn count_derive_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = DERIVE_WORK.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = DERIVE_WORK.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of derivation lookup work; public for the driver's
+/// derivation pass.
+pub fn derive_work(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::DeriveWork, n as u64);
+    DERIVE_WORK.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}

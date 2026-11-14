@@ -2392,6 +2392,7 @@ parse/valid/trait-less-derivation-block.hd	parse	accept	lang/02-grammar.md#r-gra
 typing/valid/annotate-identifier.hd	type	accept	lang/01-lexical-structure.md#r-lex.keyword.reserved-words.v2
 typing/valid/trait-less-derivation-block.hd	type	accept	lang/14-annotations.md#r-annot.no-trait.form
 runtime/valid/trait-less-block-facts.hd	runtime	accept	lang/14-annotations.md#r-annot.no-trait.after-decorators
+runtime/valid/trait-less-blocks-of-several-types-apply-to-their-own.hd	runtime	accept	lang/14-annotations.md#r-annot.no-trait.after-decorators
 typing/invalid/trait-less-block-omit.hd	type	reject:invalid-member-line	lang/14-annotations.md#r-annot.no-trait.no-omit
 typing/invalid/trait-less-block-method.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.no-trait.lines-only
 typing/invalid/trait-less-block-newtype.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.no-trait.target

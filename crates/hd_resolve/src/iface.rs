@@ -1137,6 +1137,26 @@ pub struct Lookup<'a> {
     pub ifaces: Vec<&'a FolderIface>,
     index: &'a IfaceIndex,
     by_folder: Vec<Option<&'a FolderIface>>,
+    /// The own items' derivation templates by trait, made on the first
+    /// derivation that asks.
+    templates: std::sync::OnceLock<HashMap<DefId, DefId>>,
+}
+
+/// Each trait's derivation template among `items`: the first in order.
+fn templates_by_trait<'i>(items: impl Iterator<Item = &'i Item>) -> HashMap<DefId, DefId> {
+    let mut out = HashMap::default();
+    for it in items {
+        crate::work::derive_work(1);
+        if let ItemData::Impl {
+            trait_,
+            kind: ImplKind::Template,
+            ..
+        } = &it.data
+        {
+            out.entry(*trait_).or_insert(it.def);
+        }
+    }
+    out
 }
 
 impl<'a> Lookup<'a> {
@@ -1162,7 +1182,21 @@ impl<'a> Lookup<'a> {
             ifaces: visible,
             index,
             by_folder,
+            templates: std::sync::OnceLock::new(),
         }
+    }
+
+    /// The derivation template of `trait_` (`annot.template.form`): the
+    /// own items' first, then the first interface's that has one. One
+    /// probe per interface, against an index made once.
+    #[must_use]
+    pub fn template_of(&self, trait_: DefId) -> Option<DefId> {
+        crate::work::derive_work(1);
+        self.templates
+            .get_or_init(|| templates_by_trait(self.own.iter()))
+            .get(&trait_)
+            .copied()
+            .or_else(|| self.ifaces.iter().find_map(|f| f.template_of(trait_)))
     }
     /// The interface of `folder`, when the closure holds it.
     #[must_use]
@@ -1335,6 +1369,10 @@ pub struct FolderIface {
     /// The std exports by name, for import hints ([`ImportIndex`]): made
     /// on the first hint that reads this interface. Outside every hash.
     pub import_index: std::sync::OnceLock<ImportIndex>,
+    /// Each trait's derivation template among the items, the first in
+    /// order (`annot.template.form`), made on the first derivation that
+    /// asks (#1928). Outside every hash.
+    pub templates: std::sync::OnceLock<HashMap<DefId, DefId>>,
     /// The modules a REPL input's `use`s name, as (input module path,
     /// local name, module path): what the input leaves in the session
     /// besides its exports (`cli.repl.uses.other`). Empty for any other
@@ -1344,6 +1382,27 @@ pub struct FolderIface {
 }
 
 impl FolderIface {
+    /// The derivation template of `trait_` among the items: one probe of
+    /// an index of the template impls, made once by their tags.
+    #[must_use]
+    pub fn template_of(&self, trait_: DefId) -> Option<DefId> {
+        self.templates
+            .get_or_init(|| {
+                let items = &self.items;
+                templates_by_trait(
+                    (0..items.len())
+                        .filter(|&i| {
+                            items
+                                .impl_kind(i)
+                                .is_some_and(|(k, _)| k == ImplKind::Template)
+                        })
+                        .filter_map(|i| items.get(i)),
+                )
+            })
+            .get(&trait_)
+            .copied()
+    }
+
     #[must_use]
     pub fn item(&self, d: DefId) -> Option<&Item> {
         self.by_def.get(&d).and_then(|&i| self.items.get(i))
@@ -2661,6 +2720,7 @@ pub fn folder_iface(
         broken_names: hd_base::HashSet::default(),
         names_hash: Hash128::default(),
         import_index: std::sync::OnceLock::new(),
+        templates: std::sync::OnceLock::new(),
         module_uses,
     }
 }

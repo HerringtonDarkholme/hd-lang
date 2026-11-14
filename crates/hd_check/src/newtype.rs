@@ -10,7 +10,7 @@
 use hd_base::{DefId, StageResult};
 use hd_diag::DiagBuf;
 use hd_intern::PathKind;
-use hd_resolve::{ImplKind, ItemData};
+use hd_resolve::{ImplKind, Item, ItemData};
 use hd_syntax::NodeRef;
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::{ParamRef, Prim, Ty, TyData};
@@ -32,16 +32,18 @@ pub struct DeriveFinding {
 /// finding (`trait.derive.newtype.self-error`). Erased newtypes forward
 /// to their base implementation directly, so no adapter bodies are
 /// built; the position analysis still runs to report its findings.
-pub fn derived_newtype_findings(
+/// `derived` holds the module's derived impls that target `newtype`.
+pub fn derived_newtype_findings<'i>(
     cx: &BodyCx<'_>,
     newtype: DefId,
+    derived: impl IntoIterator<Item = &'i Item>,
     node: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Vec<DeriveFinding>> {
     let names = &cx.names;
     let pool = names.pool;
     let mut findings = Vec::new();
-    for it in cx.lookup.own {
+    for it in derived {
         let ItemData::Impl {
             trait_,
             trait_args,

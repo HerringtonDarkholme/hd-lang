@@ -1683,8 +1683,8 @@ fn import_hints_name_a_module_and_several_homes_from_the_index() {
 
 /// `n` traits, each with a written implementation and a delegating one
 /// that writes its associated function, and a newtype that derives `Eq`
-/// for every 100th: a derivation still finds its template by a scan of
-/// the module's items, which only a few keep fast.
+/// for every 100th (`derivations_find_what_they_need_by_one_probe_each`
+/// derives for every one).
 fn trait_impls(n: usize) -> String {
     let mut s = String::new();
     for i in 0..n {
@@ -1883,6 +1883,45 @@ fn inherent_members_are_compared_by_target_head() {
             assert!(
                 base > 0 && pairs <= 10 * base * 5 / 4,
                 "inherent member comparisons for 2,000 and {n}: {base}, {pairs}"
+            );
+        }
+    });
+}
+
+/// `n` traits, each with an implementation, a newtype and a struct that
+/// derive `Eq`, and a struct with a block with no trait that derives
+/// `Debug`: `3n` derivations, each finding its template, its heads and
+/// its target's block.
+fn derived_types(n: usize) -> String {
+    let mut s = String::from("use std.structure.Structure\n\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "trait T{i}:\n    fn f(self) -> i32\n\nstruct S{i}:\n    a: i32\n\nimpl T{i} for S{i}:\n    fn f(self) -> i32: self.a\n\n@derive(Eq)\ntype M{i}(i32)\n\n@derive(Eq)\nstruct D{i}:\n    a: i32\n\n@derive(Debug)\nstruct B{i}:\n    a: i32\n\nimpl B{i} by Structure:\n    a = []\n\n"
+        );
+    }
+    s
+}
+
+// Derivations: #1928, a derivation finds its trait's template through an
+// index of the templates by trait, its type's heads and its block with no
+// trait through the module's index by item, and a newtype its derived
+// impls through an index by target, one probe each, not a scan of every
+// item or head per derivation.
+#[test]
+fn derivations_find_what_they_need_by_one_probe_each() {
+    on_test_stack(|| {
+        let mut base = 0;
+        for n in [1_000, 10_000] {
+            let (out, work) =
+                hd_resolve::work::count_derive_work(|| compile(&derived_types(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            if n == 1_000 {
+                base = work;
+            }
+            assert!(
+                base > 0 && work <= 10 * base * 5 / 4,
+                "derivation lookups for 1,000 and {n}: {base}, {work}"
             );
         }
     });
