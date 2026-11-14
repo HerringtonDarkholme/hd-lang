@@ -1105,3 +1105,37 @@ fn a_projection_past_the_binding_limit_is_reported_once_where_each_type_is_used(
     ));
     assert_eq!(result, [(23, proof(&s64))]);
 }
+
+// Driver: #1846, a diagnostic's line and column come from one line index
+// per file, built on first use, so locating d diagnostics in a file of n
+// bytes costs n + d log n, not n · d. Review F13: one file with 16,000
+// syntax errors took 13.6 s.
+/// `n` functions whose result has the wrong type: an error each.
+fn wrong_results(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = writeln!(s, "fn f{i}() -> i32: \"a\"");
+    }
+    s
+}
+
+#[test]
+fn locating_many_diagnostics_indexes_their_file_once() {
+    for n in [2000, 20_000] {
+        let source = wrong_results(n);
+        let out = compile(&source, &Goal::Analyze);
+        let (located, indexed) = hd_driver::count_indexed_bytes(|| out.render_located());
+        assert_eq!(indexed, source.len() as u64, "{n} errors");
+        let mismatches: Vec<&str> = located
+            .lines()
+            .filter(|l| l.contains("type-mismatch"))
+            .collect();
+        assert_eq!(mismatches.len(), n);
+        let last = format!("main.hd:{n}:");
+        assert!(
+            mismatches.last().is_some_and(|l| l.contains(&last)),
+            "{:?}",
+            mismatches.last()
+        );
+    }
+}

@@ -441,18 +441,16 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
 ### Robustness Of Compile Time
 
 26. **R0c. Exponential and quadratic checker paths. [V, review F8 to
-    F15]**
+    F12, F14, F15]**
     - Doubled tuple types, a walk per tree node (F8, F14, `unify.rs:233`).
     - Speculative method trials re-check the argument per candidate (F9,
       F10, `trial.rs:400`, `:483`).
     - Init summaries sorted by formatted path (F11).
     - An impl lookup by linear `find` (F12, `lib.rs:8441`).
-    - `line_column` scans from the file start per diagnostic (F13,
-      `lib.rs:687`).
     - A per-body field walk (F15).
     - Fixes: hash-consed type walks with a visited set, an argument cache
       across trials (rustc's `DeepRejectCtxt` fast reject is planned in
-      `crates/hd_check/DESIGN.md`), an id index, and a line-start table.
+      `crates/hd_check/DESIGN.md`) and an id index.
       Count fuel in type nodes too.
 
 27. **R0d. Pathological tests cover only `hd check`. [V, review §6]**

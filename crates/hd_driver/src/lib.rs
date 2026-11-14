@@ -69,7 +69,7 @@ mod positions;
 mod report;
 mod skims;
 mod texts;
-pub use texts::Texts;
+pub use texts::{Texts, count_indexed_bytes};
 #[cfg(test)]
 mod strip_comments;
 
@@ -647,8 +647,8 @@ impl Output {
         let (line, column) = s
             .file
             .get()
-            .and_then(|_| self.texts.get(s.file.idx()))
-            .map_or((1, 1), |text| line_column(text.as_bytes(), s.lo as usize));
+            .and_then(|_| self.texts.line_column(s.file.idx(), s.lo as usize))
+            .unwrap_or((1, 1));
         (file, line, column)
     }
 
@@ -680,20 +680,6 @@ impl Output {
             .and_then(|_| self.files.get(s.file.idx()).cloned())
             .unwrap_or_default()
     }
-}
-
-/// The 1-based line and column of byte `offset` in `text`. The column counts
-/// characters after the line's last newline.
-fn line_column(text: &[u8], offset: usize) -> (usize, usize) {
-    let before = &text[..offset.min(text.len())];
-    // Each newline ends one segment, so the segment count is the line number.
-    let line = before.split(|&b| b == b'\n').count();
-    let start = before
-        .iter()
-        .rposition(|&b| b == b'\n')
-        .map_or(0, |i| i + 1);
-    let column = String::from_utf8_lossy(&before[start..]).chars().count() + 1;
-    (line, column)
 }
 
 /// Whether a top-level function header declares `main` or `main!`, and if
