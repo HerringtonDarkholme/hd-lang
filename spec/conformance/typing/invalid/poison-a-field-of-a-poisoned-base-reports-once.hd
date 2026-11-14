@@ -1,0 +1,10 @@
+# test: a field of a poisoned base is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+struct Point:
+    x: i32
+
+fn run(p: Point) -> i32:
+    let v = p.nope.x # diagnostic: unknown-field
+    let z = v + 1
+    z

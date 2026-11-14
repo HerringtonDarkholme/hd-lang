@@ -1,0 +1,7 @@
+# test: a registration call missing its body is poison, so nothing else reports
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+tests:
+    use std.testing.it_each
+
+    it_each("doubles", [1, 2]) # diagnostic: argument-count

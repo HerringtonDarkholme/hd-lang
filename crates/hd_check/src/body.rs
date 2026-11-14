@@ -3196,13 +3196,6 @@ impl Ck<'_, '_> {
                     .collect::<Vec<_>>(),
             ),
         };
-        // Error recovery leaves a `never` where an earlier error in this
-        // body found no type, which adds no diagnostic. Without such an
-        // error, `never` is a real type that implements no sealed trait
-        // (`types.sealed.never`, `trait.inspectable.not.never`).
-        if self.resolved(tref.self_ty) == Ty::NEVER && self.diags.has_errors() {
-            return Ok(Some(hd_types::solver::Evidence::Poison));
-        }
         // `Instantiations` and ordinary `Implements` goals both see the
         // compiler-supplied `Fn` implementation. The general solver owns
         // the plain-function case; the checker also admits the lowered

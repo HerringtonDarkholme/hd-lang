@@ -1,0 +1,7 @@
+# test: a call of an unknown function is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn run() -> i32:
+    let v = nope(1) # diagnostic: unknown-name
+    let z = v + 1
+    z

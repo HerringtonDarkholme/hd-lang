@@ -1154,8 +1154,8 @@ impl Ck<'_, '_> {
             && let Some(name) = name
         {
             // `types.bind.never`: a binding without an annotation whose
-            // initializer has type `never` could never be read. A failed
-            // initializer may recover as `never`; it needs no follow-on.
+            // initializer has type `never` could never be read. An
+            // initializer that reported an error needs no follow-on.
             if annot.is_none()
                 && !initializer_failed
                 && self.infer.resolve(self.pool(), t) == Ty::NEVER

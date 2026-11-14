@@ -1,0 +1,7 @@
+# test: a member reference through a primitive type name is poison, so a later binding reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn run() -> i32:
+    let g = i32.nope # diagnostic: type-used-as-value
+    let z = g
+    0

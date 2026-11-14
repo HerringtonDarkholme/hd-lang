@@ -1,0 +1,8 @@
+# test: a list spread of a diverging value checks: the list never exists
+# Spec 05 Expressions: expr.list.spread; a real never stays never, only a failed expression is poison.
+
+fn run() -> List[i32]:
+    [1, panic("x")...]
+
+pub fn main() -> void:
+    pass

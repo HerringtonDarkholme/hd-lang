@@ -1,0 +1,10 @@
+# test: a data literal of an enum is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+enum Shape:
+    Dot
+
+fn run() -> i32:
+    let p = Shape { x: 1 } # diagnostic: unknown-type
+    let z = p.x + 1
+    z

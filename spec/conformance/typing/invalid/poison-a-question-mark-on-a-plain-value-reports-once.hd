@@ -1,0 +1,7 @@
+# test: a question mark on a plain value is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn run() -> i32:
+    let v = 1? # diagnostic: invalid-result-propagation
+    let z = v + 1
+    z

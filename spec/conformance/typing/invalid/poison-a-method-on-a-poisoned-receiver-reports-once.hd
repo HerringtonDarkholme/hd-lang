@@ -1,0 +1,10 @@
+# test: a method on a poisoned receiver is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+struct Point:
+    x: i32
+
+fn run(p: Point) -> i32:
+    let v = p.nope.size() # diagnostic: unknown-field
+    let z = v + 1
+    z

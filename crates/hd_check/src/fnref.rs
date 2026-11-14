@@ -153,11 +153,11 @@ impl Ck<'_, '_> {
             };
             match named {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
-                Some(Named::Missing) => return Ok((Ref(NONE), Ty::NEVER)),
+                Some(Named::Missing) => return Ok((Ref(NONE), Ty::POISON)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
                         self.missing_export(m, &name, n);
-                        return Ok((Ref(NONE), Ty::NEVER));
+                        return Ok((Ref(NONE), Ty::POISON));
                     };
                     if let Some(ItemData::Fn(sig, _)) = self.cx.lookup.item(def).map(|i| &i.data) {
                         let sig = sig.clone();
@@ -329,7 +329,7 @@ impl Ck<'_, '_> {
                 ret,
                 self_ty,
             }) => Ok(self.builtin_ref(None, self_ty, op, &params, ret, want, n)),
-            None => Ok((Ref(NONE), Ty::NEVER)),
+            None => Ok((Ref(NONE), Ty::POISON)),
         }
     }
 
@@ -1238,7 +1238,7 @@ impl Ck<'_, '_> {
             Some(Found::Builtin {
                 op, params, ret, ..
             }) => return Ok(self.builtin_ref(Some((recv, rt)), rt, op, &params, ret, want, n)),
-            None => return Ok((Ref(NONE), Ty::NEVER)),
+            None => return Ok((Ref(NONE), Ty::POISON)),
         };
         // `fn.ref.bound.associated`.
         if !self.has_self(&m) {

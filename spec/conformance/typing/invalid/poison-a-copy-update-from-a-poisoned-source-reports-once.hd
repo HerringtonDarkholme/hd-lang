@@ -1,0 +1,11 @@
+# test: a copy-update from a poisoned source is poison, so a later binding reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+struct Point:
+    x: i32
+    y: i32
+
+fn run(p: Point) -> i32:
+    let q = Point { ...p.nope, x: 1 } # diagnostic: unknown-field
+    let z = q
+    0

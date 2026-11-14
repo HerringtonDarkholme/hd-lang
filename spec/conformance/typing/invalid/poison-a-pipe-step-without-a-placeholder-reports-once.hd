@@ -1,0 +1,10 @@
+# test: a pipe step without a placeholder is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn add(a: i32) -> i32:
+    a
+
+fn run() -> i32:
+    let v = 1 |> add(2) # diagnostic: pipe-step-needs-placeholder
+    let z = v + 1
+    z

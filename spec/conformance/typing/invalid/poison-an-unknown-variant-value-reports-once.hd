@@ -1,0 +1,11 @@
+# test: an unknown variant value is poison, so a later binding reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+enum Shape:
+    Dot(i32)
+    Blank
+
+fn run() -> i32:
+    let e = Shape.Circle # diagnostic: unknown-variant
+    let z = e
+    0

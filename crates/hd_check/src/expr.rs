@@ -2619,9 +2619,10 @@ impl Ck<'_, '_> {
             bt = self.infer.resolve(pool, bt);
         }
         let inner = bt;
-        // A base whose type an earlier error left unknown adds nothing.
+        // A base that diverges or that an earlier error poisoned adds
+        // nothing: the read keeps its type.
         if matches!(inner, Ty::NEVER | Ty::POISON) {
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), inner));
         }
         if let TyData::Tuple { elems, rest } = pool.get(inner)
             && let Ok(i) = name.trim_start_matches('_').parse::<usize>()
@@ -2638,7 +2639,7 @@ impl Ck<'_, '_> {
                 // (`expr.tuple.select-underscore`).
                 let msg = format!("no field `{name}` on {}", self.show(bt));
                 self.err(Code::UnknownField, n, &msg);
-                return Ok((Ref(NONE), Ty::NEVER));
+                return Ok((Ref(NONE), Ty::POISON));
             };
             let idx = u32::try_from(i).unwrap_or(0);
             return Ok((self.field_read(r, idx, t, n.index()), t));
@@ -2682,7 +2683,7 @@ impl Ck<'_, '_> {
             let msg = format!("no field `{name}` on {}", self.show(bt));
             self.err(Code::UnknownField, n, &msg);
         }
-        Ok((Ref(NONE), Ty::NEVER))
+        Ok((Ref(NONE), Ty::POISON))
     }
 
     /// The built-in index of a receiver type, its key type and its value
@@ -3062,11 +3063,14 @@ impl Ck<'_, '_> {
                 let t = self.resolved(*t);
                 let list = self.cx.names.known.list;
                 if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list) {
-                    if !matches!(t, Ty::NEVER | Ty::POISON) {
+                    if t == Ty::NEVER {
+                        return Ok((Ref(NONE), Ty::NEVER));
+                    }
+                    if t != Ty::POISON {
                         let msg = format!("in spread: expected a list, found {}", self.show(t));
                         self.err(Code::TypeMismatch, *operand, &msg);
                     }
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 pool.intern_ty(&TyData::Tuple {
                     elems: pool.list(&tys),
@@ -3191,11 +3195,15 @@ impl Ck<'_, '_> {
                     let (r, t) = this.expr(operand, Some(list_ty))?;
                     // `expr.list.spread.type`: the operand is a list.
                     let Some(item) = this.list_item(this.infer.resolve(pool, t)) else {
-                        if !matches!(this.resolved(t), Ty::NEVER | Ty::POISON) {
+                        let t = this.resolved(t);
+                        if t == Ty::NEVER {
+                            return Ok((Ref(NONE), Ty::NEVER));
+                        }
+                        if t != Ty::POISON {
                             let msg = format!("in spread: expected a list, found {}", this.show(t));
                             this.err(Code::TypeMismatch, operand, &msg);
                         }
-                        return Ok((Ref(NONE), Ty::NEVER));
+                        return Ok((Ref(NONE), Ty::POISON));
                     };
                     // `expr.list.spread.expected`, `expr.list.spread.inferred`.
                     // Each element converts; a conversion with no run-time
@@ -3473,13 +3481,13 @@ impl Ck<'_, '_> {
             };
             let msg = format!("no type named `{}`{hint}", segs.join("."));
             self.err(Code::UnknownType, name_node, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         let item = self.cx.lookup.item(def);
         let Some((item, ItemData::Struct(fields, _))) = item.map(|i| (i, i.data.clone())) else {
             let msg = format!("no type named `{}`: not a data type", segs.join("."));
             self.err(Code::UnknownType, name_node, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         self.check_literal_visible(def, n);
         // A local type's parameters from around it come first
@@ -3563,11 +3571,12 @@ impl Ck<'_, '_> {
                 let [inner] = a.parts();
                 // `expr.update.spread-first`, `expr.update.exact-type`.
                 let (sr, st) = self.expr(inner, Some(target))?;
-                if matches!(self.infer.resolve(pool, st), Ty::NEVER | Ty::POISON) {
-                    return Ok((Ref(NONE), Ty::NEVER));
+                let failed = self.infer.resolve(pool, st);
+                if matches!(failed, Ty::NEVER | Ty::POISON) {
+                    return Ok((Ref(NONE), failed));
                 }
                 if !self.copy_source_fits(st, target, inner) {
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 // `expr.update.copy-time`: the copied fields are read now,
                 // when an explicit field expression could change the
@@ -4734,7 +4743,7 @@ impl Ck<'_, '_> {
                 step,
                 "write `_` where the piped value goes",
             );
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let saved = self.placeholder.replace(v);
         let r = self.expr(step, want);
@@ -5547,7 +5556,7 @@ impl Ck<'_, '_> {
                 );
                 self.infer.rebind(pool, t, Ty::POISON);
                 self.infer.rebind(pool, ret, Ty::POISON);
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
         }
     }

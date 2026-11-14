@@ -1479,7 +1479,7 @@ impl Ck<'_, '_> {
             && args.trailing.is_none();
         let (true, [arg]) = (plain, args.positional.as_slice()) else {
             self.err(Code::ArgumentCount, n, "`facts_of` takes one argument");
-            return (Ref(NONE), Ty::NEVER);
+            return (Ref(NONE), Ty::POISON);
         };
         let segs = self.segments_expr(*arg);
         let Some(first) = segs.first() else {
@@ -1500,7 +1500,7 @@ impl Ck<'_, '_> {
             if self.scope_name(first).is_none() && !global {
                 let msg = format!("`{first}` is not defined");
                 self.err(Code::UnknownName, *arg, &msg);
-                return (Ref(NONE), Ty::NEVER);
+                return (Ref(NONE), Ty::POISON);
             }
             return self.bad_facts_target(*arg, "this name is not a function");
         };
@@ -1536,6 +1536,6 @@ impl Ck<'_, '_> {
     pub(crate) fn bad_facts_target(&mut self, at: NodeRef<'_>, why: &str) -> (Ref, Ty) {
         let msg = format!("`facts_of` takes a module-level function: {why}");
         self.err(Code::InvalidFactsOfTarget, at, &msg);
-        (Ref(NONE), Ty::NEVER)
+        (Ref(NONE), Ty::POISON)
     }
 }

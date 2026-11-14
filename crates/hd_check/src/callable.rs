@@ -40,7 +40,7 @@ impl Ck<'_, '_> {
                 n,
                 "a callable value takes no arguments",
             );
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let apply = self.cx.names.known.apply;
         self.trait_call_args(apply, "apply", v, vt, &[], n)

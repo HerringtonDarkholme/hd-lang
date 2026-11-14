@@ -940,7 +940,7 @@ impl Ck<'_, '_> {
                         &[(self.cx.src.span(callee), "while true")],
                     );
                 }
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
             SyntaxKind::TypeArgsExpr => {
                 let [inner, tl] = callee.parts();
@@ -1509,7 +1509,7 @@ impl Ck<'_, '_> {
             }
             let msg = format!("{} is not a function", self.show(ft));
             self.err(Code::NotCallable, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         if let Some(call) = &form
             && let Some(vars) = &call.vars
@@ -1535,7 +1535,7 @@ impl Ck<'_, '_> {
                 );
                 self.err(Code::UnknownNamedArgument, *e, &msg);
             }
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let ps = pool.list_items(params);
         let refs = if let Some(call) = &form {
@@ -1561,7 +1561,7 @@ impl Ck<'_, '_> {
         } else if inputs == Inputs::Tuple {
             match self.tuple_inputs_args(ft, ps[0], args, n)? {
                 Some(refs) => refs,
-                None => return Ok((Ref(NONE), Ty::NEVER)),
+                None => return Ok((Ref(NONE), Ty::POISON)),
             }
         } else {
             // Inputs that end in a rest element are collected as a vararg
@@ -2697,7 +2697,7 @@ impl Ck<'_, '_> {
                 // registration's body (`crates/hd_tir/DESIGN.md` §4.13.9).
                 if let Some(body_fn) = runner {
                     if refs.len() != params.len() {
-                        return Ok((Ref(NONE), Ty::NEVER));
+                        return Ok((Ref(NONE), Ty::POISON));
                     }
                     let last = match params.last() {
                         Some((_, t)) => self.normalize_deep(*t)?,
@@ -2774,7 +2774,7 @@ impl Ck<'_, '_> {
             _ => {
                 let msg = format!("`{name}` is not a function");
                 self.err(Code::NotCallable, n, &msg);
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
         }
     }
@@ -2885,7 +2885,7 @@ impl Ck<'_, '_> {
                 *e,
                 "`join` takes its tasks as positional arguments, not named ones",
             );
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         if let Some(block) = args.trailing {
             let want = self.trailing_param(None, "join", n);
@@ -3017,7 +3017,7 @@ impl Ck<'_, '_> {
                 n,
                 "`join` takes either its tasks as direct arguments or one spread of a list of tasks",
             );
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let pool = self.pool();
         let suspend = self.cx.names.known.suspend;
@@ -3081,7 +3081,7 @@ impl Ck<'_, '_> {
             n,
             "a bare pipe step cannot suspend; write `_` and `!`",
         );
-        (Ref(NONE), Ty::NEVER)
+        (Ref(NONE), Ty::POISON)
     }
 
     /// Whether checking lowers a call of `def` itself
@@ -3613,7 +3613,7 @@ impl Ck<'_, '_> {
         let Some((index, fields)) = self.variant_fields(t, name) else {
             let msg = format!("no variant `{name}` of {}", self.show(t));
             self.err(Code::UnknownVariant, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         let names = self.variant_field_names(t, name);
         let params: Vec<_> = names
@@ -4726,12 +4726,14 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let dyn_recv = self.dyn_recv.take();
         let rt = self.norm_ty(rt);
-        // A receiver whose type an earlier error left unknown adds nothing.
-        if matches!(self.resolved(rt), Ty::NEVER | Ty::POISON) {
+        // A receiver that diverges or that an earlier error poisoned adds
+        // nothing: the call keeps its type.
+        let failed = self.resolved(rt);
+        if matches!(failed, Ty::NEVER | Ty::POISON) {
             for e in &args.positional {
                 self.expr(*e, None)?;
             }
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), failed));
         }
         // A receiver whose address the call took (`fn.method.auto-address`).
         let addressed = self.addressed(recv, rt);
@@ -5010,14 +5012,14 @@ impl Ck<'_, '_> {
                     self.err(Code::DynMemberUnavailable, n, &format!(
                         "`{name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
                     ));
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 if choice.0 == ChoiceKind::TraitValue && sig.has_own_params() {
                     for e in &args.positional {
                         self.expr(*e, Some(Ty::POISON))?;
                     }
                     self.err(Code::DynMemberUnavailable, n, &dyn_type_param_message(name));
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 if let Some(&(s, _)) = sig.params.first()
                     && self.cx.names.text(s) == "self"
@@ -5029,7 +5031,7 @@ impl Ck<'_, '_> {
                             self.expr(*e, Some(Ty::POISON))?;
                         }
                         self.dyn_ref_mut_receiver(name, at, n);
-                        return Ok((Ref(NONE), Ty::NEVER));
+                        return Ok((Ref(NONE), Ty::POISON));
                     }
                     if choice.0 == ChoiceKind::TraitValue
                         && self.names_self_beyond_receiver(method, trait_, sig)
@@ -5043,7 +5045,7 @@ impl Ck<'_, '_> {
                             "`{name}` names `Self` outside its receiver, which is unavailable on a trait value"
                         );
                         self.err(Code::DynMemberUnavailable, n, &msg);
-                        return Ok((Ref(NONE), Ty::NEVER));
+                        return Ok((Ref(NONE), Ty::POISON));
                     }
                 } else if choice.0 == ChoiceKind::TraitValue {
                     // An associated function has no receiver for a trait
@@ -5055,7 +5057,7 @@ impl Ck<'_, '_> {
                         "`{name}` is an associated function, which is unavailable on a trait value"
                     );
                     self.err(Code::DynMemberUnavailable, n, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 // A trait value passes its payload to a reference receiver
                 // itself (`hd_mono::SlotRecv`).
@@ -5208,7 +5210,7 @@ impl Ck<'_, '_> {
                 self.err(Code::DynMemberUnavailable, n, &format!(
                     "`{method_name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
                 ));
-                return Ok((Ref(NONE), Ty::NEVER));
+                return Ok((Ref(NONE), Ty::POISON));
             }
         }
         if sig.has_own_params() {
@@ -5220,7 +5222,7 @@ impl Ck<'_, '_> {
                     n,
                     &dyn_type_param_message(&method_name),
                 );
-                return Ok((Ref(NONE), Ty::NEVER));
+                return Ok((Ref(NONE), Ty::POISON));
             }
         }
         self.fill_method_defaults(&sig, &vars, &inst, want)?;

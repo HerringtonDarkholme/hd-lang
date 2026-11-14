@@ -129,17 +129,6 @@ not measured.
    - Reference: rustc skips exhaustiveness for a match with an erroneous
      pattern.
 
-2. **D2. Error paths return `never` where they should return `POISON`.
-   [V]**
-   - Evidence: `crates/hd_check/src/expr.rs:2641` and `:2685` (unknown
-     field), `:3474` and `:3480` (unknown type in a literal);
-     `call.rs:3616` (unknown variant in a construction), `:943`, `:957`,
-     and `:4680-4684` (a method on a poisoned receiver).
-   - Effect: `never` is a real type, so later rules fire on it:
-     `uninhabited-binding`, "expected never, found string", and
-     `nonexhaustive-match`. About 20 of the probe's cascades.
-   - Fix: return `Ty::POISON` at each site.
-
 3. **D3. An unknown type in a signature cascades into the body and the
    trait check. [V by agent]**
    - Evidence: `hd_resolve` lowers the type to `POISON`
@@ -1197,7 +1186,7 @@ Every missed or n/a line has at least one item.
 | skims and module discovery | S2, S4 |
 | interfaces, decoding from the cache | W1, W2, W3, W4, S2 |
 | invalidation and early cutoff | I1, W4 |
-| type checking and the trait solver | C5, S3, R0c, K2, D1, D2, D3, D9 |
+| type checking and the trait solver | C5, S3, R0c, K2, D1, D3, D9 |
 | derives and structure | C4 |
 | TIR: build, verify, serialize | C2, M1 |
 | the cache store | W3, M1, S6, S4 (publish) |
@@ -1208,7 +1197,7 @@ Every missed or n/a line has at least one item.
 | the engine and host | E1, E2, E3, E4, E5, E6, N1, N2 |
 | the test runner | E2, E3, E5, S5, N6, N8 |
 | the REPL | S7 |
-| diagnostics and output | D1 to D11 |
+| diagnostics and output | D1, D3 to D11 |
 | CLI commands other than `check` and `test` | N5, N4 (`check --tests`) |
 | the binary and start-up | S9, S2 |
 | measurement and observability | S11, H1 to H5 |

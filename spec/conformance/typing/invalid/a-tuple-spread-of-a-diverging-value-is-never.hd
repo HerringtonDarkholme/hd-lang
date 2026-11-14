@@ -1,0 +1,6 @@
+# test: a tuple spread of a diverging value has type never, which a binding rejects
+# Spec 04 Type System: types.bind.never; a real never stays never, only a failed expression is poison.
+
+fn run() -> i32:
+    let t = (1, panic("y")...) # diagnostic: uninhabited-binding
+    0

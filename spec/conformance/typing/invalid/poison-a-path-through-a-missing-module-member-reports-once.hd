@@ -1,0 +1,9 @@
+# test: a path through a missing module member is poison, so a later use reports nothing
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+# fixture-package-tree: word-joiner/src/main.hd
+use pkg.words
+
+fn run() -> i32:
+    let h = words.Nope::make # diagnostic: unknown-import
+    let w = h + 1
+    w
