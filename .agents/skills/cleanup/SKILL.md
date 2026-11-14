@@ -101,12 +101,16 @@ Drop rows whose issue is closed. Each remaining row cites an open issue.
 
 For every open issue, one of these is true. Fix those that aren't.
 - **Running or queued:** it is in a lane or in chat's queue (#1065).
-- **Blocked:** each blocker has its own ticket, linked from the issue.
-  The blockers are queued as work.
+- **Blocked:** labelled `blocked`, with each blocker linked as a GitHub
+  dependency, so the blocker shows "blocking" too:
+  `gh api -X POST repos/HerringtonDarkholme/hd-lang/issues/N/dependencies/blocked_by -F issue_id=<blocker's id>`.
+  The blockers are queued as work. When the last blocker closes, remove
+  the label and say on the issue that it is workable.
 - **Waiting on the owner:** labelled `owner-decision`, with the question
   stated.
-- **Parked by the owner:** it names the condition that reopens it.
-- **An umbrella or index.**
+- **Parked by the owner:** labelled `parked`, naming the condition that
+  reopens it.
+- **An umbrella or index:** labelled `umbrella`.
 
 Anything else gets closed:
 - a measured miss, a design dead end, or an owner decision not to do it.
