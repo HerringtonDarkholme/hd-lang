@@ -132,7 +132,7 @@ browser does not provide is refused before it starts.
 
 ### 18.5 The Reserved Hot-Reload Table
 
-Not built yet; see #182.
+The design record in #182 is closed; no implementation ticket is open.
 
 ### 18.6 Measured Choices
 

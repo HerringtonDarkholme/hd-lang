@@ -28,7 +28,7 @@ Each batch has a context forked from the module's (`hd_check::fork`),
 and what each body adds folds back in source order.
 
 A body's reports depend on whether the module already holds an error
-(`cannot-infer-type`, an error-recovery `never`). So the batches run only
+(`cannot-infer-type`). So the batches run only
 up to the module's first error, and the bodies after it are checked in
 order as before. This is worse: most bodies of ordinary code omit their
 row, so M1 checks them on one core.

@@ -15,8 +15,8 @@ starting, and reread it before committing.
    labeled **Recommendation** and kept apart from the facts.
 3. Fix-style work adds no features. When a fix would need a design choice,
    the choice becomes an owner question (in the report, or in
-   [issue #833](https://github.com/HerringtonDarkholme/hd-lang/issues/833)), never a
-   default to implement.
+   an open GitHub issue labelled `owner-decision`), never a default to
+   implement.
 4. Settle core design before advanced features. Do not ask about an
    advanced feature while the core it depends on is still open; say that it
    waits.
@@ -99,7 +99,7 @@ Library" states the tier test and where each kind of rule goes.
   Order", is a stdlib-tier item.
 - A language-tier rule, example, or fixture never depends on a
   stdlib-tier item. Undecided std design stays in
-  [issue #833](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
+  an open GitHub issue labelled `owner-decision`, or `parked` when deferred.
 
 ## Writing
 

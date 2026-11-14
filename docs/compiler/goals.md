@@ -207,9 +207,6 @@ in scope that fit); a pathology fuzzer in CI that flags superlinear growth.
 
 **Later:**
 
-- A program database instead of a language server: not built yet; see
-  #181.
-- Module hot reload: not built yet; see #182.
 - LLVM for the optimizing tier.
 - Deferred type errors, code-generating fix-its, diff-aware output, a
   notebook-style REPL, and a language server for human editors.

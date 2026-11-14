@@ -55,7 +55,7 @@ Each row is compared with what production runtimes ship.
 | Closures | `(code, env)`, with env 0 when nothing is captured [V] | Rust `dyn Fn` fat pointer, Swift thick function | equal |
 | Trait values | `(data, vtable)`, with a static vtable whose supertrait vtables follow the method slots [V] | Rust `dyn` | equal; no existential box |
 | Strings | `(address, length)` views of UTF-8, with one static empty string; append reuses the block's slack (`rt.rs` reads `block_bytes`) [V] | Rust `&str` and `String` | good; there is no small-string inline form (Swift has 15 bytes inline), which is fine for a counted heap |
-| Lists and maps | the value is one address of a counted buffer with capacity, length and owner word; copy on write while unshared [V] | Swift `Array`, which also keeps count and capacity in the heap header | equal |
+| Lists and maps | the value is one address of a counted buffer with capacity, length and a reserved zero word; copy on write while unshared [V] | Swift `Array`, which also keeps count and capacity in the heap header | equal |
 | Immortal statics | count word 0 below the heap, so `retain` is one compare [V] | Swift's immortal refcount, CPython 3.12 immortal objects | equal |
 | Shared-loan count overflow | 5 bits in the header, spilling to a side table at 31 (§23.20) [V] | none needed in Rust (static) | handled |
 
@@ -242,7 +242,7 @@ spare values, so `Option<Duration>` is free [I]. This is a std design
 choice, not a layout defect.
 
 No layout snapshot pins a type over 2 KiB or a list buffer's header. A `.layout` view of `List[T]`'s buffer
-(header, owner word, element stride) would pin §23.7.
+(header, reserved zero word, element stride) would pin §23.7.
 
 ### 5.2 Lexer And Parser Snapshots
 

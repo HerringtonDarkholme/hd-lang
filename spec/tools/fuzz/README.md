@@ -153,8 +153,7 @@ Save each triaged example as a portable fixture (`# test:`, `# expect:`,
 it in `spec/conformance/cases.tsv`. While the Rust compiler fails it, also
 list it in the root `KNOWN_FAILURES.tsv`. A compiler bug that no fixture can
 show gets a GitHub issue, and a spec ambiguity
-gets a question in
-[issue #833](https://github.com/HerringtonDarkholme/hd-lang/issues/833). Classes:
+gets a question in an open GitHub issue labelled `owner-decision`. Classes:
 implementation bug, spec ambiguity, or correct handling (discarded).
 
 ## Layout

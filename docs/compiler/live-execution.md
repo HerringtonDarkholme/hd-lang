@@ -8,8 +8,7 @@ number (some citations still name this file's old path under
 future-work, as it was at 7ccbb4ea8). Journal checkpoints (#646, owner 2026-10-25: an
 initialized base module with extension modules, using a memory snapshot
 inside it) are built (`hd_run_wasmtime/src/session.rs`, `Checkpoint`).
-Durable resume (#18) and hot reload (#182) are parked; their designs are
-indexed by #833.
+Durable resume and hot reload have closed design records (#18 and #182).
 
 ## Summary
 
@@ -27,7 +26,7 @@ not redeclare an earlier input's name (`cli.repl.redeclare.*`).
 | Where is it recorded? | At the host call sites. No compiled hooks, so the same debug or release binary can be recorded and replayed |
 | When does the REPL replay? | Only to rebuild: a browser Stop of a busy input, a page reload, a share link, `:reload` after package files change, and the 1000-input bound |
 | What if a rebuild diverges? | It keeps the longest prefix of inputs that check and replay identically; the first divergent input and every later one are dropped and reported. Host calls are never repeated live |
-| Later | Durable resume (#18), checkpoints (#646), hot reload (#182), notebooks, simulation testing, metered stops |
+| Later | Notebooks, simulation testing, metered stops |
 
 ## 1. Prior Art
 

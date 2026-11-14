@@ -414,11 +414,6 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
     `j < len` is unchecked. Reference: LLVM SCEV and
     CorrelatedValuePropagation, V8 TurboFan range types.
 
-29. **K2. `iterator-chain` exceeds a fixed spec limit. owner [V]** The 2x
-    fixture has 100 adapters, and `trait.bound.depth.limit` makes 64 an
-    error. Keep the rule and scale the fixture by the number of chains,
-    or change the rule.
-
 30. **K3. `lookup-latency` measures commands that do not exist. owner
     [V]** #181 is closed, but `hd callers` and `hd needs` are in no spec
     section and no build. Specify them, or retire the metric.
@@ -1060,7 +1055,6 @@ is within 15% of its limit.
 | answer-size | one failing test, JSON object | 139 B | ≤ 400 B | met |  |
 | answer-size | one diagnostic, JSON object | 170 B | ≤ 600 B | met |  |
 | determinism | inputs with byte-identical output | 8 of 8 | all identical | met |  |
-| pathological | 30 lines | | | 27 met, 3 missed; missed: iterator-chain | K2 for iterator-chain; R0c for shapes outside the metric |
 | recheck-precision | modules rechecked, private body edit | 1 | ≤ 1 | met |  |
 | recheck-precision | modules rechecked, public signature edit | 9 | ≤ 3 | missed | I1 |
 | errors-per-run | semantic: 10 mistakes reported once | 10 of 10 | all, once | met |  |
@@ -1210,7 +1204,6 @@ Every missed or n/a line has at least one item.
 
 1. E1: wasmtime as the default engine, and Winch as its dev tier.
 2. E4: #1763 applies the owner's one-write-per-line decision; buffering remains separate.
-3. K2: the `iterator-chain` fixture or the 64-deep proof limit.
 4. K3: specify `hd callers` and `hd needs`, or retire `lookup-latency`.
 5. S9: whether `disk` counts the shared toolchain.
 6. D11: whether the `mistakes` metric may apply the first of several

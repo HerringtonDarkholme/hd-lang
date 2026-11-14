@@ -14,8 +14,8 @@ action at a distance.
 
 ## What Remains
 
-Parked designs are not kept here; each lives in its GitHub issue, indexed by #833. The
-execution-boundaries design (serializable closures, formerly #166) is PR #1139.
+Parked work is labelled `parked` on its own GitHub issue; the old index #833
+is closed. The execution-boundaries design (serializable closures, formerly #166) is PR #1139.
 
 ### Application and host
 

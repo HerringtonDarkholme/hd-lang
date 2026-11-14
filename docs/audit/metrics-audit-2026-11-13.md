@@ -373,13 +373,10 @@ Fix these before reading the related numbers as compiler facts.
 | Metric                            | Problem                                                                                                                                                                                                                                                                                       | Fix                                                                                                    |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `io-per-check`, 79 files read     | The package is generated, warmed and edited within 2 s. A file whose mtime or ctime is within `SETTLE` (2 s, `crates/hd_cli/src/disk.rs:132`) gets no stamp (git's racy-clean rule), so its skim is never recorded and every check reads it. The lazy-text and stamp path is in place (`lib.rs:2441`, `skims.rs:471`). | Backdate the generated files with `utimes`, or wait 2 s before the warm-up. Then measure again.        |
-| `pathological`, `iterator-chain`  | At 2x the chain has 100 stages. Spec rule `trait.bound.depth` charges a proof's full height, so any chain past 64 adapters is `trait-resolution-depth` by design. rustc accepts long chains only because its cache answers do not carry depth, which hd rejects as order-dependent (`hd_check/DESIGN.md` §7.3). | Owner decision. Keep the rule and scale the fixture by the number of chains of 32 stages. Or change the rule. |
 | `disk`                            | Counts the `hd` binary as per-worktree disk (see C8).                                                                                                                                                                                                                                         | Owner decision on what the metric counts.                                                              |
 
 ## Owner Decisions
 
-1. `iterator-chain`: keep the depth rule and change the fixture
-   (recommended), or change the rule.
 2. `disk`: count artifacts only, or keep counting the toolchain.
 3. `lookup-latency`: specify `hd callers` and `hd needs`, or retire the
    metric. #181 is closed, but neither command exists.
