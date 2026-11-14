@@ -1,0 +1,5 @@
+{{! Arithmetic nested two parentheses deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +1
+    t = {{rep (t~+~-(t~*~2~-~t~/~1~%~3~+~}}t{{rep ))}}
+    println("$t")

@@ -1,0 +1,8 @@
+{{! `while` loops nested one per `items` entry, each leaving at once. }}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+{{pad}}while t < 0:
+{{pad}}    t = t + 1
+{{/each}}
+    println("$t")

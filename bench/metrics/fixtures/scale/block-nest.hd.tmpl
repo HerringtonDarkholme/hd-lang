@@ -1,0 +1,10 @@
+{{! `if`/`else` chains nested one per `items` entry in the `else` branch. }}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+{{pad}}if t == {{i}}:
+{{pad}}    t = t + 1
+{{pad}}else:
+{{/each}}
+{{lastPad}}t = t + 2
+    println("$t")

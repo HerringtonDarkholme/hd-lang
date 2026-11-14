@@ -23,6 +23,7 @@ pub fn count_walk_plans<R>(run: impl FnOnce() -> R) -> (R, u64) {
 }
 
 pub(crate) fn walk_plans(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::WalkPlans, n as u64);
     add(&WALK_PLANS, n);
 }
 
@@ -62,14 +63,17 @@ fn count<R>(
 
 /// Adds `n` to the count, when one is being taken.
 pub(crate) fn use_facts(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::UseFacts, n as u64);
     add(&USE_FACTS, n);
 }
 
 pub(crate) fn loan_queries(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::LoanQueries, n as u64);
     add(&LOAN_QUERIES, n);
 }
 
 pub(crate) fn control(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::Control, n as u64);
     add(&CONTROL, n);
 }
 

@@ -1,0 +1,5 @@
+{{! One expression of one `+` term per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +0
+    t = t{{rep ~+~1}}
+    println("$t")

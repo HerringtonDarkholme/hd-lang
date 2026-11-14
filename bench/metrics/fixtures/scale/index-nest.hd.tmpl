@@ -1,0 +1,6 @@
+{{! Index expressions nested one level deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +1
+    let xs: List[usize] = [0]
+    t = t + i32(xs[{{rep xs[}}0{{rep ]}}])
+    println("$t")

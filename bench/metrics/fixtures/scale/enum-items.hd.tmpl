@@ -1,0 +1,20 @@
+{{! One enum per `items` entry, each matched by a function main calls. }}
+{{#each items}}
+enum E{{i}}:
+    A
+    B(v: i32)
+    C(s: string, w: i32)
+
+fn e{{i}}(e: E{{i}}) -> i32:
+    match e:
+        .A => +0
+        .B(v) => v
+        .C(_, w) => w
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = t + e{{i}}(E{{i}}.B(+1))
+{{/each}}
+    println("$t")

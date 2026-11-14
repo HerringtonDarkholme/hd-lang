@@ -1,0 +1,16 @@
+{{! One function per `items` entry, each declaring a local struct and a local function. }}
+{{#each items}}
+fn l{{i}}(x: i32) -> i32:
+    struct Loc:
+        a: i32
+        b: i32
+    fn inner(p: Loc) -> i32: p.a + p.b
+    inner(Loc { a: x, b: +1 })
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = l{{i}}(t)
+{{/each}}
+    println("$t")

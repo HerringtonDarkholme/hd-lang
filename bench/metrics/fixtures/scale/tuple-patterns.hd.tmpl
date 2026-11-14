@@ -1,0 +1,8 @@
+{{! One tuple-destructuring `let` per `items` entry. }}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    let (a{{i}}, b{{i}}) = (t, +1)
+    t = a{{i}} + b{{i}}
+{{/each}}
+    println("$t")

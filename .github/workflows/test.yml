@@ -338,6 +338,54 @@ jobs:
       - name: Test
         run: cargo test --release --all-features ${{ matrix.args }} -- --skip specification_conformance_passes_except_known_failures
 
+  # The generated scale check (#1880, bench/metrics/scripts/scale.ts): its
+  # own correct programs, holding every syntax node kind, at n and 4n,
+  # judged by the compiler's deterministic work counters. Then its
+  # self-test: an `hd` built with a planted quadratic loop must fail it,
+  # naming the counter that grew.
+  scale:
+    name: Scale check
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Build release compiler and parser dump
+        run: |
+          cargo build --release -p hd_cli
+          cargo build --release -p hd_syntax --example parse_check
+
+      - name: Scale check
+        run: pnpm run metrics -- --only scale
+
+      - name: A planted quadratic loop fails the check
+        shell: bash
+        run: |
+          set -uo pipefail
+          cargo build --release -p hd_cli --features plant-quadratic
+          HD_SCALE_SHAPES=fn-items pnpm run metrics -- --only scale > planted.log 2>&1
+          status=$?
+          cat planted.log
+          test "$status" -eq 1
+          grep -q "FAIL scale: fn-items check: .*hashes" planted.log
+
   # Whether this commit runs the Windows and macOS jobs. They run on host code here,
   # and on everything twice a day, so a compiler or std change that breaks only on
   # those systems (paths, line endings) shows up within about 12 hours (owner 2026-11-07).

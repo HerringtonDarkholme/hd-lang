@@ -1,0 +1,19 @@
+{{! One trait with a defaulted type parameter per `items` entry, implemented and called. }}
+{{#each items}}
+trait Mix{{i}}[Rhs = Self]:
+    fn mix(&self, other: Rhs) -> i32
+
+struct P{{i}}:
+    a: i32
+
+impl Mix{{i}} for P{{i}}:
+    fn mix(&self, other: P{{i}}) -> i32: self.a + other.a
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    p{{i}} := P{{i}} { a: +1 }
+    t = p{{i}}.mix(P{{i}} { a: t })
+{{/each}}
+    println("$t")

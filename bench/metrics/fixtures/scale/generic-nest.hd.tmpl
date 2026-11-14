@@ -1,0 +1,11 @@
+{{! A generic struct instantiated one level deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+struct W[T]:
+    v: T
+
+fn wrap[T](x: T) -> W[T]: W { v: x }
+
+pub fn main() -> void $ Console:
+    let t = +0
+    w := {{rep wrap(}}t{{rep )}}
+    t = w{{rep .v}}
+    println("$t")

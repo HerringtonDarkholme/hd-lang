@@ -1,0 +1,12 @@
+{{! One generic function per `items` entry, each instantiated twice. }}
+{{#each items}}
+fn g{{i}}[T](x: T, y: T) -> T: y
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = g{{i}}(t, +1)
+    s{{i}} := g{{i}}("a", "b")
+{{/each}}
+    println("$t")

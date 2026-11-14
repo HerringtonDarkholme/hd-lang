@@ -1,0 +1,16 @@
+{{! A chain of structs, each holding the next by value. }}
+{{#each items}}
+struct C{{i}}:
+    a: i32
+    next: C{{next}}
+
+{{/each}}
+struct C{{last}}:
+    a: i32
+
+fn depth(c: C0000) -> i32: c.a
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = +0
+    println("$t")

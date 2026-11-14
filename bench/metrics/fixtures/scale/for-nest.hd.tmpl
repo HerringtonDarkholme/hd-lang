@@ -1,0 +1,8 @@
+{{! `for` loops nested one per `items` entry. }}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+{{pad}}for i{{i}} in 0..1:
+{{pad}}    t = t + 1
+{{/each}}
+    println("$t")

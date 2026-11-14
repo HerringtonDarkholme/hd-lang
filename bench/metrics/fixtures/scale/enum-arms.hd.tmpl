@@ -1,0 +1,18 @@
+{{! One enum of one variant per `items` entry, and one match with an arm each. }}
+enum Big:
+    Zero
+{{#each items}}
+    V{{i}}(x: i32)
+{{/each}}
+
+fn weigh(b: Big) -> i32:
+    match b:
+        .Zero => +0
+{{#each items}}
+        .V{{i}}(x) => x + 1
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = weigh(Big.Zero)
+    println("$t")

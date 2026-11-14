@@ -1,0 +1,11 @@
+{{! One list literal of one element per `items` entry. }}
+pub fn main() -> void $ Console:
+    let t = +0
+    xs := [
+        t,
+{{#each items}}
+        +3,
+{{/each}}
+    ]
+    t = i32(xs.len())
+    println("$t")

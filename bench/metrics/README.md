@@ -104,6 +104,7 @@ target, so a slow `hd` fails fast instead of holding the run for minutes.
 | `answer-size`       | bytes of `hd doc m001.Item1`, one failing `hd test`, its JSON test object, one JSON diagnostic object                                                                                                              | doc ≤ 1,000 B; failing test ≤ 800 B; test object ≤ 400 B; diagnostic object ≤ 600 B              | doc line: no `hd doc`                    |
 | `determinism`       | 8 or 9 fixed inputs, each run 10 times: exit status, stdout and stderr                                                                                                                                             | byte-identical                                                                                   | never                                    |
 | `pathological`      | the [stress cases](#pathological-cases) at scales 1, 2 and 4                                                                                                                                                       | at 4x: ≤ 2 s and ≤ 200 MB; growth exponent ≤ 1.3                                                 | RSS line: no `/usr/bin/time`             |
+| `scale`             | the [scale shapes](#scale-shapes): correct programs repeated and nested at k = 0, n and 4n, through `hd check`, `hd fmt --check` and `hd build`, counting work with `HD_WORK`; node-kind coverage | each counter's work over k = 0 grows ≤ 4.5x per 4x of the program's bytes (allocated bytes ≤ 9x); every node kind in a repeated shape | never |
 | `recheck-precision` | small package: modules rechecked after a private body edit, then after a public signature edit                                                                                                                     | 1; that module and its direct dependents                                                         | no `modules_checked` in the JSON summary |
 | `errors-per-run`    | two files of 10 independent mistakes, one with 2 syntax errors among them                                                                                                                                          | all 10 reported, each once                                                                       | never                                    |
 | `diag-location`     | the mistake corpus: the reporting diagnostic's line against the marked line                                                                                                                                        | ≥ 95%                                                                                            | never                                    |
@@ -389,6 +390,46 @@ start-up stays under 100 ms at scale 4, growth is within noise and passes.
 
 To print one program: `node --experimental-strip-types bench/metrics/lib/pathological.ts CASE SCALE`.
 
+## Scale Shapes
+
+The `scale` metric scales correct programs generated for it alone (owner,
+2026-11-14: "don't optimize diagnostic for now, optimize correct code").
+[`lib/scale.ts`](lib/scale.ts) renders each shape from its template in
+[`fixtures/scale/`](fixtures/scale): items, generics, rows, `use` and
+modules, statements, expressions, patterns and types repeated k times
+(n = 500, fewer where one line holds them all), and nests k levels deep
+(n = 16, fewer where 4n would pass a limit). Copies are numbered with
+four digits, so a repeated shape's source grows exactly 4x.
+
+Each shape runs at k = 0, n and 4n through `hd check`, `hd fmt --check`
+and, where it builds, `hd build`. Each run is serial (`HD_JOBS=1`) from a
+copy of one warm std cache, with `HD_WORK=FILE`: `hd` then writes the
+totals of its work counters (`crates/hd_base/src/work.rs`) to FILE as
+JSON: the allocator's allocations and bytes, the in-run tables' hashes,
+and every opt-in `work::count_*` site of the compiler. A counter's work
+over k = 0 that grows more than 4.5x per 4x of the program's bytes is
+superlinear (an indentation nest's bytes grow faster than 4x), with one
+doubling more for allocated bytes, whose buffers round up. Counters
+under 1,000 units at 4n (1 MB for allocated bytes) are not judged. A
+failing line names the counter and its two counts. `KNOWN` in
+`scripts/scale.ts` lists the lines already filed as issues; such a line
+passes until it turns linear, then fails until its row is removed. The
+counters do not see work that neither allocates nor hashes, such as a
+linear scan per lookup.
+
+The coverage table closes the run. Of the parser's closed `SyntaxKind`
+set, as `parse_check --tree` dumps each shape, every kind must appear in
+a repeated shape, so a new kind with no shape fails; the kinds a nested
+shape holds are reported with the misses listed. `Error` (only source
+that does not parse) and `SkippedBody` (no parser path builds it) are
+exempt.
+
+`HD_SCALE_SHAPES=A,B` measures only those shapes. To print one package:
+`node --experimental-strip-types bench/metrics/lib/scale.ts SHAPE K`. The
+self-test builds `hd` with `--features plant-quadratic`, which hashes
+every pair of source lines while `HD_WORK` is set; a repeated shape then
+fails.
+
 ## Layout
 
 | Path                                                  | Holds                                                                                                                                                                   |
@@ -400,6 +441,7 @@ To print one program: `node --experimental-strip-types bench/metrics/lib/patholo
 | `lib/fixtures.ts`                                     | reading fixtures: params, templates, manifests, the `PROGRAMS` packages, packages in temporary directories                                                              |
 | `lib/gen.ts`                                          | the seeded package generator (small, 10k and 50k lines), its edits and executables, the unit, integration and doc test packages                                         |
 | `lib/pathological.ts`                                 | the pathological cases                                                                                                                                                  |
+| `lib/scale.ts`                                        | the scale shapes                                                                                                                                                        |
 | `lib/hd.ts`                                           | running `hd`: command parsing, timeouts, CPU time and peak RSS, time to first output, timed series, JSON lines, paced sessions and long runs sampled with `ps`          |
 | `lib/artifact.ts`                                     | user programs: release builds, how a built program runs, the bench/micro cases, interleaved timings and their differences, self-timing Node programs, the V8 heap probe |
 | `lib/stats.ts`                                        | percentiles, growth exponents, token estimates                                                                                                                          |

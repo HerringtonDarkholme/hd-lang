@@ -1,0 +1,21 @@
+{{! One struct per `items` entry boxed as a trait value into one list. }}
+trait Shape:
+    fn area(&self) -> i32
+
+{{#each items}}
+struct Q{{i}}:
+    w: i32
+
+impl Shape for Q{{i}}:
+    fn area(&self) -> i32: self.w + 1
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+    let mut shapes: List[*dyn Shape] = []
+{{#each items}}
+    shapes.push(box(Q{{i}} { w: t }))
+{{/each}}
+    for s in shapes:
+        t = t + s.area()
+    println("$t")

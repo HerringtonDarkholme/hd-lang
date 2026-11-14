@@ -1,0 +1,8 @@
+{{! An option type, value and pattern nested one level deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +0
+    let o: i32?{{rep ?}} = .Some({{rep .Some(}}t{{rep )}})
+    t = match o:
+        .Some({{rep .Some(}}v{{rep )}}) => v
+        _ => +0
+    println("$t")

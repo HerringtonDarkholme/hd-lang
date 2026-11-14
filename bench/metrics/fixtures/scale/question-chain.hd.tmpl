@@ -1,0 +1,15 @@
+{{! One function of one `?` propagation per `items` entry. }}
+fn step(x: i32) -> i32?:
+    if x > 1000000: .None else: .Some(x + 1)
+
+fn chain(x: i32) -> i32?:
+    let v = x
+{{#each items}}
+    v = step(v)?
+{{/each}}
+    .Some(v)
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = chain(t).unwrap_or(+0)
+    println("$t")

@@ -1,0 +1,11 @@
+{{! The main module of the `use-names` shape: one `use` line and one call per name of `pkg.items`. }}
+{{#each items}}
+use pkg.items.f{{i}}
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = f{{i}}(t)
+{{/each}}
+    println("$t")

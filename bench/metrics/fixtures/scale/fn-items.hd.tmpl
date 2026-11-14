@@ -1,0 +1,11 @@
+{{! One function per `items` entry, each called from main. }}
+{{#each items}}
+fn f{{i}}(x: i32) -> i32: x + 3
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = f{{i}}(t)
+{{/each}}
+    println("$t")

@@ -1,0 +1,5 @@
+{{! Inline `if` expressions nested one level deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +1
+    t = {{rep if~t~>~0:~(}}t{{rep )~else:~+0}}
+    println("$t")

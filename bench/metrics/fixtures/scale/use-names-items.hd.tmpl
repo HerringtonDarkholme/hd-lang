@@ -1,0 +1,4 @@
+{{! The module `pkg.items` of the `use-names` shape: one public function per `items` entry. }}
+{{#each items}}
+pub fn f{{i}}(x: i32) -> i32: x + 3
+{{/each}}

@@ -34,6 +34,7 @@ impl BuildHasher for FixedState {
 
     #[inline]
     fn build_hasher(&self) -> FixedHasher {
+        crate::work::add(crate::work::Counter::Hashes, 1);
         FixedHasher(self.0)
     }
 }

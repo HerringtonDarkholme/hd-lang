@@ -22,6 +22,7 @@ pub fn count_scope_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// One probe into a generic scope.
 pub(crate) fn scope_probe() {
+    hd_base::work::add(hd_base::work::Counter::ScopeProbes, 1);
     SCOPE_PROBES.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));
@@ -40,6 +41,7 @@ pub fn count_outer_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
 }
 
 fn add_outer(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::OuterProbes, n as u64);
     OUTER_PROBES.with(|c| {
         if let Some(w) = c.get() {
             c.set(Some(w + n as u64));

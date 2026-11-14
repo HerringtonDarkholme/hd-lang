@@ -1,0 +1,8 @@
+{{! One closure per `items` entry in main, each called. }}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    c{{i}} := fn(x: i32) -> i32: x + t
+    t = c{{i}}(+1)
+{{/each}}
+    println("$t")

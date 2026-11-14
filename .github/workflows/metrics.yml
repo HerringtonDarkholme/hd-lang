@@ -39,7 +39,10 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: Build release compiler
-        run: cargo build --release -p hd_cli
+        run: |
+          cargo build --release -p hd_cli
+          # The `scale` metric's node-kind coverage dumps trees with it.
+          cargo build --release -p hd_syntax --example parse_check
 
       - name: Measure
         id: metrics

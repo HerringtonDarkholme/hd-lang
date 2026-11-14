@@ -1,0 +1,9 @@
+{{! One expression of one chained method call per `items` entry. }}
+pub fn main() -> void $ Console:
+    let t = +0
+    s := " a "
+{{#each items}}
+        .trim()
+{{/each}}
+    t = i32(s.len())
+    println("$t")

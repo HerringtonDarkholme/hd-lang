@@ -1,0 +1,7 @@
+{{! One function of one parameter per `items` entry, called with every argument; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+fn many(z: i32{{rep ,~a@:~i32}}) -> i32: z{{rep ~+~a@}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = many(t{{rep ,~+1}})
+    println("$t")

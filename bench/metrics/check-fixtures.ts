@@ -11,6 +11,7 @@
 // - Each mistake program (fixtures/mistakes/): its diagnostics have the
 //   expected code, and no code beyond its `# cascade:` list; its `# fixed:`
 //   variant checks clean.
+// - Each hand-written scale shape (lib/scale.ts) at k = 2 reports nothing.
 // - Each errors-per-run file: every diagnostic lands on a marked line with
 //   the marked code, and every marked line is reported, a syntax error's
 //   neighbours too (`grammar.recovery.item`).
@@ -48,6 +49,7 @@ import {
 import { diagnosticsOf, parseHdCommand, runHd, type HdCommand } from "./lib/hd.ts";
 import type { MetricContext } from "./lib/metric.ts";
 import { CASES, generate, STARTUP } from "./lib/pathological.ts";
+import { SHAPES, TEMPLATES as SCALE_TEMPLATES } from "./lib/scale.ts";
 import { makeTempDir, removeAllTempDirs } from "./lib/tmp.ts";
 import { casePackage } from "./scripts/dev-speed.ts";
 import { FILES as ERROR_FILES } from "./scripts/errors-per-run.ts";
@@ -282,6 +284,15 @@ function markerChecks(hd: HdCommand): Check[] {
   });
 }
 
+function scaleChecks(hd: HdCommand): Check[] {
+  for (const path of SCALE_TEMPLATES) {
+    use(path);
+  }
+  return SHAPES.map((shape) =>
+    cleanPackage(hd, `scale ${shape.name}, k = 2`, () => shape.files(2)),
+  );
+}
+
 /** Every check of the fixtures, and the fixture files none of them uses. */
 export function fixtureChecks(
   hd: HdCommand,
@@ -293,6 +304,7 @@ export function fixtureChecks(
     ...generatorChecks(hd, context),
     ...mistakeChecks(hd, verbose),
     ...markerChecks(hd),
+    ...scaleChecks(hd),
   ];
   return { checks, unused: fixturePaths().filter((path) => !used.has(path)) };
 }

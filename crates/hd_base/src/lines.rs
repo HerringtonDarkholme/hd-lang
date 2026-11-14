@@ -35,6 +35,7 @@ impl LineIndex {
     /// The index of `text`, in one pass.
     #[must_use]
     pub fn new(text: &[u8]) -> Self {
+        crate::work::add(crate::work::Counter::IndexedBytes, text.len() as u64);
         INDEXED.with(|c| {
             if let Some(n) = c.get() {
                 c.set(Some(n + text.len() as u64));

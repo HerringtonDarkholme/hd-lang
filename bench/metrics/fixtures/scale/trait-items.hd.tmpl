@@ -1,0 +1,19 @@
+{{! One trait, struct and impl per `items` entry; main calls each method. }}
+{{#each items}}
+trait T{{i}}:
+    fn m{{i}}(&self) -> i32
+
+struct S{{i}}:
+    a: i32
+
+impl T{{i}} for S{{i}}:
+    fn m{{i}}(&self) -> i32: self.a
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    s{{i}} := S{{i}} { a: +1 }
+    t = t + s{{i}}.m{{i}}()
+{{/each}}
+    println("$t")

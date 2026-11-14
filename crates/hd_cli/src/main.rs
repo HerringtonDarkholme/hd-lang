@@ -27,6 +27,7 @@ mod repl;
 mod report;
 mod snapshot_update;
 mod test_cmd;
+mod work;
 
 use std::ffi::OsString;
 use std::io::IsTerminal as _;
@@ -85,7 +86,8 @@ fn usage() -> ExitCode {
 /// (`grammar.limit.chain`). A main thread gets 8 MiB from the OS, and a
 /// chain of 10,000 calls needs more. Untouched stack pages cost no memory.
 fn main() -> ExitCode {
-    match std::thread::Builder::new()
+    let work = work::start();
+    let status = match std::thread::Builder::new()
         .name("main".to_owned())
         .stack_size(hd_sched::pool::WORKER_STACK)
         // cost: one thread per `hd` process, whatever the input.
@@ -95,7 +97,9 @@ fn main() -> ExitCode {
             .join()
             .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
         Err(_) => command_main(),
-    }
+    };
+    work::finish(work);
+    status
 }
 
 fn command_main() -> ExitCode {

@@ -77,6 +77,15 @@ import { cacheShape } from "./scripts/cache-contention.ts";
 import { latencyBound } from "./scripts/concurrency.ts";
 import { toolchainOf } from "./scripts/disk.ts";
 import { CASES, generate } from "./lib/pathological.ts";
+import { SHAPES, scope } from "./lib/scale.ts";
+import {
+  BYTES_FLOOR,
+  FLOOR,
+  judgeShape,
+  kindsOfTree,
+  selected,
+  syntaxKinds,
+} from "./scripts/scale.ts";
 import { FILES, markedLines } from "./scripts/errors-per-run.ts";
 import { newErrors } from "./scripts/fixit-safety.ts";
 import { METRICS } from "./scripts/index.ts";
@@ -408,7 +417,7 @@ describe("runner", () => {
       selectMetrics(METRICS, ["fmt,mistakes"], undefined).map((metric) => metric.name),
       ["mistakes", "fmt"],
     );
-    assert.equal(selectMetrics(METRICS, [], "1").length, 15);
+    assert.equal(selectMetrics(METRICS, [], "1").length, 16);
     assert.deepEqual(
       selectMetrics(METRICS, [], "2").map((metric) => metric.name),
       [
@@ -846,5 +855,123 @@ describe("daily metrics", () => {
     } finally {
       removeTempDir(directory);
     }
+  });
+});
+
+describe("scale", () => {
+  const zero = { allocs: 1000, hashes: 50 };
+  it("passes linear growth over the k = 0 run, and names the counter that grows faster", () => {
+    const linear = judgeShape("s check", {
+      zero,
+      small: { allocs: 3000, hashes: 60 },
+      large: { allocs: 9000, hashes: 90 },
+    });
+    assert.equal(linear.status, "pass");
+    assert.equal(linear.value, "4.00x");
+    const quadratic = { allocs: 9000, hashes: 50 + 16 * 10 * FLOOR };
+    const bad = judgeShape("s check", {
+      zero,
+      small: { allocs: 3000, hashes: 50 + 10 * FLOOR },
+      large: quadratic,
+    });
+    assert.equal(bad.status, "fail");
+    assert.match(bad.note!, /^hashes 10000 → 160000 \(16.00x, limit 4.50x\)$/);
+  });
+
+  it("gives allocated bytes one doubling, and scales limits with the program's bytes", () => {
+    const doubled = { alloc_bytes: 1000 + 8 * 10 * FLOOR };
+    const one = { alloc_bytes: 1000 + 10 * FLOOR };
+    assert.equal(
+      judgeShape("s build", { zero: { alloc_bytes: 1000 }, small: one, large: doubled }).status,
+      "pass",
+    );
+    const deep = { hashes: 50 + 16 * 10 * FLOOR };
+    const step = { hashes: 50 + 10 * FLOOR };
+    assert.equal(
+      judgeShape("s check", { zero, small: step, large: deep }, { bytes: 16 }).status,
+      "pass",
+    );
+    assert.equal(
+      judgeShape("s check", { zero, small: step, large: deep }, { bytes: 4 }).status,
+      "fail",
+    );
+  });
+
+  it("ignores growth under the floor, and work that starts from nothing", () => {
+    const small = judgeShape("s fmt", {
+      zero,
+      small: { allocs: 1001, hashes: 50 },
+      large: { allocs: 1100, hashes: 50 },
+    });
+    assert.equal(small.status, "pass");
+    const fromNothing = judgeShape("s fmt", {
+      zero,
+      small: { allocs: 1000 },
+      large: { allocs: 1000 + FLOOR },
+    });
+    assert.equal(fromNothing.status, "fail");
+    assert.match(fromNothing.note!, /∞x/);
+    const rounding = { alloc_bytes: 1000 + BYTES_FLOOR - 1 };
+    assert.equal(
+      judgeShape("s check", {
+        zero: { alloc_bytes: 1000 },
+        small: { alloc_bytes: 1000 },
+        large: rounding,
+      }).status,
+      "pass",
+    );
+  });
+
+  it("passes a known superlinear line and fails it once it turns linear", () => {
+    const quadratic = judgeShape(
+      "s build",
+      { zero, small: { allocs: 3000 }, large: { allocs: 1000 + 32_000 } },
+      { known: "#1" },
+    );
+    assert.equal(quadratic.status, "pass");
+    assert.match(quadratic.note!, /known superlinear, #1/);
+    const fixed = judgeShape(
+      "s build",
+      { zero, small: { allocs: 3000 }, large: { allocs: 9000 } },
+      { known: "#1" },
+    );
+    assert.equal(fixed.status, "fail");
+    assert.match(fixed.note!, /remove the KNOWN row/);
+  });
+
+  it("selects shapes by name and refuses an unknown one", () => {
+    assert.equal(selected(undefined).length, SHAPES.length);
+    assert.deepEqual(
+      selected("fn-items,if-nest").map((shape) => shape.name),
+      ["fn-items", "if-nest"],
+    );
+    assert.throws(() => selected("no-such-shape"), /no-such-shape/);
+  });
+
+  it("generates every copy with the same bytes, so a repeated shape's source grows exactly 4x", () => {
+    for (const shape of SHAPES) {
+      const bytes = (k: number) =>
+        [...shape.files(k).values()].reduce((sum, text) => sum + text.length, 0);
+      const [b0, b1, b4] = [bytes(0), bytes(shape.n), bytes(4 * shape.n)];
+      assert.ok(b1 > b0, shape.name);
+      if (shape.form === "repeat") {
+        assert.equal(b4 - b0, 4 * (b1 - b0), shape.name);
+      } else {
+        // A nest whose indentation deepens per level grows faster.
+        assert.ok(b4 - b0 >= 4 * (b1 - b0), shape.name);
+      }
+    }
+    const two = scope(2) as { rep: (pattern: string) => string; last: string };
+    assert.equal(two.rep(",~T@"), ", T0000, T0001");
+    assert.equal(two.last, "0002");
+  });
+
+  it("reads the parser's closed set of node kinds and the kinds of a tree dump", () => {
+    const green =
+      "pub enum SyntaxKind {\n    Root,\n    // Items.\n    UseDecl,\n    FnDecl,\n}\nconst X: u8 = 0;\n";
+    assert.deepEqual(syntaxKinds(green), ["Root", "UseDecl", "FnDecl"]);
+    const dump =
+      'Root Some(0)..Some(3) "x"\n  FnDecl Some(0)..Some(3) "fn f"\n    Block None..None ""\n';
+    assert.deepEqual([...kindsOfTree(dump)], ["Root", "FnDecl", "Block"]);
   });
 });

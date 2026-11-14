@@ -1,0 +1,11 @@
+{{! The main module of the `modules` shape: one `use` and one call per module. }}
+{{#each items}}
+use pkg.m{{i}}.f{{i}}
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = f{{i}}(t)
+{{/each}}
+    println("$t")

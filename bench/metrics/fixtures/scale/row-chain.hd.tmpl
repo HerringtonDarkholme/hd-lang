@@ -1,0 +1,13 @@
+{{! A chain of functions with a `Console` row, each calling the next. }}
+{{#each items}}
+fn p{{i}}(x: i32) -> i32 $ Console:
+    println("x")
+    p{{next}}(x + 1)
+
+{{/each}}
+fn p{{last}}(x: i32) -> i32 $ Console: x
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = p0000(t)
+    println("$t")

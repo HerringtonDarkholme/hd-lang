@@ -1,0 +1,11 @@
+{{! One top-level binding per `items` entry, each read in main. }}
+{{#each items}}
+C{{i}} := +3
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = t + C{{i}}
+{{/each}}
+    println("$t")

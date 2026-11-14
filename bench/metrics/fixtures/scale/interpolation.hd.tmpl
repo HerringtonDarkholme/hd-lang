@@ -1,0 +1,6 @@
+{{! One string with one interpolation per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +0
+    s := "start{{rep ~$t}}"
+    t = i32(s.len())
+    println("$t")

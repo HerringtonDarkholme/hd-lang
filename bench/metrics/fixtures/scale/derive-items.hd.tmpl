@@ -1,0 +1,15 @@
+{{! One struct per `items` entry deriving `Eq` and `Debug`, each compared and printed. }}
+{{#each items}}
+@derive(Eq, Debug)
+struct D{{i}}:
+    a: i32
+    b: string
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    if D{{i}} { a: t, b: "x" } == D{{i}} { a: +1, b: "x" }:
+        println(debug(D{{i}} { a: t, b: "y" }))
+{{/each}}
+    println("$t")

@@ -1,0 +1,16 @@
+{{! One function whose requirement row names one trait per `items` entry, using each provider; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+{{#each items}}
+trait R{{i}}:
+    fn r(&self) -> i32
+
+{{/each}}
+fn needs() -> i32 $ Console{{rep ~+~R@}}:
+    let t = +0
+{{#each items}}
+    t = t + $.use(R{{i}}).r()
+{{/each}}
+    t
+
+pub fn main() -> void $ Console:
+    let t = +0
+    println("$t")

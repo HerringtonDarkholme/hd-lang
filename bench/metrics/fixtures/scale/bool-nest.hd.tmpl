@@ -1,0 +1,7 @@
+{{! Comparisons and logic nested two parentheses deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = +1
+    b := {{rep (t~<~1~||~!(t~>=~2~&&~}}true{{rep ))}}
+    if b:
+        t = t + 1
+    println("$t")

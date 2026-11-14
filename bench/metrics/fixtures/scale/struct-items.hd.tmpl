@@ -1,0 +1,14 @@
+{{! One struct per `items` entry, each built and read in main. }}
+{{#each items}}
+struct S{{i}}:
+    a: i32
+    b: string
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    s{{i}} := S{{i}} { a: t, b: "x" }
+    t = t + s{{i}}.a
+{{/each}}
+    println("$t")

@@ -1,0 +1,10 @@
+{{! One `let` statement per `items` entry in one body, each read later. }}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    let v{{i}} = t + 1
+{{/each}}
+{{#each items}}
+    t = t + v{{i}}
+{{/each}}
+    println("$t")

@@ -1,0 +1,15 @@
+{{! One function per `items` entry matching an integer against range patterns. }}
+{{#each items}}
+fn r{{i}}(x: i32) -> i32:
+    match x:
+        0..10 => +1
+        10..=99 => +2
+        _ => +3
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = t + r{{i}}(t)
+{{/each}}
+    println("$t")

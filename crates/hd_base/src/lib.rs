@@ -16,6 +16,7 @@ pub mod sort;
 pub mod stable;
 pub mod unsupported;
 pub mod wire;
+pub mod work;
 
 pub use append::{AppendVec, Col, Range32};
 pub use hash::{FixedState, HashMap, HashSet, set_hash_seed};

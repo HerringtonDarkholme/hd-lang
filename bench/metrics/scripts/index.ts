@@ -35,6 +35,7 @@ import { proptestPerf } from "./proptest-perf.ts";
 import { recheckPrecision } from "./recheck-precision.ts";
 import { resources } from "./resources.ts";
 import { runtime } from "./runtime.ts";
+import { scale } from "./scale.ts";
 import { serdeThroughput } from "./serde-throughput.ts";
 import { sizeStartupHeap } from "./size-startup-heap.ts";
 import { startup } from "./startup.ts";
@@ -51,6 +52,7 @@ export const METRICS: readonly Metric[] = [
   answerSize,
   determinism,
   pathological,
+  scale,
   recheckPrecision,
   errorsPerRun,
   diagLocation,

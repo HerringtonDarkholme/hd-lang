@@ -1,0 +1,7 @@
+{{! One function with one type parameter and one parameter per `items` entry, called once; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+fn wide[Z{{rep ,~T@}}](z: Z{{rep ,~a@:~T@}}) -> Z: z
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = wide(t{{rep ,~+1}})
+    println("$t")

@@ -1,0 +1,7 @@
+{{! Calls nested one level deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+fn id(x: i32) -> i32: x
+
+pub fn main() -> void $ Console:
+    let t = +1
+    t = {{rep id(}}t{{rep )}}
+    println("$t")

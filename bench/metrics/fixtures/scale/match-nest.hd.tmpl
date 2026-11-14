@@ -1,0 +1,17 @@
+{{! `match` expressions nested one per `items` entry, each in the first arm of the one around it; `pad2` steps two levels per entry. }}
+fn pick(o: i32?) -> i32:
+    match o:
+{{#each items}}
+{{pad2}}.Some(v{{i}}) =>
+{{pad2}}    match o:
+{{/each}}
+{{lastPad2}}.Some(v) => v
+{{lastPad2}}.None => +0
+{{#each reversed}}
+{{pad2}}.None => +1
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = pick(.Some(+1))
+    println("$t")

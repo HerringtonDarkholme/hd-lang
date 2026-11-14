@@ -1,0 +1,11 @@
+{{! One `match` over an option per `items` entry in one body. }}
+pub fn main() -> void $ Console:
+    let t = +0
+    let o: i32? = .Some(+1)
+{{#each items}}
+    t = match o:
+        .Some(v) if v > t => v
+        .Some(v) => v + 1
+        .None => +0
+{{/each}}
+    println("$t")

@@ -1,0 +1,18 @@
+{{! One struct per `items` entry implementing std's `Add`, with an associated type, each added in main. }}
+use std.ops.Add
+
+{{#each items}}
+struct M{{i}}:
+    v: i32
+
+impl Add for M{{i}}:
+    type Out = M{{i}}
+    fn add(self, rhs: M{{i}}) -> M{{i}}: M{{i}} { v: self.v + rhs.v }
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = t + (M{{i}} { v: +1 } + M{{i}} { v: t }).v
+{{/each}}
+    println("$t")

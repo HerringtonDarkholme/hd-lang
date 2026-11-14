@@ -1,0 +1,19 @@
+{{! One struct of one field per `items` entry, built with every field and read field by field. }}
+struct Wide:
+    z: i32
+{{#each items}}
+    f{{i}}: i32
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+    w := Wide {
+        z: t,
+{{#each items}}
+        f{{i}}: +1,
+{{/each}}
+    }
+{{#each items}}
+    t = t + w.f{{i}}
+{{/each}}
+    println("$t")

@@ -1,0 +1,7 @@
+{{! The main module of the `module-path-nest` shape, importing from a module one folder deeper per `items` entry; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+use pkg{{rep .d@}}.leaf.deep
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = deep(t)
+    println("$t")

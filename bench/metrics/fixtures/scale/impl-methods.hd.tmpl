@@ -1,0 +1,18 @@
+{{! One struct with one method per `items` entry, each called from main. }}
+struct Acc:
+    a: i32
+
+impl Acc:
+    fn base(&self) -> i32: self.a
+{{#each items}}
+    fn m{{i}}(&self, x: i32) -> i32: self.a + x
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let t = +0
+    acc := Acc { a: +1 }
+    t = acc.base()
+{{#each items}}
+    t = acc.m{{i}}(t)
+{{/each}}
+    println("$t")

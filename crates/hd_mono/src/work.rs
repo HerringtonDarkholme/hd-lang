@@ -27,6 +27,7 @@ pub fn count_enum_steps<R>(run: impl FnOnce() -> R) -> (R, u64) {
 }
 
 pub(crate) fn enum_step() {
+    hd_base::work::add(hd_base::work::Counter::EnumSteps, 1);
     ENUM_STEPS.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));
@@ -48,6 +49,7 @@ pub fn count_type_steps<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// One type node walked.
 pub(crate) fn type_step() {
+    hd_base::work::add(hd_base::work::Counter::TypeSteps, 1);
     TYPE_STEPS.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));

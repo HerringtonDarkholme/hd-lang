@@ -1,0 +1,148 @@
+{{! One copy per `items` entry of the item, type, statement, expression and pattern forms no other shape holds, each used from main. }}
+use std.inspect.{Inspectable, TypeId}
+use std.ops.Disposable
+use std.serde.{Serialize, rename_all}
+use std.structure.Structure
+
+{{#each items}}
+type Pair{{i}} = (i32, i32)
+
+type Choice{{i}} = i32 | string
+
+struct Fixed{{i}}[N < const usize]:
+    pass
+
+type Four{{i}} = Fixed{{i}}[2 + 2]
+
+struct Base{{i}}:
+    pub at: i32
+
+struct Wrap{{i}}:
+    Base{{i}}
+    pub who: string
+
+enum Status{{i}}(code: i32, phrase: string):
+    Ok -> Status{{i}}(200, phrase="OK")
+
+enum Slot{{i}}['a]:
+    Empty
+    Full(value: &'a mut i32)
+
+enum Scale{{i}}:
+    By(factor: i32)
+    None
+
+trait Seq{{i}}:
+    type Item
+    fn first(&self) -> Self::Item
+
+struct Ints{{i}}:
+    xs: List[i32]
+
+impl Seq{{i}} for Ints{{i}}:
+    type Item = i32
+    fn first(&self) -> i32: self.xs[0]
+
+struct View{{i}}:
+    field_name: i32
+
+impl Serialize for View{{i}} by Structure:
+    Self += [rename_all(.CamelCase)]
+
+struct Res{{i}}:
+    n: i32
+
+impl Disposable for Res{{i}}:
+    fn dispose(&mut self) -> void:
+        pass
+
+trait Tag{{i}}:
+    fn name(&self) -> i32
+
+struct Named{{i}}:
+    n: i32
+
+impl Tag{{i}} for Named{{i}}:
+    fn name(&self) -> i32: self.n
+
+fn read{{i}}() -> i32 $ Tag{{i}}:
+    $.use(Tag{{i}}).name()
+
+fn more{{i}}(t: (i32, List[i32]...)) -> i32:
+    match t:
+        (0, _...) => +0
+        (n, rest...) => n + i32(rest.len())
+
+fn takes{{i}}(feed: &dyn Seq{{i}}[Item = i32]) -> i32: feed.first()
+
+fn sum{{i}}(start: i32, values...: List[i32]) -> i32:
+    let total = start
+    for v in values:
+        if v < 0:
+            continue
+        if v > 100:
+            break
+        total += v
+    total
+
+fn shows{{i}}(x: i32) -> impl Display: x
+
+fn opt{{i}}(x: i32, label: string = "a") -> i32: x
+
+fn inc{{i}}(x: i32) -> i32: x + 1
+
+fn one{{i}}!() -> i32: +1
+
+fn two{{i}}!() -> i32: one{{i}}!() + 1
+
+fn run{{i}}(x: i32) -> i32:
+    _ := opt{{i}}(x)
+    let f: (fn(i32) -> i32) = inc{{i}}
+    let g: fn(i32, List[i32]...) -> i32 = sum{{i}}
+    let p = Wrap{{i}} { Base{{i}}: Base{{i}} { at: x }, who: "w" }
+    let r = &p.at
+    let y = *r
+    let m: Map[string, i32] = {"a": y}
+    let xs = [y, y]
+    let ys = [xs..., y]
+    let zs = [for a in xs for b in ys if a != b => a + b]
+    let q = Wrap{{i}} { ...p, who: "v" }
+    let pw = y ** 2
+    let ints = Ints{{i}} { xs: [1] }
+    let k = takes{{i}}(&ints)
+    let id = TypeId::of::[Pair{{i}}]()
+    let h = y |> opt{{i}}(_, "b")
+    let v: List[_] = [1]
+    let s = "${y + 1}"
+    let lit = match y:
+        1 => +1
+        _ => +2
+    let field = match Base{{i}} { at: y }:
+        Base{{i}} { at: 1 } => +1
+        Base{{i}} { at } => at
+    let named = match Scale{{i}}.By(2):
+        .By(factor = 2) => +1
+        _ => +0
+    let mut z = 0
+    using res = box(Res{{i}} { n: y })
+    let ctx: $.Context[$ ()] = $.context()
+    $.with(Tag{{i}}=box(Named{{i}} { n: y })):
+        z = usize(read{{i}}())
+    let spread = more{{i}}((y, xs...))
+    if y == 1:
+        z = 1
+    else if y == 2:
+        z = 2
+    f(y) + g(y, 1, 2) + lit + field + named + k + h + q.at + pw + i32(m.len() + zs.len() + v.len() + s.len()) + Status{{i}}.Ok.code + spread
+
+{{/each}}
+pub fn main() -> void $ Console:
+    let t = +0
+{{#each items}}
+    t = run{{i}}(t)
+{{/each}}
+    println("$t")
+
+tests:
+    it("runs"):
+        assert(true)

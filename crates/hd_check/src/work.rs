@@ -104,6 +104,7 @@ fn body(
 }
 
 pub(crate) fn local_body(ck: &crate::body::Ck<'_, '_>, at: NodeIdx) {
+    hd_base::work::add(hd_base::work::Counter::LocalBodyChecks, 1);
     body(ck.cx, ck.gen_owner, at, Kind::Local, || 0);
 }
 
@@ -113,6 +114,7 @@ pub(crate) fn item_body(
     at: NodeIdx,
     fuel_spent: impl FnOnce() -> u64,
 ) {
+    hd_base::work::add(hd_base::work::Counter::ItemBodyChecks, 1);
     body(cx, owner, at, Kind::Item, fuel_spent);
 }
 
@@ -132,6 +134,7 @@ pub fn count_env_clauses<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// One clause added to a parameter environment.
 pub(crate) fn env_clause() {
+    hd_base::work::add(hd_base::work::Counter::EnvClauses, 1);
     CLAUSES.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));
@@ -156,6 +159,7 @@ pub fn count_join_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// `n` units of least-common-type work.
 pub(crate) fn join_work(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::JoinWork, n as u64);
     JOINS.with(|c| {
         if let Some(w) = c.get() {
             c.set(Some(w + n as u64));
@@ -179,6 +183,7 @@ pub fn count_header_types<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// One type the header check walks.
 pub(crate) fn header_type() {
+    hd_base::work::add(hd_base::work::Counter::HeaderTypes, 1);
     HEADER_TYPES.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));
@@ -226,6 +231,7 @@ pub fn count_held_types<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// One type the inline-containment walk enters.
 pub(crate) fn held_type() {
+    hd_base::work::add(hd_base::work::Counter::HeldTypes, 1);
     HELD_TYPES.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));
@@ -250,6 +256,7 @@ pub fn count_decision_rows<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// `n` rows a decision step looks at.
 pub(crate) fn decision_rows(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::DecisionRows, n as u64);
     DECISION_ROWS.with(|c| {
         if let Some(w) = c.get() {
             c.set(Some(w + n as u64));
@@ -290,6 +297,7 @@ pub fn count_solve_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 /// `n` units of omitted-row solving work.
 pub(crate) fn solve_work(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::SolveWork, n as u64);
     SOLVE.with(|c| {
         if let Some(w) = c.get() {
             c.set(Some(w + n as u64));
