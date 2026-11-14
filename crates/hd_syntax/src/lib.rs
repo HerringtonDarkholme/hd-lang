@@ -7,6 +7,7 @@ mod lexer;
 mod names;
 mod parser;
 mod skim;
+pub mod work;
 
 pub use docs::{doc_text, module_doc_text};
 pub use green::*;

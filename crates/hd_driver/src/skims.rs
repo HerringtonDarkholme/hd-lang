@@ -49,8 +49,7 @@ pub(crate) struct FileSkim {
     /// (`HeaderSkeleton::uses`): the uses that make folder edges.
     pub(crate) use_lines: Vec<(u32, u32)>,
     /// The module path each of `use_lines` names as written, its root not
-    /// yet resolved; empty for a line that is no `use`. Kept so a module's
-    /// uses resolve without its text.
+    /// yet resolved. Kept so a module's uses resolve without its text.
     pub(crate) use_paths: Vec<String>,
     /// The path of each `use` line of a `tests:` block, as written. Test
     /// code makes no folder edge (`module.cycle.test-code`); these widen
@@ -83,22 +82,10 @@ pub(crate) struct FileSkim {
 impl FileSkim {
     pub(crate) fn of(text: &str) -> FileSkim {
         let sk = skim(text.as_bytes());
-        let tests = || sk.bodies.iter().filter(|b| b.kind == HeaderKind::Tests);
-        let in_tests = |at: u32| tests().any(|b| (b.body_start..b.body_end).contains(&at));
-        let mut test_uses = Vec::new();
-        for b in tests() {
-            let block = text
-                .get(b.body_start as usize..b.body_end as usize)
-                .unwrap_or("");
-            for line in block.lines() {
-                let Some(rest) = line.trim().strip_prefix("use ") else {
-                    continue;
-                };
-                let path = rest.split(".{").next().unwrap_or(rest);
-                let path = path.split(" as ").next().unwrap_or(path).trim();
-                test_uses.push(path.to_owned());
-            }
-        }
+        let path_of = |&(lo, hi): &(u32, u32)| {
+            written_path(text.get(lo as usize..hi as usize).unwrap_or("")).to_owned()
+        };
+        let test_uses = sk.test_uses.iter().map(path_of).collect();
         let main_header = |public: bool| {
             sk.bodies
                 .iter()
@@ -111,20 +98,7 @@ impl FileSkim {
                 })
                 .map(|b| (b.header_start, b.body_start))
         };
-        let use_lines: Vec<(u32, u32)> = sk
-            .uses
-            .iter()
-            .copied()
-            .filter(|&(lo, _)| !in_tests(lo))
-            .collect();
-        let use_paths = use_lines
-            .iter()
-            .map(|&(lo, hi)| {
-                written_path(text.get(lo as usize..hi as usize).unwrap_or(""))
-                    .unwrap_or("")
-                    .to_owned()
-            })
-            .collect();
+        let use_paths = sk.uses.iter().map(path_of).collect();
         FileSkim {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
@@ -132,7 +106,7 @@ impl FileSkim {
             token_hash: sk.token_hash,
             doc_hash: doc_hash(text),
             len: u32::try_from(text.len()).unwrap_or(u32::MAX),
-            has_tests_block: tests().next().is_some(),
+            has_tests_block: sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests),
             host_marker: text.contains('@') && text.contains("host"),
             derives: text.contains("derive") || text.contains("Structure"),
             fences: text.contains("```"),
@@ -147,7 +121,7 @@ impl FileSkim {
             }),
             entry: OnceLock::new(),
             code_lines: sk.code_lines,
-            use_lines,
+            use_lines: sk.uses,
             use_paths,
             test_uses,
         }
@@ -263,14 +237,12 @@ impl FileSkim {
     }
 }
 
-/// The module path a `use` line names as written (`pub use a.b.{c}` names
-/// `a.b`), or `None` for a line that is no `use`.
-pub(crate) fn written_path(line: &str) -> Option<&str> {
-    let line = line.trim();
-    let rest = line.strip_prefix("pub ").unwrap_or(line);
-    let rest = rest.strip_prefix("use ")?;
+/// The module path a `use` line (`HeaderSkeleton::uses`, from its `use`)
+/// names as written: `use a.b.{c}` and `use a.b as c` name `a.b`.
+fn written_path(line: &str) -> &str {
+    let rest = line.strip_prefix("use").unwrap_or(line);
     let path = rest.split(".{").next().unwrap_or(rest);
-    Some(path.split(" as ").next().unwrap_or(path).trim())
+    path.split(" as ").next().unwrap_or(path).trim()
 }
 
 /// The hash of `text`'s attached documentation: each doc comment's text
@@ -596,14 +568,15 @@ mod tests {
         let s = FileSkim::of(text);
         assert!(s.has_tests_block && s.public_main.is_some() && s.private_main.is_none());
         assert_eq!(s.test_uses, ["pkg.other"]);
-        // The block's `use` line is no folder-edge line.
+        // The block's `use` line is no folder-edge line, and a line led by
+        // another name is no use line.
         let lines: Vec<&str> = s
             .use_lines
             .iter()
             .map(|&(lo, hi)| &text[lo as usize..hi as usize])
-            .filter(|l| l.starts_with("use "))
             .collect();
         assert_eq!(lines, ["use std.text"]);
+        assert_eq!(s.use_paths, ["std.text"]);
         let mut w = Writer::default();
         s.write(&mut w);
         let mut r = Reader::new(&w.bytes);
@@ -612,5 +585,18 @@ mod tests {
         let mut short = Reader::new(&w.bytes[..w.bytes.len() - 3]);
         let _ = FileSkim::read(&mut short);
         assert!(!short.ok());
+    }
+
+    /// Each written form of a `use` line gives its path, in a `tests:`
+    /// block and out of it, with LF and CRLF endings: `pub`, a group, a
+    /// rename, a trailing comment.
+    #[test]
+    fn use_paths_are_the_written_paths() {
+        let lf = "pub use std.a.{b} # c\nuse self.d as e\n\ntests:\n    use pkg.f # g\n    use std.h.{i, j}\n";
+        for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
+            let s = FileSkim::of(&text);
+            assert_eq!(s.use_paths, ["std.a", "self.d"]);
+            assert_eq!(s.test_uses, ["pkg.f", "std.h"]);
+        }
     }
 }

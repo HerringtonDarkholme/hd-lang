@@ -39,7 +39,11 @@ pub struct HeaderSkeleton {
     /// The start of each code line, in order.
     pub code_lines: Vec<u32>,
     pub bodies: Vec<BodyRange>,
+    /// The byte range of each `use` line outside the `tests:` blocks, in
+    /// order (`use_ranges`).
     pub uses: Vec<(u32, u32)>,
+    /// The byte range of each `use` line inside a `tests:` block, in order.
+    pub test_uses: Vec<(u32, u32)>,
     pub broken: bool,
 }
 
@@ -54,7 +58,7 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
     };
     let logical = logical_lines(&lexed.tokens);
     let bodies = body_ranges(text, &lexed.tokens, &logical);
-    let uses = use_ranges(&lexed.tokens);
+    let (uses, test_uses) = split_test_uses(use_ranges(text, &lexed.tokens), &bodies);
     let api_text_hash = api_hash(text, &lexed.tokens, &bodies, &logical);
     let template_text_hash = template_text_hash(text, &lexed.tokens, &bodies, &logical);
     let lines = code_lines(&lexed.tokens);
@@ -90,6 +94,7 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
         code_lines: lines.into_iter().map(|(start, _)| start).collect(),
         bodies,
         uses,
+        test_uses,
         broken: !lexed.diagnostics.is_empty(),
     }
 }
@@ -235,29 +240,62 @@ fn header_kind(kind: TokenKind) -> HeaderKind {
     }
 }
 
-fn use_ranges(tokens: &TokenBuf) -> Vec<(u32, u32)> {
+/// The byte range of each `use` line, from its `use` to its last token: a
+/// line whose first token, past a leading `pub`, is the word `use` followed
+/// by a path's first segment. One pass over the lines.
+fn use_ranges(source: &str, tokens: &TokenBuf) -> Vec<(u32, u32)> {
     let mut result = Vec::new();
     let line_end = tokens.line_token_ends();
     for (line, &next) in line_end.iter().enumerate() {
         let Some(first) = tokens.line_tok[line].get() else {
             continue;
         };
-        let first = first.idx();
-        let first = if tokens.kind.get(first) == Some(&TokenKind::KwPub) && next > first + 1 {
-            first + 1
-        } else {
-            first
-        };
-        let is_use = tokens
-            .kind
-            .get(first)
-            .is_some_and(|kind| *kind == TokenKind::Ident)
-            && tokens.start.get(first).is_some();
-        if is_use && next > first {
-            result.push((tokens.start[first], tokens.end[next - 1]));
+        let mut at = first.idx();
+        if tokens.kind[at] == TokenKind::KwPub {
+            at += 1;
+        }
+        let is_use = at + 1 < next
+            && tokens.kind[at] == TokenKind::Ident
+            && &source[tokens.start[at] as usize..tokens.end[at] as usize] == "use"
+            && matches!(
+                tokens.kind[at + 1],
+                TokenKind::Ident | TokenKind::KwSelfValue
+            );
+        if is_use {
+            result.push((tokens.start[at], tokens.end[next - 1]));
         }
     }
     result
+}
+
+/// A byte range of the text.
+type Span = (u32, u32);
+
+/// The `use` lines split into those outside every `tests:` block and
+/// those inside one. Both the lines and the blocks are in text order, so
+/// one merge places them all: the blocks that start at or before a line
+/// are passed once, and the line is inside one exactly when the furthest
+/// end among them lies past it.
+fn split_test_uses(uses: Vec<Span>, bodies: &[BodyRange]) -> (Vec<Span>, Vec<Span>) {
+    let mut blocks = bodies
+        .iter()
+        .filter(|b| b.kind == HeaderKind::Tests)
+        .peekable();
+    let mut reach = 0;
+    let (mut outside, mut inside) = (Vec::new(), Vec::new());
+    for (lo, hi) in uses {
+        crate::work::skim_step();
+        while let Some(block) = blocks.next_if(|b| b.body_start <= lo) {
+            crate::work::skim_step();
+            reach = reach.max(block.body_end);
+        }
+        if lo < reach {
+            inside.push((lo, hi));
+        } else {
+            outside.push((lo, hi));
+        }
+    }
+    (outside, inside)
 }
 
 /// The code lines: each line on which a token or a documentation comment
@@ -386,15 +424,22 @@ fn template_text_hash(
     logical: &[(usize, usize, usize)],
 ) -> Hash128 {
     let decls = decl_line_starts(tokens);
-    let by_impls: Vec<(u32, u32)> = bodies
+    // The bodies are in header order, so one merge places each function
+    // in the `by` implementations: those whose header starts at or before
+    // its header are passed once, and it lies inside one exactly when the
+    // furthest end among them reaches its end.
+    let mut by_impls = bodies
         .iter()
         .filter(|b| b.kind == HeaderKind::Impl && header_has_by(source, tokens, b))
-        .map(|b| (b.header_start, b.body_end))
-        .collect();
-    let in_by_impl = |body: &BodyRange| {
-        by_impls
-            .iter()
-            .any(|&(lo, hi)| lo <= body.header_start && body.body_end <= hi)
+        .peekable();
+    let mut reach = 0;
+    let mut in_by_impl = |body: &BodyRange| {
+        crate::work::skim_step();
+        while let Some(by) = by_impls.next_if(|by| by.header_start <= body.header_start) {
+            crate::work::skim_step();
+            reach = reach.max(by.body_end);
+        }
+        body.body_end <= reach
     };
     let hidden = bodies
         .iter()
@@ -659,5 +704,77 @@ mod tests {
             assert_eq!(api(base), api(&edited), "{from:?}");
             assert_eq!(hash(base) == hash(&edited), kept, "{from:?}");
         }
+    }
+
+    /// Only `use` lines are uses (#1881), placed by the `tests:` blocks:
+    /// each form of line that starts with a name, and a `use` inside a
+    /// multiline string, in LF and CRLF text.
+    #[test]
+    fn uses_are_the_use_lines_placed_by_the_tests_blocks() {
+        let lf = "use std.a # note\npub use std.b.{c}\nuser := 1\nuse := 2\nuse\nfoo(1)\nfn f() -> void:\n    use self.d as e\n    s := \"\"\"\nuse std.in_string\n\"\"\"\ntests:\n    use pkg.t\n    use std.u.{v}\n    s := \"\"\"\nuse pkg.in_string\n\"\"\"\n    test \"x\":\n        assert(true)\nuse std.after\n";
+        for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
+            let sk = skim(text.as_bytes());
+            let lines = |ranges: &[(u32, u32)]| -> Vec<String> {
+                ranges
+                    .iter()
+                    .map(|&(lo, hi)| text[lo as usize..hi as usize].to_owned())
+                    .collect()
+            };
+            assert_eq!(
+                lines(&sk.uses),
+                [
+                    "use std.a",
+                    "use std.b.{c}",
+                    "use self.d as e",
+                    "use std.after"
+                ]
+            );
+            assert_eq!(lines(&sk.test_uses), ["use pkg.t", "use std.u.{v}"]);
+        }
+    }
+
+    /// A function body in a `by` implementation stays in the template
+    /// hash however the implementations nest and order: before, inside,
+    /// between and after them.
+    #[test]
+    fn template_hash_keeps_each_body_of_a_by_implementation() {
+        let base = "fn a() -> i32 $ Console:\n    1\nimpl Show for P by Structure:\n    fn b() -> i32 $ Console:\n        2\nfn c() -> i32 $ Console:\n    3\nimpl Show for Q:\n    fn d() -> i32 $ Console:\n        4\nimpl Show for R by Structure:\n    fn e() -> i32 $ Console:\n        5\n    fn f() -> i32 $ Console:\n        6\nfn g() -> i32 $ Console:\n    7\n";
+        let hash = |s: &str| skim(s.as_bytes()).template_text_hash;
+        for (body, kept) in [
+            ("1", true),
+            ("2", false),
+            ("3", true),
+            ("4", true),
+            ("5", false),
+            ("6", false),
+            ("7", true),
+        ] {
+            let edited = base.replace(&format!("{body}\n"), &format!("{body}0\n"));
+            assert_eq!(hash(base) == hash(&edited), kept, "body {body}");
+        }
+    }
+
+    /// The skim's placing passes are linear (#1881): n functions, each
+    /// with a `use` line, a `by` implementation and a `tests:` block.
+    #[test]
+    fn skim_placing_work_is_linear() {
+        use std::fmt::Write as _;
+        let source = |n: usize| {
+            let mut out = String::new();
+            for i in 0..n {
+                let _ = write!(
+                    out,
+                    "use std.m{i}\nfn g{i}() -> i32 $ Console:\n    p := P {{ x: {i} }}\n    p.x\nimpl Show for T{i} by Structure:\n    fn show(self) -> string $ Console:\n        \"{i}\"\ntests:\n    use pkg.t{i}\n"
+                );
+            }
+            out
+        };
+        let work = |n: usize| {
+            let (sk, steps) = crate::work::count_skim_steps(|| skim(source(n).as_bytes()));
+            assert_eq!((sk.uses.len(), sk.test_uses.len()), (n, n));
+            steps
+        };
+        let (small, large) = (work(2_000), work(20_000));
+        assert!(small > 0 && large <= 10 * small, "{small} then {large}");
     }
 }
