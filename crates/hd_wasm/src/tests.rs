@@ -1810,6 +1810,17 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     let mut alloc = m.func("page_alloc", vec![Val::I32], vec![Val::I32]);
     let size = alloc.local(Val::I32);
     let block = alloc.local(Val::I32);
+    // Record huge requests and trap before reserving memory or copying.
+    // This executes the emitted capacity clamp without a multi-GiB heap.
+    alloc.get(0);
+    alloc.u32(131_072);
+    alloc.op(I::I32GtU);
+    alloc.op(I::If(wasm_encoder::BlockType::Empty));
+    alloc.i32(0);
+    alloc.get(0);
+    alloc.op(I::I32Store(mem(BUF, 0, 2)));
+    alloc.op(I::Unreachable);
+    alloc.op(I::End);
     alloc.get(0);
     alloc.i32(65535);
     alloc.op(I::I32Add);
@@ -1889,7 +1900,12 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     }
     m.define(Sym::Inst(Hash128(99111)), full);
     m.export("set_full", Sym::Inst(Hash128(99111)));
-    for size in [0, 4] {
+    let mut request = m.func("last_request", vec![], vec![Val::I32]);
+    request.i32(0);
+    request.op(I::I32Load(mem(BUF, 0, 2)));
+    m.define(Sym::Inst(Hash128(99112)), request);
+    m.export("last_request", Sym::Inst(Hash128(99112)));
+    for size in [0, 4, 1_500_000_000] {
         m.export(
             format!("grow{size}"),
             Sym::Helper(Helper::ListGrow { elem: elem(size) }),
@@ -1918,6 +1934,16 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
         for(let i=0;i<16379;i++)assert.equal(e.at(b,i),i,'growth preserves each element');
         e.set_full(b,Math.floor((0xffffffff-24)/4));
         assert.throws(()=>e.grow4(b),/unexpected import/,'maximum-length growth takes the panic path before copying');
+        const most=Math.floor((0xffffffff-24)/4), threshold=Math.ceil((most-4)/2);
+        e.set_full(b,threshold-1);
+        assert.throws(()=>e.grow4(b),WebAssembly.RuntimeError);
+        assert.equal(e.last_request()>>>0,(2*(threshold-1)+4)*4+24,'unclamped geometric request');
+        e.set_full(b,threshold);
+        assert.throws(()=>e.grow4(b),WebAssembly.RuntimeError);
+        assert.equal(e.last_request()>>>0,most*4+24,'growth clamps before multiplication');
+        e.set_full(b,0);
+        assert.throws(()=>e.grow1500000000(b),WebAssembly.RuntimeError);
+        assert.equal(e.last_request()>>>0,3000000024,'layouts with capacity below four clamp safely');
         const z=e.new0(1);e.set_full(z,-1);
         assert.throws(()=>e.grow0(z),/unexpected import/,'zero-sized length overflow takes the panic path');
         console.log(JSON.stringify({blocks,capacity:e.capacity(b),three:e.capacity(e.new3(1)),zero:e.capacity(e.new0(1))>>>0}));

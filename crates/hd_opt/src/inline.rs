@@ -8,6 +8,7 @@
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
+use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -170,6 +171,20 @@ pub struct Memo {
     /// written stays; a thread that solved the same component meanwhile
     /// found the same values, and drops them.
     flags: Mutex<HashMap<(DefId, TyList), Solved>>,
+}
+
+impl Memo {
+    /// A completed preparation wins; otherwise a cycle published by another
+    /// worker keeps the call before that worker finishes its preparation.
+    /// `Continue` means neither worker has settled this instance yet.
+    fn cached_copy(&self, key: (DefId, TyList)) -> ControlFlow<Option<Inlined>> {
+        let made = lock(&self.inlined).get(&key).cloned();
+        match made {
+            Some(made) => ControlFlow::Break(made),
+            None if lock(&self.recursive).contains(&key) => ControlFlow::Break(None),
+            None => ControlFlow::Continue(()),
+        }
+    }
 }
 
 /// A flag's solved value and its copy ([`Memo`]), both `None` where the
@@ -875,13 +890,10 @@ impl dyn InlineEnv + '_ {
     /// decorated user functions; release builds also consider ordinary user
     /// functions.
     async fn callee_copy(&self, def: DefId, targs: TyList, stack: &Stack) -> Option<Inlined> {
-        if let Some(memo) = self.memo() {
-            if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
-                return made.clone();
-            }
-            if lock(&memo.recursive).contains(&(def, targs)) {
-                return None;
-            }
+        if let Some(ControlFlow::Break(made)) =
+            self.memo().map(|memo| memo.cached_copy((def, targs)))
+        {
+            return made;
         }
         CopyWait {
             stack,
@@ -2264,6 +2276,44 @@ mod tests {
     use hd_types::{InternPool, Ty, TyData};
 
     use super::{bottom_up, keep_parameter_kind};
+
+    #[test]
+    fn recursive_copy_publication_precedes_the_completed_cache() {
+        let memo = super::Memo::default();
+        let key = (DefId::from_raw(1), hd_types::TyList(0));
+        assert!(memo.cached_copy(key).is_continue());
+        let published = std::sync::Barrier::new(2);
+        let finish = std::sync::Barrier::new(2);
+        let observed = std::thread::scope(|scope| {
+            // cost: one publisher and two barrier rendezvous over one fixed key.
+            scope.spawn(|| {
+                super::lock(&memo.recursive).insert(key);
+                published.wait();
+                finish.wait();
+                super::lock(&memo.inlined).insert(key, None);
+            });
+            published.wait();
+            let unfinished = !super::lock(&memo.inlined).contains_key(&key);
+            let kept = matches!(memo.cached_copy(key), std::ops::ControlFlow::Break(None));
+            finish.wait();
+            (unfinished, kept)
+        });
+        // Assert after releasing the publisher, so a failing test cannot
+        // leave it waiting at the second barrier during scope cleanup.
+        assert_eq!(observed, (true, true));
+        assert!(matches!(
+            memo.cached_copy(key),
+            std::ops::ControlFlow::Break(None)
+        ));
+        // A copy completed before the cycle was published still takes the
+        // normal cached-copy path, whose caller checks active ancestors.
+        let body = Body::new(key.0, BodyKind::Fn);
+        super::lock(&memo.inlined).insert(key, Some((body, hd_base::Hash128(7))));
+        assert_eq!(
+            memo.cached_copy(key).break_value().flatten().unwrap().1,
+            hd_base::Hash128(7)
+        );
+    }
 
     #[test]
     fn active_copy_index_preserves_wildcards_polymorphic_limits_and_pop() {
