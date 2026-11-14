@@ -67,5 +67,5 @@ tests:
             execute_deferred(make_deferred())
             execute_runner(Announcer {})
             accept_stored(make_exit())
-        assert_equal(console.output(), ["done", "\n", "done", "\n", "done", "\n"])
+        assert_equal(console.output(), ["done\n", "done\n", "done\n"])
         _ := make_newtype()

@@ -1,0 +1,15 @@
+# test: println panics if its single line write returns an error.
+# Spec 10 Console: module.console.println-write-error.single, module.console.println-error.category.
+
+struct LineFails:
+    calls: usize
+
+impl Console for LineFails:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.calls = self.calls + 1
+        .Err(ConsoleError.Closed)
+
+pub fn main() -> void:
+    console := box(LineFails { calls: 0 })
+    $.with(Console=console):
+        println("hello") # panic: explicit-panic

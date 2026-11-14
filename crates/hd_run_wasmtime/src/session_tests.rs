@@ -706,8 +706,7 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
             "end Exit(0)",
             "input 4",
         ];
-        // println drives the Display text and newline as separate writes.
-        want.extend_from_slice(write);
+        // println writes its Display text and newline in one synchronous call.
         want.extend_from_slice(write);
         want.extend([
             "end Exit(0)",
@@ -755,21 +754,14 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         let handle = u32::try_from(*handle).expect("a handle");
         assert!(matches!(&events[8], Event::Wake { handles, .. } if handles == &[handle]));
         assert!(matches!(&events[9], Event::Finish { handle: h, .. } if *h == handle));
-        // `println("hi")` writes the text, then the newline, with a
-        // separate length and byte sequence for each host call.
+        // `println("hi")` records one request containing the whole line.
         let Event::Call { request, .. } = &events[12] else {
             panic!("{:?}", events[12]);
         };
-        assert_eq!(request, &Request::Args(vec![2, b'h', b'i']));
-        let newline_at = 12 + write.len();
-        let Event::Call { request, .. } = &events[newline_at] else {
-            panic!("{:?}", events[newline_at]);
-        };
-        assert_eq!(request, &Request::Args(vec![1, b'\n']));
-        // The panic stub follows both writes; each also blocks and
-        // finishes on Windows. It writes the panic message and newline
-        // through separate stderr calls.
-        let panic_at = 14 + 2 * write.len();
+        assert_eq!(request, &Request::Args(vec![3, b'h', b'i', b'\n']));
+        // The panic stub follows the line write. Its message and newline
+        // still use separate stderr calls.
+        let panic_at = 14 + write.len();
         assert!(matches!(
             &events[panic_at],
             Event::Call { request: Request::Args(args), .. } if args.is_empty()

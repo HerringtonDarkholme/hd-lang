@@ -616,7 +616,7 @@ test(
           await delay(1);
         }
       }
-      assert.equal(output.join(""), "before\nafter\n");
+      assert.deepEqual(output, ["before\n", "after\n"]);
       assert.deepEqual(errors, []);
       assert.deepEqual(driver.step(), { status: 0, wakes: 0 });
     } finally {

@@ -64,7 +64,7 @@ tests:
         assert_equal(only.label, "b", reason="truncate keeps the prefix")
         assert_equal(
             console.output(),
-            ["c", "\n", "a", "\n", "b", "\n"],
+            ["c\n", "a\n", "b\n"],
             reason="each moved element prints in the order it leaves the list",
         )
         items.push(Ticket { label: "z" })

@@ -13,4 +13,4 @@ tests:
         console := MemoryConsole::new()
         $.with(Console=console):
             work()
-        assert_equal(console.output(), ["body", "\n", "cleanup", "\n"])
+        assert_equal(console.output(), ["body\n", "cleanup\n"])

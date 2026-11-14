@@ -761,9 +761,8 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
     - `println` makes two host calls (`lib/std/console.hd:114-119`). Each
       decodes UTF-8, encodes it again with `Buffer.from`
       (`host/output.ts:158`), makes one unbuffered `writeSync`, and
-      encodes a `Result` with a new encoder (`core.ts:629-644`). The two
-      writes are a spec rule (`module.console.println-two-writes-sync`),
-      so buffering is **owner**.
+      encodes a `Result` with a new encoder (`core.ts:629-644`). The owner accepted one write per line in #1763
+      (`module.console.println-one-write-sync`); buffering remains **owner**.
     - `read_text!` runs `realpath` per path component even under an
       unrestricted grant (`host/node-files.ts:41-75`). It adds a
       `statSync` and creates a new `TextDecoder` per call.
@@ -1263,7 +1262,7 @@ Every missed or n/a line has at least one item.
 ## Owner Decisions
 
 1. E1: wasmtime as the default engine, and Winch as its dev tier.
-2. E4: `println`'s two host writes, a spec rule.
+2. E4: #1763 applies the owner's one-write-per-line decision; buffering remains separate.
 3. K2: the `iterator-chain` fixture or the 64-deep proof limit.
 4. K3: specify `hd callers` and `hd needs`, or retire `lookup-latency`.
 5. S9: whether `disk` counts the shared toolchain.

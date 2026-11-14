@@ -30,7 +30,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 16 ;; &"println: write_sync returned .Err(ConsoleError)"
+    i32.const 16 ;; &"\n"
     i32.lt_u
     if
       i32.const 1
@@ -42,7 +42,7 @@
         unreachable
       end
       local.get $t0
-      i32.const 16 ;; &"println: write_sync returned .Err(ConsoleError)"
+      i32.const 16 ;; &"\n"
       i32.shl
       local.tee $t0
       global.set $locals_base
@@ -52,7 +52,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 16 ;; &"println: write_sync returned .Err(ConsoleError)"
+    i32.const 16 ;; &"\n"
     i32.sub
     local.tee $t0
     global.set $locals
@@ -63,7 +63,7 @@
     i32.const 8
     i32.add
     local.tee $sink
-    i32.const 16 ;; &"println: write_sync returned .Err(ConsoleError)"
+    i32.const 16 ;; &"\n"
     i32.store $heap
     local.get $sink
     i32.const 0
@@ -104,7 +104,7 @@
       end
     end
     local.get $t0
-    i32.const 16 ;; &"println: write_sync returned .Err(ConsoleError)"
+    i32.const 16 ;; &"\n"
     i32.add
     global.set $locals
   )
@@ -143,7 +143,7 @@
     i32.const 1
     call $rt:new/class-1
     local.tee $sink
-    i32.const 16 ;; &"println: write_sync returned .Err(ConsoleError)"
+    i32.const 16 ;; &"\n"
     i32.store $heap
     local.get $sink
     i32.const 0
