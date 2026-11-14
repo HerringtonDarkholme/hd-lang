@@ -1030,6 +1030,58 @@ fn generic_parameter_uses_probe_the_scope_linearly() {
     });
 }
 
+// Resolver: #1874, a local declaration finds a name among the parameters
+// around it with one hash probe per use, after hashing them once: a scan
+// of every enclosing parameter per use cost 1,024 string compares each.
+/// A local struct inside a method with `params` type parameters, whose
+/// `uses` fields name an unknown type, const or trait in turn.
+fn outer_unknown_names(params: usize, uses: usize) -> String {
+    let list: Vec<String> = (0..params).map(|i| format!("T{i}")).collect();
+    let mut s = format!(
+        "struct Fixed[N < const i32]:\n    v: i32\n\nstruct Host:\n    v: i32\n\nimpl Host:\n    fn big[{}](&self) -> i32:\n        struct Local:\n",
+        list.join(", ")
+    );
+    for i in 0..uses {
+        let ty = match i % 3 {
+            0 => format!("U{i}"),
+            1 => format!("Fixed[C{i}]"),
+            _ => format!("fn(&dyn K{i}) -> void"),
+        };
+        let _ = writeln!(s, "            f{i}: {ty}");
+    }
+    s.push_str("        1\n");
+    s
+}
+
+#[test]
+fn unknown_names_in_a_local_declaration_probe_enclosing_parameters_once_each() {
+    let work = |uses: usize| {
+        let (out, probes) = hd_resolve::work::count_outer_probes(|| {
+            compile(&outer_unknown_names(1024, uses), &Goal::Analyze)
+        });
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(codes.len(), uses, "{}", out.render());
+        assert!(
+            codes
+                .iter()
+                .all(|c| ["unknown-type", "unknown-name", "unknown-trait"].contains(c)),
+            "{}",
+            out.render()
+        );
+        probes
+    };
+    // Each pass that lowers `Local` hashes the 1,024 parameters and `Self`
+    // once, then probes once per use: 3 passes, 3,075 + 4 per use
+    // measured. A scan per use would cost 1,024 per use.
+    for uses in [1000, 10_000] {
+        let probes = work(uses);
+        assert!(
+            probes <= 4 * (1025 + uses as u64),
+            "{uses} unknown names among 1,024 enclosing parameters: {probes} probes",
+        );
+    }
+}
+
 // Checker: #1852, a negative float pattern is read as its value, so its
 // column is split by value: n rows, not n² / 2.
 #[test]

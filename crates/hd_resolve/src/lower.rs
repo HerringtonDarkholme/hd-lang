@@ -10,7 +10,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::sync::Arc;
 
 use hd_base::{
@@ -817,43 +817,43 @@ fn local_heads<'t>(
 /// one path down the tree: called only for a name that reached nothing.
 #[must_use]
 pub fn is_enclosing_parameter(src: &Src<'_>, at: u32, name: &str) -> bool {
-    enclosing_generics(src, src.root(), at)
-        .0
-        .iter()
-        .any(|n| n == name)
+    let (lists, self_owner) = enclosing_generics(src, src.root(), at);
+    (name == "Self" && self_owner.is_some())
+        || parameter_names(src, &lists).any(|t| src.text(t) == name)
 }
 
-/// The type parameter names (and `Self`, inside an impl or trait) of the
-/// declarations of `top` that enclose the declaration starting at `at`,
-/// and their generic lists, outermost first; then the innermost impl or
-/// trait around it, whose `Self` it sees. A local function's list is one
-/// of them: its parameters are a generic sub-body's, which the checker
-/// keeps in scope there.
+/// The name tokens of the parameters of the generic lists `lists`.
+fn parameter_names<'s>(
+    src: &'s Src<'_>,
+    lists: &'s [hd_base::NodeIdx],
+) -> impl Iterator<Item = hd_base::TokenIdx> + 's {
+    lists
+        .iter()
+        .flat_map(|&gl| src.parse.tree.node(gl).children())
+        .filter_map(|g| g.name(&src.parse.tokens))
+}
+
+/// The generic lists of the declarations of `top` that enclose the
+/// declaration starting at `at`, outermost first, and the innermost impl
+/// or trait around it, whose `Self` it sees. Their parameters, and that
+/// `Self`, are the names it may take from around it. A local function's
+/// list is one of them: its parameters are a generic sub-body's, which
+/// the checker keeps in scope there.
 fn enclosing_generics(
     src: &Src<'_>,
     top: NodeRef<'_>,
     at: u32,
-) -> (Vec<String>, Vec<hd_base::NodeIdx>, Option<hd_base::NodeIdx>) {
-    let mut out = Vec::new();
+) -> (Vec<hd_base::NodeIdx>, Option<hd_base::NodeIdx>) {
     let mut lists = Vec::new();
     let mut self_owner = None;
     let mut n = top;
     while src.span(n).lo < at {
         if decl_kind(src, n).is_some() {
             if matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl) {
-                out.push("Self".to_owned());
                 self_owner = Some(n.index());
             }
             if let Some(gl) = Src::child(n, SyntaxKind::GenericParameterList) {
                 lists.push(gl.index());
-            }
-            for g in Src::child(n, SyntaxKind::GenericParameterList)
-                .iter()
-                .flat_map(|gl| gl.children())
-            {
-                if let Some(t) = g.name(&src.parse.tokens) {
-                    out.push(src.text(t).to_owned());
-                }
             }
         }
         let Some(c) = n.children().find(|c| {
@@ -864,7 +864,7 @@ fn enclosing_generics(
         };
         n = c;
     }
-    (out, lists, self_owner)
+    (lists, self_owner)
 }
 
 /// The local declarations under `n` with their suites, outside nested
@@ -2000,6 +2000,17 @@ impl Gen {
 /// and the field paths written so far (`ref.result.path.form`).
 type ResultPaths = (Vec<(Symbol, Ty)>, usize, Vec<ResultPath>);
 
+/// A local declaration's view of the declarations around it: their
+/// generic lists and whether an impl or trait is among them. The names
+/// are hashed on the first lookup, which only a name that reached nothing
+/// makes, so a header with no such name pays nothing for them.
+#[derive(Default)]
+struct Outer {
+    lists: Vec<hd_base::NodeIdx>,
+    has_self: bool,
+    names: OnceCell<HashSet<Symbol>>,
+}
+
 struct Lower<'a, 'r, 'x> {
     r: &'a Resolver<'r, 'x>,
     names: Names<'r>,
@@ -2036,9 +2047,9 @@ struct Lower<'a, 'r, 'x> {
     /// The byte where the header being lowered is declared: the local
     /// declarations whose extent holds it are in scope.
     at: u32,
-    /// For a local declaration: the type parameters (and `Self`) of the
-    /// declarations around it.
-    outer: Vec<String>,
+    /// For a local declaration: the type, const and row parameters (and
+    /// `Self`) of the declarations around it.
+    outer: Outer,
     /// For a local declaration that names one of them: the generic lists
     /// of the declarations around it, whose type parameters lead its own
     /// (`names.local-type.refs`, [`Lower::outer_generics`]).
@@ -2064,6 +2075,28 @@ impl Lower<'_, '_, '_> {
         self.unsupported.get_or_insert_with(|| what.into());
     }
 
+    /// Whether `name` is a parameter, or the `Self`, of a declaration
+    /// around this local one ([`Outer`]): one hash probe per use, after one
+    /// pass over the enclosing lists.
+    fn is_outer(&self, name: Symbol) -> bool {
+        let o = &self.outer;
+        if o.lists.is_empty() && !o.has_self {
+            return false;
+        }
+        let names = o.names.get_or_init(|| {
+            let mut names: HashSet<Symbol> = parameter_names(&self.src, &o.lists)
+                .map(|t| self.sym_token(t))
+                .collect();
+            if o.has_self {
+                names.insert(self.sym("Self"));
+            }
+            crate::work::outer_names(names.len());
+            names
+        });
+        crate::work::outer_probe();
+        names.contains(&name)
+    }
+
     /// Enters head `h`. The local declarations in scope are those visible
     /// where it is declared, itself included, and a local one sees the
     /// type, const and row parameters of the declarations around it, local
@@ -2072,11 +2105,15 @@ impl Lower<'_, '_, '_> {
     /// local impl of one does ([`Self::outer_generics`]).
     fn enter(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
-        let (outer, lists, self_owner) = h
+        let (lists, self_owner) = h
             .local
             .map(|l| enclosing_generics(&self.src, l.top, self.at))
             .unwrap_or_default();
-        self.outer = outer;
+        self.outer = Outer {
+            lists: lists.clone(),
+            has_self: self_owner.is_some(),
+            names: OnceCell::new(),
+        };
         self.outer_self = self_owner;
         self.outer_lists = Vec::new();
         self.outer_takes_self = false;
@@ -2716,9 +2753,7 @@ impl Lower<'_, '_, '_> {
                     Some(HeadKind::Fn) => ConstName::Runtime,
                     Some(_) => ConstName::Type,
                     None if self.is_poisoned(sym) => ConstName::Poison,
-                    None if !in_binding && self.outer.iter().any(|o| o == name) => {
-                        ConstName::Untaken
-                    }
+                    None if !in_binding && self.is_outer(sym) => ConstName::Untaken,
                     None => ConstName::Unknown,
                 }
             };
@@ -2798,7 +2833,7 @@ impl Lower<'_, '_, '_> {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
             // A row parameter around a local impl that does not take it
             // (`names.local-type.refs.impl`).
-            if segs.len() == 1 && self.outer.contains(&name) {
+            if segs.len() == 1 && self.is_outer(self.sym(&name)) {
                 let msg = format!(
                     "`{name}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
                 );
@@ -3264,7 +3299,7 @@ impl Lower<'_, '_, '_> {
             // local target or trait takes (`names.local-type.refs`, `enter`):
             // a name around it that is not in scope is one the impl does not
             // take (`names.local-type.refs.impl`).
-            if segs.len() == 1 && self.outer.contains(&first) {
+            if segs.len() == 1 && self.is_outer(self.sym(&first)) {
                 let msg = format!(
                     "`{first}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
                 );
@@ -7106,7 +7141,7 @@ fn lower_aliases(
                 in_field: false,
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
-                outer: Vec::new(),
+                outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
@@ -7177,7 +7212,7 @@ fn lower_aliases(
                 in_field: false,
                 locals: &locals[mi],
                 at: 0,
-                outer: Vec::new(),
+                outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
@@ -8705,7 +8740,7 @@ pub fn build_folder(
                     in_field: false,
                     locals: &locals,
                     at: 0,
-                    outer: Vec::new(),
+                    outer: Outer::default(),
                     outer_lists: Vec::new(),
                     outer_self: None,
                     outer_takes_self: false,
@@ -8854,7 +8889,7 @@ pub fn build_folder(
                 in_field: false,
                 locals: &[],
                 at: 0,
-                outer: Vec::new(),
+                outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
@@ -9006,7 +9041,7 @@ fn own_trait_generics(
                 in_field: false,
                 locals: &locals,
                 at: m.src.span(h.node).lo,
-                outer: Vec::new(),
+                outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
@@ -9288,7 +9323,7 @@ fn own_trait_supers(
                 in_field: false,
                 locals: &locals,
                 at: m.src.span(h.node).lo,
-                outer: Vec::new(),
+                outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
                 outer_takes_self: false,
