@@ -759,8 +759,9 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// The first module-private declaration that the written type `t`
-    /// reaches, nested types, arguments and requirement keys included: a
-    /// type's own declaration first, then its parts in order. A walk of the
+    /// reaches, nested types, union members, arguments and requirement
+    /// keys included: a type's own declaration first, then its parts in
+    /// order, the parts [`hd_resolve::ty_parts`] gives every type form. A walk of the
     /// types not asked before in this stage-B pass, with its own stack,
     /// each type's answer after its parts', so a header costs its own
     /// types, not each alias's expansion again (#1825).
@@ -768,26 +769,31 @@ impl<'a> ItemCheck<'_, 'a> {
         if let Some(&found) = self.private.get(&t) {
             return found;
         }
-        let pool = self.pool();
+        let pool = self.cx.names.pool;
         let mut stack = vec![(t, false)];
-        let mut parts = Vec::new();
+        let (mut defs, mut parts) = (Vec::new(), Vec::new());
         while let Some((u, ready)) = stack.pop() {
             if !ready && self.private.contains_key(&u) {
                 continue;
             }
-            let own = private_parts(pool, u, &mut parts);
+            hd_resolve::ty_parts(pool, u, &mut defs, &mut parts);
             if ready {
-                let found = own.filter(|&d| self.is_private(d)).or_else(|| {
-                    parts
-                        .iter()
-                        .find_map(|p| self.private.get(p).copied().flatten())
-                });
+                let found = defs
+                    .iter()
+                    .copied()
+                    .find(|&d| self.is_private(d))
+                    .or_else(|| {
+                        parts
+                            .iter()
+                            .find_map(|p| self.private.get(p).copied().flatten())
+                    });
                 self.private.insert(u, found);
             } else {
                 crate::work::header_type();
                 stack.push((u, true));
                 stack.extend(parts.iter().rev().map(|&p| (p, false)));
             }
+            defs.clear();
             parts.clear();
         }
         self.private.get(&t).copied().flatten()
@@ -1821,69 +1827,6 @@ impl<'a> ItemCheck<'_, 'a> {
             self.report(0, Code::InvalidDelegation, message);
         }
         Ok(())
-    }
-}
-
-/// The declaration the type `t` names itself, and its parts onto
-/// `parts`, in the order [`ItemCheck::private_in`] reads them; the parts
-/// of a type no other module can reach a private declaration through
-/// (a parameter, a primitive) are none.
-fn private_parts(pool: Types<'_>, t: Ty, parts: &mut Vec<Ty>) -> Option<DefId> {
-    let keys = |row: RowId, parts: &mut Vec<Ty>| parts.extend(pool.row_data(row).keys.iter());
-    match pool.get(t) {
-        TyData::Adt { def, args } => {
-            parts.extend(pool.list_items(args));
-            Some(def)
-        }
-        TyData::TraitValue {
-            def,
-            args,
-            bindings,
-        } => {
-            parts.extend(pool.list_items(args));
-            parts.extend(bindings.iter().map(|b| b.1));
-            Some(def)
-        }
-        TyData::Assoc {
-            trait_,
-            self_ty,
-            args,
-            ..
-        } => {
-            parts.push(self_ty);
-            parts.extend(pool.list_items(args));
-            Some(trait_)
-        }
-        TyData::Ref { inner, .. } => {
-            parts.push(inner);
-            None
-        }
-        TyData::Tuple { elems, rest } => {
-            parts.extend(pool.list_items(elems));
-            parts.extend(rest);
-            None
-        }
-        TyData::Fn {
-            params,
-            result,
-            row,
-            ..
-        } => {
-            parts.extend(pool.list_items(params));
-            parts.push(result);
-            keys(row, parts);
-            None
-        }
-        TyData::Row(row) | TyData::Context(row) => {
-            keys(row, parts);
-            None
-        }
-        TyData::Opaque { args, bound, .. } => {
-            parts.extend(pool.list_items(args));
-            parts.push(bound);
-            None
-        }
-        _ => None,
     }
 }
 

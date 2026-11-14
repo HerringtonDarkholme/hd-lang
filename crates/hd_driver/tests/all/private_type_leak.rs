@@ -181,6 +181,62 @@ fn nested_forms_report_at_their_position() {
 }
 
 #[test]
+fn a_union_member_is_a_position() {
+    assert_eq!(leaks("pub fn f(x: Hidden | i32) -> i32: 0\n"), [(1, 13)]);
+    assert_eq!(
+        leaks("pub fn f() -> i32 | Hidden:\n    ._0(0)\n"),
+        [(1, 15)]
+    );
+    assert_eq!(leaks("pub type Shown = i32 | Hidden\n"), [(1, 18)]);
+    assert_eq!(
+        leaks("pub struct Shown:\n    pub u: (i32 | Hidden) | bool\n"),
+        [(2, 12)]
+    );
+}
+
+/// #1847: each form that holds a type, with a private type in a union
+/// inside it, and a union holding it.
+#[test]
+fn a_union_and_the_forms_it_meets_report_at_their_position() {
+    for (sig, column) in [
+        ("pub fn f(p: (i32, Hidden | i32)) -> i32: 0\n", 13),
+        ("pub fn f(p: (i32, Hidden) | i32) -> i32: 0\n", 13),
+        ("pub fn f(g: fn(Hidden | i32) -> i32) -> i32: 0\n", 13),
+        ("pub fn f(g: fn() -> i32 | Hidden) -> i32: 0\n", 13),
+        ("pub fn f(g: (fn() -> Hidden) | i32) -> i32: 0\n", 13),
+        ("pub fn f(x: (Hidden | i32)?) -> i32: 0\n", 13),
+        ("pub fn f(x: Hidden? | i32) -> i32: 0\n", 13),
+        ("pub fn f(x: &(Hidden | i32)) -> i32: 0\n", 13),
+        ("pub fn f(x: &Hidden | i32) -> i32: 0\n", 13),
+        ("pub fn f(xs: List[Hidden | i32]) -> i32: 0\n", 14),
+        ("pub fn f(xs: List[Hidden] | i32) -> i32: 0\n", 14),
+        ("pub fn f(x: i32 | (string | Hidden)) -> i32: 0\n", 13),
+        ("pub fn f(x: i32 | &dyn Tag) -> i32: 0\n", 13),
+    ] {
+        assert_eq!(leaks(sig), [(1, column)], "{sig}");
+    }
+}
+
+#[test]
+fn public_members_in_every_form_are_no_leak() {
+    accepts(
+        "pub struct Open:\n    pub n: i32\n\n\
+         pub trait Shape:\n    fn area(self) -> i32\n\n\
+         pub type Choice = Open | i32\n\
+         pub fn f(\n\
+         \x20   a: Open | i32,\n\
+         \x20   b: (i32, Open | i32) | (Open, i32),\n\
+         \x20   c: fn(Open | i32) -> i32 | Open,\n\
+         \x20   d: (Open | i32)? | Open?,\n\
+         \x20   e: &(Open | i32),\n\
+         \x20   g: List[Open | i32] | List[Open],\n\
+         \x20   h: i32 | &dyn Shape,\n\
+         ) -> Choice:\n\
+         \x20   ._1(0)\n",
+    );
+}
+
+#[test]
 fn a_requirement_key_is_a_position() {
     assert_eq!(leaks("pub fn run() -> void $ Tag:\n    pass\n"), [(1, 1)]);
 }

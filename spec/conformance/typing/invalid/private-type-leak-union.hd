@@ -1,0 +1,7 @@
+# test: a private type that is a member of a union in a public signature is a leak
+# Spec 10 Public Signatures: module.vis.signature.
+struct Hidden:
+    x: i32
+
+pub fn f(x: Hidden | i32) -> i32: # diagnostic: private-type-leak
+    0

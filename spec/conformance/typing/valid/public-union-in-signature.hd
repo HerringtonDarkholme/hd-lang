@@ -1,0 +1,7 @@
+# test: a union of public members in a public signature is no leak
+# Spec 10 Public Signatures: module.vis.signature.
+pub struct Shown:
+    x: i32
+
+pub fn f(x: Shown | i32, p: (i32, Shown | i32)?) -> Shown | i32:
+    x
