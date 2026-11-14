@@ -1,0 +1,52 @@
+# test: a function value read from a field of a function value's result accepts an argument that outlives the lifetime the result writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. The valid
+# counterparts of the result-field forms: the argument is the caller's
+# `p`, through a parameter, a call's result, a struct field, an elided
+# lifetime, a nested field and a reference; and a result whose field
+# writes no lifetime takes a local.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Plain[T]:
+    f: fn(&Point) -> T
+
+struct Outer['a, T]:
+    n: i32
+    h: Holder['a, T]
+
+struct Maker['a, T]:
+    g: fn(&'a Point) -> Holder['a, T]
+
+struct Maker2['a, T]:
+    g: fn(&'a Point) -> fn(&'a Point) -> Holder['a, T]
+
+fn pick['a, T](g: fn(&'a Point) -> Holder['a, T]) -> fn(&'a Point) -> Holder['a, T]:
+    g
+
+fn in_result['a, T](g: fn(&'a Point) -> Holder['a, T], p: &'a Point) -> T:
+    (g(p).f)(p)
+
+fn through_call['a, T](g: fn(&'a Point) -> Holder['a, T], p: &'a Point) -> T:
+    (pick(g)(p).f)(p)
+
+fn in_field['a, T](m: Maker['a, T], p: &'a Point) -> T:
+    ((m.g)(p).f)(p)
+
+fn twice['a, T](m: Maker2['a, T], p: &'a Point) -> T:
+    ((m.g)(p)(p).f)(p)
+
+fn elided['a, T](g: fn(&'a Point) -> Holder[T], p: &'a Point) -> T:
+    (g(p).f)(p)
+
+fn nested['a, T](g: fn(&'a Point) -> Outer['a, T], p: &'a Point) -> T:
+    (g(p).h.f)(p)
+
+fn by_ref['a, T](g: fn(&'a Point) -> &Holder['a, T], p: &'a Point) -> T:
+    (g(p).f)(p)
+
+fn unwritten['a, T](g: fn(&'a Point) -> Plain[T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (g(p).f)(&q)

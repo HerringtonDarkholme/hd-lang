@@ -2254,6 +2254,15 @@ impl Ck<'_, '_> {
                         }
                     }
                 }
+                Some(Spot::ResultField { from, at, lo, ty }) => {
+                    let rec = rec.and_then(|r| r.get(lo..)).unwrap_or(&[]);
+                    for (k, l) in self
+                        .result_field_inputs(ls, (ty, &path[from..], at), rec)
+                        .unwrap_or_default()
+                    {
+                        push(k, Var::At(v, u32::from(l)));
+                    }
+                }
                 None => {}
             }
         }
@@ -2387,10 +2396,24 @@ impl Ck<'_, '_> {
             _ => return None,
         };
         let field = fields.get(j as usize)?;
-        let Some(Spot::Fn(lo, n)) = fn_spot(self.cx, pool, field.ty, rest) else {
-            return None;
-        };
         let argv = pool.list_items(args);
+        let (lo, n) = match fn_spot(self.cx, pool, field.ty, rest)? {
+            Spot::Fn(lo, n) => (lo, n),
+            // A field of the field's function type's result, as
+            // `(m.g)(p).f` with `g: fn(&'a Point) -> Holder['a, T]`, is
+            // at the struct's lifetime that result writes. `from` is past
+            // the path's last result step, so the walk below meets no
+            // other and comes back here at most once.
+            Spot::ResultField { from, at, lo, ty } => {
+                let rec = field.fn_lifetimes.get(lo..)?;
+                let found = self.result_field_inputs(ls, (ty, &rest[from..], at), rec)?;
+                return found
+                    .into_iter()
+                    .map(|(k, l)| Some((k, ls.lifetime_slot(&item.generics, argv, l)?)))
+                    .collect();
+            }
+            Spot::Field(_) => return None,
+        };
         let mut out = Vec::new();
         for (k, &l) in field.fn_lifetimes.get(lo..lo + n)?.iter().enumerate() {
             if l != 0 {
@@ -2467,8 +2490,48 @@ impl Ck<'_, '_> {
                     push(k, Var::Own(*ids.get(slot)?));
                 }
             }
+            Spot::ResultField { from, at, lo, ty } => {
+                let rec = sig.fn_lifetimes.get(p)?.get(lo..)?;
+                for (k, l) in self.result_field_inputs(ls, (ty, &path[from..], at), rec)? {
+                    push(k, Var::Own(u32::from(l)));
+                }
+            }
         }
         Some(())
+    }
+
+    /// [`Ck::field_inputs`] of part `path` of a function type's result of
+    /// type `ty`, whose reference slots write `rec` in
+    /// [`Types::ref_slots`] order: each input slot, with the lifetime the
+    /// result writes at the slot of the struct's lifetime it writes, where
+    /// one is written. `g(p).f(&q)` with
+    /// `g: fn(&'a Point) -> Holder['a, T]` passes `&q` at `'a`
+    /// (`fn.type.lifetime.call.written`).
+    fn result_field_inputs(
+        &self,
+        ls: &Layouts<'_>,
+        (ty, path, at): (Ty, &[Part], usize),
+        rec: &[u16],
+    ) -> Option<Vec<(usize, u16)>> {
+        // Each layout slot's place among the reference slots, which a
+        // function value's capture slot and a whole slot are not.
+        let mut next = 0;
+        let refs: Vec<Option<usize>> = (ls.of(ty).slots.iter())
+            .map(|s| {
+                (!s.fun && !s.whole).then(|| {
+                    next += 1;
+                    next - 1
+                })
+            })
+            .collect();
+        let found = self.field_inputs(ls, ty, path, at)?;
+        Some(
+            found
+                .into_iter()
+                .filter_map(|(k, slot)| Some((k, *rec.get((*refs.get(slot)?)?)?)))
+                .filter(|&(_, l)| l != 0)
+                .collect(),
+        )
     }
 
     /// The lifetimes of projection `proj`, in its scope's numbering,
@@ -3873,13 +3936,24 @@ enum Spot {
     /// the field's own record ([`hd_resolve::Field::fn_lifetimes`]) holds
     /// what its function types write.
     Field(usize),
+    /// The part lies under a struct or variant field in the result of a
+    /// function type, past the path's step at index `from`: the field
+    /// the step at `from + at` reads, in a value of the result type `ty`,
+    /// whose slots the record writes at `lo..` in [`Types::ref_slots`]
+    /// order (`fn.type.lifetime.call.written`).
+    ResultField {
+        from: usize,
+        at: usize,
+        lo: usize,
+        ty: Ty,
+    },
 }
 
 /// The record slots of function type `t`'s own inputs, when `rec` is
-/// the record of a whole type `t`: the last ones, after those of the
-/// function types in its inputs and result.
+/// the record of a whole type `t`: after those of the function types in
+/// its inputs and result, and before those of its own result.
 fn own_inputs<'r>(pool: Types<'_>, t: Ty, rec: &'r [u16]) -> &'r [u16] {
-    let TyData::Fn { params, .. } = pool.get(t) else {
+    let TyData::Fn { params, result, .. } = pool.get(t) else {
         return &[];
     };
     let n: usize = pool
@@ -3887,18 +3961,24 @@ fn own_inputs<'r>(pool: Types<'_>, t: Ty, rec: &'r [u16]) -> &'r [u16] {
         .iter()
         .map(|&a| pool.ref_slots(a))
         .sum();
-    rec.get(rec.len().saturating_sub(n)..).unwrap_or(&[])
+    let lo = rec.len().saturating_sub(n + pool.ref_slots(result));
+    rec.get(lo..lo + n).unwrap_or(&[])
 }
 
 /// Where part `path` of a value of declared type `t` lies among the
-/// written input slots of `t`'s function types, in
-/// [`Types::fn_input_slots`] order: a tuple element, a reference's
-/// referent, a list element, a call's result, and a field whose declared
-/// type is one of its type's parameters each step into the matching part
-/// of `t`. `None` for a part no function type's inputs hold.
+/// written slots of `t`'s function types, in [`Types::fn_written_slots`]
+/// order: a tuple element, a reference's referent, a list element, a
+/// call's result, and a field whose declared type is one of its type's
+/// parameters each step into the matching part of `t`. `None` for a part
+/// no function type's inputs hold.
 fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spot> {
-    let slots = |ts: &[Ty]| ts.iter().map(|&a| pool.fn_input_slots(a)).sum::<usize>();
+    let slots = |ts: &[Ty]| ts.iter().map(|&a| pool.fn_written_slots(a)).sum::<usize>();
+    let ref_slots = |ts: &[Ty]| ts.iter().map(|&a| pool.ref_slots(a)).sum::<usize>();
     let (mut ty, mut base, mut variant) = (t, 0, None);
+    // The last function type's result the path stepped into: the index
+    // of the step after it, where its record's result slots start, and
+    // the result type.
+    let mut in_result: Option<(usize, usize, Ty)> = None;
     for (i, part) in path.iter().enumerate() {
         match (*part, pool.get(ty)) {
             (Part::Proj(Proj::Deref), TyData::Ref { inner, .. }) => ty = inner,
@@ -3909,7 +3989,10 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
                 ty = *pool.list_items(args).first()?;
             }
             (Part::Result, TyData::Fn { params, result, .. }) => {
-                base += slots(pool.list_items(params));
+                let ps = pool.list_items(params);
+                let lo = base + pool.fn_written_slots(ty) - pool.ref_slots(result);
+                in_result = Some((i + 1, lo, result));
+                base += slots(ps);
                 ty = result;
             }
             (Part::Proj(Proj::Field(j)), TyData::Tuple { elems, rest }) => {
@@ -3925,7 +4008,15 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
                     _ => return None,
                 };
                 let TyData::Param(pr) = pool.get(fields.get(j as usize)?.ty) else {
-                    return Some(Spot::Field(i));
+                    return Some(match in_result {
+                        Some((from, lo, ty)) => Spot::ResultField {
+                            from,
+                            at: i - from,
+                            lo,
+                            ty,
+                        },
+                        None => Spot::Field(i),
+                    });
                 };
                 let argv = pool.list_items(args);
                 let k = usize::from(pr.index);
@@ -3938,15 +4029,12 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
             _ => return None,
         }
     }
-    let TyData::Fn { params, .. } = pool.get(ty) else {
+    let TyData::Fn { params, result, .. } = pool.get(ty) else {
         return None;
     };
-    let n: usize = pool
-        .list_items(params)
-        .iter()
-        .map(|&a| pool.ref_slots(a))
-        .sum();
-    Some(Spot::Fn(base + pool.fn_input_slots(ty) - n, n))
+    let n = ref_slots(pool.list_items(params));
+    let own = n + pool.ref_slots(result);
+    Some(Spot::Fn(base + pool.fn_written_slots(ty) - own, n))
 }
 
 /// The innermost part of value `v` whose origins hold `o`, as `has`

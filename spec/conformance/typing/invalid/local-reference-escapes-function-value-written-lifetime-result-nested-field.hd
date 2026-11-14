@@ -1,0 +1,16 @@
+# test: a function value read from a nested field of a function value's result passes its argument at the lifetime the result writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `g`'s result is
+# an `Outer['a, T]`, whose field `h` is a `Holder['a, T]` at that `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Outer['a, T]:
+    n: i32
+    h: Holder['a, T]
+
+fn nested['a, T](g: fn(&'a Point) -> Outer['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (g(p).h.f)(&q) # diagnostic: local-reference-escapes

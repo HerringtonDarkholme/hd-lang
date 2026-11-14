@@ -5816,6 +5816,14 @@ typing/invalid/local-reference-escapes-function-value-written-lifetime-call-resu
 typing/invalid/local-reference-escapes-function-value-written-lifetime-field-argument.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/invalid/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/valid/function-value-written-lifetime-call-result-field.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-call-result-result-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-field-result-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-field-result-result-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-result-nested-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
+typing/valid/function-value-written-lifetime-result-field.hd	type	accept	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/invalid/local-reference-escapes-function-value-written-lifetime-passed.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/invalid/local-reference-escapes-function-value-written-lifetime-nested-field.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written
 typing/invalid/local-reference-escapes-function-value-written-lifetime-literal.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.type.lifetime.call.written

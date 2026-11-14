@@ -421,14 +421,17 @@ pub struct FnSig {
     /// When a `Suspend` writes one, each `Suspend`'s follows, in order
     /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
-    /// For each parameter, then for the result, whose type is a function
-    /// type, the lifetime each local reference slot of that type's inputs
-    /// writes, 0 where it writes none, in [`hd_types::Types::ref_slots`]
-    /// order; empty for any other. The type keeps no names
-    /// (`fn.type.lifetime.identity`), so a call of such a value learns
-    /// here at which lifetimes it passes each argument
-    /// (`fn.type.lifetime.call.written`). Empty when none writes one;
-    /// otherwise one list per parameter and one for the result.
+    /// For each parameter, then for the result: the lifetime each local
+    /// reference slot of the inputs and then of the result of each
+    /// function type in its type writes, in
+    /// [`hd_types::Types::fn_written_slots`] order, 0 where it writes
+    /// none; an elided result slot has the inputs' one written lifetime.
+    /// The type keeps no names (`fn.type.lifetime.identity`), so a call
+    /// of such a value learns here at which lifetimes it passes each
+    /// argument, and a field of its result at which lifetime that field's
+    /// function passes its own (`fn.type.lifetime.call.written`). Empty
+    /// when none writes one; otherwise one list per parameter and one for
+    /// the result.
     pub fn_lifetimes: Vec<Vec<u16>>,
     /// The result reference slots that name a parameter's field path
     /// (`ref.result.path.form`), in source order. Such a slot's lifetime is 0.
@@ -487,8 +490,9 @@ pub struct Field {
     /// When a `Suspend` writes one, each `Suspend`'s follows, in order
     /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
-    /// When `ty` is a function type: the struct's lifetime each local
-    /// reference slot of its inputs writes, numbered as `lifetimes`, 0
+    /// The struct's lifetime each local reference slot of the inputs and
+    /// then of the result of each function type in `ty` writes, numbered
+    /// as `lifetimes`, in [`hd_types::Types::fn_written_slots`] order, 0
     /// where it writes none (`fn.type.lifetime.call.written`). Empty when
     /// none writes one.
     pub fn_lifetimes: Vec<u16>,

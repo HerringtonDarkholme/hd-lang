@@ -2132,19 +2132,20 @@ impl<'a> Types<'a> {
         self.ref_slots_at(t, 0)
     }
 
-    /// The input reference slots of every function type in `t`
-    /// (`fn.type.lifetime.call.written`): each function type, after the
-    /// function types in its own inputs and result, adds the
-    /// [`Self::ref_slots`] of its inputs. A signature's or a field's
-    /// written input lifetimes follow this order (`FnSig::fn_lifetimes`).
-    /// A union's members are not entered: its member order is the pool's,
-    /// not the source's, so no record reaches a function type inside one.
+    /// The reference slots of every function type in `t`, which a
+    /// signature or a field records the written lifetimes of
+    /// (`fn.type.lifetime.call.written`, `FnSig::fn_lifetimes`): each
+    /// function type, after the function types in its own inputs and
+    /// result, adds the [`Self::ref_slots`] of its inputs and then of its
+    /// result. A union's members are not entered: its member order is the
+    /// pool's, not the source's, so no record reaches a function type
+    /// inside one.
     #[must_use]
-    pub fn fn_input_slots(self, t: Ty) -> usize {
-        self.fn_input_slots_at(t, 0)
+    pub fn fn_written_slots(self, t: Ty) -> usize {
+        self.fn_written_slots_at(t, 0)
     }
 
-    fn fn_input_slots_at(self, t: Ty, depth: u32) -> usize {
+    fn fn_written_slots_at(self, t: Ty, depth: u32) -> usize {
         if depth > hd_base::limits::TYPE_DEPTH {
             return 0;
         }
@@ -2152,7 +2153,7 @@ impl<'a> Types<'a> {
         let list = |l| {
             self.list_items(l)
                 .iter()
-                .map(|&a| self.fn_input_slots_at(a, d))
+                .map(|&a| self.fn_written_slots_at(a, d))
                 .sum::<usize>()
         };
         match self.get(t) {
@@ -2161,12 +2162,13 @@ impl<'a> Types<'a> {
                     .list_items(params)
                     .iter()
                     .map(|&a| self.ref_slots(a))
-                    .sum();
-                list(params) + self.fn_input_slots_at(result, d) + own
+                    .sum::<usize>()
+                    + self.ref_slots(result);
+                list(params) + self.fn_written_slots_at(result, d) + own
             }
-            TyData::Ref { inner, .. } => self.fn_input_slots_at(inner, d),
+            TyData::Ref { inner, .. } => self.fn_written_slots_at(inner, d),
             TyData::Tuple { elems, rest } => {
-                list(elems) + rest.map_or(0, |r| self.fn_input_slots_at(r, d))
+                list(elems) + rest.map_or(0, |r| self.fn_written_slots_at(r, d))
             }
             TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args),
             _ => 0,

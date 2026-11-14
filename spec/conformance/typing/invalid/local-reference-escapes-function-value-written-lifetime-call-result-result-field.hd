@@ -1,0 +1,16 @@
+# test: a function value read from a field of the result of a function a call returned passes its argument at the lifetime that result writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `pick`'s result
+# is a function type whose result is a `Holder['a, T]`, so `f` passes
+# `&q` at the caller's `'a`, which `pick`'s `'a` is.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn pick['a, T](g: fn(&'a Point) -> Holder['a, T]) -> fn(&'a Point) -> Holder['a, T]:
+    g
+
+fn through_call['a, T](g: fn(&'a Point) -> Holder['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (pick(g)(p).f)(&q) # diagnostic: local-reference-escapes

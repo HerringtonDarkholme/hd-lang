@@ -1,0 +1,15 @@
+# test: a function value read from a field reached through two function results from a struct field passes its argument at the lifetime that result writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `m.g` returns a
+# function whose result is a `Holder['a, T]` at `Maker`'s `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Maker['a, T]:
+    g: fn(&'a Point) -> fn(&'a Point) -> Holder['a, T]
+
+fn twice['a, T](m: Maker['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    ((m.g)(p)(p).f)(&q) # diagnostic: local-reference-escapes

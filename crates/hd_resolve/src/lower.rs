@@ -1968,10 +1968,10 @@ struct Lower<'a, 'r, 'x> {
     /// While a signature's parameter or result type is lowered: the
     /// lifetime of each local reference slot so far (`FnSig::lifetimes`).
     slots: Option<Vec<u16>>,
-    /// The lifetimes the inputs of each function type lowered so far
-    /// write, in [`hd_types::Types::fn_input_slots`] order, for
+    /// The lifetimes the inputs and result of each function type lowered
+    /// so far write, in [`hd_types::Types::fn_written_slots`] order, for
     /// [`FnSig::fn_lifetimes`] and [`Field::fn_lifetimes`].
-    fn_inputs: Vec<u16>,
+    fn_written: Vec<u16>,
     /// Alongside `slots`: the lifetime each `Suspend` names, 0 when
     /// omitted, after its type argument's (`ref.dep.suspension.lifetime`).
     held: Option<Vec<u16>>,
@@ -2284,18 +2284,19 @@ impl Lower<'_, '_, '_> {
         self.names.syms.intern(text)
     }
 
-    /// The written input lifetimes of every function type in `ty`, just
+    /// The written lifetimes of every function type in `ty`, just
     /// lowered (`fn.type.lifetime.call.written`); empty when none writes
     /// one. A type an alias expands to holds function types this
     /// lowering did not record, so a record that does not cover `ty`'s
-    /// [`hd_types::Types::fn_input_slots`] is dropped: no position of it
+    /// [`hd_types::Types::fn_written_slots`] is dropped: no position of it
     /// can be trusted.
-    fn take_fn_inputs(&mut self, ty: Ty) -> Vec<u16> {
-        let ins = std::mem::take(&mut self.fn_inputs);
-        if ins.iter().all(|&l| l == 0) || ins.len() != self.names.pool.types().fn_input_slots(ty) {
+    fn take_fn_written(&mut self, ty: Ty) -> Vec<u16> {
+        let lts = std::mem::take(&mut self.fn_written);
+        if lts.iter().all(|&l| l == 0) || lts.len() != self.names.pool.types().fn_written_slots(ty)
+        {
             return Vec::new();
         }
-        ins
+        lts
     }
 
     fn sym_token(&self, token: hd_base::TokenIdx) -> Symbol {
@@ -3897,10 +3898,23 @@ impl Lower<'_, '_, '_> {
                 let written = std::mem::replace(&mut self.slots, outer).unwrap_or_default();
                 self.held = outer_held;
                 self.in_field = in_field;
+                // The record of its own slots: each input's written
+                // lifetime, then each result slot's, an elided one taking
+                // the inputs' one written lifetime (`fn.type.lifetime.elide`),
+                // or 0 when they have none or more than one.
                 let n_in: usize = params.iter().map(|&t| pool.types().ref_slots(t)).sum();
-                let mut ins = written.get(..n_in).unwrap_or(&written).to_vec();
-                ins.resize(n_in, 0);
-                self.fn_inputs.extend(ins);
+                let n_out = pool.types().ref_slots(result);
+                let mut own = written.clone();
+                own.resize(n_in + n_out, 0);
+                let (ins, outs) = own.split_at_mut(n_in);
+                let one = match ins.split_first() {
+                    Some((&l, rest)) if l != 0 && rest.iter().all(|&m| m == l) => l,
+                    _ => 0,
+                };
+                for l in outs.iter_mut().filter(|l| **l == 0) {
+                    *l = one;
+                }
+                self.fn_written.extend(own);
                 let deps = pool.types().fn_deps_written(&params, result, &written);
                 pool.intern_ty(&TyData::Fn {
                     params: pool.list(&params),
@@ -4649,7 +4663,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 let type_node = Src::type_child(p);
-                self.fn_inputs.clear();
+                self.fn_written.clear();
                 let ty = if let Some(node) =
                     type_node.filter(|node| node.kind() == SyntaxKind::ImplType)
                 {
@@ -4661,8 +4675,9 @@ impl Lower<'_, '_, '_> {
                     self.ty(type_node, gn)
                 };
                 // `fn.type.lifetime.call.written`: the lifetimes the inputs
-                // of each function type in it write, which no type keeps.
-                fn_lifetimes.push(self.take_fn_inputs(ty));
+                // and results of its function types write, which no type
+                // keeps.
+                fn_lifetimes.push(self.take_fn_written(ty));
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
                 // tuple type, or a type parameter bounded by `Tuple`.
                 if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
@@ -4687,9 +4702,9 @@ impl Lower<'_, '_, '_> {
         let before = self.opaque_result.replace((owner, 0, borrows));
         let ins = self.slots.as_ref().map_or(0, Vec::len);
         self.result_paths = Some((params.clone(), ins, Vec::new()));
-        self.fn_inputs.clear();
+        self.fn_written.clear();
         let ret = self.ty(Src::type_child(f), gn);
-        fn_lifetimes.push(self.take_fn_inputs(ret));
+        fn_lifetimes.push(self.take_fn_written(ret));
         let mut paths = self.result_paths.take().map(|p| p.2).unwrap_or_default();
         let written_paths = paths.len();
         paths.retain(|p| p.param != u16::MAX);
@@ -4841,11 +4856,12 @@ impl Lower<'_, '_, '_> {
             let outer = std::mem::replace(&mut self.in_field, true);
             let saved = std::mem::replace(&mut self.slots, lifetimes.then(Vec::new));
             let saved_held = std::mem::replace(&mut self.held, lifetimes.then(Vec::new));
-            self.fn_inputs.clear();
+            self.fn_written.clear();
             let ty = self.ty(tn, gn);
             // `fn.type.lifetime.call.written`: the struct's lifetimes the
-            // inputs of each function type in it write, which no type keeps.
-            let fn_lifetimes = self.take_fn_inputs(ty);
+            // inputs and results of its function types write, which no
+            // type keeps.
+            let fn_lifetimes = self.take_fn_written(ty);
             let mut slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
             let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
             with_held(&mut slots, [ty], &held, self.names.pool.types());
@@ -7031,7 +7047,7 @@ fn lower_aliases(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
-                fn_inputs: Vec::new(),
+                fn_written: Vec::new(),
                 held: None,
                 in_field: false,
                 locals: &locals[mi],
@@ -7102,7 +7118,7 @@ fn lower_aliases(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
-                fn_inputs: Vec::new(),
+                fn_written: Vec::new(),
                 held: None,
                 in_field: false,
                 locals: &locals[mi],
@@ -8630,7 +8646,7 @@ pub fn build_folder(
                     result_paths: None,
                     kind_reported: HashSet::default(),
                     slots: None,
-                    fn_inputs: Vec::new(),
+                    fn_written: Vec::new(),
                     held: None,
                     in_field: false,
                     locals: &locals,
@@ -8779,7 +8795,7 @@ pub fn build_folder(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
-                fn_inputs: Vec::new(),
+                fn_written: Vec::new(),
                 held: None,
                 in_field: false,
                 locals: &[],
@@ -8931,7 +8947,7 @@ fn own_trait_generics(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
-                fn_inputs: Vec::new(),
+                fn_written: Vec::new(),
                 held: None,
                 in_field: false,
                 locals: &locals,
@@ -9213,7 +9229,7 @@ fn own_trait_supers(
                 result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
-                fn_inputs: Vec::new(),
+                fn_written: Vec::new(),
                 held: None,
                 in_field: false,
                 locals: &locals,

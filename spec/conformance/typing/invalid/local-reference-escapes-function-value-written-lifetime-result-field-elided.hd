@@ -1,0 +1,13 @@
+# test: a function value read from a field of a function value's result passes its argument at the lifetime the result elides to
+# Spec 07 Function Types: fn.type.lifetime.call.written, fn.type.lifetime.elide.
+# `Holder[T]` in `g`'s result elides its lifetime to the inputs' one,
+# `'a`, so `f` passes `&q` at the caller's `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn elided['a, T](g: fn(&'a Point) -> Holder[T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (g(p).f)(&q) # diagnostic: local-reference-escapes

@@ -1,0 +1,12 @@
+# test: a function value read from a field of a function value's result passes its argument at the lifetime the result writes
+# Spec 07 Function Types: fn.type.lifetime.call.written. `g`'s result is
+# a `Holder['a, T]`, so its field `f` passes `&q` at the caller's `'a`.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn in_result['a, T](g: fn(&'a Point) -> Holder['a, T], p: &'a Point) -> T:
+    q := Point { x: 1 }
+    (g(p).f)(&q) # diagnostic: local-reference-escapes
