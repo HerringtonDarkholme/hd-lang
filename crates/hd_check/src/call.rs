@@ -530,7 +530,7 @@ impl Ck<'_, '_> {
 
     // ------------------------------------------------------------ names
 
-    pub(crate) fn import_hint(&self, name: &str) -> String {
+    pub(crate) fn import_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
         hd_resolve::iface::std_import_hint(
             &self.cx.names,
             self.cx.lookup.ifaces.iter().flat_map(|f| &f.exports),
@@ -538,12 +538,24 @@ impl Ck<'_, '_> {
         )
     }
 
-    fn name_hint(&self, name: &str) -> String {
+    fn name_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
         if name == "print" {
-            "; did you mean `println`?".to_owned()
+            hd_resolve::iface::ImportHint {
+                text: "; did you mean `println`?".to_owned(),
+                path: None,
+            }
         } else {
             self.import_hint(name)
         }
+    }
+
+    /// `unknown-name` at `n` for `text`, with its import hint and the
+    /// fix-it that adds the `use` it names.
+    fn unknown_name(&mut self, text: &str, n: NodeRef<'_>) {
+        let hint = self.name_hint(text);
+        let msg = format!("`{text}` is not defined{}", hint.text);
+        self.err(Code::UnknownName, n, &msg);
+        hint.add_fix(&self.cx.src, self.diags);
     }
 
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
@@ -561,8 +573,7 @@ impl Ck<'_, '_> {
         if let Some(Named::Item(def)) = self.scope_name(&text) {
             return self.declaration_value(def, &text, want, n);
         }
-        let msg = format!("`{text}` is not defined{}", self.name_hint(&text));
-        self.err(Code::UnknownName, n, &msg);
+        self.unknown_name(&text, n);
         Ok((Ref(NONE), Ty::POISON))
     }
 
@@ -640,12 +651,12 @@ impl Ck<'_, '_> {
 
     /// `names.module.other-module.value`: a path that names nothing.
     fn undefined_path(&mut self, segs: &[String], n: NodeRef<'_>) -> (Ref, Ty) {
-        let hint = match segs {
-            [name] => self.name_hint(name),
-            _ => String::new(),
-        };
-        let msg = format!("`{}` is not defined{hint}", segs.join("."));
-        self.err(Code::UnknownName, n, &msg);
+        if let [name] = segs {
+            self.unknown_name(name, n);
+        } else {
+            let msg = format!("`{}` is not defined", segs.join("."));
+            self.err(Code::UnknownName, n, &msg);
+        }
         (Ref(NONE), Ty::POISON)
     }
 
@@ -923,12 +934,12 @@ impl Ck<'_, '_> {
                 if self.is_poison_name(&text) {
                     return Ok(self.poison_value(n));
                 }
-                let msg = if text == "loop" && n.kind() == SyntaxKind::TrailingCallExpr {
-                    "`loop` is not defined; write 'while true:' for an endless loop".to_owned()
+                if text == "loop" && n.kind() == SyntaxKind::TrailingCallExpr {
+                    let msg = "`loop` is not defined; write 'while true:' for an endless loop";
+                    self.err(Code::UnknownName, callee, msg);
                 } else {
-                    format!("`{text}` is not defined{}", self.name_hint(&text))
-                };
-                self.err(Code::UnknownName, callee, &msg);
+                    self.unknown_name(&text, callee);
+                }
                 if text == "loop"
                     && !bang
                     && n.kind() == SyntaxKind::TrailingCallExpr

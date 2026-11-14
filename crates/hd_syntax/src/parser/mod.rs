@@ -65,6 +65,9 @@ pub struct Parse {
     /// [`Self::line_column`], so every position located in the file,
     /// from any thread, shares one pass over its bytes.
     lines: std::sync::OnceLock<LineIndex>,
+    /// Where a `use` that imports a missing name goes, found on the
+    /// first [`Self::use_insertion`].
+    use_at: std::sync::OnceLock<(u32, bool)>,
 }
 
 impl Parse {
@@ -74,6 +77,50 @@ impl Parse {
     pub fn line_column(&self, text: &str, at: usize) -> (usize, usize) {
         let lines = self.lines.get_or_init(|| LineIndex::new(text.as_bytes()));
         lines.line_column(at.min(text.len()))
+    }
+
+    /// Where a `use` declaration that imports a missing name goes in
+    /// `text`, the text this was parsed from, and whether it follows
+    /// another `use`. After one, it goes at the end of the line of the
+    /// file's last top-level `use`. Otherwise it goes at the start of the
+    /// file, or after the module documentation block and the blank line
+    /// that follows it (`lex.doc.module`), which a `use` before it would
+    /// detach. Found on the first call, by one pass over the top-level
+    /// items; every later call shares it.
+    #[must_use]
+    pub fn use_insertion(&self, text: &str) -> (u32, bool) {
+        *self.use_at.get_or_init(|| {
+            let to_u32 = |at: usize| u32::try_from(at).unwrap_or(u32::MAX);
+            let after_line = |at: usize| {
+                text.get(at..)
+                    .and_then(|t| t.find('\n'))
+                    .map_or(text.len(), |i| at + i)
+            };
+            let last_use = self
+                .tree
+                .root()
+                .children()
+                .filter(|c| c.kind() == SyntaxKind::UseDecl)
+                .last();
+            if let Some(u) = last_use {
+                let (_, last) = self.tree.span_tokens(u.index());
+                let end = self.tokens.end[last.idx()] as usize;
+                return (to_u32(after_line(end)), true);
+            }
+            // The module documentation comes before the first token.
+            let first_token = self.tokens.start.first().map_or(u32::MAX, |&s| s);
+            let before = self.tokens.com_start.partition_point(|&s| s < first_token);
+            let Some(doc) = self.tokens.com_kind[..before]
+                .iter()
+                .rposition(|k| *k == CommentKind::ModuleDoc)
+            else {
+                return (0, false);
+            };
+            // Past the end of its last line, and the blank line after it.
+            let blank = after_line(self.tokens.com_end[doc] as usize);
+            let at = after_line((blank + 1).min(text.len()));
+            (to_u32((at + 1).min(text.len())), false)
+        })
     }
 
     #[must_use]
@@ -122,6 +169,7 @@ pub fn parse(source: &[u8]) -> Parse {
         symbols,
         broken,
         lines: std::sync::OnceLock::new(),
+        use_at: std::sync::OnceLock::new(),
     }
 }
 

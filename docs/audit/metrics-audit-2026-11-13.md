@@ -63,12 +63,11 @@ host ABI.
   12 `syntax-error`, 6 `type-mismatch`, 3 `missing-requirement`, 2 each of
   `unknown-name`, `invalid-result-propagation`, `integer-literal-range` and
   `cannot-infer-type`, and 14 single codes.
-- **Cheapest win.** About 15 messages already state the edit in prose, with
+- **Cheapest win.** About 14 messages already state the edit in prose, with
   no edit attached:
 
   | Corpus file                      | Message already says                         |
   | -------------------------------- | -------------------------------------------- |
-  | `bound-without-import`           | add `use std.num.Integer`                    |
   | `mut-before-short-binding`       | write `let mut name = ...`                   |
   | `unwrap-on-result`               | did you mean `unwrap_or`?                    |
   | `main-without-result-type`       | write `-> T`                                 |

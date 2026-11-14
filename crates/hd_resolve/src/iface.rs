@@ -906,6 +906,45 @@ pub struct Export {
     pub kind: HeadKind,
 }
 
+/// Where std offers a name a module did not import: the message's hint,
+/// and the one path to import when there is exactly one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImportHint {
+    /// The text the message ends with: an `add use` naming the one path,
+    /// a list of the several homes, or empty when std has none.
+    pub text: String,
+    /// The path a `use` imports, when std has one home for the name.
+    pub path: Option<String>,
+}
+
+impl ImportHint {
+    /// Attaches to the diagnostic pushed last the fix-it that adds
+    /// `use <path>` to the file of `src` ([`hd_syntax::Parse::use_insertion`]),
+    /// when std has one home for the name. It is exact: the name is free,
+    /// or the hint would not be asked for, and the `use` binds it.
+    pub fn add_fix(&self, src: &crate::Src<'_>, diags: &mut hd_diag::DiagBuf) {
+        let Some(path) = &self.path else {
+            return;
+        };
+        let (at, after_use) = src.parse.use_insertion(src.text);
+        let text = if after_use {
+            format!("\nuse {path}")
+        } else {
+            format!("use {path}\n\n")
+        };
+        let span = hd_base::Span {
+            file: src.file,
+            lo: at,
+            hi: at,
+        };
+        diags.add_fix(
+            &format!("add `use {path}`"),
+            hd_diag::FixSafety::Exact,
+            &[(span, &text)],
+        );
+    }
+}
+
 /// An import hint from public std exports, including the modules that
 /// contain them. Re-exports of one declaration count as one item, with
 /// its declaring module preferred over a re-export's path, except that a
@@ -915,7 +954,7 @@ pub fn std_import_hint<'a>(
     names: &Names<'_>,
     exports: impl IntoIterator<Item = &'a Export>,
     name: &str,
-) -> String {
+) -> ImportHint {
     let mut items = HashMap::<DefId, (bool, String)>::default();
     let mut modules = std::collections::BTreeSet::new();
     for e in exports {
@@ -948,8 +987,11 @@ pub fn std_import_hint<'a>(
     paths.sort_stable();
     paths.dedup();
     match paths.as_slice() {
-        [] => String::new(),
-        [path] => format!("; add `use {path}`"),
+        [] => ImportHint::default(),
+        [path] => ImportHint {
+            text: format!("; add `use {path}`"),
+            path: Some(path.clone()),
+        },
         _ => {
             let modules: Vec<_> = paths
                 .iter()
@@ -961,10 +1003,13 @@ pub fn std_import_hint<'a>(
                     )
                 })
                 .collect();
-            format!(
-                "; `{name}` has several public std homes: {}; add a `use` from the intended module",
-                modules.join(", ")
-            )
+            ImportHint {
+                text: format!(
+                    "; `{name}` has several public std homes: {}; add a `use` from the intended module",
+                    modules.join(", ")
+                ),
+                path: None,
+            }
         }
     }
 }

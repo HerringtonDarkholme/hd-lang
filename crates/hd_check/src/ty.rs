@@ -736,11 +736,9 @@ impl Ck<'_, '_> {
                     NameRole::Type | NameRole::Referent => (Code::UnknownType, "type"),
                     NameRole::Trait => (Code::UnknownTrait, "trait"),
                 };
-                self.err(
-                    code,
-                    n,
-                    &format!("no {what} named `{name}`{}", self.import_hint(name)),
-                );
+                let hint = self.import_hint(name);
+                self.err(code, n, &format!("no {what} named `{name}`{}", hint.text));
+                hint.add_fix(&self.cx.src, self.diags);
                 return Ok(Ty::POISON);
             }
             // `names.type.qualified`: through a module in scope, a missing

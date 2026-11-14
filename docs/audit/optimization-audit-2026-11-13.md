@@ -120,13 +120,6 @@ not measured.
      characters on. A real scope has more candidates than one file, so
      the true rate is a little lower. Today 0 of these get a fix.
 
-5. **D5. "add `use std.x.Y`" is prose with no edit. [V by agent]**
-   - Evidence: 19 `unknown-name`, 5 `unknown-trait` and 2
-     `unknown-type` messages say it (`call.rs:533-546`, `lower.rs:2208`,
-     `:2661`, `ty.rs:730`). The hint function returns only a string.
-   - Fix: return the path as well, and emit a fix that inserts the `use`
-     line after the file's last `use`.
-
 6. **D6. Other messages that name one edit carry no fix. [V by agent]**
    - Checker: `bare-variant-pattern` (insert `.`, `pat.rs:247`, `:420`),
      `non-reassignable-parameter-binding` (`value.rs:372`,
@@ -140,7 +133,7 @@ not measured.
      `layout.rs:461`, `mod.rs:155`, `types.rs:251`.
    - Expected, counted case by case [V]: of the corpus's 46 mistakes with
      no fix-it, 20 have one unambiguous edit. 17 of those are covered by
-     D4, D5 and D6. The other 3 are type-directed: `i32(x)` for a `usize`
+     D4, D6 and the `use` fix-it of #1862. The other 3 are type-directed: `i32(x)` for a `usize`
      result, `?` for a `Result` where a value is expected, and
      `Path::new(…)` for a string. That gives 43 of 69 (62%), against the
      80% target.
@@ -1038,7 +1031,7 @@ is within 15% of its limit.
 | test-latency | median edit-then-test | 266 ms | ≤ 300 ms | met | E1, E2, S8 (266 of 300 ms) |
 | mistakes | programs with exactly one diagnostic | 98.6% | ≥ 95.0% | met |  |
 | mistakes | one diagnostic with the expected code | 98.6% | ≥ 95.0% | met |  |
-| mistakes | fix-it makes hd check pass | 33.3% | ≥ 80.0% | missed | D4, D5, D6, D11 |
+| mistakes | fix-it makes hd check pass | 33.3% | ≥ 80.0% | missed | D4, D6, D11 |
 | mistakes | largest diagnostic text (bytes / 4) | 92 tokens | ≤ 60 tokens | missed | D8, D7 |
 | answer-size | hd doc of a data type | 153 B | ≤ 1000 B | met |  |
 | answer-size | one failing hd test, text | 318 B | ≤ 800 B | met |  |

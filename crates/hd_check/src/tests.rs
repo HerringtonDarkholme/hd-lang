@@ -125,12 +125,12 @@ fn registration<'t>(
     Some((call, kind.to_owned(), block))
 }
 
-fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> String {
+fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> hd_resolve::iface::ImportHint {
     let Some(expr) = (s.kind() == SyntaxKind::ExprStmt)
         .then(|| s.children().next())
         .flatten()
     else {
-        return String::new();
+        return hd_resolve::iface::ImportHint::default();
     };
     let call = match expr.kind() {
         SyntaxKind::CallExpr => Some(expr),
@@ -138,7 +138,7 @@ fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> String {
         _ => None,
     };
     let Some(callee) = call.and_then(|c| c.children().next()) else {
-        return String::new();
+        return hd_resolve::iface::ImportHint::default();
     };
     let name = cx.src.text(cx.src.first(callee));
     let sym = cx.names.syms.intern(name);
@@ -148,14 +148,15 @@ fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> String {
         || hd_resolve::local_at(cx.locals, sym, at).is_some()
         || hd_resolve::test_prelude_item(&cx.names, name).is_some()
     {
-        return String::new();
+        return hd_resolve::iface::ImportHint::default();
     }
-    let import = hd_resolve::iface::std_import_hint(
+    let mut import = hd_resolve::iface::std_import_hint(
         &cx.names,
         cx.lookup.ifaces.iter().flat_map(|f| &f.exports),
         name,
     );
-    format!("; `{name}` is unknown or not imported{import}")
+    import.text = format!("; `{name}` is unknown or not imported{}", import.text);
+    import
 }
 
 /// The registration function that a call's callee names, by declaration
@@ -254,14 +255,16 @@ pub fn check_tests(
     let src = &cx.src;
     for s in stmts.iter().copied() {
         let Some((call, kind, block)) = registration(cx, s) else {
+            let hint = unknown_registration_hint(cx, s);
             diags.error(
                 Code::InvalidTestStatement,
                 src.span(s),
                 &format!(
                     "a `tests:` block holds only test registrations{}",
-                    unknown_registration_hint(cx, s)
+                    hint.text
                 ),
             );
+            hint.add_fix(src, diags);
             continue;
         };
         let mut reg = TestReg {

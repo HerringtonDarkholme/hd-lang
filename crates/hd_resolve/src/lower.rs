@@ -2396,9 +2396,9 @@ impl Lower<'_, '_, '_> {
         self.src.symbol(token, self.names.syms)
     }
 
-    fn import_hint(&self, name: &str) -> String {
+    fn import_hint(&self, name: &str) -> crate::iface::ImportHint {
         if self.in_std() {
-            return String::new();
+            return crate::iface::ImportHint::default();
         }
         let world = self.r.cx.world;
         // std's root folder holds the public modules and their export
@@ -2409,7 +2409,7 @@ impl Lower<'_, '_, '_> {
         world
             .module_folder_node(&self.names, root)
             .and_then(|folder| world.iface(folder))
-            .map_or_else(String::new, |iface| {
+            .map_or_else(crate::iface::ImportHint::default, |iface| {
                 crate::iface::std_import_hint(&self.names, &iface.exports, name)
             })
     }
@@ -2841,8 +2841,10 @@ impl Lower<'_, '_, '_> {
                 return None;
             }
             if segs.len() == 1 {
-                let msg = format!("no trait named `{name}`{}", self.import_hint(&name));
+                let hint = self.import_hint(&name);
+                let msg = format!("no trait named `{name}`{}", hint.text);
                 self.diags.error(Code::UnknownTrait, span, &msg);
+                hint.add_fix(&self.src, self.diags);
             }
             return None;
         };
@@ -3307,8 +3309,10 @@ impl Lower<'_, '_, '_> {
                 return Ty::POISON;
             }
             if segs.len() == 1 {
-                let msg = format!("no type named `{first}`{}", self.import_hint(&first));
+                let hint = self.import_hint(&first);
+                let msg = format!("no type named `{first}`{}", hint.text);
                 self.diags.error(Code::UnknownType, span, &msg);
+                hint.add_fix(&self.src, self.diags);
             }
             return Ty::POISON;
         };
@@ -6120,11 +6124,12 @@ impl Lower<'_, '_, '_> {
                     let hint = if self.scope.lookup(sym).is_none() {
                         self.import_hint(&a)
                     } else {
-                        String::new()
+                        crate::iface::ImportHint::default()
                     };
-                    let msg = format!("no trait named `{a}`{hint}");
+                    let msg = format!("no trait named `{a}`{}", hint.text);
                     self.diags
                         .error(Code::UnknownTrait, self.src.span(h.node), &msg);
+                    hint.add_fix(&self.src, self.diags);
                     continue;
                 };
                 let tr = DefId::from_raw(value);

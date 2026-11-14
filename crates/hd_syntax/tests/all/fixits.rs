@@ -63,3 +63,26 @@ fn incomplete_spreads_and_other_comment_positions_have_no_fix() {
         );
     }
 }
+
+/// `Parse::use_insertion`: a missing import's `use` goes at the end of
+/// the line of the last top-level `use`, past its comment; else after
+/// the module documentation and its blank line; else at the top. A
+/// nested `use` and a comment above the first item do not count.
+#[test]
+fn a_missing_import_goes_after_the_last_use_or_the_module_doc() {
+    for (source, want) in [
+        (
+            "use std.a\nfn f(): +1\nuse std.d # last\n\nfn g(): +1\n",
+            (37, true),
+        ),
+        ("## Module.\n\n## The function.\nfn f(): +1\n", (12, false)),
+        ("## Attached.\nfn f(): +1\n", (0, false)),
+        ("# header\n\nfn f():\n    use std.a\n    +1\n", (0, false)),
+        ("", (0, false)),
+    ] {
+        let parsed = parse(source.as_bytes());
+        assert_eq!(parsed.use_insertion(source), want, "{source:?}");
+        // The answer is kept for the next call.
+        assert_eq!(parsed.use_insertion(source), want, "{source:?}");
+    }
+}

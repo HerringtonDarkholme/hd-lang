@@ -3477,10 +3477,11 @@ impl Ck<'_, '_> {
         }) else {
             let hint = match segs.as_slice() {
                 [name] => self.import_hint(name),
-                _ => String::new(),
+                _ => hd_resolve::iface::ImportHint::default(),
             };
-            let msg = format!("no type named `{}`{hint}", segs.join("."));
+            let msg = format!("no type named `{}`{}", segs.join("."), hint.text);
             self.err(Code::UnknownType, name_node, &msg);
+            hint.add_fix(&self.cx.src, self.diags);
             return Ok((Ref(NONE), Ty::POISON));
         };
         let item = self.cx.lookup.item(def);

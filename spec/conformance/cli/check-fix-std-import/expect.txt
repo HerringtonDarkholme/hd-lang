@@ -1,0 +1,11 @@
+# An unknown trait that std declares in one module carries an exact fix-it
+# adding its `use` after the file's last top-level `use`, at the end of
+# that line, past its comment. Both diagnostics carry the same edit, so
+# hd check --fix applies it once, and the check after it finds nothing.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-trait","file":"src/lib.hd","line":8,"fixes":[{"message":"add `use std.num.Integer`","edits":[{"file":"src/lib.hd","start":102,"end":102,"text":"\nuse std.num.Integer"}]}]},{"kind":"diagnostic","code":"unknown-trait","file":"src/lib.hd","line":11,"fixes":[{"message":"add `use std.num.Integer`","edits":[{"file":"src/lib.hd","start":102,"end":102,"text":"\nuse std.num.Integer"}]}]},{"kind":"summary","errors":2,"status":101}]
+run: hd check --fix
+same-text: src/lib.hd want/lib.input
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
