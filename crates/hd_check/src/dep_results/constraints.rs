@@ -175,7 +175,7 @@ impl Gen<'_, '_> {
     /// the instance (`dir.0`) or stores into it (`dir.1`). A capture slot
     /// of a function type the field's declaration writes (`written`) is
     /// fresh and holds nothing a read takes (`ref.generic.outlives.written`);
-    /// a store puts its value's captures where the map says.
+    /// a store puts its value's captures into the instance's slots.
     fn field(
         &mut self,
         v: &View,
@@ -203,14 +203,11 @@ impl Gen<'_, '_> {
                 out.push(r);
                 continue;
             }
+            // A written capture slot is never mapped: a field's declared
+            // lifetimes name no capture slot, so `field_map` lines up none
+            // of its slots.
             let r = self.t.fresh(1).start;
             out.push(r);
-            if let Some(m) = mapped {
-                if dir.1 {
-                    self.flow(r, m);
-                }
-                continue;
-            }
             let top = lc.slots.get(k).is_none_or(|s| s.top);
             for s in [Some(&mut stored), (!capture).then_some(&mut fresh)]
                 .into_iter()

@@ -1,0 +1,23 @@
+# @dump: tir
+# @fuel: 3
+# expected: one item-too-complex for an AutoClosing implementation whose
+# cleanup protocol's proof runs out of fuel, and no
+# missing-supertrait-implementation after it.
+use std.ops.{AutoClosing, Disposable}
+
+struct A:
+    x: i32
+
+impl Disposable for A:
+    fn dispose(&mut self) -> void:
+        pass
+
+struct S[T]:
+    x: i32
+
+impl[T < Disposable] Disposable for S[T]:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for S[S[S[S[S[S[A]]]]]]:
+    pass

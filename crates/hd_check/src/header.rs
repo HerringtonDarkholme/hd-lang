@@ -1325,9 +1325,12 @@ impl<'a> ItemCheck<'_, 'a> {
 
     /// Whether `self_ty` implements a cleanup protocol for some requirement
     /// row. The existential row lives in this one header probe's local pool.
+    /// A proof past the depth limit, or an item already past its fuel,
+    /// counts as holding: that error is the answer, and no
+    /// `missing-supertrait-implementation` follows it.
     fn holds_protocol(&mut self, self_ty: Ty, trait_: DefId) -> StageResult<bool> {
         if self.too_complex {
-            return Ok(false);
+            return Ok(true);
         }
         // The self type is the header's, so its projections' clauses are
         // interned in the shared pool, never in this probe's local one.
@@ -1370,7 +1373,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     self.cx.names.display_name(trait_)
                 );
                 self.report_depth(0, message);
-                Ok(false)
+                Ok(true)
             }
             Answer::OutOfFuel => {
                 self.too_complex = true;

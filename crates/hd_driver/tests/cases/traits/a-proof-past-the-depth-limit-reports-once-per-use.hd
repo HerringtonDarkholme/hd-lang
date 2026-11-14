@@ -1,0 +1,53 @@
+# @dump: tir
+# expected: one trait-resolution-depth per use of a type whose proofs are
+# past the depth limit, and nothing after it: a method call on it; the
+# same call as an index key under a method call, which a rolled-back
+# trial checks first; and an AutoClosing implementation for it, whose
+# cleanup protocol is that deep, with no missing-supertrait-implementation.
+use std.ops.{AutoClosing, Disposable, Index}
+
+trait Walk:
+    fn go(&self) -> i32
+
+struct A:
+    x: i32
+
+impl Walk for A:
+    fn go(&self) -> i32:
+        0
+
+impl Disposable for A:
+    fn dispose(&mut self) -> void:
+        pass
+
+struct S[T]:
+    x: i32
+
+impl[T < Walk] Walk for S[T]:
+    fn go(&self) -> i32:
+        0
+
+impl[T < Disposable] Disposable for S[T]:
+    fn dispose(&mut self) -> void:
+        pass
+
+type S10[T] = S[S[S[S[S[S[S[S[S[S[T]]]]]]]]]]
+
+type S70 = S10[S10[S10[S10[S10[S10[S10[A]]]]]]]
+
+impl AutoClosing for S70:
+    pass
+
+struct Names:
+    items: *mut List[string]
+
+impl Index[i32] for Names:
+    type Out = string
+    fn index(&self, key: i32) -> &string:
+        &self.items[0]
+
+fn direct(d: S70) -> i32:
+    d.go()
+
+fn after_a_trial(names: Names, d: S70) -> usize:
+    names[d.go()].len()
