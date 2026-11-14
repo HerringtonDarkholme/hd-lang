@@ -20,7 +20,7 @@ use std::sync::{Arc, OnceLock};
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, FileId, Hash128, NodeIdx, PathId};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
-use hd_resolve::{Generic, Names, Src, show_ty};
+use hd_resolve::{Generic, Names, Src, show_ty_full};
 use hd_syntax::{Parse, parse};
 use hd_types::{InternPool, Ty, TyData};
 
@@ -451,9 +451,10 @@ pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) ->
     let pool = names.pool.types();
     match pool.get(ty) {
         TyData::Adt { def, .. } => names.display_name(def).to_owned(),
-        TyData::Param(p) => generics
-            .get(usize::from(p.index))
-            .map_or_else(|| show_ty(names, ty), |g| names.text(g.name).to_owned()),
+        TyData::Param(p) => generics.get(usize::from(p.index)).map_or_else(
+            || show_ty_full(names, ty),
+            |g| names.text(g.name).to_owned(),
+        ),
         TyData::Tuple { elems, rest: None } => {
             let items = pool.list_items(elems);
             if items.is_empty() {
@@ -465,7 +466,7 @@ pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) ->
                 .collect();
             format!("({})", each.join(", "))
         }
-        _ => show_ty(names, ty),
+        _ => show_ty_full(names, ty),
     }
 }
 

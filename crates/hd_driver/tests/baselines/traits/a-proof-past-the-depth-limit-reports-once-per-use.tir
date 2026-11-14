@@ -52,6 +52,6 @@ fn direct(d: S70) -> i32:
 
 fn after_a_trial(names: Names, d: S70) -> usize:
     names[d.go()].len()
-> error: main.hd:881..906: trait-resolution-depth: the proof that S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[S[A]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]] implements Disposable needs more than 64 nested bounds
+> error: main.hd:881..906: trait-resolution-depth: the proof that S[S[S[S[S[S[S[S[...]]]]]]]] implements Disposable needs more than 64 nested bounds
 > error: main.hd:1106..1112: trait-resolution-depth: `go` needs a proof that its receiver implements Walk, and that proof needs more than 64 nested bounds
 > error: main.hd:1173..1179: trait-resolution-depth: `go` needs a proof that its receiver implements Walk, and that proof needs more than 64 nested bounds

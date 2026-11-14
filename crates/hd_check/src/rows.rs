@@ -749,7 +749,12 @@ impl Ck<'_, '_> {
             .keys
             .into_iter()
             .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
-            .map(|k| (hd_resolve::show_ty_in(&self.cx.names, self.pool(), k), k))
+            .map(|k| {
+                (
+                    hd_resolve::show_ty_full_in(&self.cx.names, self.pool(), k),
+                    k,
+                )
+            })
             .collect();
         keys.sort_stable_by(|a, b| a.0.cmp(&b.0));
         for (slot, (_, k)) in keys.into_iter().enumerate() {

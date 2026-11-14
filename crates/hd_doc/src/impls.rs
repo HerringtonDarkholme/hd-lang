@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use hd_base::DefId;
 use hd_intern::{PathTable, ShardedInterner};
-use hd_resolve::{ImplKind, ItemData, KnownItems, Names, decode_items, show_ty};
+use hd_resolve::{ImplKind, ItemData, KnownItems, Names, decode_items, show_ty_full};
 use hd_types::{InternPool, TyData};
 
 /// The implementation lines of each type, by (module path, type name).
@@ -63,7 +63,7 @@ pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLine
             let args: Vec<String> = pool
                 .list_items(trait_args)
                 .iter()
-                .map(|a| show_ty(&names, *a))
+                .map(|a| show_ty_full(&names, *a))
                 .collect();
             let args = if args.is_empty() {
                 String::new()
@@ -73,7 +73,7 @@ pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLine
             let head = format!(
                 "impl {}{args} for {}",
                 names.display_name(trait_),
-                show_ty(&names, self_ty)
+                show_ty_full(&names, self_ty)
             );
             let line = if matches!(kind, ImplKind::Derived | ImplKind::Derivation) {
                 format!("`{head}` (derived)")

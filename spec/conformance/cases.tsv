@@ -377,6 +377,7 @@ typing/invalid/tuple-rest-a-spread-pattern-covers-every-list-refutable-let.hd	ty
 typing/invalid/tuple-rest-a-spread-pattern-covers-every-list.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#spread-patterns
 typing/invalid/tuple-rest-a-spread-pattern-needs-a-rest-element.hd	type	reject:type-mismatch	lang/06-control-flow.md#spread-patterns
 typing/invalid/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-literal-item.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
+typing/invalid/a-mismatch-on-a-doubled-tuple-names-a-cut-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.limit.type-size
 typing/invalid/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-spread-short.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 typing/invalid/tuple-rest-a-tuple-spread-takes-a-list-of-the-rest-items-spread-item.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 typing/invalid/tuple-rest-selection-past-the-tuple-is-unknown-fixed.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.tuple.select-underscore

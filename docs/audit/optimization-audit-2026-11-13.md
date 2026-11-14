@@ -159,20 +159,16 @@ not measured.
       rustc's `MaybeIncorrect` suggestions do. **owner**: whether the
       metric should apply the first of several offered fixes.
 
-8. **D7. Long diagnostics print whole types and fixed help text.
+8. **D7. Long diagnostics print full paths and fixed help text.
    [V by agent]**
-   - `trait-resolution-depth` prints a 64-deep type, 108-126 tokens
-     (`body.rs:3199`, `header.rs:1257`). F17 of the 2026-11-12 review is
-     a 5.2 MB `type-mismatch` from one doubled tuple type.
    - An opaque type prints with its full module path, 63-73 tokens
-     (`iface.rs:2752`).
+     (`iface.rs`, `Shower::ty`).
    - `overlapping-impl` prints both impls by path, 57-79 tokens
      (`hd_driver/src/lib.rs:5880`, `:6114`).
    - Row mismatches add about 25 tokens of fixed explanation
      (`body.rs:2311`); `move-out-of-place` and `cannot-infer-type` do the
      same.
-   - Fix: cut a printed type past a depth or length, as rustc does. Print
-     the bare trait name. Label the second impl with a span, not text.
+   - Fix: print the bare trait name. Label the second impl with a span, not text.
      Keep the edit in the message and move the reasons to the docs.
 
 9. **D8. The output format spends tokens on nothing. [V by agent]**

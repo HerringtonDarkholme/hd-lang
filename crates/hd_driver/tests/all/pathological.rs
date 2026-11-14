@@ -1109,9 +1109,15 @@ fn errors_of(source: &str) -> Vec<(usize, String)> {
 
 #[test]
 fn a_projection_past_the_binding_limit_is_reported_once_where_each_type_is_used() {
-    let s70 = (0..70).fold(String::from("A"), |t, _| format!("S[{t}]"));
-    let past =
-        format!("normalizing `{s70}::Out` needs more than 64 nested associated-type bindings");
+    // A message cuts a type below `SHOWN_TYPE_DEPTH` constructors (#1861):
+    // the projection is one of them.
+    let cut = |levels: usize| format!("{}...{}", "S[".repeat(levels), "]".repeat(levels));
+    let depth = hd_resolve::iface::SHOWN_TYPE_DEPTH as usize;
+    let s70 = cut(depth);
+    let past = format!(
+        "normalizing `{}::Out` needs more than 64 nested associated-type bindings",
+        cut(depth - 1)
+    );
     let proof = |deep: &str| {
         format!("the proof that {deep} implements Walk needs more than 64 nested bounds")
     };
@@ -1144,7 +1150,7 @@ fn a_projection_past_the_binding_limit_is_reported_once_where_each_type_is_used(
     assert_eq!(goal, [(26, proof(&s70))]);
     // A call's result projected from the type whose proof failed is no
     // type to compare.
-    let s64 = (0..64).fold(String::from("A"), |t, _| format!("S[{t}]"));
+    let s64 = cut(depth);
     let result = errors_of(&projection_chain(
         "fn g[U < Walk](u: U) -> U::Out:\n    panic(\"\")\n\nfn h(x: $64) -> i32:\n    g(x)\n",
     ));
@@ -1284,4 +1290,67 @@ fn literal_match_builds_and_runs_fifty_thousand_arms_on_a_worker_stack() {
 #[test]
 fn string_match_builds_and_runs_fifty_thousand_arms_on_a_worker_stack() {
     emitted_literal_decisions(string_match, true);
+}
+
+// Diagnostics: #1861, a type a message names is cut at
+// `SHOWN_TYPE_BYTES` and `SHOWN_TYPE_DEPTH`, so neither the message nor
+// the time to print it grows with the type's expanded size. An 18-level
+// doubled tuple of strings printed 5.2 MB, and its printing time doubled
+// with each level.
+/// `x0 := "a"`, `x1 := (x0, x0)`, ... and `x{levels}` bound to an `i32`.
+fn doubled_tuple(levels: usize) -> String {
+    let mut s = String::from("fn main() -> void:\n    x0 := \"a\"\n");
+    for i in 1..=levels {
+        let _ = writeln!(s, "    x{i} := (x{}, x{})", i - 1, i - 1);
+    }
+    let _ = writeln!(s, "    let y: i32 = x{levels}");
+    s
+}
+
+/// A proof that `Box[Box[...[i32]...]]`, `depth` deep, implements a
+/// trait implemented for `Box[T]` given `T`'s proof.
+fn deep_proof(depth: usize) -> String {
+    format!(
+        "trait Marker\nstruct Box[T]:\n    value: T\nimpl Marker for i32\nimpl[T < Marker] Marker for Box[T]\nfn need[T < Marker](value: T) -> void:\n    pass\nfn deep(value: {}i32{}) -> void:\n    need(value)\n",
+        "Box[".repeat(depth),
+        "]".repeat(depth)
+    )
+}
+
+/// The one diagnostic of `source`, which has `code`.
+fn only_message(source: &str, code: &str) -> String {
+    let out = compile(source, &Goal::Analyze);
+    let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+    assert_eq!(codes, [code], "{}", out.render());
+    out.diags.get_text(out.diags.message[0]).to_owned()
+}
+
+/// Bytes a message naming two cut types stays under.
+const SHORT_MESSAGE: usize = 2 * hd_resolve::iface::SHOWN_TYPE_BYTES + 80;
+
+#[test]
+fn a_mismatch_on_a_doubled_tuple_prints_a_short_type() {
+    // 22 levels expand to 4 million strings, 29 MB uncut. Past that the
+    // checker's layout walk, which expands the type too, is the cost.
+    for levels in [18, 22] {
+        let message = only_message(&doubled_tuple(levels), "type-mismatch");
+        assert!(
+            message.len() <= SHORT_MESSAGE && message.contains("found ((((((((..., ...)"),
+            "{levels} levels: {} bytes: {message}",
+            message.len()
+        );
+    }
+}
+
+#[test]
+fn a_proof_past_the_depth_limit_prints_a_short_type() {
+    for depth in [70, 150] {
+        let message = only_message(&deep_proof(depth), "trait-resolution-depth");
+        assert!(
+            message.len() <= SHORT_MESSAGE
+                && message.contains("Box[Box[Box[Box[Box[Box[Box[Box[...]]]]]]]]"),
+            "depth {depth}: {} bytes: {message}",
+            message.len()
+        );
+    }
 }

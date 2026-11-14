@@ -2683,16 +2683,55 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
     t
 }
 
+/// Bytes past which a type a message names is cut, with [`ELIDED`] for
+/// the rest: about 25 tokens, room for two types in one short message.
+/// rustc shortens a long type the same way (its `type_length_limit`
+/// printing). Without the cut, one `type-mismatch` on an 18-level
+/// doubled tuple printed 5.2 MB and took time exponential in the depth,
+/// as the printer expanded each shared part once per use.
+pub const SHOWN_TYPE_BYTES: usize = 100;
+
+/// Type constructors a type a message names shows on one path; a
+/// constructor below that many shows as [`ELIDED`], so a 64-deep
+/// `List[List[...]]` reads as its outer levels.
+pub const SHOWN_TYPE_DEPTH: u32 = 8;
+
+/// What stands for the part of a type a message leaves out. A rest
+/// element is written `T...`, so a bare `...` names no type.
+pub const ELIDED: &str = "...";
+
 /// A type as a user reads it: items by name, parameters by position.
+/// Cut at [`SHOWN_TYPE_BYTES`] and [`SHOWN_TYPE_DEPTH`]; tooling that
+/// needs the whole text uses [`show_ty_full`].
 #[must_use]
 pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
     show_ty_in(names, names.pool.types(), t)
+}
+
+/// [`show_ty`] uncut: a runtime name, a stack frame or a document,
+/// which print a type whole whatever its size.
+#[must_use]
+pub fn show_ty_full(names: &Names<'_>, t: Ty) -> String {
+    Shower::new(
+        names,
+        names.pool.types(),
+        (false, false),
+        usize::MAX,
+        u32::MAX,
+    )
+    .show(t)
 }
 
 /// [`show_ty`] for a type that may live in a body's local pool.
 #[must_use]
 pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
     show_ty_opts(names, pool, t, false, false)
+}
+
+/// [`show_ty_in`] uncut, as [`show_ty_full`].
+#[must_use]
+pub fn show_ty_full_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
+    Shower::new(names, pool, (false, false), usize::MAX, u32::MAX).show(t)
 }
 
 /// [`show_ty_in`] with the requirement row of every function type written
@@ -2721,7 +2760,14 @@ fn show_ty_opts(
     rows: bool,
     qualified: bool,
 ) -> String {
-    show_marked(names, pool, t, (rows, qualified), None)
+    Shower::new(
+        names,
+        pool,
+        (rows, qualified),
+        SHOWN_TYPE_BYTES,
+        SHOWN_TYPE_DEPTH,
+    )
+    .show(t)
 }
 
 /// The lifetime marks of a function type's reference slots, inputs then
@@ -2755,220 +2801,337 @@ fn lifetime_marks(pool: hd_types::Types<'_>, t: Ty) -> Option<Marks> {
 /// Each reference slot's mark, in [`hd_types::Types::ref_slots`] order.
 type Marks = std::cell::RefCell<std::collections::VecDeque<Option<char>>>;
 
-/// [`show_ty_opts`], writing the next of `marks` after each local `&`.
-fn show_marked(
-    names: &Names<'_>,
-    pool: hd_types::Types<'_>,
-    t: Ty,
-    (rows, qualified): (bool, bool),
-    marks: Option<&Marks>,
-) -> String {
-    let seg = |d: DefId| {
-        if qualified {
-            names.qualified_name(d)
-        } else {
-            names.display_name(d).to_owned()
-        }
-    };
-    let list = |l: TyList| {
-        pool.list_items(l)
-            .iter()
-            .map(|x| show_marked(names, pool, *x, (rows, qualified), marks))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-    match pool.get(t) {
-        TyData::Prim(p) => p.name().to_owned(),
-        TyData::Never => "never".into(),
-        TyData::Poison => "_".into(),
-        TyData::Const(v) => const_literal(names, v),
-        // `Option[T]` is spelled `T?` (`types.option.sugar`).
-        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, names.known.option) => {
-            format!(
-                "{}?",
-                show_marked(names, pool, inner, (rows, qualified), marks)
-            )
-        }
-        TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
-            if args == TyList::EMPTY =>
-        {
-            seg(def)
-        }
-        // Lifetime arguments are not shown (`ref.lifetime.struct`,
-        // `ref.lifetime.enum`, `ref.lifetime.trait`).
-        TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
-            if pool
-                .list_items(args)
-                .iter()
-                .any(|&x| is_lifetime_arg(pool, x)) =>
-        {
-            let shown: Vec<String> = pool
-                .list_items(args)
-                .iter()
-                .filter(|&&x| !is_lifetime_arg(pool, x))
-                .map(|x| show_marked(names, pool, *x, (rows, qualified), marks))
-                .collect();
-            if shown.is_empty() {
-                seg(def)
-            } else {
-                format!("{}[{}]", seg(def), shown.join(", "))
-            }
-        }
-        TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
-            format!("{}[{}]", seg(def), list(args))
-        }
-        // A one-element tuple keeps its trailing comma, a rest element
-        // alone included (`types.tuple.one-element`, `grammar.type.rest`):
-        // `(T)` is a grouped `T`.
-        TyData::Tuple { elems, rest } => {
-            let mut parts: Vec<String> = pool
-                .list_items(elems)
-                .iter()
-                .map(|x| show_marked(names, pool, *x, (rows, qualified), marks))
-                .collect();
-            parts.extend(rest.map(|r| {
-                format!(
-                    "{}...",
-                    show_marked(names, pool, r, (rows, qualified), marks)
-                )
-            }));
-            if parts.len() == 1 {
-                format!("({},)", parts[0])
-            } else {
-                format!("({})", parts.join(", "))
-            }
-        }
-        TyData::Union(members) => pool
-            .list_items(members)
-            .iter()
-            .map(|&member| {
-                let shown = show_marked(names, pool, member, (rows, qualified), marks);
-                if matches!(pool.get(member), TyData::Union(_)) {
-                    format!("({shown})")
-                } else {
-                    shown
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" | "),
-        TyData::Ref {
-            inner,
-            mutable,
-            counted,
-        } => {
-            let dyn_prefix = if matches!(pool.get(inner), TyData::TraitValue { .. }) {
-                "dyn "
-            } else {
-                ""
-            };
-            let mark = marks
-                .filter(|_| !counted)
-                .and_then(|m| m.borrow_mut().pop_front())
-                .flatten()
-                .map_or(String::new(), |c| format!("'{c} "));
-            format!(
-                "{}{mark}{}{dyn_prefix}{}",
-                if counted { "*" } else { "&" },
-                if mutable { "mut " } else { "" },
-                show_marked(names, pool, inner, (rows, qualified), marks)
-            )
-        }
-        // Inputs of an arity not known here have no sugar form.
-        TyData::Fn {
-            params,
-            result,
-            row,
-            suspends,
-            inputs: hd_types::Inputs::Tuple,
-            ..
-        } => format!(
-            "{}[{}, {}, {}]",
-            if suspends { "SuspendFn" } else { "Fn" },
-            pool.list_items(params)
-                .iter()
-                .map(|x| show_ty_opts(names, pool, *x, rows, qualified))
-                .collect::<Vec<_>>()
-                .join(", "),
-            show_ty_opts(names, pool, result, rows, qualified),
-            show_row_in(names, pool, row, qualified)
-        ),
-        TyData::Fn {
-            params,
-            result,
-            row,
-            suspends,
-            ..
-        } => {
-            let shown = if rows && row != hd_types::RowId::EMPTY {
-                format!(" {}", show_row_in(names, pool, row, qualified))
-            } else {
-                String::new()
-            };
-            let own = lifetime_marks(pool, t);
-            let own = own.as_ref();
-            let params: Vec<String> = pool
-                .list_items(params)
-                .iter()
-                .map(|x| show_marked(names, pool, *x, (rows, qualified), own))
-                .collect();
-            format!(
-                "fn{}({}) -> {}{shown}",
-                if suspends { "!" } else { "" },
-                params.join(", "),
-                show_marked(names, pool, result, (rows, qualified), own)
-            )
-        }
-        TyData::Opaque {
-            owner, args, bound, ..
-        } => {
-            let shown = show_ty_opts(names, pool, bound, rows, qualified);
-            let shown = format!("impl {}", shown.strip_prefix("dyn ").unwrap_or(&shown));
-            if qualified {
-                format!("{shown} returned by {}[{}]", seg(owner), list(args))
-            } else {
-                shown
-            }
-        }
-        TyData::Param(p) => names.param_name(p.owner, p.index),
-        TyData::Assoc { assoc, self_ty, .. } => {
-            format!(
-                "{}::{}",
-                show_ty_opts(names, pool, self_ty, rows, qualified),
-                seg(assoc)
-            )
-        }
-        TyData::Infer(_) | TyData::Canon(_) => "?".into(),
-        TyData::Row(r) => show_row_in(names, pool, r, qualified),
-        TyData::Context(r) => format!("$.Context[{}]", show_row_in(names, pool, r, qualified)),
-    }
+/// The type printer: one output buffer, cut at `limit` bytes and
+/// `max_depth` constructors. Once cut, it writes only the closing
+/// brackets of the constructors still open, so a cut type stays
+/// balanced. Cost: the shown text plus one step per constructor still
+/// open and per sibling skipped after the cut, whatever the type's
+/// expanded size; a full print (`usize::MAX`) is the expanded size.
+struct Shower<'s, 'n> {
+    names: &'s Names<'n>,
+    pool: hd_types::Types<'s>,
+    rows: bool,
+    qualified: bool,
+    out: String,
+    limit: usize,
+    max_depth: u32,
+    /// Set once `out` reached `limit`: what follows is left out.
+    cut: bool,
 }
 
-/// A row as a user reads it, after `$`: its keys in content order
-/// (`crates/hd_sched/DESIGN.md` §6.5), not interning order, then its row parameters.
-fn show_row_in(
-    names: &Names<'_>,
-    pool: hd_types::Types<'_>,
-    r: hd_types::RowId,
-    qualified: bool,
-) -> String {
-    let d = pool.row_data(r);
-    if d.keys.is_empty() && d.params.is_empty() {
-        return "$()".into();
+impl<'s, 'n> Shower<'s, 'n> {
+    fn new(
+        names: &'s Names<'n>,
+        pool: hd_types::Types<'s>,
+        (rows, qualified): (bool, bool),
+        limit: usize,
+        max_depth: u32,
+    ) -> Self {
+        Self {
+            names,
+            pool,
+            rows,
+            qualified,
+            out: String::new(),
+            limit,
+            max_depth,
+            cut: false,
+        }
     }
-    let mut parts: Vec<String> = d
-        .keys
-        .iter()
-        .map(|k| show_ty_opts(names, pool, *k, false, qualified))
-        .collect();
-    parts.sort_stable();
-    let mut ps: Vec<String> = d
-        .params
-        .iter()
-        .map(|p| names.param_name(p.owner, p.index))
-        .collect();
-    ps.sort_stable();
-    parts.extend(ps);
-    format!("$ {}", parts.join(" + "))
+
+    fn show(mut self, t: Ty) -> String {
+        self.ty(t, 0, None);
+        self.out
+    }
+
+    /// Writes `s`, or [`ELIDED`] in its place and the cut when it does
+    /// not fit: a name is shown whole or not at all.
+    fn put(&mut self, s: &str) {
+        if self.cut {
+            return;
+        }
+        if s.len() <= self.limit.saturating_sub(self.out.len()) {
+            self.out.push_str(s);
+        } else {
+            self.out.push_str(ELIDED);
+            self.cut = true;
+        }
+    }
+
+    /// Writes a separator before a part, past the limit if need be, so
+    /// a cut reads `a, ...` and never `a...`, a rest element.
+    fn sep(&mut self, s: &str) {
+        if !self.cut {
+            self.out.push_str(s);
+        }
+    }
+
+    /// Writes the closing bracket of a constructor this printer opened,
+    /// even after the cut.
+    fn close(&mut self, s: &str) {
+        self.out.push_str(s);
+    }
+
+    /// `t` as another printer with the room left here writes it, with
+    /// rows or not: a part this printer transforms before it writes it.
+    fn render(&self, t: Ty, depth: u32, rows: bool) -> (String, bool) {
+        let mut sub = Shower::new(
+            self.names,
+            self.pool,
+            (rows, self.qualified),
+            self.limit.saturating_sub(self.out.len()),
+            self.max_depth,
+        );
+        sub.ty(t, depth, None);
+        (sub.out, sub.cut)
+    }
+
+    /// Writes a part [`Self::render`] wrote, and takes its cut.
+    fn put_rendered(&mut self, (text, cut): (String, bool)) {
+        self.put(&text);
+        self.cut |= cut;
+    }
+
+    fn seg(&mut self, d: DefId) {
+        let names = self.names;
+        if self.qualified {
+            self.put(&names.qualified_name(d));
+        } else {
+            self.put(names.display_name(d));
+        }
+    }
+
+    /// Writes `items` separated by `sep`, stopping at the cut.
+    fn list(&mut self, items: &[Ty], sep: &str, depth: u32, marks: Option<&Marks>) {
+        for (i, &x) in items.iter().enumerate() {
+            if self.cut {
+                return;
+            }
+            if i > 0 {
+                self.sep(sep);
+            }
+            self.ty(x, depth, marks);
+        }
+    }
+
+    /// Whether `t` is written as one name, with no part below it.
+    fn is_atom(&self, t: Ty) -> bool {
+        match self.pool.get(t) {
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => args == TyList::EMPTY,
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Const(_)
+            | TyData::Param(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Writes `t`, `depth` constructors below the printed type's root.
+    fn ty(&mut self, t: Ty, depth: u32, marks: Option<&Marks>) {
+        if self.cut {
+            return;
+        }
+        if depth >= self.max_depth && !self.is_atom(t) {
+            self.put(ELIDED);
+            return;
+        }
+        let pool = self.pool;
+        let d = depth + 1;
+        match pool.get(t) {
+            TyData::Prim(p) => self.put(p.name()),
+            TyData::Never => self.put("never"),
+            TyData::Poison => self.put("_"),
+            TyData::Const(v) => self.put(&const_literal(self.names, v)),
+            // `Option[T]` is spelled `T?` (`types.option.sugar`).
+            TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
+                self.ty(inner, d, marks);
+                self.put("?");
+            }
+            TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
+                if args == TyList::EMPTY =>
+            {
+                self.seg(def);
+            }
+            // Lifetime arguments are not shown (`ref.lifetime.struct`,
+            // `ref.lifetime.enum`, `ref.lifetime.trait`).
+            TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
+                let items = pool.list_items(args);
+                let shown: Vec<Ty> = if items.iter().any(|&x| is_lifetime_arg(pool, x)) {
+                    items
+                        .iter()
+                        .copied()
+                        .filter(|&x| !is_lifetime_arg(pool, x))
+                        .collect()
+                } else {
+                    items.to_vec()
+                };
+                self.seg(def);
+                if !shown.is_empty() {
+                    self.put("[");
+                    self.list(&shown, ", ", d, marks);
+                    self.close("]");
+                }
+            }
+            // A one-element tuple keeps its trailing comma, a rest element
+            // alone included (`types.tuple.one-element`, `grammar.type.rest`):
+            // `(T)` is a grouped `T`.
+            TyData::Tuple { elems, rest } => {
+                let elems = pool.list_items(elems);
+                self.put("(");
+                self.list(elems, ", ", d, marks);
+                if let Some(r) = rest {
+                    if !elems.is_empty() {
+                        self.put(", ");
+                    }
+                    self.ty(r, d, marks);
+                    self.put("...");
+                }
+                if elems.len() + usize::from(rest.is_some()) == 1 {
+                    self.put(",");
+                }
+                self.close(")");
+            }
+            TyData::Union(members) => {
+                for (i, &member) in pool.list_items(members).iter().enumerate() {
+                    if self.cut {
+                        break;
+                    }
+                    if i > 0 {
+                        self.sep(" | ");
+                    }
+                    if matches!(pool.get(member), TyData::Union(_)) {
+                        self.put("(");
+                        self.ty(member, d, marks);
+                        self.close(")");
+                    } else {
+                        self.ty(member, d, marks);
+                    }
+                }
+            }
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => {
+                let mark = marks
+                    .filter(|_| !counted)
+                    .and_then(|m| m.borrow_mut().pop_front())
+                    .flatten();
+                self.put(if counted { "*" } else { "&" });
+                if let Some(c) = mark {
+                    self.put(&format!("'{c} "));
+                }
+                if mutable {
+                    self.put("mut ");
+                }
+                if matches!(pool.get(inner), TyData::TraitValue { .. }) {
+                    self.put("dyn ");
+                }
+                self.ty(inner, d, marks);
+            }
+            // Inputs of an arity not known here have no sugar form.
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs: hd_types::Inputs::Tuple,
+                ..
+            } => {
+                self.put(if suspends { "SuspendFn[" } else { "Fn[" });
+                self.list(pool.list_items(params), ", ", d, None);
+                self.put(", ");
+                self.ty(result, d, None);
+                self.put(", ");
+                self.row(row, d);
+                self.close("]");
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                ..
+            } => {
+                let own = lifetime_marks(pool, t);
+                let own = own.as_ref();
+                self.put(if suspends { "fn!(" } else { "fn(" });
+                self.list(pool.list_items(params), ", ", d, own);
+                self.close(")");
+                self.put(" -> ");
+                self.ty(result, d, own);
+                if self.rows && row != hd_types::RowId::EMPTY {
+                    self.put(" ");
+                    self.row(row, d);
+                }
+            }
+            TyData::Opaque {
+                owner, args, bound, ..
+            } => {
+                self.put("impl ");
+                let (shown, cut) = self.render(bound, d, self.rows);
+                let shown = match shown.strip_prefix("dyn ") {
+                    Some(rest) => rest.to_owned(),
+                    None => shown,
+                };
+                self.put_rendered((shown, cut));
+                if self.qualified {
+                    self.put(" returned by ");
+                    self.seg(owner);
+                    self.put("[");
+                    self.list(pool.list_items(args), ", ", d, marks);
+                    self.close("]");
+                }
+            }
+            TyData::Param(p) => self.put(&self.names.param_name(p.owner, p.index)),
+            TyData::Assoc { assoc, self_ty, .. } => {
+                self.ty(self_ty, d, None);
+                self.put("::");
+                self.seg(assoc);
+            }
+            TyData::Infer(_) | TyData::Canon(_) => self.put("?"),
+            TyData::Row(r) => self.row(r, d),
+            TyData::Context(r) => {
+                self.put("$.Context[");
+                self.row(r, d);
+                self.close("]");
+            }
+        }
+    }
+
+    /// A row as a user reads it, after `$`: its keys in content order
+    /// (`crates/hd_sched/DESIGN.md` §6.5), not interning order, then its
+    /// row parameters. Each key is rendered to sort it, in the room left.
+    fn row(&mut self, r: hd_types::RowId, depth: u32) {
+        let d = self.pool.row_data(r);
+        if d.keys.is_empty() && d.params.is_empty() {
+            self.put("$()");
+            return;
+        }
+        let mut parts: Vec<(String, bool)> = d
+            .keys
+            .iter()
+            .map(|k| self.render(*k, depth, false))
+            .collect();
+        parts.sort_stable_by(|a, b| a.0.cmp(&b.0));
+        let mut ps: Vec<String> = d
+            .params
+            .iter()
+            .map(|p| self.names.param_name(p.owner, p.index))
+            .collect();
+        ps.sort_stable();
+        parts.extend(ps.into_iter().map(|p| (p, false)));
+        self.put("$ ");
+        for (i, part) in parts.into_iter().enumerate() {
+            if i > 0 {
+                self.sep(" + ");
+            }
+            self.put_rendered(part);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -35,7 +35,7 @@ pub use iface::{
     decode_private_names, deep_hash, encode_docs, encode_items, encode_module_uses,
     encode_private_names, fill_trait_args, fill_type_args, folder_iface, generic_kind_mismatch,
     header_parts, impl_table, interface_items, lifetime_arg, mentioned_defs, private_impl_items,
-    show_ty, show_ty_in, show_ty_rows_in, ty_parts,
+    show_ty, show_ty_full, show_ty_full_in, show_ty_in, show_ty_rows_in, ty_parts,
 };
 pub use known::KnownItems;
 pub use lower::{

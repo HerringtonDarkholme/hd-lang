@@ -5,13 +5,13 @@
 
 use std::fmt::Write as _;
 
-use hd_resolve::{Names, show_ty};
+use hd_resolve::{Names, show_ty_full};
 use hd_tir::Body;
 use hd_tir::ir::{Callee, Coercion, NONE, Op, Ref, Tag};
 use hd_types::{Ty, TyList};
 
 fn ty(names: &Names<'_>, t: Ty) -> String {
-    show_ty(names, t)
+    show_ty_full(names, t)
 }
 
 fn list(names: &Names<'_>, l: TyList) -> String {
