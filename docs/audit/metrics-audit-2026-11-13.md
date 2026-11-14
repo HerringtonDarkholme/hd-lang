@@ -330,9 +330,9 @@ saved code cache (`host/run.ts:213`, `host/test.ts:57`).
 - **Fix.** Guest-side output buffer, flushed at a newline on a TTY, before
   other host calls, and at exit. Skip path resolution under an
   unrestricted grant. Precompute sort keys. Use fixed-width integers in the
-  wire format. The two writes per `println` are a spec rule
-  (`module.console.println-two-writes-sync`), so buffering or one call per
-  line needs the owner.
+  wire format. The owner accepted one write per line in #1763;
+  `module.console.println-one-write-sync` now specifies it. Buffering remains
+  a separate owner decision.
 
 ### C14. JSON makes two passes and checks keys at run time
 
@@ -403,6 +403,5 @@ Fix these before reading the related numbers as compiler facts.
 4. C10: run `.wasm` in-process on wasmtime by default, which puts wasmtime
    in the default build, or accept that the 5 ms start-up target is out of
    reach on Node.
-5. C13: `println` makes two host writes by spec rule
-   `module.console.println-two-writes-sync`. Buffering or one call per line
-   changes that rule.
+5. C13: #1763 applies the owner's one-write-per-line decision in
+   `module.console.println-one-write-sync`; buffering remains separate.

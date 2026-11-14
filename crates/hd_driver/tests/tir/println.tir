@@ -2,26 +2,23 @@ std/console/println (Fn)
   local $0 value: T [param read captured]
   local $1 console: &mut dyn Console [read assigned]
   local $2 $ref: Result[(), ConsoleError] [read assigned captured captured-assigned]
-  local $3 $ref: Result[(), ConsoleError] [read assigned captured captured-assigned]
   %0 = ProviderGet #0 : Console
   %1 = Coerce %0 [ProviderAsRef -] : &mut dyn Console
   %2 = Store [$1] %1 : ()
   %3 = Read [*$1] : Console
   %4 = Ref local [$0] : &T
   %5 = Call std/format/Display.to_string for T [] via Bound (%4) : string
-  %6 = Call std/console/Console.write_sync for Console [] via TraitValue (%3, %5) : Result[(), ConsoleError]
-  %7 = Store [$2] %6 : ()
-  %8 = Ref local [$2] : &Result[(), ConsoleError]
-  %9 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].is_err[(), ConsoleError] (%8) : bool
-  %10 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
-  %11 = Block - : never
-  %12 = If %9 [%11 -] : ()
-  %13 = Read [*$1] : Console
-  %14 = Call std/console/Console.write_sync for Console [] via TraitValue (%13, "\n") : Result[(), ConsoleError]
-  %15 = Store [$3] %14 : ()
-  %16 = Ref local [$3] : &Result[(), ConsoleError]
-  %17 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].is_err[(), ConsoleError] (%16) : bool
-  %18 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
-  %19 = Block - : never
-  %20 = If %17 [%19 -] : ()
-  %21 = Block - : ()
+  %6 = Call std/text/impl StringBuilder.text_width[] (%5) : usize
+  %7 = Prim Add [0:usize %6] : usize
+  %8 = Prim Add [%7 1:usize] : usize
+  %9 = Call std/text/impl StringBuilder.value_new[] (%8) : string
+  %10 = Call std/text/impl StringBuilder.value_text[] (%9, 0:usize, %5) : ()
+  %11 = Call std/text/impl StringBuilder.value_text[] (%9, %7, "\n") : ()
+  %12 = Call std/console/Console.write_sync for Console [] via TraitValue (%3, %9) : Result[(), ConsoleError]
+  %13 = Store [$2] %12 : ()
+  %14 = Ref local [$2] : &Result[(), ConsoleError]
+  %15 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].is_err[(), ConsoleError] (%14) : bool
+  %16 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
+  %17 = Block - : never
+  %18 = If %15 [%17 -] : ()
+  %19 = Block - : ()

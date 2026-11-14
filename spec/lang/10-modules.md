@@ -1035,10 +1035,10 @@ pub enum ConsoleError:
 6. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
 7. r[module.console.error.coded-variants] `ConsoleError` is a public enum with `Closed`, `NotGranted(stream: ConsoleStream)`, and `Other(code: i32)`. It carries no host-made string.
 8. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
-9. r[module.console.println-two-writes-sync] `println(value)` calls the covering provider's `write_sync` once with `value.to_string()`, then once with `"\n"` after the first returns `.Ok(())`.
+9. r[module.console.println-one-write-sync] `println(value)` calls the covering provider's `write_sync` once with `value.to_string()` followed by `"\n"` in the same string.
 10. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
 11. r[module.console.println-no-drive] `println` drives no suspension, so the forbidden contexts of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature) do not apply to it.
-12. r[module.console.println-write-error.either] If either write returns `.Err(ConsoleError)`, `println` panics.
+12. r[module.console.println-write-error.single] If the write returns `.Err(ConsoleError)`, `println` panics.
 13. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
 14. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
 15. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.

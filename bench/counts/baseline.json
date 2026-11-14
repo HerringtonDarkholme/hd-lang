@@ -6,280 +6,308 @@
     {
       "program": "bench/runtime/progs/closures.hd",
       "retained": "0",
-      "released": "2",
+      "released": "3",
       "uniques": "1",
-      "total": "3",
-      "noOpsAndSkipped": "3"
+      "total": "4",
+      "noOpsAndSkipped": "3",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/expr-eval.hd",
       "retained": "0",
-      "released": "3650726",
+      "released": "3650727",
       "uniques": "0",
-      "total": "3650726",
-      "noOpsAndSkipped": "5166006"
+      "total": "3650727",
+      "noOpsAndSkipped": "5166006",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/int-loop.hd",
       "retained": "0",
-      "released": "1",
+      "released": "2",
       "uniques": "0",
-      "total": "1",
-      "noOpsAndSkipped": "0"
+      "total": "2",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "0",
-      "released": "521",
+      "released": "522",
       "uniques": "6400002",
-      "total": "6400523",
-      "noOpsAndSkipped": "6401029"
+      "total": "6400524",
+      "noOpsAndSkipped": "6401029",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
       "retained": "2000",
-      "released": "4012",
+      "released": "4013",
       "uniques": "20000",
-      "total": "26012",
-      "noOpsAndSkipped": "1"
+      "total": "26013",
+      "noOpsAndSkipped": "1",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
       "retained": "0",
-      "released": "13",
+      "released": "14",
       "uniques": "1",
-      "total": "14",
-      "noOpsAndSkipped": "1"
+      "total": "15",
+      "noOpsAndSkipped": "1",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
       "retained": "1",
-      "released": "41",
+      "released": "42",
       "uniques": "4000",
-      "total": "4042",
-      "noOpsAndSkipped": "4"
+      "total": "4043",
+      "noOpsAndSkipped": "4",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "5760129",
-      "released": "6660278",
+      "released": "6660279",
       "uniques": "8",
-      "total": "12420415",
-      "noOpsAndSkipped": "1440025"
+      "total": "12420416",
+      "noOpsAndSkipped": "1440025",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
       "retained": "0",
-      "released": "14",
+      "released": "15",
       "uniques": "0",
-      "total": "14",
+      "total": "15",
       "noOpsAndSkipped": "0",
-      "reason": "#1709 gives the initially empty counts Map its own 40-byte seed-bearing allocation (8-byte object header plus 32-byte map header). First growth releases that counted table instead of making the former static-empty-buffer no-op call: releases 13 -> 14, no-op/skipped calls 1 -> 0; retains and uniqueness stay zero. Full 33-program optimized-release-checked measurement, default Node and host seed 0."
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/map-count.hd",
       "retained": "0",
-      "released": "14",
+      "released": "15",
       "uniques": "0",
-      "total": "14",
+      "total": "15",
       "noOpsAndSkipped": "0",
-      "reason": "#1709 gives the initially empty counts Map its own 40-byte seed-bearing allocation (8-byte object header plus 32-byte map header). First growth releases that counted table instead of making the former static-empty-buffer no-op call: releases 13 -> 14, no-op/skipped calls 1 -> 0; retains and uniqueness stay zero. Full 33-program optimized-release-checked measurement, default Node and host seed 0."
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/nested-display.hd",
       "retained": "0",
-      "released": "330001",
+      "released": "330002",
       "uniques": "0",
-      "total": "330001",
-      "noOpsAndSkipped": "0"
+      "total": "330002",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/plugins.hd",
       "retained": "5460000",
-      "released": "5461459",
+      "released": "5461460",
       "uniques": "8197500",
-      "total": "19118959",
-      "noOpsAndSkipped": "21871093"
+      "total": "19118960",
+      "noOpsAndSkipped": "21871093",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/resources.hd",
       "retained": "20000",
-      "released": "20002",
+      "released": "20003",
       "uniques": "0",
-      "total": "40002",
-      "noOpsAndSkipped": "0"
+      "total": "40003",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
-      "released": "614171",
+      "released": "614172",
       "uniques": "2476270",
-      "total": "3090441",
-      "noOpsAndSkipped": "21099052"
+      "total": "3090442",
+      "noOpsAndSkipped": "21099052",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
       "retained": "0",
-      "released": "18",
+      "released": "19",
       "uniques": "65999",
-      "total": "66017",
+      "total": "66018",
       "noOpsAndSkipped": "1",
-      "reason": "#1778 medium size classes remove whole-page slack: string append grows through 4096/8192/16384/32768-byte blocks instead of jumping from 2048 to 65536 bytes. Four additional growth allocations each release the previous string; retain and uniqueness counts are unchanged. This is the accepted memory-density tradeoff, with geometric amortized growth preserved."
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/string-builder.hd",
       "retained": "0",
-      "released": "3",
+      "released": "4",
       "uniques": "0",
-      "total": "3",
-      "noOpsAndSkipped": "0"
+      "total": "4",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
       "retained": "4106252",
-      "released": "4612523",
+      "released": "4612524",
       "uniques": "3600000",
-      "total": "12318775",
-      "noOpsAndSkipped": "3937516"
+      "total": "12318776",
+      "noOpsAndSkipped": "3937516",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
       "retained": "0",
-      "released": "1",
+      "released": "2",
       "uniques": "0",
-      "total": "1",
-      "noOpsAndSkipped": "0"
+      "total": "2",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/runtime/progs/uniq-list-sort.hd",
       "retained": "0",
-      "released": "6",
+      "released": "7",
       "uniques": "4000",
-      "total": "4006",
-      "noOpsAndSkipped": "2"
+      "total": "4007",
+      "noOpsAndSkipped": "2",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/binary_trees.hd",
       "retained": "0",
-      "released": "29971815",
+      "released": "29971824",
       "uniques": "0",
-      "total": "29971815",
-      "noOpsAndSkipped": "0"
+      "total": "29971824",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/closures.hd",
       "retained": "50",
-      "released": "102",
+      "released": "103",
       "uniques": "1",
-      "total": "153",
-      "noOpsAndSkipped": "51"
+      "total": "154",
+      "noOpsAndSkipped": "51",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/dyn_iter.hd",
       "retained": "0",
-      "released": "300027",
+      "released": "300033",
       "uniques": "0",
-      "total": "300027",
-      "noOpsAndSkipped": "200800014"
+      "total": "300033",
+      "noOpsAndSkipped": "200800014",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/fannkuch_redux.hd",
       "retained": "0",
-      "released": "4",
+      "released": "5",
       "uniques": "6",
-      "total": "10",
-      "noOpsAndSkipped": "3"
+      "total": "11",
+      "noOpsAndSkipped": "3",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/function-value-inputs.hd",
       "retained": "0",
-      "released": "4",
+      "released": "5",
       "uniques": "0",
-      "total": "4",
+      "total": "5",
       "noOpsAndSkipped": "4",
-      "reason": "#1376 adds the alternating function-value input benchmark with a dynamically allocated shared string and a non-inlined dispatcher. Its 20,000,000 reader callbacks perform no retain/release work: the measured whole-program total is four releases plus four no-op/skipped calls, all fixed setup/teardown. Existing 33 program totals and no-op/skipped limits are unchanged."
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/json.hd",
       "retained": "2380002",
-      "released": "3400096",
+      "released": "3400097",
       "uniques": "12240015",
-      "total": "18020113",
-      "noOpsAndSkipped": "22610132"
+      "total": "18020114",
+      "noOpsAndSkipped": "22610132",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/mandelbrot.hd",
       "retained": "0",
-      "released": "1",
+      "released": "2",
       "uniques": "0",
-      "total": "1",
-      "noOpsAndSkipped": "0"
+      "total": "2",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/map_count.hd",
       "retained": "5000000",
-      "released": "7500035",
+      "released": "7500036",
       "uniques": "2500000",
-      "total": "15000035",
-      "noOpsAndSkipped": "2"
+      "total": "15000036",
+      "noOpsAndSkipped": "2",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/nbody.hd",
       "retained": "0",
-      "released": "2",
+      "released": "3",
       "uniques": "14000001",
-      "total": "14000003",
+      "total": "14000004",
       "noOpsAndSkipped": "0",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/points.hd",
       "retained": "10",
-      "released": "202",
+      "released": "203",
       "uniques": "1",
-      "total": "213",
-      "noOpsAndSkipped": "11"
+      "total": "214",
+      "noOpsAndSkipped": "11",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/readonly-comparison.hd",
       "retained": "6000003",
-      "released": "6000007",
+      "released": "6000008",
       "uniques": "0",
-      "total": "12000010",
+      "total": "12000011",
       "noOpsAndSkipped": "51000014",
-      "reason": "New nine-million-comparison benchmark for #1379, including fresh counted strings, list equality and derived ordering. Record its measured remaining comparison/structure ownership work; this adds a program rather than increasing existing program budgets."
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/sieve.hd",
       "retained": "0",
-      "released": "2",
+      "released": "3",
       "uniques": "785",
-      "total": "787",
-      "noOpsAndSkipped": "1"
+      "total": "788",
+      "noOpsAndSkipped": "1",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/spectral_norm.hd",
       "retained": "0",
-      "released": "4",
+      "released": "5",
       "uniques": "43",
-      "total": "47",
-      "noOpsAndSkipped": "3"
+      "total": "48",
+      "noOpsAndSkipped": "3",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/string_build.hd",
       "retained": "0",
-      "released": "3",
+      "released": "4",
       "uniques": "0",
-      "total": "3",
-      "noOpsAndSkipped": "0"
+      "total": "4",
+      "noOpsAndSkipped": "0",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
       "program": "bench/study/structure_walk.hd",
       "retained": "3150040",
-      "released": "3500060",
+      "released": "3500061",
       "uniques": "0",
-      "total": "6650100",
-      "noOpsAndSkipped": "13125181"
+      "total": "6650101",
+      "noOpsAndSkipped": "13125181",
+      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     }
   ]
 }

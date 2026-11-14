@@ -1,6 +1,6 @@
 # test: println panics with explicit-panic when the covering provider's write_sync returns .Err(ConsoleError.Closed)
 # Spec 10 Console: module.console.println-error.category, module.console.error.coded-variants, module.console.println-std, module.console.println-panics.
-# Spec 10 Console: module.console.println-write-error.either, .println-error.category, and .error.closed.
+# Spec 10 Console: module.console.println-write-error.single, .println-error.category, and .error.closed.
 
 struct ClosedConsole:
     attempts: List[string]
@@ -17,7 +17,7 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}") # panic: explicit-panic
 
 tests:
-    it("println panics when its first text write fails"):
+    it("println panics when its line write fails"):
         console := box(ClosedConsole { attempts: [] })
         $.with(Console=console):
             greet("Ada")
