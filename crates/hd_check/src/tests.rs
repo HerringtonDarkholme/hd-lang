@@ -145,7 +145,7 @@ fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> hd_resolve::ifa
     let at = cx.src.span(callee).lo;
     if callee.kind() != SyntaxKind::NameExpr
         || cx.scope_at(at).lookup(sym).is_some()
-        || hd_resolve::local_at(cx.locals, sym, at).is_some()
+        || cx.locals.at(sym, at).is_some()
         || hd_resolve::test_prelude_item(&cx.names, name).is_some()
     {
         return hd_resolve::iface::ImportHint::default();
@@ -171,7 +171,7 @@ fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static st
     let def = match callee.kind() {
         SyntaxKind::NameExpr => {
             let sym = src.symbol(src.first(callee), cx.names.syms);
-            if hd_resolve::local_at(cx.locals, sym, at).is_some() {
+            if cx.locals.at(sym, at).is_some() {
                 return None;
             }
             match scope.lookup(sym) {
@@ -188,7 +188,7 @@ fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static st
                 return None;
             }
             let sym = src.symbol(src.first(base), cx.names.syms);
-            if hd_resolve::local_at(cx.locals, sym, at).is_some() {
+            if cx.locals.at(sym, at).is_some() {
                 return None;
             }
             let b = scope.lookup(sym)?;

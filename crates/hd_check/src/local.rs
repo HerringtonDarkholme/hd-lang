@@ -84,7 +84,7 @@ impl Ck<'_, '_> {
     /// A local type, trait or impl declaration statement.
     pub(crate) fn local_decl(&mut self, s: NodeRef<'_>) -> StageResult<()> {
         let lo = self.cx.src.span(s).lo;
-        let Some(l) = self.cx.locals.iter().find(|l| l.lo == lo).copied() else {
+        let Some(l) = self.cx.locals.starting_at(lo).copied() else {
             // `lower::heads` registers executable-suite declarations.
             // Only a trait-less derivation block has no item: lowering
             // reports `misplaced-derivation` (`annot.no-trait.local`).
@@ -95,9 +95,7 @@ impl Ck<'_, '_> {
         }
         let name = self.cx.names.text(l.name).to_owned();
         // `names.type-param.no-redeclare.body`, `names.local-type.duplicate`.
-        let earlier = self.cx.locals.iter().any(|o| {
-            o.suite == l.suite && o.lo < l.lo && o.kind != HeadKind::Impl && o.name == l.name
-        });
+        let earlier = self.cx.locals.declared_earlier(&l);
         let value = self.scopes.last().is_some_and(|m| m.contains_key(&l.name));
         if self.gens.iter().any(|(g, _)| *g == l.name) {
             let msg = format!("`{name}` is a type parameter in scope");
@@ -143,7 +141,7 @@ impl Ck<'_, '_> {
             self.err(Code::LocalImplNonlocalPair, s, &msg);
             return Ok(());
         }
-        let view = self.cx.impls.hiding(&self.hidden);
+        let view = self.cx.impls.hiding(self.unseen());
         let hcx = crate::header::HeaderCx {
             names,
             lookup: self.cx.lookup,

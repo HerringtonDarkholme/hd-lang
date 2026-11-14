@@ -56,3 +56,26 @@ pub(crate) fn outer_names(n: usize) {
 pub(crate) fn outer_probe() {
     add_outer(1);
 }
+
+thread_local! {
+    static LOCAL_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the lookups into a module's block-local declarations on this
+/// thread ([`crate::Locals`]): one per name, byte or item asked about,
+/// however many locals the module declares.
+pub fn count_local_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = LOCAL_PROBES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = LOCAL_PROBES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One lookup into a module's locals.
+pub(crate) fn local_probe() {
+    LOCAL_PROBES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}

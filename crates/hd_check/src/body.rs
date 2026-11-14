@@ -54,7 +54,7 @@ pub struct BodyCx<'a> {
     pub source_facts: Option<std::cell::RefCell<crate::comparison::SourceFacts>>,
     /// The module's block-local declarations, lifted to hidden items
     /// (`crates/hd_tir/DESIGN.md` "Local items lift to hidden module items").
-    pub locals: &'a [hd_resolve::LocalItem],
+    pub locals: &'a hd_resolve::Locals,
     /// The module's file as diagnostics name it, which a `dbg` line's
     /// location starts with (`module.dbg.location`).
     pub file_name: &'a str,
@@ -601,8 +601,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The byte of the statement being checked: the local declarations
     /// whose extent holds it are in scope (`names.local-type.name`).
     pub at: u32,
-    /// The local impls not in scope at `at` (`trait.impl.local.lookup`).
-    pub hidden: Vec<DefId>,
+    /// The stretch of the module between local impls' ends that `at` is
+    /// in ([`hd_resolve::Locals::impl_stretch`]): the local impls in scope
+    /// there (`trait.impl.local.lookup`) change only with it.
+    pub impl_stretch: usize,
     /// The module the body is written in: a member is visible from it
     /// when declared there or `pub` (`names.visible.field-method`).
     pub module: hd_base::PathId,
@@ -821,7 +823,7 @@ pub(crate) fn new_ck<'a, 'c>(
         plan_sink: None,
         joins: crate::join::Joins::default(),
         at: 0,
-        hidden: Vec::new(),
+        impl_stretch: 0,
         module: cx.names.module_node(item),
         registering: false,
         row_waits: Vec::new(),
@@ -1562,6 +1564,15 @@ impl<'c> Ck<'_, 'c> {
     /// The types this body sees: the run's pool and the body's local pool.
     pub(crate) fn pool(&self) -> hd_types::Types<'c> {
         hd_types::Types::with_local(self.cx.names.pool, self.local)
+    }
+
+    /// The local impls not in scope at `at` (`trait.impl.local.lookup`).
+    pub(crate) fn unseen(&self) -> hd_types::lookup::Unseen<'c> {
+        let locals = self.cx.locals;
+        hd_types::lookup::Unseen {
+            extents: locals.has_impls().then(|| locals.impl_extents()),
+            at: self.at,
+        }
     }
 }
 
@@ -3109,7 +3120,7 @@ impl Ck<'_, '_> {
         let sym = self.cx.names.syms.intern("debug");
         let init = self.cx.init.borrow();
         if self.find_local(sym).is_some()
-            || hd_resolve::local_at(self.cx.locals, sym, span.lo).is_some()
+            || self.cx.locals.at(sym, span.lo).is_some()
             || init.globals.contains_key(&sym)
             || init.earlier.contains_key(&sym)
         {
@@ -3348,15 +3359,9 @@ impl Ck<'_, '_> {
     /// remembered under other impls are dropped.
     pub(crate) fn move_to(&mut self, at: u32) {
         self.at = at;
-        let hidden: Vec<DefId> = self
-            .cx
-            .locals
-            .iter()
-            .filter(|l| l.kind == hd_resolve::HeadKind::Impl && !l.covers(at))
-            .map(|l| l.def)
-            .collect();
-        if hidden != self.hidden {
-            self.hidden = hidden;
+        let stretch = self.cx.locals.impl_stretch(at);
+        if stretch != self.impl_stretch {
+            self.impl_stretch = stretch;
             self.memo = BodyMemo::default();
         }
     }
@@ -3376,7 +3381,7 @@ impl Ck<'_, '_> {
             Goal::Methods { receiver, .. } => self.add_projection_clauses(*receiver),
         }
         let decls = self.cx.decls();
-        let view = self.cx.impls.hiding(&self.hidden);
+        let view = self.cx.impls.hiding(self.unseen());
         let mut scx = SolveCx {
             pool: self.pool(),
             env: &self.env,
@@ -4111,7 +4116,7 @@ impl Ck<'_, '_> {
         let sym = self.cx.names.syms.intern(name);
         let init = self.cx.init.borrow();
         if self.find_local(sym).is_some()
-            || hd_resolve::local_at(self.cx.locals, sym, at).is_some()
+            || self.cx.locals.at(sym, at).is_some()
             || init.globals.contains_key(&sym)
             || init.earlier.contains_key(&sym)
         {
@@ -5147,13 +5152,9 @@ impl Ck<'_, '_> {
         // Inferred instances are concrete only after the obligations settle.
         // This memo belongs to this finalization, never a speculative trial.
         let mut cycles = crate::value::ProjectionCycles::default();
-        let mut cycle_scope = self.hidden.clone();
+        let mut cycle_scope = self.impl_stretch;
         let cycle_at = self.at;
-        let local_impls = self
-            .cx
-            .locals
-            .iter()
-            .any(|l| l.kind == hd_resolve::HeadKind::Impl);
+        let local_impls = self.cx.locals.has_impls();
         // The header check walked the function's written types under the
         // same impls, and reported what they hold.
         if !local_impls {
@@ -5166,9 +5167,9 @@ impl Ck<'_, '_> {
             if local_impls && syn != hd_base::NodeIdx::NONE {
                 let node = self.cx.src.parse.tree.node(syn);
                 self.move_to(self.cx.src.span(node).lo);
-                if self.hidden != cycle_scope {
+                if self.impl_stretch != cycle_scope {
                     cycles = crate::value::ProjectionCycles::default();
-                    cycle_scope.clone_from(&self.hidden);
+                    cycle_scope = self.impl_stretch;
                 }
             }
             let t = self.b.body_mut().ty[i];
@@ -5185,7 +5186,7 @@ impl Ck<'_, '_> {
             }
             if syn != hd_base::NodeIdx::NONE && !self.diags.has_errors() {
                 let node = self.cx.src.parse.tree.node(syn);
-                let view = self.cx.impls.hiding(&self.hidden);
+                let view = self.cx.impls.hiding(self.unseen());
                 match cycles.check_nested(pool, self.cx.lookup, Impls::Owned(&view), z, &mut self.fuel) {
                     Ok(Some(crate::value::Unsized::Cycle)) => self.err(Code::RecursiveValueType, node,
                         "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle"),

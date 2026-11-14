@@ -23,6 +23,7 @@ pub mod iface;
 pub mod intrinsics;
 pub mod known;
 pub mod literal;
+mod locals;
 pub mod lower;
 pub mod seed;
 pub mod variance;
@@ -40,10 +41,11 @@ pub use iface::{
     show_ty, show_ty_full, show_ty_full_in, show_ty_in, show_ty_rows_in, ty_parts,
 };
 pub use known::KnownItems;
+pub use locals::{Innermost, Locals};
 pub use lower::{
     Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, Reads, Recorded,
     SessionScope, TopBindings, USE_CODES, UseDecl, World, body_nodes, build_folder, head_name_span,
-    heads, is_enclosing_parameter, is_prelude_name, is_test_prelude_name, local_at, local_items,
+    heads, is_enclosing_parameter, is_prelude_name, is_test_prelude_name, local_items,
     prelude_modules, prelude_rows, runtime_module, test_prelude_item, test_use_decls, tests_items,
     traitless_block, use_decls, use_diags,
 };

@@ -1539,3 +1539,41 @@ fn waiting_rows_settled_one_by_one_cost_linear_solve_work() {
         }
     }
 }
+
+/// `n` functions, each declaring a local struct `P` and an inherent local
+/// impl of it, and calling its method: `n` locals of one name, and `n`
+/// local impls each seen by one body.
+fn local_types(n: usize) -> String {
+    let mut out = String::from("pub fn main() -> void: pass\n");
+    for i in 0..n {
+        let _ = write!(
+            out,
+            "fn g{i}() -> i32:\n    struct P:\n        a: i32\n        b: i32\n    impl P:\n        fn get{i}(self) -> i32: self.a\n    p := P {{ a: +1, b: +2 }}\n    p.get{i}()\n"
+        );
+    }
+    out
+}
+
+// Resolver and checker: #1878, a local type or impl is found through the
+// module's index of locals, by name and byte, not by a filter over every
+// local of the module per use; and a body's local impls in scope change
+// only where one starts or ends, not by a list of the unseen ones per
+// statement.
+#[test]
+fn local_declarations_are_found_by_one_probe_each() {
+    on_test_stack(|| {
+        let mut base = 0;
+        for n in [2_000, 32_000] {
+            let (out, probes) =
+                hd_resolve::work::count_local_probes(|| compile(&local_types(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            if n == 2_000 {
+                base = probes;
+            }
+            assert!(
+                base > 0 && probes <= 16 * base * 5 / 4,
+                "local lookups for 2,000 and {n} functions: {base}, {probes}"
+            );
+        }
+    });
+}

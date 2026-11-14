@@ -5456,7 +5456,7 @@ impl Run<'_> {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: hd_types::lookup::Unseen::default(),
             plans: Some(self),
         };
         let session = match folder.modules.as_slice() {
@@ -6584,7 +6584,7 @@ impl Run<'_> {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: hd_types::lookup::Unseen::default(),
             plans: Some(self),
         };
         let src = self.src(m);
@@ -8059,7 +8059,7 @@ impl Run<'_> {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: hd_types::lookup::Unseen::default(),
             plans: Some(self),
         };
         let src = self.src(tm);
@@ -8136,7 +8136,7 @@ impl Run<'_> {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: hd_types::lookup::Unseen::default(),
             plans: None,
         };
         let memo = GlobalMemo::default();
@@ -9518,7 +9518,7 @@ impl Run<'_> {
             universe: p.universe,
             extra: &p.extra,
             arity,
-            hidden: &[],
+            hidden: hd_types::lookup::Unseen::default(),
             plans: Some(self),
         }
     }

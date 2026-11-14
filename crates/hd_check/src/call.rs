@@ -507,10 +507,7 @@ impl Ck<'_, '_> {
     /// by the prelude (`trait.avail.module`, `trait.avail.scope`,
     /// `trait.avail.prelude`).
     fn trait_available(&self, tr: DefId) -> bool {
-        self.cx
-            .locals
-            .iter()
-            .any(|l| l.def == tr && l.covers(self.at))
+        self.cx.locals.sees(tr, self.at)
             || self
                 .cx
                 .scope_at(self.at)
@@ -4376,7 +4373,7 @@ impl Ck<'_, '_> {
         let cands = self.method_index().candidates(sym, true)?;
         let mut found = None;
         for (impl_def, method) in cands {
-            if self.hidden.contains(&impl_def) || !self.method_visible(method) {
+            if self.unseen().hides(impl_def) || !self.method_visible(method) {
                 continue;
             }
             let item = self.cx.lookup.item(impl_def)?;
@@ -4421,7 +4418,7 @@ impl Ck<'_, '_> {
         for (impl_def, method) in cands {
             // A local impl's methods are found only in its extent
             // (`trait.impl.local.lookup`).
-            if self.hidden.contains(&impl_def) || (visible_only && !self.method_visible(method)) {
+            if self.unseen().hides(impl_def) || (visible_only && !self.method_visible(method)) {
                 continue;
             }
             let Some(item) = self.cx.lookup.item(impl_def) else {

@@ -3338,7 +3338,7 @@ mod tests {
                 universe: ImplUniverses::default().intern(&[]).0,
                 extra: &self.extra,
                 arity: &no_arity,
-                hidden: &[],
+                hidden: crate::lookup::Unseen::default(),
                 plans: None,
             }
         }
@@ -3650,7 +3650,7 @@ mod tests {
                 universe,
                 extra: &extra,
                 arity: &arity,
-                hidden: &[],
+                hidden: crate::lookup::Unseen::default(),
                 plans: None,
             };
             let local = LocalPool::new();
@@ -3799,7 +3799,7 @@ mod tests {
                 universe,
                 extra: &extra,
                 arity: &arity,
-                hidden: &[],
+                hidden: crate::lookup::Unseen::default(),
                 plans: None,
             };
             let local = LocalPool::new();
@@ -3961,7 +3961,7 @@ mod tests {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: crate::lookup::Unseen::default(),
             plans: None,
         };
         let tref = TraitRef {
@@ -5092,7 +5092,7 @@ mod tests {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: crate::lookup::Unseen::default(),
             plans: None,
         };
         let (in_base, in_user) = (view(Some(&own)), view(None));
@@ -5610,7 +5610,7 @@ mod tests {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: crate::lookup::Unseen::default(),
             plans: Some(&provider),
         };
 
@@ -5725,7 +5725,7 @@ mod tests {
             universe,
             extra: &extra,
             arity: &arity,
-            hidden: &[],
+            hidden: crate::lookup::Unseen::default(),
             plans: plans.then_some(&provider as &dyn super::TuplePlans),
         };
         let global = GlobalMemo::default();

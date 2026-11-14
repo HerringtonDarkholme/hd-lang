@@ -94,7 +94,7 @@ impl Ck<'_, '_> {
     /// module-level name (an item, a module, or nothing).
     pub(crate) fn scope_name(&self, name: &str) -> Option<Named> {
         let sym = self.cx.names.syms.intern(name);
-        if let Some(l) = hd_resolve::local_at(self.cx.locals, sym, self.at) {
+        if let Some(l) = self.cx.locals.at(sym, self.at) {
             return Some(Named::Item(l.def));
         }
         let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {

@@ -461,34 +461,25 @@ impl LocalItem {
     }
 }
 
-/// The block-local declarations among `heads`.
+/// The block-local declarations among `heads`, indexed.
 #[must_use]
-pub fn local_items(heads: &[Head<'_>]) -> Vec<LocalItem> {
-    heads
-        .iter()
-        .filter_map(|h| {
-            let l = h.local?;
-            Some(LocalItem {
-                def: h.def,
-                name: h.name,
-                kind: h.kind,
-                lo: l.lo,
-                hi: l.hi,
-                suite: l.suite,
+pub fn local_items(heads: &[Head<'_>]) -> crate::Locals {
+    crate::Locals::new(
+        heads
+            .iter()
+            .filter_map(|h| {
+                let l = h.local?;
+                Some(LocalItem {
+                    def: h.def,
+                    name: h.name,
+                    kind: h.kind,
+                    lo: l.lo,
+                    hi: l.hi,
+                    suite: l.suite,
+                })
             })
-        })
-        .collect()
-}
-
-/// The local type or trait `name` visible at byte `at`: the innermost
-/// declaration whose extent holds `at` (`names.local-type.name`,
-/// `names.local-type.not-visible`). Impls have no name to find.
-#[must_use]
-pub fn local_at(locals: &[LocalItem], name: Symbol, at: u32) -> Option<&LocalItem> {
-    locals
-        .iter()
-        .filter(|l| l.kind != HeadKind::Impl && l.name == name && l.covers(at))
-        .max_by_key(|l| l.lo)
+            .collect(),
+    )
 }
 
 /// The stable segment of an impl: its header from `impl` to the colon,
@@ -2043,7 +2034,7 @@ struct Lower<'a, 'r, 'x> {
     /// While a field's type is lowered (`ref.local.escape.field`).
     in_field: bool,
     /// The module's block-local declarations.
-    locals: &'a [LocalItem],
+    locals: &'a crate::Locals,
     /// The byte where the header being lowered is declared: the local
     /// declarations whose extent holds it are in scope.
     at: u32,
@@ -2195,7 +2186,7 @@ impl Lower<'_, '_, '_> {
         }
         let name = owner.name(&self.src.parse.tokens)?;
         let sym = self.names.syms.intern(self.src.text(name));
-        if let Some(local) = local_at(self.locals, sym, self.src.span(owner).lo) {
+        if let Some(local) = self.locals.at(sym, self.src.span(owner).lo) {
             return Some(local.def);
         }
         let b = self.scope.lookup(sym)?;
@@ -2211,7 +2202,7 @@ impl Lower<'_, '_, '_> {
         types.next()?;
         let name = self.src.first_ident(tr)?;
         let sym = self.names.syms.intern(self.src.text(name));
-        let local = local_at(self.locals, sym, self.at)?;
+        let local = self.locals.at(sym, self.at)?;
         if self.kinds.get(&local.def) != Some(&HeadKind::Trait) {
             return None;
         }
@@ -2225,7 +2216,7 @@ impl Lower<'_, '_, '_> {
         let target = n.children().filter(|c| c.kind().is_type()).last()?;
         let name = self.src.first_ident(target)?;
         let sym = self.names.syms.intern(self.src.text(name));
-        let local = local_at(self.locals, sym, self.at)?;
+        let local = self.locals.at(sym, self.at)?;
         self.r
             .with_generics(local.def, |g| g.iter().take_while(|g| g.outer).count())
     }
@@ -2428,7 +2419,7 @@ impl Lower<'_, '_, '_> {
 
     /// Whether a name was bound by a failed `use` (an earlier error).
     fn is_poisoned(&self, sym: Symbol) -> bool {
-        local_at(self.locals, sym, self.at).is_none()
+        self.locals.at(sym, self.at).is_none()
             && self
                 .scope
                 .lookup(sym)
@@ -2448,7 +2439,7 @@ impl Lower<'_, '_, '_> {
         }
         // A local declaration in scope here shadows the module's names.
         if segs.len() == 1
-            && let Some(l) = local_at(self.locals, first_sym, self.at)
+            && let Some(l) = self.locals.at(first_sym, self.at)
         {
             return Some((l.def, l.kind));
         }
@@ -2733,7 +2724,9 @@ impl Lower<'_, '_, '_> {
                 if let Some(binding) = tops.get(&src, name) {
                     return binding;
                 }
-                let kind = local_at(self.locals, sym, self.at)
+                let kind = self
+                    .locals
+                    .at(sym, self.at)
                     .filter(|_| !in_binding)
                     .map(|local| local.kind)
                     .or_else(|| {
@@ -7118,7 +7111,7 @@ fn lower_aliases(
         .enumerate()
         .map(|(i, (_, h))| (h.def, i))
         .collect();
-    let locals: Vec<Vec<LocalItem>> = all_heads.iter().map(|hs| local_items(hs)).collect();
+    let locals: Vec<crate::Locals> = all_heads.iter().map(|hs| local_items(hs)).collect();
     let mut scratch = DiagBuf::default();
     let edges: Vec<Vec<usize>> = sites
         .iter()
@@ -8875,6 +8868,7 @@ pub fn build_folder(
             .flat_map(|m| m.items.iter())
             .map(|i| (i.def, i))
             .collect();
+        let no_locals = crate::Locals::default();
         for (m, o) in mods.iter().zip(&out.modules) {
             let mut low = Lower {
                 r: &r,
@@ -8892,7 +8886,7 @@ pub fn build_folder(
                 fn_written: Vec::new(),
                 held: None,
                 in_field: false,
-                locals: &[],
+                locals: &no_locals,
                 at: 0,
                 outer: Outer::default(),
                 outer_lists: Vec::new(),

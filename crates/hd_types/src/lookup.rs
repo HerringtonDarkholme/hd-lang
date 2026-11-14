@@ -242,6 +242,27 @@ pub struct UniverseReads {
     pub unowned: bool,
 }
 
+/// The block-local impls a solving context at byte `at` of its module
+/// does not see: those whose extent `[lo, hi)` does not hold it. One
+/// hash probe per candidate row, however many local impls the module has.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Unseen<'a> {
+    /// Each block-local impl of the module with its extent; `None` when it
+    /// has none.
+    pub extents: Option<&'a HashMap<DefId, (u32, u32)>>,
+    pub at: u32,
+}
+
+impl Unseen<'_> {
+    /// Whether `def` is a local impl this context does not see.
+    #[must_use]
+    pub fn hides(self, def: DefId) -> bool {
+        self.extents
+            .and_then(|e| e.get(&def))
+            .is_some_and(|&(lo, hi)| !(lo <= self.at && self.at < hi))
+    }
+}
+
 /// A solving context's view of the impls (§3.2): its own module's table,
 /// the frozen tables of its closure's folders, read by owner, and its
 /// universe's unowned rows and directory.
@@ -261,7 +282,7 @@ pub struct ImplView<'a> {
     /// (`trait.impl.local.lookup`, `crates/hd_tir/DESIGN.md` "Local items lift
     /// to hidden module items"). They stay rows of their tables, so a
     /// probe that meets one is never answered from the run's memo.
-    pub hidden: &'a [DefId],
+    pub hidden: Unseen<'a>,
     /// The member steps of the tuple templates (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     /// `None` only where a tuple template's own plan is computed, under a
     /// memo of its own.
@@ -271,7 +292,7 @@ pub struct ImplView<'a> {
 impl<'a> ImplView<'a> {
     /// This view with `hidden` as its unseen local impls.
     #[must_use]
-    pub fn hiding(&self, hidden: &'a [DefId]) -> ImplView<'a> {
+    pub fn hiding(&self, hidden: Unseen<'a>) -> ImplView<'a> {
         ImplView {
             paths: self.paths,
             owners: self.owners,
@@ -390,8 +411,8 @@ impl<'a> Impls<'a> {
                 .filter_map(|r| Some((r, self.table(r.module)?)))
                 .collect(),
         );
-        if !v.hidden.is_empty() {
-            rows.retain(|(r, t)| !v.hidden.contains(&t.def[r.row as usize]));
+        if v.hidden.extents.is_some() {
+            rows.retain(|(r, t)| !v.hidden.hides(t.def[r.row as usize]));
         }
         rows
     }

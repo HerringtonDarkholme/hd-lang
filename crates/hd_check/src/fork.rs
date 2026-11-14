@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use hd_base::{DefId, HashMap};
-use hd_resolve::{LocalItem, Lookup, ModuleScope, Names, Src};
+use hd_resolve::{Locals, Lookup, ModuleScope, Names, Src};
 use hd_types::solver::{GlobalMemo, ImplView, Solver};
 
 use crate::MethodIndex;
@@ -32,7 +32,7 @@ pub struct BodyFork<'a> {
     methods: Arc<MethodIndex>,
     init: ModuleInit,
     results: Results,
-    locals: &'a [LocalItem],
+    locals: &'a Locals,
     file_name: &'a str,
     tests: Option<TestsView<'a>>,
     session: &'a [hd_base::PathId],
