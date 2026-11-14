@@ -31,7 +31,7 @@ runtime/panic/cli-positional-after-rest.hd	runtime	panic:explicit-panic	std/cli.
 runtime/panic/cli-short-duplicate.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.short.duplicates
 runtime/panic/cli-short-positional-conflict.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.positional.value-short-conflict
 runtime/panic/json-internal-tagged-non-object-payload.hd	runtime	panic:explicit-panic	std/json.md#r-std-json.derive.internal.payload-object-panic
-runtime/panic/println-newline-error.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.either
+runtime/panic/println-line-error.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.single
 runtime/panic/slicing-a-string-slice-inside-a-scalar-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
 runtime/panic/slicing-an-inclusive-end-at-the-length-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
 runtime/valid/a-list-mapped-through-a-reference-keeps-its-elements-across-the-function.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
@@ -104,7 +104,7 @@ runtime/valid/net-connect-deadline.hd	runtime	accept	std/net.md#net-trait
 runtime/valid/net-connect-timeout-ready-tie.hd	runtime	accept	std/task.md#result-timeouts
 runtime/valid/collection-values-shared-where-nothing-changes.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/net-free-helpers.hd	runtime	accept	std/net.md#free-helpers
-runtime/valid/println-two-write-providers.hd	runtime	accept	lang/10-modules.md#r-module.console.println-two-writes-sync
+runtime/valid/println-one-write-providers.hd	runtime	accept	lang/10-modules.md#r-module.console.println-one-write-sync
 runtime/valid/recursive-closure-pending-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
 runtime/valid/recursive-closure-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
 runtime/valid/inlined-nested-recursion-keeps-self-and-cells.hd	runtime	accept	lang/07-functions.md#r-fn.recursion.closure.ordinary-binding
@@ -2281,7 +2281,7 @@ typing/valid/console-recording-provider.hd	type	accept	lang/10-modules.md#r-modu
 typing/valid/console-host-provider-mutable.hd	type	accept	lang/10-modules.md#r-module.console.write-sync-ref.mutable
 typing/invalid/console-write-line-value-receiver.hd	type	reject:trait-method-signature	lang/10-modules.md#r-module.console.write-sync-ref.mutable
 runtime/valid/console-struct-fake-ref.hd	runtime	accept	std/console.md#r-std-console.buffer.install-ref
-runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-module.console.println-two-writes-sync
+runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-module.console.println-one-write-sync
 typing/invalid/root-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.no-orphan-exception
 typing/valid/inherited-mut-method-requirement.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.mut.trait-changing
 typing/invalid/readonly-requirement-trait-mut-use.hd	type	reject:mutable-upgrade	lang/11-requirements-and-suspension.md#r-req.mut.use-readonly.reference-values
@@ -3618,7 +3618,7 @@ typing/invalid/iterator-chain-iterator-arg.hd	type	reject:unsatisfied-trait-boun
 runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.fn-mut-noncopy
 runtime/valid/iterator-search-count.hd	runtime	accept	std/iter.md#r-std-iter.adapter.stop-early.borrowed
 typing/invalid/iterator-any-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.more
-runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.either
+runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.single
 runtime/panic/list-index-underflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.index.list.unsigned
 typing/invalid/list-index-negative-literal.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.negative-element
 typing/invalid/list-index-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.list.unsigned
@@ -4012,7 +4012,7 @@ runtime/valid/lazy-result-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.
 runtime/valid/ord-supertrait-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 runtime/valid/generic-inherent-box.hd	runtime	accept	lang/09-traits.md#trait-implementations
 runtime/valid/i64-widening-checked.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
-runtime/valid/buffered-println-program-console.hd	runtime	accept	lang/10-modules.md#r-module.console.println-two-writes-sync
+runtime/valid/buffered-println-program-console.hd	runtime	accept	lang/10-modules.md#r-module.console.println-one-write-sync
 runtime/valid/debug-derive-data.hd	runtime	accept	lang/09-traits.md#r-trait.debug.derive
 runtime/valid/debug-derive-variants.hd	runtime	accept	std/format.md#r-std-format.debug.derive-builders.source
 runtime/valid/u8-checked-add.hd	runtime	accept	lang/04-type-system.md#numeric-conversions

@@ -24,4 +24,4 @@ pub fn main() -> void $ Console:
     console := box(MemoryConsole { lines: [] })
     $.with(Console=console):
         greet("Ada")
-    println("recorded: ${console.lines[0]}${console.lines[1]}")
+    println("recorded: ${console.lines[0]}")

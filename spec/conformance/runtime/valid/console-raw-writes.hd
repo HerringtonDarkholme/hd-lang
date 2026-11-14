@@ -1,4 +1,4 @@
-# test: raw console writes preserve text; println separates text and newline while print and eprintln keep one chunk
+# test: raw console writes preserve text; println and eprintln combine text and newline in one chunk
 # Spec std/console: std-console.print.one-write-sync, std-console.eprintln.one-write-sync, std-console.buffer.output-text-sync.
 use std.console.{MemoryConsole, eprintln, print}
 
@@ -20,7 +20,7 @@ tests:
         assert_equal(console.output(), ["a", "b\r\nc\n", ""], reason="exact chunks")
         assert_equal(console.error_output(), ["error"], reason="raw stderr")
 
-    it("println appends exactly one LF in its own write"):
+    it("println appends exactly one LF in the same write"):
         console := MemoryConsole::new()
         $.with(Console=console):
             print("a")
@@ -31,7 +31,7 @@ tests:
             eprintln("warning")
         assert_equal(
             console.output(),
-            ["a", "12", "x", "\n", "y\n", "\n", "", "\n"],
-            reason="two chunks per println, one per print",
+            ["a", "12", "x\n", "y\n\n", "\n"],
+            reason="one chunk per print or println",
         )
         assert_equal(console.error_output(), ["warning\n"], reason="one stderr chunk")

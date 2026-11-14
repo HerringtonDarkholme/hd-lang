@@ -107,15 +107,13 @@ impl Console for MemoryConsole:
         .Ok(())
 
 # `println` (spec/lang/10-modules.md#console) is ordinary std code: it calls
-# the covering provider's `write_sync` for the text, then for the newline
-# once the text is written. An `.Err` is an ordinary panic.
+# the covering provider's `write_sync` once for the text and newline.
+# An `.Err` is an ordinary panic.
 ## Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
-## See [module.console.println-two-writes-sync](../../spec/lang/10-modules.md#r-module.console.println-two-writes-sync).
+## See [module.console.println-one-write-sync](../../spec/lang/10-modules.md#r-module.console.println-one-write-sync).
 pub fn println[T < Display](value: T) -> void $ Console:
     let console: &mut dyn Console = $.use(Console)
-    if console.write_sync(value.to_string()).is_err():
-        panic("println: write_sync returned .Err(ConsoleError)")
-    if console.write_sync("\n").is_err():
+    if console.write_sync("${value.to_string()}\n").is_err():
         panic("println: write_sync returned .Err(ConsoleError)")
 
 ## Writes Display text without a newline to the covering Console provider; it panics when the write fails.

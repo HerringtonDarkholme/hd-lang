@@ -1,0 +1,5 @@
+# @dump: wat
+# @helpers: std/console/println
+# expected: println formats the value and newline before one write_sync call
+fn line(text: string) -> void $ Console:
+    println(text)

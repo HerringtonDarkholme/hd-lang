@@ -84,12 +84,12 @@ pub fn main!() -> void $ Clock:
         serve!(1, box(State {}), handler).expect("source")
     assert_equal(
         first.output(),
-        ["handler https://test/1", "\n"],
+        ["handler https://test/1\n"],
         reason="the first lease receives only its handler output",
     )
     assert_equal(
         second.output(),
-        ["handler https://test/2", "\n"],
+        ["handler https://test/2\n"],
         reason="the second lease receives only its handler output",
     )
     assert_equal(ambient.output(), [], reason="handler output uses the source console")
