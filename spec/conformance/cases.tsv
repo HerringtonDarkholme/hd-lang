@@ -6082,6 +6082,7 @@ typing/invalid/copy-relaxed-local-fn-parameter-moves.hd	type	reject:use-of-moved
 typing/invalid/copy-relaxed-local-fn-bound-other-trait.hd	type	reject:invalid-relaxed-bound	lang/13-values-and-references.md#r-ref.copy.generic.relaxed.only
 runtime/valid/copy-relaxed-local-fn-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.copy.generic.relaxed
 typing/invalid/trait-resolution-depth-method-lookup.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
+typing/invalid/trait-resolution-depth-in-instantiation-trial.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
 typing/valid/bound-closure-takes-the-bound-row.hd	type	accept	lang/07-functions.md#r-fn.trait.bound-closure
 typing/invalid/bound-closure-row-outside-the-bound.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.trait.bound-closure
 runtime/valid/bound-closure-row-adopted-runs.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound-closure

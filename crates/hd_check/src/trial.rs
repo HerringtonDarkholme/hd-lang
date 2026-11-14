@@ -380,16 +380,39 @@ impl Ck<'_, '_> {
         &mut self,
         f: impl FnOnce(&mut Self) -> StageResult<()>,
     ) -> StageResult<bool> {
+        self.trial_outcome(f).map(|o| o != Outcome::Fits)
+    }
+
+    /// [`Self::trial`], telling apart a trial whose every error is a
+    /// limit (`trait-resolution-depth`, `item-too-complex`): a limit
+    /// stops a proof or a body, so it says nothing about whether the
+    /// code fits. Cost: one pass over the diagnostics the trial pushed.
+    fn trial_outcome(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> StageResult<()>,
+    ) -> StageResult<Outcome> {
         let c = self.checkpoint();
         let depths = c.depths;
         let r = f(self);
-        let failed = self.diags.errors_since(c.diags) > 0;
+        let (mut errors, mut limits) = (0, 0);
+        for code in self.diags.error_codes_since(c.diags) {
+            errors += 1;
+            limits += usize::from(matches!(
+                code,
+                Code::TraitResolutionDepth | Code::ItemTooComplex
+            ));
+        }
+        let outcome = match errors {
+            0 => Outcome::Fits,
+            _ if limits == errors => Outcome::Limited,
+            _ => Outcome::Misfits,
+        };
         debug_assert!(
             r.is_err() || self.depths() == depths,
             "a trial checks whole expressions, so its stacks balance"
         );
         self.rollback(c);
-        r.map(|()| failed)
+        r.map(|()| outcome)
     }
 
     // ------------------------------------------------------------ methods
@@ -420,8 +443,9 @@ impl Ck<'_, '_> {
         let first_var = self.infer.var_count();
         self.precheck_args(args)?;
         let last_var = self.infer.var_count();
-        let mut fits: Vec<usize> = (0..cands.len()).collect();
-        fits = self.try_candidates(target, cands, &fits, (recv, args, n, bang, want), &targs)?;
+        let all: Vec<usize> = (0..cands.len()).collect();
+        let (mut fits, limited) =
+            self.try_candidates(target, cands, &all, (recv, args, n, bang, want), &targs)?;
         if fits.len() > 1 {
             let pool = self.pool();
             let lits: Vec<(Ty, VarKind)> = self
@@ -442,9 +466,15 @@ impl Ck<'_, '_> {
                     };
                     let _ = self.infer.unify(pool, t, d);
                 }
-                fits =
+                (fits, _) =
                     self.try_candidates(target, cands, &fits, (recv, args, n, bang, want), &targs)?;
             }
+        }
+        // With no fit, a candidate that only met a limit is checked for
+        // real, so the limit's error is the call's one error
+        // (`trait.bound.depth.limit`), never "no instantiation fits".
+        if fits.is_empty() {
+            fits.extend(limited);
         }
         let r = match fits.as_slice() {
             [one] => {
@@ -484,7 +514,8 @@ impl Ck<'_, '_> {
         r
     }
 
-    /// The candidates among `which` whose trial has no error.
+    /// The candidates among `which` whose trial has no error, and the
+    /// first whose every error is a limit ([`Outcome::Limited`]).
     fn try_candidates(
         &mut self,
         target: (DefId, DefId, Ty),
@@ -492,19 +523,24 @@ impl Ck<'_, '_> {
         which: &[usize],
         (recv, args, n, bang, want): (Option<Ref>, &Args<'_>, NodeRef<'_>, bool, Option<Ty>),
         targs: &[Ty],
-    ) -> StageResult<Vec<usize>> {
+    ) -> StageResult<(Vec<usize>, Option<usize>)> {
         let mut fits = Vec::new();
+        let mut limited = None;
         for &i in which {
             self.method_targs = targs.to_vec();
-            let failed = self.trial(|ck| {
+            let outcome = self.trial_outcome(|ck| {
                 ck.call_candidate(target, &cands[i], recv, args, (n, bang), want)
                     .map(|_| ())
             })?;
-            if !failed {
-                fits.push(i);
+            match outcome {
+                Outcome::Fits => fits.push(i),
+                Outcome::Limited => {
+                    limited.get_or_insert(i);
+                }
+                Outcome::Misfits => {}
             }
         }
-        Ok(fits)
+        Ok((fits, limited))
     }
 
     /// `Tr[A], Tr[B]` for the listed candidates, as the call sees them.
@@ -1103,6 +1139,17 @@ impl Ck<'_, '_> {
 }
 
 /// What the bounds naming one parameter allow.
+/// How a trial ended ([`Ck::trial_outcome`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Outcome {
+    /// No error.
+    Fits,
+    /// Errors, each a limit.
+    Limited,
+    /// An error that is not a limit.
+    Misfits,
+}
+
 enum BoundPick {
     /// A bounded parameter is not known yet.
     Wait,

@@ -1,0 +1,39 @@
+# test: a depth error in an argument each instantiation tries is the call's one error
+# Rule: trait.bound.depth.limit.
+# The closure argument checks once per instantiation of Conv; each trial
+# meets the depth limit at `d.go()`, which is reported, not "no instantiation fits".
+
+trait Conv[T]:
+    fn conv(&self, f: fn(T) -> i32) -> i32
+
+struct A:
+    n: i32
+
+impl Conv[i32] for A:
+    fn conv(&self, f: fn(i32) -> i32) -> i32:
+        f(1)
+
+impl Conv[string] for A:
+    fn conv(&self, f: fn(string) -> i32) -> i32:
+        f("a")
+
+trait Walk:
+    fn go(&self) -> i32
+
+impl Walk for A:
+    fn go(&self) -> i32:
+        0
+
+struct S[T < ?Copy]:
+    v: T
+
+impl[T < ?Copy & Walk] Walk for S[T]:
+    fn go(&self) -> i32:
+        1
+
+type Quad[T < ?Copy] = S[S[S[S[T]]]]
+type Sixteen[T < ?Copy] = Quad[Quad[Quad[Quad[T]]]]
+type S70[T < ?Copy] = Sixteen[Sixteen[Sixteen[Sixteen[Quad[S[S[T]]]]]]]
+
+fn in_candidates(a: A, d: S70[A]) -> i32:
+    a.conv(fn(v): v + d.go()) # diagnostic: trait-resolution-depth

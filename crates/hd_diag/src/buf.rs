@@ -330,9 +330,18 @@ impl DiagBuf {
     /// The error-severity diagnostics pushed since `m`.
     #[must_use]
     pub fn errors_since(&self, m: DiagMark) -> usize {
-        self.severity
-            .get(m.rows as usize..)
-            .map_or(0, |s| s.iter().filter(|x| **x == Severity::Error).count())
+        self.error_codes_since(m).count()
+    }
+
+    /// The codes of the error-severity diagnostics pushed since `m`, in
+    /// push order.
+    pub fn error_codes_since(&self, m: DiagMark) -> impl Iterator<Item = Code> + '_ {
+        let from = (m.rows as usize).min(self.code.len());
+        self.code[from..]
+            .iter()
+            .zip(&self.severity[from..])
+            .filter(|(_, s)| **s == Severity::Error)
+            .map(|(c, _)| *c)
     }
 
     #[must_use]
