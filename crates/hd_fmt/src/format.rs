@@ -286,6 +286,10 @@ impl<'s, 'p> Analysis<'s, 'p> {
             }
             S::ElseClause | S::ElseIfClause => self.mark_else(node),
             S::MatchExpr => self.mark_match(node),
+            // `flow.match.guard`: the guard's `if` is a word of its own,
+            // even after a from-range pattern (`20.. if g`), whose `..`
+            // would otherwise join the next token.
+            S::MatchGuard => self.set_gap(node.first_token().idx(), Gap::Space),
             S::UnaryExpr | S::RefExpr | S::DerefExpr | S::SpreadExpr => {
                 self.mark_prefix(node);
             }

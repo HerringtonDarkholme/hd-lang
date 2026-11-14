@@ -40,6 +40,14 @@ fn prefix_ranges_keep_required_leading_space() {
 }
 
 #[test]
+fn range_patterns_keep_a_space_before_their_guard() {
+    let source = "fn f(a: i32, t: (i32, i32)) -> i32:\n    match a:\n        20.. if a % 2 == 0 => 1\n        -3.. if a > 0 => 2\n        ..5 if a > 0 => 3\n        ..=-5 if a < 0 => 4\n        6..8 if a > 0 => 5\n        9..=12 if a > 0 => 6\n        _ => 7\n    match t:\n        (20.., ..=3) if a > 0 => 8\n        _ => 9\n";
+    assert_eq!(formatted(source), source);
+    let joined = source.replace(".. if", "..if");
+    assert_eq!(formatted(&joined), source);
+}
+
+#[test]
 fn keyword_and_reference_operands_keep_lexical_space() {
     let source = "fn f(xs: List[i32], v: i32):\n    return [v]\nfn g():\n    for x in [1, 2]:\n        pass\n    match [1].cmp([2]):\n        _ => pass\n    edit := &mut [v]\n";
     assert_eq!(formatted(source), source);
