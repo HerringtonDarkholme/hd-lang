@@ -1,4 +1,6 @@
 # test: a counted chain held through a user value enum nested twice releases whole
+# Construct and inspect iteratively so this case isolates deep release,
+# independently of the engine's call-stack capacity.
 # expect-stdout: 0: 10000
 # expect-stdout: 1: 10000
 # expect-stdout: 2: 10000
@@ -11,15 +13,26 @@ enum Tree:
     Node(next: Wrap[Wrap[*Tree]])
 
 fn chain(n: usize) -> *Tree:
-    if n == 0:
-        return box(Tree.Leaf)
-    box(Tree.Node(Wrap.Held(Wrap.Held(chain(n - 1)))))
+    let tree = box(Tree.Leaf)
+    for _ in 0..n:
+        tree = box(Tree.Node(Wrap.Held(Wrap.Held(tree))))
+    tree
 
 fn depth(tree: *Tree) -> usize:
-    match tree:
-        .Node(.Held(.Held(next))) => 1 + depth(next)
-        _ => 0
+    let current = tree
+    let count = 0
+    while true:
+        match current:
+            .Node(.Held(.Held(next))) =>
+                current = next
+                count += 1
+            _ => return count
 
 pub fn main() -> void $ Console:
     for round in 0..3:
-        println("${round}: ${depth(chain(10000))}")
+        tree := chain(10000)
+        count := depth(tree)
+        # Keep the root live through inspection, then release the whole chain.
+        match tree:
+            .Node(_) => println("${round}: $count")
+            _ => panic("the constructed chain is empty")

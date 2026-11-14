@@ -600,7 +600,6 @@ pub fn run_node(
         .join("host/run.ts");
     let spawn = CHILD_SPAWN.lock().unwrap();
     let mut node = Command::new("node")
-        .arg("--experimental-wasm-jspi")
         .arg(root)
         .arg(file)
         .arg(config)

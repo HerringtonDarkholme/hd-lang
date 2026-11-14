@@ -362,6 +362,36 @@ test("synchronous waits accept ready work and reject a pending wait", () => {
   }
 });
 
+test("native Wasm step-driver waits stay synchronous when JSPI is available", () => {
+  const bytes = new Uint8Array([
+    0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 127, 2, 15, 1, 5, 104, 100, 58, 114, 116, 5, 98,
+    108, 111, 99, 107, 0, 0, 3, 2, 1, 0, 7, 7, 1, 3, 114, 117, 110, 0, 1, 10, 6, 1, 4, 0, 16, 0, 11,
+  ]);
+  const module = new WebAssembly.Module(bytes);
+  for (const duration of [0n, 1000000n]) {
+    const host = createCoreHost({ out() {}, err() {} }, { module, synchronous: true });
+    const native = new WebAssembly.Instance(module, host.imports);
+    const guest = instance({
+      poll() {
+        const [, id] = host.imports["hd:Clock"]["sleep.start"](duration);
+        assert.equal((native.exports.run as CallableFunction)(), 1);
+        host.imports["hd:Clock"]["sleep.finish"](id);
+        return 0;
+      },
+    });
+    try {
+      const driver = host.createDriver(guest);
+      if (duration === 0n) {
+        assert.deepEqual(driver.step(), { status: 0, wakes: 0 });
+      } else {
+        assert.throws(() => driver.step(), HostContract);
+      }
+    } finally {
+      host.close();
+    }
+  }
+});
+
 test("an async driver retains synchronous probe waits without a JSPI stack", async () => {
   const errors: string[] = [];
   const host = createCoreHost({ out() {}, err: (text) => errors.push(text) });

@@ -1548,7 +1548,6 @@ fn filesystem_fifo_read_keeps_a_sibling_running_on_both_engines() {
             )
             .unwrap();
             let mut node = Command::new("node")
-                .arg("--experimental-wasm-jspi")
                 .arg(root.join("host/run.ts"))
                 .arg(file)
                 .arg(config)

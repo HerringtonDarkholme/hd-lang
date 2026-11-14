@@ -126,6 +126,8 @@ export interface CoreEnv extends DynamicRecord {
   program?: string;
   grants?: Record<string, boolean | string[]>;
   module?: WebAssembly.Module;
+  // A synchronous step driver cannot enter a JSPI promising stack.
+  synchronous?: boolean;
   packageBindings?: ((runtime: unknown) => WebAssembly.Imports) | null;
   seed?: number | null;
   runner?: Dynamic;
@@ -163,6 +165,8 @@ export interface Host {
     poll: string,
     options?: { driver?: Dynamic; cancel?: Dynamic },
   ): Promise<RunResult>;
+  // Use env.synchronous before instantiation when linking block imports
+  // for this driver, so an available JSPI API cannot change its call mode.
   createDriver(instance: HostInstance, init?: string, poll?: string): StepDriver;
   prime(instance: HostInstance): void;
   close(): void;
@@ -1099,7 +1103,7 @@ function buildCoreImports(options: Dynamic): Dynamic {
 /* oxlint-disable max-lines-per-function -- one host lifetime owns these closures. */
 export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = null): Host {
   const { args, program, grant, seed, st, module, reportsCycles } = coreState(env, layer);
-  const stack = blockingStack(module);
+  const stack = env.synchronous ? null : blockingStack(module);
   const previousCountPairs = new WeakMap<WebAssembly.Instance, Map<string, bigint>>();
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case

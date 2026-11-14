@@ -185,6 +185,7 @@ export function createApplication({
           { out: (text) => unassociated("out", text), err: (text) => unassociated("err", text) },
           {
             module,
+            synchronous: true,
             grants,
             createPackageRuntime,
             packageBindings: (runtime) =>

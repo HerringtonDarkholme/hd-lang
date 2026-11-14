@@ -130,8 +130,8 @@ track every target. The scripts are in [bench/metrics](bench/metrics/README.md).
 
 hd is installed from source for now. You need the Rust toolchain
 ([rustup](https://rustup.rs); the repository pins its version in
-`rust-toolchain.toml`), git (used to fetch dependencies), and Node.js
-(programs run on Node by default).
+`rust-toolchain.toml`), git (used to fetch dependencies), and Node.js 26.13.1
+(the repository pins it in `.node-version`; programs run on Node by default).
 
 ```sh
 git clone https://github.com/HerringtonDarkholme/hd-lang
