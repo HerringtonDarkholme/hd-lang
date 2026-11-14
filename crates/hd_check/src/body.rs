@@ -456,6 +456,16 @@ pub(crate) struct Ck<'a, 'c> {
     /// Each closure expression that changes a captured local, with the
     /// first such local (`fn.trait.read-only`).
     pub closure_writes: HashMap<hd_base::NodeIdx, LocalId>,
+    /// Each closure expression whose parameter annotations write a
+    /// lifetime: the lifetime each local reference slot of its inputs
+    /// writes, in [`hd_types::Types::ref_slots`] order, 0 where none, `k`
+    /// the `k`-th lifetime in scope (`fn.type.lifetime.call.written.closure`).
+    pub closure_lifetimes: HashMap<hd_base::NodeIdx, Vec<u16>>,
+    /// The lifetimes in scope while a closure parameter annotation that
+    /// may write them is lowered (`fn.type.lifetime.call.written.closure`):
+    /// elsewhere a body's written lifetime is not checked yet
+    /// (`ref.lifetime.not-yet.body`).
+    pub written_lifetimes: Option<Vec<String>>,
     /// The initializer of each unannotated binding, where a `box(...)`
     /// fix-it boxes the value at its declaration (`req.ref.install-value.fix`).
     pub local_inits: HashMap<LocalId, hd_base::NodeIdx>,
@@ -767,6 +777,8 @@ pub(crate) fn new_ck<'a, 'c>(
         boxes: HashSet::default(),
         local_capture_argument: None,
         closure_writes: HashMap::default(),
+        closure_lifetimes: HashMap::default(),
+        written_lifetimes: None,
         local_inits: HashMap::default(),
         declared_tys: HashSet::default(),
         local_ref_call_targs: Vec::new(),

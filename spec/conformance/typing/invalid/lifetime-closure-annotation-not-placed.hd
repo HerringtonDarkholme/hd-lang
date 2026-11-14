@@ -1,0 +1,10 @@
+# test: a lifetime a closure parameter's type writes through an alias that holds a reference is not checked yet
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.body.
+struct Point:
+    x: i32
+
+type Ref = &Point
+
+fn aliased['a](p: &'a Point) -> i32:
+    f := fn(x: (Ref, &'a Point)): x._1.x # diagnostic: references-not-yet-checked
+    f((p, p))

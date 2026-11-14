@@ -69,3 +69,50 @@ fn a_list_map_argument_supplies_the_type() {
     let main = "fn run(xs: List[i32]) -> List[i32]:\n    xs.map(fn(v): v + 1)\n";
     assert!(codes_of(main).is_empty());
 }
+
+// `fn.type.lifetime.call.written.closure`, `ref.lifetime.not-yet.body`: a
+// closure parameter's type places the lifetimes it writes on its `&`
+// forms in source order, and a form where that order is not its reference
+// slots' is not checked yet.
+const NOT_YET: Code = Code::ReferencesNotYetChecked;
+
+/// A function `run['a]` whose body binds the closure `closure`.
+fn with_closure(closure: &str) -> String {
+    format!(
+        "struct Point:\n    x: i32\n\ntrait Source:\n    type Item\n\nfn run['a](p: &'a Point) -> i32:\n    f := {closure}\n    0\n"
+    )
+}
+
+#[test]
+fn a_written_lifetime_on_the_annotations_references_is_checked() {
+    for closure in [
+        "fn(x: &'a Point): x.x",
+        "fn(x: (&Point, &'a Point)?, n: i32): n",
+        "fn(xs: List[&'a Point]): 0",
+        // `i32` is an alias that holds no reference, and a counted
+        // reference has no slot of its own.
+        "fn(x: (*Point, &'a Point, i32)): 0",
+    ] {
+        assert!(codes_of(&with_closure(closure)).is_empty(), "{closure}");
+    }
+}
+
+#[test]
+fn a_written_lifetime_the_annotation_cannot_place_is_not_checked_yet() {
+    for closure in [
+        "fn(g: fn(&'a Point) -> i32): 0",
+        "fn(x: &'a Point | i32): 0",
+        "fn(x: &'static Point): 0",
+        "fn(x: &'b Point): 0",
+        // A trait value's bindings hold no reference slot of its type.
+        "fn(s: &'a dyn Source[Item = &'a Point]): 0",
+    ] {
+        let codes = codes_of(&with_closure(closure));
+        assert!(codes.contains(&NOT_YET), "{closure}: {codes:?}");
+    }
+    let local = "struct Point:\n    x: i32\n\nfn run['a](p: &'a Point) -> i32:\n    fn helper(x: &'a Point) -> i32:\n        x.x\n    helper(p)\n";
+    assert_eq!(codes_of(local), vec![NOT_YET]);
+    // A top-level binding's closure is in no function's body.
+    let top = "struct Point:\n    x: i32\n\nf := fn(x: &'a Point): x.x\n";
+    assert!(codes_of(top).contains(&NOT_YET), "{:?}", codes_of(top));
+}

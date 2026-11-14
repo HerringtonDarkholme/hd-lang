@@ -1497,9 +1497,34 @@ struct Inputs<'a> {
     reported: &'a HashSet<hd_base::LocalId>,
     /// The body's own result paths (`ref.result.path.callee`).
     paths: &'a [OwnPath],
+    /// The lifetime each slot of a closure parameter writes, by its
+    /// local, where the closure's annotation writes one
+    /// ([`Ck::annotated_params`]), 0 elsewhere.
+    annotated: HashMap<u32, Vec<u32>>,
 }
 
 impl Inputs<'_> {
+    /// Whether origin `o` lives as long as the body's own lifetime `l`:
+    /// what a parameter slot of `l` refers to, or one behind it, of the
+    /// function's own parameters or of a closure parameter whose
+    /// annotation writes `l` (`fn.type.lifetime.call.written.closure`).
+    fn allows(&self, o: Origin, l: u32) -> bool {
+        if self.own.is_some_and(|own| own.allows(self.ls, o, l)) {
+            return true;
+        }
+        let Origin::Param(p, s) = o else {
+            return false;
+        };
+        let Some(ids) = self.annotated.get(&p) else {
+            return false;
+        };
+        let s = s as usize;
+        let lay = self.ls.of(self.b.local_ty[p as usize]);
+        ids.get(s) == Some(&l)
+            || (0..s.min(lay.slots.len()))
+                .any(|s0| ids.get(s0) == Some(&l) && s < lay.slots[s0].end)
+    }
+
     fn ty(&self, r: u32) -> Option<Ty> {
         (r & hd_tir::ir::Ref::CONST_BIT == 0)
             .then(|| self.b.ty.get(r as usize).copied())
@@ -2196,8 +2221,7 @@ impl Ck<'_, '_> {
         }
         // A named function's value writes no lifetime of the body's in its
         // inputs, nor does a value of no function type. A closure literal
-        // that writes one is not traced: no record keeps its written
-        // lifetimes.
+        // writes those its parameter annotations do.
         let tag = b.tags[i];
         // A reference's referent is the place it was taken of: `&h` for a
         // `&Holder['a, T]` parameter.
@@ -2208,6 +2232,13 @@ impl Ck<'_, '_> {
         };
         if tag == Tag::Coerce {
             stack.push(Trace::Value(b.data[i][0], path));
+        } else if tag == Tag::Closure && path.is_empty() {
+            let rec = b.syn.get(i).and_then(|n| self.closure_lifetimes.get(n));
+            for (k, &l) in rec.into_iter().flatten().enumerate() {
+                if l != 0 {
+                    push(k, Var::Own(u32::from(l)));
+                }
+            }
         } else if let Some(rest) = read
             && let Some(place) = b.decode_place(b.data[i][0])
         {
@@ -2222,11 +2253,12 @@ impl Ck<'_, '_> {
                 // function value the checker built.
                 PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => {}
             }
-        } else if tag == Tag::NewStruct
+        } else if matches!(tag, Tag::NewStruct | Tag::NewTuple)
             && let [Part::Proj(Proj::Field(j)), rest @ ..] = path.as_slice()
             && let Some(&f) = b.record(b.data[i][1]).get(*j as usize)
         {
-            // A struct literal's field is the value it was given.
+            // A struct or tuple literal's field is the value it was given;
+            // a tuple's rest part is traced no further.
             stack.push(Trace::Value(f, rest.to_vec()));
         } else if tag == Tag::CallValue {
             // A call through a function value returns part of that value's
@@ -3356,6 +3388,7 @@ impl Ck<'_, '_> {
             moves: &facts.moves,
             reported: &self.ref_captured,
             paths: &paths,
+            annotated: self.annotated_params(ls),
         };
         let slots = own
             .as_ref()
@@ -3630,6 +3663,62 @@ impl Ck<'_, '_> {
             Src::type_child(f).unwrap_or(f),
             &msg,
         );
+    }
+
+    /// The lifetime each layout slot of each closure parameter writes, by
+    /// its local, for the closures whose parameter annotations write one
+    /// (`Ck::closure_lifetimes`, in [`Types::ref_slots`] order over the
+    /// closure's inputs): 0 for a slot that writes none. One step per
+    /// such closure's parameter slot.
+    fn annotated_params(&self, ls: &Layouts<'_>) -> HashMap<u32, Vec<u32>> {
+        let body = self.b.body();
+        let mut out = HashMap::default();
+        if self.closure_lifetimes.is_empty() {
+            return out;
+        }
+        for i in (0..body.tags.len()).filter(|&i| body.tags[i] == Tag::Closure) {
+            // A generic local function's instance names its declaration,
+            // which keeps no record.
+            let Some(rec) = body.syn.get(i).and_then(|n| self.closure_lifetimes.get(n)) else {
+                continue;
+            };
+            let mut at = 0;
+            for &p in body.sub_param_locals(body.data[i][0] as usize) {
+                let ids = (ls.of(body.local_ty[p as usize]).slots.iter())
+                    .map(|s| {
+                        if s.fun || s.whole || s.hold {
+                            return 0;
+                        }
+                        at += 1;
+                        rec.get(at - 1).map_or(0, |&l| u32::from(l))
+                    })
+                    .collect();
+                out.insert(p, ids);
+            }
+        }
+        out
+    }
+
+    /// The lifetimes in scope at node `at` of a function body, an
+    /// enclosing implementation's first, with their `'`: those of the
+    /// outermost function declaration around it, the body's own, whose
+    /// numbering [`DepSig`] and `FnSig::lifetimes` share. `None` outside
+    /// a function's body.
+    pub(crate) fn lifetimes_in_scope(&self, at: NodeIdx) -> Option<Vec<String>> {
+        if self.b.body().kind != BodyKind::Fn {
+            return None;
+        }
+        let x = at.raw();
+        let mut node = self.cx.src.parse.tree.root();
+        loop {
+            node = node.children().find(|c| {
+                let (lo, hi) = range(*c);
+                lo < x && x < hi
+            })?;
+            if node.kind() == SyntaxKind::FnDecl {
+                return Some(self.lifetime_names(node));
+            }
+        }
     }
 
     /// The lifetimes in scope at the function `fun`, an enclosing

@@ -1,0 +1,53 @@
+# test: a closure whose parameter's type writes a lifetime takes arguments that live that long
+# Spec 07 Function Types: fn.type.lifetime.call.written.closure. Each form passes
+# `p`, which lives for `'a`, where the closure writes `'a`, and a local
+# where it writes none. A parameter that writes `'a` is at `'a` in the
+# closure's body.
+struct Point:
+    x: i32
+
+struct Holder['a]:
+    f: fn(&'a Point) -> i32
+
+fn apply['b](g: fn(&'b Point) -> i32, p: &'b Point) -> i32:
+    g(p)
+
+fn direct['a](p: &'a Point) -> i32:
+    q := Point { x: 2 }
+    (fn(x: &'a Point, y: &Point): x.x + y.x)(p, &q)
+
+fn copied['a](p: &'a Point) -> i32:
+    f := fn(x: &'a Point): x.x
+    g := f
+    g(p)
+
+fn in_tuple['a](p: &'a Point) -> i32:
+    t := (fn(x: &'a Point): x.x, 1)
+    (t._0)(p)
+
+fn in_struct['a](p: &'a Point) -> i32:
+    h := Holder { f: fn(x: &'a Point): x.x }
+    (h.f)(p)
+
+fn passed['a](p: &'a Point) -> i32:
+    apply(fn(x: &'a Point): x.x, p)
+
+fn nested_slot['a](p: &'a Point) -> i32:
+    q := Point { x: 2 }
+    f := fn(x: (&Point, &'a Point), n: i32): x._0.x + x._1.x + n
+    f((&q, p), 1)
+
+fn listed['a](p: &'a Point) -> i32:
+    f := fn(xs: List[&'a Point]): xs[0].x
+    f([p])
+
+fn at_its_lifetime['a](p: &'a Point) -> i32:
+    f := fn(x: &'a Point): x.x
+    g := fn(y: &'a Point): f(y)
+    g(p)
+
+fn shared['a](p: &'a Point) -> i32:
+    f := fn(mut x: &'a Point, y: &'a Point) -> i32:
+        x = y
+        x.x
+    f(p, p)

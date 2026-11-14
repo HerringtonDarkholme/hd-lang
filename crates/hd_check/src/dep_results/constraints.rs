@@ -1358,7 +1358,6 @@ impl Gen<'_, '_> {
                 caller.extend((s0 + 1..lay.slots[s0].end).map(|j| (rs[j], l, j)));
             }
         }
-        let own = self.s.own;
         let results: HashMap<Region, &(Option<usize>, Vec<u32>)> =
             self.universal.iter().map(|(k, &u)| (u, k)).collect();
         let allowed = |e: &Edge, l: Loan| {
@@ -1386,11 +1385,11 @@ impl Gen<'_, '_> {
                     (caller.iter().filter(|c| sol.same(e.to, c.0))).all(|&(_, q, j)| {
                         call && matches!(o, Origin::Param(p, _) if p == q) || self.takes(q, j, o)
                     }) && (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
-                        .all(|&(l, _)| global || own.is_some_and(|own| own.allows(ls, o, l)))
+                        .all(|&(l, _)| global || self.s.allows(o, l))
                 }
                 Category::Forward => global || matches!(o, Origin::Param(..)),
                 Category::Bound => (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
-                    .all(|&(l, _)| global || own.is_some_and(|own| own.allows(ls, o, l))),
+                    .all(|&(l, _)| global || self.s.allows(o, l)),
                 _ => global,
             }
         };
@@ -1430,7 +1429,7 @@ impl Gen<'_, '_> {
             };
             passed.extend(fresh);
             let l = (self.owns.iter())
-                .find(|&&(l, r)| sol.same(e.to, r) && !own.is_some_and(|own| own.allows(ls, o, l)))
+                .find(|&&(l, r)| sol.same(e.to, r) && !self.s.allows(o, l))
                 .map_or(NO_SOURCE, |x| x.0);
             let value = self.s.calls.get(&e.inst).is_some_and(|c| c.by_value);
             v.bounds.push((at, o, l, value));

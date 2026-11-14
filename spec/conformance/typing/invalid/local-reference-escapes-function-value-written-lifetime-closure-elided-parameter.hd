@@ -1,0 +1,9 @@
+# test: a closure parameter that writes no lifetime is not at one its function value's call needs
+# Spec 07 Function Types: fn.type.lifetime.call.written.closure.
+struct Point:
+    x: i32
+
+fn elided['a](p: &'a Point) -> i32:
+    f := fn(x: &'a Point): x.x
+    g := fn(y: &Point): f(y) # diagnostic: local-reference-escapes
+    g(p)

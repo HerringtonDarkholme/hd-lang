@@ -1510,9 +1510,12 @@ impl Ck<'_, '_> {
                 }))?
             }
             SyntaxKind::RefType => {
-                // ref.lifetime.not-yet.body: a lifetime written in a body.
-                if n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
-                    .is_some()
+                // ref.lifetime.not-yet.body: a lifetime written in a body,
+                // but in a closure parameter's annotation that places it
+                // (`Ck::closure_param_annotation`).
+                if self.written_lifetimes.is_none()
+                    && n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
+                        .is_some()
                 {
                     self.err(
                         Code::ReferencesNotYetChecked,

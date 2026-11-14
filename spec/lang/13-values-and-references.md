@@ -773,7 +773,7 @@ fn view(u: User) -> i32:
 14. r[ref.lifetime.not-yet.local-or-newtype-owner] Any other lifetime parameter is not checked yet, so it is an error: a newtype's, a local function's, a local struct's, a local enum's, or a local alias's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), a top-level enum's [Lifetime Enums](#lifetime-enums), a trait's [Lifetime Traits](#lifetime-traits), and a top-level alias's [Lifetime Aliases](#lifetime-aliases). Error: `references-not-yet-checked`.
 15. r[ref.lifetime.alias-in-order] A type alias passes on the lifetimes written in its arguments when its type uses each parameter once, in order, outside function types, and writes no `&` of its own. So `Option[&'a T]` is `&'a T?`.
 16. r[ref.lifetime.not-yet.alias] A lifetime written in the arguments of any other type alias is an error too. Error: `references-not-yet-checked`.
-17. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
+17. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too, but in a closure parameter's type, as [`fn.type.lifetime.call.written.closure`](07-functions.md#r-fn.type.lifetime.call.written.closure) states. There it is still an error inside a function type, a union, an opaque type or a projection. So is one in a trait value's binding, a context or rest type, or a type alias that holds a reference. Error: `references-not-yet-checked`.
 
 ```hd
 struct User:

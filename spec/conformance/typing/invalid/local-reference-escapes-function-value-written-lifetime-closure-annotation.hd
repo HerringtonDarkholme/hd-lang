@@ -1,0 +1,9 @@
+# test: a closure whose parameter's type writes a lifetime passes the argument there at it
+# Spec 07 Function Types: fn.type.lifetime.call.written.closure.
+struct Point:
+    x: i32
+
+fn bound['a](p: &'a Point) -> i32:
+    f := fn(x: &'a Point): x.x
+    q := Point { x: 2 }
+    f(p) + f(&q) # diagnostic: local-reference-escapes

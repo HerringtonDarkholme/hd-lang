@@ -1,0 +1,9 @@
+# test: a closure in a tuple literal keeps the lifetime its parameter's type writes
+# Spec 07 Function Types: fn.type.lifetime.call.written.closure.
+struct Point:
+    x: i32
+
+fn in_tuple['a](p: &'a Point) -> i32:
+    t := (fn(x: &'a Point): x.x, 1)
+    q := Point { x: 2 }
+    (t._0)(&q) # diagnostic: local-reference-escapes

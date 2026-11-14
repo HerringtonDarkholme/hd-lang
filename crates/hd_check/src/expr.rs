@@ -4998,6 +4998,91 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// A closure parameter's annotation `tn`, and when it writes a
+    /// lifetime in scope, the lifetime each of its local reference slots
+    /// writes (`fn.type.lifetime.call.written.closure`), 0 where none, in
+    /// [`hd_types::Types::ref_slots`] order. A written lifetime is placed
+    /// by the annotation's `&` forms in source order, so an annotation
+    /// where that order is not the slots' is not checked yet
+    /// (`ref.lifetime.not-yet.body`): one inside a function type, a union,
+    /// an opaque type, a projection, a context or rest type, or a type
+    /// alias that holds a reference, and one whose `&` forms are not its
+    /// slots, as in a trait value's binding. `'static` and a name not in
+    /// scope are not checked yet either.
+    fn closure_param_annotation(&mut self, tn: NodeRef<'_>) -> StageResult<(Ty, Option<Vec<u16>>)> {
+        let toks = &self.cx.src.parse.tokens;
+        let nodes = || std::iter::once(tn).chain(tn.descendants());
+        let lifetime = |r: NodeRef<'_>| r.direct_token(toks, TokenKind::Lifetime);
+        let refs: Vec<NodeRef<'_>> = nodes()
+            .filter(|r| r.kind() == SyntaxKind::RefType)
+            .collect();
+        if !refs.iter().any(|&r| lifetime(r).is_some()) {
+            return Ok((self.ty_node(tn)?, None));
+        }
+        let placeable = nodes().all(|c| match c.kind() {
+            SyntaxKind::UnionType
+            | SyntaxKind::FunctionType
+            | SyntaxKind::ImplType
+            | SyntaxKind::ProjectionType
+            | SyntaxKind::ContextType
+            | SyntaxKind::RestType => false,
+            // An alias places what it is given anywhere, so it may hold
+            // no reference: `i32` is one.
+            SyntaxKind::NamedType => {
+                let alias = self.resolve_path(&self.segments(c)).and_then(|d| {
+                    match &self.cx.lookup.item(d)?.data {
+                        ItemData::Alias { body, .. } => Some(*body),
+                        _ => None,
+                    }
+                });
+                alias.is_none_or(|body| {
+                    self.pool().ref_slots(body) == 0
+                        && !c.descendants().any(|r| r.kind() == SyntaxKind::RefType)
+                })
+            }
+            SyntaxKind::RefType => {
+                lifetime(c).is_none() || c.direct_token(toks, TokenKind::Star).is_none()
+            }
+            _ => true,
+        });
+        let scope = placeable
+            .then(|| self.lifetimes_in_scope(tn.index()))
+            .flatten();
+        let Some(scope) = scope else {
+            return Ok((self.ty_node(tn)?, None));
+        };
+        let mut lts = Vec::new();
+        for &r in &refs {
+            if r.direct_token(toks, TokenKind::Star).is_some() {
+                continue;
+            }
+            let Some(l) = lifetime(r) else {
+                lts.push(0);
+                continue;
+            };
+            let text = self.cx.src.text(l);
+            let Some(k) = scope.iter().position(|s| s == text) else {
+                // `'static` and an unknown name are not checked yet here,
+                // as in any other body type.
+                return Ok((self.ty_node(tn)?, None));
+            };
+            lts.push(u16::try_from(k + 1).unwrap_or(u16::MAX));
+        }
+        let before = self.written_lifetimes.replace(scope);
+        let t = self.ty_node(tn);
+        self.written_lifetimes = before;
+        let t = t?;
+        if self.pool().ref_slots(t) != lts.len() {
+            self.err(
+                Code::ReferencesNotYetChecked,
+                tn,
+                "a lifetime written in this parameter's type is not placed on its references yet",
+            );
+            return Ok((t, None));
+        }
+        Ok((t, Some(lts)))
+    }
+
     /// [`Self::closure_with`] from its parameters on: `ret` is the joined
     /// result type, or `None` for the written one.
     fn closure_body(
@@ -5012,6 +5097,15 @@ impl Ck<'_, '_> {
         let local_base = self.b.body().local_ty.len();
         let mut params = Vec::new();
         let mut ptys = Vec::new();
+        // The lifetime each input reference slot writes, when an
+        // annotation writes one (`fn.type.lifetime.call.written.closure`). A
+        // closure expression's only, bound to a name or not: a local
+        // function's lifetimes are not checked yet
+        // (`ref.lifetime.not-yet.body`).
+        let records =
+            n.kind() == SyntaxKind::ClosureExpr && parts.upto.is_none() && parts.generic.is_none();
+        let mut written: Option<Vec<u16>> = None;
+        let mut slots = 0;
         self.scopes.push(HashMap::default());
         if let Some(pl) = parts.params {
             let upto = parts.upto.unwrap_or(usize::MAX);
@@ -5038,6 +5132,13 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let t = match Src::type_child(p) {
+                    Some(tn) if records => {
+                        let (t, lts) = self.closure_param_annotation(tn)?;
+                        if let Some(lts) = lts {
+                            written.get_or_insert_with(|| vec![0; slots]).extend(lts);
+                        }
+                        t
+                    }
                     Some(tn) => self.ty_node(tn)?,
                     None => {
                         if let Some(t) = wparams.get(i).copied() {
@@ -5081,7 +5182,14 @@ impl Ck<'_, '_> {
                 }
                 params.push(l);
                 ptys.push(t);
+                slots += pool.ref_slots(t);
+                if let Some(w) = &mut written {
+                    w.resize(slots, 0);
+                }
             }
+        }
+        if let Some(w) = written {
+            self.closure_lifetimes.insert(n.index(), w);
         }
         let written_ret = if let Some(annotation) = parts.ret
             && parts.name.is_some()
