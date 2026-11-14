@@ -27,6 +27,10 @@ removed, renamed APIs and anything parked.
   building. If one is running, clean right after it reports and before
   the next one starts.
 - Measure before and after (`du -sh target`) and report the space freed.
+- Delete scratch hd caches of finished jobs (`/tmp/claude-501/gate-cache.*`,
+  each lane's `HD_CACHE`). Report the shared default cache's size and pack
+  count (`~/Library/Caches/hd/obj`). Gates, lanes and scale runs never use
+  it; if it grows, find who does (#1932).
 
 ## 2. Worktrees and branches
 
