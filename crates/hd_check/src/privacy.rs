@@ -55,9 +55,10 @@ impl<'a> Ck<'a, '_> {
             return;
         };
         let sym = self.cx.names.syms.intern(name);
-        let Some(f) = fields.iter().find(|f| f.name == sym) else {
+        let Some(&i) = self.field_index(def, fields).get(&sym) else {
             return;
         };
+        let f = &fields[i as usize];
         if self.member_visible(def, f.public || f.embedded) {
             return;
         }

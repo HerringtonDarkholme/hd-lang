@@ -9,6 +9,7 @@ thread_local! {
     static WALK_PLANS: Cell<Option<u64>> = const { Cell::new(None) };
     static USE_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOAN_QUERIES: Cell<Option<u64>> = const { Cell::new(None) };
+    static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -39,6 +40,16 @@ pub fn count_use_facts<R>(run: impl FnOnce() -> R) -> (R, u64) {
 /// call argument query/index work on this thread.
 pub fn count_loan_queries<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&LOAN_QUERIES, run)
+}
+
+/// Counts the members the layout's struct and tuple member memo lays
+/// out, and its probes, on this thread ([`crate::layout::members`]).
+pub fn count_member_layouts<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&MEMBER_LAYOUTS, run)
+}
+
+pub(crate) fn member_layouts(n: usize) {
+    add(&MEMBER_LAYOUTS, n);
 }
 
 fn count<R>(

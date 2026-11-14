@@ -891,6 +891,14 @@ pub struct GlobalMemo {
     entries: AppendVec<MemoEntry>,
     records: AppendVec<MemoRecord>,
     envs: Mutex<HashMap<EnvClauses, EnvKey>>,
+    /// The part of each closed type that keeps its values from being
+    /// copied, or `None` when they copy (the checker's `ref.move.holds`
+    /// walk): a type with no parameter, inference variable, projection or
+    /// body-local part answers the same in every body.
+    copy_blockers: Mutex<HashMap<Ty, Option<Ty>>>,
+    /// Each struct's fields by name, as indices in declaration order: the
+    /// checker's literals and field reads probe it once per name.
+    field_indices: Mutex<HashMap<DefId, Arc<HashMap<Symbol, u32>>>>,
     hits: AtomicU64,
     misses: AtomicU64,
 }
@@ -974,6 +982,57 @@ impl GlobalMemo {
         let mut m = self.envs.lock().unwrap_or_else(PoisonError::into_inner);
         let next = EnvKey(u32::try_from(m.len() + 1).expect("envs"));
         *m.entry(clauses).or_insert(next)
+    }
+
+    /// The copy blocker published for the closed type `t`, if any
+    /// ([`Self::publish_copy_blocker`]).
+    #[must_use]
+    pub fn copy_blocker(&self, t: Ty) -> Option<Option<Ty>> {
+        self.copy_blockers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&t)
+            .copied()
+    }
+
+    /// Publishes the copy blocker of the closed type `t`: the first
+    /// writer wins, and every writer computed the same answer.
+    pub fn publish_copy_blocker(&self, t: Ty, blocker: Option<Ty>) {
+        self.copy_blockers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(t)
+            .or_insert(blocker);
+    }
+
+    /// The fields of struct `def` by name, as `names` lists them in
+    /// declaration order: made from `names` on the first ask, then shared
+    /// by every body of the run. A name given twice keeps its first index.
+    pub fn field_index(
+        &self,
+        def: DefId,
+        names: impl FnOnce() -> Vec<Symbol>,
+    ) -> Arc<HashMap<Symbol, u32>> {
+        if let Some(index) = self
+            .field_indices
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&def)
+        {
+            return Arc::clone(index);
+        }
+        let mut index = HashMap::default();
+        for (name, i) in names().into_iter().zip(0u32..) {
+            index.entry(name).or_insert(i);
+        }
+        let index = Arc::new(index);
+        Arc::clone(
+            self.field_indices
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(def)
+                .or_insert(index),
+        )
     }
 
     fn count(&self, hit: bool) {

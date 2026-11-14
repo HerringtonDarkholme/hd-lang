@@ -63,23 +63,31 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
 /// A depth-first walk over a work stack, in field order, that visits each
 /// type once: a type seen before held no blocker, or the walk would have
 /// stopped. So the work is one step per distinct member type, at any
-/// nesting depth.
+/// nesting depth. `open` is set when the walk met a type parameter or a
+/// projection, whose answer depends on the body: the answer of a walk
+/// that left it clear holds in every body ([`Ck::not_copied_by`]).
 fn blocker(
     cx: (Types<'_>, &Lookup<'_>, &[Ty]),
     t: Ty,
     normalize: &mut dyn FnMut(Ty) -> Ty,
+    open: &mut bool,
 ) -> Option<Ty> {
     let (pool, lookup, relaxed) = cx;
     let mut seen: HashSet<Ty> = HashSet::default();
     let mut work = vec![t];
     while let Some(t) = work.pop() {
+        crate::work::scan_work(1);
         let t = if matches!(pool.get(t), TyData::Assoc { .. }) {
+            *open = true;
             normalize(t)
         } else {
             t
         };
         if !seen.insert(t) {
             continue;
+        }
+        if matches!(pool.get(t), TyData::Param(_) | TyData::Assoc { .. }) {
+            *open = true;
         }
         match pool.get(t) {
             TyData::Ref {
@@ -321,31 +329,83 @@ fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
     (path, true)
 }
 
+/// One pass's copy questions ([`Ck::copy_query`]): the body's `?Copy`
+/// local parameters, gathered once, and each type's answer, so a pass
+/// that asks about every value walks each distinct type once. Valid while
+/// the body's local functions and inference stay as they are.
+pub(crate) struct CopyQuery {
+    relaxed: Vec<Ty>,
+    memo: HashMap<Ty, Option<Ty>>,
+}
+
 impl Ck<'_, '_> {
     /// Resolve associated projections before the immutable move walk.
     /// A substituted field can name a concrete associated type even when
     /// the enclosing type's argument list contains no projection.
-    fn copy_facts(&mut self) -> Vec<bool> {
+    ///
+    /// Cost: one memo probe per value; one walk per distinct type.
+    fn copy_facts(&mut self, q: &mut CopyQuery) -> Vec<bool> {
         (0..self.b.body().len())
             .map(|i| {
                 let b = self.b.body();
                 let (tag, ty) = (b.tags[i], b.ty[i]);
-                matches!(tag, Tag::Read | Tag::Coerce) && self.copies(ty)
+                matches!(tag, Tag::Read | Tag::Coerce) && self.copies_in(q, ty)
             })
             .collect()
     }
 
+    /// A query for one pass over the body's values ([`CopyQuery`]).
+    pub(crate) fn copy_query(&self) -> CopyQuery {
+        CopyQuery {
+            relaxed: self.relaxed_local_params(),
+            memo: HashMap::default(),
+        }
+    }
+
     /// Whether a value of `t` is copied ([`blocker`]).
     pub(crate) fn copies(&mut self, t: Ty) -> bool {
-        self.not_copied_by(t).is_none()
+        let mut q = self.copy_query();
+        self.copies_in(&mut q, t)
+    }
+
+    /// Whether a value of `t` is copied, as one question of `q`'s pass.
+    pub(crate) fn copies_in(&mut self, q: &mut CopyQuery, t: Ty) -> bool {
+        self.not_copied_in(q, t).is_none()
     }
 
     /// The part of `t` that keeps it from being copied ([`blocker`]).
     fn not_copied_by(&mut self, t: Ty) -> Option<Ty> {
-        let relaxed = self.relaxed_local_params();
-        blocker((self.pool(), self.cx.lookup, &relaxed), t, &mut |ty| {
-            self.norm_ty(ty)
-        })
+        let mut q = self.copy_query();
+        self.not_copied_in(&mut q, t)
+    }
+
+    /// The part of `t` that keeps it from being copied, from `q`'s memo,
+    /// then the run's memo of closed types, then one walk ([`blocker`]).
+    /// A walk that met no parameter or projection on a type with no
+    /// inference variable or body-local part is published to the run's
+    /// memo, so a wide type is walked once per run, not once per body.
+    fn not_copied_in(&mut self, q: &mut CopyQuery, t: Ty) -> Option<Ty> {
+        if let Some(&b) = q.memo.get(&t) {
+            return b;
+        }
+        let pool = self.pool();
+        let closed = !t.is_local() && !pool.has_infer(t) && !pool.has_canon(t);
+        if closed && let Some(b) = self.cx.global.copy_blocker(t) {
+            q.memo.insert(t, b);
+            return b;
+        }
+        let mut open = false;
+        let b = blocker(
+            (pool, self.cx.lookup, &q.relaxed),
+            t,
+            &mut |ty| self.norm_ty(ty),
+            &mut open,
+        );
+        if closed && !open {
+            self.cx.global.publish_copy_blocker(t, b);
+        }
+        q.memo.insert(t, b);
+        b
     }
 
     /// The type parameters of the body's generic local functions declared
@@ -411,10 +471,11 @@ impl Ck<'_, '_> {
         if self.b.body().tags.contains(&Tag::Poison) {
             return facts;
         }
+        let mut q = self.copy_query();
         let held: Vec<bool> = (0..self.b.body().local_ty.len())
             .map(|i| {
                 let ty = self.b.body().local_ty[i];
-                !self.copies(ty)
+                !self.copies_in(&mut q, ty)
             })
             .collect();
         let hidden = self.hidden_locals(self.b.body());
@@ -422,7 +483,7 @@ impl Ck<'_, '_> {
         if !(0..held.len()).any(|l| held[l] && !hidden[l]) {
             return facts;
         }
-        let copied = self.copy_facts();
+        let copied = self.copy_facts(&mut q);
         let b = self.b.body();
         let n = b.len();
         let users = out_of_place::users_of(b);
@@ -476,6 +537,7 @@ impl Ck<'_, '_> {
         // A read of the binding, or of a field of it that is not copied,
         // moves it or the field where it moves (`ref.move.field`).
         let mut bits: Vec<(LocalId, Vec<u32>)> = Vec::new();
+        let mut bit_of: HashMap<(LocalId, Vec<u32>), u32> = HashMap::default();
         let mut of_local: HashMap<LocalId, Vec<u32>> = HashMap::default();
         let mut move_bit = vec![NONE; n];
         for i in 0..n {
@@ -490,12 +552,12 @@ impl Ck<'_, '_> {
                 continue;
             }
             let key = (a.local, a.path.clone());
-            let k = bits.iter().position(|k| *k == key).unwrap_or_else(|| {
-                bits.push(key);
+            let k = *bit_of.entry(key).or_insert_with_key(|key| {
+                bits.push(key.clone());
                 of_local.entry(a.local).or_default().push(w(bits.len() - 1));
-                bits.len() - 1
+                w(bits.len() - 1)
             });
-            move_bit[i] = w(k);
+            move_bit[i] = k;
         }
         for i in 0..n {
             if b.tags[i] == Tag::Read

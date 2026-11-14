@@ -1,0 +1,31 @@
+# test: a body that moves a value of a type another body already asked about reports its later use
+# Spec 13 Moves: ref.move.holds.
+struct Token:
+    id: i32
+
+impl !Copy for Token
+
+struct Wide:
+    a: i32
+    t: Token
+    b: i32
+
+fn keep(w: Wide) -> i32:
+    w.a
+
+fn first(w: Wide) -> i32:
+    keep(w)
+
+fn second(w: Wide) -> i32:
+    _ := keep(w)
+    w.a # diagnostic: use-of-moved-value
+
+fn copied(x: (i32, i32)) -> i32:
+    y := x
+    x._0 + y._0
+
+fn relaxed[T < ?Copy](x: (i32, T)) -> void:
+    let y = x
+
+pub fn main() -> void:
+    pass

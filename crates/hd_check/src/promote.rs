@@ -75,11 +75,12 @@ impl Ck<'_, '_> {
             let TyData::Adt { def, .. } = pool.get(ck.resolved(part)) else {
                 return false;
             };
-            matches!(
-                ck.cx.lookup.item(def).map(|i| &i.data),
-                Some(ItemData::Struct(fields, _))
-                    if fields.iter().any(|f| f.name == sym && (f.public || f.embedded))
-            )
+            let Some(ItemData::Struct(fields, _)) = ck.cx.lookup.item(def).map(|i| &i.data) else {
+                return false;
+            };
+            ck.field_index(def, fields)
+                .get(&sym)
+                .is_some_and(|&i| fields[i as usize].public || fields[i as usize].embedded)
         })
     }
 

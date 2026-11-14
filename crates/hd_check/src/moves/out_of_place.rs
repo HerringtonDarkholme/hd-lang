@@ -148,7 +148,8 @@ impl Ck<'_, '_> {
         if self.b.body().tags.contains(&Tag::Poison) {
             return;
         }
-        let copied = self.copy_facts();
+        let mut q = self.copy_query();
+        let copied = self.copy_facts(&mut q);
         let b = self.b.body();
         let topo = Topology::new(b);
         let captures = captures_of(b);

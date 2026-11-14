@@ -654,9 +654,7 @@ impl Em<'_, '_, '_> {
         }
         // A field read of a value reads a struct's field; one through a
         // reference is a `DerefField` step.
-        let fields = self.struct_fields(t);
-        let (_, parts) = payload_mem(self.pool(), self.env(), &fields)?;
-        let p = parts[idx as usize];
+        let p = crate::layout::members(self.pool(), self.env(), t)?.parts[idx as usize];
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;
         }
@@ -678,12 +676,7 @@ impl Em<'_, '_, '_> {
 
     /// A tuple element read: element `idx`'s values.
     pub(super) fn tuple_get(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
-        let fields = crate::layout::tuple_members(
-            self.pool(),
-            crate::layout::strip(self.pool(), self.env(), self.ty_of(a)),
-        );
-        let (_, parts) = payload_mem(self.pool(), self.env(), &fields)?;
-        let p = parts[idx as usize];
+        let p = crate::layout::members(self.pool(), self.env(), self.ty_of(a))?.parts[idx as usize];
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;
         }

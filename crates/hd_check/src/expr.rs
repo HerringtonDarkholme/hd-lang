@@ -2543,7 +2543,7 @@ impl Ck<'_, '_> {
             return None;
         };
         let sym = self.cx.names.syms.intern(name);
-        let i = fields.iter().position(|f| f.name == sym)?;
+        let i = *self.field_index(def, fields).get(&sym)? as usize;
         let argv = pool.list_items(args);
         let ft = pool.subst(fields[i].ty, &|p: ParamRef| {
             (p.owner == def)
@@ -2551,6 +2551,21 @@ impl Ck<'_, '_> {
                 .flatten()
         });
         Some((u32::try_from(i).ok()?, ft))
+    }
+
+    /// The fields of struct `def`, `fields`, by name: the run's index,
+    /// made on the first ask (`GlobalMemo::field_index`), so each name is
+    /// one probe however many fields the struct has.
+    pub(crate) fn field_index(
+        &self,
+        def: hd_base::DefId,
+        fields: &[hd_resolve::Field],
+    ) -> std::sync::Arc<hd_base::HashMap<hd_base::Symbol, u32>> {
+        crate::work::scan_work(1);
+        self.cx.global.field_index(def, || {
+            crate::work::scan_work(fields.len());
+            fields.iter().map(|f| f.name).collect()
+        })
     }
 
     /// A tuple element by name, `_k`, the rest list included: its index
@@ -3540,20 +3555,21 @@ impl Ck<'_, '_> {
         };
         let mut vals = vec![Ref(NONE); fields.len()];
         let mut seen = vec![false; fields.len()];
+        let index = self.field_index(def, &fields);
         // `expr.update.form`: a leading spread supplies every field the
         // literal does not name. The fields it names are replaced.
         let spread = inits
             .iter()
             .find(|a| a.kind() == SyntaxKind::SpreadExpr)
             .copied();
-        let replaced: Vec<bool> = fields
-            .iter()
-            .map(|f| {
-                inits
-                    .iter()
-                    .any(|a| a.kind() != SyntaxKind::SpreadExpr && self.sym_of(*a) == f.name)
-            })
-            .collect();
+        let mut replaced = vec![false; fields.len()];
+        for a in inits {
+            if a.kind() != SyntaxKind::SpreadExpr
+                && let Some(&i) = index.get(&self.sym_of(*a))
+            {
+                replaced[i as usize] = true;
+            }
+        }
         let mut source = None;
         // Whether a field of the literal already failed to resolve: an
         // unknown field, an unknown shorthand name, or a duplicate. The
@@ -3589,7 +3605,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let fname = self.sym_of(*a);
-            let Some(i) = fields.iter().position(|f| f.name == fname) else {
+            let Some(i) = index.get(&fname).map(|&i| i as usize) else {
                 let msg = format!("no field `{}`", self.cx.names.text(fname));
                 self.err(Code::UnknownField, *a, &msg);
                 failed = true;

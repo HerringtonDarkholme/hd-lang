@@ -481,6 +481,7 @@ thread_local! {
     static INPUT_BORROWED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static INPUT_OWNED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
+    static MEMBERS: Memo<StageResult<std::rc::Rc<Members>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -497,6 +498,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         input_borrowed: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         input_owned: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
+        members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
     }
     impl Drop for Reset {
         fn drop(&mut self) {
@@ -509,6 +511,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
             INPUT_BORROWED.set(self.input_borrowed.take());
             INPUT_OWNED.set(self.input_owned.take());
             FLATS.set(self.flats.take());
+            MEMBERS.set(self.members.take());
         }
     }
 
@@ -522,6 +525,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         input_borrowed: INPUT_BORROWED.take(),
         input_owned: INPUT_OWNED.take(),
         flats: FLATS.take(),
+        members: MEMBERS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
@@ -532,6 +536,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     INPUT_BORROWED.set(Some(hd_base::HashMap::default()));
     INPUT_OWNED.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
+    MEMBERS.set(Some(hd_base::HashMap::default()));
     walk_plan::cached(|| crate::emit::ref_slots::cached(link))
 }
 
@@ -1363,6 +1368,48 @@ pub fn payload_mem(
     fields: &[Ty],
 ) -> StageResult<(Mem, Vec<Part>)> {
     payload_mem_by(fields, &|f| mem(pool, env, f))
+}
+
+/// A struct's or a tuple's member types, substituted, and where each
+/// lies in its values and memory ([`payload_mem`]).
+pub struct Members {
+    pub tys: Vec<Ty>,
+    pub parts: Vec<Part>,
+}
+
+/// The members of the stripped struct or tuple type `t` ([`Members`]);
+/// none for another type. Within a link ([`cached`]) each type's are
+/// laid out once, so n reads of the fields of an n-field struct cost n
+/// probes, not n layouts of n fields each (#1926).
+pub fn members(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+) -> StageResult<std::rc::Rc<Members>> {
+    let t = strip(pool, env, t);
+    crate::work::member_layouts(1);
+    if let Some(got) = MEMBERS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t).cloned())) {
+        return got;
+    }
+    let tys: Vec<Ty> = match pool.get(t) {
+        TyData::Tuple { .. } => tuple_members(pool, t),
+        TyData::Adt { def, args } => env
+            .data_fields(def)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|f| subst(pool, env, def, args, f))
+            .collect(),
+        _ => Vec::new(),
+    };
+    crate::work::member_layouts(tys.len());
+    let got =
+        payload_mem(pool, env, &tys).map(|(_, parts)| std::rc::Rc::new(Members { tys, parts }));
+    MEMBERS.with(|m| {
+        if let Some(m) = m.borrow_mut().as_mut() {
+            m.insert(t, got.clone());
+        }
+    });
+    got
 }
 
 /// [`payload_mem`], with each field's layout read by `part`.

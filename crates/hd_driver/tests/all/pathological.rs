@@ -2014,3 +2014,62 @@ fn enum_tagging_reads_each_enums_blocks_from_one_index() {
         );
     });
 }
+
+/// One struct of `n` fields, built with every field and read field by
+/// field, and a function that takes it by value: the scale check's
+/// `wide-struct` shape.
+fn wide_struct(n: usize) -> String {
+    let mut s = String::from("struct Wide:\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    f{i}: i32");
+    }
+    s.push_str("\nfn total(w: Wide) -> i32:\n    w.f0\n");
+    s.push_str("\npub fn main() -> void $ Console:\n    let t = +0\n    w := Wide {\n");
+    for i in 0..n {
+        let _ = writeln!(s, "        f{i}: +1,");
+    }
+    s.push_str("    }\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    t = t + w.f{i}");
+    }
+    s.push_str("    println(\"${t + total(w)}\")\n");
+    s
+}
+
+// Checker and emitter: #1926, a struct's fields are found by name in one
+// index per struct, a type's copy answer is walked once per pass and per
+// run, and a field read takes its place from one layout per struct: each
+// read walked or laid out every field of the struct.
+#[test]
+fn wide_struct_reads_cost_one_probe_per_field() {
+    on_test_stack(|| {
+        let check = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&wide_struct(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (check(200), check(2_000));
+        // Per field: its index entry, its literal and read probes, and one
+        // step of the one copy walk.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 200 and 2,000 fields: {small} and {large}"
+        );
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |n: usize| {
+            let (out, work) =
+                hd_wasm::work::count_member_layouts(|| compile(&wide_struct(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (build(200), build(2_000));
+        // The struct laid out once, then one probe per field read.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "member layouts for 200 and 2,000 fields: {small} and {large}"
+        );
+    });
+}

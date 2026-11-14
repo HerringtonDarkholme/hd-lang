@@ -1,0 +1,28 @@
+# test: field reads of two instances of one generic struct, a struct holding one, a tuple and an embedded field each read their own values
+# Spec 03 Field Lookup: names.field-lookup.select.
+# expect-stdout: 1 yz 16
+# expect-stdout: w 3 8
+struct Pair[T]:
+    left: T
+    right: T
+
+struct Outer:
+    head: i64
+    pair: Pair[string]
+    tail: i32
+
+struct Base:
+    pub at: i32
+
+struct Wrap:
+    Base
+    pub who: string
+
+pub fn main() -> void $ Console:
+    a := Pair { left: 1, right: 2 }
+    b := Pair { left: "x", right: "yz" }
+    o := Outer { head: 7, pair: b, tail: 9 }
+    t := (3, "w", 5)
+    w := Wrap { Base: Base { at: 8 }, who: "v" }
+    println("${a.right - a.left} ${o.pair.right} ${o.tail + i32(o.head)}")
+    println("${t._1} ${t._0} ${w.at}")
