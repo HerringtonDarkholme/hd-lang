@@ -719,7 +719,7 @@ impl Reentry {
                 cell,
                 Stored {
                     vals: vec![Val::I32],
-                    walk: crate::layout::Walk::Seq(vec![]),
+                    walk: crate::layout::Walk::sequence(vec![]),
                     slot: None,
                 },
             );
@@ -803,7 +803,9 @@ impl OnceCell<'_> {
             // including an uncounted result and the flag, between test cases.
             let mut vals = self.results.clone();
             vals.push(Val::I32);
-            let walk = em.counted(ret).unwrap_or(crate::layout::Walk::Seq(vec![]));
+            let walk = em
+                .counted(ret)
+                .unwrap_or(crate::layout::Walk::sequence(vec![]));
             em.m.stored.insert(
                 self.key,
                 Stored {
@@ -5312,7 +5314,7 @@ mod frame_ref_tests {
             },
             enc: Enc::Direct,
         };
-        let walk = Walk::Switch(Box::new(discr), vec![Some(Walk::Ref(1)); 1_000]);
+        let walk = Walk::switch(discr, vec![Some(Walk::Ref(1)); 1_000]);
         let plan = crate::frame_referents::plan(Some(walk), None);
         let mut f = Func::default();
         let saved = FrameRefs::new(0, plan, &mut f);
@@ -5325,8 +5327,10 @@ mod frame_ref_tests {
 
     #[test]
     fn simultaneous_fields_keep_distinct_owners() {
-        let plan =
-            crate::frame_referents::plan(Some(Walk::Seq(vec![Walk::Ref(0), Walk::Ref(1)])), None);
+        let plan = crate::frame_referents::plan(
+            Some(Walk::sequence(vec![Walk::Ref(0), Walk::Ref(1)])),
+            None,
+        );
         let mut f = Func::default();
         let saved = FrameRefs::new(0, plan, &mut f);
         assert_eq!(saved.held.len(), 2);

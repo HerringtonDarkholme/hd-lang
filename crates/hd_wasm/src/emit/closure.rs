@@ -195,12 +195,7 @@ pub(super) fn captures(
 
 /// Whether walk `w` runs drop glue anywhere.
 fn has_glue(w: &Walk) -> bool {
-    match w {
-        Walk::Glue => true,
-        Walk::Seq(ws) => ws.iter().any(has_glue),
-        Walk::Switch(_, arms) => arms.iter().flatten().any(has_glue),
-        Walk::Ref(_) | Walk::Known(_) => false,
-    }
+    w.has_glue()
 }
 
 /// Whether each capture [`captures`] lists for closure `ci` moves into
@@ -385,7 +380,7 @@ impl Em<'_, '_, '_> {
             self.f.helper(Helper::DropFields {
                 leaves: m.leaves,
                 walk: crate::layout::walk(self.pool(), self.env(), t)
-                    .unwrap_or_else(|| Walk::Seq(Vec::new())),
+                    .unwrap_or_else(|| Walk::sequence(Vec::new())),
                 drops: self.cell_drop_calls(t),
             });
             self.mark_drop_place(&Self::local_place(l), false);

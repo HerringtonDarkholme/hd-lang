@@ -3306,6 +3306,10 @@ mod discarded_tests {
         fn reaches_allocation(ty: LTy) -> bool {
             let mut module = Module::default();
             let mut pending = vec![Helper::Dec(ty)];
+            #[allow(
+                clippy::mutable_key_type,
+                reason = "Walk keys identify immutable recipes; mutexes protect append-only nodes and memoized results only."
+            )]
             let mut seen = std::collections::BTreeSet::new();
             while let Some(helper) = pending.pop() {
                 if !seen.insert(helper.clone()) {

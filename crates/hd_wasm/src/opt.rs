@@ -6022,8 +6022,8 @@ mod origin_tests {
                     &symbols,
                     Sym::Helper(Helper::Release {
                         vals: vec![Val::I32, Val::I32],
-                        walk: crate::layout::Walk::Switch(
-                            Box::new(crate::layout::Discr {
+                        walk: crate::layout::Walk::switch(
+                            crate::layout::Discr {
                                 leaf: crate::layout::Leaf {
                                     offset: 0,
                                     val: Val::I32,
@@ -6032,7 +6032,7 @@ mod origin_tests {
                                 },
                                 value: 0,
                                 enc: crate::layout::Enc::Direct,
-                            }),
+                            },
                             vec![None, Some(crate::layout::Walk::Ref(1))],
                         ),
                     }),

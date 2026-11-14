@@ -532,7 +532,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     INPUT_BORROWED.set(Some(hd_base::HashMap::default()));
     INPUT_OWNED.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
-    crate::emit::ref_slots::cached(link)
+    walk_plan::cached(|| crate::emit::ref_slots::cached(link))
 }
 
 /// [`cached`], unless a cache is in place already, which `link` then
@@ -558,7 +558,7 @@ fn memoized<T: Clone + 'static>(
     let held = memo.take();
     let linked = held.is_some();
     let mut done = held.unwrap_or_default();
-    let got = by_parts(pool, env, t, &mut done, one);
+    let got = walk_plan::cached_here(|| by_parts(pool, env, t, &mut done, one));
     if linked {
         memo.set(Some(done));
     }
@@ -670,29 +670,23 @@ pub enum Addr {
 
 /// Where a value's counted references are among its values (§23.4): what
 /// counting walks to retain or release the value.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// A count recipe: scalar leaves stay inline; compound recipes share flat
+/// arena nodes and composed value-index mappings.
+#[derive(Clone)]
 pub enum Walk {
-    /// Value `k` is an address in a counted object, or in static data: a
-    /// string's bytes, a local reference, an open value; counting finds its
-    /// block through the page table (§23.5).
     Ref(u32),
-    /// Value `k` is null, a static object's, or the payload start of a
-    /// counted object, eight bytes after its header: a collection's buffer,
-    /// a closure's environment, a
-    /// thin counted reference ([`block_start`]); counting
-    /// reads the header at `k - 8` (§23.30).
     Known(u32),
-    /// No counted address, but a value whose release runs a
-    /// `std.rt.Drop` implementation: a `UniqList` of scalars, whose
-    /// buffer's room is freed by its drop (`module.rt.drop.glue`). It
-    /// stands alone; a walk with a counted address already releases.
     Glue,
-    /// Each part in turn.
+    Plan(walk_plan::Root),
+}
+
+/// One shallow view of a recipe. Children are constant-size shared handles.
+pub(crate) enum WalkKind {
+    Ref(u32),
+    Known(u32),
+    Glue,
     Seq(Vec<Walk>),
-    /// An enum's discriminant; arm `v`, when there is one, walks variant
-    /// `v`'s payload, where the discriminant says `v` ([`Enc::is`]).
-    /// The discriminant is boxed: a walk is part of many helpers' keys.
-    Switch(Box<Discr>, Vec<Option<Walk>>),
+    Switch(Discr, Vec<Option<Walk>>),
 }
 
 /// Whether releasing the one-value constant `c` walked by `walk` releases
@@ -700,7 +694,7 @@ pub enum Walk {
 /// as `.None` of a `*T?`. Conservative: any other walk may release.
 #[must_use]
 pub fn releases_nothing(walk: &Walk, c: u32) -> bool {
-    let Walk::Switch(discr, arms) = walk else {
+    let WalkKind::Switch(discr, arms) = walk.kind() else {
         return false;
     };
     if discr.value != 0 || discr.leaf.offset != 0 {
@@ -717,83 +711,186 @@ pub fn releases_nothing(walk: &Walk, c: u32) -> bool {
 }
 
 impl Walk {
-    /// The walk with each value index `k` replaced by `to(k)`.
-    #[must_use]
-    pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
+    fn from_root(root: walk_plan::Root) -> Self {
+        match root.scalar().map(Self::view_kind) {
+            Some(WalkKind::Ref(k)) => Self::Ref(k),
+            Some(WalkKind::Known(k)) => Self::Known(k),
+            Some(WalkKind::Glue) => Self::Glue,
+            _ => Self::Plan(root),
+        }
+    }
+    fn root_in(self, arena: &walk_plan::Arena) -> walk_plan::Root {
         match self {
-            Walk::Ref(k) => Walk::Ref(to(*k)),
-            Walk::Known(k) => Walk::Known(to(*k)),
-            Walk::Glue => Walk::Glue,
-            Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
-            Walk::Switch(d, arms) => Walk::Switch(
-                Box::new(Discr {
-                    value: to(d.value),
-                    ..**d
-                }),
-                arms.iter()
-                    .map(|a| a.as_ref().map(|w| w.remap(to)))
-                    .collect(),
+            Self::Ref(k) => arena.reference(k),
+            Self::Known(k) => arena.known(k),
+            Self::Glue => arena.glue(),
+            Self::Plan(root) => root,
+        }
+    }
+    fn arena<'a>(walks: impl Iterator<Item = &'a Walk>) -> walk_plan::Arena {
+        walk_plan::Arena::for_roots(walks.filter_map(|w| match w {
+            Self::Plan(r) => Some(r),
+            _ => None,
+        }))
+    }
+    pub fn sequence(children: Vec<Walk>) -> Self {
+        let arena = Self::arena(children.iter());
+        let children = children.into_iter().map(|w| w.root_in(&arena)).collect();
+        Self::Plan(arena.sequence(children))
+    }
+    pub fn switch(discr: Discr, arms: Vec<Option<Walk>>) -> Self {
+        let arena = Self::arena(arms.iter().flatten());
+        let arms = arms
+            .into_iter()
+            .map(|w| w.map(|w| w.root_in(&arena)))
+            .collect();
+        Self::Plan(arena.switch(discr, arms))
+    }
+    pub(crate) fn kind(&self) -> WalkKind {
+        match self {
+            Self::Ref(k) => WalkKind::Ref(*k),
+            Self::Known(k) => WalkKind::Known(*k),
+            Self::Glue => WalkKind::Glue,
+            Self::Plan(root) => Self::view_kind(root.view()),
+        }
+    }
+    fn view_kind(view: walk_plan::View) -> WalkKind {
+        match view {
+            walk_plan::View::Ref(k) => WalkKind::Ref(k),
+            walk_plan::View::Known(k) => WalkKind::Known(k),
+            walk_plan::View::Glue => WalkKind::Glue,
+            walk_plan::View::Seq(children) => {
+                WalkKind::Seq(children.into_iter().map(Self::from_root).collect())
+            }
+            walk_plan::View::Switch(d, arms) => WalkKind::Switch(
+                d,
+                arms.into_iter().map(|a| a.map(Self::from_root)).collect(),
             ),
         }
     }
 
-    /// The walk without the values `skip`, which a copy replaces rather
-    /// than counts; `None` when nothing is left.
     #[must_use]
-    pub fn without(&self, skip: &[u32]) -> Option<Walk> {
+    pub fn shifted(&self, by: u32) -> Self {
         match self {
-            Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
-            Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
-            Walk::Glue => Some(Walk::Glue),
-            Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
-            Walk::Switch(d, arms) => Some(Walk::Switch(
-                d.clone(),
-                arms.iter()
-                    .map(|a| a.as_ref().and_then(|w| w.without(skip)))
-                    .collect(),
-            )),
+            Self::Ref(k) => Self::Ref(k + by),
+            Self::Known(k) => Self::Known(k + by),
+            Self::Glue => Self::Glue,
+            Self::Plan(root) => Self::from_root(root.shifted(by)),
         }
     }
-
-    /// The value index when the walk is one counted address, of either
-    /// kind.
+    #[must_use]
+    pub fn selected(&self, positions: &[u32]) -> Self {
+        match self {
+            Self::Ref(k) => Self::Ref(positions[*k as usize]),
+            Self::Known(k) => Self::Known(positions[*k as usize]),
+            Self::Glue => Self::Glue,
+            Self::Plan(root) => Self::from_root(root.selected(positions)),
+        }
+    }
+    pub(crate) fn has_glue(&self) -> bool {
+        match self {
+            Self::Glue => true,
+            Self::Plan(root) => root.has_glue(),
+            _ => false,
+        }
+    }
+    pub(crate) fn indices(&self, addresses_only: bool) -> Vec<u32> {
+        match self {
+            Self::Ref(k) | Self::Known(k) => vec![*k],
+            Self::Glue => Vec::new(),
+            Self::Plan(root) => root.indices(addresses_only),
+        }
+    }
+    /// The walk without copied/replaced addresses. Discriminants remain.
+    #[must_use]
+    pub fn without(&self, skip: &[u32]) -> Option<Self> {
+        match self {
+            Self::Ref(k) => (!skip.contains(k)).then_some(self.clone()),
+            Self::Known(k) => (!skip.contains(k)).then_some(self.clone()),
+            Self::Glue => Some(Self::Glue),
+            Self::Plan(root) => root.without(skip).map(Self::from_root),
+        }
+    }
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
-            Walk::Ref(k) | Walk::Known(k) => Some(*k),
-            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) => None,
+            Self::Ref(k) | Self::Known(k) => Some(*k),
+            _ => None,
         }
     }
-
-    /// How the walk's one counted address is counted, when it is one.
     #[must_use]
     pub fn addr(&self) -> Option<Addr> {
         match self {
-            Walk::Ref(_) => Some(Addr::Ref),
-            Walk::Known(_) => Some(Addr::Known),
-            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) => None,
+            Self::Ref(_) => Some(Addr::Ref),
+            Self::Known(_) => Some(Addr::Known),
+            _ => None,
         }
     }
-
-    /// Whether the walk is a known payload start: [`Walk::Known`].
     #[must_use]
     pub fn known(&self) -> bool {
-        matches!(self, Walk::Known(_))
+        matches!(self, Self::Known(_))
     }
-
-    fn seq(mut ws: Vec<Walk>) -> Option<Walk> {
-        if ws.iter().any(|w| *w != Walk::Glue) {
-            ws.retain(|w| *w != Walk::Glue);
+    fn seq(mut children: Vec<Walk>) -> Option<Walk> {
+        if children.iter().any(|w| !matches!(w, Walk::Glue)) {
+            children.retain(|w| !matches!(w, Walk::Glue));
         } else {
-            ws.truncate(1);
+            children.truncate(1);
         }
-        match ws.len() {
+        match children.len() {
             0 => None,
-            1 => ws.pop(),
-            _ => Some(Walk::Seq(ws)),
+            1 => children.pop(),
+            _ => Some(Self::sequence(children)),
         }
     }
 }
+impl std::fmt::Debug for Walk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ref(k) => write!(f, "Ref({k})"),
+            Self::Known(k) => write!(f, "Known({k})"),
+            Self::Glue => f.write_str("Glue"),
+            Self::Plan(root) => std::fmt::Debug::fmt(root, f),
+        }
+    }
+}
+impl std::hash::Hash for Walk {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Ref(k) => walk_plan::hash_scalar(0, Some(*k), state),
+            Self::Known(k) => walk_plan::hash_scalar(1, Some(*k), state),
+            Self::Glue => walk_plan::hash_scalar(2, None, state),
+            Self::Plan(root) => std::hash::Hash::hash(root, state),
+        }
+    }
+}
+impl Ord for Walk {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Ref(a), Self::Ref(b)) | (Self::Known(a), Self::Known(b)) => a.cmp(b),
+            (Self::Plan(a), Self::Plan(b)) => a.cmp(b),
+            _ => {
+                let tag = |w: &Self| match w {
+                    Self::Ref(_) => 0,
+                    Self::Known(_) => 1,
+                    Self::Glue => 2,
+                    Self::Plan(_) => 3,
+                };
+                tag(self).cmp(&tag(other))
+            }
+        }
+    }
+}
+impl PartialOrd for Walk {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for Walk {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+impl Eq for Walk {}
 
 /// The counted references of a concrete type's values, or `None` when it
 /// has none: scalars, and what holds no counted address. A type this
@@ -1034,7 +1131,7 @@ pub(crate) fn fields_walk_by(
             .zip(&parts)
             .filter_map(|(f, p)| {
                 let at = first(p);
-                part(*f).map(|w| w.remap(&|k| at + k))
+                part(*f).map(|w| w.shifted(at))
             })
             .collect(),
     )
@@ -1067,7 +1164,7 @@ pub fn env_mem(
             if *shared {
                 Some(Walk::Known(at))
             } else {
-                count_walk(pool, env, *t).map(|w| w.remap(&|k| at + k))
+                count_walk(pool, env, *t).map(|w| w.shifted(at))
             }
         })
         .collect();
@@ -1097,7 +1194,7 @@ fn switch_walk_by(
                 fields
                     .iter()
                     .zip(at)
-                    .filter_map(|(f, ks)| part(*f).map(|w| w.remap(&|k| ks[k as usize])))
+                    .filter_map(|(f, ks)| part(*f).map(|w| w.selected(ks)))
                     .collect(),
             )
         })
@@ -1106,7 +1203,7 @@ fn switch_walk_by(
         // One variant: its walk, with no test.
         Disc::One(k) => arms.into_iter().nth(k as usize).flatten(),
         Disc::Cell(_) if arms.iter().all(Option::is_none) => None,
-        Disc::Cell(d) => Some(Walk::Switch(Box::new(d), arms)),
+        Disc::Cell(d) => Some(Walk::switch(d, arms)),
     }
 }
 
@@ -2125,12 +2222,12 @@ mod tests {
             bytes: 4,
         };
         let option = |enc| {
-            Walk::Switch(
-                Box::new(Discr {
+            Walk::switch(
+                Discr {
                     leaf,
                     value: 0,
                     enc,
-                }),
+                },
                 vec![None, Some(Walk::Known(0))],
             )
         };
@@ -2154,12 +2251,12 @@ mod tests {
             !releases_nothing(&Walk::Known(0), 0),
             "only an enum is read"
         );
-        let second = Walk::Switch(
-            Box::new(Discr {
+        let second = Walk::switch(
+            Discr {
                 leaf,
                 value: 1,
                 enc: niche,
-            }),
+            },
             vec![None, None],
         );
         assert!(
@@ -2485,3 +2582,5 @@ mod tests {
         assert_eq!(m.vals(), [Val::I32, Val::F64, Val::I32]);
     }
 }
+
+mod walk_plan;

@@ -47,34 +47,69 @@ fn counted(
     base: u32,
 ) -> StageResult<Vec<CountedLeaf>> {
     fn walk(w: &Walk) -> std::collections::BTreeMap<u32, bool> {
+        use crate::layout::WalkKind;
         use std::collections::BTreeMap;
-        match w {
-            Walk::Ref(k) | Walk::Known(k) => BTreeMap::from([(*k, false)]),
-            Walk::Glue => BTreeMap::new(),
-            Walk::Seq(ws) => {
-                let mut out = BTreeMap::new();
-                for w in ws {
-                    for (k, conditional) in walk(w) {
-                        out.entry(k)
-                            .and_modify(|c| *c &= conditional)
-                            .or_insert(conditional);
+        enum Task {
+            Enter(Walk),
+            Seq(usize),
+            Switch(usize),
+        }
+        let mut todo = vec![Task::Enter(w.clone())];
+        let mut values: Vec<BTreeMap<u32, bool>> = Vec::new();
+        while let Some(task) = todo.pop() {
+            match task {
+                Task::Enter(w) => match w.kind() {
+                    WalkKind::Ref(k) | WalkKind::Known(k) => {
+                        values.push(BTreeMap::from([(k, false)]));
                     }
+                    WalkKind::Glue => values.push(BTreeMap::new()),
+                    WalkKind::Seq(children) => {
+                        todo.push(Task::Seq(children.len()));
+                        todo.extend(children.into_iter().rev().map(Task::Enter));
+                    }
+                    WalkKind::Switch(_, arms) => {
+                        todo.push(Task::Switch(arms.len()));
+                        // Absent arms contribute the same empty map as Glue.
+                        todo.extend(
+                            arms.into_iter()
+                                .rev()
+                                .map(|a| Task::Enter(a.unwrap_or(Walk::Glue))),
+                        );
+                    }
+                },
+                Task::Seq(n) | Task::Switch(n) => {
+                    let switching = matches!(task, Task::Switch(_));
+                    let mut out = BTreeMap::new();
+                    // Count the arms in which a leaf is definitely counted,
+                    // rather than searching every arm again for every leaf.
+                    let mut definite = BTreeMap::<u32, usize>::new();
+                    for arm in values.drain(values.len() - n..) {
+                        for (k, conditional) in arm {
+                            if switching {
+                                out.insert(k, true);
+                                if !conditional {
+                                    *definite.entry(k).or_default() += 1;
+                                }
+                            } else {
+                                out.entry(k)
+                                    .and_modify(|c| *c &= conditional)
+                                    .or_insert(conditional);
+                            }
+                        }
+                    }
+                    if switching {
+                        for (k, conditional) in &mut out {
+                            *conditional = definite.get(k).copied().unwrap_or(0) != n;
+                        }
+                    }
+                    values.push(out);
                 }
-                out
-            }
-            Walk::Switch(_, arms) => {
-                let arms: Vec<_> = arms
-                    .iter()
-                    .map(|w| w.as_ref().map(walk).unwrap_or_default())
-                    .collect();
-                let mut out = BTreeMap::new();
-                for k in arms.iter().flat_map(|a| a.keys()) {
-                    out.insert(*k, arms.iter().any(|a| a.get(k).copied().unwrap_or(true)));
-                }
-                out
             }
         }
+        // ruled out: every continuation consumes its children and produces one map.
+        values.pop().unwrap_or_default()
     }
+
     let mem = layout::mem(pool, env, ty)?;
     let refs = layout::walk(pool, env, ty)
         .as_ref()

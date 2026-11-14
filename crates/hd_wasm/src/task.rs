@@ -1223,7 +1223,7 @@ fn walk_drop(area: &Elem, walk: &Walk) -> Sym {
     for (index, &leaf) in (0u32..).zip(&used) {
         remap[leaf as usize] = index;
     }
-    let walk = walk.remap(&|k| remap[k as usize]);
+    let walk = walk.selected(&remap);
     Sym::Helper(Helper::DropFields {
         leaves,
         walk,
@@ -1253,18 +1253,7 @@ fn walk_drop(area: &Elem, walk: &Walk) -> Sym {
 
 /// Every value index a walk reads: its references and its tags.
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
-    let mut todo = vec![w];
-    while let Some(walk) = todo.pop() {
-        match walk {
-            Walk::Ref(k) | Walk::Known(k) => out.push(*k),
-            Walk::Glue => {}
-            Walk::Seq(ws) => todo.extend(ws),
-            Walk::Switch(d, arms) => {
-                out.push(d.value);
-                todo.extend(arms.iter().flatten());
-            }
-        }
-    }
+    out.extend(w.indices(false));
 }
 
 /// [`Helper::HostCold`]: `(data, arguments) -> frame`, a host method
@@ -3251,6 +3240,10 @@ mod tests {
                 res: super::HostRes::Void,
             },
         ];
+        #[allow(
+            clippy::mutable_key_type,
+            reason = "Walk keys identify immutable recipes; mutexes protect append-only nodes and memoized results only."
+        )]
         let mut seen = hd_base::HashSet::default();
         while let Some(helper) = pending.pop() {
             assert!(

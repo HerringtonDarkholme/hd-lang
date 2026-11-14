@@ -6,6 +6,7 @@ use std::cell::Cell;
 
 thread_local! {
     static CONTROL: Cell<Option<u64>> = const { Cell::new(None) };
+    static WALK_PLANS: Cell<Option<u64>> = const { Cell::new(None) };
     static USE_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOAN_QUERIES: Cell<Option<u64>> = const { Cell::new(None) };
 }
@@ -14,6 +15,15 @@ thread_local! {
 /// census/compaction visits on this thread.
 pub fn count_control<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&CONTROL, run)
+}
+
+/// Counts recipe nodes/edges, mapping composition and view/import visits.
+pub fn count_walk_plans<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&WALK_PLANS, run)
+}
+
+pub(crate) fn walk_plans(n: usize) {
+    add(&WALK_PLANS, n);
 }
 
 /// Counts the work the emitter spends on its per-value use facts while

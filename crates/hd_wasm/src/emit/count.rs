@@ -437,7 +437,7 @@ impl Em<'_, '_, '_> {
                 if let Some(walk) =
                     crate::layout::function_input(self.pool(), self.env(), t).borrowed
                 {
-                    borrowed.push(walk.remap(&|k| offset + k));
+                    borrowed.push(walk.shifted(offset));
                 }
                 offset += len;
                 parameter += 1;
@@ -448,7 +448,10 @@ impl Em<'_, '_, '_> {
                     "spread argument does not partition into whole parameter ABIs",
                 ));
             }
-            out.push((arg, (!borrowed.is_empty()).then_some(Walk::Seq(borrowed))));
+            out.push((
+                arg,
+                (!borrowed.is_empty()).then_some(Walk::sequence(borrowed)),
+            ));
         }
         if parameter != params.len() {
             return Err(hd_base::NotImplemented::bug(

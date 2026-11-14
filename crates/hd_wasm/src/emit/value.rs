@@ -17,6 +17,24 @@ use crate::layout::{
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
 
+/// Release glue for an allocation, including destructor-only payloads whose
+/// representation contains no counted addresses. Move the drop list once.
+fn object_glue(m: &Mem, walk: Option<&Walk>, drops: Vec<DropCall>) -> Option<Helper> {
+    match walk {
+        Some(walk) => Some(Helper::DropFields {
+            leaves: m.leaves.clone(),
+            walk: walk.clone(),
+            drops,
+        }),
+        None if !drops.is_empty() => Some(Helper::DropFields {
+            leaves: Vec::new(),
+            walk: Walk::sequence(Vec::new()),
+            drops,
+        }),
+        None => None,
+    }
+}
+
 /// Where a payload field's values come from: a TIR value, or locals.
 #[derive(Clone)]
 pub enum Src {
@@ -203,23 +221,7 @@ impl Em<'_, '_, '_> {
     ) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
-        let glue = walk
-            .map(|w| {
-                Sym::Helper(Helper::DropFields {
-                    leaves: m.leaves.clone(),
-                    walk: w.clone(),
-                    drops: drops.clone(),
-                })
-            })
-            .or_else(|| {
-                (!drops.is_empty()).then(|| {
-                    Sym::Helper(Helper::DropFields {
-                        leaves: Vec::new(),
-                        walk: Walk::Seq(Vec::new()),
-                        drops,
-                    })
-                })
-            });
+        let glue = object_glue(m, walk, drops).map(Sym::Helper);
         crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
         if self.input.runtime.checked.is_none()
             && m.size
@@ -375,7 +377,7 @@ impl Em<'_, '_, '_> {
                 ));
             }
         }
-        let walk = walk(self.pool(), self.env(), t).unwrap_or_else(|| Walk::Seq(Vec::new()));
+        let walk = walk(self.pool(), self.env(), t).unwrap_or_else(|| Walk::sequence(Vec::new()));
         for &local in ls {
             self.f.get(local);
         }
@@ -868,5 +870,64 @@ impl Em<'_, '_, '_> {
             self.run_steps(&steps, &mut leaf)?;
         }
         self.store_owned(i)
+    }
+}
+
+#[cfg(test)]
+mod object_glue_tests {
+    use super::*;
+    use crate::module::{Ins, Module};
+    use hd_base::Hash128;
+
+    #[test]
+    fn destructor_only_allocations_call_the_destructor_without_loading_scalar_fields() {
+        let m = Mem {
+            size: 16,
+            align: 4,
+            leaves: vec![Leaf {
+                val: Val::I32,
+                offset: 0,
+                bytes: 4,
+                signed: false,
+            }],
+            niche: None,
+            uninhabited: false,
+        };
+        let target = Hash128(7);
+        let glue = object_glue(
+            &m,
+            None,
+            vec![DropCall {
+                offset: 12,
+                target,
+                guards: vec![],
+            }],
+        )
+        .expect("destructor needs glue");
+        let mut module = Module::default();
+        let f = crate::rt::helper(&glue, &mut module);
+        let calls: Vec<_> = f
+            .body
+            .iter()
+            .filter_map(|ins| match ins {
+                Ins::Call(id) => Some(f.symbol(*id).clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(calls, [Sym::Inst(target)]);
+        assert!(!f.body.iter().any(|ins| matches!(
+            ins,
+            Ins::Op(I::I32Load(_) | I::I64Load(_) | I::F32Load(_) | I::F64Load(_))
+        )));
+        assert!(
+            f.body
+                .iter()
+                .any(|ins| matches!(ins, Ins::Op(I::I32Const(12))))
+        );
+        assert!(object_glue(&m, None, vec![]).is_none());
+        let counted =
+            object_glue(&m, Some(&Walk::Known(0)), vec![]).expect("counted field needs glue");
+        let f = crate::rt::helper(&counted, &mut module);
+        assert!(f.body.iter().any(|ins| matches!(ins, Ins::Call(id) if matches!(*f.symbol(*id), Sym::Helper(Helper::ReleaseKnown)))));
     }
 }

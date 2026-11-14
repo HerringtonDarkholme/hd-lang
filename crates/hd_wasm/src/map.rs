@@ -100,7 +100,7 @@ impl Entry {
     /// The walk of the whole entry.
     pub(crate) fn walk(&self) -> Option<Walk> {
         match (&self.key_walk, &self.val_walk) {
-            (Some(k), Some(v)) => Some(Walk::Seq(vec![k.clone(), v.clone()])),
+            (Some(k), Some(v)) => Some(Walk::sequence(vec![k.clone(), v.clone()])),
             (Some(w), None) | (None, Some(w)) => Some(w.clone()),
             (None, None) => None,
         }
@@ -125,7 +125,7 @@ impl Entry {
             leaves: m.leaves,
             keys,
             key_walk: counted(kt),
-            val_walk: counted(vt).map(|w| w.remap(&|k| k + shift)),
+            val_walk: counted(vt).map(|w| w.shifted(shift)),
             colls: crate::layout::coll_leaves(pool, env, vt)
                 .into_iter()
                 .map(|k| k + shift)

@@ -116,22 +116,23 @@ fn leaves(
     let mut work: Vec<_> = root.into_iter().map(|walk| (walk, None)).collect();
     while let Some((walk, parent)) = work.pop() {
         visit();
-        match walk {
-            Walk::Ref(value) | Walk::Known(value) => out.push(Referent {
-                guard: parent,
-                value,
-            }),
-            Walk::Glue => {}
-            Walk::Seq(children) => {
+        match walk.kind() {
+            crate::layout::WalkKind::Ref(value) | crate::layout::WalkKind::Known(value) => out
+                .push(Referent {
+                    guard: parent,
+                    value,
+                }),
+            crate::layout::WalkKind::Glue => {}
+            crate::layout::WalkKind::Seq(children) => {
                 work.extend(children.into_iter().rev().map(|child| (child, parent)));
             }
-            Walk::Switch(discr, arms) => {
+            crate::layout::WalkKind::Switch(discr, arms) => {
                 for (variant, arm) in arms.into_iter().enumerate().rev() {
                     visit();
                     if let Some(arm) = arm {
                         let guard = Guard {
                             parent,
-                            discr: *discr,
+                            discr,
                             variant,
                         };
                         let id = *index.entry(guard).or_insert_with(|| {
@@ -168,12 +169,16 @@ mod tests {
     }
 
     #[test]
+    fn drop_glue_without_an_address_has_no_frame_referent() {
+        let p = plan(Some(Walk::Glue), None);
+        assert!(p.refs.is_empty());
+        assert!(p.guards.is_empty());
+    }
+
+    #[test]
     fn overlapping_payload_slots_are_subtracted_only_under_the_same_guard() {
-        let all = Walk::Switch(
-            Box::new(discr(0)),
-            vec![Some(Walk::Ref(1)), Some(Walk::Known(1))],
-        );
-        let counted = Walk::Switch(Box::new(discr(0)), vec![None, Some(Walk::Known(1))]);
+        let all = Walk::switch(discr(0), vec![Some(Walk::Ref(1)), Some(Walk::Known(1))]);
+        let counted = Walk::switch(discr(0), vec![None, Some(Walk::Known(1))]);
         let p = plan(Some(all), Some(counted));
         assert_eq!(
             p.refs,
@@ -194,16 +199,16 @@ mod tests {
 
     #[test]
     fn unconditional_and_nested_reference_owners_keep_shared_guard_prefixes() {
-        let all = Walk::Seq(vec![
+        let all = Walk::sequence(vec![
             Walk::Ref(0),
             Walk::Ref(1),
-            Walk::Switch(
-                Box::new(discr(2)),
+            Walk::switch(
+                discr(2),
                 vec![
                     None,
-                    Some(Walk::Switch(
-                        Box::new(discr(3)),
-                        vec![Some(Walk::Seq(vec![Walk::Ref(4), Walk::Ref(5)])), None],
+                    Some(Walk::switch(
+                        discr(3),
+                        vec![Some(Walk::sequence(vec![Walk::Ref(4), Walk::Ref(5)])), None],
                     )),
                 ],
             ),
@@ -232,7 +237,7 @@ mod tests {
 
     #[test]
     fn no_physical_local_references_need_no_frame_slots_or_guards() {
-        let walks = || Walk::Switch(Box::new(discr(0)), vec![Some(Walk::Ref(1)), None]);
+        let walks = || Walk::switch(discr(0), vec![Some(Walk::Ref(1)), None]);
         assert_eq!(plan(Some(walks()), Some(walks())), Plan::default());
         assert_eq!(plan(None, None), Plan::default());
     }
@@ -240,9 +245,9 @@ mod tests {
     #[test]
     fn wide_and_deep_payloads_count_linear_work_without_copying_paths() {
         for (width, depth) in [(100, 20), (1_000, 20), (20, 1_000)] {
-            let mut walk = Walk::Seq((0..width).map(Walk::Ref).collect());
+            let mut walk = Walk::sequence((0..width).map(Walk::Ref).collect());
             for at in 0..depth {
-                walk = Walk::Switch(Box::new(discr(at)), vec![Some(walk), None]);
+                walk = Walk::switch(discr(at), vec![Some(walk), None]);
             }
             let mut work = 0;
             let p = plan_with(Some(walk), None, &mut || work += 1);

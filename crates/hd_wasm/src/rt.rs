@@ -2470,40 +2470,49 @@ pub(crate) fn walk_code(
     get: &dyn Fn(&mut Func, u32),
     on: &dyn Fn(&mut Func, Addr),
 ) {
-    match walk {
-        Walk::Ref(k) => {
-            get(f, *k);
-            on(f, Addr::Ref);
-        }
-        Walk::Known(k) => {
-            get(f, *k);
-            on(f, Addr::Known);
-        }
-        Walk::Glue => {}
-        Walk::Seq(ws) => {
-            for w in ws {
-                walk_code(f, w, get, on);
-            }
-        }
-        Walk::Switch(d, arms) => {
-            for (v, arm) in (0u32..).zip(arms) {
-                let Some(arm) = arm else {
-                    continue;
-                };
-                // The test that the discriminant says `v` (`read_discr`).
-                match d.enc.is(v) {
-                    Is::Never => {}
-                    is @ (Is::Eq(_) | Is::Outside { .. }) => {
-                        get(f, d.value);
-                        for op in is.ops() {
-                            f.op(op);
-                        }
-                        f.op(Instruction::If(BlockType::Empty));
-                        walk_code(f, arm, get, on);
-                        f.op(Instruction::End);
+    use crate::layout::WalkKind;
+    enum Task {
+        Walk(Walk),
+        Arm(crate::layout::Discr, u32, Walk),
+        End,
+    }
+    let mut todo = vec![Task::Walk(walk.clone())];
+    while let Some(task) = todo.pop() {
+        match task {
+            Task::End => f.op(Instruction::End),
+            Task::Arm(d, variant, arm) => match d.enc.is(variant) {
+                Is::Never => {}
+                is @ (Is::Eq(_) | Is::Outside { .. }) => {
+                    get(f, d.value);
+                    for op in is.ops() {
+                        f.op(op);
                     }
+                    f.op(Instruction::If(BlockType::Empty));
+                    todo.push(Task::End);
+                    todo.push(Task::Walk(arm));
                 }
-            }
+            },
+            Task::Walk(walk) => match walk.kind() {
+                WalkKind::Ref(k) => {
+                    get(f, k);
+                    on(f, Addr::Ref);
+                }
+                WalkKind::Known(k) => {
+                    get(f, k);
+                    on(f, Addr::Known);
+                }
+                WalkKind::Glue => {}
+                WalkKind::Seq(children) => todo.extend(children.into_iter().rev().map(Task::Walk)),
+                WalkKind::Switch(d, arms) => {
+                    // Variants use u32 throughout layout. Zipping before the
+                    // reversal preserves those indices without a narrowing cast.
+                    let arms: Vec<_> = (0u32..)
+                        .zip(arms)
+                        .filter_map(|(v, arm)| arm.map(|arm| Task::Arm(d, v, arm)))
+                        .collect();
+                    todo.extend(arms.into_iter().rev());
+                }
+            },
         }
     }
 }
@@ -4416,5 +4425,48 @@ mod checked_fixed_allocation_tests {
         assert!(fast.body.iter().any(|ins| matches!(ins,
             Ins::Call(id) if matches!(*fast.symbol(*id), Sym::Helper(Helper::AllocClass { .. })))));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod walk_code_tests {
+    use super::*;
+    use crate::layout::{Discr, Enc, Leaf};
+    use std::cell::RefCell;
+
+    #[test]
+    fn an_absent_niche_variant_does_not_read_or_count_its_payload() {
+        let m = Module::default();
+        let mut f = m.func("walk", vec![], vec![]);
+        let walk = Walk::switch(
+            Discr {
+                leaf: Leaf {
+                    val: Val::I32,
+                    offset: 0,
+                    bytes: 4,
+                    signed: false,
+                },
+                value: 0,
+                enc: Enc::Niche {
+                    untagged: 0,
+                    first: 1,
+                    last: 1,
+                    start: 0,
+                    bytes: 4,
+                },
+            },
+            vec![Some(Walk::Ref(1)), None, Some(Walk::Ref(9))],
+        );
+        let reads = RefCell::new(Vec::new());
+        walk_code(
+            &mut f,
+            &walk,
+            &|f, k| {
+                reads.borrow_mut().push(k);
+                f.u32(k);
+            },
+            &|f, _| f.op(Instruction::Drop),
+        );
+        assert_eq!(*reads.borrow(), [0, 1]);
     }
 }

@@ -346,8 +346,8 @@ impl Em<'_, '_, '_> {
                         && d.enc.reads(0) != v
                         && zeroed.contains(&slots[d.value as usize])
                     {
-                        let counted = match walk(self.pool(), self.env(), ty) {
-                            Some(Walk::Switch(_, arms)) => arms
+                        let counted = match walk(self.pool(), self.env(), ty).map(|w| w.kind()) {
+                            Some(crate::layout::WalkKind::Switch(_, arms)) => arms
                                 .get(v as usize)
                                 .and_then(Option::as_ref)
                                 .is_some_and(|arm| counts(arm, d.value)),
@@ -1700,12 +1700,7 @@ fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
 
 /// Whether walk `arm` counts the address in value `k`.
 fn counts(arm: &Walk, k: u32) -> bool {
-    match arm {
-        Walk::Ref(x) | Walk::Known(x) => *x == k,
-        Walk::Glue => false,
-        Walk::Seq(ws) => ws.iter().any(|w| counts(w, k)),
-        Walk::Switch(_, arms) => arms.iter().flatten().any(|w| counts(w, k)),
-    }
+    arm.indices(true).contains(&k)
 }
 
 /// The one value instruction `k` of `b` uses only to decide on its tag
