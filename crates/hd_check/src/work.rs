@@ -209,6 +209,30 @@ pub(crate) fn held_type() {
     });
 }
 
+thread_local! {
+    static DECISION_ROWS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the matrix rows the match decision trees `run` builds look at
+/// on this thread (`crate::pat`, `Ck::tree`): the rows each step settles,
+/// partitions or splits. Use the driver's serial executor to measure a
+/// whole build.
+pub fn count_decision_rows<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = DECISION_ROWS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = DECISION_ROWS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` rows a decision step looks at.
+pub(crate) fn decision_rows(n: usize) {
+    DECISION_ROWS.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::{count_join_work, join_work};

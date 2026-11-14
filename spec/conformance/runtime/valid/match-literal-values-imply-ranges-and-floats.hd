@@ -1,0 +1,22 @@
+# test: a literal column tests each value once, and a value implies the ranges and floats that hold it
+# Spec 06 Match: flow.match.subject.
+# expect-stdout: 10 20 20 30 20 40
+# expect-stdout: 1 1 2 3
+fn pick(a: i32, g: bool) -> i32:
+    match a:
+        1 if g => 10
+        7 => 30
+        0..=5 => 20
+        _ => 40
+
+fn float(x: f64) -> i32:
+    match x:
+        0.0 => 1
+        2.5 => 2
+        _ => 3
+
+pub fn main() -> void $ Console:
+    println(
+        "${pick(1, true)} ${pick(1, false)} ${pick(3, true)} ${pick(7, true)} ${pick(0, false)} ${pick(9, true)}",
+    )
+    println("${float(0.0)} ${float(-0.0)} ${float(2.5)} ${float(1.0)}")

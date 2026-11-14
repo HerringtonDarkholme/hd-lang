@@ -14,7 +14,7 @@ use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, PrimOp, Proj, Ref, Tag, TirSink,
+    BlockMark, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, PrimOp, Proj, Ref, Tag, TirSink,
 };
 use hd_types::{Prim, Ty, TyData, VarKind};
 
@@ -59,6 +59,17 @@ enum Cell<'t> {
     Wild,
     Pat(NodeRef<'t>),
     Some(Option<NodeRef<'t>>),
+}
+
+impl Cell<'_> {
+    /// The syntax a test of this cell is at: its pattern, or none for a
+    /// `.Some` row's test, which no pattern of its own writes.
+    fn at(self) -> NodeIdx {
+        match self {
+            Cell::Pat(p) => p.index(),
+            Cell::Some(_) | Cell::Wild => NodeIdx::NONE,
+        }
+    }
 }
 
 /// The work a match's usefulness pass may still spend
@@ -215,12 +226,10 @@ impl Verdict {
 }
 
 /// A tag switch's rows by the variant each names in the switched
-/// column (row positions in order), the rows with no test there, and
-/// whether the rows name every variant.
+/// column (row positions in order), and the rows with no test there.
 struct Tags {
     by_tag: HashMap<u32, Vec<usize>>,
     wild: Vec<usize>,
-    all: bool,
 }
 
 /// A row of a decision matrix: a cell per column, the stores its
@@ -240,6 +249,83 @@ impl<'t> DRow<'t> {
     }
 }
 
+/// A step left on [`Ck::tree`]'s work stack.
+enum Step<'t> {
+    /// The tree of a matrix over its columns, into the open block.
+    Tree(Vec<(Ref, Ty)>, Vec<DRow<'t>>),
+    /// A guarded leaf whose fail side is built: close that side and emit
+    /// the `Guard` choosing between the arm's block `to` and it.
+    Guard { g: Ref, to: Ref, fail: BlockMark },
+    /// The next step of a test chain.
+    Chain(Box<Chain<'t>>),
+}
+
+/// A chain of tests on one value, each in the fail block of the one
+/// before: a `SwitchTag` per variant a column names, or an `If` per
+/// literal or range ([`Ck::chain`]). Each case's tree, then the rest's
+/// tree in the last fail block, is built from the work stack.
+struct Chain<'t> {
+    /// The value tested.
+    v: Ref,
+    /// The cases left.
+    links: Links<'t>,
+    /// The columns of the matrix the chain splits.
+    occs: Vec<(Ref, Ty)>,
+    /// The case whose tree is being built: its test, its block, its
+    /// syntax.
+    open: Option<(Head, BlockMark, NodeIdx)>,
+    /// Each case built: its test, its block, its syntax and its fail
+    /// block, still open.
+    fails: Vec<(Head, Ref, NodeIdx, BlockMark)>,
+    /// What the last fail block holds.
+    rest: Rest<'t>,
+}
+
+/// The cases a [`Chain`] has left.
+enum Links<'t> {
+    /// Each literal or range test and the rows its passing leaves, over
+    /// the chain's columns; the value has type `t`.
+    Lit {
+        t: Ty,
+        cases: std::vec::IntoIter<(NodeRef<'t>, Vec<DRow<'t>>)>,
+    },
+    /// Each variant column `j` names, with its field types and syntax;
+    /// a variant's rows are specialized from `m` when its case starts.
+    Tag {
+        named: std::vec::IntoIter<(u32, Vec<Ty>, NodeIdx)>,
+        tags: Tags,
+        m: Vec<DRow<'t>>,
+        j: usize,
+        is_option: bool,
+    },
+}
+
+/// The test of a [`Chain`] case: an `If` on a condition, or a
+/// `SwitchTag` case on a variant.
+enum Head {
+    If(Ref),
+    Tag(u32),
+}
+
+/// What a [`Chain`]'s last fail block holds.
+enum Rest<'t> {
+    /// The tree of these rows over these columns.
+    Tree(Vec<(Ref, Ty)>, Vec<DRow<'t>>),
+    /// `Unreachable`: the cases cover every value.
+    Unreachable,
+    /// Already built.
+    Built,
+}
+
+/// The one value a literal pattern names ([`Ck::lit_key`]).
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum LitKey {
+    Int(i128),
+    Str(String),
+    Ctor(String),
+    Flt(u64),
+}
+
 /// What a literal test passing or failing tells of another literal or
 /// range pattern on the same value: passing implies it matches
 /// (`implied`) or that it does not (`excluded`); failing implies it does
@@ -255,6 +341,13 @@ struct Rel {
 /// rows after it are never tried.
 fn done(rows: &[Row<'_>], r: &DRow<'_>) -> bool {
     rows[r.row].guard.is_none() && r.cells.iter().all(|c| matches!(c, Cell::Wild))
+}
+
+/// The literal or range pattern a cell tests, if it tests one.
+fn literal_cell(c: Cell<'_>) -> Option<NodeRef<'_>> {
+    let Cell::Pat(p) = c else { return None };
+    let kind = p.kind();
+    (kind == SyntaxKind::LiteralPattern || kind == SyntaxKind::RangePattern).then_some(p)
 }
 
 /// Records the store into the local that the pattern node `at` binds.
@@ -1259,7 +1352,7 @@ impl Ck<'_, '_> {
             })
             .collect();
         let mut lits = HashMap::default();
-        self.tree(rows, &[(v, t)], m, &mut lits)
+        self.tree(rows, vec![(v, t)], m, &mut lits)
     }
 
     /// The decision tree of matrix `m`, whose columns test the values
@@ -1267,69 +1360,125 @@ impl Ck<'_, '_> {
     /// first row's first column with a test decides, and each outcome
     /// continues with the rows it leaves, so no test repeats on a path.
     /// A row with no test left is a leaf: its bindings, its guard, its arm.
+    ///
+    /// The tree is built from a work stack, not native recursion, so a
+    /// match of many arms, which nests one test per arm, does not deepen
+    /// the stack. Each step costs the rows it splits: a literal column is
+    /// partitioned by value once ([`Self::literal_chain`]), not filtered
+    /// again for each test.
     fn tree<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
-        mut m: Vec<DRow<'t>>,
+        occs: Vec<(Ref, Ty)>,
+        m: Vec<DRow<'t>>,
         lits: &mut HashMap<NodeIdx, P>,
     ) -> StageResult<()> {
-        self.charge()?;
-        for r in &mut m {
-            self.settle(&rows[r.row], occs, r);
-        }
-        // Rows after one that matches everything are never tried.
-        if let Some(k) = m.iter().position(|r| done(rows, r)) {
-            m.truncate(k + 1);
-        }
-        let Some(first) = m.first() else {
-            self.b
-                .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
-            return Ok(());
-        };
-        let Some(j) = first.cells.iter().position(|c| !matches!(c, Cell::Wild)) else {
-            return self.leaf(rows, occs, m, lits);
-        };
-        // Struct and tuple patterns project their places directly. They
-        // need no whole-value read merely to find their fields.
-        if let Cell::Pat(p) = first.cells[j] {
-            match p.kind() {
-                SyntaxKind::TuplePattern => {
-                    let (occs, m) = self.expand_tuple(rows, occs, m, j);
-                    return self.tree(rows, &occs, m, lits);
+        let mut stack = vec![Step::Tree(occs, m)];
+        while let Some(step) = stack.pop() {
+            match step {
+                Step::Tree(occs, m) => self.matrix(rows, occs, m, lits, &mut stack)?,
+                Step::Guard { g, to, fail } => {
+                    let fail = self.b.close_block(fail, None, Ty::NEVER, NodeIdx::NONE);
+                    let rec = self.b.refs_record(&[to, fail]);
+                    self.b.emit(Tag::Guard, g.0, rec, Ty::NEVER, NodeIdx::NONE);
                 }
-                SyntaxKind::DataPattern => {
-                    let (occs, m) = self.expand_data(rows, occs, m, j);
-                    return self.tree(rows, &occs, m, lits);
-                }
-                _ => {}
+                Step::Chain(c) => self.chain(rows, c, &mut stack)?,
             }
         }
-        // `ref.match.read`: every name bound to this column was set by
-        // `settle`, so the test reads the value the reference refers to.
-        if self.ref_of(occs[j].1).is_some() {
-            let at = match first.cells[j] {
-                Cell::Pat(p) => p.index(),
-                Cell::Some(_) | Cell::Wild => NodeIdx::NONE,
+        Ok(())
+    }
+
+    /// One matrix of [`Self::tree`]: its tree goes into the open block,
+    /// the trees of its outcomes onto `stack`. Rows from `start` on are
+    /// the matrix left: a guarded leaf's fail side is the rows below it,
+    /// already settled, so a chain of guarded arms costs one step each.
+    fn matrix<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        mut occs: Vec<(Ref, Ty)>,
+        mut m: Vec<DRow<'t>>,
+        lits: &mut HashMap<NodeIdx, P>,
+        stack: &mut Vec<Step<'t>>,
+    ) -> StageResult<()> {
+        let mut start = 0;
+        let mut settled = false;
+        loop {
+            self.charge()?;
+            if !settled {
+                crate::work::decision_rows(m.len());
+                for r in &mut m {
+                    self.settle(&rows[r.row], &occs, r);
+                }
+                // Rows after one that matches everything are never tried.
+                if let Some(k) = m.iter().position(|r| done(rows, r)) {
+                    m.truncate(k + 1);
+                }
+                settled = true;
+            }
+            let Some(first) = m.get(start) else {
+                self.b
+                    .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+                return Ok(());
             };
-            let (mut v, mut t) = occs[j];
-            while self.ref_of(t).is_some() {
-                (v, t) = self.emit_deref(v, t, at);
+            let Some(j) = first.cells.iter().position(|c| !matches!(c, Cell::Wild)) else {
+                match self.leaf(rows, first) {
+                    Some(guard) => {
+                        stack.push(guard);
+                        start += 1;
+                        continue;
+                    }
+                    None => return Ok(()),
+                }
+            };
+            m.drain(..start);
+            start = 0;
+            let first = &m[0];
+            // Struct and tuple patterns project their places directly. They
+            // need no whole-value read merely to find their fields.
+            if let Cell::Pat(p) = first.cells[j] {
+                match p.kind() {
+                    SyntaxKind::TuplePattern => {
+                        (occs, m) = self.expand_tuple(rows, &occs, m, j);
+                        settled = false;
+                        continue;
+                    }
+                    SyntaxKind::DataPattern => {
+                        (occs, m) = self.expand_data(rows, &occs, m, j);
+                        settled = false;
+                        continue;
+                    }
+                    _ => {}
+                }
             }
-            let occs = splice(occs, j, [(v, t)]);
-            return self.tree(rows, &occs, m, lits);
-        }
-        match first.cells[j] {
-            Cell::Pat(p) => match p.kind() {
-                SyntaxKind::VariantPattern => self.switch(rows, occs, &m, j, lits),
-                SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {
-                    self.test(rows, occs, m, j, p, lits)
+            // `ref.match.read`: every name bound to this column was set by
+            // `settle`, so the test reads the value the reference refers to.
+            if self.ref_of(occs[j].1).is_some() {
+                let at = first.cells[j].at();
+                let (mut v, mut t) = occs[j];
+                while self.ref_of(t).is_some() {
+                    (v, t) = self.emit_deref(v, t, at);
                 }
-                other => {
-                    unreachable!("settle and tuple/data expansion leave only tests: {other:?}")
-                }
-            },
-            Cell::Some(_) | Cell::Wild => self.switch(rows, occs, &m, j, lits),
+                occs[j] = (v, t);
+                settled = false;
+                continue;
+            }
+            let chain = match first.cells[j] {
+                Cell::Pat(p) => match p.kind() {
+                    SyntaxKind::VariantPattern => self.switch(occs, m, j),
+                    SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {
+                        self.literal_chain(rows, occs, m, j, p, lits)
+                    }
+                    other => {
+                        // ruled out: `settle` turns every other pattern a
+                        // column holds into `Wild`, and tuple and data
+                        // patterns are expanded above.
+                        unreachable!("settle and tuple/data expansion leave only tests: {other:?}")
+                    }
+                },
+                Cell::Some(_) | Cell::Wild => self.switch(occs, m, j),
+            };
+            stack.push(Step::Chain(Box::new(chain)));
+            return Ok(());
         }
     }
 
@@ -1359,16 +1508,11 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The first row has no test left: set its bindings, then its guard
-    /// chooses between its arm and the rows below.
-    fn leaf<'t>(
-        &mut self,
-        rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
-        mut m: Vec<DRow<'t>>,
-        lits: &mut HashMap<NodeIdx, P>,
-    ) -> StageResult<()> {
-        let first = m.remove(0);
+    /// The row `first` has no test left: set its bindings, then its
+    /// guard chooses between its arm and the rows below, whose tree goes
+    /// into the fail block this leaves open; the step that closes it is
+    /// returned.
+    fn leaf<'t>(&mut self, rows: &[Row<'t>], first: &DRow<'t>) -> Option<Step<'t>> {
         for &(l, v, at) in &first.sets {
             let v = match self.ref_bound.get(&l) {
                 Some(&mutable) => self.payload_ref(l, v, mutable, at).unwrap_or(v),
@@ -1377,24 +1521,17 @@ impl Ck<'_, '_> {
             self.set_local(l, v, at);
         }
         let row = &rows[first.row];
-        match row.guard {
-            Some(g) => {
-                let to = self.b.open_block();
-                self.b
-                    .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
-                let tob = self.b.close_block(to, None, Ty::NEVER, NodeIdx::NONE);
-                let fb = self.b.open_block();
-                self.tree(rows, occs, m, lits)?;
-                let fail = self.b.close_block(fb, None, Ty::NEVER, NodeIdx::NONE);
-                let rec = self.b.refs_record(&[tob, fail]);
-                self.b.emit(Tag::Guard, g.0, rec, Ty::NEVER, NodeIdx::NONE);
-            }
-            None => {
-                self.b
-                    .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
-            }
-        }
-        Ok(())
+        let Some(g) = row.guard else {
+            self.b
+                .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
+            return None;
+        };
+        let to = self.b.open_block();
+        self.b
+            .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
+        let to = self.b.close_block(to, None, Ty::NEVER, NodeIdx::NONE);
+        let fail = self.b.open_block();
+        Some(Step::Guard { g, to, fail })
     }
 
     /// `ref.match.borrow`: the reference a binding below a local reference
@@ -1623,15 +1760,9 @@ impl Ck<'_, '_> {
     /// variant leaves, with the variant's fields as new columns. The
     /// last default holds the rows with no test there, or is
     /// `Unreachable` when the rows name every variant.
-    fn switch<'t>(
-        &mut self,
-        rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
-        m: &[DRow<'t>],
-        j: usize,
-        lits: &mut HashMap<NodeIdx, P>,
-    ) -> StageResult<()> {
-        let t = occs[j].1;
+    fn switch<'t>(&mut self, occs: Vec<(Ref, Ty)>, m: Vec<DRow<'t>>, j: usize) -> Chain<'t> {
+        crate::work::decision_rows(m.len());
+        let (v, t) = occs[j];
         let mut named: Vec<(u32, Vec<Ty>, NodeIdx)> = Vec::new();
         let mut seen = HashSet::default();
         // Each row's variant, looked up once: by variant, the rows that
@@ -1639,17 +1770,18 @@ impl Ck<'_, '_> {
         let mut by_tag: HashMap<u32, Vec<usize>> = HashMap::default();
         let mut wild = Vec::new();
         for (i, r) in m.iter().enumerate() {
-            let (name, at) = match r.cells[j] {
+            let name = match r.cells[j] {
                 Cell::Wild => {
                     wild.push(i);
                     continue;
                 }
-                Cell::Some(_) => ("Some".to_owned(), NodeIdx::NONE),
+                Cell::Some(_) => "Some".to_owned(),
                 Cell::Pat(p) if p.kind() == SyntaxKind::VariantPattern => {
-                    (self.variant_pattern_name(p), p.index())
+                    self.variant_pattern_name(p)
                 }
                 Cell::Pat(_) => continue,
             };
+            let at = r.cells[j].at();
             // `Some(..)` is the variant at index 1 whether or not the
             // column's type names it.
             let found = self.variant_fields(t, &name);
@@ -1667,149 +1799,359 @@ impl Ck<'_, '_> {
             }
         }
         let all = self.ctors(t).is_some_and(|c| c.len() == named.len());
-        let tags = Tags { by_tag, wild, all };
-        self.switch_from(rows, occs, m, j, &named, &tags, lits)
+        let rest = if all {
+            Rest::Unreachable
+        } else {
+            let rest = wild
+                .iter()
+                .map(|&i| m[i].clone().with_column(j, []))
+                .collect();
+            Rest::Tree(splice(&occs, j, []), rest)
+        };
+        let is_option = self.option_arg(self.strip(t)).is_some();
+        Chain {
+            v,
+            links: Links::Tag {
+                named: named.into_iter(),
+                tags: Tags { by_tag, wild },
+                m,
+                j,
+                is_option,
+            },
+            occs,
+            open: None,
+            fails: Vec::new(),
+            rest,
+        }
     }
 
-    /// The `SwitchTag` chain of [`Self::switch`]: each variant's test
-    /// sits in the fail block of the one before it. The chain is built
-    /// in a loop, its fail blocks closed from the innermost out, so a
-    /// match over many variants does not recurse once per variant.
-    fn switch_from<'t>(
+    /// One step of a test chain ([`Chain`]): close the case whose tree is
+    /// built and open the fail block after it, then start the next case,
+    /// or the rest once every case is started, or close the fail blocks,
+    /// innermost first, once the rest is built. The chain is a loop over
+    /// its cases, so a match over many variants or values does not
+    /// recurse once per case.
+    fn chain<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        mut c: Box<Chain<'t>>,
+        stack: &mut Vec<Step<'t>>,
+    ) -> StageResult<()> {
+        if let Some((head, mark, at)) = c.open.take() {
+            let ok = self.b.close_block(mark, None, Ty::NEVER, at);
+            c.fails.push((head, ok, at, self.b.open_block()));
+        }
+        let case = match &mut c.links {
+            Links::Lit { t, cases } => match cases.next() {
+                Some((p, yes)) => {
+                    if !c.fails.is_empty() {
+                        // The `else` side's tree, which a chain enters
+                        // directly.
+                        self.charge()?;
+                    }
+                    let cond = self.literal_test(p, c.v, *t)?;
+                    let mark = self.b.open_block();
+                    Some((Head::If(cond), mark, p.index(), c.occs.clone(), yes))
+                }
+                None => None,
+            },
+            Links::Tag {
+                named,
+                tags,
+                m,
+                j,
+                is_option,
+            } => match named.next() {
+                Some((idx, fs, at)) => {
+                    let mark = self.b.open_block();
+                    let (occs, m) =
+                        self.variant_case(rows, &c.occs, m, *j, (idx, &fs), tags, *is_option);
+                    Some((Head::Tag(idx), mark, at, occs, m))
+                }
+                None => None,
+            },
+        };
+        if let Some((head, mark, at, occs, m)) = case {
+            c.open = Some((head, mark, at));
+            stack.push(Step::Chain(c));
+            stack.push(Step::Tree(occs, m));
+            return Ok(());
+        }
+        match std::mem::replace(&mut c.rest, Rest::Built) {
+            Rest::Tree(occs, m) => {
+                stack.push(Step::Chain(c));
+                stack.push(Step::Tree(occs, m));
+                return Ok(());
+            }
+            Rest::Unreachable => {
+                self.b
+                    .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+            }
+            Rest::Built => {}
+        }
+        while let Some((head, ok, at, fb)) = c.fails.pop() {
+            let fail = self.b.close_block(fb, None, Ty::NEVER, at);
+            match head {
+                Head::If(cond) => {
+                    let rec = self.b.refs_record(&[ok, fail]);
+                    self.b.emit(Tag::If, cond.0, rec, Ty::NEVER, at);
+                }
+                Head::Tag(idx) => {
+                    let rec = self.b.refs_record(&[Ref(idx), ok, fail]);
+                    self.b.emit(Tag::SwitchTag, c.v.0, rec, Ty::NEVER, at);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The rows the variant `idx` of switch column `j` leaves, with its
+    /// fields `fs` as new columns, each read once in the open block.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one case of a switch: its columns, rows, variant and tags"
+    )]
+    fn variant_case<'t>(
         &mut self,
         rows: &[Row<'t>],
         occs: &[(Ref, Ty)],
         m: &[DRow<'t>],
         j: usize,
-        named: &[(u32, Vec<Ty>, NodeIdx)],
+        (idx, fs): (u32, &[Ty]),
         tags: &Tags,
-        lits: &mut HashMap<NodeIdx, P>,
-    ) -> StageResult<()> {
+        is_option: bool,
+    ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
         let (v, t) = occs[j];
-        let is_option = self.option_arg(self.strip(t)).is_some();
-        let mut fails = Vec::with_capacity(named.len());
-        for (idx, fs, at) in named {
-            let (idx, at) = (*idx, *at);
-            let ok = self.b.open_block();
-            let mut picked = tags.by_tag.get(&idx).cloned().unwrap_or_default();
-            picked.extend_from_slice(&tags.wild);
-            picked.sort_stable();
-            let mut spec: Vec<(DRow<'t>, Vec<Option<NodeRef<'t>>>)> = Vec::new();
-            for i in picked {
-                let r = &m[i];
-                let subs = match r.cells[j] {
-                    Cell::Wild => Vec::new(),
-                    Cell::Some(p) => vec![p],
-                    Cell::Pat(p) => {
-                        let name = self.variant_pattern_name(p);
-                        self.variant_subpatterns(p, t, &name).0
-                    }
-                };
-                spec.push((r.clone(), subs));
-            }
-            let mut cols = Vec::new();
-            for (f, &ft) in fs.iter().enumerate() {
-                let Some(s) = spec
-                    .iter()
-                    .filter_map(|(_, s)| s.get(f).copied().flatten())
-                    .find(|s| reads(*s))
-                else {
-                    continue;
-                };
-                let (variant, field) = if is_option {
-                    (1, 0)
-                } else {
-                    (idx, u32::try_from(f).unwrap_or(0))
-                };
-                let borrowed = self.borrowed_column(
-                    rows,
-                    spec.iter().filter_map(|(r, subs)| {
-                        subs.get(f)
-                            .copied()
-                            .flatten()
-                            .map(|pattern| (r.row, pattern))
-                    }),
-                );
-                let reference = borrowed.and_then(|(ty, mutable)| {
-                    self.pattern_place_ref(
-                        TirPlace {
-                            root: PlaceRoot::Value(v),
-                            proj: vec![Proj::Variant(variant), Proj::Field(field)],
-                        },
-                        ty,
-                        mutable,
-                        s.index(),
-                    )
-                    .map(|r| (r, ty))
-                });
-                let value = reference
-                    .unwrap_or_else(|| (self.b.payload(v, variant, field, ft, s.index()), ft));
-                cols.push((f, value));
-            }
-            let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
-            let m_in = spec
-                .into_iter()
-                .map(|(r, s)| {
-                    r.with_column(
-                        j,
-                        cols.iter().map(|(f, _)| {
-                            s.get(*f).copied().flatten().map_or(Cell::Wild, Cell::Pat)
-                        }),
-                    )
-                })
-                .collect();
-            self.tree(rows, &occs_in, m_in, lits)?;
-            let okb = self.b.close_block(ok, None, Ty::NEVER, at);
-            fails.push((idx, okb, at, self.b.open_block()));
+        let mut picked = tags.by_tag.get(&idx).cloned().unwrap_or_default();
+        picked.extend_from_slice(&tags.wild);
+        picked.sort_stable();
+        crate::work::decision_rows(picked.len());
+        let mut spec: Vec<(DRow<'t>, Vec<Option<NodeRef<'t>>>)> = Vec::new();
+        for i in picked {
+            let r = &m[i];
+            let subs = match r.cells[j] {
+                Cell::Wild => Vec::new(),
+                Cell::Some(p) => vec![p],
+                Cell::Pat(p) => {
+                    let name = self.variant_pattern_name(p);
+                    self.variant_subpatterns(p, t, &name).0
+                }
+            };
+            spec.push((r.clone(), subs));
         }
-        if tags.all {
-            self.b
-                .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
-        } else {
-            let rest = tags
-                .wild
+        let mut cols = Vec::new();
+        for (f, &ft) in fs.iter().enumerate() {
+            let Some(s) = spec
                 .iter()
-                .map(|&i| m[i].clone().with_column(j, []))
-                .collect();
-            self.tree(rows, &splice(occs, j, []), rest, lits)?;
+                .filter_map(|(_, s)| s.get(f).copied().flatten())
+                .find(|s| reads(*s))
+            else {
+                continue;
+            };
+            let (variant, field) = if is_option {
+                (1, 0)
+            } else {
+                (idx, u32::try_from(f).unwrap_or(0))
+            };
+            let borrowed = self.borrowed_column(
+                rows,
+                spec.iter().filter_map(|(r, subs)| {
+                    subs.get(f)
+                        .copied()
+                        .flatten()
+                        .map(|pattern| (r.row, pattern))
+                }),
+            );
+            let reference = borrowed.and_then(|(ty, mutable)| {
+                self.pattern_place_ref(
+                    TirPlace {
+                        root: PlaceRoot::Value(v),
+                        proj: vec![Proj::Variant(variant), Proj::Field(field)],
+                    },
+                    ty,
+                    mutable,
+                    s.index(),
+                )
+                .map(|r| (r, ty))
+            });
+            let value =
+                reference.unwrap_or_else(|| (self.b.payload(v, variant, field, ft, s.index()), ft));
+            cols.push((f, value));
         }
-        while let Some((idx, okb, at, fb)) = fails.pop() {
-            let fail = self.b.close_block(fb, None, Ty::NEVER, at);
-            let rec = self.b.refs_record(&[Ref(idx), okb, fail]);
-            self.b.emit(Tag::SwitchTag, v.0, rec, Ty::NEVER, at);
-        }
-        Ok(())
+        let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
+        let m_in = spec
+            .into_iter()
+            .map(|(r, s)| {
+                r.with_column(
+                    j,
+                    cols.iter()
+                        .map(|(f, _)| s.get(*f).copied().flatten().map_or(Cell::Wild, Cell::Pat)),
+                )
+            })
+            .collect();
+        (occs_in, m_in)
     }
 
-    /// A literal or range test of the first row's pattern `p0` in column
-    /// `j`: the `then` side keeps the rows that may still match, with no
-    /// test left where `p0` passing implies theirs; the `else` side drops
-    /// the rows whose test `p0` failing decides.
-    fn test<'t>(
+    /// The literal or range tests of column `j`, starting with the first
+    /// row's pattern `p0`, as a chain of `If`s, each in the `else` side of
+    /// the one before. A test's `then` side keeps the rows that may still
+    /// match, with no test left where its passing implies theirs; its
+    /// `else` side drops the rows its failing decides.
+    ///
+    /// When `p0` is a known value, the column is partitioned by value in
+    /// one pass: the chain tests each value in the order the rows first
+    /// name it, while the next row left names a new value in this column
+    /// and tests nothing before it. A value's `then` side is the rows
+    /// naming it merged in order with the rows naming no known value
+    /// there; rows naming another value are excluded, and rows naming a
+    /// tested value are gone from every later side. So a flat match of n
+    /// literal arms costs n plus the sides it builds, not n² / 2. A range
+    /// or an opaque literal at the head is one test over every row.
+    fn literal_chain<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
+        occs: Vec<(Ref, Ty)>,
         m: Vec<DRow<'t>>,
         j: usize,
         p0: NodeRef<'t>,
         lits: &mut HashMap<NodeIdx, P>,
-    ) -> StageResult<()> {
+    ) -> Chain<'t> {
         let (v, t) = occs[j];
-        let cond = self.literal_test(p0, v, t)?;
+        let test_at = |r: &DRow<'t>| literal_cell(r.cells[j]);
+        crate::work::decision_rows(m.len());
+        // Each row's known value in this column, by the value's class.
+        let mut keys: Vec<Option<usize>> = Vec::with_capacity(m.len());
+        let mut class: HashMap<LitKey, usize> = HashMap::default();
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        let mut other: Vec<usize> = Vec::new();
+        for (i, r) in m.iter().enumerate() {
+            let key = test_at(r).and_then(|p| self.lit_key(p, t, lits));
+            let k = key.map(|key| {
+                let n = class.len();
+                let k = *class.entry(key).or_insert(n);
+                if k == groups.len() {
+                    groups.push(Vec::new());
+                }
+                groups[k].push(i);
+                k
+            });
+            if k.is_none() {
+                other.push(i);
+            }
+            keys.push(k);
+        }
+        // The chain: the classes of the rows that head each `else` side,
+        // the first row's first. A row of a tested class is gone there.
+        let mut tested = vec![false; groups.len()];
+        let mut chain: Vec<(usize, NodeRef<'t>)> = Vec::new();
+        for (r, &key) in m.iter().zip(&keys) {
+            match key {
+                Some(k) if tested[k] => {}
+                Some(k) if r.cells[..j].iter().all(|c| matches!(c, Cell::Wild)) => {
+                    tested[k] = true;
+                    chain.push((k, test_at(r).unwrap_or(p0)));
+                }
+                _ => break,
+            }
+        }
+        if chain.is_empty() {
+            // `p0` is a range or an opaque literal: one test.
+            let (yes, no) = self.literal_sides(rows, m, j, p0, t, lits);
+            return Chain {
+                v,
+                links: Links::Lit {
+                    t,
+                    cases: vec![(p0, yes)].into_iter(),
+                },
+                occs: occs.clone(),
+                open: None,
+                fails: Vec::new(),
+                rest: Rest::Tree(occs, no),
+            };
+        }
+        let mut cases = Vec::with_capacity(chain.len());
+        for &(k, p) in &chain {
+            crate::work::decision_rows(groups[k].len() + other.len());
+            let mut yes = Vec::new();
+            let mut yes_done = false;
+            // The rows naming this value, merged in order with the rows
+            // naming none; those of the latter this test's failing leaves
+            // stay for the next side, from `other[..kept]`.
+            let mut named = groups[k].iter().copied().peekable();
+            let mut kept = 0;
+            for b in 0..=other.len() {
+                let next = other.get(b).copied();
+                while let Some(i) = named.next_if(|&i| next.is_none_or(|o| i < o)) {
+                    if !yes_done {
+                        let mut r = m[i].clone();
+                        r.cells[j] = Cell::Wild;
+                        yes_done = done(rows, &r);
+                        yes.push(r);
+                    }
+                }
+                let Some(i) = next else { break };
+                let rel = match test_at(&m[i]) {
+                    Some(q) => self.lit_rel(q, p, t, lits),
+                    None => Rel::default(),
+                };
+                if !rel.covered {
+                    other[kept] = i;
+                    kept += 1;
+                }
+                if !yes_done && (rel.implied || !rel.excluded) {
+                    let mut r = m[i].clone();
+                    if rel.implied {
+                        r.cells[j] = Cell::Wild;
+                    }
+                    yes_done = done(rows, &r);
+                    yes.push(r);
+                }
+            }
+            other.truncate(kept);
+            cases.push((p, yes));
+        }
+        let no = m
+            .into_iter()
+            .enumerate()
+            .filter(|&(i, _)| match keys[i] {
+                Some(k) => !tested[k],
+                None => other.binary_search(&i).is_ok(),
+            })
+            .map(|(_, r)| r)
+            .collect();
+        Chain {
+            v,
+            links: Links::Lit {
+                t,
+                cases: cases.into_iter(),
+            },
+            occs: occs.clone(),
+            open: None,
+            fails: Vec::new(),
+            rest: Rest::Tree(occs, no),
+        }
+    }
+
+    /// The sides of one literal or range test of `p0` in column `j`: the
+    /// rows that may still match when it passes, with no test left where
+    /// its passing implies theirs, and the rows its failing leaves.
+    fn literal_sides<'t>(
+        &self,
+        rows: &[Row<'t>],
+        m: Vec<DRow<'t>>,
+        j: usize,
+        p0: NodeRef<'t>,
+        t: Ty,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> (Vec<DRow<'t>>, Vec<DRow<'t>>) {
+        crate::work::decision_rows(m.len());
         let mut yes = Vec::new();
         let mut no = Vec::new();
         let mut yes_done = false;
         for r in m {
-            let rel = match r.cells[j] {
-                Cell::Pat(p)
-                    if matches!(
-                        p.kind(),
-                        SyntaxKind::LiteralPattern | SyntaxKind::RangePattern
-                    ) =>
-                {
-                    self.lit_rel(p, p0, t, lits)
-                }
-                _ => Rel::default(),
+            let rel = match literal_cell(r.cells[j]) {
+                Some(p) => self.lit_rel(p, p0, t, lits),
+                None => Rel::default(),
             };
             let to_yes = !yes_done && (rel.implied || !rel.excluded);
             if !rel.covered {
@@ -1829,15 +2171,31 @@ impl Ck<'_, '_> {
                 yes.push(r);
             }
         }
-        let then = self.b.open_block();
-        self.tree(rows, occs, yes, lits)?;
-        let tb = self.b.close_block(then, None, Ty::NEVER, p0.index());
-        let fb = self.b.open_block();
-        self.tree(rows, occs, no, lits)?;
-        let eb = self.b.close_block(fb, None, Ty::NEVER, p0.index());
-        let rec = self.b.refs_record(&[tb, eb]);
-        self.b.emit(Tag::If, cond.0, rec, Ty::NEVER, p0.index());
-        Ok(())
+        (yes, no)
+    }
+
+    /// The one value a literal pattern names, when known: two patterns
+    /// with one key match the same values, two with different keys no
+    /// common value. A float's key is its bits, `-0.0` taken as `0.0`,
+    /// since the two compare equal; a range is no key.
+    fn lit_key(&self, p: NodeRef<'_>, t: Ty, lits: &mut HashMap<NodeIdx, P>) -> Option<LitKey> {
+        if p.kind() != SyntaxKind::LiteralPattern {
+            return None;
+        }
+        let value = lits
+            .entry(p.index())
+            .or_insert_with(|| self.to_p(Some(p), t));
+        match value {
+            P::Int(lo, hi) if lo == hi => Some(LitKey::Int(*lo)),
+            P::Str(s) => Some(LitKey::Str(s.clone())),
+            P::Ctor(name, args) if args.is_empty() => Some(LitKey::Ctor(name.clone())),
+            P::Flt(bits) => Some(LitKey::Flt(if f64::from_bits(*bits) == 0.0 {
+                0
+            } else {
+                *bits
+            })),
+            _ => None,
+        }
     }
 
     /// What `p0` passing or failing tells of pattern `p` over the same

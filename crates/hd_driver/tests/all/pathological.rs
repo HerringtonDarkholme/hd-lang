@@ -817,26 +817,132 @@ fn flat_struct_match(n: usize) -> String {
     s
 }
 
-/// `check_fuel` on the compiler worker's stack: the decision tree of a
-/// flat literal column nests one test per arm (`Ck::tree`), deeper than a
-/// test thread's stack at 10,000 arms.
-fn check_fuel_on_worker_stack(generate: fn(usize) -> String, small: usize, large: usize) {
+/// Runs `run` on a thread with a test thread's default stack, 2 MiB.
+fn on_test_stack(run: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
-        .stack_size(hd_sched::pool::WORKER_STACK)
-        .spawn(move || check_fuel(generate, small, large))
+        .stack_size(2 << 20)
+        .spawn(run)
         .expect("thread")
         .join()
-        .expect("linear checker fuel");
+        .expect("no stack overflow");
 }
 
 #[test]
 fn flat_tuple_match_usefulness_checker_fuel() {
-    check_fuel_on_worker_stack(flat_tuple_match, 1000, 10_000);
+    on_test_stack(|| check_fuel(flat_tuple_match, 1000, 10_000));
 }
 
 #[test]
 fn flat_struct_match_usefulness_checker_fuel() {
-    check_fuel_on_worker_stack(flat_struct_match, 1000, 10_000);
+    on_test_stack(|| check_fuel(flat_struct_match, 1000, 10_000));
+}
+
+// Checker: #1845, a match's decision tree is built from a work stack, and
+// a literal column is partitioned by value once, so a flat literal match
+// costs its arms, not n² / 2, and nests no native call per arm. Before,
+// 3,000 literal arms overflowed a test thread's stack and 50,000 aborted
+// `hd check`.
+/// `n` integer literal arms, and a final `_`.
+fn literal_match(n: usize) -> String {
+    let mut s = String::from("fn run(a: i32) -> i32:\n    match a:\n");
+    for k in 0..n {
+        let _ = writeln!(s, "        {k} => {}", k % 7);
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
+/// `n` string literal arms, and a final `_`.
+fn string_match(n: usize) -> String {
+    let mut s = String::from("fn run(a: string) -> i32:\n    match a:\n");
+    for k in 0..n {
+        let _ = writeln!(s, "        \"k{k}\" => {}", k % 7);
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
+/// `n` guarded arms, each a leaf whose fail side is the arms below.
+fn guarded_match(n: usize) -> String {
+    let mut s = String::from("fn run(a: i32, g: bool) -> i32:\n    match a:\n");
+    for k in 0..n {
+        let _ = writeln!(s, "        _ if g => {k}");
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
+/// `n` arms alternating a literal and a range, which tests one row each.
+fn literal_range_match(n: usize) -> String {
+    let mut s = String::from("fn run(a: i32) -> i32:\n    match a:\n");
+    for k in 0..n / 2 {
+        let _ = writeln!(s, "        {} => {k}", 3 * k);
+        let _ = writeln!(s, "        {}..={} => {k}", 3 * k + 1, 3 * k + 2);
+    }
+    let _ = writeln!(s, "        _ => {n}");
+    s
+}
+
+/// The decision rows a build of `generate(n)` looks at. Its function is
+/// renamed, so no other test's build of the same source answers it from
+/// the store.
+fn decision_rows(generate: fn(usize) -> String, n: usize) -> u64 {
+    let source = generate(n).replace("fn run(", "fn decided(");
+    let (out, rows) = hd_check::work::count_decision_rows(|| compile(&source, &Goal::Analyze));
+    assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
+    rows
+}
+
+/// The decision rows of `generate` at each size grow linearly from the
+/// first, on a test thread's stack.
+fn decision_rows_grow_linearly(generate: fn(usize) -> String, sizes: &'static [usize]) {
+    on_test_stack(move || {
+        // The first build also checks the standard library's bodies.
+        decision_rows(generate, 1);
+        let base = decision_rows(generate, sizes[0]);
+        for &n in &sizes[1..] {
+            let rows = decision_rows(generate, n);
+            let scale = (n / sizes[0]) as u64;
+            assert!(
+                base > 0 && rows <= scale * base * 5 / 4,
+                "decision rows for {} and {n} arms: {base} and {rows}",
+                sizes[0],
+            );
+        }
+    });
+}
+
+#[test]
+fn literal_match_decisions_grow_linearly() {
+    decision_rows_grow_linearly(literal_match, &[1000, 10_000, 50_000]);
+}
+
+#[test]
+fn string_match_decisions_grow_linearly() {
+    decision_rows_grow_linearly(string_match, &[1000, 10_000, 50_000]);
+}
+
+#[test]
+fn tuple_and_struct_match_decisions_grow_linearly() {
+    decision_rows_grow_linearly(flat_tuple_match, &[1000, 10_000]);
+    decision_rows_grow_linearly(flat_struct_match, &[1000, 10_000]);
+}
+
+#[test]
+fn guarded_match_decisions_grow_linearly() {
+    decision_rows_grow_linearly(guarded_match, &[1000, 10_000, 50_000]);
+}
+
+#[test]
+fn literal_and_range_match_decisions_on_a_test_stack() {
+    // Each range at the head is one test over every row left, so the rows
+    // grow as n² / 4; the work stack keeps the native stack flat.
+    on_test_stack(|| {
+        decision_rows(literal_range_match, 1);
+        let small = decision_rows(literal_range_match, 1000);
+        let large = decision_rows(literal_range_match, 4000);
+        assert!(large <= 16 * small * 5 / 4, "{small} and {large}");
+    });
 }
 
 #[test]

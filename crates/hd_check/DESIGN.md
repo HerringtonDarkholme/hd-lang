@@ -1165,14 +1165,20 @@ shared arm appears once and no pattern is tested twice on a path. The
 first row's first column with a test decides. A variant column is a
 chain of `SwitchTag`s, one per variant the rows name, each over the
 rows that variant specializes to; its default holds the rows with no test there,
-or is `Unreachable` when every variant is named. A literal or range
-column is an `If` on the first row's test, and each side keeps only the
-rows that test leaves possible. Tuple and data columns expand into one
+or is `Unreachable` when every variant is named. A literal column whose
+first row names a known value is partitioned by value in one pass: a
+chain of `If`s, one per value in the order the rows first name it, each
+`then` side the rows naming that value merged in order with the rows
+naming none, the last `else` side the rows left. A range or opaque
+literal at the head is one `If` on that test, and each side keeps only
+the rows it leaves possible. Tuple and data columns expand into one
 column per member that a row reads. A row with no test left is a leaf:
 it sets its bindings, then its guard chooses its arm or the rows below
 it, in source order (`flow.match.guard.*`). A row with no test in a
 switched column repeats under each outcome, as in any decision tree; a
-nested-enum match stays linear in TIR size.
+nested-enum match stays linear in TIR size. The tree is built from a
+work stack, chains and guarded leaves included, so a match of many arms
+nests no native call per arm, and a step costs the rows it splits.
 
 A row is in one class per value its head names, so a flat match of n
 arms over c columns costs about n · c, whether its arms differ in the
@@ -1567,6 +1573,7 @@ Other limits:
 | deep nesting of brackets, blocks and closures | stack overflow | the nesting limit of 160 bounds native recursion |
 | a list literal of 100,000 elements | quadratic LCT or literal grouping | the join compares a value only when the site's type changes, a bounded number of times per site; literal classes are union-find |
 | a 10,000-arm literal, tuple or struct match | quadratic usefulness | one usefulness pass over the matrix (section 7.2) |
+| a 50,000-arm literal match | a decision step per arm filtering every row left, one native frame per arm | a literal column is partitioned by value once, and the tree is built from a work stack (section 7.2) |
 | wide tuple patterns with nested enums | exponential usefulness | the match work limit, `match-too-complex` |
 | nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | the head prefilter; arguments inferred once outside trials; the trial memo (#49); fuel |
 | many pending goals | quadratic retries | a statement settles only its own goals |

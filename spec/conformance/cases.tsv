@@ -5337,6 +5337,7 @@ runtime/valid/local-items-a-local-enum-is-matched.hd	runtime	accept	lang/03-name
 runtime/valid/map-every-map-method-takes-its-declared-parameter-names.hd	runtime	accept	std/collections.md#r-std-collections.map.contains-key
 typing/invalid/map-a-misnamed-map-argument-is-rejected.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.arg.unknown-name
 runtime/valid/match-decision-tree-a-staircase-match-picks-the-first-matching-arm.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.subject
+runtime/valid/match-literal-values-imply-ranges-and-floats.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.subject
 runtime/valid/match-decision-tree-guards-run-in-arm-order-only-after-their-pattern-matches.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.guard.eval
 runtime/valid/member-line-lists-block-with-no-trait-takes-a-name-a-call-and-a-concatenation.hd	runtime	accept	lang/14-annotations.md#member-lines
 runtime/valid/member-line-lists-derivation-block-takes-a-name-a-call-and-a-concatenation.hd	runtime	accept	lang/14-annotations.md#member-lines
