@@ -946,94 +946,106 @@ fn udp_ipv4_socket_to_numeric_ipv6_reports_the_native_error() {
     assert_eq!(result.stderr, expected.as_bytes());
 }
 
-/// A `local_address` result: `.Ok((host, port))`.
-fn address(host: &str, port: u16) -> Vec<u8> {
-    Enc::default().leb(0).str(host).leb(u64::from(port)).0
-}
-
-/// `std-net.local-address`: a listener and a UDP socket report their bound
-/// address, the same bytes on both engines, and `Closed` after close.
+/// `std-net.local-address`: use each live socket's assigned address to
+/// reach that same socket, and report Closed after disposal/close.
 #[test]
 fn local_address_reports_the_bound_address_and_a_closed_handle_is_closed() {
+    use hd_driver::{Executor, Goal, Host, NoClock};
+    use hd_project::MemorySources;
+    use hd_sched::SerialOrder;
+
     let scratch = Scratch::new();
-    // The port is leased as in the accept test above, so both engines
-    // report the same bytes.
-    let tcp = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
-    let udp = UdpSocket::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
-    let mut p = Program::new();
-    open(&mut p, "listen", "127.0.0.1", tcp, vec![0, 1]);
-    handle(
-        &mut p,
-        "TcpListener.local_address",
-        &[1],
-        None,
-        address("127.0.0.1", tcp),
+    // Keep competitors bound through BOTH engine runs. A bind/drop handoff
+    // can lose its port before the guest binds (#1903), then a hard-coded
+    // handle traps after the refused open. Port zero has no such handoff.
+    let occupied_tcp = TcpListener::bind("127.0.0.1:0").unwrap();
+    let occupied_udp = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let source = format!(
+        r#"use std.net.{{Net, NetError, bind_udp, connect, listen}}
+use std.ops.AsyncDisposable
+use std.testing.assert_equal
+
+pub fn main!() -> Result[void, NetError] $ Net + Console:
+    match listen!("127.0.0.1", {busy_tcp}):
+        .Err(.Refused(_)) => ()
+        _ => panic("a competing listener keeps its bound address")
+    match bind_udp!("127.0.0.1", {busy_udp}):
+        .Err(.Refused(_)) => ()
+        _ => panic("a competing UDP socket keeps its bound address")
+
+    using! listener = listen!("127.0.0.1", 0)?
+    listener.set_timeout(.Some(10s))?
+    address := listener.local_address()?
+    assert_equal(address._0, "127.0.0.1", reason="the listener reports its bound host")
+    if address._1 == 0:
+        panic("the listener must report an assigned port")
+    using! client = connect!(address._0, address._1)?
+    using! accepted = listener.accept!()?
+    client.write!("x".to_utf8())?
+    assert_equal(
+        accepted.read!(1)?,
+        "x".to_utf8(),
+        reason="the reported address reaches this listener",
+    )
+    accepted.dispose!()
+    assert_equal(accepted.close(), .Err(.Closed), reason="disposing the stream closes its handle")
+    listener.close()?
+    assert_equal(listener.local_address(), .Err(.Closed), reason="a closed listener reports Closed")
+
+    using! socket = bind_udp!("127.0.0.1", 0)?
+    socket.set_timeout(.Some(10s))?
+    target := socket.local_address()?
+    assert_equal(target._0, "127.0.0.1", reason="the UDP socket reports its bound host")
+    if target._1 == 0:
+        panic("the UDP socket must report an assigned port")
+    socket.send_to!(target._0, target._1, "loop".to_utf8())?
+    packet := socket.receive!(4)?
+    assert_equal(
+        packet.bytes,
+        "loop".to_utf8(),
+        reason="the reported address reaches this UDP socket",
+    )
+    assert_equal(packet.host, target._0, reason="the datagram came from this socket's host")
+    assert_equal(packet.port, target._1, reason="the datagram came from this socket's bound port")
+    socket.close()?
+    assert_equal(socket.local_address(), .Err(.Closed), reason="a closed UDP socket reports Closed")
+    println("bound addresses and closed handles")
+    .Ok(())
+"#,
+        busy_tcp = occupied_tcp.local_addr().unwrap().port(),
+        busy_udp = occupied_udp.local_addr().unwrap().port(),
     );
-    handle(&mut p, "TcpListener.accept", &[1], None, vec![0, 2]);
-    // `std-net.dispose`: a dispose closes an open handle, and one of a
-    // closed handle does nothing.
-    handle(&mut p, "TcpStream.dispose", &[2], None, vec![]);
-    handle(&mut p, "TcpStream.close", &[2], None, vec![1, CLOSED]);
-    handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
-    handle(&mut p, "TcpListener.dispose", &[1], None, vec![]);
-    handle(
-        &mut p,
-        "TcpListener.local_address",
-        &[1],
-        None,
-        vec![1, CLOSED],
+    let mut sources = MemorySources::default();
+    sources.insert("main.hd", &source);
+    let store = hd_cache::MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let built = hd_driver::build(
+        &host,
+        "local-address",
+        &Goal::Program {
+            entry: "main".into(),
+        },
     );
-    open(&mut p, "bind_udp", "127.0.0.1", udp, vec![0, 3]);
-    handle(
-        &mut p,
-        "UdpSocket.local_address",
-        &[3],
-        None,
-        address("127.0.0.1", udp),
-    );
-    handle(&mut p, "UdpSocket.close", &[3], None, vec![0]);
-    handle(
-        &mut p,
-        "UdpSocket.local_address",
-        &[3],
-        None,
-        vec![1, CLOSED],
-    );
-    let clients = Mutex::new(Vec::new());
-    assert_program(&scratch, p, vec![], || {
-        clients.lock().unwrap().push(std::thread::spawn(move || {
-            // The peer polls until the listener appears, and connects to the
-            // address the listener reports.
-            let to = SocketAddr::from(([127, 0, 0, 1], tcp));
-            let deadline = Instant::now() + Duration::from_secs(20);
-            loop {
-                assert!(Instant::now() < deadline, "the listener starts in time");
-                let Ok(mut peer) = TcpStream::connect_timeout(&to, Duration::from_millis(50))
-                else {
-                    std::thread::sleep(Duration::from_millis(5));
-                    continue;
-                };
-                peer.set_read_timeout(Some(Duration::from_secs(10)))
-                    .unwrap();
-                let mut rest = Vec::new();
-                // The guest closes the accepted stream.
-                if peer.read_to_end(&mut rest).is_ok() && rest.is_empty() {
-                    break;
-                }
-            }
-        }));
-    });
-    for client in clients.into_inner().unwrap() {
-        client.join().unwrap();
+    assert!(built.diags.is_empty(), "{}", built.render());
+    let wasm = built.wasm.expect("the local-address regression builds");
+    // #1903's stability check runs on CI too. Compile once; each run opens
+    // fresh sockets on both hosts while the competing addresses stay bound.
+    for run in 0..50 {
+        let ran = parity(&scratch, &wasm, vec![], || {});
+        assert_eq!(ran.status, 0, "run {run}");
+        assert_eq!(
+            ran.stdout, b"bound addresses and closed handles\n",
+            "run {run}"
+        );
+        assert!(ran.stderr.is_empty(), "run {run}: {:?}", ran.stderr);
     }
+    drop((occupied_tcp, occupied_udp));
 }
 
 /// `std-net.local-address`: with port 0 the system picks the port, so each

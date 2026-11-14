@@ -703,7 +703,8 @@ pub fn parity_masked(
     assert_eq!(
         rust.status,
         code,
-        "Node stderr: {}",
+        "Wasmtime stderr: {}\nNode stderr: {}",
+        String::from_utf8_lossy(&rust.stderr),
         String::from_utf8_lossy(&node_stderr)
     );
     assert_eq!(rust.stdout, node_stdout, "stdout differs");
