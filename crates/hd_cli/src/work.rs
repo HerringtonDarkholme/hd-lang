@@ -117,3 +117,52 @@ mod plant {
         std::hint::black_box(sink);
     }
 }
+
+/// The disk cache as a command uses it, with the store's own work kept out
+/// of the counters ([`hd_base::work::uncounted`]): each read, write and
+/// publication, and what its drop does. That work is not a function of the
+/// program: packs are named by the clock and the process id, so a shape
+/// counted a few dozen allocations more in one run than the next (#1969).
+/// What a command does with the bytes, decoding and checking, stays
+/// counted. Cost: two relaxed atomic stores per store call.
+pub(crate) struct Store(Option<hd_cache::disk::DiskStore>);
+
+impl Store {
+    pub(crate) fn new(store: hd_cache::disk::DiskStore) -> Self {
+        Store(Some(store))
+    }
+}
+
+impl std::ops::Deref for Store {
+    type Target = hd_cache::disk::DiskStore;
+    fn deref(&self) -> &Self::Target {
+        // ruled out: the store is taken only by `drop`.
+        self.0.as_ref().expect("the store until its drop")
+    }
+}
+
+impl hd_cache::CacheStore for Store {
+    fn get(
+        &self,
+        kind: hd_cache::EntryKind,
+        key: &hd_base::Hash128,
+    ) -> Option<std::sync::Arc<[u8]>> {
+        hd_base::work::uncounted(|| (**self).get(kind, key))
+    }
+    fn put(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128, bytes: &[u8]) {
+        hd_base::work::uncounted(|| (**self).put(kind, key, bytes));
+    }
+    fn touch(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) {
+        hd_base::work::uncounted(|| (**self).touch(kind, key));
+    }
+    fn put_many(&self, entries: &[(hd_cache::EntryKind, hd_base::Hash128, std::sync::Arc<[u8]>)]) {
+        hd_base::work::uncounted(|| (**self).put_many(entries));
+    }
+}
+
+impl Drop for Store {
+    fn drop(&mut self) {
+        let store = self.0.take();
+        hd_base::work::uncounted(|| drop(store));
+    }
+}

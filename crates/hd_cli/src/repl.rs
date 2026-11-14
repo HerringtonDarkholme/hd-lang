@@ -39,7 +39,6 @@ use std::sync::mpsc;
 use std::time::Instant;
 
 use crate::engine::{EngineKind, HostIo, Ran, ReplSession, SessionStopper};
-use hd_cache::DiskStore;
 use hd_driver::{EngineTarget, Goal, Host, OptLevel};
 use hd_project::SourceSet;
 use hd_run::Outcome;
@@ -560,7 +559,7 @@ struct Repl {
     /// Where the session started, which `:reload` loads its scope from.
     cwd: PathBuf,
     program: disk::Program,
-    store: DiskStore,
+    store: crate::work::Store,
     /// Source/check entries and initialized code ABI of completed inputs.
     metadata: hd_driver::Session,
     /// The number of the last input read (`repl#N`).
@@ -584,7 +583,7 @@ pub(crate) const PIPELINE: crate::Pipeline =
 /// `repl#N:LINE:COL`, are those of input `number` and every error.
 fn build_session(
     program: &disk::Program,
-    store: &DiskStore,
+    store: &crate::work::Store,
     failed: &[u32],
     number: u32,
     target: EngineTarget,

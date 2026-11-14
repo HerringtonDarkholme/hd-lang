@@ -82,6 +82,22 @@ pub fn start() {
     ON.store(true, Ordering::Relaxed);
 }
 
+/// Runs `f` with the signal off, then restores it: work that is not a
+/// function of the program, as the disk cache's file names and its
+/// time-bounded maintenance, stays out of the totals. Process-wide, so a
+/// measured run is serial (`HD_JOBS=1`): another thread's work in the
+/// window is not counted either.
+pub fn uncounted<R>(f: impl FnOnce() -> R) -> R {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ON.store(self.0, Ordering::Relaxed);
+        }
+    }
+    let _restore = Restore(ON.swap(false, Ordering::Relaxed));
+    f()
+}
+
 /// Each counter's name and total so far, in [`Counter::ALL`] order.
 #[must_use]
 pub fn totals() -> Vec<(&'static str, u64)> {
@@ -101,6 +117,7 @@ mod tests {
         add(Counter::Hashes, 5);
         start();
         add(Counter::Control, 2);
+        super::uncounted(|| add(Counter::Control, 7));
         add(Counter::Control, 3);
         let mut set = crate::HashSet::default();
         set.insert(1u32);

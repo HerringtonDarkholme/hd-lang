@@ -13,8 +13,7 @@
 // counters there (crates/hd_base/src/work.rs: allocations and their
 // bytes, table hashes, and every opt-in `work::count_*` site of the
 // compiler). Runs are serial (HD_JOBS=1) from a copy of one warm std
-// cache: the compiler's counters repeat exactly, and allocations vary by
-// a few dozen with file-system names. Subtracting k = 0 leaves the
+// cache: every counter repeats exactly. Subtracting k = 0 leaves the
 // program's own work; a counter whose work grows by more than 4.5x per 4x
 // of the program's bytes, with at least FLOOR units at 4n, is superlinear
 // and fails its line, which names the shape, the command, the counter
@@ -34,8 +33,11 @@
 //
 // Every hd run has a scratch HD_CACHE of its own (`measuredEnv`): a copy
 // of one warm std cache, removed with the run's directory, never the
-// default cache. Cache work still allocates and hashes, so it is in the
-// counters, as the same constant at every size.
+// default cache. The store's own work is not counted (`hd`'s
+// `work::Store`): it names packs by the clock and the process id and
+// stops maintenance at a deadline, so it moved one shape's count by
+// dozens of allocations between two runs of one compiler (#1969). The
+// work of decoding what it returns is counted.
 //
 // Cost: 3 runs per shape and command, about 140 runs, POOL at a time,
 // and one parser dump per shape.
@@ -93,7 +95,6 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["list-type-nest build", "#1915"],
   ["generic-nest check", "#1912"],
   ["generic-nest build", "#1912"],
-  ["paren-nest check", "#1919"],
   ["paren-nest build", "#1919"],
   ["bool-nest build", "#1905"],
   ["tuple-nest build", "#1924"],
