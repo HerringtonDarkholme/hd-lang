@@ -1758,3 +1758,38 @@ fn omitted_result_plan_links_a_shared_name_once() {
         }
     });
 }
+
+/// One function whose suite declares `n` local structs.
+fn many_local_structs(n: usize) -> String {
+    let mut s =
+        String::from("pub fn main() -> void $ Console:\n    println(f())\n\nfn f() -> i32:\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    struct S{i}:\n        x: i32");
+    }
+    s.push_str("    1\n");
+    s
+}
+
+// Resolver: #1890, a local header reads the declarations around it from
+// the module's index, built by one walk of the tree: a walk down from
+// the top-level declaration, scanning each level's children for the one
+// that holds the header, cost one scan of the suite per local.
+#[test]
+fn local_headers_read_their_enclosing_declarations_from_one_walk() {
+    on_test_stack(|| {
+        let mut base = 0;
+        for n in [1_000, 10_000] {
+            let (out, steps) = hd_resolve::work::count_enclosing_steps(|| {
+                compile(&many_local_structs(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            if n == 1_000 {
+                base = steps;
+            }
+            assert!(
+                base > 0 && steps <= 10 * base * 5 / 4,
+                "enclosing steps for 1,000 and {n} local structs: {base}, {steps}"
+            );
+        }
+    });
+}

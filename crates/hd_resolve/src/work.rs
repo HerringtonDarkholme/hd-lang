@@ -8,6 +8,7 @@ thread_local! {
     static SCOPE_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
     static OUTER_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
     static ITEM_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
+    static ENCLOSING_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Count the probes header lowering makes into a generic scope on this
@@ -152,4 +153,24 @@ pub(crate) fn item_probes(n: usize) {
 /// One item looked up by `DefId`.
 pub(crate) fn item_probe() {
     item_probes(1);
+}
+
+/// Count the work of finding the declarations around each local
+/// declaration on this thread: one per node of the module walk that
+/// indexes them, and one per enclosing generic list read back. Use the
+/// driver's serial executor to measure a whole build.
+pub fn count_enclosing_steps<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = ENCLOSING_STEPS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = ENCLOSING_STEPS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One step of finding the declarations around a local declaration.
+pub(crate) fn enclosing_step() {
+    ENCLOSING_STEPS.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + 1));
+        }
+    });
 }

@@ -1,0 +1,22 @@
+# test: a local type in a method of a local impl names the enclosing function's type parameter and that impl's `Self`, among sibling local types
+# Spec 03 Local Type Declarations: names.local-type.refs; `Self` there is
+# the implementation's target type (names.self-type.impl).
+# expect-stdout: 7 ok
+
+fn outer[T < Copy](x: T) -> T:
+    struct Before:
+        n: i32
+    struct Cell:
+        v: T
+    struct After:
+        n: i32
+    impl Cell:
+        fn get(&self) -> T:
+            struct Inner:
+                from: Self
+                keep: T
+            Inner { from: *self, keep: self.v }.keep
+    Cell { v: x }.get()
+
+pub fn main() -> void $ Console:
+    println("${outer(7)} ${outer("ok")}")

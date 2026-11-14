@@ -865,38 +865,87 @@ fn parameter_names<'s>(
         .filter_map(|g| g.name(&src.parse.tokens))
 }
 
-/// The generic lists of the declarations of `top` that enclose the
-/// declaration starting at `at`, outermost first, and the innermost impl
-/// or trait around it, whose `Self` it sees. Their parameters, and that
-/// `Self`, are the names it may take from around it. A local function's
-/// list is one of them: its parameters are a generic sub-body's, which
-/// the checker keeps in scope there.
-fn enclosing_generics(
-    src: &Src<'_>,
-    top: NodeRef<'_>,
-    at: u32,
-) -> (Vec<hd_base::NodeIdx>, Option<hd_base::NodeIdx>) {
-    let mut lists = Vec::new();
-    let mut self_owner = None;
-    let mut n = top;
-    while src.span(n).lo < at {
-        if decl_kind(src, n).is_some() {
-            if matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl) {
-                self_owner = Some(n.index());
+/// The declarations around each declaration of a module (#1890): the
+/// type, const and row parameter lists of those around it, outermost
+/// first, and the innermost impl or trait around it, whose `Self` it
+/// sees. Their parameters, and that `Self`, are the names a local
+/// declaration may take from around it. A local function's list is one
+/// of them: its parameters are a generic sub-body's, which the checker
+/// keeps in scope there.
+///
+/// One preorder walk of the module's tree keeps the declarations open
+/// around the node it is at as a stack of frames, each linked to the one
+/// around it, and records each declaration's frame; a declaration's lists
+/// are then read by following its frame's links, one per list. Built on
+/// the first local header a module lowers, and shared by every pass.
+pub(crate) struct Enclosing {
+    frames: Vec<Frame>,
+    at: HashMap<hd_base::NodeIdx, u32>,
+}
+
+/// A declaration that adds a generic list or a `Self` to those around it.
+#[derive(Clone, Copy)]
+struct Frame {
+    around: u32,
+    list: Option<hd_base::NodeIdx>,
+    self_owner: Option<hd_base::NodeIdx>,
+}
+
+impl Enclosing {
+    fn new(src: &Src<'_>) -> Self {
+        let mut frames = vec![Frame {
+            around: 0,
+            list: None,
+            self_owner: None,
+        }];
+        let mut at = HashMap::default();
+        // The frames open around the walk, each with the end of its
+        // declaration's subtree.
+        let mut open: Vec<(u32, u32)> = Vec::new();
+        for n in src.root().descendants() {
+            crate::work::enclosing_step();
+            while open.last().is_some_and(|&(end, _)| n.index().raw() >= end) {
+                open.pop();
             }
-            if let Some(gl) = Src::child(n, SyntaxKind::GenericParameterList) {
-                lists.push(gl.index());
+            if decl_kind(src, n).is_none() {
+                continue;
+            }
+            let around = open.last().map_or(0, |&(_, f)| f);
+            at.insert(n.index(), around);
+            let owns_self = matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl);
+            let list = Src::child(n, SyntaxKind::GenericParameterList).map(NodeRef::index);
+            if owns_self || list.is_some() {
+                let self_owner = if owns_self {
+                    Some(n.index())
+                } else {
+                    frames[around as usize].self_owner
+                };
+                frames.push(Frame {
+                    around,
+                    list,
+                    self_owner,
+                });
+                open.push((n.end().raw(), u32::try_from(frames.len() - 1).unwrap_or(0)));
             }
         }
-        let Some(c) = n.children().find(|c| {
-            let s = src.span(*c);
-            s.lo <= at && at < s.hi
-        }) else {
-            break;
-        };
-        n = c;
+        Enclosing { frames, at }
     }
-    (lists, self_owner)
+
+    /// The generic lists of the declarations around declaration `decl`,
+    /// outermost first, and the innermost impl or trait around it.
+    fn of(&self, decl: hd_base::NodeIdx) -> (Vec<hd_base::NodeIdx>, Option<hd_base::NodeIdx>) {
+        let mut f = self.at.get(&decl).copied().unwrap_or(0);
+        let self_owner = self.frames[f as usize].self_owner;
+        let mut lists = Vec::new();
+        while f != 0 {
+            crate::work::enclosing_step();
+            let frame = self.frames[f as usize];
+            lists.extend(frame.list);
+            f = frame.around;
+        }
+        lists.reverse();
+        (lists, self_owner)
+    }
 }
 
 /// The local declarations under `n` with their suites, outside nested
@@ -1025,6 +1074,8 @@ struct Resolver<'a, 'b> {
     loops_reported: RefCell<HashSet<Vec<(PathId, Symbol)>>>,
     /// Each module's top-level bindings, by module, built on first use.
     top_bindings: RefCell<HashMap<Box<str>, Arc<TopBindings>>>,
+    /// Each module's [`Enclosing`], built on its first local header.
+    enclosing: RefCell<HashMap<Box<str>, Arc<Enclosing>>>,
     /// Associated type names of this folder's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
     /// The declared variance markers of the folder's own declarations.
@@ -1085,6 +1136,19 @@ impl Resolver<'_, '_> {
             .borrow_mut()
             .insert(module.into(), Arc::clone(&t));
         t
+    }
+
+    /// The declarations around each declaration of `module`, whose source
+    /// is `src`, indexed on first use and shared by every pass (#1890).
+    fn enclosing(&self, module: &str, src: &Src<'_>) -> Arc<Enclosing> {
+        if let Some(e) = self.enclosing.borrow().get(module) {
+            return Arc::clone(e);
+        }
+        let e = Arc::new(Enclosing::new(src));
+        self.enclosing
+            .borrow_mut()
+            .insert(module.into(), Arc::clone(&e));
+        e
     }
 
     fn intern_module(&mut self, path: &str) -> PathId {
@@ -2137,10 +2201,10 @@ impl Lower<'_, '_, '_> {
     /// local impl of one does ([`Self::outer_generics`]).
     fn enter(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
-        let (lists, self_owner) = h
-            .local
-            .map(|l| enclosing_generics(&self.src, l.top, self.at))
-            .unwrap_or_default();
+        let (lists, self_owner) = match h.local {
+            Some(_) => self.r.enclosing(self.module, &self.src).of(h.node.index()),
+            None => Default::default(),
+        };
         self.outer = Outer {
             lists: lists.clone(),
             has_self: self_owner.is_some(),
@@ -8468,6 +8532,7 @@ fn resolver<'a, 'b>(
         visiting: RefCell::new(HashSet::default()),
         loops_reported: RefCell::new(HashSet::default()),
         top_bindings: RefCell::new(HashMap::default()),
+        enclosing: RefCell::new(HashMap::default()),
         trait_assoc: HashMap::default(),
         variances: HashMap::default(),
         row_params: HashMap::default(),

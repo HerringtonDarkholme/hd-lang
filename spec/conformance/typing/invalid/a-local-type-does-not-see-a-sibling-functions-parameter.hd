@@ -1,0 +1,12 @@
+# test: a local type sees only the parameters of the declarations around it, not a sibling's
+# Spec 03 Local Type Declarations: names.local-type.refs.
+
+fn first[T](x: T) -> i32:
+    struct Held:
+        v: T
+    1
+
+fn second(y: i32) -> i32:
+    struct Held:
+        v: T # diagnostic: unknown-type
+    y

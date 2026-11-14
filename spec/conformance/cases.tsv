@@ -6778,6 +6778,8 @@ runtime/valid/a-local-type-names-its-functions-type-parameter.hd	runtime	accept	
 runtime/valid/a-local-type-names-an-enclosing-const-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 runtime/valid/a-local-type-names-an-enclosing-row-parameter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.scopes
 runtime/valid/a-local-type-in-a-method-names-the-impls-self.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
+runtime/valid/a-local-type-in-a-local-impls-method-names-the-functions-parameter-and-self.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
+typing/invalid/a-local-type-does-not-see-a-sibling-functions-parameter.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.local-type.refs
 runtime/valid/a-local-type-names-a-local-functions-type-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 runtime/valid/a-local-impl-takes-its-targets-enclosing-parameters.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
 typing/invalid/a-local-impl-body-names-an-enclosing-parameter-it-does-not-take.hd	type	reject:local-impl-outer-parameter	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
