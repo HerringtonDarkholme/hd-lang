@@ -933,16 +933,11 @@ fn guarded_match_decisions_grow_linearly() {
     decision_rows_grow_linearly(guarded_match, &[1000, 10_000, 50_000]);
 }
 
+// Checker: #1849, an integer column's values and ranges are split once,
+// so alternating them costs n rows, not n² / 4.
 #[test]
-fn literal_and_range_match_decisions_on_a_test_stack() {
-    // Each range at the head is one test over every row left, so the rows
-    // grow as n² / 4; the work stack keeps the native stack flat.
-    on_test_stack(|| {
-        decision_rows(literal_range_match, 1);
-        let small = decision_rows(literal_range_match, 1000);
-        let large = decision_rows(literal_range_match, 4000);
-        assert!(large <= 16 * small * 5 / 4, "{small} and {large}");
-    });
+fn literal_and_range_match_decisions_grow_linearly() {
+    decision_rows_grow_linearly(literal_range_match, &[1000, 10_000]);
 }
 
 #[test]

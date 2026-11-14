@@ -6,6 +6,8 @@
 //! outcome keeps the rows, in order, that may still match. Exhaustiveness
 //! is Maranget's usefulness test over the arm patterns.
 
+use std::collections::BTreeMap;
+
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
@@ -335,6 +337,19 @@ struct Rel {
     implied: bool,
     excluded: bool,
     covered: bool,
+}
+
+/// A literal column split once for its test chain ([`Ck::literal_chain`]).
+struct LitSplit<'t> {
+    /// Each test, in chain order, with the rows naming a known value in
+    /// the column that may match when it passes, in order, each with
+    /// whether its passing implies the row.
+    tests: Vec<(NodeRef<'t>, Vec<(usize, bool)>)>,
+    /// The rows naming no known value in the column, in order.
+    other: Vec<usize>,
+    /// Per row, whether it names known values the chain tests all of,
+    /// so the last `else` side leaves it out.
+    gone: Vec<bool>,
 }
 
 /// A row with no test left and no guard: it matches every value, so the
@@ -1998,15 +2013,16 @@ impl Ck<'_, '_> {
     /// match, with no test left where its passing implies theirs; its
     /// `else` side drops the rows its failing decides.
     ///
-    /// When `p0` is a known value, the column is partitioned by value in
-    /// one pass: the chain tests each value in the order the rows first
-    /// name it, while the next row left names a new value in this column
-    /// and tests nothing before it. A value's `then` side is the rows
-    /// naming it merged in order with the rows naming no known value
-    /// there; rows naming another value are excluded, and rows naming a
-    /// tested value are gone from every later side. So a flat match of n
-    /// literal arms costs n plus the sides it builds, not n² / 2. A range
-    /// or an opaque literal at the head is one test over every row.
+    /// The column is split once ([`Self::value_split`],
+    /// [`Self::span_split`]): the chain tests the head rows' patterns in
+    /// order while each names values no test before it names. A test's
+    /// `then` side is the rows the split gives it merged in order with the
+    /// rows naming no known value there, up to the first its passing
+    /// settles; rows whose values the chain
+    /// tests are gone from the last `else` side. So a flat match of n
+    /// literal or range arms costs n plus the sides it builds, not n² / 2.
+    /// An opaque literal or an empty range at the head is one test over
+    /// every row.
     fn literal_chain<'t>(
         &mut self,
         rows: &[Row<'t>],
@@ -2017,45 +2033,14 @@ impl Ck<'_, '_> {
         lits: &mut HashMap<NodeIdx, P>,
     ) -> Chain<'t> {
         let (v, t) = occs[j];
-        let test_at = |r: &DRow<'t>| literal_cell(r.cells[j]);
         crate::work::decision_rows(m.len());
-        // Each row's known value in this column, by the value's class.
-        let mut keys: Vec<Option<usize>> = Vec::with_capacity(m.len());
-        let mut class: HashMap<LitKey, usize> = HashMap::default();
-        let mut groups: Vec<Vec<usize>> = Vec::new();
-        let mut other: Vec<usize> = Vec::new();
-        for (i, r) in m.iter().enumerate() {
-            let key = test_at(r).and_then(|p| self.lit_key(p, t, lits));
-            let k = key.map(|key| {
-                let n = class.len();
-                let k = *class.entry(key).or_insert(n);
-                if k == groups.len() {
-                    groups.push(Vec::new());
-                }
-                groups[k].push(i);
-                k
-            });
-            if k.is_none() {
-                other.push(i);
-            }
-            keys.push(k);
-        }
-        // The chain: the classes of the rows that head each `else` side,
-        // the first row's first. A row of a tested class is gone there.
-        let mut tested = vec![false; groups.len()];
-        let mut chain: Vec<(usize, NodeRef<'t>)> = Vec::new();
-        for (r, &key) in m.iter().zip(&keys) {
-            match key {
-                Some(k) if tested[k] => {}
-                Some(k) if r.cells[..j].iter().all(|c| matches!(c, Cell::Wild)) => {
-                    tested[k] = true;
-                    chain.push((k, test_at(r).unwrap_or(p0)));
-                }
-                _ => break,
-            }
-        }
-        if chain.is_empty() {
-            // `p0` is a range or an opaque literal: one test.
+        let LitSplit { tests, other, gone } = if self.int_range(t).is_some() {
+            self.span_split(rows, &m, j, p0, t, lits)
+        } else {
+            self.value_split(&m, j, p0, t, lits)
+        };
+        if tests.is_empty() {
+            // `p0` is an opaque literal or an empty range: one test.
             let (yes, no) = self.literal_sides(rows, m, j, p0, t, lits);
             return Chain {
                 v,
@@ -2069,54 +2054,49 @@ impl Ck<'_, '_> {
                 rest: Rest::Tree(occs, no),
             };
         }
-        let mut cases = Vec::with_capacity(chain.len());
-        for &(k, p) in &chain {
-            crate::work::decision_rows(groups[k].len() + other.len());
+        let mut cases = Vec::with_capacity(tests.len());
+        for (p, keyed) in tests {
+            // The rows the split gives this test, merged in order with the
+            // rows naming no known value, up to the first its passing
+            // settles. A test tells nothing of a row naming no known
+            // value: a wildcard, an opaque literal, or an empty range,
+            // which matches nothing and is reported.
             let mut yes = Vec::new();
-            let mut yes_done = false;
-            // The rows naming this value, merged in order with the rows
-            // naming none; those of the latter this test's failing leaves
-            // stay for the next side, from `other[..kept]`.
-            let mut named = groups[k].iter().copied().peekable();
-            let mut kept = 0;
-            for b in 0..=other.len() {
-                let next = other.get(b).copied();
-                while let Some(i) = named.next_if(|&i| next.is_none_or(|o| i < o)) {
-                    if !yes_done {
-                        let mut r = m[i].clone();
-                        r.cells[j] = Cell::Wild;
-                        yes_done = done(rows, &r);
-                        yes.push(r);
+            let mut named = keyed.into_iter().peekable();
+            let mut rest = other.iter().copied().peekable();
+            loop {
+                let next = match (named.peek(), rest.peek()) {
+                    (Some(&(i, implied)), Some(&o)) if i < o => {
+                        named.next();
+                        (i, implied)
                     }
-                }
-                let Some(i) = next else { break };
-                let rel = match test_at(&m[i]) {
-                    Some(q) => self.lit_rel(q, p, t, lits),
-                    None => Rel::default(),
+                    (_, Some(&o)) => {
+                        rest.next();
+                        (o, false)
+                    }
+                    (Some(&(i, implied)), None) => {
+                        named.next();
+                        (i, implied)
+                    }
+                    (None, None) => break,
                 };
-                if !rel.covered {
-                    other[kept] = i;
-                    kept += 1;
+                let mut r = m[next.0].clone();
+                if next.1 {
+                    r.cells[j] = Cell::Wild;
                 }
-                if !yes_done && (rel.implied || !rel.excluded) {
-                    let mut r = m[i].clone();
-                    if rel.implied {
-                        r.cells[j] = Cell::Wild;
-                    }
-                    yes_done = done(rows, &r);
-                    yes.push(r);
+                let settled = done(rows, &r);
+                yes.push(r);
+                if settled {
+                    break;
                 }
             }
-            other.truncate(kept);
+            crate::work::decision_rows(yes.len());
             cases.push((p, yes));
         }
         let no = m
             .into_iter()
             .enumerate()
-            .filter(|&(i, _)| match keys[i] {
-                Some(k) => !tested[k],
-                None => other.binary_search(&i).is_ok(),
-            })
+            .filter(|&(i, _)| !gone[i])
             .map(|(_, r)| r)
             .collect();
         Chain {
@@ -2130,6 +2110,152 @@ impl Ck<'_, '_> {
             fails: Vec::new(),
             rest: Rest::Tree(occs, no),
         }
+    }
+
+    /// The split of a literal column of strings, floats, chars or `bool`s,
+    /// whose known values are equal or apart: partitioned by value in one
+    /// pass. The chain tests each value in the order the rows first name
+    /// it, while the next row left names a new value and tests nothing
+    /// before column `j`. A value's test passing implies every row naming
+    /// it, and excludes the rows naming another.
+    fn value_split<'t>(
+        &self,
+        m: &[DRow<'t>],
+        j: usize,
+        p0: NodeRef<'t>,
+        t: Ty,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> LitSplit<'t> {
+        // Each row's known value in this column, by the value's class.
+        let mut keys: Vec<Option<usize>> = Vec::with_capacity(m.len());
+        let mut class: HashMap<LitKey, usize> = HashMap::default();
+        let mut groups: Vec<Vec<(usize, bool)>> = Vec::new();
+        let mut other: Vec<usize> = Vec::new();
+        for (i, r) in m.iter().enumerate() {
+            let key = literal_cell(r.cells[j]).and_then(|p| self.lit_key(p, t, lits));
+            let k = key.map(|key| {
+                let n = class.len();
+                let k = *class.entry(key).or_insert(n);
+                if k == groups.len() {
+                    groups.push(Vec::new());
+                }
+                groups[k].push((i, true));
+                k
+            });
+            if k.is_none() {
+                other.push(i);
+            }
+            keys.push(k);
+        }
+        // The chain: the classes of the rows that head each `else` side,
+        // the first row's first. A row of a tested class is gone there.
+        let mut tested = vec![false; groups.len()];
+        let mut tests = Vec::new();
+        for (r, &key) in m.iter().zip(&keys) {
+            match key {
+                Some(k) if tested[k] => {}
+                Some(k) if r.cells[..j].iter().all(|c| matches!(c, Cell::Wild)) => {
+                    tested[k] = true;
+                    let p = literal_cell(r.cells[j]).unwrap_or(p0);
+                    tests.push((p, std::mem::take(&mut groups[k])));
+                }
+                _ => break,
+            }
+        }
+        let gone = keys.iter().map(|k| k.is_some_and(|k| tested[k])).collect();
+        LitSplit { tests, other, gone }
+    }
+
+    /// The split of an integer column, whose literals and ranges are
+    /// spans of values: the chain tests each head row's span while it is
+    /// apart from every span tested before it; a span within a tested
+    /// one is passed over, and one that overlaps a tested span ends the
+    /// chain. The tested spans are disjoint, so one ordered map finds, for
+    /// each row in one pass, the tests its span meets: a test's passing
+    /// implies the row when the row's span holds the test's. A test takes
+    /// no row after one its passing settles, so a run of such rows meets
+    /// each test once.
+    fn span_split<'t>(
+        &self,
+        rows: &[Row<'t>],
+        m: &[DRow<'t>],
+        j: usize,
+        p0: NodeRef<'t>,
+        t: Ty,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> LitSplit<'t> {
+        let mut spans: Vec<Option<(i128, i128)>> = Vec::with_capacity(m.len());
+        let mut other = Vec::new();
+        for (i, r) in m.iter().enumerate() {
+            let span = literal_cell(r.cells[j]).and_then(|p| {
+                match lits
+                    .entry(p.index())
+                    .or_insert_with(|| self.to_p(Some(p), t))
+                {
+                    &mut P::Int(lo, hi) if lo <= hi => Some((lo, hi)),
+                    _ => None,
+                }
+            });
+            if span.is_none() {
+                other.push(i);
+            }
+            spans.push(span);
+        }
+        // The tested spans by their low end: the high end and the test.
+        let mut tested: BTreeMap<i128, (i128, usize)> = BTreeMap::new();
+        let within = |tested: &BTreeMap<i128, (i128, usize)>, (lo, hi): (i128, i128)| {
+            tested
+                .range(..=lo)
+                .next_back()
+                .is_some_and(|(_, &(h, _))| hi <= h)
+        };
+        let mut tests: Vec<(NodeRef<'t>, Vec<(usize, bool)>)> = Vec::new();
+        for (r, &span) in m.iter().zip(&spans) {
+            let Some((lo, hi)) = span else { break };
+            if within(&tested, (lo, hi)) {
+                continue;
+            }
+            let meets = tested
+                .range(..=lo)
+                .next_back()
+                .is_some_and(|(_, &(h, _))| lo <= h)
+                || tested.range(lo..=hi).next().is_some();
+            if meets || !r.cells[..j].iter().all(|c| matches!(c, Cell::Wild)) {
+                break;
+            }
+            tested.insert(lo, (hi, tests.len()));
+            tests.push((literal_cell(r.cells[j]).unwrap_or(p0), Vec::new()));
+        }
+        // The tests still taking rows: a test whose passing settles a row
+        // takes none after it.
+        let mut open = tested.clone();
+        let mut gone = vec![false; m.len()];
+        let mut met = Vec::new();
+        for (i, (r, &span)) in m.iter().zip(&spans).enumerate() {
+            let Some((lo, hi)) = span else { continue };
+            gone[i] = within(&tested, (lo, hi));
+            met.clear();
+            if let Some((&l, &(h, _))) = open.range(..lo).next_back()
+                && lo <= h
+            {
+                met.push(l);
+            }
+            met.extend(open.range(lo..=hi).map(|(&l, _)| l));
+            let settles = rows[r.row].guard.is_none()
+                && r.cells
+                    .iter()
+                    .enumerate()
+                    .all(|(c, cell)| c == j || matches!(cell, Cell::Wild));
+            for &l in &met {
+                let (h, k) = open[&l];
+                let implied = lo <= l && h <= hi;
+                tests[k].1.push((i, implied));
+                if implied && settles {
+                    open.remove(&l);
+                }
+            }
+        }
+        LitSplit { tests, other, gone }
     }
 
     /// The sides of one literal or range test of `p0` in column `j`: the
