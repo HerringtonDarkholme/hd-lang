@@ -1,0 +1,3 @@
+runtime/valid/known-closure-consumers-preserve-captures.hd	A16	line 31: println(exercise()) # prints: new 10 old:a,old:bb,old:ccc,old:dddd
+runtime/valid/known-consumer-mixed-loop-contexts.hd	A16	line 19: println(mixed(["a", "bb"])) # prints: 12
+runtime/valid/zero-iteration-callback-preserves-dependent-read.hd	A16	line 53: println(unchanged()) # prints: a

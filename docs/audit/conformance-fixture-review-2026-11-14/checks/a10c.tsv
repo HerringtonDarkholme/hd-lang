@@ -1,0 +1,22 @@
+typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	A10c	# test: bare trait body nested in tuple and option is one error
+typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
+typing/valid/checker-checker-errors-are-reported-26-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/checker-checker-errors-are-reported-29-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/checker-checker-errors-are-reported-35-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/checker-checker-errors-are-reported-42-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/checker-checker-errors-are-reported-47-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/checker-inferred-result-of-a-late-read-reports-once-168-legal.hd	A10c	# test: checker inferred result of a late read reports once
+typing/valid/checker-self-outside-a-trait-or-impl-is-unknown-246-legal.hd	A10c	# test: checker self outside a trait or impl is unknown
+typing/valid/checker-self-outside-a-trait-or-impl-is-unknown-247-legal.hd	A10c	# test: checker self outside a trait or impl is unknown
+typing/valid/failed-use-failed-group-use-reports-one-error-24-legal.hd	A10c	# test: failed group use reports one error
+typing/valid/failed-use-failed-single-use-reports-one-error-25-legal.hd	A10c	# test: failed single use reports one error
+typing/valid/generic-inference-join-bool-literal-against-integer-still-errors-38-legal.hd	A10c	# test: bool literal against integer still errors
+typing/valid/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected-47-legal.hd	A10c	# test: a bare parameter target with a delegation is rejected
+typing/valid/misplaced-derivation-a-rejected-block-reports-nothing-else-130-legal.hd	A10c	# test: a rejected block reports nothing else
+typing/valid/literals-float-literal-past-f64-range-is-rejected-55-legal.hd	A10c	# test: float literal past f64 range is rejected
+typing/valid/match-cascade-a-failed-use-scrutinee-reports-once-123-legal.hd	A10c	# test: a failed use scrutinee reports once
+typing/valid/match-cascade-an-unknown-method-scrutinee-reports-once-121-legal.hd	A10c	# test: an unknown method scrutinee reports once
+typing/valid/match-cascade-an-unknown-name-scrutinee-reports-once-122-legal.hd	A10c	# test: an unknown name scrutinee reports once
+typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	A10c	# test: a bound naming no trait adds no second error
+typing/valid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57-legal-type-arguments.hd	A10c	# test: a parameter named nowhere is reported once
+typing/valid/unsolved-call-parameter-an-unsolved-data-literal-parameter-is-reported-61-legal.hd	A10c	# test: an unsolved data literal parameter is reported

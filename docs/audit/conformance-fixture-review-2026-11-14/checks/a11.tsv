@@ -1,0 +1,13 @@
+runtime/valid/index-then-call-element.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/result-ok-unit.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/ord-supertrait-dispatch.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/generic-inherent-box.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/i64-widening-checked.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/u8-checked-add.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/shared-enum-data-computed-once.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/closure-result-keeps-requirement-row.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/trait-default-method-instantiates-params.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/reference-enum-replace-build.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/validation-rules.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/validation-rule-order.hd	A11	accept; private main, no tests: nothing runs
+runtime/valid/validation-nesting-option-cap.hd	A11	accept; private main, no tests: nothing runs

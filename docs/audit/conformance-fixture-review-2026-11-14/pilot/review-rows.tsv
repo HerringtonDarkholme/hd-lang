@@ -1,0 +1,71 @@
+batch	path	verdict	rubric	reason
+pilot-batch1	runtime/valid/values-are-found-by-type-in-source-order.hd	FIX	B1	Title promises source order, but each fact type appears once, so first-match order is never tested. Add a second @route, or retitle.
+pilot-batch1	typing/valid/error-generated-bounds.hd	FIX	B1	Title covers transparent parameters, but no generic use needs Wrapped[P] to be Error, so annot.error.bound.transparent-source is untested. Add an erase fn over P < Error.
+pilot-batch1	runtime/valid/structure-build-fills-the-members-the-source-never-names.hd	UNSURE	B1	Trait Make declares log: &mut List[string], impl declares *mut List[string]; trait.impl.signature may reject it. Confirm it type-checks.
+pilot-batch1	runtime/valid/different-facts-are-evaluated-independently.hd	FIX	B5	Import facts_of (line 15) and fn no_prefix (lines 21-22) play no part in the case. Remove them.
+pilot-batch1	runtime/valid/member-line-lists-self-line-takes-a-list-expression.hd	FIX	B5	Probe trait, impl[T] Probe (lines 24-50) and let noted (line 19) play no part in label(). Remove them.
+pilot-batch1	typing/valid/annotations.hd	FIX	B5	Contains, contains, email_metadata and the Inspectable import (lines 3, 11-12, 20-24) play no part in User's derivation. Remove them.
+pilot-batch1	typing/valid/checker-omitted-derivation-members-need-defaults-185.hd	FIX	B5	Struct Audit (lines 33-34) is never used. Remove it.
+pilot-batch1	lang/14-annotations.md#generated-error-bounds	REPORT	C2	Accept side only: error-generated-bounds.hd. No reject fixture cites any bound rule, so an unmet Display or Error bound is untested.
+pilot-batch2	runtime/valid/derive-keeps-declared-parameter-bounds.hd	FIX	B1	Members already force T < Eq and Debug, so dropping the declared bound still passes. Add a parameter no member mentions.
+pilot-batch2	typing/invalid/structure-without-use.hd	FIX	B2	Show has no template, so underivable-trait also fires on line 8. Derive from std Debug instead, so only the missing import is wrong.
+pilot-batch2	lang/14-annotations.md#r-annot.auto-closing.target	REPORT	C2	No accept fixture cites this rule. The valid bare @auto_closing form is tested only by reject fixtures.
+pilot-batch2	lang/14-annotations.md#r-annot.cfg.target	REPORT	C2	No accept fixture cites this rule. The valid @cfg on a method with a body appears only under cfg.pair.
+pilot-batch2	lang/14-annotations.md#r-annot.cfg.argument	REPORT	C2	No accept fixture cites this rule. The valid .Debug or .Release argument appears only under cfg.pair.
+pilot-batch3	typing/invalid/error-form-other-rule.hd	MERGE	C1	Same path as typing/invalid/error-argument-number.hd (struct with an invalid @error argument); only the spelling differs. Merge.
+pilot-batch3	runtime/panic/fact-evaluation-cycle.hd	UNSURE	B2	Marker is on line 30, the outer read. The reentrant panic fires at line 17, the second read of facts_of(a), per annot.fact.eval.reentrant.
+pilot-batch3	runtime/panic/fact-evaluation-reads-itself.hd	UNSURE	B2	Marker is on line 19, the outer read. The reentrant panic fires at line 12, the second read in own_path, per annot.fact.eval.reentrant.
+pilot-batch3	runtime/valid/facts-of-literal-generic-none.hd	FIX	B3	Line 40 passes find::[string]() (a string?) to assert_equal[T](T, T) against a string literal; a type error. Unwrap it with a match, as path_of does.
+pilot-batch3	typing/warnings/derivation-block-decorator.hd	UNSURE	B1	Accept-only in typing/warnings, whose Layout says a warning marker is required. Confirm placement; the lint warning is covered only in cli/.
+pilot-batch3	typing/warnings/derivation-block-decorator-std.hd	UNSURE	B1	Accept-only in typing/warnings; the cited any-type rule describes a lint warning, not an accept. Confirm placement.
+pilot-batch3	lang/14-annotations.md#r-annot.error.bound.interpolated	REPORT	C2	Only accept fixture for this rule. No reject shows a type parameter with only Display fails to box as dyn Error.
+pilot-batch3	lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint	REPORT	C2	Both fixtures are accept-only. No conformance fixture carries a warning marker for unused-derivation-fact; only cli/lint-* expect files check it.
+pilot-batch4	typing/valid/facts-of-check-the-result-is-facts-26.hd	FIX	B1	Cites target.error, an error rule; the code checks the result's items and find. Cite annot.facts-of.result.compiler-decorators.v2.
+pilot-batch4	typing/invalid/facts-of-check-a-missing-argument-follows-the-call-rules-30.hd	FIX	B1	Cites target.error, which names invalid-facts-of-target. The arity outcome belongs to the result rule's ordinary call rules. Cite that instead.
+pilot-batch4	typing/invalid/facts-of-check-an-extra-argument-follows-the-call-rules-31.hd	FIX	B1	Same as the missing-argument fixture: arity is stated by annot.facts-of.result.compiler-decorators.v2, not target.error.
+pilot-batch4	typing/invalid/facts-of-check-an-unknown-name-is-unknown-32.hd	UNSURE	B2	Cited target.error says any other argument gives invalid-facts-of-target, but this expects unknown-name. The spec does not settle which wins.
+pilot-batch4	runtime/valid/facts-and-handles-build-once.hd	FIX	B1	Title and assertions test that facts build lazily once, which annot.fact.eval.lazy states. Cited handle.constants covers only handle lifetime. Cite both.
+pilot-batch4	runtime/valid/structure-a-generic-owner-has-one-handle-per-instantiation.hd	FIX	B3	Printed checks compare name, position and index, which match for every instantiation. Output holds even with shared handles. Assert a value that differs per instance.
+pilot-batch4	runtime/valid/tuple-handle-instances.hd	FIX	B1	Cites handle.shared-target, but assertions check tuple member types, positions and values; sharing is never observed. Cite annot.tuple.members.
+pilot-batch4	typing/warnings/derivation-line-drift.hd	FIX	B1	Expects accept and tests that differing member lines stay legal. The cited lint rule is not checked here. Cite annot.line.drift.legal.
+pilot-batch4	typing/warnings/derivation-line-drift-beside-derive.hd	FIX	B1	Same as the prior fixture: expects accept and tests legality beside @derive. Cite annot.line.drift.legal; the lint is not exercised.
+pilot-batch4	typing/valid/inline-and-cold.hd	UNSURE	B6	checksum casts the loop variable with u64(byte) over &List[u8]. If byte is &u8, the spec does not say a cast reads through a reference.
+pilot-batch4	lang/14-annotations.md#r-annot.facts-of.target	REPORT	C2	No fixture cites this rule. Its allowed form, a direct call naming a module-level function, has no accept fixture.
+pilot-batch4	lang/14-annotations.md#r-annot.inline.targets	REPORT	C2	Only the reject fixture cites it. Allowed targets, a module-level function or a method with a body, have no accept citing it.
+pilot-batch4	lang/14-annotations.md#r-annot.line.name	REPORT	C2	Only the reject fixture cites it. The allowed direct-member name has no accept fixture citing it.
+pilot-batch4	lang/14-annotations.md#r-annot.line.enum	REPORT	C2	Only the reject fixture cites it. The allowed whole-variant member line has no accept fixture citing it.
+pilot-batch4	lang/14-annotations.md#r-annot.impl-fact.fills-defaults.exempt	REPORT	C2	Only a reject cites it. The accept case is exercised by runtime/valid/source-fills-defaults, which cites fills-defaults instead.
+pilot-batch4	lang/14-annotations.md#r-annot.handle.fact.pattern.written	REPORT	C2	Only an accept cites it. Its Error type-mismatch for wrong written arguments has no reject fixture.
+pilot-batch5	runtime/valid/member-line-list-expression.hd	FIX	B1	Title says any list-typed expression, but every member line uses a named global list; no call or other list expression is tested.
+pilot-batch5	typing/valid/trait-less-derivation-block.hd	FIX	B1	Title says the block replaces decorator metadata, but line 23 replaces email, which has no decorator, so only extension is tested. Decorate email.
+pilot-batch5	typing/invalid/extending-a-member-line-cannot-take-pass.hd	UNSURE	B2	tags: List[i64] (line 33) has no Show impl, so the member[F < Show] bound may fail at line 35 as a second error.
+pilot-batch5	typing/invalid/trait-less-block-declares-no-method.hd	FIX	B5	Note struct and note fn (lines 8-9, 14-15) are never used. Delete them.
+pilot-batch5	lang/14-annotations.md#r-annot.no-trait.generic.rename	REPORT	C2	Only accept fixture. No reject checks a rename with the wrong parameter count or order, which the rule says is checked.
+pilot-batch5	lang/14-annotations.md#r-annot.no-trait.not-inherent	REPORT	C2	Only reject fixture (unknown-method). No accept shows a no-trait block beside a same-named inherent method.
+pilot-batch5	lang/14-annotations.md#r-annot.metadata.eval-as-fact	REPORT	C2	Only reject fixture (block_on in metadata). No accept shows a metadata expression evaluated as a fact expression.
+pilot-batch6	typing/invalid/template-outside-trait-module.hd	FIX	B2	Line 19 fn debug(self) -> string mismatches the Debug trait signature fn debug(&self, out: *mut DebugWriter) -> void (09-traits.md:656), a second error beside line 18.
+pilot-batch6	typing/invalid/template-reexported-from-other-package.hd	FIX	B2	Line 20 fn debug(self) -> string mismatches the Debug trait signature fn debug(&self, out: *mut DebugWriter) -> void (09-traits.md:656), a second error beside line 19.
+pilot-batch6	typing/valid/structure-calls-are-pure.hd	FIX	B1	Title claims walk and build are called; the code calls only describe, in free fn total(). Retitle, or add the missing calls.
+pilot-batch6	typing/valid/decorator-target-kind-is-checked-54.hd	UNSURE	B1	Title says the checker is checked, which reads as a rejection; the case accepts a .Field member-line decorator. Retitle to say that.
+pilot-batch6	lang/14-annotations.md#r-annot.target.bootstrap	REPORT	C2	Rule allows Annotate on a struct or enum; no accept fixture cites this anchor. Only reject case: annotate-before-function.hd.
+pilot-batch6	lang/14-annotations.md#r-annot.template.tuple.separate	REPORT	C2	Rule says a trait may have a template and a tuple template together; no accept fixture cites it. Only the reject case exists.
+pilot-batch6	lang/14-annotations.md#r-annot.template.tuple.rules	REPORT	C2	Only second-tuple-template.hd (reject) cites it; no accept fixture shows template rules applied to a tuple template.
+pilot-batch6	lang/14-annotations.md#r-annot.template.checked	REPORT	C2	Only derived-member-fails-walker-bound.hd (reject) cites it; no accept fixture shows an opt-in whose member meets the bound.
+pilot-batch7	typing/valid/typed-fact-function.hd	FIX	B1	Title says a generic function parameters are written as bounds, but wrap[T] is unbounded and tests the Any rule, not a bound. Retitle or add T < Integer.
+pilot-batch7	typing/invalid/literal-suffix-parameter-type.hd	UNSURE	C1	Same check.bounds path as typing/invalid/typed-fact-fn-pattern-bound.hd (fn(N)->R, N<Num, string argument); differs only by std num_suffix and names.
+pilot-batch7	lang/14-annotations.md#r-annot.template.unique	REPORT	C2	Only reject fixture (second-template-for-trait.hd). No accept fixture under this anchor for a trait with one template.
+pilot-batch7	lang/14-annotations.md#r-annot.template.tuple.unmet	REPORT	C2	Only accept fixture (tuple-template-unmet-unused.hd). No reject fixture where a use requires the unmet tuple implementation.
+pilot-batch7	lang/14-annotations.md#r-annot.typed-fact.check	REPORT	C2	Eleven reject fixtures and no accept fixture under this anchor; the accept side is cited only by sub-rules.
+pilot-batch7	lang/14-annotations.md#r-annot.typed-fact.targets	REPORT	C2	Only reject fixture (typed-fact-not-field.hd). No accept fixture attaches a typed fact to a field or function under this anchor.
+pilot-batch7	lang/14-annotations.md#r-annot.typed-fact.check.other-params	REPORT	C2	Two accept fixtures and no reject. The rule names Error cannot-infer-type, which no fixture under this anchor covers.
+pilot-batch8	typing/invalid/generic-data-member-call.hd	DELETE	C1	Same rule and error as typing/invalid/generic-member-call.hd; only the hook name differs, and rule 1 treats member hooks alike.
+pilot-batch8	typing/valid/generic-member-call-member-through-a-generic-walker-errors-39.hd	FIX	B1	Title says a generic-walker call errors, but forward takes a concrete Prober and the expectation is accept. Retitle or delete.
+pilot-batch8	typing/valid/generic-member-call-member-through-a-generic-walker-errors-39.hd	DELETE	C1	Concrete-walker member call, same as typing/valid/generic-member-call-member-on-a-concrete-walker-stays-silent-41.hd; the generic S adds nothing.
+pilot-batch8	runtime/valid/a-method-named-like-a-source-member-releases-its-owned-string.hd	UNSURE	B1	Title claims the owned string is released, but asserts check only return values. Release shows only in checked mode; confirm that run covers it.
+pilot-batch8	typing/invalid/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced-126.hd	FIX	B2	Template body is just "x", with no walk, describe or build call, so line 6 also fails marker-template. Call Structure::walk in the body.
+pilot-batch8	typing/valid/misplaced-derivation-a-renamed-trait-less-header-is-clean-125.hd	DELETE	C1	Same trait-less block as typing/valid/misplaced-derivation-a-trait-less-block-with-member-lines-is-clean-124.hd minus the Self line; U for T is a name only.
+pilot-batch8	typing/valid/misplaced-derivation-a-rejected-block-reports-nothing-else-130-legal.hd	FIX	B1	Title says a rejected block, but this block is legal and accepted. Retitle it to say a legal derivation block reports nothing.
+pilot-batch8	typing/valid/misplaced-derivation-a-rejected-block-reports-nothing-else-130-legal.hd	FIX	B5	Struct Opaque is unused here; it only supported the newtype in the reject twin, so drop it.
+pilot-batch8	typing/valid/typed-derivation.hd	DELETE	C1	Same declarations and type-check path as runtime/valid/typed-derivation-walk.hd, which also type-checks them and adds asserts.
+pilot-batch8	typing/valid/derive-members-generic-target-meets-the-bound-through-its-derived-bound-364.hd	FIX	B5	Function wrapped is never called and plays no part in the case. Delete it.
+pilot-batch8	lang/14-annotations.md#r-annot.walker.missing-fixed	REPORT	C2	Only reject fixture is typing/invalid/strengthened-missing-bound.hd; no accept fixture shows a Source keeping an unbounded missing[F].
