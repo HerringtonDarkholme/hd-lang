@@ -32,6 +32,11 @@
 // with its issue in the note, and fails once it turns linear, so the row
 // is removed with the fix. HD_SCALE_SHAPES=A,B measures only those shapes.
 //
+// Every hd run has a scratch HD_CACHE of its own (`measuredEnv`): a copy
+// of one warm std cache, removed with the run's directory, never the
+// default cache. Cache work still allocates and hashes, so it is in the
+// counters, as the same constant at every size.
+//
 // Cost: 3 runs per shape and command, about 140 runs, POOL at a time,
 // and one parser dump per shape.
 
@@ -200,6 +205,20 @@ const WARM: ReadonlyMap<string, string> = new Map([
   ["src/main.hd", 'pub fn main() -> void $ Console:\n    println("warm")\n'],
 ]);
 
+/**
+ * The environment of one `hd` run of the check: serial, with `cache` as
+ * its `HD_CACHE`, a scratch directory of its own. No run reads, walks or
+ * locks the default cache (#1932), and each run's cache work is the same
+ * small constant over a copy of one warm std cache, which subtracting
+ * k = 0 removes. Throws before any run when `cache` is empty.
+ */
+export function measuredEnv(cache: string, extra: Readonly<Record<string, string>> = {}) {
+  if (!cache) {
+    throw new Error("scale: every hd run needs a scratch HD_CACHE of its own");
+  }
+  return { HD_JOBS: "1", ...extra, HD_CACHE: cache };
+}
+
 /** One run of `command` on `shape` at size k, from a copy of the warm `cache`. */
 async function measure(
   { hd, cache }: { readonly hd: HdCommand; readonly cache: string },
@@ -216,7 +235,7 @@ async function measure(
     const result = await runHd(hd, ARGS[command], {
       cwd: dir,
       timeoutMs: TIMEOUT_MS,
-      env: { HD_CACHE: runCache, HD_JOBS: "1", HD_WORK: work },
+      env: measuredEnv(runCache, { HD_WORK: work }),
     });
     // `fmt --check` exits 1 when a file would change; it still counted.
     const expected = result.status === 0 || (command === "fmt" && result.status === 1);
@@ -380,23 +399,31 @@ export async function scaleLines(
   context: MetricContext,
   shapes: readonly Shape[],
 ): Promise<TargetResult[]> {
+  // The warm std cache each run copies: a scratch directory, removed
+  // with the warm package once every shape is measured.
   const cache = makeTempDir(`${NAME}-cache`);
   const warm = makeTempDir(`${NAME}-warm`);
-  writeTree(warm, WARM);
-  for (const args of [["check"], ["build"]]) {
-    const result = await runHd(context.hd, args, {
-      cwd: warm,
-      timeoutMs: TIMEOUT_MS,
-      env: { HD_CACHE: cache, HD_JOBS: "1" },
-    });
-    if (result.status !== 0) {
-      return [failed(NAME, "warm std cache", "builds", firstLines(result))];
+  let measured: ReadonlyMap<Command, readonly [Run, Run, Run]>[];
+  try {
+    writeTree(warm, WARM);
+    for (const args of [["check"], ["build"]]) {
+      const result = await runHd(context.hd, args, {
+        cwd: warm,
+        timeoutMs: TIMEOUT_MS,
+        env: measuredEnv(cache),
+      });
+      if (result.status !== 0) {
+        return [failed(NAME, "warm std cache", "builds", firstLines(result))];
+      }
     }
+    measured = await pool(
+      shapes.map((shape) => () => measureShape(context, cache, shape)),
+      POOL,
+    );
+  } finally {
+    removeTempDir(warm);
+    removeTempDir(cache);
   }
-  const measured = await pool(
-    shapes.map((shape) => () => measureShape(context, cache, shape)),
-    POOL,
-  );
   const lines = shapes.flatMap((shape, index) =>
     [...measured[index]!].map(([command, three]) => lineOf(shape, command, three)),
   );

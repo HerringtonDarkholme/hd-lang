@@ -83,6 +83,7 @@ import {
   FLOOR,
   judgeShape,
   kindsOfTree,
+  measuredEnv,
   selected,
   syntaxKinds,
 } from "./scripts/scale.ts";
@@ -937,6 +938,14 @@ describe("scale", () => {
     );
     assert.equal(fixed.status, "fail");
     assert.match(fixed.note!, /remove the KNOWN row/);
+  });
+
+  it("runs hd only with a scratch HD_CACHE of its own", () => {
+    assert.throws(() => measuredEnv(""), /scratch HD_CACHE/);
+    const env = measuredEnv("/tmp/run-cache", { HD_WORK: "w.json", HD_CACHE: "/elsewhere" });
+    assert.equal(env.HD_CACHE, "/tmp/run-cache");
+    assert.equal(env.HD_JOBS, "1");
+    assert.equal(env.HD_WORK, "w.json");
   });
 
   it("selects shapes by name and refuses an unknown one", () => {
