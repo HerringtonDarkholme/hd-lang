@@ -1,5 +1,6 @@
-{{! One iterator chain of alternating `map` and `filter` stages with typed closures; each `pairs` entry is a map adding `add` and a filter by `modulus`. }}
-fn run(values: List[i32]) -> usize:
+{{! Scale independent chains, each with 16 map/filter pairs (32 stages), below the fixed trait proof depth limit. }}
+{{#each chains}}
+fn run_{{i}}(values: List[i32]) -> usize:
     values
         .iter()
 {{#each pairs}}
@@ -7,3 +8,4 @@ fn run(values: List[i32]) -> usize:
         .filter(fn(x: &i32) -> bool: x % {{modulus}} != 0)
 {{/each}}
         .count()
+{{/each}}
