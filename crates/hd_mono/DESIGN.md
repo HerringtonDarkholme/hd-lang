@@ -1155,7 +1155,11 @@ the instances' descriptors: an instance's layout reads only those, at
 `T`'s arguments. Items that reach each other share one hash (Tarjan's
 algorithm over items, memoized per item for the build), so the hash
 covers a whole recursion group, and the walk ends on any recursion, a
-payload at growing arguments (`E[List[T]]` in `E[T]`) included.
+payload at growing arguments (`E[List[T]]` in `E[T]`) included. The
+declarations `T` reaches enter as one Merkle hash over `T`'s parts
+(`reach_hash`: the declaration hash of the item its constructor names,
+then each part's reach hash), memoized per type for the build, so each
+distinct type is hashed once however deep a nest of them is (#1915).
 
 Implementation differs: `hd_cache::code_key` hashes the pipeline,
 profile, instance key and item TIR hash with one dependency hash

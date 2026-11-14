@@ -2430,3 +2430,36 @@ fn bounded_parameter_calls_find_their_clause_by_one_probe() {
         );
     });
 }
+
+/// A list type and literal nested `n` deep in one binding: the scale
+/// check's `list-type-nest` shape.
+fn list_type_nest(n: usize) -> String {
+    let ty = format!("{}i32{}", "List[".repeat(n), "]".repeat(n));
+    let value = format!("{}t{}", "[".repeat(n), "]".repeat(n));
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +0\n    let xs: {ty} = {value}\n    t = i32(xs.len())\n    println(\"$t\")\n"
+    )
+}
+
+// Collection: #1915, a type's layout hash reads the declarations it
+// reaches from one Merkle hash per distinct type, memoized for the
+// build: each of a nest's n types walked the whole type below it.
+#[test]
+fn nested_list_types_hash_each_type_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let steps = |n: usize| {
+            let (out, steps) =
+                hd_mono::work::count_type_steps(|| compile(&list_type_nest(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            steps
+        };
+        let (small, large) = (steps(15), steps(150));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "type steps at depth 15 and 150: {small} and {large}"
+        );
+    });
+}

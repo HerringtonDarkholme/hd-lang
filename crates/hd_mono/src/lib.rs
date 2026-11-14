@@ -1201,33 +1201,111 @@ fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
 
 /// `layout_hash(T)` (`crates/hd_mono/DESIGN.md` §13.8): the hash of `canon(T)` and of the
 /// declarations of every item `T` names, and of every item their declared
-/// types name, however far. A type's layout reads only those, at `T`'s
-/// arguments, so the hash covers a whole recursion group and ends on any
-/// recursion, a growing one (`E[List[T]]` in `E[T]`) included, since it
-/// walks declarations, of which a program has finitely many.
+/// types name, however far ([`reach_hash`]). A type's layout reads only
+/// those, at `T`'s arguments, so the hash covers a whole recursion group
+/// and ends on any recursion, a growing one (`E[List[T]]` in `E[T]`)
+/// included, since it walks declarations, of which a program has finitely
+/// many.
 fn layout_hash(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     t: Ty,
     canons: &mut CanonMemo,
-    memo: &mut HashMap<DefId, Hash128>,
+    (memo, reach): (&mut HashMap<DefId, Hash128>, &mut HashMap<Ty, Hash128>),
 ) -> Hash128 {
     let ph = |d: DefId| env.path_hash(d);
     let mut h = StableHasher::new("layout-hash");
     h.hash(canon(pool, &ph, canons, t));
-    let mut items = Vec::new();
-    items_in(pool, t, &mut items, &mut HashSet::default());
-    let mut hashes: Vec<Hash128> = items
-        .into_iter()
-        .map(|d| declarations_hash(pool, env, d, canons, memo))
-        .collect();
-    hashes.sort_stable();
-    hashes.dedup();
-    h.u32(u32::try_from(hashes.len()).expect("items"));
-    for x in hashes {
-        h.hash(x);
-    }
+    h.hash(reach_hash(pool, env, t, canons, (memo, reach)));
     h.finish()
+}
+
+/// The item a type's own constructor names, and the parts whose items its
+/// layout also reads: one level of [`items_in`]'s walk.
+fn type_parts(pool: &InternPool, t: Ty) -> (Option<DefId>, Vec<Ty>) {
+    match pool.get(t) {
+        TyData::Adt { def, args } => (Some(def), pool.list_items(args).to_vec()),
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => {
+            let mut parts = pool.list_items(args).to_vec();
+            parts.extend(bindings.into_iter().map(|(_, b)| b));
+            (Some(def), parts)
+        }
+        TyData::Assoc {
+            trait_,
+            self_ty,
+            args,
+            ..
+        } => {
+            let mut parts = vec![self_ty];
+            parts.extend_from_slice(pool.list_items(args));
+            (Some(trait_), parts)
+        }
+        TyData::Tuple { elems, rest } => {
+            let mut parts = pool.list_items(elems).to_vec();
+            parts.extend(rest);
+            (None, parts)
+        }
+        TyData::Fn { params, result, .. } => {
+            let mut parts = pool.list_items(params).to_vec();
+            parts.push(result);
+            (None, parts)
+        }
+        TyData::Ref { inner, .. } => (None, vec![inner]),
+        _ => (None, Vec::new()),
+    }
+}
+
+/// The declarations a type's layout reads, as a Merkle hash: the
+/// declaration hash of the item its own constructor names, then the reach
+/// hash of each part. Memoized per type in `reach` for the build, and
+/// made post-order on a work stack, so each distinct type is hashed once
+/// at any nesting depth: a body holding `List[List[...[i32]]]` n deep
+/// costs O(n), where a walk of each of its n types was O(n^2). Two types
+/// with one `canon` and the same declarations hash alike, as a set of the
+/// reached declarations did.
+fn reach_hash(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    canons: &mut CanonMemo,
+    (memo, reach): (&mut HashMap<DefId, Hash128>, &mut HashMap<Ty, Hash128>),
+) -> Hash128 {
+    let mut work = vec![(t, false)];
+    while let Some((u, ready)) = work.pop() {
+        if reach.contains_key(&u) {
+            continue;
+        }
+        let (own, parts) = type_parts(pool, u);
+        if !ready {
+            work.push((u, true));
+            work.extend(
+                parts
+                    .into_iter()
+                    .filter(|p| !reach.contains_key(p))
+                    .map(|p| (p, false)),
+            );
+            continue;
+        }
+        crate::work::type_step();
+        let mut h = StableHasher::new("layout-reach");
+        match own {
+            Some(d) => {
+                h.u8(1);
+                h.hash(declarations_hash(pool, env, d, canons, memo));
+            }
+            None => h.u8(0),
+        }
+        h.u32(u32::try_from(parts.len()).expect("parts"));
+        for p in &parts {
+            h.hash(reach[p]);
+        }
+        reach.insert(u, h.finish());
+    }
+    reach[&t]
 }
 
 /// The hash of an item's declaration and of every declaration it reaches
@@ -1377,6 +1455,8 @@ struct Cx<'a> {
     canons: CanonMemo,
     /// `declarations_hash` per item, for the build.
     layouts: HashMap<DefId, Hash128>,
+    /// `reach_hash` per type, for the build.
+    reaches: HashMap<Ty, Hash128>,
     /// Nesting depth per type, so a type shared by its parts is walked
     /// once however large its tree (`crates/hd_mono/DESIGN.md` §13.4).
     depths: HashMap<Ty, u32>,
@@ -2916,7 +2996,7 @@ impl Cx<'_> {
                 env,
                 s(t),
                 &mut self.canons,
-                &mut self.layouts,
+                (&mut self.layouts, &mut self.reaches),
             ));
         }
         reps.u8(env.return_loan_parameter(item, args).unwrap_or(u8::MAX));
@@ -2950,7 +3030,7 @@ impl Cx<'_> {
                 env,
                 t,
                 &mut self.canons,
-                &mut self.layouts,
+                (&mut self.layouts, &mut self.reaches),
             ));
             note_data(pool, env, t, &mut self.out.data);
         }
@@ -3167,7 +3247,7 @@ impl Cx<'_> {
                     env,
                     ty,
                     &mut self.canons,
-                    &mut self.layouts,
+                    (&mut self.layouts, &mut self.reaches),
                 ));
             }
             note_data(pool, env, ty, &mut self.out.data);
@@ -3889,6 +3969,7 @@ fn collect_roots(
         permission_shared: HashMap::default(),
         canons: CanonMemo::default(),
         layouts: HashMap::default(),
+        reaches: HashMap::default(),
         depths: HashMap::default(),
         at: None,
         too_deep: None,
