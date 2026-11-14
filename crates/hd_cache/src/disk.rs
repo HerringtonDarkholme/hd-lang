@@ -1675,7 +1675,12 @@ mod packed {
         /// change is returned. A crash at any point leaves every key in the
         /// bucket the stored head names, or lost from this fold only, and
         /// the shard's log still holds what the fold applied.
-        fn commit(&mut self, epoch: u32, grow: impl FnOnce(u64)) -> io::Result<i128> {
+        fn commit(
+            &mut self,
+            epoch: u32,
+            grow: impl FnOnce(u64),
+            headed: impl FnOnce(Option<Head>) -> io::Result<()>,
+        ) -> io::Result<i128> {
             let head = self.head;
             let mut first = Vec::new();
             let mut last = Vec::new();
@@ -1766,6 +1771,9 @@ mod packed {
                     self.stored = Some(self.head);
                 }
             }
+            // Readers learn the new head before split buckets lose the rows
+            // they gave away.
+            headed(self.stored)?;
             for (bucket, bytes) in &mut first {
                 let page = self.pages.get_mut(bucket).expect("written");
                 if last.contains(bucket) {
@@ -1971,7 +1979,7 @@ mod packed {
 
     /// A shard as a reader sees it, taking no lock: the head and epoch of
     /// the last fold its log names, and the log's overlay. A log whose
-    /// header is torn adds nothing: its head is read from the head file.
+    /// header is torn takes its head and epoch from the head file.
     #[derive(Clone, Default)]
     struct View {
         epoch: u32,
@@ -1980,6 +1988,9 @@ mod packed {
         /// A view whose log names no fold has looked for a head file a
         /// fold since may have written.
         probed: bool,
+        /// This process committed to the shard, leaving `total`.
+        committed: bool,
+        total: Option<u64>,
     }
 
     /// One shard under its writer lock (#1932): the log, which is also the
@@ -2142,21 +2153,35 @@ mod packed {
             self.txn()?.shrink()?;
             let epoch = self.header.epoch.wrapping_add(1);
             let base = self.header.total;
-            let mut file = &self.file;
-            let header = &mut self.header;
+            let file = &self.file;
+            let header = std::cell::RefCell::new(self.header);
+            let write = |header: &LogHeader| -> io::Result<()> {
+                let mut f = file;
+                f.seek(SeekFrom::Start(0))?;
+                f.write_all(&header.encode())
+            };
             let txn = self.txn.get_or_insert(Txn::open(self.dir.clone())?);
-            let delta = txn.commit(epoch, |growth| {
-                header.total = base.map(|t| t.saturating_add(growth));
-                let _ = file
-                    .seek(SeekFrom::Start(0))
-                    .and_then(|_| file.write_all(&header.encode()));
-            })?;
-            // Shorten first: a crash before the header leaves the old
-            // epoch's header with no records, all of them in the pages.
-            self.file.set_len(LOG_HEADER as u64)?;
+            let delta = txn.commit(
+                epoch,
+                |growth| {
+                    let mut h = header.borrow_mut();
+                    h.total = base.map(|t| t.saturating_add(growth));
+                    let _ = write(&h);
+                },
+                |head| {
+                    // Shorten first: a crash before the header leaves the
+                    // old epoch's header with no records, all of them in
+                    // the pages, whose split buckets still hold the rows
+                    // they gave away.
+                    file.set_len(LOG_HEADER as u64)?;
+                    let mut h = header.borrow_mut();
+                    h.epoch = epoch;
+                    h.head = head;
+                    write(&h)
+                },
+            )?;
+            self.header = header.into_inner();
             self.end = LOG_HEADER as u64;
-            self.header.epoch = epoch;
-            self.header.head = self.txn.as_ref().and_then(|t| t.stored);
             self.header.total =
                 base.map(|t| u64::try_from((i128::from(t) + delta).max(0)).unwrap_or(0));
             self.write_header()
@@ -2289,21 +2314,27 @@ mod packed {
                 return View::default();
             };
             let log = log_decode(&bytes);
-            let Some(header) = log.header else {
-                return View {
-                    head: read_head(&self.index_dir(shard)).ok().flatten(),
-                    ..View::default()
-                };
+            // A header read while a writer rewrites it is torn: the head
+            // file names the last fold, and the batches, checksummed on
+            // their own, still apply.
+            let (epoch, head) = if let Some(header) = log.header {
+                (header.epoch, header.head)
+            } else {
+                let head = read_head(&self.index_dir(shard)).ok().flatten();
+                let epoch = head.map_or(0, |h| u32::try_from(h.generation).unwrap_or(0));
+                (epoch, head)
             };
             let mut overlay = Overlay::default();
             for op in log.ops {
                 overlay.apply(op);
             }
             View {
-                epoch: header.epoch,
-                head: header.head,
+                epoch,
+                head,
                 overlay,
                 probed: false,
+                committed: false,
+                total: None,
             }
         }
 
@@ -2393,31 +2424,43 @@ mod packed {
         /// fold wrote; a page a later fold wrote already holds it.
         fn locate(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
             let shard = shard_of(key.1);
-            let Snapshot { views, pages, .. } = state;
-            let view = views.entry(shard).or_insert_with(|| self.read_view(shard));
-            let change = view.overlay.rows.get(&key).copied();
             let dir = self.index_dir(shard);
-            if view.head.is_none() && change.is_some() && !view.probed {
-                // A fold after this view was read leaves a head: its pages
-                // are newer than the view's changes.
-                view.probed = true;
-                view.head = read_head(&dir).ok().flatten();
+            for fresh in [false, true] {
+                let Snapshot { views, pages, .. } = &mut *state;
+                let view = views.entry(shard).or_insert_with(|| self.read_view(shard));
+                let change = view.overlay.rows.get(&key).copied();
+                if view.head.is_none() && change.is_some() && !view.probed {
+                    // A fold after this view was read leaves a head: its
+                    // pages are newer than the view's changes.
+                    view.probed = true;
+                    view.head = read_head(&dir).ok().flatten();
+                }
+                let Some(head) = view.head else {
+                    return change.flatten();
+                };
+                let bucket = head.bucket(key.1);
+                let (rows, epoch) = pages.entry((shard, bucket)).or_insert_with(|| {
+                    read_page(&dir, bucket)
+                        .ok()
+                        .flatten()
+                        .map(|(rows, _, epoch)| (rows, epoch))
+                        .unwrap_or_default()
+                });
+                let newer = *epoch > view.epoch;
+                match (change, rows.get(&key)) {
+                    (Some(change), _) if !newer => return change,
+                    (_, Some(loc)) => return Some(*loc),
+                    // A page a later fold wrote, without the key: the fold
+                    // may have moved it to a bucket this view's head does
+                    // not have. Read the shard again, once.
+                    _ if newer && !fresh => {
+                        views.remove(&shard);
+                        pages.retain(|(s, _), _| *s != shard);
+                    }
+                    _ => return None,
+                }
             }
-            let Some(head) = view.head else {
-                return change.flatten();
-            };
-            let bucket = head.bucket(key.1);
-            let (rows, epoch) = pages.entry((shard, bucket)).or_insert_with(|| {
-                read_page(&dir, bucket)
-                    .ok()
-                    .flatten()
-                    .map(|(rows, _, epoch)| (rows, epoch))
-                    .unwrap_or_default()
-            });
-            match change {
-                Some(change) if *epoch <= view.epoch => change,
-                _ => rows.get(&key).copied(),
-            }
+            None
         }
 
         fn snapshot<'a>(guard: &'a mut MutexGuard<'_, Option<Snapshot>>) -> &'a mut Snapshot {
@@ -2538,6 +2581,8 @@ mod packed {
                     head: shard.header.head,
                     overlay: shard.overlay.clone(),
                     probed: false,
+                    committed: true,
+                    total: shard.header.total,
                 },
             );
             state.pages.retain(|(s, _), _| *s != shard.id);
@@ -3035,10 +3080,25 @@ mod packed {
         }
 
         /// The sum of the shards' running totals, read from their logs'
-        /// headers with no lock; `None` when one is unknown or torn.
+        /// headers with no lock, but for those this process just wrote;
+        /// `None` when one is unknown or torn.
         fn total(&self) -> Option<u64> {
             let mut total = 0_u64;
+            // The shards this process just committed to: their totals as it
+            // left them, with no read.
+            let known: BTreeMap<u8, Option<u64>> =
+                self.state().as_ref().map_or_else(BTreeMap::new, |s| {
+                    s.views
+                        .iter()
+                        .filter(|(_, v)| v.committed)
+                        .map(|(&k, v)| (k, v.total))
+                        .collect()
+                });
             for shard in 0..SHARDS {
+                if let Some(&known) = known.get(&shard) {
+                    total = total.saturating_add(known?);
+                    continue;
+                }
                 let path = self.log_path(shard);
                 let mut bytes = Vec::with_capacity(LOG_HEADER);
                 match File::open(&path) {
@@ -3208,6 +3268,7 @@ mod packed {
                     .map(|(_, len)| len)
                     .sum::<u64>();
                 txn.set_total(bytes)?;
+                self.adopt(&txn);
                 total = total.saturating_add(bytes);
             }
             Ok(Collected {
@@ -3534,6 +3595,7 @@ mod packed {
             let mut shard = store.open_shard(0).unwrap();
             shard.header.total = None;
             shard.write_header().unwrap();
+            store.adopt(&shard);
         }
 
         #[test]
@@ -3854,7 +3916,8 @@ mod packed {
                 Some(b"recovered".as_slice())
             );
             assert_eq!(load(&store).len(), 1);
-            // A corrupt head, under a torn log header, starts a new index.
+            // A corrupt head under a torn log header loses the pages; the
+            // log's batches, checksummed on their own, still name key 2.
             std::fs::write(dir.join("head"), b"HDHEAD01 not a head").unwrap();
             let mut log = OpenOptions::new()
                 .write(true)
@@ -3865,7 +3928,7 @@ mod packed {
             assert!(
                 Store::new(&root)
                     .get(EntryKind::Check, &Hash128(2))
-                    .is_none()
+                    .is_some()
             );
             store.publish(&[item(3, b"again")]).unwrap();
             assert_eq!(
@@ -4006,7 +4069,13 @@ mod packed {
                 .unwrap();
             log.seek(SeekFrom::Start(80)).unwrap();
             log.write_all(&[0xff; 4]).unwrap();
-            assert!(settle(u64::MAX), "a torn header wants a collection");
+            // A run that has not written the shard reads its header.
+            let other = Store::new(&root);
+            other.published.store(1, Ordering::Relaxed);
+            assert!(
+                other.settle(u64::MAX).unwrap(),
+                "a torn header wants a collection"
+            );
         }
 
         /// The index files' names, bytes and modification times.
@@ -4701,6 +4770,41 @@ mod packed {
                 .unwrap();
             assert_eq!(got.len(), 4096);
             assert!(got.iter().all(|&b| b == got[0]));
+        }
+
+        /// A reader whose view predates a fold that split a bucket finds a
+        /// key the split moved: the newer page without it makes it read
+        /// the shard again.
+        #[test]
+        fn a_reader_finds_a_key_a_later_fold_moved_to_a_new_bucket() {
+            let root = scratch("fold-split");
+            let writer = Store::new(&root);
+            let key = |k: u128| k.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let batch = |from: u128, to: u128| -> Vec<_> {
+                (from..to).map(|k| item(key(k), &k.to_le_bytes())).collect()
+            };
+            writer.publish(&batch(0, 30)).unwrap();
+            writer.open_shard(0).unwrap().fold().unwrap();
+            // The reader has read the shard's log, one bucket, and no page.
+            let reader = Store::new(&root);
+            let view = reader.read_view(0);
+            assert_eq!(view.head.map(Head::buckets), Some(1));
+            Store::snapshot(&mut reader.state()).views.insert(0, view);
+            writer.publish(&batch(30, 60)).unwrap();
+            let mut shard = writer.open_shard(0).unwrap();
+            shard.fold().unwrap();
+            let head = shard.txn().unwrap().head;
+            assert_eq!(head.buckets(), 2);
+            let moved = (0..30)
+                .find(|&k| head.bucket(key(k)) == 1)
+                .expect("a key the split moved");
+            drop(shard);
+            assert_eq!(
+                reader
+                    .get(EntryKind::Check, &Hash128(key(moved)))
+                    .as_deref(),
+                Some(moved.to_le_bytes().as_slice())
+            );
         }
 
         /// A torn tail of a shard's log is skipped by readers and cut by
