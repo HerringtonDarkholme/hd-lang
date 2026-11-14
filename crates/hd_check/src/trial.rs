@@ -10,7 +10,8 @@ use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
 use hd_types::solver::{
-    Answer, Candidate, Goal, ImplOrigin, Impls, TraitRef, plan_goals, tuple_goals, union_goals,
+    Answer, Candidate, Goal, ImplOrigin, Impls, Instantiations, TraitRef, plan_goals, tuple_goals,
+    union_goals,
 };
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
@@ -441,7 +442,7 @@ impl Ck<'_, '_> {
     pub(crate) fn choose_method(
         &mut self,
         (trait_, method, self_ty): (DefId, DefId, Ty),
-        cands: &[Candidate],
+        (cands, index): (&[Candidate], Option<&Instantiations>),
         recv: Option<Ref>,
         args: &Args<'_>,
         (n, bang): (NodeRef<'_>, bool),
@@ -456,7 +457,16 @@ impl Ck<'_, '_> {
         let first_var = self.infer.var_count();
         self.precheck_args(args)?;
         let last_var = self.infer.var_count();
-        let all: Vec<usize> = (0..cands.len()).collect();
+        let all =
+            self.narrow_candidates((trait_, method), (cands, index), recv.is_some(), args, want);
+        // One candidate left is called directly, as a lone candidate is:
+        // a nested call under a known expected type tries no candidate.
+        if let [only] = all.as_slice() {
+            self.method_targs = targs;
+            let r = self.call_candidate(target, &cands[*only], recv, args, (n, bang), want);
+            self.pre_args.truncate(pre);
+            return r;
+        }
         let (mut fits, limited) =
             self.try_candidates(target, cands, &all, (recv, args, n, bang, want), &targs)?;
         if fits.len() > 1 {
@@ -527,6 +537,107 @@ impl Ck<'_, '_> {
         r
     }
 
+    /// The candidates whose trial could fit (§2.5's fast reject, as
+    /// rustc's `DeepRejectCtxt`): where the trait method's parameter or
+    /// result is a trait parameter, the candidate's argument for it must
+    /// have the head of the argument inferred before the trials, and of
+    /// the expected result. Only rigid heads are compared, a primitive or
+    /// a nominal type other than an optional: no coercion goes from one
+    /// such head to another (`types.never.assignable`, the optional
+    /// injection, trait values and unions all have other heads), so a
+    /// candidate dropped here is one whose trial fails. With the
+    /// candidates' `index`, a head of one of the first two trait arguments
+    /// is one probe and the work is the candidates it leaves; without it,
+    /// one step per candidate.
+    fn narrow_candidates(
+        &mut self,
+        (trait_, method): (DefId, DefId),
+        (cands, index): (&[Candidate], Option<&Instantiations>),
+        has_recv: bool,
+        args: &Args<'_>,
+        want: Option<Ty>,
+    ) -> Vec<usize> {
+        let all = || (0..cands.len()).collect();
+        let Some(sig) = self.declared_sig(method) else {
+            return all();
+        };
+        let has_self = sig
+            .params
+            .first()
+            .is_some_and(|p| self.cx.names.text(p.0) == "self");
+        let skip = usize::from(has_self && has_recv);
+        let pool = self.pool();
+        // The trait argument a declared type is, when it is one.
+        let trait_arg = |t: Ty| match pool.get(t) {
+            TyData::Param(p) if p.owner == trait_ && p.index > 0 => Some(usize::from(p.index) - 1),
+            _ => None,
+        };
+        // (trait argument, the head its candidate value must have)
+        let mut needs: Vec<(usize, RigidHead)> = Vec::new();
+        let fixed = sig.params.len() - usize::from(sig.variadic);
+        for (k, e) in args.positional.iter().enumerate() {
+            let Some(&(_, ty)) = sig.params.get(k + skip).filter(|_| k + skip < fixed) else {
+                break;
+            };
+            let got = (self.pre_args.iter().rev())
+                .find(|p| p.0 == e.index())
+                .map(|p| p.2);
+            if let (Some(j), Some(h)) = (trait_arg(ty), got.and_then(|t| self.rigid_head(t))) {
+                needs.push((j, h));
+            }
+        }
+        if let (Some(j), Some(h)) = (
+            trait_arg(sig.ret),
+            want.filter(|w| *w != Ty::VOID)
+                .and_then(|w| self.rigid_head(w)),
+        ) {
+            needs.push((j, h));
+        }
+        if needs.is_empty() {
+            return all();
+        }
+        // The indexed needs, each one probe: the candidates with the head
+        // and those with none, merged in candidate order, then intersected.
+        let mut base: Option<Vec<usize>> = None;
+        if let Some(index) = index {
+            for &(j, h) in needs.iter().filter(|(j, _)| *j < 2) {
+                let with = index.heads[j].get(&h.code()).map_or(&[][..], Vec::as_slice);
+                let list = merged(with, &index.open[j]);
+                crate::work::scan_work(1 + list.len());
+                base = Some(match base {
+                    None => list,
+                    Some(b) => intersected(&b, &list),
+                });
+            }
+        }
+        let base = base.unwrap_or_else(all);
+        crate::work::scan_work(base.len());
+        base.into_iter()
+            .filter(|&i| {
+                let targs = pool.list_items(cands[i].args);
+                needs.iter().all(|&(j, h)| {
+                    targs
+                        .get(j)
+                        .and_then(|&t| self.rigid_head(t))
+                        .is_none_or(|c| c == h)
+                })
+            })
+            .collect()
+    }
+
+    /// The rigid head of `t` ([`Self::narrow_candidates`]): a primitive,
+    /// or a nominal type other than an optional, once inference knows it.
+    pub(crate) fn rigid_head(&self, t: Ty) -> Option<RigidHead> {
+        let pool = self.pool();
+        match pool.get(self.resolved(self.infer.resolve(pool, t))) {
+            TyData::Prim(p) => Some(RigidHead::Prim(p)),
+            TyData::Adt { def, .. } if def != self.cx.names.known.option => {
+                Some(RigidHead::Adt(def))
+            }
+            _ => None,
+        }
+    }
+
     /// The candidates among `which` whose trial has no error, and the
     /// first whose every error is a limit ([`Outcome::Limited`]).
     fn try_candidates(
@@ -540,6 +651,7 @@ impl Ck<'_, '_> {
         let mut fits = Vec::new();
         let mut limited = None;
         for &i in which {
+            crate::work::scan_work(1);
             self.method_targs = targs.to_vec();
             let outcome = self.trial_outcome(|ck| {
                 ck.call_candidate(target, &cands[i], recv, args, (n, bang), want)
@@ -1161,6 +1273,58 @@ enum Outcome {
     Limited,
     /// An error that is not a limit.
     Misfits,
+}
+
+/// A head no coercion leaves ([`Ck::narrow_candidates`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RigidHead {
+    Prim(hd_types::Prim),
+    Adt(DefId),
+}
+
+impl RigidHead {
+    /// The head as an index key ([`Instantiations`]): a primitive's
+    /// number with the top bit set, or a type's definition.
+    pub(crate) fn code(self) -> u64 {
+        match self {
+            RigidHead::Prim(p) => (1 << 63) | p as u64,
+            RigidHead::Adt(d) => u64::from(d.raw()),
+        }
+    }
+}
+
+/// The candidate numbers of two ascending lists, ascending.
+fn merged(a: &[u32], b: &[u32]) -> Vec<usize> {
+    let (mut i, mut k) = (0, 0);
+    let mut out = Vec::with_capacity(a.len() + b.len());
+    while i < a.len() || k < b.len() {
+        if k == b.len() || (i < a.len() && a[i] < b[k]) {
+            out.push(a[i] as usize);
+            i += 1;
+        } else {
+            out.push(b[k] as usize);
+            k += 1;
+        }
+    }
+    out
+}
+
+/// The numbers in both ascending lists.
+fn intersected(a: &[usize], b: &[usize]) -> Vec<usize> {
+    let (mut i, mut k) = (0, 0);
+    let mut out = Vec::new();
+    while i < a.len() && k < b.len() {
+        match a[i].cmp(&b[k]) {
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => k += 1,
+            std::cmp::Ordering::Equal => {
+                out.push(a[i]);
+                i += 1;
+                k += 1;
+            }
+        }
+    }
+    out
 }
 
 enum BoundPick {

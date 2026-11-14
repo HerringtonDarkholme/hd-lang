@@ -1821,8 +1821,15 @@ impl Ck<'_, '_> {
         let method = self.cx.names.member(tr, PathKind::Member, method);
         let mut call = crate::call::Args::empty();
         call.positional.extend_from_slice(args);
-        self.choose_method((tr, method, t), &cands, Some(a), &call, (n, false), None)
-            .map(Some)
+        self.choose_method(
+            (tr, method, t),
+            (&cands, None),
+            Some(a),
+            &call,
+            (n, false),
+            None,
+        )
+        .map(Some)
     }
 
     /// The instantiation choice for a tuple key with unsuffixed literal

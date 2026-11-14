@@ -1,0 +1,25 @@
+# trait.resolve.no-apply: an argument whose type no instantiation takes lists every instantiation.
+trait Take[A]:
+    fn take(&self, a: A) -> i32
+
+struct X:
+    n: i32
+
+struct P:
+    v: i32
+
+struct Q:
+    v: i32
+
+struct R:
+    v: i32
+
+impl Take[P] for X:
+    fn take(&self, a: P) -> i32: a.v
+
+impl Take[Q] for X:
+    fn take(&self, a: Q) -> i32: a.v
+
+pub fn main() -> void:
+    x := X { n: 0 }
+    t := x.take(R { v: 1 }) # diagnostic: type-mismatch

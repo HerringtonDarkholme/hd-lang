@@ -143,6 +143,7 @@ impl<'a> BodyFork<'a> {
             source_facts: self.collect_source_facts.then(RefCell::default),
             locals: self.locals,
             enclosing: std::cell::OnceCell::new(),
+            instantiations: RefCell::default(),
             traits_in_scope: self.traits_in_scope.clone(),
             file_name: self.file_name,
             tests: self.tests,

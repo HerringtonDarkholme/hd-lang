@@ -2313,3 +2313,80 @@ fn bound_dispatch_names_its_impls_once_per_module() {
         );
     });
 }
+
+/// `x.go(if true: x.go(…) else: +0)` nested `depth` deep under an `i32`
+/// binding, with three instantiations of `Go` for `X`: review F9's shape.
+fn nested_method_choice(depth: usize) -> String {
+    let mut s =
+        String::from("trait Go[A]:\n    fn go(&self, a: A) -> A\n\nstruct X:\n    n: i32\n");
+    for t in ["i32", "i64", "f64"] {
+        let _ = write!(
+            s,
+            "\nimpl Go[{t}] for X:\n    fn go(&self, a: {t}) -> {t}: a\n"
+        );
+    }
+    let mut e = String::from("+0");
+    for _ in 0..depth {
+        e = format!("x.go(if true: {e} else: +0)");
+    }
+    let _ = write!(
+        s,
+        "\npub fn main() -> void $ Console:\n    x := X {{ n: 1 }}\n    let y: i32 = {e}\n    println(\"$y\")\n"
+    );
+    s
+}
+
+/// `n` instantiations `impl Tr[A_i] for X` and `n` calls `x.go(A_i { })`:
+/// review F10's shape.
+fn instantiation_per_argument(n: usize) -> String {
+    let mut s =
+        String::from("trait Tr[A]:\n    fn go(&self, a: A) -> i32\n\nstruct X:\n    n: i32\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "\nstruct A{i}:\n    n: i32\n\nimpl Tr[A{i}] for X:\n    fn go(&self, a: A{i}) -> i32: a.n\n"
+        );
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    x := X { n: 1 }\n    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    t = t + x.go(A{i} {{ n: 1 }})");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+// Checker: #1892, a method choice drops the candidates whose trait
+// argument has another rigid head than the argument inferred before the
+// trials or the expected result, by one probe of the candidates' head
+// index, which a closed receiver's instantiations keep once per run: a
+// nested call under a known expected type tried every candidate per
+// level (exponential), and each call tried every instantiation.
+#[test]
+fn method_choice_narrows_by_argument_and_result_heads() {
+    on_test_stack(|| {
+        let work = |source: String| {
+            let (out, work) = hd_check::work::count_scan_work(|| compile(&source, &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{}", out.render());
+            work
+        };
+        let (small, large) = (
+            work(nested_method_choice(4)),
+            work(nested_method_choice(40)),
+        );
+        // Per level: three trials at the top, one probe of the index below.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work at depth 4 and 40: {small} and {large}"
+        );
+        let (small, large) = (
+            work(instantiation_per_argument(100)),
+            work(instantiation_per_argument(1_000)),
+        );
+        // Per call: one probe and one candidate; per instantiation: its
+        // index entry, once per run.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 instantiations: {small} and {large}"
+        );
+    });
+}

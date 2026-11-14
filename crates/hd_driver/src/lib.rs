@@ -6627,6 +6627,7 @@ impl Run<'_> {
                 .then(std::cell::RefCell::default),
             locals: &locals,
             enclosing: std::cell::OnceCell::new(),
+            instantiations: std::cell::RefCell::default(),
             traits_in_scope: std::sync::Arc::default(),
             tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
                 blocks: &blocks,
@@ -8107,6 +8108,7 @@ impl Run<'_> {
             source_facts: None,
             locals: &tlocals,
             enclosing: std::cell::OnceCell::new(),
+            instantiations: std::cell::RefCell::default(),
             traits_in_scope: std::sync::Arc::default(),
             tests: None,
             file_name: &self.table.files[tm],
@@ -8186,6 +8188,7 @@ impl Run<'_> {
             source_facts: None,
             locals: &tlocals,
             enclosing: std::cell::OnceCell::new(),
+            instantiations: std::cell::RefCell::default(),
             traits_in_scope: std::sync::Arc::default(),
             tests: None,
             file_name: &self.table.files[tm],

@@ -755,6 +755,39 @@ pub struct Candidate {
     pub residual: Vec<u16>,
 }
 
+/// The impl candidates of one trait for one receiver (an `Instantiations`
+/// answer, in content order), indexed by the head of each of their first
+/// two trait arguments, as the asker's `head` names it: `heads[j]` maps a
+/// head to the candidates whose argument `j` has it, `open[j]` lists those
+/// whose argument `j` has none. Each list is in candidate order. Built in
+/// one pass, O(candidates); a caller that knows an argument's head finds
+/// its candidates by one probe.
+#[derive(Debug, Default)]
+pub struct Instantiations {
+    pub cands: Vec<Candidate>,
+    pub heads: [HashMap<u64, Vec<u32>>; 2],
+    pub open: [Vec<u32>; 2],
+}
+
+impl Instantiations {
+    pub fn new(pool: Types<'_>, cands: Vec<Candidate>, head: impl Fn(Ty) -> Option<u64>) -> Self {
+        let mut out = Instantiations {
+            cands,
+            ..Instantiations::default()
+        };
+        for (i, c) in (0u32..).zip(&out.cands) {
+            let args = pool.list_items(c.args);
+            for j in 0..2 {
+                match args.get(j).and_then(|&a| head(a)) {
+                    Some(h) => out.heads[j].entry(h).or_default().push(i),
+                    None => out.open[j].push(i),
+                }
+            }
+        }
+        out
+    }
+}
+
 /// One frame of the explicit search stack (§6.1), 24 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Frame {

@@ -1,0 +1,38 @@
+# test: a method choice among a trait's instantiations keeps every candidate a coercion could fit: an optional parameter takes a plain value, a primitive result matches the expected type, and a struct argument picks its own impl
+# Spec lang/09-traits.md: trait.resolve.applies, trait.resolve.applies.expected, trait.resolve.one-applies.
+# expect-stdout: 1 2 7 8
+trait Take[A]:
+    fn take(&self, a: A) -> i32
+
+trait Make[A]:
+    fn make(&self) -> A
+
+struct X:
+    n: i32
+
+struct P:
+    v: i32
+
+struct Q:
+    v: i32
+
+impl Take[P] for X:
+    fn take(&self, a: P) -> i32: a.v
+
+impl Take[Q?] for X:
+    fn take(&self, a: Q?) -> i32:
+        match a:
+            .Some(q) => q.v + 1
+            .None => 0
+
+impl Make[i32] for X:
+    fn make(&self) -> i32: 7
+
+impl Make[i64] for X:
+    fn make(&self) -> i64: 8
+
+pub fn main() -> void $ Console:
+    x := X { n: 0 }
+    let small: i32 = x.make()
+    let big: i64 = x.make()
+    println("${x.take(P { v: 1 })} ${x.take(Q { v: 1 })} $small $big")

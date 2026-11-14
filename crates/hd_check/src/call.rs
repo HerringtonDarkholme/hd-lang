@@ -14,7 +14,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
 };
-use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
+use hd_types::solver::{Answer, Evidence, Goal, TraitRef};
 use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
 use crate::body::{Ck, ExpectPosition, ProjectSite};
@@ -196,11 +196,12 @@ pub(crate) enum Hit {
         choice: (ChoiceKind, u32),
     },
     /// A method of one trait that the receiver implements through these
-    /// impl candidates (an `Instantiations` answer, in content order).
+    /// impl candidates (an `Instantiations` answer, in content order,
+    /// indexed by their trait arguments' heads).
     Choice {
         trait_: DefId,
         method: DefId,
-        cands: Vec<Candidate>,
+        cands: std::sync::Arc<hd_types::solver::Instantiations>,
     },
     /// Methods of two or more traits (`trait.resolve.ambiguous`).
     Ambiguous(Vec<DefId>),
@@ -3928,7 +3929,7 @@ impl Ck<'_, '_> {
         // (`trait.assoc-call.type.traits`): `X::from(v)` chooses among
         // `X`'s instantiations of `From` like a dot call.
         if !is_param {
-            match self.trait_part(t, sym, &self.available_traits(sym))? {
+            match self.trait_part(t, &self.available_traits(sym))? {
                 Some(Hit::UnknownReceiver(on)) => {
                     return Ok(self.unknown_method_receiver(&on, name, n));
                 }
@@ -3955,7 +3956,7 @@ impl Ck<'_, '_> {
                 }) => {
                     return self.choose_method(
                         (trait_, method, t),
-                        &cands,
+                        (&cands.cands, Some(&cands)),
                         None,
                         args,
                         (n, bang),
@@ -4627,7 +4628,7 @@ impl Ck<'_, '_> {
             .unwrap_or_else(|| self.available_traits(sym));
         // The traits `trait_part` asks, one goal each.
         crate::work::scan_work(traits.len());
-        self.trait_part(t, sym, &traits)
+        self.trait_part(t, &traits)
     }
 
     /// The available traits declaring `sym` that a receiver of type `t`
@@ -4680,12 +4681,7 @@ impl Ck<'_, '_> {
     /// compiler-answered traits, then the trait part of `Methods`
     /// (`crates/hd_check/DESIGN.md` (trait solver) §6.5), each other trait with the method by the
     /// impl candidates the type has. Two traits are ambiguous.
-    fn trait_part(
-        &mut self,
-        t: Ty,
-        sym: Symbol,
-        traits: &[(DefId, DefId)],
-    ) -> StageResult<Option<Hit>> {
+    fn trait_part(&mut self, t: Ty, traits: &[(DefId, DefId)]) -> StageResult<Option<Hit>> {
         let pool = self.pool();
         let mut builtin = Vec::new();
         let mut asked = Vec::new();
@@ -4705,29 +4701,22 @@ impl Ck<'_, '_> {
                 asked.push(tr);
             }
         }
-        let goal = Goal::Methods {
-            receiver: t,
-            name: sym,
-            traits: asked.clone(),
-        };
-        let cands = match self.solve_goal(&goal)? {
-            Answer::Candidates(c) => c,
-            Answer::Stalled { on } => return self.waiting_trait(t, &builtin, traits, on),
-            Answer::Overflow => return Ok(Some(Hit::TooDeep(asked))),
-            // ruled out: TableSolver::methods absorbs Fails and returns candidates,
-            // stall or depth; solve_goal handles fuel. Direct Holds is poison recovery.
-            _ => return Ok(None),
-        };
-        // The candidates by trait, in content order of their first one.
-        let mut groups: Vec<(DefId, Vec<Candidate>)> = Vec::new();
-        for c in cands {
-            let Some(table) = self.cx.impl_table(c.row.module) else {
-                continue;
-            };
-            let tr = table.trait_[c.row.row as usize];
-            match groups.iter_mut().find(|g| g.0 == tr) {
-                Some(g) => g.1.push(c),
-                None => groups.push((tr, vec![c])),
+        // The trait part of `Methods` (§6.5 step 3), one trait at a time
+        // in the given order: each trait's candidates are its group.
+        let mut groups: Vec<(DefId, std::sync::Arc<hd_types::solver::Instantiations>)> = Vec::new();
+        for &tr in &asked {
+            match self.instantiations(t, tr)? {
+                Ok(found) if found.cands.is_empty() => {}
+                Ok(found) => groups.push((tr, found)),
+                Err(Answer::Fails(_)) => {}
+                Err(Answer::Stalled { on }) => {
+                    return self.waiting_trait(t, &builtin, traits, on);
+                }
+                Err(Answer::Overflow) => return Ok(Some(Hit::TooDeep(asked))),
+                // ruled out: an `Instantiations` goal answers candidates,
+                // fails, stalls or overflows; solve_goal handles fuel.
+                // Direct Holds is poison recovery.
+                Err(_) => return Ok(None),
             }
         }
         if builtin.len() + groups.len() > 1 {
@@ -4751,6 +4740,49 @@ impl Ck<'_, '_> {
                 cands,
             })
         }))
+    }
+
+    /// The candidates of `trait_` for the receiver `t`, indexed by their
+    /// trait arguments' heads ([`hd_types::solver::Instantiations`]), or
+    /// the goal's other answer. A receiver with no inference variable,
+    /// parameter or body-local part, in a body that sees no local impl,
+    /// has the same answer in every body of the context, whose one impl
+    /// view numbers the candidates' rows: it is solved and indexed once
+    /// per context (`BodyCx::instantiations`; a forked context makes its
+    /// own), so a call costs one probe, not one candidate per impl.
+    fn instantiations(
+        &mut self,
+        t: Ty,
+        trait_: DefId,
+    ) -> StageResult<Result<std::sync::Arc<hd_types::solver::Instantiations>, Answer>> {
+        let pool = self.pool();
+        let closed = !self.cx.locals.has_impls()
+            && !t.is_local()
+            && !pool.has_infer(t)
+            && !pool.has_param(t)
+            && !pool.has_canon(t);
+        if closed && let Some(found) = self.cx.instantiations.borrow().get(&(t, trait_)) {
+            crate::work::scan_work(1);
+            return Ok(Ok(std::sync::Arc::clone(found)));
+        }
+        let goal = Goal::Instantiations {
+            self_ty: t,
+            trait_,
+            mut_: false,
+        };
+        let cands = match self.solve_goal(&goal)? {
+            Answer::Candidates(c) => c,
+            other => return Ok(Err(other)),
+        };
+        crate::work::scan_work(cands.len());
+        let found = std::sync::Arc::new(hd_types::solver::Instantiations::new(pool, cands, |a| {
+            self.rigid_head(a).map(crate::trial::RigidHead::code)
+        }));
+        if closed {
+            (self.cx.instantiations.borrow_mut())
+                .insert((t, trait_), std::sync::Arc::clone(&found));
+        }
+        Ok(Ok(found))
     }
 
     /// The method of a receiver whose impl waits for inference: the one
@@ -4893,7 +4925,7 @@ impl Ck<'_, '_> {
                 };
                 self.choose_method(
                     (trait_, method, t),
-                    &cands,
+                    (&cands.cands, Some(&cands)),
                     Some(recv),
                     args,
                     (n, bang),

@@ -59,6 +59,12 @@ pub struct BodyCx<'a> {
     /// enclose, made on the first name that reaches nothing
     /// ([`Self::enclosing_params`]).
     pub enclosing: std::cell::OnceCell<hd_resolve::EnclosingParams>,
+    /// A closed receiver's candidates of a trait under this context's
+    /// impl view, indexed by their trait arguments' heads, made on the
+    /// first method call that asks ([`Ck::instantiations`]).
+    pub instantiations: std::cell::RefCell<
+        hd_base::HashMap<(Ty, DefId), std::sync::Arc<hd_types::solver::Instantiations>>,
+    >,
     /// The module's traits by method name and where they are bound, made
     /// on the first method call and shared with the module's forked
     /// contexts.

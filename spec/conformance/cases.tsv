@@ -1956,6 +1956,9 @@ runtime/valid/promoted-method-no-override.hd	runtime	accept	lang/03-names-and-sc
 runtime/valid/generic-trait-instantiation-by-argument.hd	runtime	accept	lang/09-traits.md#method-resolution
 typing/invalid/generic-trait-instantiations-ambiguous.hd	type	reject:ambiguous-method	lang/09-traits.md#method-resolution
 typing/invalid/generic-trait-instantiation-no-fit.hd	type	reject:type-mismatch	lang/09-traits.md#method-resolution
+runtime/valid/method-choice-keeps-candidates-a-coercion-fits.hd	runtime	accept	lang/09-traits.md#method-resolution
+typing/invalid/method-choice-a-plain-argument-fits-plain-and-optional-instantiations.hd	type	reject:ambiguous-method	lang/09-traits.md#method-resolution
+typing/invalid/method-choice-an-argument-no-instantiation-takes-lists-them-all.hd	type	reject:type-mismatch	lang/09-traits.md#method-resolution
 runtime/valid/impl-distinct-target-arguments.hd	runtime	accept	lang/09-traits.md#overlap
 runtime/valid/tuple-impl-target.hd	runtime	accept	lang/09-traits.md#implementation-targets
 typing/invalid/overlapping-tuple-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
