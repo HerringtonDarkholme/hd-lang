@@ -72,6 +72,99 @@ pub(crate) fn key_supplies(
     }
 }
 
+/// The keys of a row, indexed for [`key_supplies`] questions: each key
+/// under its own trait and every supertrait of it, so asking which key
+/// supplies a needed key probes the keys of that trait only. A row of at
+/// most [`KeyIndex::SMALL`] keys is scanned, as building the maps would
+/// cost more than the scan.
+///
+/// Cost: one supertrait walk per key to build; then one probe and the
+/// candidates' checks per question, where a scan asked every key and
+/// walked each one's supertraits.
+pub(crate) enum KeyIndex {
+    Small(Vec<Ty>),
+    Indexed {
+        all: hd_base::HashSet<Ty>,
+        by_trait: hd_base::HashMap<hd_base::DefId, Vec<Ty>>,
+    },
+}
+
+impl KeyIndex {
+    /// The most keys a row has to be scanned instead of indexed.
+    const SMALL: usize = 8;
+
+    pub(crate) fn new(
+        lookup: &hd_resolve::Lookup<'_>,
+        pool: hd_types::Types<'_>,
+        keys: &[Ty],
+    ) -> Self {
+        crate::work::scan_work(keys.len());
+        if keys.len() <= Self::SMALL {
+            return Self::Small(keys.to_vec());
+        }
+        let mut all = hd_base::HashSet::default();
+        let mut by_trait: hd_base::HashMap<hd_base::DefId, Vec<Ty>> = hd_base::HashMap::default();
+        for &h in keys {
+            all.insert(h);
+            if let TyData::TraitValue { def, .. } = pool.get(h) {
+                crate::body::walk_supertraits(
+                    lookup,
+                    pool,
+                    (def, hd_types::TyList::EMPTY),
+                    crate::body::Fill::No,
+                    |d, _, _| {
+                        crate::work::scan_work(1);
+                        let held = by_trait.entry(d).or_default();
+                        if held.last() != Some(&h) {
+                            held.push(h);
+                        }
+                        None::<()>
+                    },
+                );
+            }
+        }
+        Self::Indexed { all, by_trait }
+    }
+
+    /// The first key, in the row's order, that supplies `want`.
+    pub(crate) fn supplier(
+        &self,
+        lookup: &hd_resolve::Lookup<'_>,
+        pool: hd_types::Types<'_>,
+        want: Ty,
+    ) -> Option<Ty> {
+        match self {
+            Self::Small(keys) => {
+                crate::work::scan_work(keys.len());
+                keys.iter()
+                    .copied()
+                    .find(|&h| key_supplies(lookup, pool, h, want))
+            }
+            Self::Indexed { all, by_trait } => match pool.get(want) {
+                TyData::TraitValue { def, .. } => by_trait.get(&def).and_then(|held| {
+                    crate::work::scan_work(held.len());
+                    held.iter().copied().find(|&h| match pool.get(h) {
+                        // Indexed under a strict supertrait: it extends `want`'s trait.
+                        TyData::TraitValue { def: d, .. } if d != def => true,
+                        _ => key_supplies(lookup, pool, h, want),
+                    })
+                }),
+                _ => all.contains(&want).then_some(want),
+            },
+        }
+    }
+
+    /// Whether some key supplies `want`.
+    pub(crate) fn supplies(
+        &self,
+        lookup: &hd_resolve::Lookup<'_>,
+        pool: hd_types::Types<'_>,
+        want: Ty,
+    ) -> bool {
+        self.supplier(lookup, pool, want).is_some()
+    }
+}
+
 /// One requirement a body needs: a key or a row parameter.
 #[derive(Clone, Copy)]
 enum Need {
@@ -376,9 +469,10 @@ impl Ck<'_, '_> {
         }
         let (da, db) = (pool.row_data(a), pool.row_data(b));
         let within = |x: &hd_types::RowData, y: &hd_types::RowData| {
+            let have = KeyIndex::new(self.cx.lookup, pool, &y.keys);
             x.keys
                 .iter()
-                .all(|k| y.keys.iter().any(|h| self.key_supplies(*h, *k)))
+                .all(|k| have.supplies(self.cx.lookup, pool, *k))
         };
         da.params == db.params && within(&da, &db) && within(&db, &da)
     }
@@ -520,11 +614,29 @@ impl Ck<'_, '_> {
     }
 
     fn row_supplies(&self, row: RowId, need: Need) -> bool {
-        let d = self.pool().row_data(row);
         match need {
-            Need::Key(k) => d.keys.iter().any(|h| self.key_supplies(*h, k)),
-            Need::Param(p) => d.params.contains(&p),
+            Need::Key(k) => self.row_key_supplier(row, k).is_some(),
+            Need::Param(p) => self.pool().row_data(row).params.contains(&p),
         }
+    }
+
+    /// The first key of `row` that supplies `k`, from the body's index of
+    /// the row's keys ([`KeyIndex`]), made on the row's first question.
+    fn row_key_supplier(&self, row: RowId, k: Ty) -> Option<Ty> {
+        let pool = self.pool();
+        let index = self.row_keys.borrow().get(&row).cloned();
+        let index = index.unwrap_or_else(|| {
+            let built = std::rc::Rc::new(KeyIndex::new(
+                self.cx.lookup,
+                pool,
+                &pool.row_data(row).keys,
+            ));
+            self.row_keys
+                .borrow_mut()
+                .insert(row, std::rc::Rc::clone(&built));
+            built
+        });
+        index.supplier(self.cx.lookup, pool, k)
     }
 
     /// Finds `need` in the available-keys stack (`req.row.entail`); a
@@ -542,12 +654,7 @@ impl Ck<'_, '_> {
                 RowFrame::Profile { row, .. } => {
                     let row = *row;
                     let have = match need {
-                        Need::Key(k) => self
-                            .pool()
-                            .row_data(row)
-                            .keys
-                            .into_iter()
-                            .find(|h| self.key_supplies(*h, k)),
+                        Need::Key(k) => self.row_key_supplier(row, k),
                         Need::Param(_) => None,
                     };
                     if let (Some(h), RowFrame::Profile { used, .. }) = (have, &mut self.rows[i]) {

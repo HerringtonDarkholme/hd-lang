@@ -353,12 +353,9 @@ impl Discovery {
                 };
                 if let Transform::Mask(mask) = transform {
                     let mask = pool.row_data(ck.infer.resolve_row(pool, mask));
-                    row.keys.retain(|&k| {
-                        !mask
-                            .keys
-                            .iter()
-                            .any(|&h| crate::rows::key_supplies(ck.cx.lookup, pool, h, k))
-                    });
+                    let masked = crate::rows::KeyIndex::new(ck.cx.lookup, pool, &mask.keys);
+                    row.keys
+                        .retain(|&k| !masked.supplies(ck.cx.lookup, pool, k));
                     row.params.retain(|p| !mask.params.contains(p));
                 }
                 for k in row.keys {

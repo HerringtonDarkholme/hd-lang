@@ -3833,6 +3833,7 @@ typing/invalid/requirement-key-binding-unknown-type.hd	type	reject:unknown-type	
 typing/invalid/requirement-key-binding-row-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 typing/invalid/requirement-key-unknown-argument-type.hd	type	reject:unknown-type	lang/11-requirements-and-suspension.md#requirement-keys
 typing/valid/requirement-key-trait-value-argument.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.generic
+typing/invalid/a-wide-row-misses-a-key-it-lacks-but-not-a-supertrait-key.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.entail.member
 typing/invalid/function-type-row-unknown-trait-nested.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 typing/invalid/local-annotation-row-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 typing/valid/data-field-row-any-trait.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.key.any-trait-members.reference-values
@@ -3890,6 +3891,7 @@ runtime/valid/generic-storage-invokes-callables.hd	runtime	accept	lang/04-type-s
 runtime/valid/generic-storage-callable-list-identity.hd	runtime	accept	lang/04-type-system.md#r-types.generic.unobservable
 runtime/valid/row-parameter-callable-in-list.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.poly.row-parameter
 runtime/valid/generic-requirement-key-substitution.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.generic
+runtime/valid/a-wide-row-finds-each-key-and-a-trait-value-its-supertrait-method.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.member
 runtime/valid/generic-inference-from-requirement-key.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer
 runtime/valid/requirement-row-order-stored-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.set.order
 runtime/valid/requirement-row-order-trait-value.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.set.order

@@ -75,8 +75,6 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
 export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["dyn-values build", "#1908"],
   ["row-chain build", "#1920"],
-  ["row-traits check", "#1921"],
-  ["row-traits build", "#1921"],
   ["closures build", "#1907"],
   ["matches build", "#1917"],
   ["enum-arms build", "#1909"],

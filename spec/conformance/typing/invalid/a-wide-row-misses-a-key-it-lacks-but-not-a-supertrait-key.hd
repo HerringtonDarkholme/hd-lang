@@ -1,0 +1,46 @@
+# test: a call under a row of more keys than a scan serves still misses a key the row lacks, and a key a supertrait key supplies is not missing
+# Spec 11 Requirement Rows: req.row.entail.member.
+trait K0:
+    fn v(&self) -> i32
+
+trait K1:
+    fn v(&self) -> i32
+
+trait K2:
+    fn v(&self) -> i32
+
+trait K3:
+    fn v(&self) -> i32
+
+trait K4:
+    fn v(&self) -> i32
+
+trait K5:
+    fn v(&self) -> i32
+
+trait K6:
+    fn v(&self) -> i32
+
+trait K7:
+    fn v(&self) -> i32
+
+trait K8:
+    fn v(&self) -> i32
+
+trait K9:
+    fn v(&self) -> i32
+
+trait Base:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+fn needs() -> i32 $ K0 + K1 + K2 + K3 + K4 + K5 + K6 + K7 + K8 + K9 + Base:
+    $.use(K9).v() + $.use(Base).base()
+
+fn caller() -> i32 $ K8 + K7 + K6 + K5 + K4 + K3 + K2 + K1 + K0 + Named:
+    needs() # diagnostic: missing-requirement
+
+pub fn main() -> void:
+    pass

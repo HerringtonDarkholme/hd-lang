@@ -1,0 +1,103 @@
+# test: a row of more keys than a scan serves finds each key and a generic key in any order, and a trait value finds a method its supertraits declare
+# Spec 11 Requirement Rows: req.row.entail.member.
+# expect-stdout: 3 7 2 1
+trait K0:
+    fn v(&self) -> i32
+
+trait K1:
+    fn v(&self) -> i32
+
+trait K2:
+    fn v(&self) -> i32
+
+trait K3:
+    fn v(&self) -> i32
+
+trait K4:
+    fn v(&self) -> i32
+
+trait K5:
+    fn v(&self) -> i32
+
+trait K6:
+    fn v(&self) -> i32
+
+trait K7:
+    fn v(&self) -> i32
+
+trait Base:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+trait Repo[T]:
+    fn get(&self) -> T
+
+trait Left:
+    fn tag(&self) -> i32
+
+trait Right:
+    fn tag(&self) -> i32
+
+trait Both < Left & Right:
+    fn both(&self) -> i32
+
+struct S:
+    n: i32
+
+impl K0 for S:
+    fn v(&self) -> i32: self.n + 0
+
+impl K1 for S:
+    fn v(&self) -> i32: self.n + 1
+
+impl K2 for S:
+    fn v(&self) -> i32: self.n + 2
+
+impl K3 for S:
+    fn v(&self) -> i32: self.n + 3
+
+impl K4 for S:
+    fn v(&self) -> i32: self.n + 4
+
+impl K5 for S:
+    fn v(&self) -> i32: self.n + 5
+
+impl K6 for S:
+    fn v(&self) -> i32: self.n + 6
+
+impl K7 for S:
+    fn v(&self) -> i32: self.n + 7
+
+impl Base for S:
+    fn base(&self) -> i32: self.n * 10
+
+impl Named for S:
+    fn name(&self) -> i32: self.n
+
+impl Repo[i32] for S:
+    fn get(&self) -> i32: 2
+
+impl Left for S:
+    fn tag(&self) -> i32: 1
+
+impl Right for S:
+    fn tag(&self) -> i32: 2
+
+impl Both for S:
+    fn both(&self) -> i32: 0
+
+fn inner() -> i32 $ K0 + K1 + K2 + K3 + K4 + K5 + K6 + K7 + Named + Repo[i32]:
+    $.use(K3).v() * 0 + $.use(K3).v()
+
+fn outer() -> string $ Repo[i32] + Named + K7 + K6 + K5 + K4 + K3 + K2 + K1 + K0:
+    let f: fn() -> i32 $ Repo[i32] + Named + K7 + K6 + K5 + K4 + K3 + K2 + K1 + K0 = inner
+    "${f()} ${$.use(K7).v()} ${$.use(Repo[i32]).get()} ${tag(&S { n: 0 })}"
+
+fn tag(b: &dyn Both) -> i32:
+    b.tag()
+
+pub fn main() -> void $ Console:
+    $.with(K0=box(S { n: 0 }), K1=box(S { n: 0 }), K2=box(S { n: 0 }), K3=box(S { n: 0 }), K4=box(S { n: 0 }), K5=box(S { n: 0 }), K6=box(S { n: 0 }), K7=box(S { n: 0 }), Named=box(S { n: 4 }), Repo[i32]=box(S { n: 0 })):
+        println(outer())

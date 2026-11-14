@@ -2073,3 +2073,49 @@ fn wide_struct_reads_cost_one_probe_per_field() {
         );
     });
 }
+
+/// One function whose row names `n` traits, each declaring a method of
+/// one name, and uses each with `$.use`: the scale check's `row-traits`
+/// shape, plus a caller under the same keys in reverse order.
+fn row_traits(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = write!(s, "trait R{i}:\n    fn r(&self) -> i32\n\n");
+    }
+    let keys: Vec<String> = (0..n).map(|i| format!("R{i}")).collect();
+    let _ = writeln!(s, "fn needs() -> i32 $ Console + {}:", keys.join(" + "));
+    s.push_str("    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    t = t + $.use(R{i}).r()");
+    }
+    s.push_str("    t\n\n");
+    let reversed: Vec<&str> = keys.iter().rev().map(String::as_str).collect();
+    let _ = writeln!(
+        s,
+        "fn caller() -> i32 $ Console + {}:",
+        reversed.join(" + ")
+    );
+    s.push_str("    needs()\n\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker: #1921, a row's keys are indexed once per body, by trait and
+// supertrait: each `$.use` scanned every key of the row, walking each
+// one's supertraits.
+#[test]
+fn row_keys_cost_one_probe_per_use() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&row_traits(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        // Per key: its index entry and walk, and its `$.use` probe.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 keys: {small} and {large}"
+        );
+    });
+}

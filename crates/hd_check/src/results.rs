@@ -652,15 +652,11 @@ impl Results {
             };
             let need = edge_row(cx, pool, &pool.row_data(*r), &e);
             let have = pool.row_data(written);
+            let held = crate::rows::KeyIndex::new(cx.lookup, pool, &have.keys);
             let mut missing: Vec<String> = need
                 .keys
                 .iter()
-                .filter(|k| {
-                    !have
-                        .keys
-                        .iter()
-                        .any(|h| crate::rows::key_supplies(cx.lookup, pool, *h, **k))
-                })
+                .filter(|k| !held.supplies(cx.lookup, pool, **k))
                 .map(|k| format!("`$ {}`", hd_resolve::show_ty_in(&cx.names, pool, *k)))
                 .collect();
             missing.sort_stable();
@@ -735,13 +731,9 @@ fn edge_row(cx: &BodyCx<'_>, pool: Types<'_>, callee: &RowData, e: &RowEdge) -> 
     };
     let row = pool.subst_row(pool.row(callee), &f);
     let mut d = pool.row_data(row);
-    d.keys.retain(|k| {
-        !pool.has_poison(*k)
-            && !e
-                .minus
-                .iter()
-                .any(|m| crate::rows::key_supplies(cx.lookup, pool, *m, *k))
-    });
+    let minus = crate::rows::KeyIndex::new(cx.lookup, pool, &e.minus);
+    d.keys
+        .retain(|k| !pool.has_poison(*k) && !minus.supplies(cx.lookup, pool, *k));
     d
 }
 

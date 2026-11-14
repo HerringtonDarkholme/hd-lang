@@ -635,6 +635,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The generic local functions declared so far, by their name's local
     /// (`sub_flags::GENERIC`): a read of one instantiates it.
     pub local_generics: HashMap<LocalId, crate::local::LocalGeneric>,
+    /// The keys of each row the body asks for a key, indexed on its first
+    /// question ([`crate::rows::KeyIndex`]); a row's keys never change.
+    pub row_keys: std::cell::RefCell<HashMap<RowId, std::rc::Rc<crate::rows::KeyIndex>>>,
     /// The owner of the body's type parameters, whose parameter numbers a
     /// generic local function's own parameters continue
     /// (`hd_mono::subst`).
@@ -845,6 +848,7 @@ pub(crate) fn new_ck<'a, 'c>(
         registering: false,
         row_waits: Vec::new(),
         local_generics: HashMap::default(),
+        row_keys: std::cell::RefCell::default(),
         gen_owner: env,
         next_gen: 0,
         in_template: None,
