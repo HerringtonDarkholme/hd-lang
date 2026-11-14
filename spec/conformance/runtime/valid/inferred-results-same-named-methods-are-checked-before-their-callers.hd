@@ -1,0 +1,40 @@
+# test: methods that share a name and omit their results are checked before the callers that name them, and recursion through a written result of that name stays valid
+# Spec lang/07-functions.md: fn.decl.result-inferred, fn.decl.omitted-cycle.resolve.
+# expect-stdout: 3 hi 4 true false
+
+struct Box:
+    v: i32
+
+struct Tag:
+    s: string
+
+fn total(b: Box):
+    b.size() + 1
+
+fn label(t: Tag):
+    t.size()
+
+impl Box:
+    fn size(self):
+        self.v + 1
+
+impl Tag:
+    fn size(self):
+        self.s
+
+struct Ping:
+    n: i32
+
+struct Pong:
+    n: i32
+
+impl Ping:
+    fn step(self) -> bool:
+        if self.n == 0: true else: Pong { n: self.n - 1 }.step()
+
+impl Pong:
+    fn step(self):
+        if self.n == 0: false else: Ping { n: self.n - 1 }.step()
+
+pub fn main() -> void $ Console:
+    println("${Box { v: 2 }.size()} ${label(Tag { s: "hi" })} ${total(Box { v: 2 })} ${Ping { n: 4 }.step()} ${Pong { n: 4 }.step()}")

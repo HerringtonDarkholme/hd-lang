@@ -304,3 +304,27 @@ pub(crate) fn solve_work(n: usize) {
         }
     });
 }
+
+thread_local! {
+    static PLAN_EDGES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the edges of the omitted-result plans built on this thread
+/// (`crate::results`): one per callable or name node a body refers to,
+/// and one per callable a shared name joins. Use the driver's serial
+/// executor to measure a whole build.
+pub fn count_plan_edges<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = PLAN_EDGES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = PLAN_EDGES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` plan edges.
+pub(crate) fn plan_edges(n: usize) {
+    PLAN_EDGES.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}

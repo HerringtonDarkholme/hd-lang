@@ -1721,3 +1721,40 @@ fn trait_impls_find_their_traits_by_one_probe_each() {
         }
     });
 }
+
+/// `n` functions with omitted results, each declaring a struct with an
+/// inherent method `get` and calling it.
+fn same_named_methods(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    println(g0())\n\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "fn g{i}():\n    struct P:\n        x: i32\n    impl P:\n        fn get(self) -> i32:\n            self.x\n    p := P {{ x: {i} }}\n    p.get()\n\n"
+        );
+    }
+    s
+}
+
+// Checker: #1889, the omitted-result plan links a body to one node per
+// name it holds, and a name several callables share to each of them
+// once: a link from each body to every callable of each name made n
+// bodies that each call one of n methods named `get` n² edges. (The
+// sizes stay small: same-named inherent members are still compared in
+// pairs, a separate quadratic.)
+#[test]
+fn omitted_result_plan_links_a_shared_name_once() {
+    on_test_stack(|| {
+        for n in [1_000, 10_000] {
+            let (out, edges) = hd_check::work::count_plan_edges(|| {
+                compile(&same_named_methods(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            // Each body names `P` and `get` (and `g0` in `main`); `get`
+            // joins its n methods once.
+            assert!(
+                edges <= 4 * n as u64,
+                "plan edges for {n} same-named methods: {edges}"
+            );
+        }
+    });
+}

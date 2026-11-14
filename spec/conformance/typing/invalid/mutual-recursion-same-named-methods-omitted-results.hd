@@ -1,0 +1,19 @@
+# test: methods that share a name and omit their results, and call each other, need a written result
+# Spec lang/07-functions.md: fn.decl.omitted-cycle.
+
+struct Ping:
+    n: i32
+
+struct Pong:
+    n: i32
+
+impl Ping:
+    fn step(self): # diagnostic: recursive-function-needs-result-type
+        if self.n == 0: true else: Pong { n: self.n - 1 }.step()
+
+impl Pong:
+    fn step(self):
+        if self.n == 0: false else: Ping { n: self.n - 1 }.step()
+
+pub fn check() -> bool:
+    Ping { n: 4 }.step()

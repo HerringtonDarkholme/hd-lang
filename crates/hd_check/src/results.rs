@@ -893,15 +893,25 @@ pub fn infer_results(cx: &BodyCx<'_>) {
 /// first use. A body refers to each registered callable whose name is one
 /// of its identifier tokens. That over-approximates its calls and its
 /// reads, so an order that respects these edges respects the real ones.
+///
+/// A name that several callables share is a node of its own, after the
+/// callables, that refers to each of them: a body naming it refers to
+/// that one node. So the graph has one edge per name a body holds plus
+/// one per callable, however many callables share a name, where an edge
+/// from each body to each callable of each name it holds made n bodies
+/// that each call one of n same-named methods n² edges (#1889). A path
+/// through a name node is a path between the callables it joins, so the
+/// callables' reach and cycles are as with the direct edges.
 struct Plan {
     /// The callables in source order: a callable's index is its
-    /// `Omits::position`.
+    /// `Omits::position`. The name nodes follow them.
     defs: Vec<DefId>,
-    /// Each body's references, in source order.
+    /// Each node's references: a body's in node order, a name node's the
+    /// callables of its name.
     refs: Vec<Vec<u32>>,
-    /// The component of each callable with an omitted result in the graph
-    /// of references between such callables, numbered callees first;
-    /// `u32::MAX` for one whose result is written.
+    /// The component of each callable with an omitted result, and of each
+    /// name node, in the graph of references between them, numbered callees
+    /// first; `u32::MAX` for a callable whose result is written.
     comp: Vec<u32>,
     /// The module's top-level binding names each body names: it can be
     /// checked early only once each is declared.
@@ -909,16 +919,41 @@ struct Plan {
 }
 
 impl Plan {
+    /// Whether node `i` is a name node, not a callable.
+    fn is_name(&self, i: u32) -> bool {
+        i as usize >= self.defs.len()
+    }
+
     fn build(cx: &BodyCx<'_>, r: &Results) -> Plan {
         let defs: Vec<DefId> = r.order.clone();
         let mut by_name: HashMap<&str, Vec<u32>> = HashMap::default();
+        let mut texts = Vec::with_capacity(defs.len());
         for (i, d) in defs.iter().enumerate() {
-            if let Some(it) = cx.lookup.item(*d) {
+            let text = cx.lookup.item(*d).map(|it| cx.names.text(it.name));
+            if let Some(text) = text {
                 by_name
-                    .entry(cx.names.text(it.name))
+                    .entry(text)
                     .or_default()
                     .push(u32::try_from(i).unwrap_or(u32::MAX));
             }
+            texts.push(text);
+        }
+        // What a name refers to: its one callable, or the name node of
+        // the callables that share it, numbered in order of their first.
+        let mut name_refs: Vec<Vec<u32>> = Vec::new();
+        let mut node_of: HashMap<&str, u32> = HashMap::default();
+        for text in texts.into_iter().flatten() {
+            // Taken at the name's first callable.
+            let Some(callees) = by_name.remove(text) else {
+                continue;
+            };
+            let node = if let [one] = callees[..] {
+                one
+            } else {
+                name_refs.push(callees);
+                u32::try_from(defs.len() + name_refs.len() - 1).unwrap_or(u32::MAX)
+            };
+            node_of.insert(text, node);
         }
         let tops_by_name: HashMap<&str, hd_base::Symbol> = {
             let init = cx.init.borrow();
@@ -945,8 +980,8 @@ impl Plan {
                     continue;
                 }
                 let text = cx.src.text(t);
-                if let Some(callees) = by_name.get(text) {
-                    out.extend_from_slice(callees);
+                if let Some(&node) = node_of.get(text) {
+                    out.push(node);
                 }
                 if let Some(sym) = tops_by_name.get(text) {
                     named.push(*sym);
@@ -956,11 +991,15 @@ impl Plan {
             out.dedup();
             named.sort_stable_by_key(|s| s.raw());
             named.dedup();
+            crate::work::plan_edges(out.len());
             refs.push(out);
             tops.push(named);
         }
-        let ret: Vec<bool> = defs.iter().map(|d| r.omits[d].ret).collect();
-        let mut comp = vec![u32::MAX; defs.len()];
+        let mut ret: Vec<bool> = defs.iter().map(|d| r.omits[d].ret).collect();
+        ret.resize(defs.len() + name_refs.len(), true);
+        crate::work::plan_edges(name_refs.iter().map(Vec::len).sum());
+        refs.extend(name_refs);
+        let mut comp = vec![u32::MAX; refs.len()];
         for (c, members) in components(&refs, &ret).iter().enumerate() {
             for &m in members {
                 comp[m as usize] = u32::try_from(c).unwrap_or(u32::MAX);
@@ -1054,18 +1093,24 @@ fn plan(cx: &BodyCx<'_>) -> std::sync::Arc<Plan> {
 /// the source-order sweep, and so does every cycle's entry.
 fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
     let plan = plan(cx);
+    // A name node passes on to its callables.
     let pending: Vec<bool> = {
         let r = cx.results.borrow();
-        plan.defs
+        let mut pending: Vec<bool> = plan
+            .defs
             .iter()
             .map(|d| matches!(r.state.get(d), Some(State::Pending(_))))
-            .collect()
+            .collect();
+        pending.resize(plan.refs.len(), true);
+        pending
     };
-    let mut cyclic = vec![false; plan.defs.len()];
+    let mut cyclic = vec![false; plan.refs.len()];
     let mut out = Vec::new();
     for component in components(&plan.refs, &pending) {
         // A component reaches a cycle when it is one, or when a
-        // component it calls does (those came out before it).
+        // component it calls does (those came out before it). A name node
+        // in a component of two or more lies on a cycle through a
+        // callable: one that names itself, if no other.
         let reaches = component.len() > 1
             || component.iter().any(|&c| {
                 plan.refs[c as usize]
@@ -1076,7 +1121,11 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
             cyclic[c as usize] = reaches;
         }
         if !reaches {
-            out.extend(component.iter().map(|&c| plan.defs[c as usize]));
+            out.extend(
+                (component.iter())
+                    .filter(|&&c| !plan.is_name(c))
+                    .map(|&c| plan.defs[c as usize]),
+            );
         }
     }
     out
@@ -1095,12 +1144,19 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
 fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
     let plan = plan(cx);
     let own = plan.comp[root];
+    // A name node outside the root's component counts as a pending
+    // callable that is ready once its callables are. One inside it is
+    // named only by the root, since whatever names it is on the root's
+    // cycle: the walk passes through it to its callables.
     let is_pending_ret = |r: &Results, i: u32| {
         plan.comp[i as usize] != u32::MAX
             && plan.comp[i as usize] != own
-            && matches!(r.state.get(&plan.defs[i as usize]), Some(State::Pending(_)))
+            && (plan.is_name(i)
+                || matches!(r.state.get(&plan.defs[i as usize]), Some(State::Pending(_))))
     };
-    // The pending callables with omitted results that `def` reaches.
+    let follows = |r: &Results, i: u32| plan.is_name(i) || is_pending_ret(r, i);
+    // The pending callables with omitted results that `def` reaches, and
+    // the name nodes on the way.
     let mut reach: Vec<u32> = Vec::new();
     {
         let r = cx.results.borrow();
@@ -1108,18 +1164,20 @@ fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
         let mut stack: Vec<u32> = plan.refs[root]
             .iter()
             .copied()
-            .filter(|&i| is_pending_ret(&r, i))
+            .filter(|&i| follows(&r, i))
             .collect();
         while let Some(i) = stack.pop() {
             if !visited.insert(i) {
                 continue;
             }
-            reach.push(i);
+            if is_pending_ret(&r, i) {
+                reach.push(i);
+            }
             stack.extend(
                 plan.refs[i as usize]
                     .iter()
                     .copied()
-                    .filter(|&w| !visited.contains(&w) && is_pending_ret(&r, w)),
+                    .filter(|&w| !visited.contains(&w) && follows(&r, w)),
             );
         }
     }
@@ -1143,7 +1201,7 @@ fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
                 .position(|&i| plan.comp[i as usize] != c)
                 .map_or(reach.len(), |k| at + k);
             let ok = reach[at..end].iter().all(|&i| {
-                plan.tops[i as usize].iter().all(declared)
+                (plan.is_name(i) || plan.tops[i as usize].iter().all(declared))
                     && plan.refs[i as usize].iter().all(|&w| {
                         let cw = plan.comp[w as usize];
                         cw == c
@@ -1157,7 +1215,7 @@ fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
     }
     let mut checked = false;
     for i in reach {
-        if !ready.get(&plan.comp[i as usize]).copied().unwrap_or(false) {
+        if plan.is_name(i) || !ready.get(&plan.comp[i as usize]).copied().unwrap_or(false) {
             continue;
         }
         drive(cx, plan.defs[i as usize]);
