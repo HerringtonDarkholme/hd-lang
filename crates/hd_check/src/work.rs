@@ -328,3 +328,27 @@ pub(crate) fn plan_edges(n: usize) {
         }
     });
 }
+
+thread_local! {
+    static TRAIT_LOOKUP: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the work of finding the traits a method call can use on this
+/// thread ([`crate::TraitsInScope`]): one per binding, trait method and
+/// local trait indexed, and one per trait a call looks at.
+pub fn count_trait_lookup_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = TRAIT_LOOKUP.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = TRAIT_LOOKUP.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of trait lookup work.
+pub(crate) fn trait_lookup(n: u64) {
+    hd_base::work::add(hd_base::work::Counter::TraitLookup, n);
+    TRAIT_LOOKUP.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n));
+        }
+    });
+}

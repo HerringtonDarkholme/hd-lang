@@ -1,0 +1,24 @@
+# test: two visible local traits of nested blocks that both supply a method make the call ambiguous
+# Spec 09 Trait Availability: trait.avail.scope, trait.resolve.ambiguous.
+struct P:
+    a: i32
+
+fn nested(p: P) -> i32:
+    trait Get:
+        fn get(self) -> i32
+
+    impl Get for P:
+        fn get(self) -> i32:
+            self.a
+
+    if p.a > 0:
+        trait Fetch:
+            fn get(self) -> i32
+
+        impl Fetch for P:
+            fn get(self) -> i32:
+                self.a * 10
+
+        p.get() # diagnostic: ambiguous-method
+    else:
+        0

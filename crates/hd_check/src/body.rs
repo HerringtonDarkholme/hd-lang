@@ -59,6 +59,10 @@ pub struct BodyCx<'a> {
     /// enclose, made on the first name that reaches nothing
     /// ([`Self::enclosing_params`]).
     pub enclosing: std::cell::OnceCell<hd_resolve::EnclosingParams>,
+    /// The module's traits by method name and where they are bound, made
+    /// on the first method call and shared with the module's forked
+    /// contexts.
+    pub traits_in_scope: std::sync::Arc<crate::TraitsInScope>,
     /// The module's file as diagnostics name it, which a `dbg` line's
     /// location starts with (`module.dbg.location`).
     pub file_name: &'a str,

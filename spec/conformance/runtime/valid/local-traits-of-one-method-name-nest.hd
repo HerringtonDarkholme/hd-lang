@@ -1,0 +1,53 @@
+# test: local traits of one method name in nested blocks are candidates only inside their extents
+# Spec 09 Trait Availability: trait.avail.scope, trait.avail.module, trait.avail.not-candidate.
+struct P:
+    a: i32
+
+struct Q:
+    a: i32
+
+fn nested(p: P, q: Q) -> i32:
+    trait Get:
+        fn get(self) -> i32
+
+    impl Get for P:
+        fn get(self) -> i32:
+            self.a
+
+    inner := if p.a > 0:
+        trait Fetch:
+            fn get(self) -> i32
+
+        impl Fetch for Q:
+            fn get(self) -> i32:
+                self.a * 10
+
+        p.get() + q.get()
+    else:
+        0
+    inner + p.get()
+
+fn sibling(q: Q) -> i32:
+    trait Fetch:
+        fn get(self) -> i32
+
+    impl Fetch for Q:
+        fn get(self) -> i32:
+            self.a * 100
+
+    q.get()
+
+tests:
+    use std.testing.assert_equal
+
+    trait Probe:
+        fn get(self) -> i32
+
+    impl Probe for P:
+        fn get(self) -> i32:
+            self.a + 1000
+
+    it("each call finds the one visible trait its receiver implements"):
+        assert_equal(nested(P { a: 1 }, Q { a: 2 }), 22, reason="inner Fetch, then outer Get")
+        assert_equal(sibling(Q { a: 3 }), 300, reason="a sibling function's own Fetch")
+        assert_equal(P { a: 4 }.get(), 1004, reason="the tests block's trait")

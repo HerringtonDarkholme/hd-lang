@@ -57,6 +57,7 @@ counters! {
     WalkPlans = "walk_plans",
     UseFacts = "use_facts",
     LoanQueries = "loan_queries",
+    TraitLookup = "trait_lookup",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

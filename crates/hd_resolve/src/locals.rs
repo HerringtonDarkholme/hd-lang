@@ -169,6 +169,12 @@ impl Locals {
             .is_some_and(|&i| self.items[i].lo < l.lo)
     }
 
+    /// The declarations, in declaration order.
+    #[must_use]
+    pub fn items(&self) -> &[LocalItem] {
+        &self.items
+    }
+
     /// Whether the module declares a local impl.
     #[must_use]
     pub fn has_impls(&self) -> bool {

@@ -9,7 +9,7 @@ use hd_base::{HashMap, HashSet};
 use hd_base::{DefId, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_intern::PathKind;
-use hd_resolve::{BindingKind, FnSig, HeadKind, Item, ItemData, Src};
+use hd_resolve::{FnSig, HeadKind, Item, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
@@ -27,7 +27,10 @@ pub struct MethodIndex {
     pub inherent: HashMap<Symbol, Vec<(DefId, DefId)>>,
     /// Trait methods: (trait, method).
     pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
-    seen: HashSet<DefId>,
+    /// Each trait's method by name, for the traits of `traits`.
+    of_trait: HashMap<(DefId, Symbol), DefId>,
+    /// Each item indexed, by the order it was indexed in.
+    seen: HashMap<DefId, u32>,
     shared: Option<std::sync::Arc<Self>>,
 }
 
@@ -73,8 +76,12 @@ impl MethodIndex {
 
     fn extend<'a>(&mut self, items: impl Iterator<Item = &'a hd_resolve::Item>) {
         for it in items {
-            if !self.seen.insert(it.def) {
-                continue;
+            let next = u32::try_from(self.seen.len()).unwrap_or(u32::MAX);
+            match self.seen.entry(it.def) {
+                std::collections::hash_map::Entry::Occupied(_) => continue,
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(next);
+                }
             }
             match &it.data {
                 // A trait impl's methods are found through its trait.
@@ -90,6 +97,7 @@ impl MethodIndex {
                 ItemData::Trait(t) => {
                     for (n, m) in &t.methods {
                         self.traits.entry(*n).or_default().push((it.def, *m));
+                        self.of_trait.entry((it.def, *n)).or_insert(*m);
                     }
                 }
                 // No methods of their own: a method item is its owner's.
@@ -122,11 +130,31 @@ impl MethodIndex {
                     .get(&sym)
                     .into_iter()
                     .flatten()
-                    .filter(|(def, _)| !self.seen.contains(def))
+                    .filter(|(def, _)| !self.seen.contains_key(def))
                     .copied(),
             );
         }
         (!out.is_empty()).then_some(out)
+    }
+
+    /// Where trait `tr` stands among the traits of a name: an own item
+    /// first, in the order indexed, then the shared ones; `None` for an
+    /// item the index does not hold.
+    pub(crate) fn rank(&self, tr: DefId) -> Option<(bool, u32)> {
+        if let Some(&i) = self.seen.get(&tr) {
+            return Some((false, i));
+        }
+        let shared = self.shared.as_ref()?;
+        shared.seen.get(&tr).map(|&i| (true, i))
+    }
+
+    /// Trait `tr`'s method `sym`, when the index holds the trait and it
+    /// declares one: one probe.
+    pub(crate) fn method_of(&self, tr: DefId, sym: Symbol) -> Option<DefId> {
+        if self.seen.contains_key(&tr) {
+            return self.of_trait.get(&(tr, sym)).copied();
+        }
+        self.shared.as_ref()?.of_trait.get(&(tr, sym)).copied()
     }
 
     fn names(&self) -> impl Iterator<Item = Symbol> + '_ {
@@ -138,7 +166,9 @@ impl MethodIndex {
                 self.shared
                     .iter()
                     .flat_map(|ix| ix.inherent.iter().chain(&ix.traits))
-                    .filter(|(_, methods)| methods.iter().any(|(def, _)| !self.seen.contains(def)))
+                    .filter(|(_, methods)| {
+                        methods.iter().any(|(def, _)| !self.seen.contains_key(def))
+                    })
                     .map(|(name, _)| *name),
             )
     }
@@ -507,22 +537,37 @@ impl Ck<'_, '_> {
     /// by the prelude (`trait.avail.module`, `trait.avail.scope`,
     /// `trait.avail.prelude`).
     fn trait_available(&self, tr: DefId) -> bool {
-        self.cx.locals.sees(tr, self.at)
-            || self
-                .cx
-                .scope_at(self.at)
-                .binding
-                .iter()
-                .any(|b| b.kind == BindingKind::Item && b.value == tr.raw())
+        self.cx.trait_bound_at(tr, self.at)
     }
 
     /// The traits declaring `sym` that are available to a dot call or a
     /// type-qualified call here. A trait that is not available is not a
-    /// candidate (`trait.avail.not-candidate`).
+    /// candidate (`trait.avail.not-candidate`). Asked of the module's
+    /// index of traits by method and scope, not filtered from every trait
+    /// declaring `sym` (#1930).
     fn available_traits(&self, sym: Symbol) -> Vec<(DefId, DefId)> {
-        let mut traits = self.traits_declaring(sym);
-        traits.retain(|&(tr, _)| self.trait_available(tr));
-        traits
+        self.cx.traits_available(sym, self.at)
+    }
+
+    /// The traits among `of`, in that order, that declare a method `sym`,
+    /// each once, with the method, in the method index's order.
+    fn declaring_among(
+        &self,
+        of: impl IntoIterator<Item = DefId>,
+        sym: Symbol,
+    ) -> Vec<(DefId, DefId)> {
+        let index = self.method_index();
+        let mut seen = HashSet::default();
+        let mut found: Vec<((bool, u32), DefId, DefId)> = of
+            .into_iter()
+            .filter(|&tr| seen.insert(tr))
+            .filter_map(|tr| {
+                crate::work::trait_lookup(1);
+                Some((index.rank(tr)?, tr, index.method_of(tr, sym)?))
+            })
+            .collect();
+        found.sort_stable_by_key(|&(rank, ..)| rank);
+        found.into_iter().map(|(_, tr, m)| (tr, m)).collect()
     }
 
     // ------------------------------------------------------------ names
@@ -3879,7 +3924,6 @@ impl Ck<'_, '_> {
         }
         // A trait method with no receiver through a bound (`N::zero()`).
         let sym = self.cx.names.syms.intern(name);
-        let traits = self.traits_declaring(sym);
         // Through a type, the trait part of `Methods`
         // (`trait.assoc-call.type.traits`): `X::from(v)` chooses among
         // `X`'s instantiations of `From` like a dot call.
@@ -3951,15 +3995,15 @@ impl Ck<'_, '_> {
         // and their supertraits may declare it
         // (`trait.assoc-call.parameter`, `trait.assoc-call.parameter.one`).
         // Every call through a type returned above, so `T` is a parameter.
-        let bound_hits: Vec<(DefId, DefId)> = traits
-            .into_iter()
-            .filter(|&(tr, _)| {
-                let env = &self.env;
-                env.clauses_of(t)
-                    .iter()
-                    .any(|&i| env.clause_trait()[i as usize] == tr)
-            })
-            .collect();
+        let bound_hits: Vec<(DefId, DefId)> = {
+            let env = &self.env;
+            let bounds: Vec<DefId> = env
+                .clauses_of(t)
+                .iter()
+                .map(|&i| env.clause_trait()[i as usize])
+                .collect();
+            self.declaring_among(bounds, sym)
+        };
         match bound_hits.as_slice() {
             // Exactly one bound declares the method: statically
             // resolved through it (`trait.assoc-call.parameter`).
@@ -4527,7 +4571,6 @@ impl Ck<'_, '_> {
             return Ok(Some(Hit::Builtin { op, params, ret }));
         }
         let sym = self.cx.names.syms.intern(name);
-        let traits = self.traits_declaring(sym);
         // A parameter: its bounds, supertraits included. A rigid
         // projection such as `I::IntoIter` has the bounds its trait
         // declares on the associated type (`trait.assoc.bound-use`).
@@ -4538,7 +4581,8 @@ impl Ck<'_, '_> {
             self.add_projection_clauses(t);
             for i in self.env.clauses_of(t).iter().map(|&i| i as usize) {
                 let tr = self.env.clause_trait()[i];
-                if let Some(&(_, m)) = traits.iter().find(|(x, _)| *x == tr) {
+                crate::work::trait_lookup(1);
+                if let Some(m) = self.method_index().method_of(tr, sym) {
                     return Ok(Some(Hit::Trait {
                         trait_: tr,
                         method: m,
@@ -4551,20 +4595,32 @@ impl Ck<'_, '_> {
         }
         // A trait value: its trait and supertraits, a supertrait at the
         // arguments the value's trait gives it (trait.dyn.value-methods).
+        // One walk of the value's traits, each asked whether it declares
+        // `sym`; the first in the method index's order wins.
         if let TyData::TraitValue { def, args, .. } = pool.get(t) {
-            for (tr, m) in &traits {
-                if let Some(a) =
-                    crate::body::supertrait_args(self.cx.lookup, pool, (def, args), Some(t), *tr)
-                {
-                    return Ok(Some(Hit::Trait {
-                        trait_: *tr,
-                        method: *m,
-                        args: pool.list_items(a).to_vec(),
-                        choice: (ChoiceKind::TraitValue, tr.raw()),
-                    }));
-                }
-            }
-            return Ok(None);
+            let index = self.method_index();
+            let mut best: Option<((bool, u32), DefId, DefId, TyList)> = None;
+            crate::body::walk_supertraits(
+                self.cx.lookup,
+                pool,
+                (def, args),
+                crate::body::Fill::Args(Some(t)),
+                |d, a, _| {
+                    crate::work::trait_lookup(1);
+                    if let (Some(m), Some(rank)) = (index.method_of(d, sym), index.rank(d))
+                        && best.as_ref().is_none_or(|b| rank < b.0)
+                    {
+                        best = Some((rank, d, m, a));
+                    }
+                    None::<()>
+                },
+            );
+            return Ok(best.map(|(_, tr, m, a)| Hit::Trait {
+                trait_: tr,
+                method: m,
+                args: pool.list_items(a).to_vec(),
+                choice: (ChoiceKind::TraitValue, tr.raw()),
+            }));
         }
         self.trait_part(t, sym, &self.available_traits(sym))
     }

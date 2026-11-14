@@ -1793,3 +1793,61 @@ fn local_headers_read_their_enclosing_declarations_from_one_walk() {
         }
     });
 }
+
+/// `n` functions, each declaring a local trait `Ti` with a method `get`,
+/// an impl of it for a local struct and the call `p.get()`: `n` local
+/// traits declare `get`, and each call sees one of them.
+fn local_traits_of_one_method(n: usize) -> String {
+    let mut out = String::from("pub fn main() -> void: pass\n");
+    for i in 0..n {
+        let _ = write!(
+            out,
+            "fn g{i}() -> i32:\n    struct P:\n        a: i32\n    trait T{i}:\n        fn get(self) -> i32\n    impl T{i} for P:\n        fn get(self) -> i32: self.a\n    p := P {{ a: +1 }}\n    p.get()\n"
+        );
+    }
+    out
+}
+
+/// `n` module-level traits `Ti` declaring `get` and `make`, each with a
+/// subtrait `Si`, a struct implementing both, and calls through a bound
+/// (`x.get()`, `T::make()`) and through a trait value (`v.get()`): calls
+/// that do not ask the module's available traits.
+fn bounded_traits_of_one_method(n: usize) -> String {
+    let mut out = String::from("pub fn main() -> void: pass\n");
+    for i in 0..n {
+        let _ = write!(
+            out,
+            "trait T{i}:\n    fn get(self) -> i32\n    fn make() -> Self\ntrait S{i} < T{i}:\n    fn other(self) -> i32\nstruct P{i}:\n    a: i32\nimpl T{i} for P{i}:\n    fn get(self) -> i32: self.a\n    fn make() -> Self: P{i} {{ a: +1 }}\nimpl S{i} for P{i}:\n    fn other(self) -> i32: self.a\nfn h{i}[T < S{i}](x: T) -> i32: x.get()\nfn k{i}[T < T{i}]() -> T: T::make()\nfn d{i}(v: &dyn S{i}) -> i32: v.get()\n"
+        );
+    }
+    out
+}
+
+// Checker: #1930, a method call asks the module's index of traits by
+// method name for the ones bound where it is (the local ones whose extent
+// holds it, then the scope's), not every trait of the program declaring
+// the name; a call through a bound or a trait value asks its own traits
+// whether they declare the name.
+#[test]
+fn method_calls_ask_only_the_traits_visible_to_them() {
+    on_test_stack(|| {
+        for (shape, source) in [
+            ("local", local_traits_of_one_method as fn(usize) -> String),
+            ("bounded", bounded_traits_of_one_method),
+        ] {
+            let mut base = 0;
+            for n in [1_000, 10_000] {
+                let (out, work) =
+                    hd_check::work::count_trait_lookup_work(|| compile(&source(n), &Goal::Analyze));
+                assert!(out.diags.is_empty(), "{shape} {n}: {}", out.render());
+                if n == 1_000 {
+                    base = work;
+                }
+                assert!(
+                    base > 0 && work <= 10 * base * 5 / 4,
+                    "{shape} trait lookups for 1,000 and {n}: {base}, {work}"
+                );
+            }
+        }
+    });
+}

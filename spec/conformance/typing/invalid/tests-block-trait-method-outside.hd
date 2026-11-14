@@ -1,0 +1,21 @@
+# test: a trait declared in a tests block supplies no method to code outside the block
+# Spec 03 Test Blocks: names.tests.inside-only.
+# Spec 09 Trait Availability: trait.avail.not-candidate.
+struct P:
+    a: i32
+
+fn report(p: P) -> i32:
+    p.get() # diagnostic: unknown-method
+
+tests:
+    use std.testing.assert_equal
+
+    trait Probe:
+        fn get(self) -> i32
+
+    impl Probe for P:
+        fn get(self) -> i32:
+            self.a
+
+    it("the block sees its trait"):
+        assert_equal(P { a: 1 }.get(), 1, reason="inside the block")

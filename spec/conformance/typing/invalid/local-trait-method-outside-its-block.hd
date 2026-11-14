@@ -1,0 +1,18 @@
+# test: a local trait's method is no candidate after the block that declares the trait ends
+# Spec 09 Trait Availability: trait.avail.scope, trait.avail.not-candidate.
+struct Q:
+    a: i32
+
+fn outside(q: Q) -> i32:
+    inner := if q.a > 0:
+        trait Fetch:
+            fn get(self) -> i32
+
+        impl Fetch for Q:
+            fn get(self) -> i32:
+                self.a
+
+        q.get()
+    else:
+        0
+    inner + q.get() # diagnostic: unknown-method
