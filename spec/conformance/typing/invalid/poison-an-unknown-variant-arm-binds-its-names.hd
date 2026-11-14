@@ -1,0 +1,11 @@
+# test: an arm naming an unknown variant binds its names to poison
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+enum Shape:
+    Dot(i32)
+    Line(i32, i32)
+
+fn size(s: Shape) -> i32:
+    match s:
+        .Dot(n) => n
+        .Lime(a, b) => a + b # diagnostic: unknown-variant

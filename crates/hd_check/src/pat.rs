@@ -700,20 +700,23 @@ impl Ck<'_, '_> {
                         self.err(Code::MissingContextualEnumType, p, &msg);
                         return self.declare_poisoned_fields(p, binds);
                     }
+                    // The arm is rejected: it neither counts toward coverage
+                    // nor hides later arms, and its names bind to poison.
                     let msg = format!("no variant `.{name}` of {}", self.show(t));
                     self.err(Code::UnknownVariant, p, &msg);
-                    return Ok(());
+                    self.pattern_rejected = true;
+                    return self.declare_poisoned_fields(p, binds);
                 };
                 let (subs, unknown) = self.variant_subpatterns(p, t, &name);
                 for (fname, sub, repeated) in unknown {
                     if repeated {
                         let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, sub, &msg);
-                        self.pattern_rejected = true;
                     } else {
                         let msg = format!("no field `{fname}` of variant `{name}`");
                         self.err(Code::UnknownField, sub, &msg);
                     }
+                    self.pattern_rejected = true;
                     self.declare_pattern(sub, Ty::POISON, binds)?;
                 }
                 if subs.len() != fields.len() {
@@ -722,7 +725,8 @@ impl Ck<'_, '_> {
                         p,
                         "the variant has another number of fields",
                     );
-                    return Ok(());
+                    self.pattern_rejected = true;
+                    return self.declare_poisoned_fields(p, binds);
                 }
                 // Preserve resolved field positions for tooling.
                 if self.cx.source_facts.is_some() {
@@ -753,18 +757,15 @@ impl Ck<'_, '_> {
                         let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, f, &msg);
                         self.pattern_rejected = true;
-                        if let Some(sub) = f.children().next() {
-                            self.declare_pattern(sub, Ty::POISON, binds)?;
-                        } else {
-                            let name = self.cx.names.syms.intern(&fname);
-                            self.bind_pattern_name(f, name, Ty::POISON, binds);
-                        }
+                        self.declare_poisoned_field(f, binds)?;
                         continue;
                     }
                     seen.push(fname.clone());
                     let Some((_, ft)) = self.field_of(t, &fname) else {
                         let msg = format!("no field `{fname}` on {}", self.show(t));
                         self.err(Code::UnknownField, f, &msg);
+                        self.pattern_rejected = true;
+                        self.declare_poisoned_field(f, binds)?;
                         continue;
                     };
                     self.check_field_visible(t, &fname, f);
@@ -797,19 +798,30 @@ impl Ck<'_, '_> {
                 .unwrap_or_default(),
         };
         for f in fields {
-            match f.kind() {
-                SyntaxKind::DataPatternField if f.children().next().is_none() => {
-                    let name = self.cx.names.syms.intern(&self.data_field_name(f));
-                    let l = self.bind_local(name, Ty::POISON, f);
-                    binds.push((f.index(), l));
-                }
-                SyntaxKind::DataPatternField | SyntaxKind::NamedPattern => {
-                    if let Some(sub) = f.children().next() {
-                        self.declare_pattern(sub, Ty::POISON, binds)?;
-                    }
-                }
-                _ => self.declare_pattern(f, Ty::POISON, binds)?,
+            self.declare_poisoned_field(f, binds)?;
+        }
+        Ok(())
+    }
+
+    /// The names of one field of a rejected or poisoned pattern bind to the
+    /// poison type: a shorthand data field binds its own name.
+    fn declare_poisoned_field(
+        &mut self,
+        f: NodeRef<'_>,
+        binds: &mut Vec<(NodeIdx, LocalId)>,
+    ) -> StageResult<()> {
+        match f.kind() {
+            SyntaxKind::DataPatternField if f.children().next().is_none() => {
+                let name = self.cx.names.syms.intern(&self.data_field_name(f));
+                let l = self.bind_local(name, Ty::POISON, f);
+                binds.push((f.index(), l));
             }
+            SyntaxKind::DataPatternField | SyntaxKind::NamedPattern => {
+                if let Some(sub) = f.children().next() {
+                    self.declare_pattern(sub, Ty::POISON, binds)?;
+                }
+            }
+            _ => self.declare_pattern(f, Ty::POISON, binds)?,
         }
         Ok(())
     }

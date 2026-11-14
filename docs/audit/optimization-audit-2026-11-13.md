@@ -80,54 +80,23 @@ not measured.
 
 | # | Item | Pillar | Targets it moves |
 | --- | --- | --- | --- |
-| 1 | [D1](#d1) poison an unknown-variant arm | 1 | one diagnostic per mistake, diagnostic size |
-| 2 | [D4](#d4) spelling fixes for names, types, fields and variants | 1 | fix-it rate |
-| 3 | [W1](#w1) decode cached interfaces lazily, without re-interning | 1, 2 | edit latency, startup, concurrency |
-| 4 | [S1](#s1) less contention between workers, and a pool sized to free cores | 2 | concurrency CPU and latency, parallel speedup |
-| 5 | [S6](#s6) single-flight for the two caches | 2 | cache contention, concurrency |
-| 6 | [E1](#e1) wasmtime in-process with a module cache **owner** | 3 | start-up, test set-up, unit tests |
-| 7 | [C1](#c1) a faster global allocator (measured: -13% instructions, -4% to -10% cycles) | 1, 2 | cold check, concurrency |
-| 8 | [I1](#i1) early cutoff by recorded reads (#49) | 1 | recheck precision, REPL, warm check |
-| 9 | [R1](#r1) a lazy DFA for regex search | 3 | regex throughput |
-| 10 | [E6](#e6) hot loops in `main` stay in V8's baseline tier | 3 | `sum`, every loop-in-`main` program |
-| 11 | [M1](#m1) stream cache entries instead of holding them to the end | 2 | peak RSS, `resources` |
-| 12 | [R5](#r5) a short path for small-map hits, lost in `f13fdb35c` | 3 | map lookups, 28% on small maps |
-| 13 | [N4](#n4) one driver run for `hd check --tests` | 1 | the per-edit check agents run, +39% today |
-| 14 | [N1](#n1) float text and ASCII case mapping in the guest | 3 | `serde-throughput`, text throughput |
+| 1 | [D4](#d4) spelling fixes for names, types, fields and variants | 1 | fix-it rate |
+| 2 | [W1](#w1) decode cached interfaces lazily, without re-interning | 1, 2 | edit latency, startup, concurrency |
+| 3 | [S1](#s1) less contention between workers, and a pool sized to free cores | 2 | concurrency CPU and latency, parallel speedup |
+| 4 | [S6](#s6) single-flight for the two caches | 2 | cache contention, concurrency |
+| 5 | [E1](#e1) wasmtime in-process with a module cache **owner** | 3 | start-up, test set-up, unit tests |
+| 6 | [C1](#c1) a faster global allocator (measured: -13% instructions, -4% to -10% cycles) | 1, 2 | cold check, concurrency |
+| 7 | [I1](#i1) early cutoff by recorded reads (#49) | 1 | recheck precision, REPL, warm check |
+| 8 | [R1](#r1) a lazy DFA for regex search | 3 | regex throughput |
+| 9 | [E6](#e6) hot loops in `main` stay in V8's baseline tier | 3 | `sum`, every loop-in-`main` program |
+| 10 | [M1](#m1) stream cache entries instead of holding them to the end | 2 | peak RSS, `resources` |
+| 11 | [R5](#r5) a short path for small-map hits, lost in `f13fdb35c` | 3 | map lookups, 28% on small maps |
+| 12 | [N4](#n4) one driver run for `hd check --tests` | 1 | the per-edit check agents run, +39% today |
+| 13 | [N1](#n1) float text and ASCII case mapping in the guest | 3 | `serde-throughput`, text throughput |
 
 ## Pillar 1: Single-Agent Cost
 
 ### Diagnostics
-
-<a id="d1"></a>
-1. **D1. An unknown-variant arm does not poison its match. [V]**
-   - Evidence: `crates/hd_check/src/pat.rs:447-449` reports
-     `unknown-variant` and returns `Ok(())`. It neither sets
-     `pattern_rejected` nor declares the arm's bindings poisoned. The
-     arity error at `pat.rs:463-469` has the same gap. The
-     `bare-variant-pattern` path 30 lines above does both.
-   - Effect: 118 of 120 variant typos cascade, mostly into
-     `nonexhaustive-match`, `unknown-variant` and `unknown-name`. In 106
-     of them `nonexhaustive-match` comes first, ahead of the real
-     mistake. The corpus's 92-token `some-on-result` is this case.
-   - Fix: set `pattern_rejected = true` and return
-     `declare_poisoned_fields(p, binds)`, in both places.
-   - Tried [M]: the four-line change, built in a scratch worktree of
-     `a45fdfc17`.
-     - Variant typos with exactly one diagnostic: 2 of 120 before, 117 of
-       120 after. The first code is `unknown-variant` in 120 of 120,
-       against 13 before. The other 3 add a `type-mismatch`.
-     - Whole probe: 538 to 653 of 707 with one diagnostic (76% to 92%).
-     - Corpus metrics: largest diagnostic 92 to 65 tokens, still over the
-       60 target. `some-on-result` now gives two `unknown-variant` errors,
-       one per bad arm, and the metric counts the program's whole output
-       with its summary line. Exactly-one-diagnostic stays at 68 of 69
-       for the same reason. D9 (one report per match) or D8 (a shorter
-       summary) finishes both.
-     - `fixit-safety`, `diag-location` and `errors-per-run` were
-       unchanged.
-   - Reference: rustc skips exhaustiveness for a match with an erroneous
-     pattern.
 
 3. **D3. An unknown type in a signature cascades into the body and the
    trait check. [V by agent]**
@@ -1096,7 +1065,7 @@ is within 15% of its limit.
 | mistakes | programs with exactly one diagnostic | 98.6% | ≥ 95.0% | met |  |
 | mistakes | one diagnostic with the expected code | 98.6% | ≥ 95.0% | met |  |
 | mistakes | fix-it makes hd check pass | 33.3% | ≥ 80.0% | missed | D4, D5, D6, D11 |
-| mistakes | largest diagnostic text (bytes / 4) | 92 tokens | ≤ 60 tokens | missed | D1 (92 to 65, measured), D9, D8, D7 |
+| mistakes | largest diagnostic text (bytes / 4) | 92 tokens | ≤ 60 tokens | missed | D9, D8, D7 |
 | answer-size | hd doc of a data type | 153 B | ≤ 1000 B | met |  |
 | answer-size | one failing hd test, text | 318 B | ≤ 800 B | met |  |
 | answer-size | one failing test, JSON object | 139 B | ≤ 400 B | met |  |
@@ -1186,7 +1155,7 @@ Every missed or n/a line has at least one item.
 | skims and module discovery | S2, S4 |
 | interfaces, decoding from the cache | W1, W2, W3, W4, S2 |
 | invalidation and early cutoff | I1, W4 |
-| type checking and the trait solver | C5, S3, R0c, K2, D1, D3, D9 |
+| type checking and the trait solver | C5, S3, R0c, K2, D3, D9 |
 | derives and structure | C4 |
 | TIR: build, verify, serialize | C2, M1 |
 | the cache store | W3, M1, S6, S4 (publish) |
@@ -1197,7 +1166,7 @@ Every missed or n/a line has at least one item.
 | the engine and host | E1, E2, E3, E4, E5, E6, N1, N2 |
 | the test runner | E2, E3, E5, S5, N6, N8 |
 | the REPL | S7 |
-| diagnostics and output | D1, D3 to D11 |
+| diagnostics and output | D3 to D11 |
 | CLI commands other than `check` and `test` | N5, N4 (`check --tests`) |
 | the binary and start-up | S9, S2 |
 | measurement and observability | S11, H1 to H5 |

@@ -39,7 +39,6 @@ Ranked by how many misses a cause explains and how far they are from target.
 | C4 | No early cutoff: a module's key hashes its whole closure           | 1      | recheck-precision 9 vs 3                                   | verified  |
 | C5 | REPL input N rechecks the chain of all N earlier inputs            | 2      | long-session RSS +96 MB, build 89 ms → 982 ms per input    | verified  |
 | C6 | No integer range facts, so provably safe `+ 1` keeps its check     | 1      | check-cost 1.93x                                           | verified  |
-| C7 | Poisoned match arms still cascade                                  | 1      | largest diagnostic 92 tokens, some-on-result               | verified  |
 | C8 | Release binary not size-tuned; std embedded as text               | 2      | disk 20.1 MB, startup RSS 17 MB                            | suspected |
 | C9 | No timing trace, so the parallel gap has no named cause            | 2      | parallel-speedup 1.92x                                     | open      |
 | C10 | A Node process and an uncached compile per run                    | 3      | start to first output 56 ms, integration and doc tests ×2  | verified  |
@@ -132,22 +131,6 @@ host ABI.
   or a constant bounds the induction variable, and the checked op that
   cannot leave its type becomes a plain op. One pass serves bounds checks
   too.
-
-### C7. Poisoned match arms still cascade
-
-- **Miss.** Largest diagnostic 92 tokens (target 60), from
-  `some-on-result`. It is also the one corpus program with more than one
-  diagnostic.
-- **Evidence (verified).** Matching `.Some(n)` and `.None` on a `Result`
-  gives four errors: `nonexhaustive-match` (first, so the expected code is
-  not first), two `unknown-variant`, and `unknown-name` for `n`.
-- **State of the art.** rustc skips the exhaustiveness check of a match
-  with an erroneous pattern, and binds a bad pattern's names at the error
-  type.
-- **Fix.** An arm with an unknown variant poisons the match: no
-  exhaustiveness diagnostic, and its bindings exist at the error type. Only
-  the two `unknown-variant` errors remain, and the message can say "this is
-  a Result: match `.Ok` and `.Err`".
 
 ### Smaller items
 

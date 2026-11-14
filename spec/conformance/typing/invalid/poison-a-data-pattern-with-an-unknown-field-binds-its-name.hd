@@ -1,0 +1,10 @@
+# test: a data pattern naming an unknown field binds its name to poison
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+struct Point:
+    x: i32
+    y: i32
+
+fn sum(p: Point) -> i32:
+    match p:
+        Point { x, nope } => x + nope # diagnostic: unknown-field
