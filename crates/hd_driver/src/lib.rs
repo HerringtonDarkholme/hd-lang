@@ -69,7 +69,8 @@ mod positions;
 mod report;
 mod skims;
 mod texts;
-pub use texts::{Texts, count_indexed_bytes};
+pub use hd_base::lines::count_indexed_bytes;
+pub use texts::Texts;
 #[cfg(test)]
 mod strip_comments;
 

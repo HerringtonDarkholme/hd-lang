@@ -13,6 +13,7 @@ mod types;
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_base::lines::LineIndex;
 
 use hd_base::{FileId, ItemIdx, NodeIdx, Span, Symbol, TokenIdx};
 use hd_diag::{Code, Diagnostic, DiagnosticFix, FixSafety};
@@ -60,9 +61,21 @@ pub struct Parse {
     /// order ([`broken_items`]). Empty, with no work done, for a clean
     /// parse.
     pub broken: Vec<NodeIdx>,
+    /// The parsed text's line index, built on the first
+    /// [`Self::line_column`], so every position located in the file,
+    /// from any thread, shares one pass over its bytes.
+    lines: std::sync::OnceLock<LineIndex>,
 }
 
 impl Parse {
+    /// The 1-based line and column, in characters, of byte `at` of
+    /// `text`, the text this was parsed from (at most its length).
+    #[must_use]
+    pub fn line_column(&self, text: &str, at: usize) -> (usize, usize) {
+        let lines = self.lines.get_or_init(|| LineIndex::new(text.as_bytes()));
+        lines.line_column(at.min(text.len()))
+    }
+
     #[must_use]
     pub fn is_ok(&self) -> bool {
         self.diagnostics.is_empty()
@@ -108,6 +121,7 @@ pub fn parse(source: &[u8]) -> Parse {
         items,
         symbols,
         broken,
+        lines: std::sync::OnceLock::new(),
     }
 }
 

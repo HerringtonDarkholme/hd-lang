@@ -12,6 +12,12 @@ pub struct Src<'a> {
 }
 
 impl<'a> Src<'a> {
+    /// The 1-based line and column, in characters, of byte `at`, from the
+    /// file's one line index ([`Parse::line_column`]).
+    #[must_use]
+    pub fn line_column(&self, at: u32) -> (usize, usize) {
+        self.parse.line_column(self.text, at as usize)
+    }
     #[must_use]
     pub fn root(&self) -> NodeRef<'a> {
         self.parse.tree.root()

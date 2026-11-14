@@ -16,6 +16,7 @@
 //! fix-it that brought it.
 
 use hd_base::SliceSort as _;
+use hd_base::lines::LineIndex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -23,7 +24,6 @@ use std::process::ExitCode;
 
 use hd_project::SourceSet as _;
 
-use crate::fmt_cmd::line_column;
 use crate::report::{Diag, Edit};
 use crate::{HD_FAILURE, check_cmd, disk, fail, package_of_cwd};
 
@@ -297,6 +297,8 @@ fn plan(
     mode: Mode,
 ) -> Vec<Change> {
     let mut taken: Vec<Change> = Vec::new();
+    // Each file's line index, built when a fix-it is first taken in it.
+    let mut lines: BTreeMap<&str, LineIndex> = BTreeMap::new();
     for d in diags {
         if !mode.accepts(d.code) {
             continue;
@@ -329,7 +331,11 @@ fn plan(
         if overlaps {
             continue;
         }
-        let (line, column) = line_column(&texts[&first.file], first.start as usize);
+        let text = &texts[&first.file];
+        let (line, column) = lines
+            .entry(&first.file)
+            .or_insert_with(|| LineIndex::new(text.as_bytes()))
+            .line_column((first.start as usize).min(text.len()));
         taken.push(Change {
             file: first.file.clone(),
             line,

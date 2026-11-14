@@ -1139,3 +1139,29 @@ fn locating_many_diagnostics_indexes_their_file_once() {
         );
     }
 }
+
+// Checker: #1850, a `@track_caller` call site's record locates the call
+// and each argument through its file's one line index, however many
+// tracked calls the file holds.
+/// One body of `n` tracked calls, one per line, whose callee reads the
+/// argument texts.
+fn tracked_calls(n: usize) -> String {
+    let mut s = String::from(
+        "use std.debug.Location\n\n@track_caller\nfn at(x: i32) -> i32:\n    if Location::caller_args().is_empty(): 0 else: x\n\npub fn run() -> i32:\n    let s = 0\n",
+    );
+    for _ in 0..n {
+        s.push_str("    s = at(s + 1)\n");
+    }
+    s.push_str("    s\n");
+    s
+}
+
+#[test]
+fn tracked_call_records_index_their_file_once() {
+    for n in [2000, 20_000] {
+        let source = tracked_calls(n);
+        let (out, indexed) = hd_driver::count_indexed_bytes(|| compile(&source, &Goal::Analyze));
+        assert!(out.diags.is_empty(), "{}", out.render());
+        assert_eq!(indexed, source.len() as u64, "{n} tracked calls");
+    }
+}

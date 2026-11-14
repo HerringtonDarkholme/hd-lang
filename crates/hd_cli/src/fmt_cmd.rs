@@ -6,6 +6,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use hd_base::lines::LineIndex;
 use hd_project::SourceSet as _;
 
 use crate::report::Diag;
@@ -90,21 +91,7 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
 fn format_one(path: &Path, shown: &str, check: bool) -> Result<bool, Vec<Diag>> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| vec![Diag::error(None, &format!("{shown}: {e}"))])?;
-    let formatted = hd_fmt::format(&text).map_err(|diags| {
-        diags
-            .iter()
-            .map(|d| {
-                let (line, column) = line_column(&text, d.primary.lo as usize);
-                let mut out = Diag::error(
-                    Some(d.code),
-                    "the file does not parse, so `hd fmt` leaves it as it is",
-                )
-                .at(shown, Some(line));
-                out.column = Some(column);
-                out
-            })
-            .collect::<Vec<_>>()
-    })?;
+    let formatted = hd_fmt::format(&text).map_err(|diags| syntax_errors(&text, shown, &diags))?;
     if formatted == text {
         return Ok(false);
     }
@@ -119,10 +106,45 @@ fn format_one(path: &Path, shown: &str, check: bool) -> Result<bool, Vec<Diag>> 
     Ok(true)
 }
 
-/// The 1-based line and column of byte `at` of `text`.
-pub(crate) fn line_column(text: &str, at: usize) -> (usize, usize) {
-    let before = text.get(..at).unwrap_or(text);
-    let line = before.matches('\n').count() + 1;
-    let column = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
-    (line, column)
+/// The diagnostics of a file that does not parse, each at its line and
+/// column through one line index of the file.
+fn syntax_errors(text: &str, shown: &str, diags: &[hd_diag::Diagnostic]) -> Vec<Diag> {
+    let lines = LineIndex::new(text.as_bytes());
+    diags
+        .iter()
+        .map(|d| {
+            let (line, column) = lines.line_column((d.primary.lo as usize).min(text.len()));
+            let mut out = Diag::error(
+                Some(d.code),
+                "the file does not parse, so `hd fmt` leaves it as it is",
+            )
+            .at(shown, Some(line));
+            out.column = Some(column);
+            out
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+
+    /// #1850: a file of n syntax errors is located through one line
+    /// index, not one scan from its start per error.
+    #[test]
+    fn syntax_errors_index_their_file_once() {
+        for n in [2000, 20_000] {
+            let mut text = String::new();
+            for i in 0..n {
+                let _ = writeln!(text, "fn f{i}( -> i32: 1");
+            }
+            let diags = hd_fmt::format(&text).expect_err("does not parse");
+            let (errors, indexed) =
+                hd_base::lines::count_indexed_bytes(|| super::syntax_errors(&text, "a.hd", &diags));
+            assert_eq!(indexed, text.len() as u64, "{n} errors");
+            assert_eq!(errors.len(), diags.len());
+            assert!(errors.len() >= n, "{} errors", errors.len());
+            assert_eq!(errors.last().and_then(|d| d.line), Some(n));
+        }
+    }
 }

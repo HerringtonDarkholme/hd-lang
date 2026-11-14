@@ -41,19 +41,6 @@ impl Ck<'_, '_> {
         a.takes_site().then_some(a.reads_args)
     }
 
-    /// The 1-based line and column, in characters, of byte `at`.
-    fn line_column(&self, at: u32) -> (usize, usize) {
-        let text = self.cx.src.text.as_bytes();
-        let before = &text[..(at as usize).min(text.len())];
-        let line = before.split(|&b| b == b'\n').count();
-        let start = before
-            .iter()
-            .rposition(|&b| b == b'\n')
-            .map_or(0, |i| i + 1);
-        let column = String::from_utf8_lossy(&before[start..]).chars().count() + 1;
-        (line, column)
-    }
-
     /// The arguments of call `n` in source order, each with its name when
     /// it is a named one, when it has no spread and no trailing block
     /// (`fn.caller.accessor.args.complete`).
@@ -87,14 +74,14 @@ impl Ck<'_, '_> {
     /// and its arguments when `args`.
     fn site_record(&self, n: NodeRef<'_>, args: bool) -> String {
         let span = self.cx.src.span(n);
-        let (line, column) = self.line_column(span.lo);
+        let (line, column) = self.cx.src.line_column(span.lo);
         let s = SEPARATOR;
         let mut out = format!("1{s}{line}{s}{column}{s}{}", self.cx.file_name);
         if args {
             for (name, e) in self.site_args(n) {
                 let span = self.cx.src.span(e);
-                let (sl, sc) = self.line_column(span.lo);
-                let (el, ec) = self.line_column(span.hi);
+                let (sl, sc) = self.cx.src.line_column(span.lo);
+                let (el, ec) = self.cx.src.line_column(span.hi);
                 let text = self
                     .cx
                     .src
