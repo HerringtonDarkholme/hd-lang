@@ -14305,6 +14305,123 @@ mod instantiation_chain_tests {
     use super::*;
 
     #[test]
+    fn pathological_optimized_chains_have_linear_callee_preparation_work() {
+        let mut measured = Vec::new();
+        for count in [1000, 10000] {
+            let mut source = String::new();
+            for i in 0..count {
+                use std::fmt::Write as _;
+                let tail = if i + 1 == count {
+                    "x".to_owned()
+                } else {
+                    format!("g_{}(x)", i + 1)
+                };
+                writeln!(source, "fn g_{i}(x: i32) -> i32: {tail}").unwrap();
+            }
+            source.push_str("pub fn main() -> void $ Console: println(g_0(7))\n");
+            let mut sources = MemorySources::default();
+            sources.insert("main.hd", &source);
+            let store = warm_std_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let out = build_packages(
+                &host,
+                "inline_chain",
+                &Packages {
+                    level: OptLevel::Optimized,
+                    build_profile: BuildProfile::Release,
+                    ..Packages::default()
+                },
+                &Goal::Program {
+                    entry: "main".into(),
+                },
+            );
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert!(out.wasm.is_some());
+            let work = out.counters.inline_work;
+            eprintln!("inliner chain {count}: {work:?}");
+            assert!(work.preparations >= count, "{work:?}");
+            assert!(work.preparations <= count + 1000, "{work:?}");
+            assert!(work.polls <= 3 * work.preparations + 1000, "{work:?}");
+            assert!(work.rows <= 32 * count + 10_000, "{work:?}");
+            assert!(work.ancestor_queries <= 4 * count + 10_000, "{work:?}");
+            assert_eq!(work.depth, count);
+            measured.push(work);
+        }
+        assert!(measured[1].preparations <= 11 * measured[0].preparations);
+        assert!(measured[1].polls <= 11 * measured[0].polls);
+        assert!(measured[1].rows <= 11 * measured[0].rows);
+        assert!(measured[1].ancestor_queries <= 11 * measured[0].ancestor_queries);
+    }
+
+    #[test]
+    fn pathological_wide_deep_inlining_shares_prepared_callees() {
+        let mut measured = Vec::new();
+        for width in [100, 1000] {
+            let depth = 20;
+            let mut source = String::new();
+            for branch in 0..width {
+                for level in 0..depth {
+                    use std::fmt::Write as _;
+                    let tail = if level + 1 == depth {
+                        "x".to_owned()
+                    } else {
+                        format!("g_{branch}_{}(x)", level + 1)
+                    };
+                    writeln!(source, "fn g_{branch}_{level}(x: i32) -> i32: {tail}").unwrap();
+                }
+            }
+            source.push_str("pub fn main() -> void $ Console:\n    let x = 7i32\n");
+            for branch in 0..width {
+                use std::fmt::Write as _;
+                writeln!(source, "    x = g_{branch}_0(x)").unwrap();
+            }
+            source.push_str("    println(x)\n");
+            let mut sources = MemorySources::default();
+            sources.insert("main.hd", &source);
+            let store = warm_std_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let out = build_packages(
+                &host,
+                "inline_tree",
+                &Packages {
+                    level: OptLevel::Optimized,
+                    build_profile: BuildProfile::Release,
+                    ..Packages::default()
+                },
+                &Goal::Program {
+                    entry: "main".into(),
+                },
+            );
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert!(out.wasm.is_some());
+            let work = out.counters.inline_work;
+            eprintln!("inliner {width}x{depth}: {work:?}");
+            let nodes = width * depth;
+            assert!(work.preparations <= nodes + 1000, "{work:?}");
+            assert!(work.rows <= 32 * nodes + 10_000, "{work:?}");
+            assert!(work.ancestor_queries <= 4 * nodes + 10_000, "{work:?}");
+            assert_eq!(work.depth, depth);
+            measured.push(work);
+        }
+        assert!(measured[1].preparations <= 11 * measured[0].preparations);
+        assert!(measured[1].polls <= 11 * measured[0].polls);
+        assert!(measured[1].rows <= 11 * measured[0].rows);
+        assert!(measured[1].ancestor_queries <= 11 * measured[0].ancestor_queries);
+    }
+
+    #[test]
     fn pathological_plain_chains_build_with_linear_instance_body_work() {
         let mut counts = Vec::new();
         for count in [1000, 10000] {

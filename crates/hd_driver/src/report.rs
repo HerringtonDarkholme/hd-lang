@@ -95,6 +95,8 @@ pub struct Counters {
     /// How many TIR bodies were decoded: only the ones collection and
     /// emission reach (#49).
     pub bodies_decoded: usize,
+    /// Work performed by the inliner's explicit callee-preparation stack.
+    pub inline_work: hd_opt::inline::InlineWork,
     /// How many folder interface item records were decoded from blobs:
     /// only the ones the run reads (#213).
     pub iface_records: usize,
