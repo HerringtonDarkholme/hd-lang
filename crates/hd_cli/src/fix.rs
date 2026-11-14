@@ -11,8 +11,8 @@
 //! that the check before it lacked, counting diagnostics by code,
 //! severity, file and message (`cli.check.fix.safe`); a syntax error is a
 //! diagnostic too. A round first tries all its fix-its together; when that
-//! adds a diagnostic, it tries them one at a time in output order, each on
-//! top of those already kept, so each added diagnostic is charged to the
+//! adds a diagnostic, it tries each half in output order on top of those
+//! already kept, and splits a half that adds one again, down to the
 //! fix-it that brought it.
 
 use hd_base::SliceSort as _;
@@ -243,7 +243,7 @@ fn fix(mut texts: Texts, mode: Mode, mut check: impl FnMut(&Texts) -> Vec<Diag>)
 
 /// One round: the offered fix-its that are safe, and the check of `texts`
 /// with them applied. All of them are tried together first; when that is
-/// unsafe, each in turn, on top of the ones kept before it.
+/// unsafe, they are split in halves ([`settle`]).
 fn round(
     texts: &Texts,
     before: &[Diag],
@@ -255,22 +255,52 @@ fn round(
     if adds_none(before, &all) {
         return (offered, all);
     }
-    if let [only] = offered.as_slice() {
-        rejected.insert((only.diag.clone(), only.message.clone()));
-        return (Vec::new(), before.to_vec());
-    }
-    let mut kept: Vec<Change> = Vec::new();
-    let mut current = before.to_vec();
-    for c in offered {
-        kept.push(c);
-        let after = check(&apply(texts, &kept));
-        if adds_none(&current, &after) {
-            current = after;
-        } else if let Some(c) = kept.pop() {
-            rejected.insert((c.diag, c.message));
+    let mut kept = Kept {
+        changes: Vec::new(),
+        diags: before.to_vec(),
+    };
+    settle(texts, offered, true, &mut kept, rejected, check);
+    (kept.changes, kept.diags)
+}
+
+/// The fix-its a round keeps so far, and the check with them applied.
+struct Kept {
+    changes: Vec<Change>,
+    diags: Vec<Diag>,
+}
+
+/// Keeps the fix-its of `group` that are safe on top of those already
+/// kept, in output order: the whole group when its check adds no
+/// diagnostic, else each half in turn, down to one fix-it, which is
+/// rejected. So an added diagnostic is charged to the fix-it that brought
+/// it, and k unsafe fix-its among n cost O(k log n) checks, where trying
+/// each in turn cost n. `unsafe_known` skips the check of a group whose
+/// own check just added a diagnostic.
+fn settle(
+    texts: &Texts,
+    mut group: Vec<Change>,
+    unsafe_known: bool,
+    kept: &mut Kept,
+    rejected: &mut BTreeSet<(Key, String)>,
+    check: &mut impl FnMut(&Texts) -> Vec<Diag>,
+) {
+    if !unsafe_known {
+        let len = kept.changes.len();
+        kept.changes.extend(group.iter().cloned());
+        let after = check(&apply(texts, &kept.changes));
+        if adds_none(&kept.diags, &after) {
+            kept.diags = after;
+            return;
         }
+        kept.changes.truncate(len);
     }
-    (kept, current)
+    if let [only] = group.as_slice() {
+        rejected.insert((only.diag.clone(), only.message.clone()));
+        return;
+    }
+    let second = group.split_off(group.len() / 2);
+    settle(texts, group, false, kept, rejected, check);
+    settle(texts, second, false, kept, rejected, check);
 }
 
 /// Whether `after` has no diagnostic that `before` lacks: no key occurs
@@ -662,6 +692,52 @@ mod tests {
         assert_eq!(out.changes.len(), ROUNDS);
         assert_eq!(out.texts["f.hd"], format!("{}x\n", "q".repeat(ROUNDS)));
         assert_eq!(checks, ROUNDS + 1);
+    }
+
+    /// `cli.check.fix.safe`: one unsafe fix-it among 1,000 is found by
+    /// splitting the round in halves, in about 2 log2(n) checks, where
+    /// trying each fix-it in turn cost one check per fix-it. Every other
+    /// fix-it is kept.
+    #[test]
+    fn one_unsafe_fix_it_among_many_costs_logarithmic_checks() {
+        const N: usize = 1000;
+        const BAD: usize = 637;
+        let mut checks = 0;
+        let start = "x".repeat(N);
+        let out = fix(texts(&start), Mode::Check, |t| {
+            checks += 1;
+            let text = &t["f.hd"];
+            let mut out = Vec::new();
+            // Fix-it `i` replaces byte `i`'s `x` with `y`; the one at `BAD`
+            // brings a new diagnostic.
+            for (i, c) in text.bytes().enumerate().take(N) {
+                if c == b'x' {
+                    let mut d = diag(Code::UnknownName, &format!("x{i}"), None);
+                    d.fixes.push(Fix {
+                        message: format!("replace {i}"),
+                        edits: vec![Edit {
+                            file: "f.hd".to_owned(),
+                            start: u32::try_from(i).expect("small"),
+                            end: u32::try_from(i + 1).expect("small"),
+                            text: "y".to_owned(),
+                        }],
+                        exact: true,
+                    });
+                    out.push(d);
+                }
+            }
+            if text.as_bytes()[BAD] == b'y' {
+                out.push(diag(Code::TypeMismatch, "brought by the bad one", None));
+            }
+            out
+        });
+        assert_eq!(out.changes.len(), N - 1);
+        let want: String = (0..N).map(|i| if i == BAD { 'x' } else { 'y' }).collect();
+        assert_eq!(out.texts["f.hd"], want);
+        // The first check, the round of all, then two per level of 10
+        // halvings: 22. The next check offers only the rejected fix-it,
+        // which is skipped, so no round follows.
+        assert_eq!(checks, 22, "trying each in turn took 1,002");
     }
 
     /// A check that offers no fix-it changes nothing.

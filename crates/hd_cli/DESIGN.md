@@ -197,10 +197,12 @@ no FILE, no `-p` and no `--format`, as the Commands table and
 4. Apply the round's fix-its together and check again. The round is safe
    when no diagnostic key (code, severity, file, message) occurs more
    often than before; positions are not in the key, since edits move
-   them. When it is not safe, try the fix-its one at a time in output
-   order, each on top of those kept, so an added diagnostic is charged to
-   the fix-it that brought it. A rejected fix-it is skipped in later
-   rounds, which lets one it overlapped have its turn.
+   them. When it is not safe, try each half in output order on top of
+   the fix-its kept, and split a half that adds a diagnostic again, down
+   to one fix-it, which is rejected. So an added diagnostic is charged to
+   the fix-it that brought it, and k unsafe fix-its among n cost
+   O(k log n) checks. A rejected fix-it is skipped in later rounds, which
+   lets one it overlapped have its turn.
 5. Repeat with the last check, at most 3 rounds (`cli.check.fix.rounds`).
 6. Write each changed file through a temporary file and a rename, unless
    it changed on disk meanwhile. Print each change (`fixed: FILE:L:C:
