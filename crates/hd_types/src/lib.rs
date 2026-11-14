@@ -11,6 +11,7 @@ pub mod sealed;
 pub mod solver;
 pub mod unify;
 pub mod wire;
+pub mod work;
 
 pub use pool::{
     ConstValue, FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RowData, RowId, RowParamRef,

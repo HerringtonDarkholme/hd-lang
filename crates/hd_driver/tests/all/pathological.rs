@@ -1926,3 +1926,54 @@ fn derivations_find_what_they_need_by_one_probe_each() {
         }
     });
 }
+
+/// A body binding `p0 := (+1, +2)`, then `p{i} := (p{i-1}, p{i-1})` for
+/// `n` levels (a type of 2^n leaves and n distinct nodes, while its
+/// literals are open), or `x0 := ["a"]`, then `x{i} := [x{i-1}]`.
+fn doubled_types(doubled: bool, n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void:\n");
+    if doubled {
+        s.push_str("    p0 := (+1, +2)\n");
+        for i in 1..=n {
+            let _ = writeln!(s, "    p{i} := (p{}, p{})", i - 1, i - 1);
+        }
+        let _ = writeln!(s, "    _ := p{n}");
+    } else {
+        s.push_str("    x0 := [\"a\"]\n");
+        for i in 1..=n {
+            let _ = writeln!(s, "    x{i} := [x{}]", i - 1);
+        }
+        let _ = writeln!(s, "    _ := x{n}");
+    }
+    s
+}
+
+// Types: #1891, resolving variables, the occurs check and the solver's
+// folds walk each distinct node of an interned type once (memoized by
+// type id), not the type as a tree; and a type with no variable left is
+// kept resolved, so a later use does not walk it again: a chain of list
+// types costs work linear in its length. A doubled tuple whose literals
+// are still open costs one walk of its distinct nodes per use, so its
+// work grows with the square of its depth (it grew as 2^depth); that
+// remainder is Known in the commit.
+#[test]
+fn type_walks_visit_each_distinct_node_once() {
+    on_test_stack(|| {
+        for (doubled, small, growth) in [(false, 90, 10), (true, 40, 100)] {
+            let mut base = 0;
+            for n in [small, small * 10] {
+                let (out, nodes) = hd_types::work::count_type_nodes(|| {
+                    compile(&doubled_types(doubled, n), &Goal::Analyze)
+                });
+                assert!(out.diags.is_empty(), "{doubled} {n}: {}", out.render());
+                if n == small {
+                    base = nodes;
+                }
+                assert!(
+                    base > 0 && nodes <= growth * base * 5 / 4,
+                    "type nodes walked for {small} and {n} levels ({doubled}): {base}, {nodes}"
+                );
+            }
+        }
+    });
+}

@@ -1166,7 +1166,7 @@ pub fn canonicalize(
         });
         Ok(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))))
     };
-    let mut leaves = Leaves::Infer(&mut number);
+    let mut leaves = Leaves::infer(&mut number);
     let Ok(self_ty) = fold_vars(pool, tref.self_ty, &mut leaves);
     let Ok(args) = fold_list(pool, tref.args, &mut leaves);
     let goal = CanonGoal {
@@ -1183,17 +1183,39 @@ pub fn canonicalize(
 
 /// The leaves a fold replaces, each with its replacement: the inference
 /// variables, or the placeholders (`Canon(i)`, given with their type).
-enum Leaves<'f, E> {
+/// The replacement is a function of the leaf alone, so each folded type
+/// is kept by id: a type that shares its parts is folded once per
+/// distinct node, however often the fold meets it.
+struct Leaves<'f, E> {
+    kind: LeafKind<'f, E>,
+    memo: HashMap<Ty, Ty>,
+}
+
+enum LeafKind<'f, E> {
     Infer(&'f mut dyn FnMut(InferVar) -> Result<Ty, E>),
     Canon(&'f mut dyn FnMut(Ty, u8) -> Result<Ty, E>),
 }
 
-impl<E> Leaves<'_, E> {
+impl<'f, E> Leaves<'f, E> {
+    fn infer(f: &'f mut dyn FnMut(InferVar) -> Result<Ty, E>) -> Self {
+        Leaves {
+            kind: LeafKind::Infer(f),
+            memo: HashMap::default(),
+        }
+    }
+
+    fn canon(f: &'f mut dyn FnMut(Ty, u8) -> Result<Ty, E>) -> Self {
+        Leaves {
+            kind: LeafKind::Canon(f),
+            memo: HashMap::default(),
+        }
+    }
+
     /// Whether `t` holds a leaf this fold replaces.
     fn in_ty(&self, pool: Types<'_>, t: Ty) -> bool {
-        match self {
-            Leaves::Infer(_) => pool.has_infer(t),
-            Leaves::Canon(_) => pool.has_canon(t),
+        match self.kind {
+            LeafKind::Infer(_) => pool.has_infer(t),
+            LeafKind::Canon(_) => pool.has_canon(t),
         }
     }
 }
@@ -1205,9 +1227,13 @@ fn fold_vars<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
     if !leaves.in_ty(pool, t) {
         return Ok(t);
     }
-    let d = match (pool.get(t), &mut *leaves) {
-        (TyData::Infer(v), Leaves::Infer(f)) => return f(v),
-        (TyData::Canon(i), Leaves::Canon(f)) => return f(t, i),
+    if let Some(&r) = leaves.memo.get(&t) {
+        return Ok(r);
+    }
+    crate::work::type_node();
+    let d = match (pool.get(t), &mut leaves.kind) {
+        (TyData::Infer(v), LeafKind::Infer(f)) => return f(v),
+        (TyData::Canon(i), LeafKind::Canon(f)) => return f(t, i),
         (d, _) => d,
     };
     let d = match d {
@@ -1287,7 +1313,9 @@ fn fold_vars<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
         TyData::Context(r) => TyData::Context(fold_row(pool, r, leaves)?),
         other => other,
     };
-    Ok(pool.intern_ty(&d))
+    let r = pool.intern_ty(&d);
+    leaves.memo.insert(t, r);
+    Ok(r)
 }
 
 fn fold_list<E>(pool: Types<'_>, l: TyList, leaves: &mut Leaves<'_, E>) -> Result<TyList, E> {
@@ -1332,7 +1360,7 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
             .map(|i| pool.intern_ty(&TyData::Canon(i)))
             .ok_or(())
     };
-    let mut place = Leaves::Infer(&mut place);
+    let mut place = Leaves::infer(&mut place);
     Some(match a {
         Answer::Holds { evidence, learned } => CanonAnswer::Holds {
             evidence: match evidence {
@@ -1391,7 +1419,7 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
             t
         })
     };
-    let mut back = Leaves::Canon(&mut back);
+    let mut back = Leaves::canon(&mut back);
     let list = |l: TyList, leaves: &mut Leaves<'_, std::convert::Infallible>| {
         let Ok(l) = fold_list(pool, l, leaves);
         l
@@ -2319,16 +2347,11 @@ impl<'s, 'a> Search<'s, 'a> {
             }
             _ => {
                 // The goal's variables, in first-occurrence order (§3.4).
-                let mut all = Vec::new();
-                collect_vars(pool, self_ty, &mut all);
+                let mut on = Vec::new();
+                let mut seen = HashSet::default();
+                collect_vars(pool, self_ty, &mut on, &mut seen);
                 for a in goal_args {
-                    collect_vars(pool, *a, &mut all);
-                }
-                let mut on = Vec::with_capacity(all.len());
-                for v in all {
-                    if !on.contains(&v) {
-                        on.push(v);
-                    }
+                    collect_vars(pool, *a, &mut on, &mut seen);
                 }
                 Ok((Outcome::leaf(Answer::Stalled { on }), heads))
             }
@@ -2373,19 +2396,14 @@ impl<'s, 'a> Search<'s, 'a> {
                     },
                     M::Maybe => {
                         let mut on = Vec::new();
+                        let mut seen = HashSet::default();
                         for t in [self_ty]
                             .into_iter()
                             .chain(pool.list_items(tref.args).iter().copied())
                         {
-                            collect_vars(pool, t, &mut on);
+                            collect_vars(pool, t, &mut on, &mut seen);
                         }
-                        let mut unique = Vec::new();
-                        for v in on {
-                            if !unique.contains(&v) {
-                                unique.push(v);
-                            }
-                        }
-                        Answer::Stalled { on: unique }
+                        Answer::Stalled { on }
                     }
                     M::No => Answer::Fails(Box::new(FailInfo {
                         leaf: cg,
@@ -2569,35 +2587,38 @@ impl<'s, 'a> Search<'s, 'a> {
     }
 }
 
-fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
-    if !pool.has_infer(t) {
+/// The variables of `t` in first-occurrence order, each distinct node
+/// walked once (`seen`), so each variable is pushed once.
+fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>, seen: &mut HashSet<Ty>) {
+    if !pool.has_infer(t) || !seen.insert(t) {
         return;
     }
+    crate::work::type_node();
     match pool.get(t) {
         TyData::Infer(v) => out.push(v),
         TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
             for a in pool.list_items(args).iter().copied() {
-                collect_vars(pool, a, out);
+                collect_vars(pool, a, out, seen);
             }
         }
         TyData::Tuple { elems, rest } => {
             for a in pool.list_items(elems).iter().copied().chain(rest) {
-                collect_vars(pool, a, out);
+                collect_vars(pool, a, out, seen);
             }
         }
         TyData::Union(members) => {
             for a in pool.list_items(members).iter().copied() {
-                collect_vars(pool, a, out);
+                collect_vars(pool, a, out, seen);
             }
         }
         TyData::Ref { inner: i, .. } => {
-            collect_vars(pool, i, out);
+            collect_vars(pool, i, out, seen);
         }
         TyData::Fn { params, result, .. } => {
             for a in pool.list_items(params).iter().copied() {
-                collect_vars(pool, a, out);
+                collect_vars(pool, a, out, seen);
             }
-            collect_vars(pool, result, out);
+            collect_vars(pool, result, out, seen);
         }
         // A stall names the variables of the goal's own structure; one
         // inside a projection, an opaque type or a row waits with it.
@@ -2965,13 +2986,7 @@ impl Search<'_, '_> {
         };
         if maybe {
             let mut on = Vec::new();
-            collect_vars(pool, self_ty, &mut on);
-            let mut seen = Vec::with_capacity(on.len());
-            on.retain(|v| {
-                let first = !seen.contains(v);
-                seen.push(*v);
-                first
-            });
+            collect_vars(pool, self_ty, &mut on, &mut HashSet::default());
             return done(Answer::Stalled { on });
         }
         if out.is_empty() {

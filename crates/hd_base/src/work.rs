@@ -58,6 +58,7 @@ counters! {
     UseFacts = "use_facts",
     LoanQueries = "loan_queries",
     TraitLookup = "trait_lookup",
+    TypeNodes = "type_nodes",
     DeriveWork = "derive_work",
     MemberPairs = "member_pairs",
 }

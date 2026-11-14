@@ -3,6 +3,7 @@
 //! kinds (§3.6). Poison unifies with everything (`docs/compiler/data-structures.md` §3.6).
 
 use hd_base::InferVar;
+use hd_base::{HashMap, HashSet};
 
 use crate::pool::{Inputs, Ty, TyData, Types};
 
@@ -228,65 +229,73 @@ impl InferTable {
         }
     }
 
-    /// Resolves every variable it can, recursively.
+    /// Resolves every variable it can, recursively: each distinct node of
+    /// the type once, memoized by type id, so a type that shares its
+    /// parts (an interned DAG) costs its distinct nodes, not its tree.
     #[must_use]
     pub fn resolve(&self, pool: Types<'_>, t: Ty) -> Ty {
         let t = self.shallow(pool, t);
         if !pool.has_infer(t) {
             return t;
         }
-        pool.map_children(t, &mut Resolve { table: self, pool })
+        crate::TyMap::ty(&mut Resolve::new(self, pool), t)
     }
 
     /// Resolves a row's keys; a bound row variable's row joins the keys.
     #[must_use]
     pub fn resolve_row(&self, pool: Types<'_>, row: crate::RowId) -> crate::RowId {
-        let mut d = pool.row_data(row);
-        if !d.keys.iter().any(|k| pool.has_infer(*k)) {
-            return row;
-        }
-        d.keys = d.keys.iter().map(|k| self.resolve(pool, *k)).collect();
-        pool.row(&d)
+        crate::TyMap::row(&mut Resolve::new(self, pool), row)
     }
 
+    /// Whether variable `v` occurs in `t`: each distinct node once.
     fn occurs(&self, pool: Types<'_>, v: u32, t: Ty) -> bool {
-        let t = self.shallow(pool, t);
-        match pool.get(t) {
-            TyData::Infer(w) => self.root(w.raw()) == v,
-            TyData::Adt { args: l, .. } => pool
-                .list_items(l)
-                .iter()
-                .copied()
-                .any(|x| self.occurs(pool, v, x)),
-            TyData::Opaque { args, bound, .. } => {
-                self.occurs(pool, v, bound)
-                    || pool
-                        .list_items(args)
-                        .iter()
-                        .any(|&x| self.occurs(pool, v, x))
+        let mut seen: HashSet<Ty> = HashSet::default();
+        let mut todo = vec![t];
+        let mut kids = Vec::new();
+        while let Some(t) = todo.pop() {
+            let t = self.shallow(pool, t);
+            if !pool.has_infer(t) || !seen.insert(t) {
+                continue;
             }
-            TyData::Tuple { elems, rest } => pool
-                .list_items(elems)
-                .iter()
-                .copied()
-                .chain(rest)
-                .any(|x| self.occurs(pool, v, x)),
-            TyData::Union(members) => pool
-                .list_items(members)
-                .iter()
-                .copied()
-                .any(|x| self.occurs(pool, v, x)),
-            TyData::Ref { inner: i, .. } => self.occurs(pool, v, i),
-            TyData::Fn { params, result, .. } => {
-                self.occurs(pool, v, result)
-                    || pool
-                        .list_items(params)
-                        .iter()
-                        .copied()
-                        .any(|x| self.occurs(pool, v, x))
+            crate::work::type_node();
+            kids.clear();
+            match pool.get(t) {
+                TyData::Infer(w) => {
+                    if self.root(w.raw()) == v {
+                        return true;
+                    }
+                }
+                TyData::Adt { args: l, .. } => kids.extend_from_slice(pool.list_items(l)),
+                TyData::Opaque { args, bound, .. } => {
+                    kids.push(bound);
+                    kids.extend_from_slice(pool.list_items(args));
+                }
+                TyData::Tuple { elems, rest } => {
+                    kids.extend_from_slice(pool.list_items(elems));
+                    kids.extend(rest);
+                }
+                TyData::Union(members) => kids.extend_from_slice(pool.list_items(members)),
+                TyData::Ref { inner: i, .. } => kids.push(i),
+                TyData::Fn { params, result, .. } => {
+                    kids.push(result);
+                    kids.extend_from_slice(pool.list_items(params));
+                }
+                // No variable is looked for inside a trait value, a
+                // projection or a row, as before the walk was memoized.
+                TyData::Prim(_)
+                | TyData::Never
+                | TyData::Poison
+                | TyData::TraitValue { .. }
+                | TyData::Param(_)
+                | TyData::Const(_)
+                | TyData::Assoc { .. }
+                | TyData::Canon(_)
+                | TyData::Row(_)
+                | TyData::Context(_) => {}
             }
-            _ => false,
+            todo.extend(kids.iter().rev());
         }
+        false
     }
 
     fn bind(&mut self, pool: Types<'_>, v: u32, t: Ty) -> Result<(), UnifyError> {
@@ -620,14 +629,41 @@ impl InferTable {
 struct Resolve<'t, 'p> {
     table: &'t InferTable,
     pool: Types<'p>,
+    /// Each type already resolved in this walk, by id.
+    memo: HashMap<Ty, Ty>,
+}
+
+impl<'t, 'p> Resolve<'t, 'p> {
+    fn new(table: &'t InferTable, pool: Types<'p>) -> Self {
+        Resolve {
+            table,
+            pool,
+            memo: HashMap::default(),
+        }
+    }
 }
 
 impl crate::TyMap for Resolve<'_, '_> {
     fn ty(&mut self, t: Ty) -> Ty {
-        self.table.resolve(self.pool, t)
+        let t = self.table.shallow(self.pool, t);
+        if !self.pool.has_infer(t) {
+            return t;
+        }
+        if let Some(&r) = self.memo.get(&t) {
+            return r;
+        }
+        crate::work::type_node();
+        let r = self.pool.map_children(t, self);
+        self.memo.insert(t, r);
+        r
     }
     fn row(&mut self, r: crate::RowId) -> crate::RowId {
-        self.table.resolve_row(self.pool, r)
+        let mut d = self.pool.row_data(r);
+        if !d.keys.iter().any(|k| self.pool.has_infer(*k)) {
+            return r;
+        }
+        d.keys = d.keys.iter().map(|k| self.ty(*k)).collect();
+        self.pool.row(&d)
     }
 }
 
@@ -1052,5 +1088,96 @@ mod tests {
             t.unify(p, ctx(vec![log]), ctx(vec![log, key(2, &[Ty::I32])])),
             Err(UnifyError::Mismatch { .. })
         ));
+    }
+
+    /// A type that shares its parts (a DAG of 2^40 leaves): resolve
+    /// substitutes through every shared node, the occurs check finds the
+    /// variable through each form, and both count each distinct node once.
+    #[test]
+    fn shared_types_are_walked_once_per_node() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let a = t.fresh(p, VarKind::General);
+        let b = t.fresh(p, VarKind::General);
+        let pair = |x: Ty| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[x, x]),
+                rest: None,
+            })
+        };
+        let mut deep = a;
+        for _ in 0..40 {
+            deep = pair(deep);
+        }
+        let ((), nodes) = crate::work::count_type_nodes(|| {
+            t.unify(p, a, Ty::I32).expect("bind");
+            let mut want = Ty::I32;
+            for _ in 0..40 {
+                want = pair(want);
+            }
+            assert_eq!(t.resolve(p, deep), want);
+        });
+        assert!(nodes <= 41, "one visit per distinct node: {nodes}");
+        let mut deep_b = b;
+        for _ in 0..40 {
+            deep_b = pair(deep_b);
+        }
+        let forms = [
+            deep_b,
+            p.intern_ty(&TyData::Adt {
+                def: hd_base::DefId::from_raw(7),
+                args: p.list(&[deep_b]),
+            }),
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[Ty::I32]),
+                rest: Some(deep_b),
+            }),
+            p.intern_ty(&TyData::Union(p.list(&[deep_b]))),
+            p.intern_ty(&TyData::Ref {
+                inner: deep_b,
+                mutable: false,
+                counted: false,
+            }),
+            p.intern_ty(&TyData::Fn {
+                params: p.list(&[Ty::STRING]),
+                result: deep_b,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: crate::pool::FnDeps::NONE,
+            }),
+            p.intern_ty(&TyData::Opaque {
+                owner: hd_base::DefId::from_raw(26),
+                site: 0,
+                borrows: false,
+                args: p.list(&[deep_b]),
+                bound: Ty::I32,
+            }),
+            p.intern_ty(&TyData::Opaque {
+                owner: hd_base::DefId::from_raw(26),
+                site: 0,
+                borrows: false,
+                args: p.list(&[]),
+                bound: deep_b,
+            }),
+            p.intern_ty(&TyData::Fn {
+                params: p.list(&[deep_b]),
+                result: Ty::I32,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: crate::pool::FnDeps::NONE,
+            }),
+        ];
+        for form in forms {
+            let (found, nodes) = crate::work::count_type_nodes(|| t.unify(p, b, form));
+            assert!(
+                matches!(found, Err(UnifyError::Occurs { .. })),
+                "{:?}",
+                p.get(form)
+            );
+            assert!(nodes <= 45, "one visit per distinct node: {nodes}");
+        }
     }
 }

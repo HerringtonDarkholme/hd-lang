@@ -5654,7 +5654,9 @@ impl Ck<'_, '_> {
         let r = self.infer.resolve(pool, t);
         self.add_opaque_bounds(r);
         if !pool.has_assoc(r) {
-            return t;
+            // A type with no variable left is kept resolved, so a later
+            // resolve of it costs nothing (#1891).
+            return if pool.has_infer(r) { t } else { r };
         }
         self.normalize_deep(r).unwrap_or(r)
     }
