@@ -6386,6 +6386,12 @@ typing/invalid/prelude-shadow-multiline-use.hd	type	reject:prelude-name-shadow	l
 typing/valid/empty-collection-joined-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
 runtime/valid/list-spread-inferred-optional.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert
 typing/invalid/unknown-return-type-no-cascade.hd	type	reject:unknown-type	README.md#diagnostics
+typing/invalid/poison-a-field-of-an-unknown-type-adds-no-read-error.hd	type	reject:unknown-type	README.md#diagnostics
+typing/invalid/poison-an-unknown-bound-in-an-impl-method-is-no-signature-mismatch.hd	type	reject:unknown-trait	README.md#diagnostics
+typing/invalid/poison-an-unknown-parameter-type-in-an-impl-method-is-no-signature-mismatch.hd	type	reject:unknown-type	README.md#diagnostics
+typing/invalid/poison-an-unknown-result-type-adds-no-body-inference-error.hd	type	reject:unknown-type	README.md#diagnostics
+typing/invalid/poison-an-unknown-type-in-a-callee-signature-adds-no-call-error.hd	type	reject:unknown-type	README.md#diagnostics
+typing/invalid/poison-an-unknown-type-in-an-impl-method-result-is-no-signature-mismatch.hd	type	reject:unknown-type	README.md#diagnostics
 typing/invalid/poisoned-binary-chain-expectation.hd	type	reject:unknown-type	README.md#diagnostics
 typing/invalid/poison-a-call-of-a-non-function-reports-once.hd	type	reject:not-callable	README.md#diagnostics
 typing/invalid/poison-a-call-of-an-unknown-function-reports-once.hd	type	reject:unknown-name	README.md#diagnostics

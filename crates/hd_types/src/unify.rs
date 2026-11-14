@@ -310,6 +310,13 @@ impl InferTable {
         Ok(())
     }
 
+    /// Binds every unbound variable of `t` to poison.
+    fn poison_vars(&mut self, pool: Types<'_>, t: Ty) {
+        if pool.has_infer(t) {
+            let _ = crate::TyMap::ty(&mut PoisonVars { table: self, pool }, t);
+        }
+    }
+
     /// Unifies two types; on error the caller rolls back to its snapshot.
     pub fn unify(&mut self, pool: Types<'_>, a: Ty, b: Ty) -> Result<(), UnifyError> {
         let (a, b) = (self.shallow(pool, a), self.shallow(pool, b));
@@ -317,7 +324,16 @@ impl InferTable {
             return Ok(());
         }
         match (pool.get(a), pool.get(b)) {
-            (TyData::Poison, _) | (_, TyData::Poison) => Ok(()),
+            // The variables of the other side take poison: what is
+            // inferred from a type that failed is no new error.
+            (TyData::Poison, _) => {
+                self.poison_vars(pool, b);
+                Ok(())
+            }
+            (_, TyData::Poison) => {
+                self.poison_vars(pool, a);
+                Ok(())
+            }
             // `&T` and `&mut T` are distinct types; the conversion from
             // `&mut T` to `&T` is a coercion (ref.convert.weaken). So are
             // `*T` and `&T` (`ref.type.kind-distinct`), whose conversion
@@ -615,6 +631,32 @@ impl crate::TyMap for Resolve<'_, '_> {
     }
 }
 
+/// Binds the unbound variables of a type to poison ([`InferTable::poison_vars`]).
+struct PoisonVars<'t, 'p> {
+    table: &'t mut InferTable,
+    pool: Types<'p>,
+}
+
+impl crate::TyMap for PoisonVars<'_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        let t = self.table.shallow(self.pool, t);
+        if let TyData::Infer(v) = self.pool.get(t) {
+            let root = self.table.root(v.raw());
+            self.table.binding[root as usize] = Some(Ty::POISON);
+            self.table.trail.push(Undo::Bind(root));
+            return Ty::POISON;
+        }
+        if self.pool.has_infer(t) {
+            self.pool.map_children(t, self)
+        } else {
+            t
+        }
+    }
+    fn row(&mut self, r: crate::RowId) -> crate::RowId {
+        r
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{InferTable, UnifyError, VarKind};
@@ -745,6 +787,39 @@ mod tests {
                 bindings: vec![(hd_base::DefId::from_raw(8), Ty::I32)],
             }
         );
+    }
+
+    /// Poison binds the variables of the other side, nested or not, from
+    /// either side; a rollback unbinds them.
+    #[test]
+    fn poison_binds_the_variables_of_the_other_side() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let a = t.fresh(p, VarKind::General);
+        let lit = t.fresh(p, VarKind::IntLit);
+        let func = p.intern_ty(&TyData::Fn {
+            params: p.list(&[a, Ty::STRING]),
+            result: lit,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+            deps: crate::pool::FnDeps::NONE,
+        });
+        let snap = t.snapshot();
+        t.unify(p, Ty::POISON, func).expect("poison unifies");
+        assert_eq!(t.resolve(p, a), Ty::POISON);
+        assert_eq!(t.resolve(p, lit), Ty::POISON);
+        t.rollback(snap);
+        assert_eq!(t.resolve(p, a), a);
+        let pair = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::I32, a]),
+            rest: None,
+        });
+        t.unify(p, pair, Ty::POISON).expect("poison unifies");
+        assert_eq!(t.resolve(p, a), Ty::POISON);
+        // A type without variables is left as it is.
+        t.unify(p, Ty::I32, Ty::POISON).expect("poison unifies");
     }
 
     /// `Fn[?A, i32, $()]` against a function type of any arity solves

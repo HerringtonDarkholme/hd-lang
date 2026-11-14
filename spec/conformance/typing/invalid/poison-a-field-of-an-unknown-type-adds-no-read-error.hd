@@ -1,0 +1,9 @@
+# test: a field of an unknown type adds no inference error where it is read
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+struct Holder:
+    value: Bogus # diagnostic: unknown-type
+
+fn run(h: Holder) -> i32:
+    let value = h.value
+    0

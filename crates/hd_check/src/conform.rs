@@ -344,9 +344,11 @@ impl Ck<'_, '_> {
         free_bounds: bool,
         inst: &dyn Fn(Ty) -> Ty,
     ) -> Option<&'static str> {
+        // A type that failed to resolve was reported where it is
+        // written; it matches anything here.
         let same = |w: Ty, g: Ty| {
             let w = inst(w);
-            has_assoc(pool, w, 0) || w == g
+            has_assoc(pool, w, 0) || w == g || pool.has_poison(w) || pool.has_poison(g)
         };
         if want.params.len() != got.params.len() {
             return Some("the parameter count");
@@ -382,7 +384,8 @@ impl Ck<'_, '_> {
             let mut gb = g.bounds.clone();
             wb.sort_stable_by_key(|t| t.0);
             gb.sort_stable_by_key(|t| t.0);
-            if wb != gb && !free_bounds {
+            let poisoned = wb.iter().chain(&gb).any(|b| pool.has_poison(*b));
+            if wb != gb && !free_bounds && !poisoned {
                 return Some("a type parameter's bounds");
             }
             if w.default.map(inst) != g.default {

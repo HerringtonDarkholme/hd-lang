@@ -1,0 +1,6 @@
+# test: an unknown result type adds no inference error in the body
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn empty() -> Bogus: # diagnostic: unknown-type
+    let values = []
+    values

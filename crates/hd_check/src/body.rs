@@ -5297,12 +5297,17 @@ impl Ck<'_, '_> {
             && !self.read_poison_name
         {
             let mut reported = false;
-            for i in 0..n {
+            for (i, &before) in open.iter().enumerate().take(n) {
                 let t = self.b.body_mut().ty[i];
                 let at = self.b.body_mut().syn[i];
+                // Only a variable nothing solved is this body's error. A
+                // type that held poison before the unsolved variables
+                // were filled came from a declaration that failed to
+                // resolve (a callee's signature, a field) and reported it.
                 if pool.has_poison(t)
                     && self.b.body_mut().tags[i] != Tag::Poison
                     && at != hd_base::NodeIdx::NONE
+                    && !pool.has_poison(self.infer.resolve(pool, before))
                 {
                     let node = self.cx.src.parse.tree.node(at);
                     let span = self.cx.src.span(node);

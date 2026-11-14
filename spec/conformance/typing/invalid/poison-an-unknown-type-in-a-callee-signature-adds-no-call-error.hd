@@ -1,0 +1,9 @@
+# test: an unknown type in a callee's signature adds no inference error at the call
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn make() -> Bogus: # diagnostic: unknown-type
+    panic("x")
+
+fn run() -> i32:
+    let made = make()
+    0
