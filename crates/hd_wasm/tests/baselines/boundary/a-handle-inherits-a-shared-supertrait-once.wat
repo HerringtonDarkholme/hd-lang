@@ -9,7 +9,7 @@
   (import "fixture" "rt:dec'2" (func $rt:dec'2 (param i32) (result i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $h.1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $h.1 i32)
     ;; 21 |     let h: &mut dyn Handle = $.use(Vault).open()
     local.get $provider0
     local.get $provider0.vtable
@@ -27,9 +27,8 @@
     drop
     ;; 23 |     _ := h.close()
     local.get $provider0.vtable
-    local.tee $t0
     if
-      local.get $t0
+      local.get $provider0.vtable
       call $retain
     end
     local.get $provider0.vtable
@@ -41,15 +40,13 @@
     drop
     ;; 21 |     let h: &mut dyn Handle = $.use(Vault).open()
     local.get $provider0.vtable
-    local.tee $t0
     if
-      local.get $t0
+      local.get $provider0.vtable
       call $rt:release_ref
     end
     local.get $provider0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $provider0
       call $rt:release_ref
     end
   )

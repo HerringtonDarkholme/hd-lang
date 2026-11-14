@@ -172,14 +172,14 @@
     if
       local.get $h
       i32.load $heap
-      local.tee $t2
+      local.tee $h
       if
-        local.get $t2
+        local.get $h
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t2
+          local.get $h
           call $rt:release_ref'1
         end
       end
@@ -220,14 +220,14 @@
     if
       local.get $t1
       i32.load $heap
-      local.tee $t2
+      local.tee $t1
       if
-        local.get $t2
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t2
+          local.get $t1
           call $rt:release_ref'1
         end
       end
@@ -336,9 +336,8 @@
     call $"println[string]"
     ;; 31 |     let mut h = histogram()
     local.get $t9
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t9
       call $rt:release_ref'2
     end
     local.get $t0

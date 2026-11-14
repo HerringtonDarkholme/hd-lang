@@ -21,7 +21,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 21 funcref))
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t1 i32) (local $t6 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t7 i32) (local $t0 i32) (local $t5 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t1 i32) (local $t5 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32) (local $t0 i32)
     ;; 26 |     println(take!("text"))
     local.get $frame
     if
@@ -149,15 +149,13 @@
                   i32.or
                   i32.store $heap offset=12
                   local.get $provider0
-                  local.tee $t5
                   if
-                    local.get $t5
+                    local.get $provider0
                     call $retain
                   end
                   local.get $provider1
-                  local.tee $t5
                   if
-                    local.get $t5
+                    local.get $provider1
                     call $retain
                   end
                 end
@@ -183,15 +181,13 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                local.tee $t5
                 if
-                  local.get $t5
+                  local.get $provider0
                   call $retain
                 end
                 local.get $provider1
-                local.tee $t5
                 if
-                  local.get $t5
+                  local.get $provider1
                   call $retain
                 end
               end
@@ -233,9 +229,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t2
-              local.tee $t5
               if
-                local.get $t5
+                local.get $t2
                 call $rt:release_ref'1
               end
             end
@@ -263,13 +258,13 @@
             i32.and
             if
               i32.const 1
-              local.set $t6
+              local.set $t5
             end
           end
           local.get $frame
           local.get $t2
           call $rt:cancel_leave
-          local.get $t6
+          local.get $t5
           if
             local.get $frame
             i32.eqz
@@ -282,15 +277,13 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              local.tee $t5
               if
-                local.get $t5
+                local.get $provider0
                 call $retain
               end
               local.get $provider1
-              local.tee $t5
               if
-                local.get $t5
+                local.get $provider1
                 call $retain
               end
             end
@@ -332,14 +325,13 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t1
-            local.tee $t5
             if
-              local.get $t5
+              local.get $t1
               call $rt:release_ref'1
             end
           end
           i32.const 1
-          local.set $t6
+          local.set $t5
           br 2
         end
         local.get $t2
@@ -367,9 +359,9 @@
           if
             local.get $frame
             i32.load $heap offset=16
-            local.set $t7
+            local.set $t6
           end
-          local.get $t7
+          local.get $t6
           i32.const 7
           local.get $provider1
           local.get $provider1.vtable
@@ -394,15 +386,13 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                local.tee $t5
                 if
-                  local.get $t5
+                  local.get $provider0
                   call $retain
                 end
                 local.get $provider1
-                local.tee $t5
                 if
-                  local.get $t5
+                  local.get $provider1
                   call $retain
                 end
               end
@@ -428,15 +418,13 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              local.tee $t5
               if
-                local.get $t5
+                local.get $provider0
                 call $retain
               end
               local.get $provider1
-              local.tee $t5
               if
-                local.get $t5
+                local.get $provider1
                 call $retain
               end
             end
@@ -472,15 +460,14 @@
             end
             return
           end
-          local.get $t7
+          local.get $t6
           if
             local.get $frame
             i32.const 0
             i32.store $heap offset=16
-            local.get $t7
-            local.tee $t5
+            local.get $t6
             if
-              local.get $t5
+              local.get $t6
               call $rt:release_ref'1
             end
           end
@@ -504,13 +491,13 @@
           i32.and
           if
             i32.const 1
-            local.set $t6
+            local.set $t5
           end
         end
         local.get $frame
         local.get $t2
         call $rt:cancel_leave
-        local.get $t6
+        local.get $t5
         if
           local.get $frame
           i32.eqz
@@ -523,15 +510,13 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            local.tee $t5
             if
-              local.get $t5
+              local.get $provider0
               call $retain
             end
             local.get $provider1
-            local.tee $t5
             if
-              local.get $t5
+              local.get $provider1
               call $retain
             end
           end
@@ -573,14 +558,13 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t1
-          local.tee $t5
           if
-            local.get $t5
+            local.get $t1
             call $rt:release_ref'1
           end
         end
         i32.const 1
-        local.set $t6
+        local.set $t5
         br 1
       end
       local.get $provider1
@@ -614,7 +598,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t6
+    local.get $t5
     if (result i32)
       local.get $frame
       local.get $frame
@@ -738,9 +722,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -766,9 +750,8 @@
       call $retain
     end
     local.get $t3
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t3
       call $retain
     end
     local.get $t0
@@ -1005,9 +988,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t7
-            local.tee $provider0
             if
-              local.get $provider0
+              local.get $t7
               call $rt:release_ref'1
             end
           end
@@ -1099,9 +1081,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t5
-          local.tee $provider0
           if
-            local.get $provider0
+            local.get $t5
             call $rt:release_ref'1
           end
         end
@@ -1121,16 +1102,15 @@
       local.get $t3
       i32.store $heap offset=4
       local.get $value
-      local.tee $provider0
       if
-        local.get $provider0
+        local.get $value
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $provider0
+          local.get $value
           call $rt:release_ref'2
         end
       end
@@ -1141,16 +1121,15 @@
       local.set $t10
     end
     local.get $value
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $value
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0
+        local.get $value
         call $rt:release_ref'2
       end
     end
@@ -1323,9 +1302,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -1616,9 +1595,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t4
-            local.tee $provider0
             if
-              local.get $provider0
+              local.get $t4
               call $rt:release_ref'1
             end
           end
@@ -1703,9 +1681,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t3
-          local.tee $provider0
           if
-            local.get $provider0
+            local.get $t3
             call $rt:release_ref'1
           end
         end
@@ -1717,16 +1694,15 @@
       local.get $value
       i32.load $heap
       local.get $value
-      local.tee $provider0
       if
-        local.get $provider0
+        local.get $value
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $provider0
+          local.get $value
           call $rt:release_ref'2
         end
       end
@@ -1736,16 +1712,15 @@
       local.set $t6
     end
     local.get $value
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $value
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0
+        local.get $value
         call $rt:release_ref'2
       end
     end
@@ -1905,9 +1880,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end

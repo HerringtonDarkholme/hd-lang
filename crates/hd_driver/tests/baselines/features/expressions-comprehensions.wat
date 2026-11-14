@@ -50,9 +50,8 @@
         local.get $u.active
         if
           local.get $u.name.0
-          local.tee $u.active
           if
-            local.get $u.active
+            local.get $u.name.0
             call $retain
           end
           local.get $t0
@@ -304,15 +303,13 @@
             i32.eq
             if
               local.get $x.0
-              local.tee $t5
               if
-                local.get $t5
+                local.get $x.0
                 call $retain
               end
               local.get $y.0
-              local.tee $t5
               if
-                local.get $t5
+                local.get $y.0
                 call $retain
               end
               local.get $t0

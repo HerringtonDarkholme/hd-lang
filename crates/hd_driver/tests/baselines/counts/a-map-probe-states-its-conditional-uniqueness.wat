@@ -208,14 +208,13 @@
     i32.load $heap offset=8
     ;; 19 |     let mut items = { "a": +1 }
     local.get $saved
-    local.tee $t1
     if
-      local.get $t1
+      local.get $saved
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $saved
         call $rt:release_ref
       end
     end
@@ -266,14 +265,14 @@
     if
       local.get $items
       i32.load $heap
-      local.tee $t1
+      local.tee $items
       if
-        local.get $t1
+        local.get $items
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $items
           call $rt:release_ref
         end
       end
@@ -398,14 +397,14 @@
     if
       local.get $items
       i32.load $heap
-      local.tee $t1
+      local.tee $items
       if
-        local.get $t1
+        local.get $items
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $items
           call $rt:release_ref
         end
       end

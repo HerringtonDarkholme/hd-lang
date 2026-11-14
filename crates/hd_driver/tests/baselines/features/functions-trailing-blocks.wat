@@ -25,9 +25,8 @@
     i32.const 33
     i32.store8 $heap
     local.get $t2
-    local.tee $s.0
     if
-      local.get $s.0
+      local.get $t2
       call $rt:release_ref
     end
     local.get $t0
@@ -40,14 +39,14 @@
     i32.const 0
     local.get $body.0
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $label.0
-    local.tee $body.0
+    local.set $body.0
+    local.tee $label.0
     if
-      local.get $body.0
+      local.get $label.0
       call $rt:release_ref
     end
     local.get $label.1
-    local.get $label.0
+    local.get $body.0
     i32.add
   )
   (func $twice (param $body.0 i32) (param $body.1 i32) (result i32)

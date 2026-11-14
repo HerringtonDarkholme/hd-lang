@@ -56,17 +56,15 @@
     i32.sub
     local.set $start
     local.tee $text.1
-    local.tee $end
     if
-      local.get $end
+      local.get $text.1
       call $retain
     else
       call $skipped_test
     end
     local.get $text.0
-    local.tee $end
     if
-      local.get $end
+      local.get $text.0
       call $rt:release_ref
     else
       call $skipped_test

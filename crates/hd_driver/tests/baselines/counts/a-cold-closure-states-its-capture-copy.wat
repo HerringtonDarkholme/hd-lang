@@ -379,9 +379,9 @@
     end
     local.get $t0
     i32.load $heap offset=28
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
   )
@@ -395,9 +395,8 @@
     local.get $t2
     i32.store $heap offset=28
     local.get $t2
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t2
       call $retain
     end
     local.get $t1

@@ -46,9 +46,8 @@
           unreachable
         end
         local.get $e.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $e.0
           call $retain
         end
         i32.const 0
@@ -95,7 +94,7 @@
     end
     local.get $t0
   )
-  (func $wrap_with (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32)
+  (func $wrap_with (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32)
     ;; 18 |     [for e in errors => wrap(e)]
     i32.const 24 ;; &empty-buffer
     local.set $t0
@@ -136,9 +135,8 @@
           unreachable
         end
         local.get $e.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $e.0
           call $retain
         end
         local.get $wrap.1
@@ -147,19 +145,18 @@
         i32.const 0
         local.get $wrap.0
         call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32)
+        local.set $t3
         local.set $t4
-        local.set $t5
         local.set $e.1
         local.get $e.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $e.0
           call $rt:release_ref
         end
         local.get $t0
         local.tee $e.0
         i32.load $heap offset=4
-        local.tee $t3
+        local.tee $t5
         local.get $e.0
         i32.load $heap
         i32.eq
@@ -171,7 +168,7 @@
           local.set $t0
         end
         local.get $e.0
-        local.get $t3
+        local.get $t5
         i32.const 12
         i32.mul
         i32.add
@@ -179,13 +176,13 @@
         local.get $e.1
         i32.store $heap offset=16
         local.get $t6
-        local.get $t5
+        local.get $t4
         i32.store $heap offset=20
         local.get $t6
-        local.get $t4
+        local.get $t3
         i32.store $heap offset=24
         local.get $e.0
-        local.get $t3
+        local.get $t5
         i32.const 1
         i32.add
         i32.store $heap offset=4
@@ -241,9 +238,8 @@
           unreachable
         end
         local.get $t2
-        local.tee $t5
         if
-          local.get $t5
+          local.get $t2
           call $retain
         end
         i32.const 0

@@ -112,9 +112,8 @@
         end
     ;; 19 |         .Named(n) => n
         local.get $s.1
-        local.tee $s.0
         if
-          local.get $s.0
+          local.get $s.1
           call $retain
         end
         local.get $s.1
@@ -124,9 +123,8 @@
       end
     ;; 20 |         .Pair(a, _) => a
       local.get $s.1
-      local.tee $s.0
       if
-        local.get $s.0
+        local.get $s.1
         call $retain
       end
       local.get $s.1

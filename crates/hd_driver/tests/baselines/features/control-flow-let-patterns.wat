@@ -54,9 +54,8 @@
     end
     ;; 17 |     name
     local.get $u.name.0
-    local.tee $u.tags
     if
-      local.get $u.tags
+      local.get $u.name.0
       call $retain
     end
     local.get $u.name.0

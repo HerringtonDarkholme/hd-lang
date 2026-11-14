@@ -198,9 +198,8 @@
     local.get $s.0
     ;; 18 |     add()
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $xs
@@ -243,9 +242,8 @@
     i32.store $heap offset=4
     ;; 19 |     xs.len()
     local.get $s.0
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       call $retain
     end
     local.get $xs
@@ -288,9 +286,8 @@
     i32.store $heap offset=4
     ;; (no span)
     local.get $s.0
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       call $rt:release_ref'1
     end
     ;; 15 |     let mut xs: List[string] = []
@@ -303,16 +300,16 @@
     if
       local.get $xs
       i32.load $heap
-      local.tee $t2
+      local.tee $s.1
       if
-        local.get $t2
+        local.get $s.1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t2
+          local.get $s.1
           call $rt:release_ref'2
         end
       end
@@ -320,16 +317,15 @@
     local.get $s.0
     i32.load $heap offset=4
     local.get $s.0
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t2
+        local.get $s.0
         call $rt:release_ref'2
       end
     end

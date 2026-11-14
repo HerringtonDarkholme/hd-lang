@@ -12,13 +12,13 @@
     local.get $x.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $x.0
-    local.tee $x.1
+    local.set $x.1
+    local.tee $x.0
     if
-      local.get $x.1
+      local.get $x.0
       call $rt:release_ref
     end
-    local.get $x.0
+    local.get $x.1
   )
   (func $make_dyn (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $d i32)
     ;; 20 |     call_dyn(&d)
@@ -83,7 +83,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Named for Dog.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Named for Dog.name" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 14 |         self.n
     local.get $self
     i32.load $heap
@@ -91,9 +91,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       call $retain
     end
     local.get $self

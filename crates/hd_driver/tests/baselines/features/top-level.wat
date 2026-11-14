@@ -53,9 +53,9 @@
     i32.const 24 ;; &greeting
     local.get $t3
     i32.store $heap offset=4
-    local.tee $t2
+    local.tee $t1
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref'1
     end
     ;; 8 | names := ["a${1}", "b"]
@@ -124,7 +124,7 @@
     local.get $t1
     global.set $names
   )
-  (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     greeting
     i32.const 24 ;; &greeting
     i32.load $heap
@@ -132,9 +132,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $t1

@@ -77,9 +77,8 @@
       i32.load $heap offset=20
       local.set $t2
       local.tee $t3
-      local.tee $t4
       if
-        local.get $t4
+        local.get $t3
         call $retain
       end
       local.get $t3
@@ -88,14 +87,13 @@
     end
     local.set $t3
     local.get $xs
-    local.tee $t4
     if
-      local.get $t4
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $xs
         call $rt:release_ref'1
       end
     end
@@ -122,9 +120,8 @@
           unreachable
         end
         local.get $xs
-        local.tee $t4
         if
-          local.get $t4
+          local.get $xs
           call $retain
         end
         br 1
@@ -134,9 +131,8 @@
     local.get $t2
     call $rt:release
     local.get $xs
-    local.tee $t4
     if
-      local.get $t4
+      local.get $xs
       call $rt:release_ref'2
     end
     local.get $t1
@@ -175,22 +171,22 @@
     i32.add
     i32.store $heap offset=4
     local.get $xs
+    local.tee $s.0
     i32.load $heap offset=4
-    local.set $s.0
-    local.get $xs
-    local.tee $t4
+    local.set $s.1
+    local.get $s.0
     if
-      local.get $t4
+      local.get $s.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $s.0
         call $rt:release_ref'1
       end
     end
     local.get $t1
-    local.get $s.0
+    local.get $s.1
     i32.add
     local.get $t0
     i32.const 16 ;; &"heap-exhausted"

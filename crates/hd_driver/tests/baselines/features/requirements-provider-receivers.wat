@@ -13,7 +13,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32) (local $t1 i32)
+  (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32)
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
     i32.const 16
     i32.const 0
@@ -27,14 +27,13 @@
     local.get $counters
     ;; 31 |     $.with(Meter=counters):
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
@@ -45,12 +44,10 @@
     i32.const 328 ;; &vtable[func69]
     ;; 32 |         count(n)
     call $count
-    ;; 31 |     $.with(Meter=counters):
-    local.get $t0
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
-    local.tee $t1
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'1
     end
     ;; 33 |     counters.total
@@ -58,16 +55,15 @@
     i64.load $heap
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
     local.get $counters
-    local.tee $t1
     if
-      local.get $t1
+      local.get $counters
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $counters
         call $rt:release_ref'2
       end
     end
@@ -237,14 +233,13 @@
     ;; 27 |         wait!()
             local.get $wait
             local.tee $t4
-            local.tee $t6
             if
-              local.get $t6
+              local.get $t4
               i32.const 8
               i32.sub
               i32.load $heap
               if
-                local.get $t6
+                local.get $t4
                 call $rt:retain_known
               end
             end
@@ -288,9 +283,8 @@
                 i32.eqz
                 if
                   local.get $t5
-                  local.tee $t6
                   if
-                    local.get $t6
+                    local.get $t5
                     call $retain
                   end
                 end
@@ -310,9 +304,8 @@
                     i32.or
                     i32.store $heap offset=12
                     local.get $provider0
-                    local.tee $t6
                     if
-                      local.get $t6
+                      local.get $provider0
                       call $retain
                     end
                   end
@@ -338,9 +331,8 @@
                   i32.or
                   i32.store $heap offset=12
                   local.get $provider0
-                  local.tee $t6
                   if
-                    local.get $t6
+                    local.get $provider0
                     call $retain
                   end
                 end
@@ -393,9 +385,8 @@
                   i32.const 0
                   i32.store $heap offset=16
                   local.get $t5
-                  local.tee $t6
                   if
-                    local.get $t6
+                    local.get $t5
                     call $rt:release_ref'1
                   end
                 end
@@ -439,9 +430,8 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                local.tee $t6
                 if
-                  local.get $t6
+                  local.get $provider0
                   call $retain
                 end
               end
@@ -492,23 +482,21 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t5
-              local.tee $t6
               if
-                local.get $t6
+                local.get $t5
                 call $rt:release_ref'1
               end
             end
             local.get $t4
-            local.tee $t6
             if
-              local.get $t6
+              local.get $t4
               i32.const 8
               i32.sub
               i32.load $heap
               global.get $tracing
               i32.or
               if
-                local.get $t6
+                local.get $t4
                 call $rt:release_ref'2
               end
             end
@@ -518,16 +506,15 @@
           end
     ;; 25 |     for i in 0..n:
           local.get $t4
-          local.tee $t6
           if
-            local.get $t6
+            local.get $t4
             i32.const 8
             i32.sub
             i32.load $heap
             global.get $tracing
             i32.or
             if
-              local.get $t6
+              local.get $t4
               call $rt:release_ref'2
             end
           end
@@ -537,16 +524,15 @@
         end
       end
       local.get $wait
-      local.tee $t6
       if
-        local.get $t6
+        local.get $wait
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $wait
           call $rt:release_ref'2
         end
       end
@@ -554,16 +540,15 @@
       local.set $wait
     end
     local.get $wait
-    local.tee $t6
     if
-      local.get $t6
+      local.get $wait
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $wait
         call $rt:release_ref'2
       end
     end
@@ -715,9 +700,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end

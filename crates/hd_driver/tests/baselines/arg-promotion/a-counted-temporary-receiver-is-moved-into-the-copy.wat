@@ -38,13 +38,14 @@
     local.get $n
     call $"impl StringBuilder.value_signed"
     local.get $t2
+    local.tee $n
     local.get $t1
     ;; 28 |     w.size()
     call $"impl Wrap.size'1"
     ;; 27 |     let w = make(n)
-    local.get $t2
+    local.get $n
     if
-      local.get $t2
+      local.get $n
       call $rt:release_ref'1
     end
   )
@@ -224,11 +225,12 @@
     local.get $n
     call $"impl StringBuilder.value_signed"
     local.get $t2
+    local.tee $n
     local.get $t1
     call $"impl Wrap.size'1"
-    local.get $t2
+    local.get $n
     if
-      local.get $t2
+      local.get $n
       call $rt:release_ref'1
     end
   )

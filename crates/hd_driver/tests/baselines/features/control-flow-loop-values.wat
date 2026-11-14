@@ -42,9 +42,8 @@
           if
     ;; 10 |             break x
             local.get $x.0
-            local.tee $xs
             if
-              local.get $xs
+              local.get $x.0
               call $retain
             end
             local.get $x.0

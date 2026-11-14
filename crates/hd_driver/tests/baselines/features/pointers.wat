@@ -4,17 +4,16 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $share (param $p i32) (result i32 i32) (local $t0 i32)
+  (func $share (param $p i32) (result i32 i32)
     ;; 21 |     (p, p)
     local.get $p
-    local.tee $t0
     if
-      local.get $t0
+      local.get $p
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $p
         call $rt:retain_known
       end
     end

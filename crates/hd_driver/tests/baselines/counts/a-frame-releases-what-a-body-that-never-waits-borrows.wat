@@ -157,14 +157,13 @@
           i32.store $heap offset=4
         end
         local.get $t4
-        local.tee $t11
         if
-          local.get $t11
+          local.get $t4
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t11
+            local.get $t4
             call $rt:retain_known
           end
         end
@@ -174,16 +173,15 @@
         local.set $t3
     ;; 20 |     n := box::[Note](Note { text: "n" })
         local.get $t4
-        local.tee $t11
         if
-          local.get $t11
+          local.get $t4
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t11
+            local.get $t4
             call $rt:release_ref'1
           end
         end
@@ -339,9 +337,8 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                local.tee $t11
                 if
-                  local.get $t11
+                  local.get $provider0
                   call $retain
                 end
               end
@@ -364,9 +361,8 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              local.tee $t11
               if
-                local.get $t11
+                local.get $provider0
                 call $retain
               end
             end
@@ -427,9 +423,8 @@
             return
           end
           local.get $t8
-          local.tee $t11
           if
-            local.get $t11
+            local.get $t8
             call $rt:release_ref'2
           end
           local.get $t6
@@ -500,9 +495,8 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            local.tee $t11
             if
-              local.get $t11
+              local.get $provider0
               call $retain
             end
           end
@@ -563,36 +557,33 @@
           return
         end
         local.get $t8
-        local.tee $t11
         if
-          local.get $t11
+          local.get $t8
           call $rt:release_ref'2
         end
         local.get $t3
-        local.tee $t11
         if
-          local.get $t11
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t11
+            local.get $t3
             call $rt:release_ref'1
           end
         end
         local.get $t4
-        local.tee $t11
         if
-          local.get $t11
+          local.get $t4
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t11
+            local.get $t4
             call $rt:release_ref'1
           end
         end
@@ -602,30 +593,28 @@
       end
     ;; 20 |     n := box::[Note](Note { text: "n" })
       local.get $t4
-      local.tee $t11
       if
-        local.get $t11
+        local.get $t4
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t11
+          local.get $t4
           call $rt:release_ref'1
         end
       end
       local.get $t3
-      local.tee $t11
       if
-        local.get $t11
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t11
+          local.get $t3
           call $rt:release_ref'1
         end
       end
@@ -659,16 +648,15 @@
       local.set $t15
     ;; 20 |     n := box::[Note](Note { text: "n" })
       local.get $a
-      local.tee $t11
       if
-        local.get $t11
+        local.get $a
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t11
+          local.get $a
           call $rt:release_ref'1
         end
       end

@@ -19,9 +19,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $self
@@ -98,14 +97,13 @@
     local.tee $t0
     global.set $locals
     local.get $log
-    local.tee $t1
     if
-      local.get $t1
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $log
         call $rt:retain_known
       end
     end
@@ -347,20 +345,18 @@
         end
     ;; 25 |         using r = Res { name: x, log: log }
         local.get $x.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $x.0
           call $retain
         end
         local.get $log
-        local.tee $t3
         if
-          local.get $t3
+          local.get $log
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t3
+            local.get $log
             call $rt:retain_known
           end
         end
@@ -424,14 +420,13 @@
       end
     end
     local.get $log
-    local.tee $t3
     if
-      local.get $t3
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $log
         call $rt:release_ref
       end
     end

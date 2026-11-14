@@ -48,9 +48,8 @@
   (func $discard (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 14 |     _ := save(s)
     local.get $s.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.0
       call $retain
     end
     local.get $s.0
@@ -87,16 +86,14 @@
     local.get $t1
     call $rt:release
     local.get $s.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.0
       call $rt:release_ref
     end
     ;; 15 |     let _ = save(s)
     local.get $s.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.0
       call $retain
     end
     local.get $s.0
@@ -134,9 +131,8 @@
     ;; 14 |     _ := save(s)
     call $rt:release
     local.get $s.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.0
       call $rt:release_ref
     end
     ;; 16 |     s.len()

@@ -294,7 +294,6 @@
         local.set $t0
     ;; 47 |         while i < 2:
         local.get $snapshot
-        local.tee $snapshot
         if
           local.get $snapshot
           i32.const 8

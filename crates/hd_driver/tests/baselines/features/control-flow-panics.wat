@@ -19,9 +19,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $self
@@ -127,17 +126,15 @@
       unreachable
     ;; 19 |     if n < 0:
       local.get $s.1
-      local.tee $s.0
       if
-        local.get $s.0
+        local.get $s.1
         call $rt:release_ref
       end
     end
     ;; 18 |     t := s + "!"
     local.get $t.0
-    local.tee $s.0
     if
-      local.get $s.0
+      local.get $t.0
       call $rt:release_ref
     end
     local.get $t.1

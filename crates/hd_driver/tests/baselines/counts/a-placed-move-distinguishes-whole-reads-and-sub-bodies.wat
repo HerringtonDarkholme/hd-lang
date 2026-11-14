@@ -143,19 +143,18 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $env
-    local.tee $t0
     if
-      local.get $t0
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $env
         call $rt:release_ref'2
       end
     end
   )
-  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $value i32) (local $t3 i32)
+  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $value i32)
     ;; 21 |     _ := same(&value, &value)
     global.get $locals
     global.get $locals_base
@@ -210,9 +209,8 @@
     i32.load $heap offset=4
     local.set $t1
     local.tee $t2
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t2
       call $retain
     end
     local.get $t2

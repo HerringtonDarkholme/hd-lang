@@ -105,9 +105,8 @@
             local.get $provider0.vtable
             local.set $t2
             local.tee $t1
-            local.tee $t5
             if
-              local.get $t5
+              local.get $t1
               call $retain
             end
     ;; 9 |     while true:
@@ -163,9 +162,8 @@
                     i32.or
                     i32.store $heap offset=12
                     local.get $provider0
-                    local.tee $t5
                     if
-                      local.get $t5
+                      local.get $provider0
                       call $retain
                     end
                   end
@@ -191,9 +189,8 @@
                   i32.or
                   i32.store $heap offset=12
                   local.get $provider0
-                  local.tee $t5
                   if
-                    local.get $t5
+                    local.get $provider0
                     call $retain
                   end
                 end
@@ -240,9 +237,8 @@
                   i32.const 0
                   i32.store $heap offset=16
                   local.get $t4
-                  local.tee $t5
                   if
-                    local.get $t5
+                    local.get $t4
                     call $rt:release_ref'1
                   end
                 end
@@ -284,9 +280,8 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                local.tee $t5
                 if
-                  local.get $t5
+                  local.get $provider0
                   call $retain
                 end
               end
@@ -331,16 +326,14 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t4
-              local.tee $t5
               if
-                local.get $t5
+                local.get $t4
                 call $rt:release_ref'1
               end
             end
             local.get $t1
-            local.tee $t5
             if
-              local.get $t5
+              local.get $t1
               call $rt:release_ref'1
             end
             i32.const 1
@@ -349,9 +342,8 @@
           end
     ;; 9 |     while true:
           local.get $t1
-          local.tee $t5
           if
-            local.get $t5
+            local.get $t1
             call $rt:release_ref'1
           end
     ;; 11 |         _ := text.len()
@@ -365,16 +357,15 @@
         end
       end
       local.get $text
-      local.tee $t5
       if
-        local.get $t5
+        local.get $text
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $text
           call $rt:release_ref'2
         end
       end
@@ -382,16 +373,15 @@
       local.set $text
     end
     local.get $text
-    local.tee $t5
     if
-      local.get $t5
+      local.get $text
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t5
+        local.get $text
         call $rt:release_ref'2
       end
     end
@@ -543,9 +533,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end

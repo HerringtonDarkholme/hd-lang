@@ -23,7 +23,7 @@
     i32.const 0
     i32.const 0
   )
-  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32)
+  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32)
     ;; 25 | @error
     local.get $self
     i32.load $heap
@@ -48,9 +48,8 @@
     if (result i32)
     ;; 29 |         path: string,
       local.get $t1
-      local.tee $t4
       if
-        local.get $t4
+        local.get $t1
         call $retain
       end
     ;; 27 |     @error("cannot read $path")
@@ -67,10 +66,10 @@
         local.set $t3
       end
       local.get $t3
-      local.tee $t5
+      local.tee $t4
       i32.const 543449445
       i32.store $heap offset=8 align=1
-      local.get $t5
+      local.get $t4
       i64.const 8223700941521445219
       i64.store $heap align=1
       local.get $t3
@@ -80,9 +79,8 @@
       local.get $t0
       call $rt:memory_copy/0/0
       local.get $t1
-      local.tee $t4
       if
-        local.get $t4
+        local.get $t1
         call $rt:release_ref
       end
       local.get $t3
@@ -101,9 +99,8 @@
         local.get $t3
         if (result i32)
           local.get $t3
-          local.tee $t4
           if
-            local.get $t4
+            local.get $t3
             call $retain
           end
           i32.const 11
@@ -126,9 +123,8 @@
           local.get $t2
           call $"impl StringBuilder.value_text"
           local.get $t3
-          local.tee $t4
           if
-            local.get $t4
+            local.get $t3
             call $rt:release_ref
           end
           local.get $self
@@ -221,13 +217,13 @@
     ;; 54 |     e.to_string().len()
     local.get $e
     call $"error Display for LoadError.to_string"
-    local.set $e
-    local.tee $t0
+    local.set $t0
+    local.tee $e
     if
-      local.get $t0
+      local.get $e
       call $rt:release_ref
     end
-    local.get $e
+    local.get $t0
   )
   (func $"error Error for LoadError.source" (param $self i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i64) (local $t3 i32)
     ;; 25 | @error
@@ -260,17 +256,15 @@
       local.get $t1
       i32.store $heap offset=4
       local.get $self
-      local.tee $t2
       if
-        local.get $t2
+        local.get $self
         call $retain
       end
       local.get $self
     ;; 27 |     @error("cannot read $path")
       local.get $self
-      local.tee $t2
       if
-        local.get $t2
+        local.get $self
         call $rt:release_ref
       end
     ;; 30 |         @source
@@ -291,17 +285,15 @@
         local.get $t0
         i64.store $heap
         local.get $self
-        local.tee $t2
         if
-          local.get $t2
+          local.get $self
           call $retain
         end
         local.get $self
     ;; 33 |     @error("bad config")
         local.get $self
-        local.tee $t2
         if
-          local.get $t2
+          local.get $self
           call $rt:release_ref
         end
     ;; 35 |         @from
@@ -414,9 +406,8 @@
     if (result i32)
     ;; 22 |     NotFound(path: string)
       local.get $self
-      local.tee $t1
       if
-        local.get $t1
+        local.get $self
         call $retain
       end
     ;; 21 |     @error("not found: $path")
@@ -449,9 +440,8 @@
       local.get $t0
       call $rt:memory_copy/0/0
       local.get $self
-      local.tee $t1
       if
-        local.get $t1
+        local.get $self
         call $rt:release_ref
       end
       local.get $t3

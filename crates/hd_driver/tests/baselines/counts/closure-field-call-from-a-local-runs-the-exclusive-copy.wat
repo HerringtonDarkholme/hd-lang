@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32)
     ;; 18 |         (self.transform)(x)
     local.get $self
     i32.load $heap
@@ -13,14 +13,13 @@
     local.set $t0
     local.set $self
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
@@ -30,14 +29,13 @@
     local.get $self
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
     end

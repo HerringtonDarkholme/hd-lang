@@ -122,26 +122,24 @@
       i32.store $heap
     end
     local.get $t
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t
         call $rt:release_ref
       end
     end
     local.get $other
-    local.tee $t1
     if
-      local.get $t1
+      local.get $other
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $other
         call $rt:release_ref
       end
     end
@@ -396,14 +394,13 @@
       end
     end
     local.get $other
-    local.tee $t
     if
-      local.get $t
+      local.get $other
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t
+        local.get $other
         call $rt:release_ref
       end
     end
@@ -494,14 +491,13 @@
       end
     end
     local.get $other
-    local.tee $t
     if
-      local.get $t
+      local.get $other
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t
+        local.get $other
         call $rt:release_ref
       end
     end

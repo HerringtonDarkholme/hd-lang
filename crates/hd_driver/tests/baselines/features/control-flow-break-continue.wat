@@ -57,9 +57,8 @@
         i32.lt_u
         if
           local.get $t.0
-          local.tee $x.0
           if
-            local.get $x.0
+            local.get $t.0
             call $rt:release_ref
           end
     ;; 12 |             continue
@@ -72,9 +71,8 @@
         i32.gt_u
         if
           local.get $t.0
-          local.tee $x.0
           if
-            local.get $x.0
+            local.get $t.0
             call $rt:release_ref
           end
     ;; 14 |             break
@@ -83,9 +81,8 @@
         end
     ;; 9 |     for x in xs:
         local.get $t.0
-        local.tee $x.0
         if
-          local.get $x.0
+          local.get $t.0
           call $rt:release_ref
         end
     ;; 15 |         n += t.len()

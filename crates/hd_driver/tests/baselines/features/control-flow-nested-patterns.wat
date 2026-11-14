@@ -29,9 +29,8 @@
       end
     ;; 22 |         .Dot(User { name }) => name
       local.get $s.1
-      local.tee $s.3
       if
-        local.get $s.3
+        local.get $s.1
         call $retain
       end
       local.get $s.1
@@ -41,9 +40,8 @@
     end
     ;; 23 |         .Line(start = _, end = User { name }) => name
     local.get $s.0
-    local.tee $s.3
     if
-      local.get $s.3
+      local.get $s.0
       call $retain
     end
     ;; 21 |     match s:

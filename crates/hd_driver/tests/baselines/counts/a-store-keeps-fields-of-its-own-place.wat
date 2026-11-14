@@ -353,14 +353,13 @@
     i32.load $heap offset=24
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $shared
-    local.tee $items
     if
-      local.get $items
+      local.get $shared
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $items
+        local.get $shared
         call $rt:release_ref
       end
     end

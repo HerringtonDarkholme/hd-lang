@@ -15,7 +15,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $index (param $by i32) (param $u i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32)
+  (func $index (param $by i32) (param $u i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 14 |     by[u.name] = u
     local.get $u
     i32.load $heap
@@ -23,51 +23,48 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $by
     i32.load $heap
     call $rt:map_unique
-    local.set $t3
+    local.set $t2
     local.get $by
-    local.get $t3
+    local.get $t2
     i32.store $heap
     local.get $t1
     local.get $t0
-    local.get $t3
+    local.get $t2
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t4
+    local.set $t3
+    local.get $t2
     local.get $t3
-    local.get $t4
     local.get $t1
     local.get $t0
     call $rt:map_find
-    local.set $t5
+    local.set $t4
     local.get $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
+    local.get $t2
     local.get $t3
     local.get $t4
-    local.get $t5
     local.get $t1
     local.get $t0
     local.get $u
     call $rt:map_put
-    local.set $t3
+    local.set $t2
     local.get $by
-    local.get $t3
+    local.get $t2
     i32.store $heap
     local.get $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref'1
     end
   )
@@ -259,9 +256,9 @@
     if
       local.get $b
       i32.load $heap
-      local.tee $seen
+      local.tee $b
       if
-        local.get $seen
+        local.get $b
         call $rt:release_ref'1
       end
     end

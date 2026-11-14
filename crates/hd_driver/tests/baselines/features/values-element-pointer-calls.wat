@@ -18,7 +18,7 @@
     i64.add
     i64.store $heap
   )
-  (func $save (param $node i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $e i32) (local $t2 i32)
+  (func $save (param $node i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $e i32)
     ;; 35 |     for e in &node.children:
     local.get $node
     i32.load $heap offset=8
@@ -62,14 +62,13 @@
         local.get $e
         i32.load $heap
         local.tee $e
-        local.tee $t2
         if
-          local.get $t2
+          local.get $e
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t2
+            local.get $e
             call $rt:retain_known
           end
         end
@@ -81,14 +80,13 @@
       end
     end
     local.get $node
-    local.tee $t2
     if
-      local.get $t2
+      local.get $node
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $node
         call $rt:release_ref
       end
     end

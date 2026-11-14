@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $touch (param $slot i32) (local $t0 i32) (local $t1 i32)
+  (func $touch (param $slot i32) (local $t0 i32)
     ;; 13 |     match slot:
     block
       block
@@ -32,9 +32,8 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $slot
-      local.tee $t1
       if
-        local.get $t1
+        local.get $slot
         call $retain
       end
       local.get $slot
@@ -43,9 +42,8 @@
       call_indirect $table0 (param i32)
     ;; 13 |     match slot:
       local.get $slot
-      local.tee $t1
       if
-        local.get $t1
+        local.get $slot
         call $rt:release_ref
       end
       return

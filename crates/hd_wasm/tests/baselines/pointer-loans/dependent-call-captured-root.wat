@@ -167,16 +167,15 @@
     call_indirect $table0 (param i32 i32)
     local.get $change.1
     ;; 10 |     let mut ps = [box(P { name: "a" })]
-    local.tee $t2
     if
-      local.get $t2
+      local.get $change.1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t2
+        local.get $change.1
         call $rt:release_ref
       end
     end
@@ -237,16 +236,16 @@
     if
       local.get $ps
       i32.load $heap
-      local.tee $t2
+      local.tee $ps
       if
-        local.get $t2
+        local.get $ps
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t2
+          local.get $ps
           call $rt:release_ref
         end
       end

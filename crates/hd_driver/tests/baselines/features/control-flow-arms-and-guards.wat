@@ -3,7 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (func $pick (param $t.0 i32) (param $t.1 i32) (param $t.2 i32) (param $t.3 i32) (result i32 i32) (local $t0 i32)
+  (func $pick (param $t.0 i32) (param $t.1 i32) (param $t.2 i32) (param $t.3 i32) (result i32 i32)
     ;; 12 |     match t:
     block
       block
@@ -38,9 +38,8 @@
           end
     ;; 13 |         .Named(n) if n.len() > 3 => n
           local.get $t.1
-          local.tee $t0
           if
-            local.get $t0
+            local.get $t.1
             call $retain
           end
           local.get $t.1
@@ -50,9 +49,8 @@
         end
     ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
         local.get $t.0
-        local.tee $t0
         if
-          local.get $t0
+          local.get $t.0
           call $retain
         end
         local.get $t.0
@@ -62,9 +60,8 @@
       end
     ;; 15 |         .Pair(left = _, right = r) => r
       local.get $t.2
-      local.tee $t0
       if
-        local.get $t0
+        local.get $t.2
         call $retain
       end
       local.get $t.2

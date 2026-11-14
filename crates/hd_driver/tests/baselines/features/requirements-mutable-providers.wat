@@ -28,7 +28,7 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 28 |     tally := box(Log { lines: [] })
     i32.const 4
     i32.const 1
@@ -39,52 +39,49 @@
     local.get $tally
     ;; 29 |     $.with(Recorder=tally):
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
     local.get $t0
-    i32.const 276 ;; &vtable[func53, func52]
     local.tee $t1
+    i32.const 276 ;; &vtable[func53, func52]
+    local.tee $t2
     ;; 30 |         _ := tick(a)
-    local.set $t2
-    local.tee $t3
+    local.set $t3
+    local.tee $t4
     local.get $a.0
     local.get $a.1
-    local.get $t2
+    local.get $t3
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32)
+    local.get $t4
     local.get $t3
-    local.get $t2
     i32.load $heap offset=4
     call_indirect $table0 (param i32) (result i32)
     drop
-    ;; 29 |     $.with(Recorder=tally):
-    local.get $t0
     ;; 31 |         _ := tick(b)
+    local.get $t1
     local.get $b.0
     local.get $b.1
-    local.get $t1
+    local.get $t2
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32)
-    local.get $t0
     local.get $t1
+    local.get $t2
     i32.load $heap offset=4
     call_indirect $table0 (param i32) (result i32)
     drop
-    ;; 29 |     $.with(Recorder=tally):
-    local.get $t0
     ;; 28 |     tally := box(Log { lines: [] })
-    local.tee $t1
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'1
     end
     ;; 32 |     tally.lines.len()
@@ -93,14 +90,13 @@
     i32.load $heap offset=4
     ;; 28 |     tally := box(Log { lines: [] })
     local.get $tally
-    local.tee $t1
     if
-      local.get $t1
+      local.get $tally
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $tally
         call $rt:release_ref'2
       end
     end

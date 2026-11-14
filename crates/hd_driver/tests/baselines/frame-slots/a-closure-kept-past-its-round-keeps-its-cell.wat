@@ -45,7 +45,6 @@
         call $rt:retain_fields
     ;; 9 |     for i in +0..n:
         local.get $total
-        local.tee $total
         if
           local.get $total
           i32.const 8
@@ -70,16 +69,15 @@
           i32.const 0
           local.set $step.1
           local.get $f.1
-          local.tee $total
           if
-            local.get $total
+            local.get $f.1
             i32.const 8
             i32.sub
             i32.load $heap
             global.get $tracing
             i32.or
             if
-              local.get $total
+              local.get $f.1
               call $rt:release_ref
             end
           end
@@ -89,16 +87,15 @@
         end
     ;; 9 |     for i in +0..n:
         local.get $step.1
-        local.tee $total
         if
-          local.get $total
+          local.get $step.1
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $total
+            local.get $step.1
             call $rt:release_ref
           end
         end
@@ -112,16 +109,15 @@
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $f.1
     ;; 8 |     let mut f = fn() -> i32: +0
-    local.tee $total
     if
-      local.get $total
+      local.get $f.1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $total
+        local.get $f.1
         call $rt:release_ref
       end
     end

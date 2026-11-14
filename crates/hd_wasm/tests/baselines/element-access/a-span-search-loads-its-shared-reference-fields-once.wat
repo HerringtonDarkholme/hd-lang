@@ -365,7 +365,6 @@
                 local.get $t3
                 call $"borders[u8]"
                 local.get $t9
-                local.tee $t9
                 if
                   local.get $t9
                   i32.const 8

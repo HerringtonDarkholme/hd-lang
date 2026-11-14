@@ -102,9 +102,8 @@
       call $"impl StringBuilder.value_text"
       br 0
       local.get $t2
-      local.tee $t0
       if
-        local.get $t0
+        local.get $t2
         call $rt:release_ref
       end
     end
@@ -147,16 +146,14 @@
       local.set $raw.0
       br 0
       local.get $t4
-      local.tee $t0
       if
-        local.get $t0
+        local.get $t4
         call $rt:release_ref
       end
     end
     local.get $t2
-    local.tee $t0
     if
-      local.get $t0
+      local.get $t2
       call $rt:release_ref
     end
     local.get $raw.0
@@ -199,9 +196,8 @@
       call $"impl StringBuilder.value_text"
       br 0
       local.get $t2
-      local.tee $t0
       if
-        local.get $t0
+        local.get $t2
         call $rt:release_ref
       end
     end
@@ -244,16 +240,14 @@
       local.set $raw.0
       br 0
       local.get $t4
-      local.tee $t0
       if
-        local.get $t0
+        local.get $t4
         call $rt:release_ref
       end
     end
     local.get $t2
-    local.tee $t0
     if
-      local.get $t0
+      local.get $t2
       call $rt:release_ref
     end
     local.get $raw.0
@@ -328,9 +322,8 @@
       local.get $t1
       return
       local.get $t2
-      local.tee $raw.0
       if
-        local.get $raw.0
+        local.get $t2
         call $rt:release_ref
       end
     end

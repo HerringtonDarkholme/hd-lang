@@ -10,7 +10,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 11 funcref))
-  (func $inferred#1 (param $env i32) (param $t0 i32) (param $t3 i32) (param $ctx i32) (result i32) (local $t2 i32) (local $t1 i32)
+  (func $inferred#1 (param $env i32) (param $t0 i32) (param $t2 i32) (param $ctx i32) (result i32) (local $t1 i32)
     ;; 15 |     invoke(Fn::call, logged, +15)
     local.get $ctx
     i64.const 6502919983801278103
@@ -26,51 +26,47 @@
     local.get $t0
     i32.load $heap offset=4
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
     local.get $t0
-    local.set $t2
+    local.set $t1
     local.set $t0
+    local.get $t1
     local.get $t2
-    local.get $t3
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $t3
+    local.tee $t2
     i64.const 6502919983801278103
     i64.store $heap offset=16
-    local.get $t3
+    local.get $t2
     local.get $ctx
     i32.store $heap offset=24
-    local.get $t3
+    local.get $t2
     local.get $env
     i32.store $heap offset=28
     local.get $ctx
-    local.tee $t1
     if
-      local.get $t1
+      local.get $ctx
       call $retain
     end
-    local.get $t3
+    local.get $t2
     local.get $t0
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.get $t3
-    local.tee $t1
+    local.get $t2
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref'1
     end
-    local.get $t2
-    local.tee $t1
+    local.get $t1
     if
       local.get $t1
       i32.const 8
@@ -111,9 +107,8 @@
     local.get $t0
     call $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]"
     local.get $t0
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $t0
       call $rt:release_ref'1
     end
   )

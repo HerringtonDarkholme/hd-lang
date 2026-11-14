@@ -79,9 +79,9 @@
     if
       local.get $other
       i32.load $heap
-      local.tee $t2
+      local.tee $other
       if
-        local.get $t2
+        local.get $other
         call $rt:release_ref
       end
     end

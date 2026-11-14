@@ -3,7 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Describe for Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Describe for Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 15 |         self.name
     local.get $self
     i32.load $heap
@@ -11,15 +11,14 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       call $retain
     end
     local.get $self
     local.get $t0
   )
-  (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 21 | impl Describe for Service by Logger
     local.get $self
     i32.load $heap
@@ -27,9 +26,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       call $retain
     end
     local.get $self

@@ -20,14 +20,13 @@
         local.get $node
         if
           local.get $node
-          local.tee $t0
           if
-            local.get $t0
+            local.get $node
             i32.const 8
             i32.sub
             i32.load $heap
             if
-              local.get $t0
+              local.get $node
               call $rt:retain_known
             end
           end
@@ -56,16 +55,15 @@
     i32.add
     ;; 9 |     match node.next:
     local.get $node
-    local.tee $t0
     if
-      local.get $t0
+      local.get $node
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $node
         call $rt:release_ref
       end
     end

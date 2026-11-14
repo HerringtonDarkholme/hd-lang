@@ -60,7 +60,7 @@
     i32.load $heap offset=4
     i32.add
   )
-  (func $take_payload (param $answer.0 i32) (param $answer.1 i32) (result i32 i32) (local $t0 i32)
+  (func $take_payload (param $answer.0 i32) (param $answer.1 i32) (result i32 i32)
     ;; 46 |     match answer:
     block
       block
@@ -81,9 +81,8 @@
       end
     ;; 47 |         .Good(value) => value
       local.get $answer.0
-      local.tee $t0
       if
-        local.get $t0
+        local.get $answer.0
         call $retain
       end
       local.get $answer.0
@@ -99,9 +98,8 @@
   (func $target (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 10 |     let t = a
     local.get $a.0
-    local.tee $b.0
     if
-      local.get $b.0
+      local.get $a.0
       call $retain
     end
     local.get $a.0
@@ -111,15 +109,15 @@
     i32.const 1
     call $rt:str_append
     ;; 12 |     t.len() + a.len() + b.len()
-    local.set $a.0
+    local.set $b.0
+    local.tee $a.0
     ;; 10 |     let t = a
-    local.tee $b.0
     if
-      local.get $b.0
+      local.get $a.0
       call $rt:release_ref'2
     end
     ;; 12 |     t.len() + a.len() + b.len()
-    local.get $a.0
+    local.get $b.0
     local.get $a.1
     i32.add
     local.get $b.1
@@ -196,22 +194,20 @@
     local.get $t0
     i32.add
   )
-  (func $early_copy (param $a.0 i32) (param $a.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $early_copy (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
     ;; 28 |     let t = a
     local.get $a.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $retain
     end
     ;; 29 |     n := a.len()
     local.get $a.1
-    local.set $t1
+    local.set $t0
     ;; 28 |     let t = a
     local.get $a.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $rt:release_ref'2
     end
     ;; 30 |     t += "x"
@@ -221,16 +217,16 @@
     i32.const 1
     call $rt:str_append
     ;; 31 |     n + t.len()
-    local.set $a.0
+    local.set $a.1
+    local.tee $a.0
     ;; 28 |     let t = a
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $rt:release_ref'2
     end
     ;; 31 |     n + t.len()
-    local.get $t1
-    local.get $a.0
+    local.get $t0
+    local.get $a.1
     i32.add
   )
   (func $only_copy (param $a.0 i32) (param $a.1 i32) (result i32)
@@ -242,13 +238,13 @@
     i32.const 1
     call $rt:str_append
     ;; 18 |     t.len()
-    local.set $a.0
+    local.set $a.1
+    local.tee $a.0
     ;; 16 |     let t = a
-    local.tee $a.1
     if
-      local.get $a.1
+      local.get $a.0
       call $rt:release_ref'2
     end
-    local.get $a.0
+    local.get $a.1
   )
 )

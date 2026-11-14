@@ -49,15 +49,13 @@
   (func $closure#1 (param $env i32) (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $ctx i32) (result i32)
     ;; 38 |     fn(c, a, b):
     local.get $a.0
-    local.tee $env
     if
-      local.get $env
+      local.get $a.0
       call $retain
     end
     local.get $b.0
-    local.tee $env
     if
-      local.get $env
+      local.get $b.0
       call $retain
     end
     ;; 39 |         selected := if c: a else: b
@@ -65,24 +63,22 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $env
       if
-        local.get $env
+        local.get $b.0
         call $rt:release_ref'1
       end
     else
       local.get $b.0
       local.get $a.0
-      local.tee $env
       if
-        local.get $env
+        local.get $a.0
         call $rt:release_ref'1
       end
       local.get $b.1
       local.set $a.1
     end
-    ;; 38 |     fn(c, a, b):
     local.tee $env
+    ;; 38 |     fn(c, a, b):
     if
       local.get $env
       call $rt:release_ref'1
@@ -117,22 +113,20 @@
     i32.store $heap offset=20
     local.get $t0
   )
-  (func $connected (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $d.0 i32) (param $d.1 i32) (result i32) (local $t0 i32)
+  (func $connected (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $d.0 i32) (param $d.1 i32) (result i32)
     ;; 27 |     x := if c: a else: b
     local.get $c
     if (result i32)
       local.get $a.0
     else
       local.get $b.0
-      local.tee $t0
       if
-        local.get $t0
+        local.get $b.0
         call $retain
       end
       local.get $a.0
-      local.tee $t0
       if
-        local.get $t0
+        local.get $a.0
         call $rt:release_ref'1
       end
       local.get $b.0
@@ -146,15 +140,13 @@
       local.get $b.0
     else
       local.get $d.0
-      local.tee $t0
       if
-        local.get $t0
+        local.get $d.0
         call $retain
       end
       local.get $b.0
-      local.tee $t0
       if
-        local.get $t0
+        local.get $b.0
         call $rt:release_ref'1
       end
       local.get $d.0
@@ -169,15 +161,13 @@
     local.set $b.0
     ;; 27 |     x := if c: a else: b
     local.get $a.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $rt:release_ref'1
     end
     local.get $c
-    local.tee $t0
     if
-      local.get $t0
+      local.get $c
       call $rt:release_ref'1
     end
     ;; 30 |     x.len() + y.len() + kept[0].len()
@@ -199,30 +189,27 @@
     i32.load $heap offset=20
     local.set $a.1
     local.tee $a.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $retain
     end
     ;; 27 |     x := if c: a else: b
     local.get $b.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $b.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $b.0
         call $rt:release_ref'2
       end
     end
     ;; 30 |     x.len() + y.len() + kept[0].len()
     local.get $a.0
     ;; 27 |     x := if c: a else: b
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $rt:release_ref'1
     end
     ;; 30 |     x.len() + y.len() + kept[0].len()
@@ -256,9 +243,8 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $a.0
       if
-        local.get $a.0
+        local.get $b.0
         call $rt:release_ref'1
       end
     else

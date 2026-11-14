@@ -51,14 +51,13 @@
     call_indirect $table0 (param i32 i32) (result i32)
     ;; 23 |     store := $.use(Store)
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -197,16 +196,14 @@
     local.set $provider0.vtable
     local.tee $provider0
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
     ;; 23 |     store := $.use(Store)
     local.get $provider0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $provider0
       call $rt:release_ref'2
     end
     ;; 27 |     println("${store.open().read()}")
@@ -216,9 +213,8 @@
     call_indirect $table0 (param i32) (result i32)
     ;; 23 |     store := $.use(Store)
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'2
     end
     ;; 27 |     println("${store.open().read()}")

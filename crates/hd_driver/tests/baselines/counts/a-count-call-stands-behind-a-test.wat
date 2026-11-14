@@ -45,17 +45,16 @@
     ;; 11 |     xs
     local.get $xs
   )
-  (func $ring (param $r i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $ring (param $r i32) (result i32) (local $t0 i32)
     ;; 29 |     let mut held = r
     local.get $r
-    local.tee $t0
     if
-      local.get $t0
+      local.get $r
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $r
         call $rt:retain_known
       end
     end
@@ -64,23 +63,23 @@
     i32.const 4
     i32.const -2147483647
     call $rt:new/class-1
-    local.tee $t1
+    local.tee $t0
     local.get $r
     i32.store $heap
-    local.tee $t0
+    local.tee $r
     if
-      local.get $t0
+      local.get $r
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $r
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $t0
   )
   (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 17 |     ys := known(xs)

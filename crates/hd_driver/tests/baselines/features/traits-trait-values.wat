@@ -58,13 +58,13 @@
     local.get $self.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $self.0
-    local.tee $self.1
+    local.set $self.1
+    local.tee $self.0
     if
-      local.get $self.1
+      local.get $self.0
       call $rt:release_ref
     end
-    local.get $self.0
+    local.get $self.1
     i32.const 2
     i32.mul
   )

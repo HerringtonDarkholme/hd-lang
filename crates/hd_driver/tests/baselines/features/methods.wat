@@ -179,14 +179,13 @@
     local.set $b.1
     ;; 23 |     let mut t = s
     local.get $s
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $s
         call $rt:release_ref
       end
     end
@@ -205,14 +204,13 @@
     local.set $b.1
     ;; 23 |     let mut t = s
     local.get $b.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $b.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $b.0
         call $rt:release_ref
       end
     end

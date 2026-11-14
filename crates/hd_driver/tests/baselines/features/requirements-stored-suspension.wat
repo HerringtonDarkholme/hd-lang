@@ -119,14 +119,13 @@
           i32.store $heap offset=4
         end
         local.get $t5
-        local.tee $t6
         if
-          local.get $t6
+          local.get $t5
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t6
+            local.get $t5
             call $rt:retain_known
           end
         end
@@ -137,22 +136,20 @@
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
         local.set $t3
         local.get $t5
-        local.tee $t6
         if
-          local.get $t6
+          local.get $t5
           call $rt:release_ref'1
         end
         local.get $t5
-        local.tee $t6
         if
-          local.get $t6
+          local.get $t5
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $t5
             call $rt:release_ref'2
           end
         end
@@ -194,9 +191,8 @@
             i32.eqz
             if
               local.get $t4
-              local.tee $t6
               if
-                local.get $t6
+                local.get $t4
                 call $retain
               end
             end
@@ -282,9 +278,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t4
-              local.tee $t6
               if
-                local.get $t6
+                local.get $t4
                 call $rt:release_ref'1
               end
             end
@@ -370,23 +365,21 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t4
-          local.tee $t6
           if
-            local.get $t6
+            local.get $t4
             call $rt:release_ref'1
           end
         end
         local.get $t3
-        local.tee $t6
         if
-          local.get $t6
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $t3
             call $rt:release_ref'2
           end
         end
@@ -396,24 +389,22 @@
       end
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
       local.get $t3
-      local.tee $t6
       if
-        local.get $t6
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t3
           call $rt:release_ref'2
         end
       end
     end
     local.get $s.0
-    local.tee $t6
     if
-      local.get $t6
+      local.get $s.0
       call $rt:release_ref'1
     end
     local.get $t8
@@ -555,9 +546,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -879,9 +870,8 @@
             i32.eqz
             if
               local.get $t4
-              local.tee $t5
               if
-                local.get $t5
+                local.get $t4
                 call $retain
               end
             end
@@ -967,9 +957,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t4
-              local.tee $t5
               if
-                local.get $t5
+                local.get $t4
                 call $rt:release_ref'1
               end
             end
@@ -1057,23 +1046,21 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t4
-          local.tee $t5
           if
-            local.get $t5
+            local.get $t4
             call $rt:release_ref'1
           end
         end
         local.get $t1
-        local.tee $t5
         if
-          local.get $t5
+          local.get $t1
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t5
+            local.get $t1
             call $rt:release_ref'2
           end
         end
@@ -1083,16 +1070,15 @@
       end
     ;; 29 |     let mut pending = fetch(key)
       local.get $t1
-      local.tee $t5
       if
-        local.get $t5
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $t1
           call $rt:release_ref'2
         end
       end
@@ -1124,25 +1110,23 @@
       call $"impl string.len"
     ;; 29 |     let mut pending = fetch(key)
       local.get $key.1
-      local.tee $t5
       if
-        local.get $t5
+        local.get $key.1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $key.1
           call $rt:release_ref'2
         end
       end
       local.set $t9
     end
     local.get $key.0
-    local.tee $t5
     if
-      local.get $t5
+      local.get $key.0
       call $rt:release_ref'1
     end
     local.get $t9
@@ -1284,9 +1268,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -1331,13 +1315,13 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0
-    local.tee $provider0.vtable
+    local.set $provider0.vtable
+    local.tee $provider0
     if
-      local.get $provider0.vtable
+      local.get $provider0
       call $rt:release_ref'1
     end
-    local.get $provider0
+    local.get $provider0.vtable
     local.get $frame
     if
       local.get $frame

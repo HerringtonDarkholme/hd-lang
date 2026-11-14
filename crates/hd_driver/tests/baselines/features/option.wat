@@ -85,9 +85,8 @@
         unreachable
       end
       local.get $o.0
-      local.tee $t1
       if
-        local.get $t1
+        local.get $o.0
         call $retain
       end
       local.get $o.0

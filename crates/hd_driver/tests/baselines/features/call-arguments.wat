@@ -149,7 +149,7 @@
     local.get $n
     i32.div_u
   )
-  (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
+  (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32)
     ;; 22 |     let mut t = s
     global.get $locals
     global.get $locals_base
@@ -181,9 +181,8 @@
     local.tee $t0
     global.set $locals
     local.get $s.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.0
       call $retain
     end
     local.get $t0
@@ -210,9 +209,8 @@
     call $by_ref'2
     ;; 22 |     let mut t = s
     local.get $s.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.0
       call $rt:release_ref
     end
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
@@ -233,9 +231,8 @@
     call $by_value
     ;; 22 |     let mut t = s
     local.get $s.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.1
       call $rt:release_ref
     end
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)

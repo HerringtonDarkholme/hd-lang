@@ -220,7 +220,7 @@
     local.get $t3
     local.get $t2
   )
-  (func $check (param $xs i32) (param $at i32) (result i32 i32) (local $t0 i32)
+  (func $check (param $xs i32) (param $at i32) (result i32 i32)
     ;; 30 |     if at >= xs.len():
     local.get $at
     local.get $xs
@@ -254,9 +254,8 @@
     i32.load $heap offset=20
     local.set $at
     local.tee $xs
-    local.tee $t0
     if
-      local.get $t0
+      local.get $xs
       call $retain
     end
     ;; 30 |     if at >= xs.len():

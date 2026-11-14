@@ -132,14 +132,13 @@
       end
     end
     local.get $xs
-    local.tee $ys
     if
-      local.get $ys
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $ys
+        local.get $xs
         call $rt:release_ref
       end
     end
@@ -149,9 +148,8 @@
     ;; 18 |     { k: v, "fixed": v }
     local.get $k.0
     local.get $v.0
-    local.tee $k.0
     if
-      local.get $k.0
+      local.get $v.0
       call $retain
     end
     i32.const 4

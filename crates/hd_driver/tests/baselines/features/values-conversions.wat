@@ -77,14 +77,14 @@
     local.get $s.0
     i32.const 0
     i32.store $heap offset=8
-    local.set $s.0
+    local.set $s.1
+    local.tee $s.0
     ;; 26 |     let mut origin = Point { name: s, n: 0 }
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
-    local.get $s.0
+    local.get $s.1
     local.get $t0
     i32.const 24
     i32.add

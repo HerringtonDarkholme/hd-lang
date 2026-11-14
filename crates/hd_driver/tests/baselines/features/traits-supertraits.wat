@@ -12,13 +12,13 @@
     local.get $a.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $a.0
-    local.tee $a.1
+    local.set $a.1
+    local.tee $a.0
     if
-      local.get $a.1
+      local.get $a.0
       call $rt:release_ref
     end
-    local.get $a.0
+    local.get $a.1
   )
   (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32)
     ;; 32 |     d.name().len() + d.bark().len()
@@ -97,7 +97,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Animal for Pup.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Animal for Pup.name" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 19 |         self.name
     local.get $self
     i32.load $heap
@@ -105,9 +105,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       call $retain
     end
     local.get $self
@@ -129,14 +128,14 @@
     local.get $d.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $d.0
-    local.tee $d.1
+    local.set $d.1
+    local.tee $d.0
     if
-      local.get $d.1
+      local.get $d.0
       call $rt:release_ref
     end
     local.get $t0
-    local.get $d.0
+    local.get $d.1
     i32.add
   )
 )

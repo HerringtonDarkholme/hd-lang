@@ -144,9 +144,8 @@
           local.set $t2
           local.set $zero.1
           local.get $item.0
-          local.tee $t3
           if
-            local.get $t3
+            local.get $item.0
             call $retain
           end
           local.get $t2
@@ -172,9 +171,8 @@
           local.get $item.1
           call $rt:memory_copy/0/0
           local.get $item.0
-          local.tee $t3
           if
-            local.get $t3
+            local.get $item.0
             call $rt:release_ref
           end
           local.get $t5
@@ -183,16 +181,14 @@
           local.set $zero.1
           br 0
           local.get $t5
-          local.tee $t3
           if
-            local.get $t3
+            local.get $t5
             call $rt:release_ref
           end
         end
         local.get $zero.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $zero.0
           call $rt:release_ref
         end
         local.get $zero.1

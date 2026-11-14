@@ -36,7 +36,6 @@
         i32.load $heap
         call $rt:coll_copy
         local.get $last
-        local.tee $last
         if
           local.get $last
           i32.const 8

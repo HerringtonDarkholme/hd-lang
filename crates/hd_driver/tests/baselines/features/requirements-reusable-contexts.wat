@@ -14,13 +14,13 @@
     ;; 25 |         read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $ctx
-    local.tee $t0
+    local.set $t0
+    local.tee $ctx
     if
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
     end
-    local.get $ctx
+    local.get $t0
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 18 |     $.use(Tag).name().len()
@@ -28,13 +28,13 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0
-    local.tee $provider0.vtable
+    local.set $provider0.vtable
+    local.tee $provider0
     if
-      local.get $provider0.vtable
+      local.get $provider0
       call $rt:release_ref
     end
-    local.get $provider0
+    local.get $provider0.vtable
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
     ;; 15 |         self.label

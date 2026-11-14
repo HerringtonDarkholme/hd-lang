@@ -200,14 +200,13 @@
     i32.load $heap offset=4
     ;; 24 |     u := bumped(t, s)
     local.get $s.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $s.0
         call $rt:release_ref
       end
     end
@@ -224,14 +223,13 @@
     i32.load $heap offset=4
     local.get $t.tags
     ;; 24 |     u := bumped(t, s)
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t.tags
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t.tags
         call $rt:release_ref
       end
     end

@@ -314,9 +314,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t4
-          local.tee $t7
           if
-            local.get $t7
+            local.get $t4
             call $rt:release_ref
           end
         end

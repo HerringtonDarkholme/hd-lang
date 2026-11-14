@@ -85,9 +85,8 @@
     i32.load $heap offset=4
     local.set $k.0
     local.tee $m
-    local.tee $k.1
     if
-      local.get $k.1
+      local.get $m
       call $retain
     end
     local.get $m

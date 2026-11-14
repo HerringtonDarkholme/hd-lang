@@ -133,9 +133,8 @@
       end
     end
     local.get $t1
-    local.tee $l
     if
-      local.get $l
+      local.get $t1
       call $rt:release_ref
     end
     local.get $t2
@@ -168,7 +167,7 @@
     end
     local.get $t0
   )
-  (func $"impl Describe for Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Describe for Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 19 |         self.name
     local.get $self
     i32.load $heap
@@ -176,9 +175,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       call $retain
     end
     local.get $self
@@ -194,16 +192,14 @@
     local.get $t0
     call $"impl string.len"
     local.get $l.name.1
-    local.tee $t0
     if
-      local.get $t0
+      local.get $l.name.1
       call $rt:release_ref
     end
     local.set $l.name.1
     local.get $l.name.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $l.name.0
       call $rt:release_ref
     end
     local.get $l.name.1

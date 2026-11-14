@@ -67,9 +67,9 @@
       end
       local.get $key.0
       i32.load $heap
-      local.tee $key.1
+      local.tee $key.0
       if
-        local.get $key.1
+        local.get $key.0
         call $rt:release_ref'2
       end
       local.get $t0
@@ -103,7 +103,7 @@
     end
     local.get $t1
   )
-  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |     _ := values.remove(key)
     local.get $values
     i32.load $heap
@@ -150,19 +150,18 @@
       end
       local.get $key.1
       local.get $t1
-      local.set $t3
+      local.set $t2
       local.set $t1
       local.get $key.1
-      local.tee $t2
       if
-        local.get $t2
+        local.get $key.1
         call $rt:release_ref'2
       end
       local.get $key.0
       i32.load $heap
-      local.tee $t2
+      local.tee $key.0
       if
-        local.get $t2
+        local.get $key.0
         call $rt:release_ref'2
       end
       local.get $t0
@@ -195,7 +194,7 @@
       end
     end
     local.get $t1
-    local.get $t3
+    local.get $t2
     call $rt:release
   )
   (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
@@ -280,7 +279,7 @@
     local.get $key.1
     call $"remove_value[string]"
   )
-  (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 5 |     values.remove(key)
     local.get $values
     i32.load $heap
@@ -327,19 +326,18 @@
       end
       local.get $key.1
       local.get $t1
-      local.set $t3
+      local.set $t2
       local.set $t1
       local.get $key.1
-      local.tee $t2
       if
-        local.get $t2
+        local.get $key.1
         call $rt:release_ref'2
       end
       local.get $key.0
       i32.load $heap
-      local.tee $t2
+      local.tee $key.0
       if
-        local.get $t2
+        local.get $key.0
         call $rt:release_ref'2
       end
       local.get $t0
@@ -372,7 +370,7 @@
       end
     end
     local.get $t1
-    local.get $t3
+    local.get $t2
   )
   (func $constant_key (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 17 |     values.remove("fixed")
@@ -426,9 +424,9 @@
       end
       local.get $t1
       i32.load $heap
-      local.tee $t2
+      local.tee $t1
       if
-        local.get $t2
+        local.get $t1
         call $rt:release_ref'2
       end
       local.get $t0

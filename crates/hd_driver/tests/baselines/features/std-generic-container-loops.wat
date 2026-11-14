@@ -297,7 +297,7 @@
     local.get $value
     i64.store $heap offset=16
   )
-  (func $names (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $q i32) (local $t0 i32) (local $t1 i32)
+  (func $names (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $q i32) (local $t0 i32)
     ;; 45 |     let mut q = Queue::[string].new()
     global.get $locals
     global.get $locals_base
@@ -376,9 +376,8 @@
     i32.load $heap offset=20
     local.set $b.0
     local.tee $a.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $a.1
       call $retain
     end
     ;; 45 |     let mut q = Queue::[string].new()
@@ -386,14 +385,14 @@
     if
       local.get $q
       i32.load $heap
-      local.tee $t1
+      local.tee $b.1
       if
-        local.get $t1
+        local.get $b.1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $b.1
           call $rt:release_ref'1
         end
       end
@@ -401,9 +400,8 @@
     ;; 50 |     q.items[0].len() + saved.items[0].len()
     local.get $a.1
     ;; 45 |     let mut q = Queue::[string].new()
-    local.tee $t1
     if
-      local.get $t1
+      local.get $a.1
       call $rt:release_ref'2
     end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -421,30 +419,27 @@
     i32.load $heap offset=20
     local.set $b.1
     local.tee $a.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $a.1
       call $retain
     end
     ;; 45 |     let mut q = Queue::[string].new()
     local.get $a.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $a.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $a.0
         call $rt:release_ref'1
       end
     end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
     local.get $a.1
     ;; 45 |     let mut q = Queue::[string].new()
-    local.tee $t1
     if
-      local.get $t1
+      local.get $a.1
       call $rt:release_ref'2
     end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -887,14 +882,13 @@
     local.set $b
     ;; 36 |     let mut q = Queue::[i64].new()
     local.get $saved
-    local.tee $q
     if
-      local.get $q
+      local.get $saved
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $q
+        local.get $saved
         call $rt:release_ref'1
       end
     end
@@ -1056,14 +1050,13 @@
     local.set $b
     ;; 53 |     let mut q = Queue::[(i64, usize)].new()
     local.get $saved
-    local.tee $q
     if
-      local.get $q
+      local.get $saved
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $q
+        local.get $saved
         call $rt:release_ref'1
       end
     end
@@ -1236,9 +1229,8 @@
         i32.load $heap offset=20
         local.set $t0
         local.tee $left
-        local.tee $t1
         if
-          local.get $t1
+          local.get $left
           call $retain
         end
     ;; 21 |         while parent < size / 2:
@@ -1319,9 +1311,9 @@
     i32.add
     local.tee $self
     i32.load $heap offset=16
-    local.tee $t1
+    local.tee $start
     if
-      local.get $t1
+      local.get $start
       call $rt:release_ref'2
     end
     local.get $self

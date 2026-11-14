@@ -137,13 +137,13 @@
     i32.const 0
     local.get $n
     call $"impl string.slice"
-    local.set $s.0
-    local.tee $s.1
+    local.set $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref'2
     end
-    local.get $s.0
+    local.get $s.1
   )
   (func $list_slice (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
     ;; 14 |     xs.slice(1, xs.len())

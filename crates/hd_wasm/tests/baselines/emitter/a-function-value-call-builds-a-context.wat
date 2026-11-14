@@ -33,22 +33,20 @@
     local.get $send.0
     call_indirect $table0 (param i32 i32 i32 i32)
     local.get $t0
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $t0
       call $rt:release_ref'1
     end
     local.get $send.1
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $send.1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0
+        local.get $send.1
         call $rt:release_ref'2
       end
     end

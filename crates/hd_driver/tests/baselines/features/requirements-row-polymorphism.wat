@@ -19,16 +19,17 @@
     i32.const 192 ;; &vtable[func41]
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $s.0
-    local.tee $s.1
+    local.set $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
+    local.get $s.1
+    local.set $s.0
     local.get $t0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
@@ -48,16 +49,17 @@
     i32.const 192 ;; &vtable[func41]
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $s.0
-    local.tee $s.1
+    local.set $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
+    local.get $s.1
+    local.set $s.0
     local.get $t0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
@@ -68,13 +70,13 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0
-    local.tee $provider0.vtable
+    local.set $provider0.vtable
+    local.tee $provider0
     if
-      local.get $provider0.vtable
+      local.get $provider0
       call $rt:release_ref
     end
-    local.get $provider0
+    local.get $provider0.vtable
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
     ;; 16 |         self.label

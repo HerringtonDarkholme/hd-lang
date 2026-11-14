@@ -115,7 +115,6 @@
           local.set $i
     ;; 56 |         for i in 0..n:
           local.get $t1
-          local.tee $t1
           if
             local.get $t1
             i32.const 8

@@ -46,9 +46,8 @@
         end
     ;; 11 |         out.push(v)
         local.get $v.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $v.0
           call $retain
         end
     ;; 10 |     for v in out:
@@ -91,14 +90,13 @@
     end
     ;; 9 |     let mut out = values
     local.get $t0
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $t0
         call $rt:release_ref
       end
     end
@@ -198,14 +196,14 @@
     if
       local.get $cursor
       i32.load $heap
-      local.tee $t1
+      local.tee $cursor
       if
-        local.get $t1
+        local.get $cursor
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $cursor
           call $rt:release_ref
         end
       end
@@ -245,14 +243,13 @@
     local.get $s.1
     call $rt:release
     local.get $values
-    local.tee $t1
     if
-      local.get $t1
+      local.get $values
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $values
         call $rt:release_ref
       end
     end

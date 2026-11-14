@@ -62,14 +62,14 @@
     local.get $alias
     local.get $next
     i32.store $heap
-    local.tee $t1
+    local.tee $next
     if
-      local.get $t1
+      local.get $next
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $next
         call $rt:release_ref
       end
     end
@@ -147,26 +147,24 @@
       end
     end
     local.get $h
-    local.tee $t1
     if
-      local.get $t1
+      local.get $h
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $h
         call $rt:release_ref
       end
     end
     local.get $alias
-    local.tee $t1
     if
-      local.get $t1
+      local.get $alias
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $alias
         call $rt:release_ref
       end
     end
@@ -223,14 +221,14 @@
     local.get $alias
     local.get $next
     i32.store $heap
-    local.tee $t1
+    local.tee $next
     if
-      local.get $t1
+      local.get $next
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $next
         call $rt:release_ref
       end
     end
@@ -308,26 +306,24 @@
       end
     end
     local.get $h
-    local.tee $t1
     if
-      local.get $t1
+      local.get $h
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $h
         call $rt:release_ref
       end
     end
     local.get $alias
-    local.tee $t1
     if
-      local.get $t1
+      local.get $alias
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $alias
         call $rt:release_ref
       end
     end

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $pick_with_exit (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32) (local $t0 i32)
+  (func $pick_with_exit (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
     ;; 19 |     match k:
     block
       block
@@ -36,9 +36,8 @@
               local.set $a.0
     ;; 19 |     match k:
               local.get $b.0
-              local.tee $t0
               if
-                local.get $t0
+                local.get $b.0
                 call $rt:release_ref
               end
               i32.const 0
@@ -56,9 +55,8 @@
             local.set $b.0
     ;; 19 |     match k:
             local.get $a.0
-            local.tee $t0
             if
-              local.get $t0
+              local.get $a.0
               call $rt:release_ref
             end
             i32.const 0
@@ -85,15 +83,13 @@
       end
     end
     local.get $a.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a.0
       call $rt:release_ref
     end
     local.get $b.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $b.0
       call $rt:release_ref
     end
     local.get $a.1
@@ -117,9 +113,8 @@
       local.get $a.0
     ;; 14 |     match k:
       local.get $b.0
-      local.tee $a.0
       if
-        local.get $a.0
+        local.get $b.0
         call $rt:release_ref
       end
     ;; 15 |         0 => a
@@ -145,9 +140,8 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $a.0
       if
-        local.get $a.0
+        local.get $b.0
         call $rt:release_ref
       end
     else

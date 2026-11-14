@@ -64,9 +64,8 @@
     i32.store $heap
     ;; 6 |     values[key] = value
     local.get $key.0
-    local.tee $t4
     if
-      local.get $t4
+      local.get $key.0
       call $retain
     end
     local.get $values

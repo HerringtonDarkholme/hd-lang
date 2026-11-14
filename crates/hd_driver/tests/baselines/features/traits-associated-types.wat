@@ -21,13 +21,13 @@
     local.get $source.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $source.0
-    local.tee $source.1
+    local.set $source.1
+    local.tee $source.0
     if
-      local.get $source.1
+      local.get $source.0
       call $rt:release_ref
     end
-    local.get $source.0
+    local.get $source.1
   )
   (func $read_const (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $c i32)
     ;; 30 |     read(&c)
@@ -92,7 +92,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 18 |         self.value
     local.get $self
     i32.load $heap
@@ -100,9 +100,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       call $retain
     end
     local.get $self

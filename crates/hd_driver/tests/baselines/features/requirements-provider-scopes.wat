@@ -21,17 +21,18 @@
     ;; 38 |         apply(fn() -> usize: tag.name().len())
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $s.0
-    local.tee $s.1
+    local.set $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
+    local.get $s.1
     ;; 36 |     $.with(Tag=Named { label: s }):
+    local.set $s.0
     local.get $t0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
@@ -49,13 +50,13 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0
-    local.tee $provider0.vtable
+    local.set $provider0.vtable
+    local.tee $provider0
     if
-      local.get $provider0.vtable
+      local.get $provider0
       call $rt:release_ref
     end
-    local.get $provider0
+    local.get $provider0.vtable
   )
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     $.with(Tag=Named { label: s }):
@@ -73,17 +74,18 @@
     ;; 24 |         read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $s.0
-    local.tee $s.1
+    local.set $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
+    local.get $s.1
     ;; 23 |     $.with(Tag=Named { label: s }):
+    local.set $s.0
     local.get $t0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
@@ -93,56 +95,53 @@
     local.get $self.label.0
     local.get $self.label.1
   )
-  (func $unrelated_provider (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $unrelated_provider (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 42 |     f := fn() -> usize: s.len()
     local.get $s.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.0
       call $retain
     end
     ;; 43 |     $.with(Tag=Named { label: s }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
-    local.tee $t1
+    local.tee $t0
     local.get $s.0
     i32.store $heap
-    local.get $t1
+    local.get $t0
     local.get $s.1
     i32.store $heap offset=4
-    local.get $t1
+    local.get $t0
     i32.const 192 ;; &vtable[func42]
     ;; 44 |         read_tag() + f()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t2
-    local.tee $t0
+    local.set $t1
+    local.tee $t2
     if
-      local.get $t0
+      local.get $t2
       call $rt:release_ref
     end
-    local.get $t2
+    local.get $t1
     local.get $s.1
     ;; 43 |     $.with(Tag=Named { label: s }):
     i32.add
     ;; (no span)
     local.set $s.1
-    local.get $t1
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.0
       call $rt:release_ref
     end
     local.get $s.1
   )
-  (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     $.with(Tag=Named { label: a }):
     i32.const 8
     i32.const 1
@@ -158,49 +157,49 @@
     ;; 28 |         outer := read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $a.0
-    local.tee $t1
+    local.set $a.1
+    local.tee $a.0
     if
-      local.get $t1
+      local.get $a.0
       call $rt:release_ref
     end
     ;; 29 |         $.with(Tag=Named { label: b }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
-    local.tee $a.1
+    local.tee $a.0
     local.get $b.0
     i32.store $heap
-    local.get $a.1
+    local.get $a.0
     local.get $b.1
     i32.store $heap offset=4
-    local.get $a.1
+    local.get $a.0
     i32.const 192 ;; &vtable[func42]
     ;; 30 |             outer + read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $b.0
-    local.tee $t1
+    local.set $b.1
+    local.tee $b.0
     if
-      local.get $t1
+      local.get $b.0
       call $rt:release_ref
     end
-    local.get $a.0
-    local.get $b.0
+    local.get $a.1
+    local.get $b.1
     i32.add
     ;; 29 |         $.with(Tag=Named { label: b }):
-    local.set $a.0
+    local.set $a.1
     ;; 27 |     $.with(Tag=Named { label: a }):
-    local.get $a.1
-    local.tee $t1
+    local.get $a.0
     if
-      local.get $t1
+      local.get $a.0
       call $rt:release_ref
     end
+    local.get $a.1
+    local.set $a.0
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $a.0

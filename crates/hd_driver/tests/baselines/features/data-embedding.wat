@@ -2,7 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $stamp_of (param $p i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $stamp_of (param $p i32) (result i32 i32) (local $t0 i32)
     ;; 26 |     p.Stamp
     local.get $p
     i32.load $heap
@@ -10,9 +10,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $p
-    local.tee $t1
     if
-      local.get $t1
+      local.get $p
       call $retain
     end
     local.get $p

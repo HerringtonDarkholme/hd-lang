@@ -254,9 +254,9 @@
     if
       local.get $q
       i32.load $heap
-      local.tee $ps
+      local.tee $q
       if
-        local.get $ps
+        local.get $q
         call $rt:release_ref'2
       end
     end
@@ -264,9 +264,9 @@
     if
       local.get $p
       i32.load $heap
-      local.tee $ps
+      local.tee $p
       if
-        local.get $ps
+        local.get $p
         call $rt:release_ref'2
       end
     end
@@ -288,9 +288,8 @@
     local.set $p
     ;; 14 |     p := make(k)
     local.get $junk.0
-    local.tee $ps
     if
-      local.get $ps
+      local.get $junk.0
       call $rt:release_ref'2
     end
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
