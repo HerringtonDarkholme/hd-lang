@@ -40,3 +40,19 @@ pub const MATCH_WORK: u32 = 1 << 22;
 /// room to spare for the browser build's memory. The largest file in std
 /// is far below it.
 pub const FILE_SIZE: u32 = 16 << 20;
+
+/// Generic parameters one declaration has in scope
+/// (`types.limit.generic-params`): its own list's and those it takes
+/// from around it, a local item's enclosing lists and a trait's `Self`
+/// among them. Lifetime parameters are counted apart from type, const
+/// and row parameters, and each count has this limit. `hd_resolve`
+/// reports the first parameter past it as `too-many-generic-parameters`.
+/// A parameter past the limit is left out of the declaration (a type,
+/// const or row parameter's name binds the poison type), so every
+/// parameter number, a `u16` from `hd_resolve` on, stays far below
+/// `u16::MAX`: without the limit the 65,535th lifetime and every later
+/// one silently shared a number, and a trait's 65,535th type parameter
+/// overflowed its index. Each use of a parameter looks it up by name
+/// among those in scope, so the limit also bounds that work. C++ asks an
+/// implementation for at least 1,024 template parameters (\[implimits\]).
+pub const GENERIC_PARAMS: u32 = 1_024;

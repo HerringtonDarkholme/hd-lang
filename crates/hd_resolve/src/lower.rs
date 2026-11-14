@@ -1899,6 +1899,10 @@ struct Gen {
     /// Lifetime variables in scope, spelled with their `'`
     /// (`types.lifetime.scope`).
     lifetimes: Vec<Symbol>,
+    /// A lifetime past `hd_base::limits::GENERIC_PARAMS` was declared in
+    /// scope and reported: it and every later one are left out, and a
+    /// lifetime name not in scope reports nothing more.
+    lifetimes_past: bool,
     /// Where each type parameter's name is declared.
     decls: Vec<(Symbol, Span)>,
     self_ty: Option<Ty>,
@@ -3401,6 +3405,10 @@ impl Lower<'_, '_, '_> {
                 continue;
             };
             let name = self.sym_token(t);
+            // types.limit.generic-params.error, reported on the first one
+            // past it. A lifetime past the limit is left out, so no later
+            // stage numbers past it, and costs no lookup.
+            let full = gn.lifetimes.len() >= hd_base::limits::GENERIC_PARAMS as usize;
             if self.r.frozen.is_none() {
                 let text = self.src.text(t);
                 let checked = *checked.get_or_insert_with(|| self.lifetimes_checked(gl));
@@ -3408,7 +3416,17 @@ impl Lower<'_, '_, '_> {
                 if text == "'static" {
                     continue;
                 }
-                if gn.lifetimes.contains(&name) {
+                if full {
+                    if !gn.lifetimes_past {
+                        let msg = format!(
+                            "`{text}` is lifetime parameter {} in scope here, past the limit of {}",
+                            gn.lifetimes.len() + 1,
+                            hd_base::limits::GENERIC_PARAMS,
+                        );
+                        self.diags
+                            .error(Code::TooManyGenericParameters, self.src.span(p), &msg);
+                    }
+                } else if gn.lifetimes.contains(&name) {
                     let msg = format!("`{text}` is already a lifetime in scope");
                     self.diags
                         .error(Code::DuplicateBinding, self.src.span(p), &msg);
@@ -3419,6 +3437,10 @@ impl Lower<'_, '_, '_> {
                     self.diags
                         .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
                 }
+            }
+            if full {
+                gn.lifetimes_past = true;
+                continue;
             }
             gn.lifetimes.push(name);
         }
@@ -3621,6 +3643,10 @@ impl Lower<'_, '_, '_> {
         let name = self.sym_token(t);
         if let Some(i) = gn.lifetimes.iter().position(|l| *l == name) {
             return u16::try_from(i + 1).unwrap_or(u16::MAX);
+        }
+        if gn.lifetimes_past {
+            // Past the limit, already reported: a name left out.
+            return 0;
         }
         if self.r.frozen.is_none() && self.src.text(t) == "'static" {
             // ref.generic.static.bound-only
@@ -4079,6 +4105,26 @@ impl Lower<'_, '_, '_> {
                 continue;
             };
             let name = self.sym_token(t);
+            // types.limit.generic-params.error, reported on the first one
+            // past it. A parameter past the limit is no parameter of the
+            // declaration, so no later stage counts past it, and costs no
+            // name check; its name binds the poison type, so its uses
+            // report nothing more.
+            let at = usize::from(offset) + i;
+            if at >= hd_base::limits::GENERIC_PARAMS as usize {
+                if self.r.frozen.is_none() && at == hd_base::limits::GENERIC_PARAMS as usize {
+                    let msg = format!(
+                        "`{}` is generic parameter {} in scope here, past the limit of {} besides lifetimes",
+                        self.src.text(t),
+                        at + 1,
+                        hd_base::limits::GENERIC_PARAMS,
+                    );
+                    self.diags
+                        .error(Code::TooManyGenericParameters, self.src.span(*g), &msg);
+                }
+                gn.tys.push((name, Ty::POISON, Vec::new()));
+                continue;
+            }
             let name_span = self.src.token_span(t);
             if self.r.frozen.is_none() {
                 self.prelude_shadow(*g, self.src.text(t));

@@ -1298,6 +1298,8 @@ This section defines generic parameters, bounds, arguments, and their compile-ti
 1. r[types.generic.type-parameter.complete] A type parameter of a generic type, function, method, trait, or implementation denotes a complete type.
 2. r[types.generic.naming] By convention, generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`.
 3. r[types.generic.kind] The convention is style only: a parameter's kind comes from its declaration and use, never from the case of its name.
+4. r[types.limit.generic-params] An implementation may limit how many generic parameters a declaration has in scope: those of its own list and those it takes from around it, such as an implementation's lifetime parameters in its methods. Lifetime parameters are counted apart from the others. The limit is implementation-defined: `hd` allows 1,024 lifetime parameters and 1,024 others, a trait's `Self` among them.
+5. r[types.limit.generic-params.error] A declaration over that limit is an error, reported on the first parameter past it. Error: `too-many-generic-parameters`.
 
 ```hd
 fn first[T](items: List[T]) -> T?:

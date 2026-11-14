@@ -165,6 +165,10 @@ typing/invalid/cli-command-payload-without-cli.hd	type	reject:member-not-derivab
 typing/invalid/cli-field-without-impl.hd	type	reject:member-not-derivable	std/cli.md#r-std-cli.typed.bounds
 typing/invalid/cli-positional-without-cli.hd	type	reject:unsatisfied-trait-bound	std/cli.md#r-std-cli.positional.bound
 typing/invalid/cli-short-without-cli.hd	type	reject:unsatisfied-trait-bound	std/cli.md#r-std-cli.short.bound
+typing/valid/generic-parameters-at-the-limit.hd	type	accept	lang/04-type-system.md#r-types.limit.generic-params
+typing/invalid/too-many-generic-parameters.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
+typing/invalid/too-many-lifetime-parameters.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
+typing/invalid/too-many-lifetime-parameters-with-an-implementation.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
 typing/invalid/const-generic-cast.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.no-cast-or-trait
 typing/invalid/const-generic-evaluation-division-by-zero.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
 typing/invalid/const-generic-evaluation-invalid-shift.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure

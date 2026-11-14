@@ -950,6 +950,39 @@ fn literal_and_range_match_decisions_grow_linearly() {
     decision_rows_grow_linearly(literal_range_match, &[1000, 10_000]);
 }
 
+/// Declarations far past the generic parameter limit: a trait with
+/// 65,536 type parameters (with its `Self`, past every `u16` number), a
+/// function with 70,000 lifetimes, and a struct whose field names its
+/// 70,000th type parameter.
+fn far_past_generic_limit(n: usize) -> String {
+    let list = |f: &dyn Fn(usize) -> String, n: usize| (0..n).map(f).collect::<Vec<_>>().join(", ");
+    let types = list(&|i| format!("T{i}"), n);
+    let lifetimes = list(&|i| format!("'a{i}"), n);
+    format!(
+        "trait Big[{}]:\n    fn get(self) -> i32\n\nfn far[{lifetimes}](x: &'a{} i32) -> i32:\n    1\n\nstruct Wide[{types}]:\n    last: T{}\n",
+        list(&|i| format!("T{i}"), 65_536),
+        n - 1,
+        n - 1,
+    )
+}
+
+// Resolver: #1854, a declaration's generic parameters past
+// `hd_base::limits::GENERIC_PARAMS` are one `too-many-generic-parameters`
+// each, never a silent shared number or an arithmetic overflow.
+#[test]
+fn generic_parameters_far_past_the_limit_report_once_per_declaration() {
+    on_test_stack(|| {
+        let out = compile(&far_past_generic_limit(70_000), &Goal::Analyze);
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(
+            codes,
+            ["too-many-generic-parameters"; 3],
+            "{}",
+            out.render()
+        );
+    });
+}
+
 // Checker: #1852, a negative float pattern is read as its value, so its
 // column is split by value: n rows, not n² / 2.
 #[test]
