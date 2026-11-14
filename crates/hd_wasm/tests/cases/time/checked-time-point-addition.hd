@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/time/add_duration_to_point
+# expected: the shared timestamp/deadline path checks MAX - delay before adding the point
+use std.time.{Duration, Timestamp}
+
+pub fn advance(point: Timestamp, duration: Duration) -> Timestamp:
+    point + duration

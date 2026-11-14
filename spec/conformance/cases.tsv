@@ -6900,6 +6900,8 @@ runtime/valid/readonly-optional-tag-lends-parameter.hd	runtime	accept	lang/13-va
 runtime/valid/function-value-copy-inputs-preserve-owners.hd	runtime	accept	std/collections.md#uniqlist
 runtime/valid/cold-function-value-copy-inputs-keep-owners.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 runtime/valid/a-returned-parameter-keeps-its-callers-lifetime.hd	runtime	accept	lang/07-functions.md#function-types-and-values
+runtime/panic/manual-clock-sleep-deadline-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.manual.sleep.deadline-overflow
+runtime/panic/timestamp-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.timestamp.add.checked-overflow
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

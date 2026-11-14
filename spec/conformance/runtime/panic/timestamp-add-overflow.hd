@@ -1,0 +1,10 @@
+# test: Timestamp addition whose milliseconds do not fit in i64 panics with integer-overflow in every build
+# Spec std/time Duration Arithmetic: std-time.timestamp.add.checked-overflow.
+use std.time.{Duration, Timestamp}
+
+fn past_the_end(start: Timestamp) -> Timestamp:
+    start + Duration::milliseconds(1) # panic: integer-overflow
+
+tests:
+    it("rejects a timestamp beyond the largest millisecond"):
+        _ := past_the_end(Timestamp::from_unix_milliseconds(9223372036854775807))

@@ -80,6 +80,15 @@ fn unit_millis(count: i64, unit: i64) -> i64:
         panic_with("integer-overflow", "integer overflow")
     count * unit
 
+# Adds a non-negative duration to a signed time point, checked in every build.
+# Duration bounds delay to 0..=MAX, so the comparison's subtraction cannot overflow.
+# (r-std-time.timestamp.add.checked-overflow; r-std-time.manual.sleep.deadline-overflow).
+fn add_duration_to_point(point: i64, duration: Duration) -> i64:
+    delay := duration.as_milliseconds()
+    if point > 9223372036854775807 - delay:
+        panic_with("integer-overflow", "integer overflow")
+    point + delay
+
 # The sum of the milliseconds, and a sum past the `i64` range panics with
 # integer overflow in every build (r-std-time.duration.add,
 # r-std-time.duration.add-overflow). Both sides are not negative, so the
@@ -335,7 +344,7 @@ impl Timestamp:
 impl Add[Duration] for Timestamp:
     type Out = Timestamp
     fn add(self, rhs: Duration) -> Timestamp:
-        Timestamp { millis: self.millis + rhs.as_milliseconds() }
+        Timestamp { millis: add_duration_to_point(self.millis, rhs) }
 
 # RFC 3339 text, the text `Display` writes (r-std-time.rfc3339.parse).
 impl Parse for Timestamp:
@@ -828,7 +837,7 @@ impl Clock for ManualClock:
     fn sleep!(&mut self, duration: Duration) -> void:
         if duration.as_milliseconds() == 0:
             return
-        deadline := self.timeline.current + duration.as_milliseconds()
+        deadline := add_duration_to_point(self.timeline.current, duration)
         Timeline::wait!(self.timeline, deadline)
 
 # `Duration` and `Instant` serialize to every format, and so to the host

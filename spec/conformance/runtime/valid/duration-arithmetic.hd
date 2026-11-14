@@ -18,3 +18,13 @@ tests:
         later := start + 2s
         assert_equal(later.since(start).as_milliseconds(), 2000, reason="two seconds later")
         assert_equal(start.since(later).as_milliseconds(), 0, reason="since saturates at zero")
+
+    it("adds at both ends of the timestamp range"):
+        high := Timestamp::from_unix_milliseconds(9223372036854775806)
+        assert_equal((high + Duration::milliseconds(1)).unix_milliseconds(), 9223372036854775807)
+        low := Timestamp::from_unix_milliseconds(-9223372036854775807 - 1)
+        assert_equal(
+            (low + Duration::milliseconds(0)).unix_milliseconds(),
+            -9223372036854775807 - 1,
+        )
+        assert_equal((low + Duration::milliseconds(9223372036854775807)).unix_milliseconds(), -1)

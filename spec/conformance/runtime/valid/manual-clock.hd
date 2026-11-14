@@ -50,3 +50,15 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         clock.sleep!(Duration::milliseconds(0))
         assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="unchanged")
+
+    it("allows the largest deadline and a zero sleep there"):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(9223372036854775806))
+        clock.sleep!(Duration::milliseconds(1))
+        assert_equal(clock.now().unix_milliseconds(), 9223372036854775807)
+        clock.sleep!(Duration::milliseconds(0))
+        assert_equal(clock.now().unix_milliseconds(), 9223372036854775807)
+
+    it("allows a largest duration from the minimum timestamp"):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(-9223372036854775807 - 1))
+        clock.sleep!(Duration::milliseconds(9223372036854775807))
+        assert_equal(clock.now().unix_milliseconds(), -1)

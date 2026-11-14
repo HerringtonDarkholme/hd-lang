@@ -76,7 +76,7 @@ fn later(start: Timestamp) -> Timestamp:
 5. r[std-time.duration.saturating-sub] `a.saturating_sub(b)` is `a - b` when `a` is not shorter than `b`, and zero otherwise. It never panics.
 6. r[std-time.duration.add-overflow] A sum that does not fit in `i64` milliseconds panics at run time, in every build. Panic: `integer-overflow`.
 7. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
-8. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
+8. r[std-time.timestamp.add.checked-overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in every build. Panic: `integer-overflow`.
 
 > **Note.** `Timestamp` has no `Sub`: `t.since(earlier)` is the duration
 > between two timestamps, by
@@ -349,19 +349,21 @@ tests:
 4. r[std-time.manual.now] `now` returns the current time.
 5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_milliseconds(m)`, where `m` is the current time in milliseconds since the Unix epoch.
 6. r[std-time.manual.sleep.deadline] `sleep!(duration)` has the deadline of the current time plus `duration`. It is pending until the current time reaches its deadline, and then it completes.
-7. r[std-time.manual.sleep.zero] A zero `duration` leaves the current time unchanged.
-8. r[std-time.manual.sleep.idle] When every task is waiting, the current time jumps to the earliest deadline of the clock's pending sleeps, and every sleep whose deadline it reached completes. A task that waits for a host operation is waiting too.
-9. r[std-time.manual.sleep.idle.nested] Inside a `block_on` drive, every task is waiting when nothing that the drive polls can run. A task outside the drive, blocked until the drive returns, is waiting too, so a sleep under `block_on` completes even when a blocked outer task sleeps on the same clock.
-10. r[std-time.manual.sleep.overlap] Concurrent sleeps on one clock overlap, so two sleeps of 1 s under `join!` complete together after 1 s of virtual time, and under `race!` the earlier deadline wins.
-11. r[std-time.manual.sleep.cancel] A cancelled sleep is no longer pending.
-12. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
-13. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
+7. r[std-time.manual.sleep.deadline-overflow] A deadline that does not fit in `i64` milliseconds panics at run time in every build. Panic: `integer-overflow`.
+8. r[std-time.manual.sleep.zero] A zero `duration` leaves the current time unchanged.
+9. r[std-time.manual.sleep.idle] When every task is waiting, the current time jumps to the earliest deadline of the clock's pending sleeps, and every sleep whose deadline it reached completes. A task that waits for a host operation is waiting too.
+10. r[std-time.manual.sleep.idle.nested] Inside a `block_on` drive, every task is waiting when nothing that the drive polls can run. A task outside the drive, blocked until the drive returns, is waiting too, so a sleep under `block_on` completes even when a blocked outer task sleeps on the same clock.
+11. r[std-time.manual.sleep.overlap] Concurrent sleeps on one clock overlap, so two sleeps of 1 s under `join!` complete together after 1 s of virtual time, and under `race!` the earlier deadline wins.
+12. r[std-time.manual.sleep.cancel] A cancelled sleep is no longer pending.
+13. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
+14. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
 
 > **Why.** Virtual time advances by itself, as tokio's paused clock
 > advances to the next timer when its runtime is idle. A test of a
 > timeout or a backoff sleeps through it in no real time and needs no
 > extra call, and a race between two sleeps ends as it would on a real
 > clock. A test that only moves the clock calls `sleep!` on it.
+> Checking the deadline keeps a release build from turning a future sleep into a past one.
 
 See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 [Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers).

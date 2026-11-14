@@ -273,6 +273,60 @@ fn release_keeps_the_checks_of_every_build() {
     }
 }
 
+/// Time point addition and deadlines stay checked when ordinary release addition wraps.
+#[test]
+fn time_point_additions_and_deadlines_do_not_wrap_in_release() {
+    const CLOCK_OVERFLOW: &str = "\
+use std.time.{Clock, Duration, ManualClock, Timestamp}
+
+pub fn main!() -> void:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(1))
+    clock.sleep!(Duration::milliseconds(9223372036854775807))
+";
+    const TIMESTAMP_OVERFLOW: &str = "\
+use std.time.{Duration, Timestamp}
+
+pub fn main() -> void $ Console:
+    println((Timestamp::from_unix_milliseconds(9223372036854775807) + Duration::milliseconds(1)).unix_milliseconds())
+";
+    const BOUNDARIES: &str = "\
+use std.time.{Clock, Duration, ManualClock, Timestamp}
+
+pub fn main!() -> void $ Console:
+    println((Timestamp::from_unix_milliseconds(9223372036854775806) + Duration::milliseconds(1)).unix_milliseconds())
+    println((Timestamp::from_unix_milliseconds(-9223372036854775807 - 1) + Duration::milliseconds(9223372036854775807)).unix_milliseconds())
+    high := ManualClock::new(Timestamp::from_unix_milliseconds(9223372036854775806))
+    high.sleep!(Duration::milliseconds(1))
+    high.sleep!(Duration::milliseconds(0))
+    println(high.now().unix_milliseconds())
+    low := ManualClock::new(Timestamp::from_unix_milliseconds(-9223372036854775807 - 1))
+    low.sleep!(Duration::milliseconds(9223372036854775807))
+    println(low.now().unix_milliseconds())
+";
+    let store = MemoryStore::default();
+    for profile in [BuildProfile::Checked, BuildProfile::Release] {
+        for (name, text) in [
+            ("manual-clock-overflow", CLOCK_OVERFLOW),
+            ("timestamp-overflow", TIMESTAMP_OVERFLOW),
+        ] {
+            let out = program(&store, &one_file(text), profile);
+            // ruled out: program() requires no diagnostics, and Goal::Program emits a module.
+            let wasm = out.wasm.expect("program module");
+            panics(name, &run_wasm(name, &wasm), "integer-overflow");
+        }
+        let out = program(&store, &one_file(BOUNDARIES), profile);
+        // ruled out: the same successful Goal::Program contract applies to these boundaries.
+        let wasm = out.wasm.expect("program module");
+        assert_eq!(
+            stdout(
+                "manual-clock-boundaries",
+                &run_wasm("manual-clock-boundaries", &wasm)
+            ),
+            "9223372036854775807\n-1\n9223372036854775807\n-1\n"
+        );
+    }
+}
+
 /// A test run is checked whatever profile it is given, so it shares the
 /// checked build's program key.
 #[test]
