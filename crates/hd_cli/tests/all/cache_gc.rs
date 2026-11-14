@@ -113,15 +113,21 @@ fn sizes(dir: &Path, keep: impl Fn(&str) -> bool) -> u64 {
         .sum()
 }
 
-/// The index's bytes: its head, pages and pack table.
+/// The index's bytes: each shard's head, pages and pack table.
 fn index_bytes(obj: &Path) -> u64 {
-    sizes(&obj.join("pack-v1/index"), |name| !name.contains('.'))
+    (0..16)
+        .map(|shard| {
+            sizes(&obj.join(format!("pack-v2/index/{shard:x}")), |name| {
+                !name.contains('.') && name != "lock"
+            })
+        })
+        .sum()
 }
 
 /// Physical compiled bytes, including index and obsolete pack records;
 /// leases, the publication lock and the legacy stats ledger are not entries.
 fn total(obj: &Path) -> u64 {
-    let packs = sizes(&obj.join("pack-v1"), |name| {
+    let packs = sizes(&obj.join("pack-v2"), |name| {
         name.strip_suffix(".pack")
             .is_some_and(|id| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()))
     });
@@ -294,6 +300,10 @@ fn a_recently_hit_entry_outlives_older_ones() {
     )
     .expect("write");
     let r = hd(&pkg, &cache, None, &["check"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    // A collection under the default cap folds the index logs into pages,
+    // so the index's bytes below are the ones eviction keeps.
+    let r = hd(&pkg, &cache, None, &["cache", "gc"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     let all = entries(&obj);
     let (used, unused): (Vec<&Entry>, Vec<&Entry>) = all.iter().partition(|e| recent(e));

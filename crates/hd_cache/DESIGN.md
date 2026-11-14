@@ -316,14 +316,18 @@ part of the key, not as a check after a miss.
 
 ```text
 obj/
-  pack-v1/
+  pack-v2/
+    <32 hex>.new              a lease being created, before its lock
     <32 hex>.pending          unpublished pack, exclusively leased by its writer
     <32 hex>.pack             immutable HDCE frames, then a footer of their keys
-    index/                    the paged index (#1502)
-      head                    linear hash level, split pointer, rows, generation
-      <16 hex>                one bucket: a page of sorted rows, replaced whole
-      packs                   the pack table: each footed pack and its length
-    lock                      writer lock for index commits; holds the running total
+    index/<1 hex>.log         one of 16 index shards, by a key's top four bits (#1932):
+                              its lock, a header (fold epoch, head copy, running
+                              total) and appended record batches
+    index/<1 hex>/            the shard's folded pages
+      head                    linear hash level, split pointer, rows, fold epoch
+      <16 hex>                one bucket: a page of sorted rows stamped with
+                              the fold epoch that wrote it, replaced whole
+      packs                   the pack table: the packs whose home is this shard
   clpack/<2 hex>/<32 hex>      private native code, with the existing owner checks
   stats                       legacy/private shard ledger (§5.7)
   gc                          the collection lock and the last collection's time and cap
@@ -333,8 +337,8 @@ obj/
   HDCE frame: the same 64-byte header, 16-byte section rows, length-prefixed
   payloads and checksum as before. The driver still checks kind, key,
   toolchain and layout; `LAYOUT_VERSION` remains 19. Pack IDs and offsets are
-  storage addresses, never semantic cache keys. The storage namespace and
-  its `HDPACK01` magic version the container independently.
+  storage addresses, never semantic cache keys. The storage namespace
+  (`pack-v2`) versions the container independently.
 - **One pending batch, one pack.** `DeferredStore` retains a command's writes
   in memory, and its reads see those waiting entries. After reporting, it
   sends the pending batch to `CacheStore::put_many`. `DiskStore` writes one
@@ -342,15 +346,38 @@ obj/
   for memory/browser stores. Explicit publishes can create more than one
   pack in a command. A same-key update, including Graph coherence rows,
   replaces that key's index location; keys are not assumed insert-only.
-- **Lease, then publish.** Under the stable writer lock, create a unique
-  `.pending` file and take its exclusive file lock. Release the writer lock
-  while writing the frame bytes and the footer. Reacquire it, read the head
-  and the pages of the pending keys, and merge the pending locations and use
-  marks. While still excluding GC, release the file lease, rename to
-  `.pack`, then replace each changed page, the pack table and the head, each
-  by a renamed temporary file. Thus every indexed pack is complete and
-  unlocked before a reader can observe it. No `fsync` is needed for derived
-  data: a crash can lose an entry; invalid framing is a miss.
+- **Lease, then publish, shard by shard (#1932).** No lock is shared
+  between publishers. Create a unique `<id>.new`, take its exclusive file
+  lock, and rename it `.pending`; so a `.pending` file whose lock is free
+  belongs to a dead writer. Write the frame bytes and the footer. The
+  index is 16 shards by a key's top four bits. Each has a log,
+  `index/<x>.log`, that is also its lock, and folded pages, head and pack
+  table under `index/<x>/`. The pack's ID carries its home shard, that of
+  its first key. Commit the home shard first: under its lock, grow its
+  running total by the pack's bytes, rename the pack `.pack` (still
+  locked), then append one record batch: one write, no temporary file,
+  no rename. Then commit each other shard the run's keys fall in, in shard
+  order, one lock at a time, each by one appended batch, and release the
+  pack's lock last. Runs whose keys lie in different shards never wait for
+  each other; runs that share a shard wait only for one append there. A
+  collection keeps a pack whose lock a run still holds. No `fsync` is
+  needed for derived data: a crash can lose an entry; invalid framing is a
+  miss. Namespace `pack-v2` replaced the unsharded `pack-v1`, whose single
+  writer lock serialized every publisher; the first collection retires
+  `pack-v1`'s managed files, and its entries are misses.
+- **Logs and folds (#1932).** A batch is framed: its op count and a
+  checksum of its 59-byte ops (set a row, remove a row, track or untrack a
+  pack). A torn or failing batch ends the log; readers skip it and the
+  next writer cuts it. Ops are absolute, so replaying ones a fold already
+  applied changes nothing. Once a shard's records pass 4,096 bytes (about
+  one page), the writer that crosses it folds them under the lock: it
+  applies them to the pages with the split and merge below, writes the
+  changed pages, table and head stamped with the next epoch, shortens the
+  log, and writes a header naming that epoch and head. A collection folds
+  every log. A reader reads a shard's log once, header and all, instead of
+  a head; a change in it wins over a page no later fold wrote, and a page
+  a later fold wrote already holds the change. A torn header is rebuilt by
+  the next writer from the head file, with the total unknown.
 - **The paged index (#1502)** is a linear hash table. Bucket `b` holds the
   rows whose key's low `i` bits are `b`, or low `i + 1` bits once `b` is
   below the split pointer `s`; there are `2^i + s` buckets. A row added
@@ -364,8 +391,8 @@ obj/
   bucket the stored head names; a writer drops rows a page holds for
   another bucket. A merge writes the merged bucket, then the head, then
   removes the last page.
-- **Readers take no publication or lease lock.** A command reads the head
-  once and each page it needs once, and reads only the addressed frame
+- **Readers take no publication or lease lock.** A command reads each
+  shard's log once and each page it needs once, and reads only the addressed frame
   ranges. A process-local mutex protects those pages and cached file
   cursors; it is not shared with other processes. At most 64 open pack
   handles are cached. A concurrent replacement or eviction leaves an older
@@ -376,23 +403,21 @@ obj/
   once per vanished pack, as git rescans its packs when one disappears.
   A pack, once renamed into place, is removed only by GC under the lock,
   also when the commit that follows fails.
-- **Cost per run.** A run that reads `k` keys reads the 64-byte head and at
-  most `k` pages; one that writes `j` entries or marks `j` hits rewrites at
-  most `j` pages plus one page per split, the head and the pack table (24
-  bytes per tracked pack, a bounded count); a warm run whose hits are all
-  fresh writes nothing. None of it depends on the number of entries.
-  Measured at 1,000 and 10,000 entries, a warm run reading 8 keys reads
-  32,864 index bytes at both and writes none; with every hit due a recency
-  mark it reads 65,600 and writes 32,736 at both.
+- **Cost per run.** A run that reads `k` keys reads at most `k` shard
+  logs (a 112-byte header and at most about 4 KiB of records each) and at
+  most `k` pages; one that writes `j` entries or marks `j` hits appends one
+  batch to each shard they fall in, 59 bytes per change, and folds a log
+  that passes 4,096 bytes; a warm run whose hits are all fresh writes
+  nothing. None of it depends on the number of entries.
 - **Encodings and limits.** Pages and the pack table share a 32-byte
-  little-endian header: magic (`HDPAGE01`, `HDPKTB01`), row count (`u32`),
-  reserved zero flags (`u32`) and the 128-bit
+  little-endian header: magic (`HDPAGE02`, `HDPKTB01`), row count (`u32`),
+  the page's fold epoch or the table's zero flags (`u32`) and the 128-bit
   `StableHasher("cache-storage-index-v1", rows)` checksum. Sorted unique
   58-byte page rows hold kind (`u16`), key (`u128`), pack ID (`u128`),
   offset, length and last-use Unix seconds (three `u64`s); table rows hold
   pack ID and length. The 64-byte head is magic `HDHEAD01`, level (`u32`),
-  zero flags, split pointer and row count (`u64`s), a random 128-bit
-  generation and a checksum of the rest. A pack's footer holds 34-byte rows
+  zero flags, split pointer and row count (`u64`s), a 128-bit
+  fold epoch and a checksum of the rest. A pack's footer holds 34-byte rows
   (kind, key, offset, length), then the row count, their checksum and magic
   `HDFOOT01`; readers never read it. Every file is limited to 64 MiB before
   allocation; every row's kind, ordering, arithmetic and checksum are
@@ -400,31 +425,20 @@ obj/
   bounds; compaction streams payload ranges instead of collecting a whole
   pack in memory. Oversized persistence fails with the normal cache warning
   while compilation continues.
-- **Older caches.** A cache whose `index` is the single sorted file of an
-  older hd (magic `HDPACK01`, the same rows) is read as it is until the
-  first command that takes the writer lock rewrites it as pages in
-  `index.new/`, renames the file to `index.old`, renames `index.new` to
-  `index` and removes `index.old`: one read of the old file and one write
-  of every page, once (3.7 s for about 250,000 rows, including the one walk that
-  follows, since the running total named the old file). Readers find the
-  old file under either name meanwhile, and a writer finishes a migration
-  that stopped. An older hd finds a directory where its index was: it reads
-  misses, and its publication and GC fail with the cache warning before
-  they write or delete anything.
 - **Crash recovery and GC races.** The collection walks with no lock,
-  then tries a pending file's lock under the writer lock before deleting
-  it. It cannot catch a lease between creation and locking, since both
-  happen under that writer lock. A live lease is retained; process death releases it,
+  then deletes a pending file only when it can take its lock. A lease is
+  locked before it is named `.pending`; a `.new` file an hour old is a
+  crash between creating and locking one. A live lease is retained; process death releases it,
   so no age heuristic delays orphan recovery. A corrupt page or head reads
   as misses and is replaced under the writer lock on the next write/GC (a
   corrupt head starts an empty index); active leases remain protected.
   Missing or truncated packs/ranges are misses. Recognized stale temporary
-  files, and pages past the last bucket, are removed under the writer lock
-  because their writer also held it. A pack the walk found and no row
-  names is removed only after a check under the lock: no key in its
-  footer has a row naming it. A pack an older hd wrote has no footer and
-  never gains rows, so a whole-index read whose head did not change
-  proves it unnamed. Foreign filenames and symbolic links stay.
+  files, and pages past the last bucket, are removed under their shard's
+  lock because their writer also held it. A pack the walk found and no
+  row names is removed only when no run holds its lock and no key of its
+  footer has a row naming it, checked shard by shard; rows never move
+  into an existing pack, so a key once found elsewhere stays elsewhere.
+  Foreign filenames and symbolic links stay.
 - **Write failures** warn once and disable further puts for that command;
   the build still succeeds. If GC cannot write, it reports the physical
   bytes it could not remove rather than pretending the packed cache is
@@ -432,7 +446,7 @@ obj/
 - **Private native code is separate.** Clpack keeps its loose paths, owner,
   regular-file identity, single-link and mode-0600 checks. The new data
   index cannot name a Clpack entry. Ordinary loose records belong to the
-  retired storage layout; GC retires them once `pack-v1` exists. Old
+  retired storage layout; GC retires them once `pack-v2` exists. Old
   binaries racing that cleanup still see ordinary cache misses.
 
 **Planned logical code packs (#49, point 4).** These are distinct from
@@ -869,23 +883,22 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   writes, the 32-byte lock and the small legacy stats ledger are not
   committed entries, as with the old temporary publish files. Unindexed
   final packs and dead pending files are reclaimed by lease-aware GC.
-- **Running total (#1501).** The publication lock file records the
-  physical total (final packs plus the index's files) with the generation
-  of the head it describes and a checksum (magic `HDBYTES2`, 48 bytes),
-  written only under that lock. A commit adds its pack and index growth,
-  counting a split bucket at its larger first write, before any of it
-  becomes final, and records the exact total after. A collection records
-  its walk's total plus the tracked packs published since. A command reads
-  the record and the head with no lock; a torn record fails its checksum.
-  A record naming another generation is unknown: the index was migrated
-  from an older hd's file, or a writer died between recording and its
-  head commit. A namespace a writer creates starts with a known zero.
-  Deletions without an index change only lower the true total.
+- **Running total (#1501).** Each shard's log header records that shard's
+  physical share (its folded index files and the packs whose home it is),
+  under the header's checksum, written only under the shard's lock; the
+  total is their sum. Log records are not counted: at most 4,096 bytes per
+  shard. A commit grows the total by its pack before renaming it; a fold
+  grows it by its page growth before writing, and records the exact change
+  after. A collection records its walk's total plus the tracked packs
+  published since. A command reads the headers with no lock; a torn header
+  fails its checksum and the total is unknown. A shard a writer creates
+  starts with a known zero. Deletions without an index change only lower
+  the true total.
 - **Compaction.** In a collection, a referenced pack over 25% dead, or any
   pack with dead bytes when the walk found the cache over the cap, is
   copied by live frame range into a new leased pack. The copy takes no
-  lock. The commit, under the writer lock, repoints each row still at its
-  old range, and removes the old pack once no key of its footer names it.
+  lock. The commits, one shard lock at a time, repoint each row still at
+  its old range, and the old pack goes once no key of its footer names it.
   A row replaced or evicted meanwhile keeps its new state; a copy no row
   takes is dropped with its lease. An older reader can retain the old
   descriptor; Windows may postpone deletion until that descriptor closes,
@@ -895,12 +908,12 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   index, read only by a publishing run) groups packs under 8 MiB by power
   of two, and once a class holds four, their live frames, found from each
   pack's footer and its rows' pages, are copied into one pack and the four
-  removed. The copy is the compaction's: no lock while copying, the writer
-  lock for the commit and at most four unlinks. A frame is copied once per
+  removed. Each shard's pack table lists the packs whose home it is; a
+  publishing run merges within the home shards it published to, so packs
+  stay bounded per shard. The copy is the compaction's: no lock while copying,
+  each shard's lock for its commit and at most four unlinks. A frame is copied once per
   class it climbs; packs stay at most three per class plus the 8 MiB packs,
   which the cap bounds. 1,000 publishing commands leave at most 14 packs.
-  Packs an older hd wrote have no footer and are never merged; compaction
-  still reclaims them.
 - **Private/legacy accounting.** `obj/stats` tracks 256 shard sizes and the
   packed-migration state. Publication and eviction serialize file changes
   and their size updates with the ledger lock. Replacing a key subtracts
@@ -918,26 +931,27 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   packed reclamation. The two stores do not each get a fresh 10 GiB.
 - **A command never walks (#1932).** A command's settlement applies its
   recency marks and, after a publication, one small-pack merge: O(entries
-  written and marked). It then reads the 64-byte head and the 48-byte
-  record with no lock. Over the cap, or unknown, it asks for a collection.
+  written and marked). It then reads each shard's 112-byte log header with
+  no lock. Over the cap, or unknown, it asks for a collection.
   It also asks when the ledger knows no size for some legacy shard. Known
-  legacy shards that its writes put over budget are cleaned within a soft
-  20 ms bound, as before; unknown ones are left to the collection.
+  legacy shards that writes put over budget are cleaned one per command,
+  a count rather than a time; unknown ones are left to the collection. No
+  cache work has a wall-clock deadline.
 - **Collection, once per interval.** `<obj>/gc` holds a lock and the start
   time and cap of the last collection. A request is dropped when that
   collection started less than an hour ago under a cap no smaller, or
   when another process holds the lock (`try_lock`), so no command waits.
   The CLI starts a detached `hd cache gc` with `HD_CACHE_GC=auto` for it,
   as `git gc --auto` detaches (`gc.autoDetach`); a store with no spawner
-  collects on drop. A collection walks `pack-v1/` and `pack-v1/index/`
+  collects on drop. A collection walks `pack-v2/` and its index shards
   and reads every page, with no lock, retrying while the head changes.
   It evicts the oldest rows until the live set and its index fit 90% of
-  the cap, in one commit under the writer lock that keeps rows hit or
-  replaced since the read. Then it removes unnamed packs with no lock,
+  the cap, in one commit per shard, under that shard's lock, that keeps
+  rows hit or replaced since the read. Then it removes unnamed packs with no lock,
   compacts, merges one size class, sweeps crashed files, walks again and
   records the total. Every legacy shard is cleaned too. Cost: O(packs +
-  rows) once per interval, plus the bytes it reclaims; the writer lock
-  covers index commits only. Writes within the interval can take the
+  rows) once per interval, plus the bytes it reclaims; a shard lock
+  covers that shard's index commits only. Writes within the interval can take the
   cache past the cap, as ccache's cleanup lags its counters.
 - **References.** cargo's global cache GC runs at most once per
   `gc.auto.frequency` (a day), its last run recorded in its SQLite

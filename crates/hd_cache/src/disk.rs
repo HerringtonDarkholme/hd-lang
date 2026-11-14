@@ -1,5 +1,5 @@
 //! The disk store (feature `disk`): ordinary data in immutable per-run
-//! packs and a shared paged index under `<root>/pack-v1/`; private native
+//! packs and a shared index, sharded by key, under `<root>/pack-v2/`; private native
 //! code remains in `<root>/<kind>/<shard>/<key>`. See DESIGN.md §5.4 and
 //! §5.7.
 //! Only this module touches the file system (design-overview §2.2 rule 1).
@@ -23,7 +23,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 use hd_base::Hash128;
 
@@ -50,8 +50,10 @@ mod cost {
         pub packs_opened: u64,
         /// Walks of the whole pack namespace: a collection makes two.
         pub walks: u64,
-        /// Times the publication writer lock was taken.
+        /// Times a shard's writer lock was taken.
         pub writer_locks: u64,
+        /// Times one was taken only after waiting for another holder.
+        pub lock_waits: u64,
     }
 
     thread_local! {
@@ -83,10 +85,9 @@ macro_rules! count {
 /// The default size cap of the compiled entries, 10 GiB (`cli.cache.obj.cap`).
 pub const DEFAULT_CAP: u64 = 10 << 30;
 
-/// How long a command may clean legacy shards that its writes put over
-/// their budget before it leaves the rest to later commands. One shard is
-/// always cleaned whole.
-pub const EVICT_BOUND: Duration = Duration::from_millis(20);
+/// How many legacy shards that writes put over their budget one command
+/// cleans; later commands clean the rest (#1932). A count, not a time.
+const SETTLE_SHARDS: usize = 1;
 
 /// How often automatic collection may run (#1932), as cargo's automatic
 /// cache GC runs at most once per `gc.auto.frequency`. A smaller cap than
@@ -114,8 +115,6 @@ pub struct DiskStore {
     root: PathBuf,
     packed: packed::Store,
     cap: u64,
-    /// Automatic eviction's time budget; tests may force it to zero.
-    evict_bound: Duration,
     used: AtomicBool,
     /// Set by the first failed publish; the store writes nothing after it.
     write_failed: AtomicBool,
@@ -157,7 +156,6 @@ impl DiskStore {
             packed: packed::Store::new(&root),
             root,
             cap: DEFAULT_CAP,
-            evict_bound: EVICT_BOUND,
             used: AtomicBool::new(false),
             write_failed: AtomicBool::new(false),
             on_write_failure: None,
@@ -188,14 +186,6 @@ impl DiskStore {
     #[must_use]
     pub fn with_cap(mut self, cap: u64) -> Self {
         self.cap = cap;
-        self
-    }
-
-    /// The same store with a different automatic-eviction time budget.
-    #[cfg(test)]
-    #[must_use]
-    fn with_evict_bound(mut self, bound: Duration) -> Self {
-        self.evict_bound = bound;
         self
     }
 
@@ -255,7 +245,7 @@ impl DiskStore {
     /// unreadable ledger, counting the legacy bytes it knows; `hd cache
     /// gc` reports it before reclaiming packed data.
     fn collect_now(&self, automatic: bool) -> std::io::Result<Collected> {
-        let loose = match self.clean(&(0..=u8::MAX).collect::<Vec<_>>(), None) {
+        let loose = match self.clean(&(0..=u8::MAX).collect::<Vec<_>>()) {
             Ok(loose) => loose,
             Err(_) if automatic => {
                 let known = self.known_loose();
@@ -388,7 +378,7 @@ impl DiskStore {
     }
 
     /// A command's legacy settlement: cleans the known shards over their
-    /// budget, within the time bound, and says whether any shard's size
+    /// budget, at most [`SETTLE_SHARDS`] of them, and says whether any shard's size
     /// is unknown, which wants a collection. A command never lists an
     /// unknown shard: only a collection does (#1932). Called on drop; a
     /// store never used does nothing.
@@ -396,14 +386,13 @@ impl DiskStore {
         if !self.used.load(Ordering::Relaxed) {
             return false;
         }
-        let deadline = Instant::now() + self.evict_bound;
         let budget = self.budget();
         let mut work = Vec::new();
         let mut unknown = false;
         let snapshot = Ledger::update(&self.root, |l| {
             // The first packed publication retires ordinary loose files,
             // even when their previously recorded sizes fit the budget.
-            if !l.migrated && is_real_dir(&self.root.join("pack-v1")) {
+            if !l.migrated && is_real_dir(&self.root.join(packed::NAMESPACE)) {
                 l.migrated = true;
                 l.sizes.fill(UNKNOWN);
             }
@@ -416,16 +405,15 @@ impl DiskStore {
             );
         });
         if snapshot.is_some() {
-            let _ = self.clean(&work, Some(deadline));
+            work.truncate(SETTLE_SHARDS);
+            let _ = self.clean(&work);
         }
         snapshot.is_some() && unknown
     }
 
     /// Cleans `shards` in order, each down to 90% of its budget when it is
-    /// over it, recording each one's exact size under the publication lock.
-    /// With a deadline, the shards after the first are left to
-    /// a later command once it has passed.
-    fn clean(&self, shards: &[u8], deadline: Option<Instant>) -> std::io::Result<Collected> {
+    /// over it, recording each one's exact size under the ledger lock.
+    fn clean(&self, shards: &[u8]) -> std::io::Result<Collected> {
         let budget = self.budget();
         let kinds = EntryKind::ALL;
         let mut total = Collected {
@@ -435,12 +423,9 @@ impl DiskStore {
         if !self.root.try_exists()? {
             return Ok(total);
         }
-        for (i, &shard) in shards.iter().enumerate() {
-            if i > 0 && deadline.is_some_and(|d| Instant::now() >= d) {
-                break;
-            }
+        for &shard in shards {
             let result = Ledger::transaction(&self.root, |l| {
-                if !l.migrated && is_real_dir(&self.root.join("pack-v1")) {
+                if !l.migrated && is_real_dir(&self.root.join(packed::NAMESPACE)) {
                     l.migrated = true;
                     l.sizes.fill(UNKNOWN);
                 }
@@ -519,7 +504,7 @@ impl DiskStore {
     ) -> std::io::Result<(u64, u64)> {
         let (before, entries) = self.scan(kinds, shard)?;
         let mut after = before;
-        let migrated = is_real_dir(&self.root.join("pack-v1"));
+        let migrated = is_real_dir(&self.root.join(packed::NAMESPACE));
         let (obsolete, retained): (Vec<_>, Vec<_>) = entries
             .into_iter()
             .partition(|e| migrated && e.kind != EntryKind::Clpack);
@@ -761,10 +746,15 @@ impl DiskStore {
 
 /// An entry whose mtime is more than [`USE_MARK_AGE`] old.
 fn stale(meta: &std::fs::Metadata) -> bool {
+    stale_by(meta, USE_MARK_AGE)
+}
+
+/// A file whose mtime is more than `age` old.
+fn stale_by(meta: &std::fs::Metadata, age: Duration) -> bool {
     meta.modified()
         .ok()
         .and_then(|t| t.elapsed().ok())
-        .is_some_and(|age| age > USE_MARK_AGE)
+        .is_some_and(|elapsed| elapsed > age)
 }
 
 /// Sets an existing entry's mtime to now; never creates one.
@@ -893,7 +883,7 @@ impl Ledger {
 }
 
 /// Immutable data packs and a paged index (DESIGN.md §5.4). The index is a
-/// linear hash table in `pack-v1/index/`: a fixed head holds the level and
+/// linear hash table per shard in `pack-v2/index/<shard>/`: a fixed head holds the level and
 /// split pointer, and each bucket is one page file, so a lookup reads one
 /// page and a write rewrites only the pages it changes. A pack's exclusive
 /// file lock leases it until publication, or until its writer dies.
@@ -904,7 +894,7 @@ mod packed {
     use std::fs::{File, OpenOptions, TryLockError};
     use std::io::{self, Read, Seek, SeekFrom, Write};
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard};
     use std::time::SystemTime;
 
@@ -914,10 +904,12 @@ mod packed {
     use super::cost;
     use super::{Collected, EntryKind, IndexedEntry, USE_MARK_AGE, is_real_dir, parse_key};
 
-    /// The single-file index of older hd, read until the first writer
-    /// migrates it.
-    const LEGACY_MAGIC: &[u8; 8] = b"HDPACK01";
-    const PAGE_MAGIC: &[u8; 8] = b"HDPAGE01";
+    /// The namespace of this format. The index is sharded by key (#1932),
+    /// so `pack-v1`, whose single index every writer locked, is retired.
+    pub(super) const NAMESPACE: &str = "pack-v2";
+    /// Index shards, each with its own lock, by a key's top four bits.
+    const SHARDS: u8 = 16;
+    const PAGE_MAGIC: &[u8; 8] = b"HDPAGE02";
     const HEAD_MAGIC: &[u8; 8] = b"HDHEAD01";
     const TABLE_MAGIC: &[u8; 8] = b"HDPKTB01";
     const FOOT_MAGIC: &[u8; 8] = b"HDFOOT01";
@@ -943,20 +935,24 @@ mod packed {
     /// A pack this large is never merged; compaction still reclaims it.
     /// One merge copies at most `FANOUT` times this.
     const FULL: u64 = 8 << 20;
-    /// The running total in the lock file: magic, managed bytes (final
-    /// packs and the index files), and the generation of the index head it
-    /// describes.
-    const TOTAL_MAGIC: &[u8; 8] = b"HDBYTES2";
-    /// The record's magic, total and generation, then a checksum of them,
-    /// so a torn read with no lock is unknown, not a wrong total.
-    const RECORD: usize = 48;
+    const LOG_MAGIC: &[u8; 8] = b"HDLOG001";
+    /// A log header: magic, epoch, a head copy, the total, a checksum.
+    const LOG_HEADER: usize = 112;
+    /// A record batch's header: its op count and their checksum.
+    const LOG_FRAME: usize = 20;
+    /// One op: a tag and a page row.
+    const OP: usize = 1 + ROW;
+    /// A shard's log is folded into its pages once its records pass this
+    /// many bytes, about one page: a reader reads at most that much more
+    /// than the head it replaced.
+    const FOLD_AT: u64 = 4096;
     type Key = (u16, u128);
     type Entries = BTreeMap<Key, Location>;
     type Batch = [(EntryKind, Hash128, Arc<[u8]>)];
     /// Footer rows: key, offset and length of each frame in a pack.
     type Frames = Vec<(Key, u64, u64)>;
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     struct Location {
         pack: u128,
         offset: u64,
@@ -969,21 +965,14 @@ mod packed {
         len: u64,
     }
 
-    /// What a reader sees: no index, an older hd's single file, or the
-    /// paged index under one head.
-    #[derive(Default)]
-    enum View {
-        #[default]
-        Empty,
-        Legacy(Entries),
-        Paged(Head),
-    }
-
+    /// What a reader has read: each shard's head once (`None` when it
+    /// has none), and the pages under it.
     #[derive(Default)]
     struct Snapshot {
-        view: View,
-        /// Pages read under the view's head, by bucket.
-        pages: BTreeMap<u64, Entries>,
+        views: BTreeMap<u8, View>,
+        /// Pages read under the views' heads, by shard and bucket, with
+        /// the fold epoch that wrote each.
+        pages: BTreeMap<(u8, u64), (Entries, u32)>,
         files: BTreeMap<u128, Opened>,
         touched: BTreeMap<Key, u64>,
         /// Packs found missing after the index was read again: each one
@@ -995,8 +984,11 @@ mod packed {
         root: PathBuf,
         snapshot: Mutex<Option<Snapshot>>,
         used: AtomicU64,
-        /// This process published a pack, so its settlement may merge.
-        published: AtomicBool,
+        /// The namespace directory was found or made.
+        rooted: AtomicBool,
+        /// The home shards of the packs this process published, a bit
+        /// each: its settlement merges small packs there.
+        published: AtomicU32,
         /// Called at a collection's walk and a rewrite's copy, so a test can
         /// act while one is in progress.
         #[cfg(test)]
@@ -1010,21 +1002,26 @@ mod packed {
         packs: BTreeMap<u128, u64>,
         /// Lease files, live or crashed.
         pending: Vec<PathBuf>,
-        /// Crashed writers' temporary index files.
-        temps: Vec<PathBuf>,
-        /// The index's page files, by bucket, and their bytes.
-        pages: Vec<u64>,
-        page_bytes: u64,
+        /// `.new` lease files an interval old: a crash between creating
+        /// and locking one left them.
+        abandoned: Vec<PathBuf>,
+        /// Crashed writers' temporary index files, by shard.
+        temps: Vec<(u8, PathBuf)>,
+        /// The index's page files, by shard and bucket, and their bytes.
+        pages: Vec<(u8, u64)>,
+        page_bytes: [u64; SHARDS as usize],
+        /// Each shard's index bytes.
+        index: [u64; SHARDS as usize],
         /// Managed bytes: final packs and the index's files.
         total: u64,
     }
 
     /// A pack a rewrite copies out of: the frames to copy, and every key
-    /// whose row may name it, `None` when they are unknown, which keeps it.
+    /// whose row may name it.
     struct Source {
         id: u128,
         copy: Frames,
-        keys: Option<Vec<Key>>,
+        keys: Vec<Key>,
     }
 
     /// A live writer owns the file lock before it drops the index lock.
@@ -1045,6 +1042,11 @@ mod packed {
                 let _ = std::fs::remove_file(&self.path);
             }
         }
+    }
+
+    /// The index shard of a key, or the home shard of a pack ID.
+    fn shard_of(key: u128) -> u8 {
+        u8::try_from(key >> 124).expect("four bits")
     }
 
     fn invalid(why: &'static str) -> io::Error {
@@ -1131,7 +1133,7 @@ mod packed {
 
     /// A 32-byte header (magic, row count, zero flags, checksum of the
     /// rows) and the rows, the layout of the legacy index and of a page.
-    fn frame(magic: [u8; 8], entries: &Entries, len: usize) -> Vec<u8> {
+    fn frame(magic: [u8; 8], entries: &Entries, len: usize, epoch: u32) -> Vec<u8> {
         let mut out = Vec::with_capacity(len);
         out.extend_from_slice(&magic);
         out.extend_from_slice(
@@ -1139,7 +1141,8 @@ mod packed {
                 .expect("bounded rows")
                 .to_le_bytes(),
         );
-        out.extend_from_slice(&[0; 20]);
+        out.extend_from_slice(&epoch.to_le_bytes());
+        out.extend_from_slice(&[0; 16]);
         for (key, loc) in entries {
             put_row(&mut out, key, loc);
         }
@@ -1149,14 +1152,14 @@ mod packed {
         out
     }
 
-    /// The header's row count and the rows' checksum when `bytes` is a
-    /// whole frame of `magic` whose length `len_of(count)` gives.
+    /// The rows and the fold epoch of a page when `bytes` is a whole frame
+    /// of `magic` whose length `len_of(count)` gives.
     fn unframe(
         magic: [u8; 8],
         bytes: &[u8],
         len_of: impl Fn(usize) -> Option<usize>,
-    ) -> io::Result<Entries> {
-        if bytes.len() < HEADER || bytes[..8] != magic || bytes[12..16] != [0; 4] {
+    ) -> io::Result<(Entries, u32)> {
+        if bytes.len() < HEADER || bytes[..8] != magic {
             return Err(invalid("invalid cache index header"));
         }
         let count = usize::try_from(u32_at(bytes, 8)).map_err(io::Error::other)?;
@@ -1168,27 +1171,7 @@ mod packed {
         if checksum(&bytes[HEADER..end]) != u128_at(bytes, 16) {
             return Err(invalid("invalid cache index checksum"));
         }
-        rows(&bytes[HEADER..end])
-    }
-
-    fn legacy_len(count: usize) -> Option<usize> {
-        count
-            .checked_mul(ROW)
-            .and_then(|n| n.checked_add(HEADER))
-            .filter(|&n| n <= MAX_INDEX)
-    }
-
-    #[cfg(test)]
-    fn legacy_encode(entries: &Entries) -> Vec<u8> {
-        frame(
-            *LEGACY_MAGIC,
-            entries,
-            legacy_len(entries.len()).expect("bounded"),
-        )
-    }
-
-    fn legacy_decode(bytes: &[u8]) -> io::Result<Entries> {
-        unframe(*LEGACY_MAGIC, bytes, legacy_len)
+        Ok((rows(&bytes[HEADER..end])?, u32_at(bytes, 12)))
     }
 
     /// A page file's length: whole pages of [`SLOTS`] rows, at least one.
@@ -1196,11 +1179,12 @@ mod packed {
         HEADER + count.div_ceil(SLOTS).max(1) * SLOTS * ROW
     }
 
-    fn page_encode(entries: &Entries) -> Vec<u8> {
-        frame(*PAGE_MAGIC, entries, page_len(entries.len()))
+    /// A page of `entries`, stamped with the fold `epoch` that wrote it.
+    fn page_encode(entries: &Entries, epoch: u32) -> Vec<u8> {
+        frame(*PAGE_MAGIC, entries, page_len(entries.len()), epoch)
     }
 
-    fn page_decode(bytes: &[u8]) -> io::Result<Entries> {
+    fn page_decode(bytes: &[u8]) -> io::Result<(Entries, u32)> {
         unframe(*PAGE_MAGIC, bytes, |n| {
             Some(page_len(n)).filter(|&l| l <= MAX_INDEX)
         })
@@ -1211,8 +1195,8 @@ mod packed {
     }
 
     /// The index head: level `i` and split pointer `s` of the linear hash
-    /// table (buckets `2^i + s`), the row count, and a generation that
-    /// changes with every head write, which the running total names.
+    /// table (buckets `2^i + s`), the row count, and the fold epoch that
+    /// wrote it (in `generation`).
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     struct Head {
         level: u32,
@@ -1422,19 +1406,15 @@ mod packed {
             .transpose()
     }
 
-    /// A page's rows and its file length; `None` when it has no file.
-    fn read_page(dir: &Path, bucket: u64) -> io::Result<Option<(Entries, u64)>> {
+    /// A page's rows, its file length and its fold epoch; `None` when it
+    /// has no file.
+    fn read_page(dir: &Path, bucket: u64) -> io::Result<Option<(Entries, u64, u32)>> {
         let Some(bytes) = read_small(&dir.join(page_name(bucket)), MAX_INDEX)? else {
             return Ok(None);
         };
         let len = bytes.len() as u64;
-        Ok(Some((page_decode(&bytes)?, len)))
-    }
-
-    fn read_legacy(path: &Path) -> io::Result<Option<Entries>> {
-        read_small(path, MAX_INDEX)?
-            .map(|b| legacy_decode(&b))
-            .transpose()
+        let (rows, epoch) = page_decode(&bytes)?;
+        Ok(Some((rows, len, epoch)))
     }
 
     /// Replaces `dir/name` with `bytes` by a renamed temporary file.
@@ -1508,17 +1488,12 @@ mod packed {
             })
         }
 
-        /// The generation the running total must name; 0 for no head.
-        fn generation(&self) -> u128 {
-            self.stored.map_or(0, |h| h.generation)
-        }
-
         fn page(&mut self, bucket: u64) -> io::Result<&mut Page> {
             match self.pages.entry(bucket) {
                 Slot::Occupied(page) => Ok(page.into_mut()),
                 Slot::Vacant(slot) => {
                     let (mut rows, len, dirty) = match read_page(&self.dir, bucket) {
-                        Ok(Some((rows, len))) => (rows, len, false),
+                        Ok(Some((rows, len, _))) => (rows, len, false),
                         Ok(None) => (Entries::new(), 0, false),
                         Err(e) if e.kind() == io::ErrorKind::InvalidData => {
                             let len = std::fs::symlink_metadata(self.dir.join(page_name(bucket)))
@@ -1629,8 +1604,7 @@ mod packed {
             Ok(())
         }
 
-        /// Every row, reading every page: for tests.
-        #[cfg(test)]
+        /// Every row, reading every page: for collections and tools.
         fn all(&mut self) -> io::Result<Entries> {
             let mut entries = Entries::new();
             for bucket in 0..self.head.buckets() {
@@ -1693,33 +1667,21 @@ mod packed {
             }
         }
 
-        fn dirty(&self) -> bool {
-            self.table_dirty
-                || !self.doomed.is_empty()
-                || self.pages.values().any(|p| p.dirty)
-                || self.head_dirty()
-        }
-
-        /// Writes the changes: the running total first (adding `added`
-        /// bytes that `finish` makes final), then each changed page whole,
-        /// a bucket that split still holding the rows it gave away, the
-        /// pack table, the head, and last the split buckets without them
-        /// and the removal of merged pages. A crash at any point leaves
-        /// every key in the bucket the stored head names, or lost from
-        /// this commit only.
-        fn commit(
-            &mut self,
-            lock: Option<&File>,
-            added: u64,
-            finish: impl FnOnce() -> io::Result<()>,
-        ) -> io::Result<()> {
-            let recorded = lock.and_then(|l| Store::recorded(l, self.generation()));
+        /// A fold's write (#1932): each changed page whole, stamped with
+        /// `epoch`, a bucket that split still holding the rows it gave
+        /// away, the pack table, the head, and last the split buckets
+        /// without them and the removal of merged pages. `grow` is told
+        /// the bytes this adds before any of it is written; the exact
+        /// change is returned. A crash at any point leaves every key in the
+        /// bucket the stored head names, or lost from this fold only, and
+        /// the shard's log still holds what the fold applied.
+        fn commit(&mut self, epoch: u32, grow: impl FnOnce(u64)) -> io::Result<i128> {
             let head = self.head;
             let mut first = Vec::new();
             let mut last = Vec::new();
             // `delta` is the exact change, `growth` its increases alone.
-            let mut delta = i128::from(added);
-            let mut growth = delta;
+            let mut delta = 0_i128;
+            let mut growth = 0_i128;
             let mut change = |by: i128| {
                 delta += by;
                 growth += by.max(0);
@@ -1735,12 +1697,12 @@ mod packed {
                     .map(|(k, l)| (*k, *l))
                     .collect();
                 let bytes = if moved.is_empty() {
-                    page_encode(&page.rows)
+                    page_encode(&page.rows, epoch)
                 } else {
                     let mut superset = page.rows.clone();
                     superset.extend(moved);
                     last.push(bucket);
-                    page_encode(&superset)
+                    page_encode(&superset, epoch)
                 };
                 change(i128::from(bytes.len() as u64) - i128::from(page.len));
                 first.push((bucket, bytes));
@@ -1767,22 +1729,18 @@ mod packed {
                     Vec::new()
                 })
             } else if self.head_dirty() {
-                self.head.generation = unique();
+                self.head.generation = u128::from(epoch);
                 change(i128::from(self.stored.map_or(HEAD_LEN as u64, |_| 0)));
                 Some(self.head.encode())
             } else {
                 None
             };
-            let total = |delta: i128| {
-                recorded.map(|t| u64::try_from((i128::from(t) + delta).max(0)).unwrap_or(u64::MAX))
-            };
             // Count the bytes before they are final, and no decrease before
-            // it happens: dying before the head commit leaves a record of a
-            // head that never existed, or one too large.
-            if let (Some(lock), Some(t)) = (lock, total(growth)) {
-                Store::record(lock, t, self.head.generation);
+            // it happens.
+            grow(u64::try_from(growth).unwrap_or(0));
+            if !first.is_empty() || table.is_some() || head_bytes.is_some() {
+                std::fs::create_dir_all(&self.dir)?;
             }
-            finish()?;
             for (bucket, bytes) in &first {
                 replace_file(&self.dir, &page_name(*bucket), bytes)?;
             }
@@ -1811,7 +1769,7 @@ mod packed {
             for (bucket, bytes) in &mut first {
                 let page = self.pages.get_mut(bucket).expect("written");
                 if last.contains(bucket) {
-                    let exact = page_encode(&page.rows);
+                    let exact = page_encode(&page.rows, epoch);
                     delta += i128::from(exact.len() as u64) - i128::from(bytes.len() as u64);
                     replace_file(&self.dir, &page_name(*bucket), &exact)?;
                     page.len = exact.len() as u64;
@@ -1822,20 +1780,397 @@ mod packed {
                 page.dirty = false;
             }
             self.remove_doomed(&mut delta);
-            if let (Some(lock), Some(t)) = (lock, total(delta)) {
-                Store::record(lock, t, self.generation());
+            Ok(delta)
+        }
+    }
+
+    /// One change a shard's log records.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Op {
+        Set(Key, Location),
+        Remove(Key),
+        Track(u128, u64),
+        Untrack(u128),
+    }
+
+    impl Op {
+        fn encode(self, out: &mut Vec<u8>) {
+            let (tag, key, loc) = match self {
+                Op::Set(key, loc) => (0_u8, key, loc),
+                Op::Remove(key) => (1, key, Location::default()),
+                Op::Track(id, len) => (
+                    2,
+                    (0, 0),
+                    Location {
+                        pack: id,
+                        len,
+                        ..Location::default()
+                    },
+                ),
+                Op::Untrack(id) => (
+                    3,
+                    (0, 0),
+                    Location {
+                        pack: id,
+                        ..Location::default()
+                    },
+                ),
+            };
+            out.push(tag);
+            put_row(out, &key, &loc);
+        }
+
+        fn decode(b: &[u8]) -> Option<Op> {
+            let key = (u16_at(b, 1), u128_at(b, 3));
+            let loc = Location {
+                pack: u128_at(b, 19),
+                offset: u64_at(b, 35),
+                len: u64_at(b, 43),
+                used: u64_at(b, 51),
+            };
+            let known = EntryKind::ALL
+                .iter()
+                .any(|&k| k as u16 == key.0 && k != EntryKind::Clpack);
+            match b[0] {
+                0 if known && loc.len <= MAX_ENTRY && loc.offset.checked_add(loc.len).is_some() => {
+                    Some(Op::Set(key, loc))
+                }
+                1 if known => Some(Op::Remove(key)),
+                2 => Some(Op::Track(loc.pack, loc.len)),
+                3 => Some(Op::Untrack(loc.pack)),
+                _ => None,
+            }
+        }
+    }
+
+    /// A shard log's fixed header: its magic, the fold epoch its records
+    /// extend, a copy of the head that fold wrote, the shard's running
+    /// total, and a checksum of the rest.
+    #[derive(Clone, Copy, Debug, Default)]
+    struct LogHeader {
+        epoch: u32,
+        head: Option<Head>,
+        total: Option<u64>,
+    }
+
+    impl LogHeader {
+        fn encode(self) -> [u8; LOG_HEADER] {
+            let mut out = [0_u8; LOG_HEADER];
+            out[..8].copy_from_slice(LOG_MAGIC);
+            out[8..12].copy_from_slice(&self.epoch.to_le_bytes());
+            if let Some(head) = self.head {
+                out[16..16 + HEAD_LEN].copy_from_slice(&head.encode());
+            }
+            if let Some(total) = self.total {
+                out[80..88].copy_from_slice(&total.to_le_bytes());
+                out[88] = 1;
+            }
+            let sum = checksum(&out[..96]);
+            out[96..].copy_from_slice(&sum.to_le_bytes());
+            out
+        }
+
+        fn decode(b: &[u8]) -> Option<LogHeader> {
+            if b.len() < LOG_HEADER || &b[..8] != LOG_MAGIC || checksum(&b[..96]) != u128_at(b, 96)
+            {
+                return None;
+            }
+            let head = &b[16..16 + HEAD_LEN];
+            Some(LogHeader {
+                epoch: u32_at(b, 8),
+                head: if head.iter().all(|&x| x == 0) {
+                    None
+                } else {
+                    Some(Head::decode(head).ok()?)
+                },
+                total: (b[88] == 1).then(|| u64_at(b, 80)),
+            })
+        }
+    }
+
+    /// One appended batch: its op count, a checksum of its ops, the ops.
+    fn log_frame(ops: &[Op]) -> Vec<u8> {
+        let mut body = Vec::with_capacity(ops.len() * OP);
+        for op in ops {
+            op.encode(&mut body);
+        }
+        let mut out = Vec::with_capacity(LOG_FRAME + body.len());
+        out.extend_from_slice(&u32::try_from(ops.len()).expect("bounded ops").to_le_bytes());
+        out.extend_from_slice(&checksum(&body).to_le_bytes());
+        out.extend_from_slice(&body);
+        out
+    }
+
+    /// A shard's log as read: its header, `None` when missing or torn; the
+    /// ops of its whole frames, in order; and where they end. A torn or
+    /// foreign frame ends the log.
+    struct Log {
+        header: Option<LogHeader>,
+        ops: Vec<Op>,
+        end: u64,
+    }
+
+    fn log_decode(bytes: &[u8]) -> Log {
+        let header = LogHeader::decode(bytes);
+        let mut ops = Vec::new();
+        let mut at = LOG_HEADER.min(bytes.len());
+        while let Some(head) = bytes.get(at..at + LOG_FRAME) {
+            let count = usize::try_from(u32_at(head, 0)).unwrap_or(usize::MAX);
+            let Some(body) = count
+                .checked_mul(OP)
+                .and_then(|n| bytes.get(at + LOG_FRAME..at + LOG_FRAME + n))
+            else {
+                break;
+            };
+            if count == 0 || checksum(body) != u128_at(head, 4) {
+                break;
+            }
+            let Some(batch) = body
+                .chunks_exact(OP)
+                .map(Op::decode)
+                .collect::<Option<Vec<_>>>()
+            else {
+                break;
+            };
+            ops.extend(batch);
+            at += LOG_FRAME + body.len();
+        }
+        Log {
+            header,
+            ops,
+            end: at as u64,
+        }
+    }
+
+    /// What a shard's log adds over its pages: each key's last change
+    /// (`None` for a removal) and each pack's tracking.
+    #[derive(Clone, Default)]
+    struct Overlay {
+        rows: BTreeMap<Key, Option<Location>>,
+        table: BTreeMap<u128, Option<u64>>,
+    }
+
+    impl Overlay {
+        fn apply(&mut self, op: Op) {
+            match op {
+                Op::Set(key, loc) => {
+                    self.rows.insert(key, Some(loc));
+                }
+                Op::Remove(key) => {
+                    self.rows.insert(key, None);
+                }
+                Op::Track(id, len) => {
+                    self.table.insert(id, Some(len));
+                }
+                Op::Untrack(id) => {
+                    self.table.insert(id, None);
+                }
+            }
+        }
+    }
+
+    /// A shard as a reader sees it, taking no lock: the head and epoch of
+    /// the last fold its log names, and the log's overlay. A log whose
+    /// header is torn adds nothing: its head is read from the head file.
+    #[derive(Clone, Default)]
+    struct View {
+        epoch: u32,
+        head: Option<Head>,
+        overlay: Overlay,
+        /// A view whose log names no fold has looked for a head file a
+        /// fold since may have written.
+        probed: bool,
+    }
+
+    /// One shard under its writer lock (#1932): the log, which is also the
+    /// lock file and holds the running total, the overlay it adds, the
+    /// changes this writer appends, and the folded pages under them.
+    struct Shard {
+        id: u8,
+        file: File,
+        header: LogHeader,
+        end: u64,
+        overlay: Overlay,
+        pending: Vec<Op>,
+        /// The folded pages, head and table, read when first needed: a
+        /// publication that only appends reads none of them.
+        txn: Option<Txn>,
+        dir: PathBuf,
+    }
+
+    impl Shard {
+        fn txn(&mut self) -> io::Result<&mut Txn> {
+            if self.txn.is_none() {
+                self.txn = Some(Txn::open(self.dir.clone())?);
+            }
+            Ok(self.txn.as_mut().expect("opened"))
+        }
+
+        /// `key`'s location: the log's last change, else the pages'.
+        fn get(&mut self, key: Key) -> io::Result<Option<Location>> {
+            match self.overlay.rows.get(&key) {
+                Some(change) => Ok(*change),
+                None => self.txn()?.get(key),
+            }
+        }
+
+        fn push(&mut self, op: Op) {
+            self.overlay.apply(op);
+            self.pending.push(op);
+        }
+
+        fn set(&mut self, key: Key, loc: Location) {
+            self.push(Op::Set(key, loc));
+        }
+
+        fn remove(&mut self, key: Key) -> io::Result<()> {
+            if self.get(key)?.is_some() {
+                self.push(Op::Remove(key));
             }
             Ok(())
+        }
+
+        fn track(&mut self, id: u128, len: u64) {
+            self.push(Op::Track(id, len));
+        }
+
+        fn untrack(&mut self, id: u128) -> io::Result<()> {
+            if self.table()?.contains_key(&id) {
+                self.push(Op::Untrack(id));
+            }
+            Ok(())
+        }
+
+        /// The packs this shard's table tracks, with the log applied.
+        fn table(&mut self) -> io::Result<BTreeMap<u128, u64>> {
+            let mut table = self.txn()?.table()?.clone();
+            for (&id, &len) in &self.overlay.table {
+                match len {
+                    Some(len) => table.insert(id, len),
+                    None => table.remove(&id),
+                };
+            }
+            Ok(table)
+        }
+
+        /// Every row, the pages' with the log applied: for collections and
+        /// tools.
+        fn all(&mut self) -> io::Result<Entries> {
+            let mut rows = self.txn()?.all()?;
+            for (&key, change) in &self.overlay.rows {
+                match change {
+                    Some(loc) => rows.insert(key, *loc),
+                    None => rows.remove(&key),
+                };
+            }
+            Ok(rows)
+        }
+
+        fn dirty(&self) -> bool {
+            !self.pending.is_empty()
+        }
+
+        fn write_header(&self) -> io::Result<()> {
+            (&self.file).seek(SeekFrom::Start(0))?;
+            (&self.file).write_all(&self.header.encode())
+        }
+
+        /// Sets the shard's running total, as a collection's walk found it.
+        fn set_total(&mut self, total: u64) -> io::Result<()> {
+            self.header.total = Some(total);
+            self.write_header()
+        }
+
+        /// Lowers the running total by `bytes` a removal took.
+        fn removed(&mut self, bytes: u64) -> io::Result<()> {
+            if let Some(total) = &mut self.header.total {
+                *total = total.saturating_sub(bytes);
+            }
+            self.write_header()
+        }
+
+        /// Appends this writer's changes as one record batch: one write, no
+        /// temporary file, no rename (#1932). A home shard's total first
+        /// grows by the `added` pack bytes `finish` then makes final; the
+        /// log's records are not counted, as at most [`FOLD_AT`] bytes per
+        /// shard. A log past [`FOLD_AT`] is folded into pages.
+        fn commit(
+            &mut self,
+            added: u64,
+            finish: impl FnOnce() -> io::Result<()>,
+        ) -> io::Result<()> {
+            let frame = (!self.pending.is_empty()).then(|| log_frame(&self.pending));
+            if added > 0 {
+                if let Some(total) = &mut self.header.total {
+                    *total = total.saturating_add(added);
+                }
+                self.write_header()?;
+            }
+            finish()?;
+            if let Some(frame) = frame {
+                (&self.file).seek(SeekFrom::Start(self.end))?;
+                (&self.file).write_all(&frame)?;
+                count!(index_written, frame.len());
+                self.end += frame.len() as u64;
+                self.pending.clear();
+            }
+            if self.end > (LOG_HEADER as u64) + FOLD_AT {
+                self.fold()?;
+            }
+            Ok(())
+        }
+
+        /// Folds the log into the pages: applies its changes, writes the
+        /// changed pages, table and head stamped with the next epoch, then
+        /// empties the log to a header naming that epoch and head. Cost:
+        /// the pages the log's keys fall in, about one page per change at
+        /// worst, once per [`FOLD_AT`] bytes appended.
+        fn fold(&mut self) -> io::Result<()> {
+            debug_assert!(self.pending.is_empty());
+            for (&key, change) in &std::mem::take(&mut self.overlay.rows) {
+                match change {
+                    Some(loc) => self.txn()?.set(key, *loc)?,
+                    None => self.txn()?.remove(key)?,
+                }
+            }
+            for (&id, len) in &std::mem::take(&mut self.overlay.table) {
+                match len {
+                    Some(len) => self.txn()?.track(id, *len)?,
+                    None => self.txn()?.untrack(id)?,
+                }
+            }
+            self.txn()?.shrink()?;
+            let epoch = self.header.epoch.wrapping_add(1);
+            let base = self.header.total;
+            let mut file = &self.file;
+            let header = &mut self.header;
+            let txn = self.txn.get_or_insert(Txn::open(self.dir.clone())?);
+            let delta = txn.commit(epoch, |growth| {
+                header.total = base.map(|t| t.saturating_add(growth));
+                let _ = file
+                    .seek(SeekFrom::Start(0))
+                    .and_then(|_| file.write_all(&header.encode()));
+            })?;
+            // Shorten first: a crash before the header leaves the old
+            // epoch's header with no records, all of them in the pages.
+            self.file.set_len(LOG_HEADER as u64)?;
+            self.end = LOG_HEADER as u64;
+            self.header.epoch = epoch;
+            self.header.head = self.txn.as_ref().and_then(|t| t.stored);
+            self.header.total =
+                base.map(|t| u64::try_from((i128::from(t) + delta).max(0)).unwrap_or(0));
+            self.write_header()
         }
     }
 
     impl Store {
         pub(super) fn new(root: &Path) -> Self {
             Self {
-                root: root.join("pack-v1"),
+                root: root.join(NAMESPACE),
                 snapshot: Mutex::new(None),
                 used: AtomicU64::new(0),
-                published: AtomicBool::new(false),
+                published: AtomicU32::new(0),
+                rooted: AtomicBool::new(false),
                 #[cfg(test)]
                 on_pause: None,
             }
@@ -1858,144 +2193,118 @@ mod packed {
             self.root.join(format!("{id:032x}.pack"))
         }
 
-        fn index_dir(&self) -> PathBuf {
-            self.root.join("index")
+        /// Shard `shard`'s directory of folded pages, head and table.
+        fn index_dir(&self, shard: u8) -> PathBuf {
+            self.root.join("index").join(format!("{shard:x}"))
+        }
+
+        /// Shard `shard`'s log, which is also its lock.
+        fn log_path(&self, shard: u8) -> PathBuf {
+            self.root.join("index").join(format!("{shard:x}.log"))
         }
 
         fn ensure_root(&self) -> io::Result<()> {
+            if self.rooted.load(Ordering::Relaxed) {
+                return Ok(());
+            }
             std::fs::create_dir_all(&self.root)?;
             if !is_real_dir(&self.root) {
                 return Err(invalid("cache pack namespace is not a directory"));
             }
+            self.rooted.store(true, Ordering::Relaxed);
             Ok(())
         }
 
-        fn lock(&self) -> io::Result<File> {
-            // A namespace this call creates is empty: its total is known.
-            // Any other failure is `ensure_root`'s to report.
-            let created = match std::fs::create_dir(&self.root) {
-                Ok(()) => true,
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    self.root
-                        .parent()
-                        .is_some_and(|parent| std::fs::create_dir_all(parent).is_ok())
-                        && std::fs::create_dir(&self.root).is_ok()
-                }
-                Err(_) => false,
-            };
+        /// Shard `shard` under its writer lock, which covers that shard's
+        /// commits only; a run takes one at a time. A new shard's log is
+        /// created with a known total of zero, a torn tail is cut, and a
+        /// torn header is rebuilt from the head file with the total unknown.
+        fn open_shard(&self, shard: u8) -> io::Result<Shard> {
             self.ensure_root()?;
-            let path = self.root.join("lock");
+            let path = self.log_path(shard);
             if std::fs::symlink_metadata(&path).is_ok_and(|m| !m.file_type().is_file()) {
-                return Err(invalid("cache publication lock is not a regular file"));
+                return Err(invalid("cache index shard log is not a regular file"));
             }
-            let file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(path)?;
-            count!(writer_locks, 1);
-            file.lock()?;
-            if created && Self::recorded(&file, 0).is_none() && !self.index_dir().exists() {
-                Self::record(&file, 0, 0);
-            }
-            Ok(file)
-        }
-
-        /// What a reader sees, taking no lock: the paged index's head, or
-        /// an older hd's single file (also mid-migration, as `index.old`).
-        fn view(&self) -> View {
-            let index = self.index_dir();
-            let legacy = |path: &Path| {
-                read_legacy(path)
-                    .ok()
-                    .flatten()
-                    .map_or(View::Empty, View::Legacy)
-            };
-            match std::fs::symlink_metadata(&index) {
-                Ok(meta) if meta.file_type().is_dir() => read_head(&index)
-                    .ok()
-                    .flatten()
-                    .map_or(View::Empty, View::Paged),
-                Ok(meta) if meta.file_type().is_file() => legacy(&index),
-                Ok(_) => View::Empty,
-                Err(_) => legacy(&self.root.join("index.old")),
-            }
-        }
-
-        /// The publication lock and the index, migrated from an older hd's
-        /// single file first.
-        fn begin(&self) -> io::Result<(File, Txn)> {
-            let lock = self.lock()?;
-            self.migrate()?;
-            Ok((lock, Txn::open(self.index_dir())?))
-        }
-
-        /// Caller holds the publication lock. Rewrites an older hd's single
-        /// index file as pages in `index.new/`, then swaps it in: `index`
-        /// becomes `index.old`, `index.new` becomes `index`, and `index.old`
-        /// goes. Readers see the old file under either name meanwhile; a
-        /// crash between the renames is finished by the next writer. An
-        /// older hd finds a directory where its index was and reads misses.
-        fn migrate(&self) -> io::Result<()> {
-            let index = self.index_dir();
-            let old = self.root.join("index.old");
-            let source = match std::fs::symlink_metadata(&index) {
-                Ok(meta) if meta.file_type().is_dir() => {
-                    if std::fs::symlink_metadata(&old).is_ok_and(|m| m.file_type().is_file()) {
-                        remove_missing_ok(&old)?;
-                    }
-                    return Ok(());
-                }
-                Ok(meta) if meta.file_type().is_file() => index.clone(),
-                Ok(_) => return Err(invalid("cache index is not a directory")),
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).create(true).truncate(false);
+            let file = match options.open(&path) {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    if std::fs::symlink_metadata(&old).is_ok_and(|m| m.file_type().is_file()) {
-                        old.clone()
-                    } else {
-                        std::fs::create_dir(&index)?;
-                        return Ok(());
-                    }
+                    std::fs::create_dir_all(self.root.join("index"))?;
+                    options.open(&path)?
                 }
-                Err(e) => return Err(e),
+                opened => opened?,
             };
-            let entries = match read_legacy(&source) {
-                Ok(entries) => entries.unwrap_or_default(),
-                Err(e) if e.kind() == io::ErrorKind::InvalidData => Entries::new(),
-                Err(e) => return Err(e),
-            };
-            let new = self.root.join("index.new");
-            if is_real_dir(&new) {
-                Self::clear(&new)?;
+            count!(writer_locks, 1);
+            if file.try_lock().is_err() {
+                count!(lock_waits, 1);
+                file.lock()?;
+            }
+            let mut bytes = Vec::new();
+            (&file)
+                .take(u64::try_from(MAX_INDEX).expect("limit"))
+                .read_to_end(&mut bytes)?;
+            count!(index_read, bytes.len());
+            let log = log_decode(&bytes);
+            let dir = self.index_dir(shard);
+            let mut txn = None;
+            let header = if let Some(header) = log.header {
+                header
             } else {
-                remove_missing_ok(&new)?;
+                let fresh = bytes.is_empty() && !dir.exists();
+                let stored = txn.insert(Txn::open(dir.clone())?).stored;
+                LogHeader {
+                    epoch: stored.map_or(0, |h| u32::try_from(h.generation).unwrap_or(0)),
+                    head: stored,
+                    total: fresh.then_some(0),
+                }
+            };
+            let mut overlay = Overlay::default();
+            // Records are absolute changes: replaying ones a fold already
+            // applied changes nothing.
+            for op in log.ops {
+                overlay.apply(op);
             }
-            std::fs::create_dir(&new)?;
-            let mut txn = Txn::open(new.clone())?;
-            for (key, loc) in entries {
-                txn.set(key, loc)?;
+            let shard = Shard {
+                id: shard,
+                file,
+                header,
+                end: log.end.max(LOG_HEADER as u64),
+                overlay,
+                pending: Vec::new(),
+                txn,
+                dir,
+            };
+            if log.header.is_none() {
+                shard.write_header()?;
             }
-            // The running total names the legacy file: unknown from here.
-            txn.commit(None, 0, || Ok(()))?;
-            if source == index {
-                std::fs::rename(&index, &old)?;
+            if bytes.len() as u64 > shard.end {
+                shard.file.set_len(shard.end)?;
             }
-            std::fs::rename(&new, &index)?;
-            remove_missing_ok(&old)
+            Ok(shard)
         }
 
-        /// Removes the managed files of an abandoned migration directory,
-        /// then the directory; a foreign file keeps it.
-        fn clear(dir: &Path) -> io::Result<()> {
-            // cost: only after a migration that crashed, once.
-            for e in std::fs::read_dir(dir)? {
-                let e = e?;
-                let name = e.file_name();
-                if name.to_str().is_some_and(Self::index_file) && e.file_type()?.is_file() {
-                    remove_missing_ok(&e.path())?;
-                }
+        /// Shard `shard` as a reader sees it, taking no lock.
+        fn read_view(&self, shard: u8) -> View {
+            let Ok(Some(bytes)) = read_small(&self.log_path(shard), MAX_INDEX) else {
+                return View::default();
+            };
+            let log = log_decode(&bytes);
+            let Some(header) = log.header else {
+                return View {
+                    head: read_head(&self.index_dir(shard)).ok().flatten(),
+                    ..View::default()
+                };
+            };
+            let mut overlay = Overlay::default();
+            for op in log.ops {
+                overlay.apply(op);
             }
-            std::fs::remove_dir(dir)
+            View {
+                epoch: header.epoch,
+                head: header.head,
+                overlay,
+                probed: false,
+            }
         }
 
         /// A file name the paged index writes.
@@ -2011,39 +2320,47 @@ mod packed {
                     && base.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')))
         }
 
-        /// Caller holds the publication lock across creation and locking.
-        fn lease(&self) -> io::Result<Lease> {
+        /// A new pack leased to this run, its ID in shard `home`. The file
+        /// is created as `.new`, locked, then renamed `.pending`, so a
+        /// `.pending` file whose lock is free belongs to a dead writer: no
+        /// lock is shared with other publishers. A `.new` file is left
+        /// only by a crash between creation and locking.
+        fn lease(&self, home: u8) -> io::Result<Lease> {
+            self.ensure_root()?;
             loop {
-                let id = unique();
+                let id = (unique() & !(0xf << 124)) | (u128::from(home) << 124);
                 if self.path(id).try_exists()? {
                     continue;
                 }
-                let path = self.root.join(format!("{id:032x}.pending"));
-                match OpenOptions::new()
+                let new = self.root.join(format!("{id:032x}.new"));
+                let file = match OpenOptions::new()
                     .read(true)
                     .write(true)
                     .create_new(true)
-                    .open(&path)
+                    .open(&new)
                 {
-                    Ok(file) => {
-                        let lease = Lease {
-                            id,
-                            path,
-                            file,
-                            committed: false,
-                        };
-                        lease.file.lock()?;
-                        return Ok(lease);
-                    }
-                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+                    Ok(file) => file,
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
                     Err(e) => return Err(e),
-                }
+                };
+                let mut lease = Lease {
+                    id,
+                    path: new,
+                    file,
+                    committed: false,
+                };
+                lease.file.lock()?;
+                let path = self.root.join(format!("{id:032x}.pending"));
+                std::fs::rename(&lease.path, &path)?;
+                lease.path = path;
+                return Ok(lease);
             }
         }
 
-        /// Caller holds the publication lock. Pending bytes are not yet
-        /// compiled entries; after unlocking and renaming, GC still cannot
-        /// race the index commit because it needs that same writer lock.
+        /// Renames the leased pack into place, still locked: until the
+        /// run's last shard commit releases it, a collection keeps it
+        /// even where no row names it yet. Called inside the home shard's
+        /// commit, after its growth is recorded.
         fn finish(&self, lease: &mut Lease) -> io::Result<()> {
             let path = self.path(lease.id);
             if path.try_exists()? {
@@ -2052,11 +2369,10 @@ mod packed {
                     "cache pack ID already exists",
                 ));
             }
-            lease.file.unlock()?;
             std::fs::rename(&lease.path, &path)?;
             lease.path = path;
-            // Pages that name it may be on disk before the commit fails:
-            // from here only GC, under the lock and by the index, removes it.
+            // From here only a collection, checking every key of its
+            // footer, removes it.
             lease.committed = true;
             Ok(())
         }
@@ -2072,44 +2388,46 @@ mod packed {
             Ok(Opened { file, len })
         }
 
-        /// `key`'s location in the snapshot, reading its page once.
+        /// `key`'s location in the snapshot, reading its shard's log once
+        /// and its page once. The log's change wins over a page no later
+        /// fold wrote; a page a later fold wrote already holds it.
         fn locate(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
-            match &state.view {
-                View::Empty => None,
-                View::Legacy(entries) => entries.get(&key).copied(),
-                View::Paged(head) => {
-                    let bucket = head.bucket(key.1);
-                    let dir = self.index_dir();
-                    state
-                        .pages
-                        .entry(bucket)
-                        .or_insert_with(|| {
-                            read_page(&dir, bucket)
-                                .ok()
-                                .flatten()
-                                .map(|(rows, _)| rows)
-                                .unwrap_or_default()
-                        })
-                        .get(&key)
-                        .copied()
-                }
+            let shard = shard_of(key.1);
+            let Snapshot { views, pages, .. } = state;
+            let view = views.entry(shard).or_insert_with(|| self.read_view(shard));
+            let change = view.overlay.rows.get(&key).copied();
+            let dir = self.index_dir(shard);
+            if view.head.is_none() && change.is_some() && !view.probed {
+                // A fold after this view was read leaves a head: its pages
+                // are newer than the view's changes.
+                view.probed = true;
+                view.head = read_head(&dir).ok().flatten();
+            }
+            let Some(head) = view.head else {
+                return change.flatten();
+            };
+            let bucket = head.bucket(key.1);
+            let (rows, epoch) = pages.entry((shard, bucket)).or_insert_with(|| {
+                read_page(&dir, bucket)
+                    .ok()
+                    .flatten()
+                    .map(|(rows, _, epoch)| (rows, epoch))
+                    .unwrap_or_default()
+            });
+            match change {
+                Some(change) if *epoch <= view.epoch => change,
+                _ => rows.get(&key).copied(),
             }
         }
 
-        fn snapshot<'a>(
-            &self,
-            guard: &'a mut MutexGuard<'_, Option<Snapshot>>,
-        ) -> &'a mut Snapshot {
-            guard.get_or_insert_with(|| Snapshot {
-                view: self.view(),
-                ..Snapshot::default()
-            })
+        fn snapshot<'a>(guard: &'a mut MutexGuard<'_, Option<Snapshot>>) -> &'a mut Snapshot {
+            guard.get_or_insert_with(Snapshot::default)
         }
 
         pub(super) fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
             self.used.store(1, Ordering::Relaxed);
             let mut guard = self.state();
-            let state = self.snapshot(&mut guard);
+            let state = Self::snapshot(&mut guard);
             let loc = self.opened(state, (kind as u16, key.0))?;
             let opened = state.files.get_mut(&loc.pack)?;
             if loc.len > MAX_ENTRY || loc.offset.checked_add(loc.len)? > opened.len {
@@ -2129,10 +2447,10 @@ mod packed {
         /// immutable and a merge or GC removes one only after committing
         /// an index that no longer names it, so a pack the snapshot names
         /// but cannot find means its pages predate another process's
-        /// commit. The snapshot then reads the head and pages again, once
+        /// commit. The snapshot then reads the heads and pages again, once
         /// per vanished pack, as git rescans its packs when one disappears
         /// (`reprepare_packed_git`). Cost: nothing on a hit or an ordinary
-        /// miss; per vanished pack, one head and the pages read after it.
+        /// miss; per vanished pack, the heads and pages read after it.
         fn opened(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
             loop {
                 let loc = self.locate(state, key)?;
@@ -2148,11 +2466,11 @@ mod packed {
                         return Some(loc);
                     }
                     // A pack the index still names after a refresh is
-                    // missing for good: a miss, left to GC's slow path.
+                    // missing for good: a miss, left to the collection.
                     Err(e)
                         if e.kind() == io::ErrorKind::NotFound && state.gone.insert(loc.pack) =>
                     {
-                        state.view = self.view();
+                        state.views.clear();
                         state.pages.clear();
                     }
                     Err(_) => return None,
@@ -2163,7 +2481,7 @@ mod packed {
         pub(super) fn touch(&self, kind: EntryKind, key: &Hash128) {
             self.used.store(1, Ordering::Relaxed);
             let mut guard = self.state();
-            let state = self.snapshot(&mut guard);
+            let state = Self::snapshot(&mut guard);
             let k = (kind as u16, key.0);
             let at = now();
             if self
@@ -2174,37 +2492,91 @@ mod packed {
             }
         }
 
-        /// Applies the pending recency marks to the rows they name.
-        fn merge_touches(&self, txn: &mut Txn) -> io::Result<()> {
-            let touched = self
-                .state()
-                .as_mut()
-                .map(|s| std::mem::take(&mut s.touched))
-                .unwrap_or_default();
+        /// Applies the pending recency marks of `shard` to the rows they
+        /// name.
+        fn merge_touches(&self, shard: &mut Shard) -> io::Result<()> {
+            let id = shard.id;
+            let touched: Vec<(Key, u64)> = self.state().as_mut().map_or_else(Vec::new, |s| {
+                let mine: Vec<Key> = s
+                    .touched
+                    .keys()
+                    .filter(|k| shard_of(k.1) == id)
+                    .copied()
+                    .collect();
+                mine.into_iter()
+                    .filter_map(|k| s.touched.remove(&k).map(|at| (k, at)))
+                    .collect()
+            });
             for (key, used) in touched {
-                if let Some(loc) = txn.get(key)?
+                if let Some(loc) = shard.get(key)?
                     && used > loc.used
                 {
-                    txn.set(key, Location { used, ..loc })?;
+                    shard.set(key, Location { used, ..loc });
                 }
             }
             Ok(())
         }
 
-        /// The snapshot after this process's commit: its head and the pages
-        /// it wrote; other pages are read again when needed.
-        fn adopt(&self, txn: &Txn) {
+        /// The shards with pending recency marks.
+        fn touched_shards(&self) -> BTreeSet<u8> {
+            self.state()
+                .as_ref()
+                .map(|s| s.touched.keys().map(|k| shard_of(k.1)).collect())
+                .unwrap_or_default()
+        }
+
+        /// The snapshot after this process's commit to `shard`: its log as
+        /// this writer left it, and the pages it folded; other pages are
+        /// read again when needed.
+        fn adopt(&self, shard: &Shard) {
             let mut guard = self.state();
             let state = guard.get_or_insert_with(Snapshot::default);
-            state.view = txn.stored.map_or(View::Empty, View::Paged);
-            if txn.stored.is_none() {
-                state.pages.clear();
-            }
-            for (&bucket, page) in &txn.pages {
-                state.pages.insert(bucket, page.rows.clone());
+            state.views.insert(
+                shard.id,
+                View {
+                    epoch: shard.header.epoch,
+                    head: shard.header.head,
+                    overlay: shard.overlay.clone(),
+                    probed: false,
+                },
+            );
+            state.pages.retain(|(s, _), _| *s != shard.id);
+            for (&bucket, page) in shard.txn.iter().flat_map(|t| &t.pages) {
+                if !page.dirty {
+                    state
+                        .pages
+                        .insert((shard.id, bucket), (page.rows.clone(), shard.header.epoch));
+                }
             }
         }
 
+        /// One shard's commit: this run's marks there, then `apply`.
+        fn commit_shard(
+            &self,
+            shard: u8,
+            added: u64,
+            finish: impl FnOnce() -> io::Result<()>,
+            apply: impl FnOnce(&mut Shard) -> io::Result<()>,
+        ) -> io::Result<()> {
+            let mut shard = self.open_shard(shard)?;
+            self.merge_touches(&mut shard)?;
+            apply(&mut shard)?;
+            // A home shard always adds its pack's bytes, so `finish` runs.
+            if shard.dirty() || added > 0 {
+                shard.commit(added, finish)?;
+            }
+            self.adopt(&shard);
+            Ok(())
+        }
+
+        /// Publishes `batch` as one pack (#1932): written with no lock,
+        /// then committed shard by shard, one shard lock at a time. The
+        /// pack's home shard, where the pack table tracks it and which
+        /// holds its first row, commits first, renaming the pack into
+        /// place after recording its bytes. Runs whose keys lie in other
+        /// shards never wait for this one. Cost: one appended batch of 59
+        /// bytes per entry in each of at most min(entries, 16) shards, and
+        /// a fold of a log that passes [`FOLD_AT`].
         pub(super) fn publish(&self, batch: &Batch) -> io::Result<()> {
             if batch.is_empty() {
                 return Ok(());
@@ -2216,19 +2588,17 @@ mod packed {
             }) {
                 return Err(invalid("cache entry exceeds its size limit or is private"));
             }
-            let mut lease = {
-                let _lock = self.lock()?;
-                self.lease()?
-            };
+            let home = shard_of(batch[0].1.0);
+            let mut lease = self.lease(home)?;
             let mut offset = 0_u64;
-            let mut pending = Entries::new();
+            let mut rows = BTreeMap::<u8, Entries>::new();
             let mut frames = Frames::with_capacity(batch.len());
             let at = now();
             for (kind, key, bytes) in batch {
                 lease.file.write_all(bytes)?;
                 let len = u64::try_from(bytes.len()).map_err(io::Error::other)?;
                 let k = (*kind as u16, key.0);
-                pending.insert(
+                rows.entry(shard_of(key.0)).or_default().insert(
                     k,
                     Location {
                         pack: lease.id,
@@ -2245,17 +2615,36 @@ mod packed {
             let foot = footer(&frames);
             lease.file.write_all(&foot)?;
             let pack_len = offset + foot.len() as u64;
-            let (lock, mut txn) = self.begin()?;
-            self.merge_touches(&mut txn)?;
-            for (key, loc) in pending {
-                txn.set(key, loc)?;
+            let id = lease.id;
+            let home_rows = rows.remove(&home).unwrap_or_default();
+            self.commit_shard(
+                home,
+                pack_len,
+                || self.finish(&mut lease),
+                |shard| {
+                    for (key, loc) in home_rows {
+                        shard.set(key, loc);
+                    }
+                    shard.track(id, pack_len);
+                    Ok(())
+                },
+            )?;
+            for (shard, rows) in rows {
+                self.commit_shard(
+                    shard,
+                    0,
+                    || Ok(()),
+                    |shard| {
+                        for (key, loc) in rows {
+                            shard.set(key, loc);
+                        }
+                        Ok(())
+                    },
+                )?;
             }
-            txn.track(lease.id, pack_len)?;
-            // The writer lock still excludes GC; unlock before readers
-            // can see the new rows (Windows byte-range locks block reads).
-            txn.commit(Some(&lock), pack_len, || self.finish(&mut lease))?;
-            self.published.store(true, Ordering::Relaxed);
-            self.adopt(&txn);
+            // Every row is committed: a collection may judge the pack now.
+            drop(lease);
+            self.published.fetch_or(1 << home, Ordering::Relaxed);
             Ok(())
         }
 
@@ -2263,18 +2652,17 @@ mod packed {
             name.strip_suffix(".pack").and_then(parse_key).map(|k| k.0)
         }
 
-        /// Walks `pack-v1/` and its index, taking no lock: the collection's
-        /// inventory. A file another process removes meanwhile is skipped.
-        /// It never follows a link or counts a foreign filename.
+        /// Walks the pack namespace and its index shards, taking no lock:
+        /// the collection's inventory. A file another process removes
+        /// meanwhile is skipped. It never follows a link or counts a
+        /// foreign filename.
         fn walk(&self) -> io::Result<Inventory> {
             #[cfg(test)]
             self.pause("walk");
-            // cost: the interval collection and `hd cache gc` only (#1932);
-            // no command path walks.
             count!(walks, 1);
             let mut inv = Inventory::default();
             let len = |e: &std::fs::DirEntry| match e.metadata() {
-                Ok(meta) => Ok(Some(meta.len())),
+                Ok(meta) => Ok(Some(meta)),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
                 Err(error) => Err(error),
             };
@@ -2290,25 +2678,25 @@ mod packed {
                 let name = e.file_name();
                 let Some(name) = name.to_str() else { continue };
                 if let Some(id) = Self::pack_id(name) {
-                    if let Some(n) = len(&e)? {
-                        inv.total = inv.total.saturating_add(n);
-                        inv.packs.insert(id, n);
+                    if let Some(meta) = len(&e)? {
+                        inv.total = inv.total.saturating_add(meta.len());
+                        inv.packs.insert(id, meta.len());
                     }
                 } else if name.strip_suffix(".pending").and_then(parse_key).is_some() {
                     inv.pending.push(e.path());
-                } else if name == "index" || name == "index.old" {
-                    inv.total = inv.total.saturating_add(len(&e)?.unwrap_or(0));
-                } else if name
-                    .strip_prefix("index.")
-                    .and_then(|n| n.strip_suffix(".tmp"))
-                    .and_then(parse_key)
-                    .is_some()
+                } else if name.strip_suffix(".new").and_then(parse_key).is_some()
+                    && len(&e)?.is_some_and(|meta| super::stale_by(&meta, super::GC_INTERVAL))
                 {
-                    inv.temps.push(e.path());
+                    // Only a crash between creating and locking a lease
+                    // leaves one; a live writer renames it at once.
+                    inv.abandoned.push(e.path());
                 }
             }
-            let index = self.index_dir();
-            if is_real_dir(&index) {
+            for shard in 0..SHARDS {
+                let index = self.index_dir(shard);
+                if !is_real_dir(&index) {
+                    continue;
+                }
                 count!(dirs_listed, 1);
                 // cost: O(pages), in a collection only.
                 for e in std::fs::read_dir(index)? {
@@ -2320,81 +2708,154 @@ mod packed {
                         continue;
                     }
                     if name.rsplit_once('.').is_some_and(|(_, ext)| ext == "tmp") {
-                        inv.temps.push(e.path());
+                        inv.temps.push((shard, e.path()));
                         continue;
                     }
-                    let n = len(&e)?.unwrap_or(0);
+                    let n = len(&e)?.map_or(0, |meta| meta.len());
                     inv.total = inv.total.saturating_add(n);
+                    inv.index[usize::from(shard)] += n;
                     if let Ok(bucket) = u64::from_str_radix(name, 16)
                         && name.len() == 16
                     {
-                        inv.pages.push(bucket);
-                        inv.page_bytes += n;
+                        inv.pages.push((shard, bucket));
+                        inv.page_bytes[usize::from(shard)] += n;
                     }
                 }
             }
             Ok(inv)
         }
 
-        /// Every row, read with no lock, and whether the head was the same
-        /// before and after, so that no split or merge moved a row past the
-        /// read. Up to three tries.
+        /// Every row, read with no lock: each shard's pages under the head
+        /// its log names, with the log's changes applied where no later
+        /// fold wrote the page. True when no shard's log was folded during
+        /// its read, so no split or merge moved a row past it. Up to three
+        /// tries per shard.
         fn read_all(&self) -> io::Result<(Entries, bool)> {
-            let dir = self.index_dir();
-            let mut last = Entries::new();
-            for _ in 0..3 {
-                let head = match read_head(&dir) {
-                    Ok(Some(head)) => head,
-                    // No head, or a corrupt one: writers start an empty index.
-                    Ok(None) => return Ok((Entries::new(), true)),
-                    Err(e) if e.kind() == io::ErrorKind::InvalidData => {
-                        return Ok((Entries::new(), true));
+            let mut all = Entries::new();
+            let mut consistent = true;
+            for shard in 0..SHARDS {
+                if !self.log_path(shard).exists() {
+                    continue;
+                }
+                let dir = self.index_dir(shard);
+                let mut last = (Entries::new(), true);
+                for _ in 0..3 {
+                    let view = self.read_view(shard);
+                    let mut rows = Entries::new();
+                    let mut folded = BTreeSet::new();
+                    if let Some(head) = view.head {
+                        for bucket in 0..head.buckets() {
+                            match read_page(&dir, bucket) {
+                                Ok(Some((page, _, epoch))) => {
+                                    if epoch > view.epoch {
+                                        folded.extend(page.keys().copied());
+                                    }
+                                    rows.extend(
+                                        page.into_iter()
+                                            .filter(|(k, _)| head.bucket(k.1) == bucket),
+                                    );
+                                }
+                                // A missing or corrupt page is empty to
+                                // writers too.
+                                Ok(None) => {}
+                                Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
                     }
-                    Err(e) => return Err(e),
-                };
-                let mut entries = Entries::new();
-                for bucket in 0..head.buckets() {
-                    match read_page(&dir, bucket) {
-                        Ok(Some((rows, _))) => entries
-                            .extend(rows.into_iter().filter(|(k, _)| head.bucket(k.1) == bucket)),
-                        // A corrupt page is empty to writers too.
-                        Ok(None) => {}
-                        Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
-                        Err(e) => return Err(e),
+                    for (&key, change) in &view.overlay.rows {
+                        if folded.contains(&key) {
+                            continue;
+                        }
+                        match change {
+                            Some(loc) => rows.insert(key, *loc),
+                            None => rows.remove(&key),
+                        };
+                    }
+                    #[cfg(test)]
+                    self.pause("read");
+                    let same = self.read_view(shard).epoch == view.epoch;
+                    last = (rows, same);
+                    if same {
+                        break;
                     }
                 }
-                if read_head(&dir).ok().flatten() == Some(head) {
-                    return Ok((entries, true));
-                }
-                last = entries;
+                consistent &= last.1;
+                all.extend(last.0);
             }
-            Ok((last, false))
+            Ok((all, consistent))
         }
 
         /// The keys whose rows may name pack `id`: its footer's. `None` when
-        /// it has none (an older hd wrote it) or it cannot be read.
+        /// it has no readable footer.
         fn footer_keys(&self, id: u128) -> Option<Vec<Key>> {
             let mut opened = self.open(id).ok()?;
             let frames = read_footer(&mut opened.file, opened.len).ok()?;
             Some(frames.into_iter().map(|(key, _, _)| key).collect())
         }
 
+        /// Whether a run still holds pack `id`'s lease lock, committing
+        /// its rows; a pack no run holds has all its rows committed.
+        fn leased(&self, id: u128) -> bool {
+            File::open(self.path(id))
+                .is_ok_and(|file| matches!(file.try_lock_shared(), Err(TryLockError::WouldBlock)))
+        }
+
+        /// Removes the packs in `ids` from their home shards' tables, then
+        /// their files, one shard lock at a time; the bytes removed.
+        fn drop_packs(&self, ids: &[u128]) -> io::Result<u64> {
+            let mut by_home = BTreeMap::<u8, Vec<u128>>::new();
+            for &id in ids {
+                by_home.entry(shard_of(id)).or_default().push(id);
+            }
+            let mut removed = 0;
+            for (home, ids) in by_home {
+                let mut shard = self.open_shard(home)?;
+                for &id in &ids {
+                    shard.untrack(id)?;
+                }
+                if shard.dirty() {
+                    shard.commit(0, || Ok(()))?;
+                }
+                self.adopt(&shard);
+                let mut gone = 0;
+                for id in ids {
+                    let path = self.path(id);
+                    let size = std::fs::symlink_metadata(&path).map_or(0, |m| m.len());
+                    // An open reader on Windows may postpone this; a later
+                    // collection retries it.
+                    if std::fs::remove_file(path).is_ok() {
+                        gone += size;
+                    }
+                }
+                if gone > 0 {
+                    shard.removed(gone)?;
+                }
+                removed += gone;
+            }
+            Ok(removed)
+        }
+
         /// Copies `sources`' frames into one new pack, taking no lock, then
-        /// under the writer lock repoints each row still at its old range
-        /// and removes each source no row names any more. A row that moved
-        /// meanwhile keeps its new place, and a copy nobody needs is
-        /// dropped. Returns the removed sources' bytes. Cost: the copied
-        /// bytes, unlocked; the pages of the sources' keys, locked.
+        /// commits shard by shard, one lock at a time: each row still at
+        /// its old range moves to the new pack. A source no key's row
+        /// names any more is removed, as is the copy when no row took it.
+        /// Rows never move into an existing pack, so a key found elsewhere
+        /// in one shard stays elsewhere. Returns the bytes removed. Cost:
+        /// the copied bytes, unlocked; the pages of the sources' keys.
         fn rewrite(&self, sources: &[Source]) -> io::Result<u64> {
-            let mut lease = {
-                let _lock = self.lock()?;
-                self.lease()?
-            };
+            // The home of the first copied key, or of the first source when
+            // nothing is live: the empty copy is then dropped with them.
+            let home = sources
+                .iter()
+                .find_map(|s| s.copy.first())
+                .map_or_else(|| shard_of(sources[0].id), |first| shard_of(first.0.1));
+            let mut lease = self.lease(home)?;
             #[cfg(test)]
             self.pause("copy");
             let mut offset = 0_u64;
             let mut frames = Frames::new();
-            let mut moved = Vec::new();
+            let mut moved = BTreeMap::<u8, Vec<(Key, u128, u64, u64, u64)>>::new();
             for source in sources {
                 let mut file = match self.open(source.id) {
                     Ok(opened) => opened.file,
@@ -2409,92 +2870,111 @@ mod packed {
                         return Err(invalid("truncated cache pack during compaction"));
                     }
                     frames.push((key, offset, len));
-                    moved.push((key, source.id, from, len, offset));
+                    moved
+                        .entry(shard_of(key.1))
+                        .or_default()
+                        .push((key, source.id, from, len, offset));
                     offset += len;
                 }
             }
             let foot = footer(&frames);
             lease.file.write_all(&foot)?;
             let len = offset + foot.len() as u64;
-            let (lock, mut txn) = self.begin()?;
-            let mut repointed = false;
-            for &(key, id, from, n, to) in &moved {
-                if let Some(loc) = txn.get(key)?
-                    && (loc.pack, loc.offset, loc.len) == (id, from, n)
-                {
-                    txn.set(
-                        key,
-                        Location {
-                            pack: lease.id,
-                            offset: to,
-                            ..loc
-                        },
-                    )?;
-                    repointed = true;
-                }
-            }
-            let mut doomed = Vec::new();
+            let new = lease.id;
+            let mut keys = BTreeMap::<u8, Vec<(u128, Key)>>::new();
+            let mut named = BTreeSet::new();
             for source in sources {
-                if Self::unnamed(&mut txn, source.id, source.keys.as_deref())? {
-                    txn.untrack(source.id)?;
-                    doomed.push(source.id);
+                for &key in &source.keys {
+                    keys.entry(shard_of(key.1))
+                        .or_default()
+                        .push((source.id, key));
                 }
             }
-            if repointed {
-                txn.track(lease.id, len)?;
-                // Readers holding pages from before this commit may still
-                // name the old packs; they read the index again when one is
-                // gone.
-                txn.commit(Some(&lock), len, || self.finish(&mut lease))?;
-            } else if txn.dirty() {
-                txn.commit(Some(&lock), 0, || Ok(()))?;
-            }
-            self.adopt(&txn);
-            // At most `FANOUT` files, under the lock, so the record never
-            // counts a removal before it happens.
-            let mut removed = 0;
-            for id in doomed {
-                let path = self.path(id);
-                let size = std::fs::symlink_metadata(&path).map_or(0, |m| m.len());
-                // An open reader on Windows may postpone this; GC retries.
-                if std::fs::remove_file(path).is_ok() {
-                    removed += size;
+            let mut shards: Vec<u8> = moved.keys().chain(keys.keys()).copied().collect();
+            shards.sort_stable();
+            shards.dedup();
+            shards.retain(|&s| s != home);
+            shards.insert(0, home);
+            let mut taken = false;
+            for shard in shards {
+                let moved = moved.remove(&shard).unwrap_or_default();
+                let keys = keys.remove(&shard).unwrap_or_default();
+                let apply = |txn: &mut Shard| -> io::Result<()> {
+                    for (key, id, from, n, to) in moved {
+                        if let Some(loc) = txn.get(key)?
+                            && (loc.pack, loc.offset, loc.len) == (id, from, n)
+                        {
+                            txn.set(
+                                key,
+                                Location {
+                                    pack: new,
+                                    offset: to,
+                                    ..loc
+                                },
+                            );
+                            taken = true;
+                        }
+                    }
+                    for (id, key) in keys {
+                        if txn.get(key)?.is_some_and(|loc| loc.pack == id) {
+                            named.insert(id);
+                        }
+                    }
+                    if shard == home {
+                        txn.track(new, len);
+                    }
+                    Ok(())
+                };
+                if shard == home {
+                    // Readers holding pages from before may still name the
+                    // old packs; they read the index again when one is gone.
+                    self.commit_shard(shard, len, || self.finish(&mut lease), apply)?;
+                } else {
+                    self.commit_shard(shard, 0, || Ok(()), apply)?;
                 }
             }
-            if removed > 0
-                && let Some(total) = Self::recorded(&lock, txn.generation())
-            {
-                Self::record(&lock, total.saturating_sub(removed), txn.generation());
+            drop(lease);
+            let mut doomed: Vec<u128> = sources
+                .iter()
+                .map(|s| s.id)
+                .filter(|id| !named.contains(id))
+                .collect();
+            if !taken {
+                doomed.push(new);
             }
-            Ok(removed)
-        }
-
-        /// Caller holds the writer lock: true when no row names pack `id`,
-        /// asking each key in `keys`; `None` keys keep it.
-        fn unnamed(txn: &mut Txn, id: u128, keys: Option<&[Key]>) -> io::Result<bool> {
-            let Some(keys) = keys else { return Ok(false) };
-            for &key in keys {
-                if txn.get(key)?.is_some_and(|loc| loc.pack == id) {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
+            self.drop_packs(&doomed)
         }
 
         /// Merges the smallest size class of tracked packs once it holds
         /// [`FANOUT`] packs, so their count stays bounded: about
         /// `FANOUT` per power of two up to [`FULL`]. Each frame is copied
-        /// once per class it climbs. The table, footers and pages are read
-        /// with no lock and the copy is made with none (`rewrite`). Cost:
-        /// the merged bytes, their footers and the pages of their rows; no
-        /// directory walk.
-        fn merge_small(&self) -> io::Result<()> {
-            let mut view = Txn::open(self.index_dir())?;
+        /// once per class it climbs. The tables, footers and pages are
+        /// read with no lock and the copy is made with none (`rewrite`).
+        /// Cost: the home shards' pack tables, the merged bytes, their
+        /// footers and the pages of their rows; no directory walk.
+        fn merge_small(&self, homes: u32) -> io::Result<()> {
+            // What this run reads: its own snapshot, kept apart from the
+            // one its reads use.
+            let mut snapshot = Snapshot::default();
             let mut classes = BTreeMap::<u32, Vec<u128>>::new();
-            for (&id, &len) in view.table()?.iter() {
-                if len < FULL {
-                    classes.entry(len.max(1).ilog2()).or_default().push(id);
+            for shard in 0..SHARDS {
+                if homes & (1 << shard) == 0 || !self.log_path(shard).exists() {
+                    continue;
                 }
+                let view = self.read_view(shard);
+                let mut table = Txn::open(self.index_dir(shard))?.table()?.clone();
+                for (&id, &len) in &view.overlay.table {
+                    match len {
+                        Some(len) => table.insert(id, len),
+                        None => table.remove(&id),
+                    };
+                }
+                for (id, len) in table {
+                    if len < FULL {
+                        classes.entry(len.max(1).ilog2()).or_default().push(id);
+                    }
+                }
+                snapshot.views.insert(shard, view);
             }
             let Some((_, ids)) = classes.into_iter().find(|(_, ids)| ids.len() >= FANOUT) else {
                 return Ok(());
@@ -2509,19 +2989,15 @@ mod packed {
                     Ok(frames) => {
                         let mut copy = Frames::new();
                         for &(key, from, len) in &frames {
-                            if view
-                                .get(key)?
+                            if self
+                                .locate(&mut snapshot, key)
                                 .is_some_and(|l| (l.pack, l.offset, l.len) == (id, from, len))
                             {
                                 copy.push((key, from, len));
                             }
                         }
                         let keys = frames.into_iter().map(|(key, _, _)| key).collect();
-                        sources.push(Source {
-                            id,
-                            copy,
-                            keys: Some(keys),
-                        });
+                        sources.push(Source { id, copy, keys });
                     }
                     // A pack another merge removed, or one without a footer,
                     // leaves the table; a collection's walk still finds it.
@@ -2531,52 +3007,86 @@ mod packed {
             if sources.len() >= 2 {
                 self.rewrite(&sources)?;
             }
-            if !lost.is_empty() {
-                let (lock, mut txn) = self.begin()?;
-                for id in lost {
-                    txn.untrack(id)?;
-                }
-                if txn.dirty() {
-                    txn.commit(Some(&lock), 0, || Ok(()))?;
-                }
-                self.adopt(&txn);
+            for id in lost {
+                self.commit_shard(shard_of(id), 0, || Ok(()), |shard| shard.untrack(id))?;
             }
             Ok(())
         }
 
-        /// A command's settlement (#1932): this run's recency marks and,
-        /// after a publication, one small merge. Then, reading the head and
-        /// the running total with no lock, whether the cache is over `cap`
-        /// or its total unknown, which wants a collection. It never walks
-        /// or reads the whole index. Cost: O(marks), one bounded merge,
-        /// and 104 bytes.
+        /// A command's settlement (#1932): this run's remaining recency
+        /// marks, one shard at a time, and, after a publication, one small
+        /// merge. Then, reading the shards' heads and running totals with
+        /// no lock, whether the cache is over `cap` or its total unknown,
+        /// which wants a collection. It never walks or reads the whole
+        /// index. Cost: O(marks), one bounded merge, and 112 bytes per
+        /// shard.
         pub(super) fn settle(&self, cap: u64) -> io::Result<bool> {
             if !is_real_dir(&self.root) {
                 return Ok(false);
             }
-            if self.state().as_ref().is_some_and(|s| !s.touched.is_empty()) {
-                let (lock, mut txn) = self.begin()?;
-                self.merge_touches(&mut txn)?;
-                if txn.dirty() {
-                    txn.commit(Some(&lock), 0, || Ok(()))?;
-                }
-                self.adopt(&txn);
+            for shard in self.touched_shards() {
+                self.commit_shard(shard, 0, || Ok(()), |_| Ok(()))?;
             }
-            if self.published.swap(false, Ordering::Relaxed) {
-                self.merge_small()?;
+            let published = self.published.swap(0, Ordering::Relaxed);
+            if published != 0 {
+                self.merge_small(published)?;
             }
             Ok(self.total().is_none_or(|total| total > cap))
         }
 
-        /// The recorded total of the current head, read with no lock;
-        /// `None` when unknown or torn.
+        /// The sum of the shards' running totals, read from their logs'
+        /// headers with no lock; `None` when one is unknown or torn.
         fn total(&self) -> Option<u64> {
-            let generation = match read_head(&self.index_dir()) {
-                Ok(head) => head.map_or(0, |h| h.generation),
-                Err(_) => return None,
+            let mut total = 0_u64;
+            for shard in 0..SHARDS {
+                let path = self.log_path(shard);
+                let mut bytes = Vec::with_capacity(LOG_HEADER);
+                match File::open(&path) {
+                    Ok(file) => {
+                        file.take(LOG_HEADER as u64).read_to_end(&mut bytes).ok()?;
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                    Err(_) => return None,
+                }
+                total = total.saturating_add(LogHeader::decode(&bytes)?.total?);
+            }
+            Some(total)
+        }
+
+        /// Retires the namespace of the unsharded index (`pack-v1`), whose
+        /// format this one replaced: its managed files and directories go,
+        /// and a lease a live older writer holds stays. Cost: once, the
+        /// first collection after the change.
+        fn retire_v1(&self) {
+            let Some(old) = self.root.parent().map(|p| p.join("pack-v1")) else {
+                return;
             };
-            let file = File::open(self.root.join("lock")).ok()?;
-            Self::recorded(&file, generation)
+            if !is_real_dir(&old) {
+                return;
+            }
+            for dir in [old.join("index"), old.join("index.new"), old.clone()] {
+                if !is_real_dir(&dir) {
+                    continue;
+                }
+                // cost: once, the files of the retired namespace.
+                for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                    let name = e.file_name();
+                    let Some(name) = name.to_str() else { continue };
+                    if !e.file_type().is_ok_and(|t| t.is_file()) {
+                        continue;
+                    }
+                    let lease = name.strip_suffix(".pending").and_then(parse_key).is_some();
+                    let managed = lease
+                        || Self::pack_id(name).is_some()
+                        || Self::index_file(name)
+                        || matches!(name, "lock" | "index" | "index.old");
+                    let free = !lease || File::open(e.path()).is_ok_and(|f| f.try_lock().is_ok());
+                    if managed && free {
+                        let _ = std::fs::remove_file(e.path());
+                    }
+                }
+                let _ = std::fs::remove_dir(&dir);
+            }
         }
 
         /// The collection (#1932): the only work that grows with the
@@ -2584,23 +3094,19 @@ mod packed {
         /// walks and reads the whole index with no lock, evicts the least
         /// recently used rows down to 90% of `cap`, removes packs no row
         /// names, compacts packs with dead bytes, sweeps crashed writers'
-        /// files, and records the total. The writer lock covers its index
-        /// commits only, never the walk or a copy.
+        /// files, and records each shard's total. Each shard lock covers
+        /// that shard's commits only, never the walk or a copy.
         pub(super) fn collect(&self, cap: u64) -> io::Result<Collected> {
+            self.retire_v1();
             if !is_real_dir(&self.root) {
                 return Ok(Collected {
                     before: 0,
                     after: 0,
                 });
             }
-            {
-                // Migrates an older index; eviction sees this run's marks.
-                let (lock, mut txn) = self.begin()?;
-                self.merge_touches(&mut txn)?;
-                if txn.dirty() {
-                    txn.commit(Some(&lock), 0, || Ok(()))?;
-                }
-                self.adopt(&txn);
+            // Eviction sees this run's marks.
+            for shard in self.touched_shards() {
+                self.commit_shard(shard, 0, || Ok(()), |_| Ok(()))?;
             }
             let inv = self.walk()?;
             let before = inv.total;
@@ -2620,7 +3126,7 @@ mod packed {
                 }
                 fits
             });
-            let victims = Self::victims(&entries, cap, inv.page_bytes);
+            let victims = Self::victims(&entries, cap, &inv.page_bytes);
             for (key, _) in &victims {
                 entries.remove(key);
             }
@@ -2631,16 +3137,16 @@ mod packed {
                     .or_default()
                     .push((key, loc.offset, loc.len));
             }
-            // Footers are immutable: read them before taking the lock.
+            // Footers are immutable: read them before taking a lock.
             let dead: Vec<(u128, Option<Vec<Key>>)> = inv
                 .packs
                 .keys()
                 .filter(|id| !rows_of.contains_key(id))
                 .map(|&id| {
-                    let keys = self.footer_keys(id);
-                    // A pack an older hd wrote never gains rows, so a
-                    // consistent read that names none proves it dead.
-                    (id, keys.or_else(|| consistent.then(Vec::new)))
+                    (
+                        id,
+                        self.footer_keys(id).or_else(|| consistent.then(Vec::new)),
+                    )
                 })
                 .collect();
             let doomed = self.evict(&inv, &suspects, &victims, &dead)?;
@@ -2661,24 +3167,49 @@ mod packed {
                     let keys = self.footer_keys(id).or_else(|| {
                         consistent.then(|| copy.iter().map(|&(key, _, _)| key).collect())
                     });
-                    if keys.is_some() {
+                    if let Some(keys) = keys {
                         self.rewrite(&[Source { id, copy, keys }])?;
                     }
                 }
             }
-            self.merge_small()?;
+            self.merge_small(u32::MAX)?;
+            // A collection folds every log last: readers' logs start short,
+            // and buckets its evictions emptied merge.
+            for shard in 0..SHARDS {
+                if self.log_path(shard).exists() {
+                    let mut txn = self.open_shard(shard)?;
+                    if txn.end > LOG_HEADER as u64 {
+                        txn.fold()?;
+                    }
+                    self.adopt(&txn);
+                }
+            }
             let after = self.walk()?;
-            let lock = self.lock()?;
-            let mut txn = Txn::open(self.index_dir())?;
-            // Packs published since the walk are tracked; count them.
-            let added: u64 = txn
-                .table()?
-                .iter()
-                .filter(|(id, _)| !after.packs.contains_key(id))
-                .map(|(_, len)| len)
-                .sum();
-            let total = after.total.saturating_add(added);
-            Self::record(&lock, total, txn.generation());
+            let mut total = 0_u64;
+            for shard in 0..SHARDS {
+                let homes = after.packs.keys().any(|&id| shard_of(id) == shard);
+                if !homes && !self.log_path(shard).exists() {
+                    continue;
+                }
+                let mut txn = self.open_shard(shard)?;
+                // The shard's log and index, the packs it tracks or would,
+                // and the packs published into its table since the walk.
+                let mut bytes = after.index[usize::from(shard)];
+                bytes += after
+                    .packs
+                    .iter()
+                    .filter(|(id, _)| shard_of(**id) == shard)
+                    .map(|(_, len)| len)
+                    .sum::<u64>();
+                bytes += txn
+                    .table()?
+                    .iter()
+                    .filter(|(id, _)| !after.packs.contains_key(id))
+                    .map(|(_, len)| len)
+                    .sum::<u64>();
+                txn.set_total(bytes)?;
+                total = total.saturating_add(bytes);
+            }
             Ok(Collected {
                 before,
                 after: total,
@@ -2688,33 +3219,45 @@ mod packed {
         /// The least recently used rows to evict, oldest first, ties by
         /// key, when the live set and the index it needs exceed `cap`: down
         /// to 90% of it. Dead bytes never evict a live set that fits.
-        fn victims(entries: &Entries, cap: u64, pages: u64) -> Vec<(Key, Location)> {
+        /// `pages` holds each shard's page bytes now.
+        fn victims(
+            entries: &Entries,
+            cap: u64,
+            pages: &[u64; SHARDS as usize],
+        ) -> Vec<(Key, Location)> {
             let mut rows_per_pack = BTreeMap::<u128, usize>::new();
-            for loc in entries.values() {
+            let mut rows_per_shard = [0_usize; SHARDS as usize];
+            for (key, loc) in entries {
                 *rows_per_pack.entry(loc.pack).or_default() += 1;
+                rows_per_shard[usize::from(shard_of(key.1))] += 1;
             }
-            // The index's bytes for `n` live rows once merged buckets go.
             // What the live set keeps: each frame with its footer row, each
-            // pack with its trailer and table row, and the head and pages.
-            // Merging buckets leaves at most one page per half load, never
-            // more pages than now.
-            let overhead = |n: usize, packs: usize| -> u64 {
-                if n == 0 {
-                    0
-                } else {
-                    let buckets = n.div_ceil(usize::try_from(LOAD / 2).expect("small"));
-                    let fixed = HEAD_LEN + HEADER + packs * (TABLE_ROW + HEADER);
-                    (fixed as u64).saturating_add(pages.min((buckets * page_len(0)) as u64))
-                }
+            // pack with its trailer and table row, and in each shard that
+            // keeps a row, its head and the pages its fold leaves: one per
+            // bucket, a bucket per half load at most, and never more pages
+            // than its rows fill. A shard with no row has no files.
+            let overhead = |shards: &[usize; SHARDS as usize], packs: usize| -> u64 {
+                let index: u64 = shards
+                    .iter()
+                    .zip(pages)
+                    .filter(|(n, _)| **n > 0)
+                    .map(|(&n, &bytes)| {
+                        let buckets = n.div_ceil(usize::try_from(LOAD / 2).expect("small"));
+                        let fold = (n.div_ceil(SLOTS) * page_len(0)) as u64;
+                        HEAD_LEN as u64 + bytes.max(fold).min((buckets * page_len(0)) as u64)
+                    })
+                    .sum();
+                index + (packs * (TABLE_ROW + HEADER)) as u64
             };
             let mut live = entries
                 .values()
                 .map(|loc| loc.len + FOOT_ROW as u64)
                 .sum::<u64>();
-            let mut n = entries.len();
-            let kept = |live: u64, n: usize, packs: usize| live.saturating_add(overhead(n, packs));
+            let kept = |live: u64, shards: &[usize; SHARDS as usize], packs: usize| {
+                live.saturating_add(overhead(shards, packs))
+            };
             let mut victims = Vec::new();
-            if kept(live, n, rows_per_pack.len()) <= cap {
+            if kept(live, &rows_per_shard, rows_per_pack.len()) <= cap {
                 return victims;
             }
             let mut order = entries
@@ -2723,12 +3266,12 @@ mod packed {
                 .collect::<Vec<_>>();
             order.sort_stable();
             for (_, key) in order {
-                if kept(live, n, rows_per_pack.len()) <= cap.saturating_mul(9) / 10 {
+                if kept(live, &rows_per_shard, rows_per_pack.len()) <= cap.saturating_mul(9) / 10 {
                     break;
                 }
                 let loc = entries[&key];
                 live -= loc.len + FOOT_ROW as u64;
-                n -= 1;
+                rows_per_shard[usize::from(shard_of(key.1))] -= 1;
                 if let Some(rows) = rows_per_pack.get_mut(&loc.pack) {
                     *rows -= 1;
                     if *rows == 0 {
@@ -2740,11 +3283,12 @@ mod packed {
             victims
         }
 
-        /// The collection's one eviction commit, under the writer lock:
-        /// rows whose pack is gone or too short, unchanged victims, and the
-        /// dead packs no key's row names (untracked here, removed by the
-        /// caller); then crashed leases, temporary files and pages past
-        /// the last bucket, whose writers would hold this lock. Cost: the
+        /// The collection's eviction commits, one shard at a time: rows
+        /// whose pack is gone or too short, unchanged victims, crashed
+        /// temporary files and pages past the last bucket, whose writers
+        /// would hold that shard's lock. Then the dead packs that no run
+        /// holds and no key's row names leave their tables; the caller
+        /// removes their files. Last, leases whose lock is free. Cost: the
         /// pages of those rows and keys, and the crashed files.
         fn evict(
             &self,
@@ -2753,110 +3297,124 @@ mod packed {
             victims: &[(Key, Location)],
             dead: &[(u128, Option<Vec<Key>>)],
         ) -> io::Result<Vec<u128>> {
-            let (lock, mut txn) = self.begin()?;
+            let mut work = BTreeMap::<u8, Vec<(Key, Location, bool)>>::new();
             for &(key, loc) in suspects {
-                if txn.get(key)? != Some(loc) {
-                    continue;
-                }
-                let gone = match std::fs::symlink_metadata(self.path(loc.pack)) {
-                    Ok(meta) => {
-                        !meta.file_type().is_file()
-                            || loc
-                                .offset
-                                .checked_add(loc.len)
-                                .is_none_or(|end| end > meta.len())
-                    }
-                    Err(e) if e.kind() == io::ErrorKind::NotFound => true,
-                    Err(e) => return Err(e),
-                };
-                if gone {
-                    txn.remove(key)?;
-                }
+                work.entry(shard_of(key.1))
+                    .or_default()
+                    .push((key, loc, true));
             }
             for &(key, loc) in victims {
-                // A row hit or replaced since the read stays.
-                if txn.get(key)? == Some(loc) {
-                    txn.remove(key)?;
+                work.entry(shard_of(key.1))
+                    .or_default()
+                    .push((key, loc, false));
+            }
+            // A pack a run still holds is committing rows: it stays. Every
+            // other pack's rows are all committed, so a check after this
+            // point sees them.
+            let mut keys = BTreeMap::<u8, Vec<(u128, Key)>>::new();
+            let mut named = BTreeSet::new();
+            for (id, list) in dead {
+                if self.leased(*id) {
+                    named.insert(*id);
+                    continue;
                 }
-            }
-            txn.shrink()?;
-            let mut doomed = Vec::new();
-            for (id, keys) in dead {
-                if Self::unnamed(&mut txn, *id, keys.as_deref())? {
-                    txn.untrack(*id)?;
-                    doomed.push(*id);
-                }
-            }
-            // Tracked packs that no longer exist leave the table.
-            let tracked: Vec<u128> = txn.table()?.keys().copied().collect();
-            for id in tracked {
-                if !inv.packs.contains_key(&id) && !self.path(id).try_exists()? {
-                    txn.untrack(id)?;
-                }
-            }
-            if txn.dirty() {
-                txn.commit(Some(&lock), 0, || Ok(()))?;
-            }
-            // Lease creation and locking share this lock, so a lease this
-            // lock holder can lock belongs to a dead writer.
-            for path in &inv.pending {
-                let file = match OpenOptions::new().read(true).write(true).open(path) {
-                    Ok(file) => file,
-                    Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
-                    Err(e) => return Err(e),
-                };
-                match file.try_lock() {
-                    Ok(()) => {
-                        let _ = std::fs::remove_file(path);
+                match list {
+                    Some(list) => {
+                        for &key in list {
+                            keys.entry(shard_of(key.1)).or_default().push((*id, key));
+                        }
                     }
-                    Err(TryLockError::WouldBlock) => {}
-                    Err(TryLockError::Error(error)) => return Err(error),
+                    None => {
+                        named.insert(*id);
+                    }
                 }
             }
-            for path in &inv.temps {
+            for shard in 0..SHARDS {
+                if !self.log_path(shard).exists() && !is_real_dir(&self.index_dir(shard)) {
+                    continue;
+                }
+                let mut txn = self.open_shard(shard)?;
+                for (key, loc, suspect) in work.remove(&shard).unwrap_or_default() {
+                    // A row hit or replaced since the read stays.
+                    if txn.get(key)? != Some(loc) {
+                        continue;
+                    }
+                    // A pack that cannot be read is a miss: its row goes.
+                    let gone = !suspect
+                        || std::fs::symlink_metadata(self.path(loc.pack)).map_or(true, |meta| {
+                            !meta.file_type().is_file()
+                                || loc
+                                    .offset
+                                    .checked_add(loc.len)
+                                    .is_none_or(|end| end > meta.len())
+                        });
+                    if gone {
+                        txn.remove(key)?;
+                    }
+                }
+                for (id, key) in keys.remove(&shard).unwrap_or_default() {
+                    if txn.get(key)?.is_some_and(|loc| loc.pack == id) {
+                        named.insert(id);
+                    }
+                }
+                // Tracked packs that no longer exist leave the table.
+                let tracked: Vec<u128> = txn.table()?.keys().copied().collect();
+                for id in tracked {
+                    if !inv.packs.contains_key(&id) && !self.path(id).try_exists()? {
+                        txn.untrack(id)?;
+                    }
+                }
+                if txn.dirty() {
+                    txn.commit(0, || Ok(()))?;
+                }
+                for (_, path) in inv.temps.iter().filter(|(s, _)| *s == shard) {
+                    let _ = std::fs::remove_file(path);
+                }
+                let buckets = txn.txn()?.head.buckets();
+                for &(_, bucket) in inv.pages.iter().filter(|(s, _)| *s == shard) {
+                    if bucket >= buckets {
+                        let _ = std::fs::remove_file(self.index_dir(shard).join(page_name(bucket)));
+                    }
+                }
+                self.adopt(&txn);
+            }
+            let doomed: Vec<u128> = dead
+                .iter()
+                .map(|(id, _)| *id)
+                .filter(|id| !named.contains(id))
+                .collect();
+            let mut by_home = BTreeMap::<u8, Vec<u128>>::new();
+            for &id in &doomed {
+                by_home.entry(shard_of(id)).or_default().push(id);
+            }
+            for (home, ids) in by_home {
+                self.commit_shard(
+                    home,
+                    0,
+                    || Ok(()),
+                    |shard| {
+                        for id in ids {
+                            shard.untrack(id)?;
+                        }
+                        Ok(())
+                    },
+                )?;
+            }
+            // A lease is locked before it is named `.pending`, so one whose
+            // lock is free belongs to a dead writer.
+            for path in &inv.pending {
+                if File::open(path).is_ok_and(|file| file.try_lock().is_ok()) {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+            for path in &inv.abandoned {
                 let _ = std::fs::remove_file(path);
             }
-            let buckets = txn.head.buckets();
-            for &bucket in &inv.pages {
-                if bucket >= buckets {
-                    let _ = std::fs::remove_file(self.index_dir().join(page_name(bucket)));
-                }
-            }
-            self.adopt(&txn);
             Ok(doomed)
         }
 
-        /// The managed bytes recorded for the current index, or `None` when
-        /// the record describes another head (one written before a
-        /// migration, or by a writer that died before its commit) or is
-        /// torn. Readers check it with no lock; writers hold `lock`, the
-        /// publication lock file, which stores the record.
-        fn recorded(mut lock: &File, generation: u128) -> Option<u64> {
-            let mut bytes = [0; RECORD];
-            lock.seek(SeekFrom::Start(0)).ok()?;
-            lock.read_exact(&mut bytes).ok()?;
-            (&bytes[..8] == TOTAL_MAGIC
-                && u128_at(&bytes, 16) == generation
-                && checksum(&bytes[..32]) == u128_at(&bytes, 32))
-            .then(|| u64_at(&bytes, 8))
-        }
-
-        /// Records `total` managed bytes for the head of `generation`. A
-        /// failed write leaves a record that matches no head.
-        fn record(mut lock: &File, total: u64, generation: u128) {
-            let mut bytes = [0; RECORD];
-            bytes[..8].copy_from_slice(TOTAL_MAGIC);
-            bytes[8..16].copy_from_slice(&total.to_le_bytes());
-            bytes[16..32].copy_from_slice(&generation.to_le_bytes());
-            let sum = checksum(&bytes[..32]);
-            bytes[32..].copy_from_slice(&sum.to_le_bytes());
-            let _ = lock
-                .seek(SeekFrom::Start(0))
-                .and_then(|_| lock.write_all(&bytes));
-        }
-
-        /// Best-effort physical accounting also works when the writer
-        /// lock cannot be opened; a failed GC must not report zero data.
+        /// Best-effort physical accounting also works when no lock can be
+        /// opened; a failed GC must not report zero data.
         pub(super) fn bytes(&self) -> u64 {
             if !is_real_dir(&self.root) {
                 return 0;
@@ -2870,31 +3428,25 @@ mod packed {
 
         /// Every indexed entry: kind, key, pack file, offset, length, last
         /// use and the pack's length, `None` when it is missing. It holds
-        /// the publication lock, so no merge or GC moves a row or removes
-        /// its pack between reading the row and the pack's length. When the
-        /// lock cannot be taken, as in a read-only cache, it reads as a
-        /// command does. It reads the whole index: for tests and tools.
+        /// every shard's lock, taken in shard order, so no merge or GC
+        /// moves a row or removes its pack between reading the row and the
+        /// pack's length; nothing else holds two shard locks, so this
+        /// cannot deadlock. Locks it cannot take, as in a read-only cache,
+        /// it skips. It reads the whole index: for tests and tools.
         pub(super) fn entries(&self) -> Vec<IndexedEntry> {
             if !is_real_dir(&self.root) {
                 return Vec::new();
             }
-            let _lock = self.lock().ok();
-            let rows = match self.view() {
-                View::Empty => Entries::new(),
-                View::Legacy(entries) => entries,
-                View::Paged(head) => {
-                    let dir = self.index_dir();
-                    let mut entries = Entries::new();
-                    for bucket in 0..head.buckets() {
-                        if let Ok(Some((rows, _))) = read_page(&dir, bucket) {
-                            entries.extend(
-                                rows.into_iter().filter(|(k, _)| head.bucket(k.1) == bucket),
-                            );
-                        }
-                    }
-                    entries
+            let mut shards: Vec<Shard> = (0..SHARDS)
+                .filter(|&s| self.log_path(s).exists())
+                .filter_map(|s| self.open_shard(s).ok())
+                .collect();
+            let mut rows = Entries::new();
+            for shard in &mut shards {
+                if let Ok(all) = shard.all() {
+                    rows.extend(all);
                 }
-            };
+            }
             let mut packs = BTreeMap::<u128, Option<u64>>::new();
             rows.into_iter()
                 .filter_map(|((kind, key), l)| {
@@ -2925,14 +3477,14 @@ mod packed {
             key: &Hash128,
             used: u64,
         ) -> io::Result<bool> {
-            let (lock, mut txn) = self.begin()?;
+            let mut shard = self.open_shard(shard_of(key.0))?;
             let k = (kind as u16, key.0);
-            let Some(loc) = txn.get(k)? else {
+            let Some(loc) = shard.get(k)? else {
                 return Ok(false);
             };
-            txn.set(k, Location { used, ..loc })?;
-            txn.commit(Some(&lock), 0, || Ok(()))?;
-            self.adopt(&txn);
+            shard.set(k, Location { used, ..loc });
+            shard.commit(0, || Ok(()))?;
+            self.adopt(&shard);
             Ok(true)
         }
     }
@@ -2960,26 +3512,28 @@ mod packed {
         }
         /// Every indexed row of `store`.
         fn load(store: &Store) -> Entries {
-            let (_lock, mut txn) = store.begin().unwrap();
-            txn.all().unwrap()
+            let mut all = Entries::new();
+            for shard in 0..SHARDS {
+                if store.log_path(shard).exists() {
+                    all.extend(store.open_shard(shard).unwrap().all().unwrap());
+                }
+            }
+            all
         }
         /// A pack of `frames` entries of `bytes` bytes, footer included.
         fn pack_len(frames: usize, bytes: usize) -> u64 {
             (frames * (bytes + FOOT_ROW) + HEADER) as u64
         }
-        /// The index of one page and a table of `packs` packs.
+        /// A folded index of one page and a table of `packs` packs.
         fn index_len(packs: usize) -> u64 {
             (HEAD_LEN + page_len(1) + HEADER + packs * TABLE_ROW) as u64
         }
-        /// Gives the head a generation no running total names, as a
-        /// writer that died between its record and its commit leaves it.
+        /// Makes shard 0's running total unknown, as a torn header leaves
+        /// it.
         fn unrecorded(store: &Store) {
-            let (_lock, txn) = store.begin().unwrap();
-            let head = Head {
-                generation: unique(),
-                ..txn.stored.unwrap()
-            };
-            replace_file(&txn.dir, "head", &head.encode()).unwrap();
+            let mut shard = store.open_shard(0).unwrap();
+            shard.header.total = None;
+            shard.write_header().unwrap();
         }
 
         #[test]
@@ -3049,13 +3603,16 @@ mod packed {
                     Some(k.to_le_bytes().as_slice())
                 );
             }
-            let (lock, txn) = store.begin().unwrap();
-            assert_eq!(txn.head.rows, 1000);
-            assert_eq!(txn.head.buckets(), 29);
-            drop((lock, txn));
-            // A crash after the superset page writes, before the head: the
-            // old head still finds every row.
-            let (lock, mut txn) = store.begin().unwrap();
+            let mut shard = store.open_shard(0).unwrap();
+            shard.fold().unwrap();
+            assert_eq!(shard.txn().unwrap().head.rows, 1000);
+            assert_eq!(shard.txn().unwrap().head.buckets(), 29);
+            drop(shard);
+            // A fold that crashed after its superset page writes, before
+            // the head: the old head still finds every row.
+            let mut shard = store.open_shard(0).unwrap();
+            let epoch = shard.header.epoch;
+            let txn = shard.txn().unwrap();
             let before = txn.head;
             for k in 1000..1100_u128 {
                 txn.set(
@@ -3079,19 +3636,20 @@ mod packed {
                         .map(|(k, l)| (*k, *l)),
                 );
                 if bucket < before.buckets() {
-                    replace_file(&txn.dir, &page_name(bucket), &page_encode(&rows)).unwrap();
+                    replace_file(&txn.dir, &page_name(bucket), &page_encode(&rows, epoch)).unwrap();
                 }
             }
-            drop((lock, txn));
+            drop(shard);
             let reader = Store::new(&root);
             for k in 0..1000_u128 {
                 let key = Hash128(k.wrapping_mul(0x9e37_79b9_7f4a_7c15));
                 assert!(reader.get(EntryKind::Check, &key).is_some(), "{k}");
             }
-            // Eviction merges buckets back and leaves no file at all.
-            assert_eq!(store.collect(0).unwrap().after, 0);
+            // Eviction merges buckets back and leaves no page, head or table.
+            store.collect(0).unwrap();
+            // cost: a test listing one small directory.
             assert!(
-                std::fs::read_dir(store.index_dir())
+                std::fs::read_dir(store.index_dir(0))
                     .unwrap()
                     .next()
                     .is_none()
@@ -3102,10 +3660,7 @@ mod packed {
         fn gc_respects_a_live_unpublished_lease_and_reclaims_a_crashed_one() {
             let root = scratch("lease");
             let store = Store::new(&root);
-            let mut lease = {
-                let _lock = store.lock().unwrap();
-                store.lease().unwrap()
-            };
+            let mut lease = { store.lease(0).unwrap() };
             lease.file.write_all(b"unpublished").unwrap();
             let collector = Store::new(&root);
             assert_eq!(collector.collect(0).unwrap().after, 0);
@@ -3118,8 +3673,55 @@ mod packed {
             // normal error cleanup; the file has never entered the index.
             lease.committed = true;
             drop(lease);
-            assert_eq!(collector.collect(0).unwrap().after, 0);
+            // A pack renamed into place whose run still commits its rows
+            // stays, though no row names it yet.
+            let mut running = store.lease(0).unwrap();
+            running.file.write_all(&footer(&Vec::new())).unwrap();
+            store.finish(&mut running).unwrap();
+            // Crashed writers' files: a lease never locked, an hour old; a
+            // temporary index file; a page past the last bucket.
+            let dir = store.index_dir(0);
+            std::fs::create_dir_all(&dir).unwrap();
+            let new = store.root.join(format!("{:032x}.new", unique()));
+            let old = SystemTime::now() - Duration::from_hours(2);
+            File::create(&new).unwrap().set_modified(old).unwrap();
+            let fresh = store.root.join(format!("{:032x}.new", unique()));
+            File::create(&fresh).unwrap();
+            let temp = dir.join(format!("head.{:032x}.tmp", unique()));
+            std::fs::write(&temp, b"partial").unwrap();
+            let stale = dir.join(page_name(7));
+            std::fs::write(&stale, b"split page").unwrap();
+            assert_eq!(collector.collect(0).unwrap().after, HEADER as u64);
             assert!(!path.exists());
+            assert!(running.path.exists(), "a running publication's pack stays");
+            assert!(!new.exists() && fresh.exists());
+            assert!(!temp.exists() && !stale.exists());
+            drop(running);
+            assert_eq!(collector.collect(0).unwrap().after, 0);
+        }
+
+        /// Runs that share a shard wait only for each other's commit there,
+        /// counted.
+        #[test]
+        fn a_publisher_sharing_a_shard_waits_for_its_commit_only() {
+            let root = scratch("shared-shard");
+            let store = Store::new(&root);
+            store.publish(&[item(1, b"first")]).unwrap();
+            let held = store.open_shard(0).unwrap();
+            // cost: one test thread, one publication.
+            let publisher = std::thread::spawn(move || {
+                cost::take();
+                Store::new(&root).publish(&[item(2, b"second")]).unwrap();
+                cost::take()
+            });
+            std::thread::sleep(Duration::from_millis(100));
+            drop(held);
+            let counts = publisher.join().unwrap();
+            assert_eq!(
+                (counts.writer_locks, counts.lock_waits),
+                (1, 1),
+                "{counts:?}"
+            );
         }
 
         #[test]
@@ -3145,7 +3747,8 @@ mod packed {
             let started = marker.exists();
             let kept = if started {
                 Store::new(&root).collect(0).unwrap();
-                std::fs::read_dir(root.join("pack-v1"))
+                // cost: a test listing one small directory.
+                std::fs::read_dir(root.join(NAMESPACE))
                     .unwrap()
                     .filter_map(Result::ok)
                     .any(|e| {
@@ -3170,10 +3773,7 @@ mod packed {
                 .find_map(|a| a.strip_prefix("cache-fixture:").map(PathBuf::from))
                 .unwrap();
             let store = Store::new(&root);
-            let mut lease = {
-                let _lock = store.lock().unwrap();
-                store.lease().unwrap()
-            };
+            let mut lease = { store.lease(0).unwrap() };
             lease.file.write_all(b"partial frame").unwrap();
             std::fs::write(root.join("ready"), []).unwrap();
             std::thread::sleep(Duration::from_mins(1));
@@ -3209,10 +3809,12 @@ mod packed {
             let root = scratch("corrupt");
             let store = Store::new(&root);
             store.publish(&[item(1, b"value")]).unwrap();
-            let dir = store.index_dir();
+            store.open_shard(0).unwrap().fold().unwrap();
+            let dir = store.index_dir(0);
             let page = dir.join(page_name(0));
             let good = std::fs::read(&page).unwrap();
-            for at in [0, 8, 12, 16, HEADER, HEADER + ROW - 1] {
+            // Byte 12 is the page's fold epoch, which any value may take.
+            for at in [0, 8, 16, HEADER, HEADER + ROW - 1] {
                 let mut bad = good.clone();
                 bad[at] ^= 0xff;
                 assert!(page_decode(&bad).is_err());
@@ -3230,12 +3832,12 @@ mod packed {
                 bad[at] ^= 0xff;
                 assert!(Head::decode(&bad).is_err());
             }
-            let mut entries = page_decode(&good).unwrap();
+            let (mut entries, _) = page_decode(&good).unwrap();
             entries.values_mut().next().unwrap().len = MAX_ENTRY + 1;
-            assert!(page_decode(&page_encode(&entries)).is_err());
+            assert!(page_decode(&page_encode(&entries, 0)).is_err());
             entries.values_mut().next().unwrap().len = 2;
             entries.values_mut().next().unwrap().offset = u64::MAX;
-            assert!(page_decode(&page_encode(&entries)).is_err());
+            assert!(page_decode(&page_encode(&entries, 0)).is_err());
             let file = OpenOptions::new().write(true).open(&page).unwrap();
             file.set_len(u64::try_from(MAX_INDEX + 1).unwrap()).unwrap();
             assert!(read_page(&dir, 0).is_err());
@@ -3252,8 +3854,14 @@ mod packed {
                 Some(b"recovered".as_slice())
             );
             assert_eq!(load(&store).len(), 1);
-            // A corrupt head starts a new index.
+            // A corrupt head, under a torn log header, starts a new index.
             std::fs::write(dir.join("head"), b"HDHEAD01 not a head").unwrap();
+            let mut log = OpenOptions::new()
+                .write(true)
+                .open(store.log_path(0))
+                .unwrap();
+            log.write_all(b"torn").unwrap();
+            drop(log);
             assert!(
                 Store::new(&root)
                     .get(EntryKind::Check, &Hash128(2))
@@ -3268,59 +3876,39 @@ mod packed {
             );
         }
 
-        /// An older hd's single index file is read as it is until the first
-        /// writer rewrites it as pages, also after a crash between the
-        /// migration's renames.
+        /// The unsharded namespace `pack-v1` an older hd wrote is not read:
+        /// its entries are misses. The first collection removes its
+        /// managed files, keeps a lease a live writer holds, and leaves a
+        /// foreign file with its directory (#1932).
         #[test]
-        fn an_older_single_file_index_migrates_once_and_keeps_its_entries() {
-            for crashed in [false, true] {
-                let root = scratch("legacy");
-                let store = Store::new(&root);
-                store.ensure_root().unwrap();
-                let id = unique();
-                std::fs::write(store.path(id), b"onetwo").unwrap();
-                let mut entries = Entries::new();
-                for (key, offset) in [(1, 0), (2, 3)] {
-                    entries.insert(
-                        (EntryKind::Check as u16, key),
-                        Location {
-                            pack: id,
-                            offset,
-                            len: 3,
-                            used: 7,
-                        },
-                    );
-                }
-                let legacy = if crashed {
-                    // The pages were half written when the writer died.
-                    std::fs::create_dir(root.join("pack-v1/index.new")).unwrap();
-                    std::fs::write(root.join("pack-v1/index.new/head"), b"partial").unwrap();
-                    root.join("pack-v1/index.old")
-                } else {
-                    store.index_dir()
-                };
-                std::fs::write(&legacy, legacy_encode(&entries)).unwrap();
-                let reader = Store::new(&root);
-                assert_eq!(
-                    reader.get(EntryKind::Check, &Hash128(2)).as_deref(),
-                    Some(b"two".as_slice())
-                );
-                assert!(legacy.is_file(), "a reader migrates nothing");
-                // No table: the old pack has no footer to merge by.
-                assert_eq!(
-                    store.collect(u64::MAX).unwrap().after,
-                    6 + index_len(0) - HEADER as u64
-                );
-                assert!(is_real_dir(&store.index_dir()));
-                assert!(!root.join("pack-v1/index.old").exists());
-                assert!(!root.join("pack-v1/index.new").exists());
-                assert_eq!(load(&store), entries);
-                let reader = Store::new(&root);
-                assert_eq!(
-                    reader.get(EntryKind::Check, &Hash128(1)).as_deref(),
-                    Some(b"one".as_slice())
-                );
-            }
+        fn the_unsharded_namespace_reads_as_misses_and_a_collection_retires_it() {
+            let root = scratch("retire-v1");
+            let old = root.join("pack-v1");
+            std::fs::create_dir_all(old.join("index")).unwrap();
+            let id = unique();
+            std::fs::write(old.join(format!("{id:032x}.pack")), b"onetwo").unwrap();
+            std::fs::write(old.join("lock"), b"").unwrap();
+            std::fs::write(old.join("index").join("head"), b"old head").unwrap();
+            std::fs::write(old.join("index").join(page_name(0)), b"old page").unwrap();
+            let live = old.join(format!("{:032x}.pending", unique()));
+            let lease = File::create(&live).unwrap();
+            lease.lock().unwrap();
+            std::fs::write(old.join("index.old"), b"older index").unwrap();
+            let foreign = old.join("notes.txt");
+            std::fs::write(&foreign, b"keep").unwrap();
+            let store = Store::new(&root);
+            assert!(store.get(EntryKind::Check, &Hash128(1)).is_none());
+            store.collect(u64::MAX).unwrap();
+            assert!(!old.join("index").exists());
+            assert!(!old.join("lock").exists());
+            assert!(!old.join("index.old").exists());
+            assert!(!old.join(format!("{id:032x}.pack")).exists());
+            assert!(live.exists(), "a live writer's lease stays");
+            assert!(foreign.exists());
+            drop(lease);
+            std::fs::remove_file(foreign).unwrap();
+            store.collect(u64::MAX).unwrap();
+            assert!(!old.exists());
         }
 
         #[test]
@@ -3333,8 +3921,9 @@ mod packed {
                 .unwrap();
             ages(&store, &[(1, 1), (2, 2), (3, 3)]);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
+            let before = store.bytes();
             let result = store.collect(14_000).unwrap();
-            assert_eq!(result.before, pack_len(3, 4000) + index_len(1));
+            assert_eq!(result.before, before);
             assert_eq!(result.after, pack_len(2, 4000) + index_len(1));
             let entries = load(&store);
             assert!(!entries.contains_key(&(EntryKind::Check as u16, 2)));
@@ -3356,9 +3945,9 @@ mod packed {
             let root = scratch("bounded-progress");
             let store = Store::new(&root);
             for _ in 0..4 {
-                store.publish(&[item(1, &[7; 64])]).unwrap();
+                store.publish(&[item(1, &[7; 4000])]).unwrap();
             }
-            let cap = pack_len(1, 64) + index_len(1);
+            let cap = pack_len(1, 4000) + index_len(1);
             let run = store.collect(cap).unwrap();
             assert!(run.before > cap);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
@@ -3380,7 +3969,8 @@ mod packed {
                 assert_eq!((counts.walks, counts.dirs_listed), (0, 0), "{counts:?}");
                 wanted
             };
-            let one = pack_len(1, 64) + index_len(1);
+            // A publication adds its pack; log records are not counted.
+            let one = pack_len(1, 64);
             store.publish(&[item(1, &[7; 64])]).unwrap();
             // A namespace the store created starts at a known zero.
             assert!(!settle(one));
@@ -3389,40 +3979,44 @@ mod packed {
             let stray = store.path(unique());
             std::fs::write(&stray, [0; 100]).unwrap();
             store.publish(&[item(1, &[8; 64])]).unwrap();
-            let added = pack_len(1, 64) + TABLE_ROW as u64;
-            assert!(!settle(one + added), "a publication adds its pack");
+            assert!(!settle(2 * one), "a publication adds its pack");
             assert!(stray.exists(), "a fitting total walks nothing");
             // The collection reclaims dead bytes without evicting the
-            // fitting live set, and records the exact total.
-            let run = store.collect(one + 63).unwrap();
-            assert_eq!((run.before, run.after), (one + added + 100, one));
+            // fitting live set, folds the log, and records the exact total.
+            let folded = pack_len(1, 64) + index_len(1);
+            let run = store.collect(folded + 63).unwrap();
+            assert_eq!((run.before, run.after), (2 * one + 100, folded));
             assert!(!stray.exists());
             assert_eq!(store.get(EntryKind::Check, &Hash128(1)).unwrap()[0], 8);
-            assert!(!settle(one));
-            // A head no record names is unknown until a collection.
+            assert!(!settle(folded));
+            // An unknown total wants a collection.
             ages(&store, &[(1, 5)]);
             unrecorded(&store);
-            assert!(settle(u64::MAX), "an unrecorded index wants a collection");
-            assert_eq!(store.collect(u64::MAX).unwrap().after, one);
+            assert!(settle(u64::MAX), "an unknown total wants a collection");
+            assert_eq!(store.collect(u64::MAX).unwrap().after, folded);
             assert!(!settle(u64::MAX));
-            // A hit's recency mark rewrites its page and keeps the record.
+            // A hit's recency mark appends one change and keeps the total.
             store.get(EntryKind::Check, &Hash128(1)).unwrap();
-            assert!(!settle(one));
+            assert!(!settle(folded));
             assert!(load(&store).values().all(|loc| loc.used > 5));
-            // A torn record is unknown, not a wrong total.
-            let mut lock = OpenOptions::new()
+            // A torn header is unknown, not a wrong total.
+            let mut log = OpenOptions::new()
                 .write(true)
-                .open(root.join("pack-v1/lock"))
+                .open(store.log_path(0))
                 .unwrap();
-            lock.seek(SeekFrom::Start(8)).unwrap();
-            lock.write_all(&[0xff; 4]).unwrap();
-            assert!(settle(u64::MAX), "a torn record wants a collection");
+            log.seek(SeekFrom::Start(80)).unwrap();
+            log.write_all(&[0xff; 4]).unwrap();
+            assert!(settle(u64::MAX), "a torn header wants a collection");
         }
 
         /// The index files' names, bytes and modification times.
         fn index_files(store: &Store) -> Vec<(std::ffi::OsString, Vec<u8>, SystemTime)> {
-            let mut files: Vec<_> = std::fs::read_dir(store.index_dir())
+            // cost: a test listing one small directory.
+            let mut files: Vec<_> = std::fs::read_dir(store.index_dir(0))
                 .unwrap()
+                // The lock holds the running total, which a collection
+                // rewrites.
+                .filter(|e| e.as_ref().unwrap().file_name() != "lock")
                 .map(|e| {
                     let e = e.unwrap();
                     let modified = e.metadata().unwrap().modified().unwrap();
@@ -3439,6 +4033,7 @@ mod packed {
             let store = Store::new(&root);
             store.publish(&[item(1, b"value")]).unwrap();
             ages(&store, &[(1, now() - 60)]);
+            store.open_shard(0).unwrap().fold().unwrap();
             let before = index_files(&store);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
             store.touch(EntryKind::Check, &Hash128(1));
@@ -3467,6 +4062,7 @@ mod packed {
             let mut pinned = options.open(&path).unwrap();
             let cap = 14_000;
             let result = store.collect(cap).unwrap();
+
             #[cfg(windows)]
             {
                 assert!(path.exists(), "a reader denied deletion");
@@ -3496,7 +4092,7 @@ mod packed {
             let root = scratch("unlocked-reader");
             let store = Store::new(&root);
             store.publish(&[item(1, b"readable")]).unwrap();
-            let _lock = store.lock().unwrap();
+            let _lock = store.open_shard(0).unwrap();
             let (tx, rx) = std::sync::mpsc::channel();
             let reader = std::thread::spawn(move || {
                 tx.send(Store::new(&root).get(EntryKind::Check, &Hash128(1)))
@@ -3553,7 +4149,7 @@ mod packed {
             // One refresh for the vanished pack: the head and the one page,
             // then the merged pack, opened once for all three keys.
             let counts = cost::take();
-            assert_eq!(counts.index_read, (HEAD_LEN + page_len(FANOUT)) as u64);
+            assert_eq!(counts.index_read, (LOG_HEADER + page_len(FANOUT)) as u64);
             assert_eq!(counts.packs_opened, 1);
             assert_eq!(counts.dirs_listed, 0);
         }
@@ -3608,12 +4204,12 @@ mod packed {
             if stale {
                 let store = Store::new(&root);
                 {
-                    let (_lock, mut txn) = store.begin().unwrap();
+                    let mut shard = store.open_shard(0).unwrap();
                     let at = now() - 2 * 3600;
-                    for (key, loc) in txn.all().unwrap() {
-                        txn.set(key, Location { used: at, ..loc }).unwrap();
+                    for (key, loc) in shard.all().unwrap() {
+                        shard.set(key, Location { used: at, ..loc });
                     }
-                    txn.commit(None, 0, || Ok(())).unwrap();
+                    shard.commit(0, || Ok(())).unwrap();
                 }
                 // Record the total for the rewritten index, as the
                 // command that wrote it would have.
@@ -3701,7 +4297,8 @@ mod packed {
         fn a_thousand_publishing_runs_leave_a_bounded_pack_count() {
             let root = scratch("pack-count");
             let packs = || {
-                std::fs::read_dir(root.join("pack-v1"))
+                // cost: a test listing one small directory.
+                std::fs::read_dir(root.join(NAMESPACE))
                     .unwrap()
                     .filter_map(Result::ok)
                     .filter(|e| e.file_name().to_str().and_then(Store::pack_id).is_some())
@@ -3796,19 +4393,23 @@ mod packed {
                 let collecting = scope.spawn(|| collector.collect(14_000).unwrap());
                 let mut stops = Vec::new();
                 for key in 10.. {
-                    let Ok(stop) = stopped.recv_timeout(Duration::from_secs(10)) else {
+                    let Ok(stop) = stopped.recv_timeout(Duration::from_secs(2)) else {
                         break;
                     };
                     stops.push(stop);
                     let lock = OpenOptions::new()
                         .read(true)
                         .write(true)
-                        .open(root.join("pack-v1/lock"))
+                        .open(Store::new(&root).log_path(0))
                         .unwrap();
                     assert!(lock.try_lock().is_ok(), "the writer lock is held at {stop}");
                     lock.unlock().unwrap();
                     let publisher = Store::new(&root);
                     publisher.publish(&[item(key, b"beside")]).unwrap();
+                    if stop == "read" {
+                        // A fold during the read moves rows between pages.
+                        publisher.open_shard(0).unwrap().fold().unwrap();
+                    }
                     assert_eq!(
                         Store::new(&root)
                             .get(EntryKind::Check, &Hash128(key))
@@ -3816,16 +4417,20 @@ mod packed {
                         Some(b"beside".as_slice())
                     );
                     resume.send(()).unwrap();
-                    if stops.len() == 3 {
-                        break;
-                    }
                 }
                 drop(resume);
-                assert_eq!(stops, ["walk", "copy", "walk"]);
+                // A fold during each read of the shard changes its epoch:
+                // the read is tried three times, then taken as inconsistent.
+                // Then the compaction's copy, the merge of the published
+                // packs, and the last walk.
+                assert_eq!(
+                    stops,
+                    ["walk", "read", "read", "read", "copy", "copy", "walk"]
+                );
                 collecting.join().unwrap();
             });
             let rows = load(&writer);
-            for key in [2, 3, 10, 11, 12] {
+            for key in [2, 3, 10, 11, 12, 13, 14, 15] {
                 assert!(rows.contains_key(&(EntryKind::Check as u16, key)), "{key}");
             }
             assert!(!rows.contains_key(&(EntryKind::Check as u16, 1)));
@@ -3900,10 +4505,7 @@ mod packed {
                 states.push(("another process collecting", collecting, DEFAULT, true));
                 let crashed = cache(n, false);
                 let store = Store::new(&crashed);
-                let mut lease = {
-                    let _lock = store.lock().unwrap();
-                    store.lease().unwrap()
-                };
+                let mut lease = { store.lease(0).unwrap() };
                 lease.file.write_all(b"partial").unwrap();
                 lease.committed = true;
                 drop(lease);
@@ -3942,7 +4544,7 @@ mod packed {
             // Readers never take the writer lock: a run of hits finishes
             // while another process holds it.
             let root = cache(1000, false);
-            let held = Store::new(&root).lock().unwrap();
+            let held = Store::new(&root).open_shard(0).unwrap();
             let (tx, rx) = std::sync::mpsc::channel();
             // cost: one test thread reading eight keys.
             let reader = std::thread::spawn(move || {
@@ -3972,14 +4574,15 @@ mod packed {
             let root = scratch("converge");
             let store = Store::new(&root);
             {
-                let (lock, mut txn) = store.begin().unwrap();
+                let mut txn = store.open_shard(0).unwrap();
                 for key in 0..PACKS {
-                    let id = unique();
+                    // Home shard 0, whose table tracks it.
+                    let id = unique() & !(0xf << 124);
                     let frame = vec![u8::try_from(key % 251).unwrap(); 100];
                     let mut bytes = frame.clone();
                     bytes.extend(footer(&vec![((EntryKind::Check as u16, key), 0, 100)]));
                     std::fs::write(store.path(id), &bytes).unwrap();
-                    txn.track(id, bytes.len() as u64).unwrap();
+                    txn.track(id, bytes.len() as u64);
                     if key < LIVE {
                         let used = 1_000 + u64::try_from(key).unwrap();
                         let loc = Location {
@@ -3988,10 +4591,10 @@ mod packed {
                             len: 100,
                             used,
                         };
-                        txn.set((EntryKind::Check as u16, key), loc).unwrap();
+                        txn.set((EntryKind::Check as u16, key), loc);
                     }
                 }
-                txn.commit(Some(&lock), 0, || Ok(())).unwrap();
+                txn.commit(0, || Ok(())).unwrap();
             }
             let physical = || DiskStore::new(root.clone()).packed.bytes();
             let cap = 200_000;
@@ -4018,6 +4621,153 @@ mod packed {
             );
         }
 
+        /// Sixteen stores publish at once (#1932), each its own keys in
+        /// its own shard, as runs of disjoint keys do. Counted: no
+        /// publication waits for another's lock, each takes one shard lock
+        /// per publish, and every entry reads back.
+        #[test]
+        fn sixteen_publishers_of_disjoint_keys_never_wait_for_each_other() {
+            const RUNS: u128 = 20;
+            let root = scratch("disjoint");
+            let start = std::sync::Barrier::new(16);
+            let counts: Vec<cost::Counts> = std::thread::scope(|scope| {
+                let workers: Vec<_> = (0..16_u128)
+                    .map(|shard| {
+                        let (root, start) = (&root, &start);
+                        // cost: one test thread of RUNS publications.
+                        scope.spawn(move || {
+                            let store = Store::new(root);
+                            start.wait();
+                            cost::take();
+                            for run in 0..RUNS {
+                                let batch: Vec<_> = (0..8)
+                                    .map(|n| item((shard << 124) | (run * 8 + n), &[7; 64]))
+                                    .collect();
+                                store.publish(&batch).unwrap();
+                            }
+                            cost::take()
+                        })
+                    })
+                    .collect();
+                workers.into_iter().map(|w| w.join().unwrap()).collect()
+            });
+            for c in &counts {
+                assert_eq!(
+                    (c.lock_waits, c.writer_locks),
+                    (0, u64::try_from(RUNS).unwrap()),
+                    "{c:?}"
+                );
+            }
+            let reader = Store::new(&root);
+            for shard in 0..16_u128 {
+                for n in 0..RUNS * 8 {
+                    assert!(
+                        reader
+                            .get(EntryKind::Check, &Hash128((shard << 124) | n))
+                            .is_some()
+                    );
+                }
+            }
+            indexed_packs(&root);
+        }
+
+        /// Sixteen stores publish the same key at once, again and again:
+        /// every read finds one whole value, and the index holds one row
+        /// for it, inside its pack.
+        #[test]
+        fn publishers_of_one_key_leave_one_whole_entry() {
+            let root = scratch("same-key");
+            let start = std::sync::Barrier::new(16);
+            std::thread::scope(|scope| {
+                for writer in 0..16_u8 {
+                    let (root, start) = (&root, &start);
+                    // cost: one test thread of ten publications.
+                    scope.spawn(move || {
+                        let store = Store::new(root);
+                        start.wait();
+                        for _ in 0..10 {
+                            store.publish(&[item(1, &[writer; 4096])]).unwrap();
+                            let got = Store::new(root).get(EntryKind::Check, &Hash128(1)).unwrap();
+                            assert!(got.iter().all(|&b| b == got[0]), "a torn value");
+                        }
+                    });
+                }
+            });
+            let rows = DiskStore::new(root.clone()).index_entries();
+            assert_eq!(rows.len(), 1);
+            indexed_packs(&root);
+            let got = Store::new(&root)
+                .get(EntryKind::Check, &Hash128(1))
+                .unwrap();
+            assert_eq!(got.len(), 4096);
+            assert!(got.iter().all(|&b| b == got[0]));
+        }
+
+        /// A torn tail of a shard's log is skipped by readers and cut by
+        /// the next writer; a batch whose checksum fails ends the log
+        /// there, so the batches after it are not read either.
+        #[test]
+        fn a_torn_log_tail_is_cut_and_a_bad_batch_ends_the_log() {
+            let root = scratch("torn-log");
+            let store = Store::new(&root);
+            store.publish(&[item(1, b"one")]).unwrap();
+            let log = store.log_path(0);
+            let append = |bytes: &[u8]| {
+                let mut file = OpenOptions::new().append(true).open(&log).unwrap();
+                file.write_all(bytes).unwrap();
+            };
+            let len = || std::fs::metadata(&log).unwrap().len();
+            let whole = len();
+            append(&[1, 2, 3]);
+            assert!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(1))
+                    .is_some()
+            );
+            drop(store.open_shard(0).unwrap());
+            assert_eq!(len(), whole, "the writer cut the torn tail");
+            let loc = |n: u64| Location {
+                pack: 1,
+                offset: 0,
+                len: n,
+                used: 0,
+            };
+            let mut bad = log_frame(&[Op::Set((EntryKind::Check as u16, 3), loc(3))]);
+            let last = bad.len() - 1;
+            bad[last] ^= 0xff;
+            append(&bad);
+            append(&log_frame(&[Op::Set((EntryKind::Check as u16, 4), loc(4))]));
+            let reader = Store::new(&root);
+            assert!(reader.get(EntryKind::Check, &Hash128(1)).is_some());
+            assert!(reader.get(EntryKind::Check, &Hash128(4)).is_none());
+            store.publish(&[item(5, b"five")]).unwrap();
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(5))
+                    .as_deref(),
+                Some(b"five".as_slice())
+            );
+            assert_eq!(load(&store).len(), 2);
+        }
+
+        /// A reader whose view of a log predates a fold takes the page the
+        /// fold wrote, which is newer than the log's change it holds.
+        #[test]
+        fn a_page_a_later_fold_wrote_wins_over_an_older_log_view() {
+            let root = scratch("fold-epoch");
+            let writer = Store::new(&root);
+            writer.publish(&[item(1, b"old")]).unwrap();
+            let reader = Store::new(&root);
+            // The reader reads shard 0's log, holding key 1's old change.
+            assert!(reader.get(EntryKind::Check, &Hash128(2)).is_none());
+            writer.publish(&[item(1, b"new")]).unwrap();
+            writer.open_shard(0).unwrap().fold().unwrap();
+            assert_eq!(
+                reader.get(EntryKind::Check, &Hash128(1)).as_deref(),
+                Some(b"new".as_slice())
+            );
+        }
+
         #[test]
         fn write_failure_warns_once_without_panicking() {
             static WARNINGS: std::sync::atomic::AtomicUsize =
@@ -4026,12 +4776,19 @@ mod packed {
                 WARNINGS.fetch_add(1, Ordering::Relaxed);
             }
             let root = scratch("write-failure");
-            std::fs::write(root.join("pack-v1"), b"not a directory").unwrap();
+            std::fs::write(root.join(NAMESPACE), b"not a directory").unwrap();
             let store = DiskStore::new(root).on_write_failure(warning);
             store.put(EntryKind::Check, &Hash128(1), b"value");
             store.put(EntryKind::Check, &Hash128(2), b"value");
             assert_eq!(WARNINGS.load(Ordering::Relaxed), 1);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_none());
+            // A shard of the index that is no directory fails the same way.
+            let root = scratch("shard-failure");
+            std::fs::create_dir_all(root.join(NAMESPACE).join("index")).unwrap();
+            std::fs::write(root.join(NAMESPACE).join("index/0"), b"not a shard").unwrap();
+            let store = DiskStore::new(root).on_write_failure(warning);
+            store.put(EntryKind::Check, &Hash128(1), b"value");
+            assert_eq!(WARNINGS.load(Ordering::Relaxed), 2);
         }
 
         #[test]
@@ -4039,11 +4796,11 @@ mod packed {
             let root = scratch("gc-write-failure");
             let store = DiskStore::new(root.clone()).with_cap(0);
             store.put(EntryKind::Check, &Hash128(1), b"data");
-            let before = store.packed.bytes();
-            assert!(before > 0);
-            let lock = root.join("pack-v1/lock");
+            let lock = Store::new(&root).log_path(0);
             std::fs::remove_file(&lock).unwrap();
             std::fs::create_dir(&lock).unwrap();
+            let before = store.packed.bytes();
+            assert!(before > 0);
             let collected = store.collect()?;
             assert_eq!(collected.before, before);
             assert_eq!(collected.after, before);
@@ -4268,7 +5025,7 @@ mod tests {
         store.put(EntryKind::Check, &k, b"packed");
         // Packed storage can appear between settle's work selection and
         // a shard's inventory. Untouched known shards must recover too.
-        store.clean(&[0], None)?;
+        store.clean(&[0])?;
         assert_eq!(ledger(&root)?.sizes[5], UNKNOWN);
         assert!(store.collect().is_ok());
         assert!(!store.path(EntryKind::Iface, &k).exists());
@@ -4451,9 +5208,7 @@ mod tests {
     #[test]
     fn the_ledger_keeps_bytes_another_process_added() -> std::io::Result<()> {
         let root = scratch("ledger");
-        let store = DiskStore::new(root.clone())
-            .with_cap(256 * 1000)
-            .with_evict_bound(Duration::ZERO);
+        let store = DiskStore::new(root.clone()).with_cap(256 * 1000);
         let k = key(5, 1);
         // Start from exact sizes, so the bounded drops below need no
         // rescan: the test is about byte merging, not eviction timing.
@@ -4464,9 +5219,7 @@ mod tests {
         assert_eq!(read(&root).sizes[5], 300);
         assert_eq!(read(&root).sizes[6], 0);
         // A later store over the same tree adds its own bytes.
-        let other = DiskStore::new(root.clone())
-            .with_cap(256 * 1000)
-            .with_evict_bound(Duration::ZERO);
+        let other = DiskStore::new(root.clone()).with_cap(256 * 1000);
         other.put_loose(EntryKind::Iface, &key(5, 2), &[0; 200]);
         drop(other);
         assert_eq!(read(&root).sizes[5], 500);
