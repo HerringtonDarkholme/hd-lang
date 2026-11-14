@@ -1,0 +1,14 @@
+# test: collecting a tuple rest retains a fixed field's reference loan
+struct Cell:
+    value: string
+
+fn probe(p: *mut Cell, alias: *mut Cell) -> string:
+    let held: (&string, List[usize]...) = (&p.value, 1, 2, 3)
+    if held._1.len() != 3:
+        panic("wrong tuple rest")
+    alias.value = "changed" # panic: borrow-conflict
+    *held._0
+
+pub fn main() -> void $ Console:
+    p := box(Cell { value: "original" })
+    println(probe(p, p))

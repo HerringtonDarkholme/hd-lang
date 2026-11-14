@@ -43,7 +43,7 @@ mod drop_flags;
 pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod excl;
-pub(crate) use excl::collect_loans;
+pub(crate) use excl::{OriginIndex, collect_loans};
 mod guards;
 mod iter;
 mod list;

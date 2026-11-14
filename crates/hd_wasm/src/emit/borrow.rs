@@ -923,8 +923,11 @@ impl Em<'_, '_, '_> {
         }
         // collect_loans indexed every emitted instance's own sub-body.
         let sites = std::sync::Arc::clone(&self.m.loan_stores[self.inst.idx()]);
+        // ruled out: loan preparation indexes every emitted body's topology.
+        let origin_index = std::sync::Arc::clone(&self.m.loan_origins[self.inst.idx()]);
+        let mut carried_graph = super::excl::OriginGraph::default();
         let sub = |t| self.sub(t);
-        let found = binds(self.pool(), self.env(), self.b, &sub, &sites, true);
+        let found = binds(self.pool(), self.env(), self.b, &origin_index, &sub, &sites);
         let mut st = Borrows {
             capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
             storage_roots: StorageRoots::new(self.b),
@@ -1085,6 +1088,8 @@ impl Em<'_, '_, '_> {
                             self.pool(),
                             self.env(),
                             self.b,
+                            &origin_index,
+                            &mut carried_graph,
                             &sub,
                             v as usize,
                         );

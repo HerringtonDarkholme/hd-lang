@@ -1,0 +1,21 @@
+# @dump: wat
+# expected: the alias write is allowed after the tuple fixed field has its last read
+struct Cell:
+    value: string
+
+fn probe(p: *mut Cell, alias: *mut Cell) -> string:
+    let held: (&string, List[usize]...) = (&p.value, 1, 2, 3)
+    if held._1.len() != 3:
+        panic("wrong tuple rest")
+    before := alias.value
+    seen := *held._0
+    if before != seen:
+        panic("shared read changed the value")
+    alias.value = "changed"
+    #^^^^^^^^^^^^^^^^^^^^^^^
+    seen
+
+pub fn main() -> void $ Console:
+    p := box(Cell { value: "original" })
+    println(probe(p, p))
+    println(p.value)

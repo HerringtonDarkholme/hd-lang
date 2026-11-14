@@ -1,4 +1,4 @@
-# test: an alias write conflicts with a live reference held beyond 32 value fields
+# test: an alias write conflicts with a live reference held beyond 64 value constructions
 struct Cell:
     value: string
 
@@ -125,49 +125,249 @@ struct View39['a]:
 struct View40['a]:
     inner: View39['a]
 
+struct View41['a]:
+    inner: View40['a]
+
+struct View42['a]:
+    inner: View41['a]
+
+struct View43['a]:
+    inner: View42['a]
+
+struct View44['a]:
+    inner: View43['a]
+
+struct View45['a]:
+    inner: View44['a]
+
+struct View46['a]:
+    inner: View45['a]
+
+struct View47['a]:
+    inner: View46['a]
+
+struct View48['a]:
+    inner: View47['a]
+
+struct View49['a]:
+    inner: View48['a]
+
+struct View50['a]:
+    inner: View49['a]
+
+struct View51['a]:
+    inner: View50['a]
+
+struct View52['a]:
+    inner: View51['a]
+
+struct View53['a]:
+    inner: View52['a]
+
+struct View54['a]:
+    inner: View53['a]
+
+struct View55['a]:
+    inner: View54['a]
+
+struct View56['a]:
+    inner: View55['a]
+
+struct View57['a]:
+    inner: View56['a]
+
+struct View58['a]:
+    inner: View57['a]
+
+struct View59['a]:
+    inner: View58['a]
+
+struct View60['a]:
+    inner: View59['a]
+
+struct View61['a]:
+    inner: View60['a]
+
+struct View62['a]:
+    inner: View61['a]
+
+struct View63['a]:
+    inner: View62['a]
+
+struct View64['a]:
+    inner: View63['a]
+
+struct View65['a]:
+    inner: View64['a]
+
+struct View66['a]:
+    inner: View65['a]
+
+struct View67['a]:
+    inner: View66['a]
+
+struct View68['a]:
+    inner: View67['a]
+
+struct View69['a]:
+    inner: View68['a]
+
+struct View70['a]:
+    inner: View69['a]
+
+struct View71['a]:
+    inner: View70['a]
+
+struct View72['a]:
+    inner: View71['a]
+
+struct View73['a]:
+    inner: View72['a]
+
+struct View74['a]:
+    inner: View73['a]
+
+struct View75['a]:
+    inner: View74['a]
+
+struct View76['a]:
+    inner: View75['a]
+
+struct View77['a]:
+    inner: View76['a]
+
+struct View78['a]:
+    inner: View77['a]
+
+struct View79['a]:
+    inner: View78['a]
+
+struct View80['a]:
+    inner: View79['a]
+
 fn probe(p: *mut Cell, alias: *mut Cell) -> string:
-    view := View40 {
-        inner: View39 {
-            inner: View38 {
-                inner: View37 {
-                    inner: View36 {
-                        inner: View35 {
-                            inner: View34 {
-                                inner: View33 {
-                                    inner: View32 {
-                                        inner: View31 {
-                                            inner: View30 {
-                                                inner: View29 {
-                                                    inner: View28 {
-                                                        inner: View27 {
-                                                            inner: View26 {
-                                                                inner: View25 {
-                                                                    inner: View24 {
-                                                                        inner: View23 {
-                                                                            inner: View22 {
-                                                                                inner: View21 {
-                                                                                    inner: View20 {
-                                                                                        inner: View19 {
-                                                                                            inner: View18 {
-                                                                                                inner: View17 {
-                                                                                                    inner: View16 {
-                                                                                                        inner: View15 {
-                                                                                                            inner: View14 {
-                                                                                                                inner: View13 {
-                                                                                                                    inner: View12 {
-                                                                                                                        inner: View11 {
-                                                                                                                            inner: View10 {
-                                                                                                                                inner: View9 {
-                                                                                                                                    inner: View8 {
-                                                                                                                                        inner: View7 {
-                                                                                                                                            inner: View6 {
-                                                                                                                                                inner: View5 {
-                                                                                                                                                    inner: View4 {
-                                                                                                                                                        inner: View3 {
-                                                                                                                                                            inner: View2 {
-                                                                                                                                                                inner: View1 {
-                                                                                                                                                                    inner: View0 {
-                                                                                                                                                                        r: &p.value,
+    view := View80 {
+        inner: View79 {
+            inner: View78 {
+                inner: View77 {
+                    inner: View76 {
+                        inner: View75 {
+                            inner: View74 {
+                                inner: View73 {
+                                    inner: View72 {
+                                        inner: View71 {
+                                            inner: View70 {
+                                                inner: View69 {
+                                                    inner: View68 {
+                                                        inner: View67 {
+                                                            inner: View66 {
+                                                                inner: View65 {
+                                                                    inner: View64 {
+                                                                        inner: View63 {
+                                                                            inner: View62 {
+                                                                                inner: View61 {
+                                                                                    inner: View60 {
+                                                                                        inner: View59 {
+                                                                                            inner: View58 {
+                                                                                                inner: View57 {
+                                                                                                    inner: View56 {
+                                                                                                        inner: View55 {
+                                                                                                            inner: View54 {
+                                                                                                                inner: View53 {
+                                                                                                                    inner: View52 {
+                                                                                                                        inner: View51 {
+                                                                                                                            inner: View50 {
+                                                                                                                                inner: View49 {
+                                                                                                                                    inner: View48 {
+                                                                                                                                        inner: View47 {
+                                                                                                                                            inner: View46 {
+                                                                                                                                                inner: View45 {
+                                                                                                                                                    inner: View44 {
+                                                                                                                                                        inner: View43 {
+                                                                                                                                                            inner: View42 {
+                                                                                                                                                                inner: View41 {
+                                                                                                                                                                    inner: View40 {
+                                                                                                                                                                        inner: View39 {
+                                                                                                                                                                            inner: View38 {
+                                                                                                                                                                                inner: View37 {
+                                                                                                                                                                                    inner: View36 {
+                                                                                                                                                                                        inner: View35 {
+                                                                                                                                                                                            inner: View34 {
+                                                                                                                                                                                                inner: View33 {
+                                                                                                                                                                                                    inner: View32 {
+                                                                                                                                                                                                        inner: View31 {
+                                                                                                                                                                                                            inner: View30 {
+                                                                                                                                                                                                                inner: View29 {
+                                                                                                                                                                                                                    inner: View28 {
+                                                                                                                                                                                                                        inner: View27 {
+                                                                                                                                                                                                                            inner: View26 {
+                                                                                                                                                                                                                                inner: View25 {
+                                                                                                                                                                                                                                    inner: View24 {
+                                                                                                                                                                                                                                        inner: View23 {
+                                                                                                                                                                                                                                            inner: View22 {
+                                                                                                                                                                                                                                                inner: View21 {
+                                                                                                                                                                                                                                                    inner: View20 {
+                                                                                                                                                                                                                                                        inner: View19 {
+                                                                                                                                                                                                                                                            inner: View18 {
+                                                                                                                                                                                                                                                                inner: View17 {
+                                                                                                                                                                                                                                                                    inner: View16 {
+                                                                                                                                                                                                                                                                        inner: View15 {
+                                                                                                                                                                                                                                                                            inner: View14 {
+                                                                                                                                                                                                                                                                                inner: View13 {
+                                                                                                                                                                                                                                                                                    inner: View12 {
+                                                                                                                                                                                                                                                                                        inner: View11 {
+                                                                                                                                                                                                                                                                                            inner: View10 {
+                                                                                                                                                                                                                                                                                                inner: View9 {
+                                                                                                                                                                                                                                                                                                    inner: View8 {
+                                                                                                                                                                                                                                                                                                        inner: View7 {
+                                                                                                                                                                                                                                                                                                            inner: View6 {
+                                                                                                                                                                                                                                                                                                                inner: View5 {
+                                                                                                                                                                                                                                                                                                                    inner: View4 {
+                                                                                                                                                                                                                                                                                                                        inner: View3 {
+                                                                                                                                                                                                                                                                                                                            inner: View2 {
+                                                                                                                                                                                                                                                                                                                                inner: View1 {
+                                                                                                                                                                                                                                                                                                                                    inner: View0 {
+                                                                                                                                                                                                                                                                                                                                        r: &p.value,
+                                                                                                                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                },
+                                                                                                                                                                                                            },
+                                                                                                                                                                                                        },
+                                                                                                                                                                                                    },
+                                                                                                                                                                                                },
+                                                                                                                                                                                            },
+                                                                                                                                                                                        },
+                                                                                                                                                                                    },
+                                                                                                                                                                                },
+                                                                                                                                                                            },
+                                                                                                                                                                        },
                                                                                                                                                                     },
                                                                                                                                                                 },
                                                                                                                                                             },
@@ -211,6 +411,46 @@ fn probe(p: *mut Cell, alias: *mut Cell) -> string:
     }
     alias.value = "changed" # panic: borrow-conflict
     *view.inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
+        .inner
         .inner
         .inner
         .inner

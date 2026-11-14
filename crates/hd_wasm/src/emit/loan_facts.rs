@@ -6,6 +6,7 @@ use hd_mono::{Sub, Target, TargetKind, subst};
 use hd_tir::ir::{Body, Place, Proj, Tag};
 use hd_tir::own::pointer::{self, Binding, Call, Context, Conversion, Holder, Reference};
 use hd_types::{Ty, TyList};
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use super::borrow::{self, Roots};
@@ -21,6 +22,7 @@ struct LocalRoots {
 }
 
 struct PreparedBody {
+    origins: Arc<excl::OriginIndex>,
     stores: Vec<Arc<[usize]>>,
     storage: Arc<borrow::StorageRoots>,
 }
@@ -31,9 +33,12 @@ struct Facts<'a, 'b> {
     roots: HashMap<InstId, LocalRoots>,
     /// Each instance's body, by instance number, which every fact reads.
     bodies: Vec<Option<&'a Body>>,
+    carried: RefCell<HashMap<InstId, excl::OriginGraph>>,
 }
 
 pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisions {
+    let empty_origins = Arc::new(excl::OriginIndex::default());
+    let mut origins = vec![empty_origins; input.collected.table.item.len()];
     let mut roots = HashMap::default();
     let mut bodies = vec![None; input.collected.table.item.len()];
     // The retained body references keep these identities live throughout
@@ -46,15 +51,17 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
             continue;
         };
         bodies[id.idx()] = Some(b);
-        let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
-            continue;
-        };
         let groups = grouped
             .entry(std::ptr::from_ref(b))
             .or_insert_with(|| PreparedBody {
+                origins: Arc::new(excl::OriginIndex::new(b)),
                 stores: excl::binding_stores(b),
                 storage: Arc::new(borrow::StorageRoots::new(b)),
             });
+        origins[id.idx()] = Arc::clone(&groups.origins);
+        let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
+            continue;
+        };
         let sites = Arc::clone(&groups.stores[usize::from(scope)]);
         stores[id.idx()] = Arc::clone(&sites);
         let t = &input.collected.table;
@@ -77,15 +84,22 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         );
     }
     module.loan_stores = stores;
+    module.loan_origins = origins;
     pointer::decide(&Facts {
         input,
         module,
         roots,
         bodies,
+        carried: RefCell::default(),
     })
 }
 
 impl Facts<'_, '_> {
+    fn origin_index(&self, id: InstId) -> &excl::OriginIndex {
+        // ruled out: decide indexes every retained body before querying facts.
+        &self.module.loan_origins[id.idx()]
+    }
+
     fn target(&self, id: InstId, instruction: u32) -> Option<&Target> {
         self.input.collected.calls[id.idx()].get(&instruction)
     }
@@ -223,9 +237,9 @@ impl Context for Facts<'_, '_> {
             self.input.pool,
             self.input.env,
             b,
+            self.origin_index(id),
             &|ty| self.substitute(id, ty),
             &self.module.loan_stores[id.idx()],
-            true,
         )
         .into_iter()
         .map(|(i, held, bind, _)| {
@@ -261,6 +275,8 @@ impl Context for Facts<'_, '_> {
                 self.input.pool,
                 self.input.env,
                 b,
+                self.origin_index(id),
+                self.carried.borrow_mut().entry(id).or_default(),
                 &|ty| self.substitute(id, ty),
                 value,
             )
