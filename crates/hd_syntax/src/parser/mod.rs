@@ -67,7 +67,20 @@ pub struct Parse {
     lines: std::sync::OnceLock<LineIndex>,
     /// Where a `use` that imports a missing name goes, found on the
     /// first [`Self::use_insertion`].
-    use_at: std::sync::OnceLock<(u32, bool)>,
+    use_at: std::sync::OnceLock<UseInsertion>,
+}
+
+/// Where a `use` that imports a missing name goes ([`Parse::use_insertion`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseInsertion {
+    /// The byte the `use` line is inserted at.
+    pub at: u32,
+    /// It follows another `use`: the insertion starts a line at the end
+    /// of that one. Otherwise it is a line of its own and a blank line.
+    pub after_use: bool,
+    /// The line ending the file uses there, `"\r\n"` or `"\n"`, so the
+    /// added line does not mix endings.
+    pub newline: &'static str,
 }
 
 impl Parse {
@@ -85,10 +98,11 @@ impl Parse {
     /// file's last top-level `use`. Otherwise it goes at the start of the
     /// file, or after the module documentation block and the blank line
     /// that follows it (`lex.doc.module`), which a `use` before it would
-    /// detach. Found on the first call, by one pass over the top-level
-    /// items; every later call shares it.
+    /// detach. The line takes the file's line ending: the one of the line
+    /// it follows, else the file's first. Found on the first call, by one
+    /// pass over the top-level items; every later call shares it.
     #[must_use]
-    pub fn use_insertion(&self, text: &str) -> (u32, bool) {
+    pub fn use_insertion(&self, text: &str) -> UseInsertion {
         *self.use_at.get_or_init(|| {
             let to_u32 = |at: usize| u32::try_from(at).unwrap_or(u32::MAX);
             let after_line = |at: usize| {
@@ -96,6 +110,11 @@ impl Parse {
                     .and_then(|t| t.find('\n'))
                     .map_or(text.len(), |i| at + i)
             };
+            // Whether the line ending at the `\n` at `end` is `\r\n`.
+            let crlf_at = |end: usize| end > 0 && text.as_bytes().get(end - 1) == Some(&b'\r');
+            let first = text.find('\n');
+            let newline = |crlf: bool| if crlf { "\r\n" } else { "\n" };
+            let file_newline = newline(first.is_some_and(crlf_at));
             let last_use = self
                 .tree
                 .root()
@@ -104,9 +123,27 @@ impl Parse {
                 .last();
             if let Some(u) = last_use {
                 let (_, last) = self.tree.span_tokens(u.index());
-                let end = self.tokens.end[last.idx()] as usize;
-                return (to_u32(after_line(end)), true);
+                let end = after_line(self.tokens.end[last.idx()] as usize);
+                // A `\r\n` line ends before its `\r`.
+                if end < text.len() && crlf_at(end) {
+                    return UseInsertion {
+                        at: to_u32(end - 1),
+                        after_use: true,
+                        newline: "\r\n",
+                    };
+                }
+                let newline = if end < text.len() { "\n" } else { file_newline };
+                return UseInsertion {
+                    at: to_u32(end),
+                    after_use: true,
+                    newline,
+                };
             }
+            let top = UseInsertion {
+                at: 0,
+                after_use: false,
+                newline: file_newline,
+            };
             // The module documentation comes before the first token.
             let first_token = self.tokens.start.first().map_or(u32::MAX, |&s| s);
             let before = self.tokens.com_start.partition_point(|&s| s < first_token);
@@ -114,12 +151,15 @@ impl Parse {
                 .iter()
                 .rposition(|k| *k == CommentKind::ModuleDoc)
             else {
-                return (0, false);
+                return top;
             };
             // Past the end of its last line, and the blank line after it.
             let blank = after_line(self.tokens.com_end[doc] as usize);
             let at = after_line((blank + 1).min(text.len()));
-            (to_u32((at + 1).min(text.len())), false)
+            UseInsertion {
+                at: to_u32((at + 1).min(text.len())),
+                ..top
+            }
         })
     }
 

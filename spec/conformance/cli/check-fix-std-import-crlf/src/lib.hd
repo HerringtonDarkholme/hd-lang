@@ -1,0 +1,12 @@
+## Two functions bounded by a trait this module does not import.
+
+use std.error.Error # for `describe`
+
+pub fn describe[E < Error](e: E) -> void:
+    pass
+
+pub fn smallest[N < Integer](a: N, b: N) -> N:
+    if a < b: a else: b
+
+pub fn largest[N < Integer](a: N, b: N) -> N:
+    if a < b: b else: a

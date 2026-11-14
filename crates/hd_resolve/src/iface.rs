@@ -926,16 +926,17 @@ impl ImportHint {
         let Some(path) = &self.path else {
             return;
         };
-        let (at, after_use) = src.parse.use_insertion(src.text);
-        let text = if after_use {
-            format!("\nuse {path}")
+        let place = src.parse.use_insertion(src.text);
+        let nl = place.newline;
+        let text = if place.after_use {
+            format!("{nl}use {path}")
         } else {
-            format!("use {path}\n\n")
+            format!("use {path}{nl}{nl}")
         };
         let span = hd_base::Span {
             file: src.file,
-            lo: at,
-            hi: at,
+            lo: place.at,
+            hi: place.at,
         };
         diags.add_fix(
             &format!("add `use {path}`"),

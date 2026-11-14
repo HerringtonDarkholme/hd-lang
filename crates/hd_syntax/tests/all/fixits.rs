@@ -1,5 +1,5 @@
 use hd_base::SliceSort as _;
-use hd_syntax::parse;
+use hd_syntax::{UseInsertion, parse};
 
 #[test]
 fn moved_punctuation_and_documentation_fixes_parse() {
@@ -67,18 +67,45 @@ fn incomplete_spreads_and_other_comment_positions_have_no_fix() {
 /// `Parse::use_insertion`: a missing import's `use` goes at the end of
 /// the line of the last top-level `use`, past its comment; else after
 /// the module documentation and its blank line; else at the top. A
-/// nested `use` and a comment above the first item do not count.
+/// nested `use` and a comment above the first item do not count. The
+/// line takes the file's ending: in a `\r\n` file it goes before the
+/// `\r` of the last `use` line, and ends in `\r\n` (#1862).
 #[test]
 fn a_missing_import_goes_after_the_last_use_or_the_module_doc() {
+    let lf = |at, after_use| UseInsertion {
+        at,
+        after_use,
+        newline: "\n",
+    };
+    let crlf = |at, after_use| UseInsertion {
+        at,
+        after_use,
+        newline: "\r\n",
+    };
     for (source, want) in [
         (
             "use std.a\nfn f(): +1\nuse std.d # last\n\nfn g(): +1\n",
-            (37, true),
+            lf(37, true),
         ),
-        ("## Module.\n\n## The function.\nfn f(): +1\n", (12, false)),
-        ("## Attached.\nfn f(): +1\n", (0, false)),
-        ("# header\n\nfn f():\n    use std.a\n    +1\n", (0, false)),
-        ("", (0, false)),
+        (
+            "## Module.\n\n## The function.\nfn f(): +1\n",
+            lf(12, false),
+        ),
+        ("## Attached.\nfn f(): +1\n", lf(0, false)),
+        ("# header\n\nfn f():\n    use std.a\n    +1\n", lf(0, false)),
+        ("", lf(0, false)),
+        // The last line, with no ending: the file's first line ending.
+        ("fn f(): +1\r\nuse std.a", crlf(21, true)),
+        ("use std.a", lf(9, true)),
+        (
+            "use std.a\r\nfn f(): +1\r\nuse std.d # last\r\n\r\nfn g(): +1\r\n",
+            crlf(39, true),
+        ),
+        (
+            "## Module.\r\n\r\n## The function.\r\nfn f(): +1\r\n",
+            crlf(14, false),
+        ),
+        ("fn f(): +1\r\n", crlf(0, false)),
     ] {
         let parsed = parse(source.as_bytes());
         assert_eq!(parsed.use_insertion(source), want, "{source:?}");

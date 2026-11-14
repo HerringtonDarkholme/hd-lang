@@ -12,7 +12,8 @@ spec/conformance/cli/check-fix-parser-migrations/** text eol=lf
 spec/conformance/cli/check-fix-parser-punctuation/** text eol=lf
 spec/conformance/cli/check-fix-elif-continuations/** text eol=lf
 spec/conformance/cli/check-fix-known-name-errors/** text eol=lf
-spec/conformance/cli/unknown-name-suggestions/methods.hd text eol=lf
+spec/conformance/cli/unknown-name-suggestions/** text eol=lf
+spec/conformance/cli/check-fix-std-import/** text eol=lf
 spec/conformance/cli/check-fix-legacy-syntax/** text eol=lf
 spec/conformance/cli/check-fix-reassigned-bindings/** text eol=lf
 spec/conformance/cli/lint-fix-private-main/src/*.hd text eol=lf
@@ -32,3 +33,8 @@ spec/conformance/cli/lint-binding-patterns/** text eol=lf
 spec/conformance/cli/lint-flow-advice/** text eol=lf
 
 spec/conformance/cli/fmt-width/** text eol=lf
+
+# A missing import's fix-it in a CRLF file: checked out with CRLF
+# everywhere, so every platform tests the line ending it adds.
+spec/conformance/cli/check-fix-std-import-crlf/src/*.hd text eol=crlf
+spec/conformance/cli/check-fix-std-import-crlf/want/* text eol=crlf

@@ -13,7 +13,7 @@ pub use green::*;
 pub use layout::{Layout, LayoutCursor, SuiteKind, TokenOrLayout};
 pub use lexer::{CommentKind, Lexed, LineFlags, TokenBuf, TokenKind, lex};
 pub use names::{function_names, top_level_names};
-pub use parser::{ItemIndex, ItemKind, Parse, parse};
+pub use parser::{ItemIndex, ItemKind, Parse, UseInsertion, parse};
 pub use skim::{BodyRange, HeaderKind, HeaderSkeleton, skeleton_from_layout, skim};
 
 /// Normalizes text to NFC, using the installed host on wasm32.
