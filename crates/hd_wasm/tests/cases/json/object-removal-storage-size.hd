@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release std
+# expected: removal metadata preserves the 16-byte Json, 8-byte JsonObject, and 8-byte cursor
+use std.json.{Json, JsonObject, JsonObjectIter}
+use std.rt.memory.size_of
+
+pub fn json_bytes() -> usize:
+    size_of::[Json]()
+
+pub fn object_bytes() -> usize:
+    size_of::[JsonObject]()
+
+pub fn cursor_bytes() -> usize:
+    size_of::[JsonObjectIter]()

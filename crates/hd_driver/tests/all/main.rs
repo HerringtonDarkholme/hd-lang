@@ -68,6 +68,7 @@ mod item_names;
 mod item_too_complex;
 mod join_once;
 mod json_encode_linking;
+mod json_object_remove;
 mod lazy_borrow_work;
 mod lazy_ifaces;
 mod least_common_type_run;

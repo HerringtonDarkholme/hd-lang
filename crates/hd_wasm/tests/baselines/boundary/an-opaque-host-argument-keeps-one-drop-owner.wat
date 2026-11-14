@@ -9,7 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 33 funcref))
+  (import "fixture" "table0" (table $table0 32 funcref))
   (func $begin (param $sink.0 i32) (param $sink.1 i32) (param $value.values i32) (param $value.owner.buffer.address i32) (param $value.owner.buffer.capacity i32) (param $value.owner.len i32) (result i32)
     ;; 25 |     sink.keep(value)
     local.get $sink.0

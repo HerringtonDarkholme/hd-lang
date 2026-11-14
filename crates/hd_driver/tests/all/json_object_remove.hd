@@ -1,0 +1,142 @@
+use std.serde.{Deserialize, Deserializer}
+use std.json.{
+    from_json,
+    Json,
+    JsonObject,
+    Number,
+    duplicate_object_for_test,
+    object_storage_sizes_for_test,
+    slot_queries_for_test,
+    compaction_steps_for_test,
+}
+use std.rt.alloc.requested_bytes_for_test
+use std.testing.{assert, assert_equal}
+
+fn numbered(index: usize) -> Json:
+    Json.Number(Number::from_u64(u64(index)))
+
+fn unique(size: usize) -> void $ Console:
+    before := requested_bytes_for_test()
+    steps := compaction_steps_for_test()
+    let mut object = JsonObject::new()
+    let index: usize = 0
+    while index < size:
+        object.set("k$index", numbered(index))
+        index += 1
+    snapshot := object
+    index = 0
+    while index < size:
+        assert_equal(object.remove("k$index"), .Some(numbered(index)))
+        assert_equal(object.len(), size - index - 1)
+        assert(!object.contains_key("k$index"))
+        if index == size / 2:
+            let expected = index + 1
+            for (key, value) in object:
+                assert_equal(key, "k$expected")
+                assert_equal(value, numbered(expected))
+                expected += 1
+            assert_equal(expected, size)
+        index += 1
+    assert(object.is_empty())
+    assert(object.keys().is_empty())
+    assert_equal(snapshot.len(), size)
+    assert_equal(snapshot.get("k0"), .Some(numbered(0)))
+    object.set("again", Json.Null)
+    assert_equal(object.keys(), ["again"])
+    spent := requested_bytes_for_test() - before
+    work := compaction_steps_for_test() - steps
+    assert(
+        spent <= u64(size) * 8192u64,
+        reason="allocation work stays linear across COW and compaction",
+    )
+    assert(work <= size * 4, reason="dead slots pay for compaction scans")
+    println("unique $size: $spent bytes, $work visits")
+
+fn duplicates(size: usize) -> void $ Console:
+    before := requested_bytes_for_test()
+    steps := compaction_steps_for_test()
+    let mut object = duplicate_object_for_test(size)
+    assert_equal(object.remove("same"), .Some(numbered(0)))
+    snapshot := object
+    let index: usize = 1
+    while index < size:
+        assert_equal(object.len(), size - index)
+        assert_equal(object.get("same"), .Some(numbered(index)))
+        assert_equal(object.remove("same"), .Some(numbered(index)))
+        index += 1
+    assert(object.is_empty())
+    assert_equal(snapshot.len(), size - 1)
+    let expected: usize = 1
+    for (key, value) in snapshot:
+        assert_equal(key, "same")
+        assert_equal(value, numbered(expected))
+        expected += 1
+    assert_equal(expected, size)
+    spent := requested_bytes_for_test() - before
+    work := compaction_steps_for_test() - steps
+    assert(
+        spent <= u64(size) * 8192u64,
+        reason="duplicate successor maps stay unique while their heads advance",
+    )
+    assert(work <= size * 4, reason="duplicate compaction also has a linear work bound")
+    println("duplicates $size: $spent bytes, $work visits")
+
+struct FirstItem:
+    value: i32
+
+impl Deserialize for FirstItem:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[FirstItem, R::Error]:
+        input.begin_map()?
+        if input.next_item()?:
+            .Ok(FirstItem { value: i32::deserialize(input)? })
+        else:
+            .Ok(FirstItem { value: 0 })
+
+fn small_churn() -> void:
+    let mut object = JsonObject::new()
+    object.set("", Json.Bool(true))
+    _ := object.remove("")
+    before := requested_bytes_for_test()
+    let index: usize = 0
+    while index < 10000:
+        value := Json.Bool(index % 2 == 0)
+        object.set("", value)
+        assert_equal(object.remove(""), .Some(value))
+        index += 1
+    assert(object.is_empty())
+    assert_equal(
+        requested_bytes_for_test() - before,
+        0u64,
+        reason="small removals keep their buffer",
+    )
+
+fn edges() -> void:
+    let mut small = JsonObject::new()
+    let index: usize = 0
+    while index < 8:
+        small.set("k$index", numbered(index))
+        index += 1
+    _ := small.remove("k3")
+    small.set("last", Json.Bool(true))
+    assert_equal(small.len(), 8)
+    assert_equal(small.keys(), ["k0", "k1", "k2", "k4", "k5", "k6", "k7", "last"])
+    assert_equal(small.get("last"), .Some(Json.Bool(true)))
+    small.set("k0", Json.Null)
+    assert_equal(small.keys()[0], "k0")
+    let mut fields = JsonObject::new()
+    fields.set("deleted", Json.Null)
+    fields.set("bad", Json.Text("bad"))
+    _ := fields.remove("deleted")
+    match from_json::[FirstItem](Json.Object(fields)):
+        .Err(.WrongType(path, _)) => assert_equal(path, "$[0]")
+        _ => panic("expected an error at the first live item")
+
+pub fn main() -> void $ Console:
+    assert_equal(object_storage_sizes_for_test(), (8, 24, 16))
+    assert(slot_queries_for_test(), reason="empty metadata and vacant physical slots have no value")
+    edges()
+    small_churn()
+    unique(8000)
+    duplicates(8)
+    duplicates(1000)
+    duplicates(10000)

@@ -52,14 +52,19 @@ pub enum Json:
     Array(items: List[Json])
     Object(fields: JsonObject)
 
-# The members of a JSON object (r-std-json.object.decl-struct): `entries` holds them
-# in insertion order. An object of up to 8 members finds a key by comparing
-# it with each; a larger one also keeps `index`, which maps each key to its
-# place in `entries`, so a lookup does not scan.
+# Stable member slots for indexed objects; deletion leaves a vacant slot
+# until at least half the slots are vacant. A trailing metadata slot is
+# present only after deletion or when serialization needs duplicate links. Keeping
+# it in the existing COW buffer does not widen JsonObject or every Json.
+enum ObjectEntry:
+    Member(key: string, value: Json)
+    Removed
+    Metadata(live: usize, next: Map[usize, usize])
+
 ## The members of a JSON object, in insertion order.
 ## See [std-json.object.decl-struct](../../spec/std/json.md#r-std-json.object.decl-struct).
 pub struct JsonObject:
-    entries: List[(string, Json)]
+    entries: List[ObjectEntry]
     index: Map[string, usize]
 
 impl JsonObject:
@@ -71,18 +76,22 @@ impl JsonObject:
     ## Returns the number of members.
     ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
     pub fn len(&self) -> usize:
-        self.entries.len()
+        if self.index.is_empty():
+            return self.entries.len()
+        match self.entries[self.entries.len() - 1]:
+            .Metadata(live, _) => live
+            _ => self.entries.len()
 
     ## True exactly when the object has no members.
     ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
     pub fn is_empty(&self) -> bool:
-        self.entries.len() == 0
+        self.len() == 0
 
     ## The value of `key`, or `.None` when the object has no such key.
     ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
     pub fn get(&self, key: string) -> Json?:
         match self.position(key):
-            .Some(at) => .Some(self.entries[at]._1)
+            .Some(at) => self.value_at(at)
             .None => .None
 
     ## True exactly when the object has the key.
@@ -94,55 +103,166 @@ impl JsonObject:
     ## See [std-json.object.set-ref](../../spec/std/json.md#r-std-json.object.set-ref).
     pub fn set(&mut self, key: string, value: Json) -> void:
         match self.position(key):
-            .Some(at) => self.entries[at] = (key, value)
+            .Some(at) => self.entries[at] = .Member(key, value)
             .None =>
-                count := self.entries.len()
-                self.entries.push((key, value))
-                if self.index.len() > 0:
-                    self.index[key] = count
-                else if count >= 8:
-                    let at: usize = 0
-                    while at <= count:
-                        self.index[self.entries[at]._0] = at
-                        at = at + 1
+                let at = self.entries.len()
+                if self.has_metadata():
+                    metadata := self.take_metadata()
+                    at = self.entries.len()
+                    self.entries.push(.Member(key, value))
+                    self.entries.push(.Metadata(metadata._0 + 1, metadata._1))
+                else:
+                    self.entries.push(.Member(key, value))
+                if !self.index.is_empty(): self.index[key] = at else if at >= 8: self.index_dense()
 
     ## Removes `key` and returns its value, or `.None` when the object has no such key. The other members keep their order.
     ## See [std-json.object.remove-ref](../../spec/std/json.md#r-std-json.object.remove-ref).
     pub fn remove(&mut self, key: string) -> Json?:
+        # A duplicate-preserving tree writer can construct a dense, large
+        # object without an index. Pay for that index once before deletion.
+        if self.index.is_empty() && self.entries.len() > 8:
+            self.index_dense()
         match self.position(key):
             .None => .None
             .Some(at) =>
-                removed := self.entries.remove_at(at)
-                if self.index.len() > 0:
-                    _ := self.index.remove(key)
-                    size := self.entries.len()
-                    let later: usize = at
-                    while later < size:
-                        self.index[self.entries[later]._0] = later
-                        later = later + 1
-                .Some(removed._1)
+                # The existing unindexed representation has at most eight
+                # members. Its bounded shift retains the reusable buffer,
+                # avoiding metadata and allocations for small-object churn.
+                if self.index.is_empty():
+                    return match self.entries.remove_at(at):
+                        .Member(_, value) => .Some(value)
+                        _ => .None
+                removed := self.value_at(at)
+                metadata := self.take_metadata()
+                live := metadata._0 - 1
+                let mut next = metadata._1
+                self.entries[at] = .Removed
+                if !self.index.is_empty():
+                    match next.remove(at):
+                        .Some(following) => self.index[key] = following
+                        .None => _ := self.index.remove(key)
+                slots := self.entries.len()
+                self.entries.push(.Metadata(live, next))
+                if slots - live > live:
+                    self.compact()
+                removed
 
-    # The place of `key` in `entries`. `index` is empty until it is kept.
+    # Entry cursors use physical slots; normalize only a map reader that
+    # exposes numerical item positions, so its paths count live members.
+    fn has_holes(&self) -> bool:
+        if self.entries.is_empty():
+            return false
+        match self.entries[self.entries.len() - 1]:
+            .Metadata(live, _) => self.entries.len() - 1 > live
+            _ => false
+
+    fn has_metadata(&self) -> bool:
+        if self.entries.is_empty():
+            return false
+        match self.entries[self.entries.len() - 1]:
+            .Metadata(_, _) => true
+            _ => false
+
+    # Move the successor map out before editing it, preserving its uniqueness.
+    fn take_metadata(&mut self) -> (usize, Map[usize, usize]):
+        match self.entries.pop():
+            .Some(.Metadata(live, next)) => (live, next)
+            .Some(entry) =>
+                self.entries.push(entry)
+                (self.entries.len(), {})
+            .None => (0, {})
+
+    fn value_at(&self, at: usize) -> Json?:
+        match self.entries[at]:
+            .Member(_, value) => .Some(value)
+            _ => .None
+
+    fn entry_at(&self, at: usize) -> (string, Json)?:
+        match self.entries[at]:
+            .Member(key, value) => .Some((key, value))
+            _ => .None
+
+    # An ordinary unindexed object has at most eight dense member slots.
+    # A tree writer may also supply a larger dense object; remove indexes it
+    # before mutation, while read-only traversal retains its original cost.
     fn position(&self, key: string) -> usize?:
-        if self.index.len() > 0:
+        if !self.index.is_empty():
             return self.index.get(key)
-        size := self.entries.len()
         let at: usize = 0
-        while at < size:
-            if self.entries[at]._0 == key:
-                return .Some(at)
-            at = at + 1
+        while at < self.entries.len():
+            match self.entries[at]:
+                .Member(found, _) =>
+                    if found == key:
+                        return .Some(at)
+                _ => pass
+            at += 1
         .None
+
+    # All callers supply dense Member slots: promotion, first deletion of a
+    # tree-writer object, or compaction. One reverse pass gives each key its
+    # first slot and each duplicate its successor. A deletion updates only
+    # that key's head.
+    fn index_dense(&mut self) -> void:
+        let mut index: Map[string, usize] = {}
+        let mut next: Map[usize, usize] = {}
+        let live: usize = 0
+        let at = self.entries.len()
+        while at > 0:
+            at -= 1
+            match self.entries[at]:
+                .Member(key, _) =>
+                    match index.get(key):
+                        .Some(following) => next[at] = following
+                        .None => pass
+                    index[key] = at
+                    live += 1
+                _ => pass
+        if !next.is_empty():
+            self.entries.push(.Metadata(live, next))
+        self.index = index
+
+    fn from_entries(entries: List[ObjectEntry]) -> JsonObject:
+        JsonObject { entries: entries, index: {} }
+
+    # The dead slots pay for this scan and index rebuild. The replacement
+    # drops the old buffer, so retained storage follows live member count.
+    fn compact(&mut self) -> void:
+        let mut entries: List[ObjectEntry] = []
+        for entry in self.entries:
+            match entry:
+                .Member(_, _) => entries.push(entry)
+                _ => pass
+        let mut object = JsonObject::from_entries(entries)
+        if object.entries.len() > 8:
+            object.index_dense()
+        *self = object
 
     ## The keys, in insertion order.
     ## See [std-json.object.order](../../spec/std/json.md#r-std-json.object.order).
     pub fn keys(&self) -> List[string]:
-        self.entries.map(fn(entry: &(string, Json)) -> string: entry._0)
+        let mut keys: List[string] = []
+        for entry in self.entries:
+            match entry:
+                .Member(key, _) => keys.push(key)
+                _ => pass
+        keys
+
+## A cursor over the members of a JSON object, in insertion order.
+pub struct JsonObjectIter:
+    source: ListIter[ObjectEntry]
+
+impl Iterator[(string, Json)] for JsonObjectIter:
+    fn next(&mut self) -> (string, Json)?:
+        while true:
+            match self.source.next():
+                .Some(.Member(key, value)) => return .Some((key, value))
+                .Some(_) => pass
+                .None => return .None
 
 impl Iterable[(string, Json)] for JsonObject:
-    type IntoIter = ListIter[(string, Json)]
-    fn iter(self) -> ListIter[(string, Json)]:
-        self.entries.iter()
+    type IntoIter = JsonObjectIter
+    fn iter(self) -> JsonObjectIter:
+        JsonObjectIter { source: self.entries.iter() }
 
 # The same members, in any order (r-std-json.value.eq.object).
 # Keep handwritten Eq: compare keys and values, independent of entry order.
@@ -150,7 +270,7 @@ impl Eq for JsonObject:
     fn eq(&self, other: &JsonObject) -> bool:
         if self.len() != other.len():
             return false
-        for (key, value) in self.entries:
+        for (key, value) in *self:
             match other.get(key):
                 .Some(found) =>
                     if found != value:
@@ -1273,7 +1393,7 @@ impl Debug for Number:
 impl Debug for JsonObject:
     fn debug(&self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
-        for entry in self.entries:
+        for entry in *self:
             _ := list.entry(entry)
         list.finish()
 
@@ -1633,10 +1753,10 @@ fn tagged_json(
                     panic(
                         "std.json: internally tagged variant `${frame.name}` payload must write an object",
                     )
-            let mut entries: List[(string, Json)] = [(tag, Json.Text(frame.name))]
-            for (key, value) in fields.entries:
-                entries.push((key, value))
-            Json.Object(JsonObject { entries: entries, index: {} })
+            let mut entries: List[ObjectEntry] = [.Member(tag, Json.Text(frame.name))]
+            for (key, value) in fields:
+                entries.push(.Member(key, value))
+            Json.Object(JsonObject::from_entries(entries))
         .Adjacent(tag, content) =>
             let mut object = JsonObject::new()
             object.set(tag, Json.Text(frame.name))
@@ -2212,9 +2332,20 @@ impl JsonReader:
         name: string,
         facts: Facts,
     ) -> void:
+        let opened = container
+        match kind:
+            .Entries =>
+                match container:
+                    .Object(fields) =>
+                        if fields.has_holes():
+                            let mut dense = fields
+                            dense.compact()
+                            opened = Json.Object(dense)
+                    _ => pass
+            _ => pass
         at := self.open
         if at < self.containers.len():
-            self.containers[at] = container
+            self.containers[at] = opened
             self.kinds[at] = kind
             self.next[at] = 0
             self.bases[at] = base
@@ -2222,7 +2353,7 @@ impl JsonReader:
             self.variants[at] = name
             self.facts[at] = facts
         else:
-            self.containers.push(container)
+            self.containers.push(opened)
             self.kinds.push(kind)
             self.next.push(0)
             self.bases.push(base)
@@ -2261,18 +2392,28 @@ impl JsonReader:
     fn find_member(&mut self, last: usize, name: string) -> void:
         match self.containers[last]:
             .Object(fields) =>
-                entries := fields.entries
                 let at = self.next[last]
-                if at >= entries.len() || entries[at]._0 != name:
+                let found: (string, Json)? = .None
+                if at < fields.entries.len():
+                    found = fields.entry_at(at)
+                let same = false
+                match found:
+                    .Some((key, _)) => same = key == name
+                    .None => pass
+                if !same:
                     match fields.position(name):
-                        .Some(found) => at = found
-                        .None =>
-                            self.value = Json.Null
-                            self.present = false
-                            return
-                self.next[last] = at + 1
-                self.value = entries[at]._1
-                self.present = true
+                        .Some(slot) =>
+                            at = slot
+                            found = fields.entry_at(slot)
+                        .None => found = .None
+                match found:
+                    .Some((_, value)) =>
+                        self.next[last] = at + 1
+                        self.value = value
+                        self.present = true
+                    .None =>
+                        self.value = Json.Null
+                        self.present = false
             _ =>
                 self.value = Json.Null
                 self.present = false
@@ -2371,15 +2512,14 @@ impl Deserializer for JsonReader:
                 match self.containers[last]:
                     .Object(fields) =>
                         let found = index
-                        while (
-                            found < fields.entries.len()
-                            && self.variants[last] != ""
-                            && fields.entries[found]._0 == self.variants[last]
-                        ):
+                        while found < fields.entries.len():
+                            match fields.entry_at(found):
+                                .Some((key, value)) =>
+                                    if self.variants[last] == "" || key != self.variants[last]:
+                                        self.read_item(last, value, found)
+                                        return .Ok(true)
+                                .None => pass
                             found += 1
-                        if found < fields.entries.len():
-                            self.read_item(last, fields.entries[found]._1, found)
-                            return .Ok(true)
                     _ => pass
             _ => pass
         self.leave()
@@ -2415,21 +2555,19 @@ impl Deserializer for JsonReader:
                 match self.containers[last]:
                     .Object(fields) =>
                         let found = index
-                        while (
-                            found < fields.entries.len()
-                            && self.variants[last] != ""
-                            && fields.entries[found]._0 == self.variants[last]
-                        ):
+                        while found < fields.entries.len():
+                            match fields.entry_at(found):
+                                .Some((key, value)) =>
+                                    if self.variants[last] == "" || key != self.variants[last]:
+                                        self.next[last] = found + 1
+                                        self.value = value
+                                        self.present = true
+                                        base := self.bases[last]
+                                        self.step_key(base, key)
+                                        self.depth = base + 1
+                                        return .Ok(.Some(key))
+                                .None => pass
                             found += 1
-                        if found < fields.entries.len():
-                            entry := fields.entries[found]
-                            self.next[last] = found + 1
-                            self.value = entry._1
-                            self.present = true
-                            base := self.bases[last]
-                            self.step_key(base, entry._0)
-                            self.depth = base + 1
-                            return .Ok(.Some(entry._0))
                     _ => pass
             .Items =>
                 match self.containers[last]:
@@ -2482,7 +2620,7 @@ impl Deserializer for JsonReader:
                         _ => return .Err(self.fail("object"))
                     let tag_value: Json? = .None
                     let matches: usize = 0
-                    for (key, value) in fields.entries:
+                    for (key, value) in fields:
                         if key == tag:
                             matches += 1
                             if matches == 1:
@@ -2563,9 +2701,9 @@ impl Deserializer for JsonReader:
             .Object(fields) =>
                 if fields.len() != 1:
                     return .Err(self.fail("variant"))
-                entry := fields.entries[0]
-                name = entry._0
-                payload = entry._1
+                for (key, value) in fields:
+                    name = key
+                    payload = value
             _ => return .Err(self.fail("variant"))
         let index: usize = 0
         while index < choices.len():
