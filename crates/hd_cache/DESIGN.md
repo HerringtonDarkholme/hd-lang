@@ -123,7 +123,10 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   diagnostics follow an edit that shifts lines, and a comment edit costs
   the skim and one parse. A comment can still change the parse (one
   between a `##` block and its item detaches it), so a `check` hit also
-  needs the `parse` entry of the file's current bytes. This is better
+  needs the `parse` entry of the file's current bytes. A module without
+  one is checked with its broken items left out (`grammar.recovery.item`),
+  and its `check`, `iface` and header entries are neither read nor
+  stored, so a warm run reports what a clean one does (#310). This is better
   than the design's `source_hash(m)`, which rechecked a module on every
   comment or blank-line edit.
 - **Dependency closures.** `closure(m)` is m's own folder plus every

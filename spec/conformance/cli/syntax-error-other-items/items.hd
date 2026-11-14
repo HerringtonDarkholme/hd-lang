@@ -1,0 +1,19 @@
+fn broken(n: i32) -> i32:
+    total := (n + 1
+    total
+
+fn label(n: i32) -> string:
+    let text: string = n
+    text
+
+fn shout(text: string) -> string:
+    text.shout()
+
+fn three() -> i32:
+    width(1, 2)
+
+fn width(text: Strng) -> i32:
+    0
+
+fn uses_broken() -> i32:
+    broken(1, 2, 3) + broken("x")

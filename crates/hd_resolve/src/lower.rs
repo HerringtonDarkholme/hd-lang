@@ -270,6 +270,9 @@ pub struct UseDecl {
     written_path: String,
     /// A synthetic doc-test module sees only the package's library view.
     doc_test: bool,
+    /// Its source holds a parse diagnostic (`grammar.recovery.item`): it
+    /// binds each name it shows as poison, and reports nothing.
+    pub broken: bool,
 }
 
 impl UseDecl {
@@ -308,8 +311,7 @@ pub fn use_decls(src: &Src<'_>, roots: &UseRoots) -> Vec<UseDecl> {
 
 /// The items of a file's `tests:` block (`grammar.tests.item-forms`).
 pub fn tests_items<'t>(src: &Src<'t>) -> impl Iterator<Item = NodeRef<'t>> {
-    src.root()
-        .children()
+    src.items()
         .filter(|c| c.kind() == SyntaxKind::TestsBlock)
         .flat_map(hd_syntax::NodeRef::children)
         .filter(|b| b.kind() == SyntaxKind::Block)
@@ -404,6 +406,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         written_root,
         written_path,
         doc_test: roots.doc_test,
+        broken: src.parse.is_broken(item.index()),
     }
 }
 
@@ -584,6 +587,49 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<HeadKind> {
     })
 }
 
+/// The names a module's broken top-level declarations and statements
+/// would bind (`grammar.recovery.item`): each is poison, so a use of one
+/// reports nothing more. An implementation binds no name. Empty, at no
+/// cost, when the module parses.
+fn broken_names(names: &Names<'_>, src: &Src<'_>) -> Vec<Symbol> {
+    let mut out = Vec::new();
+    for n in src.broken() {
+        match decl_kind(src, n) {
+            Some(HeadKind::Impl) => {}
+            Some(_) => out.extend(n.name(&src.parse.tokens)),
+            // A statement's binding patterns, each one name.
+            None if n.kind() != SyntaxKind::Error => out.extend(
+                n.descendants()
+                    .filter(|p| p.kind() == SyntaxKind::BindingPattern)
+                    .filter_map(|p| {
+                        let mut toks = src.tokens(p);
+                        toks.next().filter(|_| toks.next().is_none())
+                    }),
+            ),
+            // A line the parser kept as tokens, as `pub LIMIT := +10`: the
+            // names before a `:=` and after a `let`.
+            None => {
+                let toks: Vec<_> = src.tokens(n).collect();
+                for (i, &t) in toks.iter().enumerate() {
+                    let ident =
+                        matches!(src.tkind(t), Some(TokenKind::Ident | TokenKind::RawIdent));
+                    let next = toks.get(i + 1).and_then(|&u| src.tkind(u));
+                    let prev = i
+                        .checked_sub(1)
+                        .and_then(|k| src.tkind(toks[k]))
+                        .filter(|&k| k != TokenKind::KwMut)
+                        .or_else(|| i.checked_sub(2).and_then(|k| src.tkind(toks[k])));
+                    if ident && (next == Some(TokenKind::ColonEq) || prev == Some(TokenKind::KwLet))
+                    {
+                        out.push(t);
+                    }
+                }
+            }
+        }
+    }
+    out.into_iter().map(|t| src.symbol(t, names.syms)).collect()
+}
+
 /// The span of a declaration's name, else of the whole declaration.
 #[must_use]
 pub fn head_name_span(src: &Src<'_>, h: &Head<'_>) -> Span {
@@ -606,10 +652,11 @@ fn member_name(src: &Src<'_>, f: NodeRef<'_>) -> Option<hd_base::TokenIdx> {
 pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) -> Vec<Head<'t>> {
     let mut out = Vec::new();
     let mut impl_names: HashMap<String, u32> = HashMap::default();
-    let top = src.root().children().map(|n| (n, None));
+    // A top-level item whose source holds a parse diagnostic has no
+    // head: no check reads it, and its name is poison (`broken_names`).
+    let top = src.items().map(|n| (n, None));
     let in_tests = src
-        .root()
-        .children()
+        .items()
         .filter(|c| tests && c.kind() == SyntaxKind::TestsBlock)
         .flat_map(|b| {
             Src::child(b, SyntaxKind::Block)
@@ -909,6 +956,10 @@ pub struct FolderOut {
     /// (`module.pub-use.chain.loop`), as (module path, name), sorted. A
     /// use through another folder reads them as a loop, quietly.
     pub loop_names: Vec<(String, Symbol)>,
+    /// The names of declarations whose source holds a parse diagnostic
+    /// (`grammar.recovery.item`), as (module path, name), sorted. A use
+    /// of one binds poison, quietly.
+    pub broken_names: Vec<(String, Symbol)>,
     /// For each REPL input ([`ModIn::session`]): the modules its `use`s
     /// bind, as (module path, local name, used module path), sorted.
     pub module_uses: Vec<(String, String, String)>,
@@ -931,6 +982,8 @@ struct Resolver<'a, 'b> {
     module_keys: HashMap<Arc<str>, PathId>,
     module_paths: HashMap<PathId, Arc<str>>,
     own: HashMap<(PathId, Symbol), (DefId, HeadKind, bool)>,
+    /// The names of the folder's broken declarations ([`broken_names`]).
+    broken: HashSet<(PathId, Symbol)>,
     pub_uses: HashMap<(PathId, Symbol), (PathId, Symbol)>,
     memo: RefCell<HashMap<(PathId, Symbol), Res>>,
     visiting: RefCell<HashSet<(PathId, Symbol)>>,
@@ -1036,6 +1089,8 @@ impl Resolver<'_, '_> {
                     Code::PrivateImport
                 } else if i.loop_names.contains(&(module.to_owned(), name)) {
                     Code::ReExportLoop
+                } else if i.broken_names.contains(&(module.to_owned(), name)) {
+                    Code::SyntaxError
                 } else {
                     Code::UnknownImport
                 })
@@ -1077,6 +1132,8 @@ impl Resolver<'_, '_> {
             let r = self.export(self.module_text(*m), *n);
             self.visiting.borrow_mut().remove(&key);
             r
+        } else if self.broken.contains(&key) {
+            Err(Code::SyntaxError)
         } else {
             Err(Code::UnknownImport)
         };
@@ -1357,6 +1414,11 @@ fn scope_of(
         }
         kinds.insert(h.def, h.kind);
     }
+    for name in broken_names(&r.cx.names, &m.src) {
+        if scope.lookup(name).is_none() {
+            bind_poison(&mut scope, name, Origin::Own, u32::MAX);
+        }
+    }
     for s in &m.seeds {
         if let Some(k) = s.kind()
             && scope.lookup(s.name).is_none()
@@ -1447,6 +1509,10 @@ fn bind_uses(
     for (row, u) in uses.iter().enumerate() {
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
+        if u.broken {
+            poison_use(scope, names, u, row);
+            continue;
+        }
         if let Some(e) = u.root_error {
             let dep = u.path.get(1).map_or("", String::as_str);
             let (code, msg) = match e {
@@ -1519,6 +1585,11 @@ fn bind_uses(
                             let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
                             bind_poison(scope, local, use_origin(u), row);
                         }
+                        // A broken declaration (`grammar.recovery.item`).
+                        Err(Code::SyntaxError) => {
+                            let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
+                            bind_poison(scope, local, use_origin(u), row);
+                        }
                         Err(code) => {
                             let msg = export_failure(code, &g.name, &module);
                             diags.error(code, g.span, &msg);
@@ -1575,6 +1646,8 @@ fn bind_uses(
                         .unwrap_or(Code::UnknownImport);
                     if code == Code::ReExportLoop {
                         r.report_loop(diags, u.span, &parent, names.syms.intern(last));
+                    } else if code == Code::SyntaxError {
+                        // A broken declaration (`grammar.recovery.item`).
                     } else {
                         let msg = export_failure(code, last, &parent);
                         diags.error(code, u.span, &msg);
@@ -2334,6 +2407,8 @@ impl Lower<'_, '_, '_> {
                 r.report_loop(&mut *self.diags, span, &module, last_sym);
                 None
             }
+            // A broken declaration (`grammar.recovery.item`).
+            Err(Code::SyntaxError) => None,
             Err(code) => {
                 let msg = export_failure(code, last, &module);
                 self.diags.error(code, span, &msg);
@@ -5399,6 +5474,44 @@ impl Lower<'_, '_, '_> {
         out.push(item);
     }
 
+    /// A top-level implementation whose source holds a parse diagnostic
+    /// (`grammar.recovery.item`): a poisoned impl of its target, lowered
+    /// quietly, so a member or a bound of that target reports nothing
+    /// more. Its members are not read.
+    fn broken_impl(&mut self, n: NodeRef<'_>, at: usize, out: &mut Vec<Item>) {
+        let seg = format!("{} #broken{at}", impl_segment(&self.src, n));
+        let def = DefId::from_raw(
+            self.names
+                .paths
+                .intern(self.names.module(self.module), PathKind::Impl, &seg)
+                .raw(),
+        );
+        let h = Head {
+            name: self.names.syms.intern(&seg),
+            def,
+            kind: HeadKind::Impl,
+            node: n,
+            public: true,
+            local: None,
+            test: None,
+        };
+        let mark = self.diags.mark();
+        let unsupported = self.unsupported.take();
+        let mut gn = Gen::default();
+        let generics = self.own_generics(
+            Src::child(n, SyntaxKind::GenericParameterList),
+            h.def,
+            &mut gn,
+        );
+        let tys: Vec<NodeRef<'_>> = n.children().filter(|c| c.kind().is_type()).collect();
+        if let [.., target] = tys.as_slice() {
+            let self_ty = self.ty_at(Some(*target), &gn, true);
+            Self::poisoned_impl(&h, self_ty, generics, out);
+        }
+        self.unsupported = unsupported;
+        self.diags.truncate(mark);
+    }
+
     fn impl_item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
         let pool = self.names.pool;
@@ -8205,6 +8318,7 @@ fn resolver<'a, 'b>(
         module_keys: HashMap::default(),
         module_paths: HashMap::default(),
         own: HashMap::default(),
+        broken: HashSet::default(),
         pub_uses: HashMap::default(),
         memo: RefCell::new(HashMap::default()),
         visiting: RefCell::new(HashSet::default()),
@@ -8233,6 +8347,9 @@ fn resolver<'a, 'b>(
     };
     for (m, hs) in mods.iter().zip(all_heads) {
         let module = r.intern_module(&m.path);
+        for name in broken_names(names, &m.src) {
+            r.broken.insert((module, name));
+        }
         for h in hs {
             if h.kind == HeadKind::Impl {
                 continue;
@@ -8367,7 +8484,7 @@ impl TopBindings {
     pub fn of(src: &Src<'_>) -> Self {
         let mut by_name: HashMap<Box<str>, hd_base::NodeIdx> = HashMap::default();
         let mut names = Vec::new();
-        for stmt in src.root().children() {
+        for stmt in src.items() {
             if stmt.kind() != SyntaxKind::ExprStmt {
                 continue;
             }
@@ -8444,6 +8561,7 @@ pub fn build_folder(
         exports: Vec::new(),
         private_names: Vec::new(),
         loop_names: Vec::new(),
+        broken_names: Vec::new(),
         module_uses: Vec::new(),
     };
     let mut scopes: Vec<ModScopes> = mods
@@ -8529,6 +8647,13 @@ pub fn build_folder(
                     .filter(|h| h.test.is_some() == test && h.kind != HeadKind::Alias)
                 {
                     low.item(h, &mut items);
+                }
+                if !test {
+                    for (at, n) in m.src.broken().enumerate() {
+                        if n.kind() == SyntaxKind::ImplDecl {
+                            low.broken_impl(n, at, &mut items);
+                        }
+                    }
                 }
                 chain_edges.append(&mut low.chains);
                 if unsupported.is_none() {
@@ -8747,6 +8872,15 @@ pub fn build_folder(
             (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
         });
         out.loop_names.sort_stable_by(|a, b| {
+            (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
+        });
+        out.broken_names = r
+            .broken
+            .iter()
+            .filter(|key| !r.own.contains_key(key))
+            .map(|&(module, name)| (r.module_text(module).to_owned(), name))
+            .collect();
+        out.broken_names.sort_stable_by(|a, b| {
             (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
         });
         // A use read quietly while it bound (`bind_uses`); what the

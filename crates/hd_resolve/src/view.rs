@@ -16,6 +16,21 @@ impl<'a> Src<'a> {
     pub fn root(&self) -> NodeRef<'a> {
         self.parse.tree.root()
     }
+    /// The top-level children a check reads: every one but those whose
+    /// source holds a parse diagnostic (`grammar.recovery.item`).
+    pub fn items(&self) -> impl Iterator<Item = NodeRef<'a>> + use<'a> {
+        let parse = self.parse;
+        parse
+            .tree
+            .root()
+            .children()
+            .filter(move |c| !parse.is_broken(c.index()))
+    }
+    /// The top-level children whose source holds a parse diagnostic.
+    pub fn broken(&self) -> impl Iterator<Item = NodeRef<'a>> + use<'a> {
+        let parse = self.parse;
+        parse.broken.iter().map(move |&n| parse.tree.node(n))
+    }
     #[must_use]
     pub fn first(&self, n: NodeRef<'_>) -> TokenIdx {
         self.parse.tree.span_tokens(n.index()).0

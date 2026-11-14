@@ -378,9 +378,11 @@ describe("corpora", () => {
   it("judges an errors-per-run report against its markers", () => {
     const text = "f  # diagnostic: unknown-name\ng  # diagnostic: syntax-error\nh\n";
     const at = (code: string, line: number) => ({ code, line });
-    assert.equal(markerProblem(text, [at("syntax-error", 2)]), undefined);
-    assert.match(markerProblem(text, [at("syntax-error", 3)])!, /unmarked/);
-    assert.match(markerProblem(text, [])!, /not reported: syntax-error@2/);
+    const both = [at("unknown-name", 1), at("syntax-error", 2)];
+    assert.equal(markerProblem(text, both), undefined);
+    assert.match(markerProblem(text, [at("syntax-error", 2)])!, /not reported: unknown-name@1/);
+    assert.match(markerProblem(text, [...both, at("syntax-error", 3)])!, /unmarked/);
+    assert.match(markerProblem(text, [])!, /not reported: unknown-name@1 syntax-error@2/);
     const parsing = "f  # diagnostic: unknown-name\n";
     assert.match(markerProblem(parsing, [])!, /not reported: unknown-name@1/);
   });

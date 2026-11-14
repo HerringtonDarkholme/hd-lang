@@ -4162,6 +4162,13 @@ impl Ck<'_, '_> {
             .env
             .contains(bare, DefId::NONE, hd_types::TyList::EMPTY)
         {
+            self.read_poison_name = true;
+            return false;
+        }
+        // An implementation of `t` that failed to resolve or to parse may
+        // have declared it; that error is the answer.
+        if self.has_poisoned_impl(t) {
+            self.read_poison_name = true;
             return false;
         }
         let snap = self.infer.snapshot();

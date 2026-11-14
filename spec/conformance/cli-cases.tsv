@@ -351,4 +351,5 @@ tuple-vararg-arity-message	cli.check.default,cli.exit.hd-failure,cli.json.diagno
 repl-package-lib-binding	cli.repl.package.lib,cli.repl.redeclare.binding
 tuple-arity-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 argument-count-messages	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
+syntax-error-other-items	cli.exit.hd-failure,cli.json.diagnostic.fields,cli.cache.obj.derived
 if-value-without-else-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields

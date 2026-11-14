@@ -1225,6 +1225,11 @@ pub struct FolderIface {
     /// `re-export-loop`, reported where the loop was built, quietly
     /// through other folders. Outside every hash; diagnostics only.
     pub loop_names: hd_base::HashSet<(String, Symbol)>,
+    /// The names of declarations whose source holds a parse diagnostic
+    /// (`grammar.recovery.item`), as (module path, name): a use of one
+    /// binds poison, quietly. Part of every hash when not empty
+    /// ([`FolderIface::set_broken`]); such an interface is never stored.
+    pub broken_names: hd_base::HashSet<(String, Symbol)>,
     /// The hash of `private_names` and `loop_names` as their entry
     /// sections encode them: what a failed lookup reads besides the
     /// exports, so a key over the reads of a folder's header lowering
@@ -1248,6 +1253,38 @@ impl FolderIface {
         self.export_index
             .get(&(module.to_owned(), name))
             .and_then(|&i| self.exports.get(i))
+    }
+
+    /// Records the folder's broken names (`grammar.recovery.item`). A
+    /// dependent's check reads them, as poison, so they join the heads, API
+    /// and deep hashes; `mentions` are those [`folder_iface`] took. No
+    /// hash changes when `rows` is empty.
+    pub fn set_broken(
+        &mut self,
+        names: &Names<'_>,
+        rows: Vec<(String, Symbol)>,
+        mentions: &[(String, Hash128)],
+    ) {
+        if rows.is_empty() {
+            return;
+        }
+        let mut k = StableHasher::new("iface-broken");
+        k.u32(u32::try_from(rows.len()).unwrap_or(u32::MAX));
+        for (module, name) in &rows {
+            k.str(module);
+            k.str(names.text(*name));
+        }
+        let rows_hash = k.finish();
+        let fold = |h: Hash128| {
+            let mut k = StableHasher::new("iface-broken");
+            k.hash(h);
+            k.hash(rows_hash);
+            k.finish()
+        };
+        self.heads_hash = fold(self.heads_hash);
+        self.api_hash = fold(self.api_hash);
+        self.deep_hash = deep_hash(self.api_hash, mentions);
+        self.broken_names = rows.into_iter().collect();
     }
 
     /// Whether `module` declares `name` without `pub`.
@@ -2501,6 +2538,7 @@ pub fn folder_iface(
         spans: HashMap::default(),
         private_names: hd_base::HashSet::default(),
         loop_names: hd_base::HashSet::default(),
+        broken_names: hd_base::HashSet::default(),
         names_hash: Hash128::default(),
         module_uses,
     }

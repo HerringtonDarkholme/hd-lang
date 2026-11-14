@@ -4347,13 +4347,11 @@ impl Run<'_> {
     /// with the severity each was reported with.
     fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
         let folder = &self.table.folders[fi];
+        // A replayed interface is of a folder whose modules all parse
+        // (`folder_iface`), so each anchor names a declaration of this run.
         let place = |m: usize, anchor: &hd_resolve::anchor::Anchor| {
             let mid = folder.modules.get(m)?;
-            if self.parse_of(mid.idx()).is_ok() {
-                hd_resolve::anchor::resolve(&self.src(mid.idx()), anchor)
-            } else {
-                None
-            }
+            hd_resolve::anchor::resolve(&self.src(mid.idx()), anchor)
         };
         let mut d = lock(&self.diags);
         for (m, code, severity, anchor, msg, fixes) in diags {
@@ -4415,17 +4413,13 @@ impl Run<'_> {
             }
         }
         let own = self.reads_key(fi);
-        // A module that does not parse blocks the interface, cached or
-        // not, so a warm run reports what a clean one does: no header
-        // finding past a parse error (#310). An unchanged module's clean
-        // parse is a `parse` entry, so this parses only edited modules.
-        for m in &folder.modules {
-            if !self.parses(m.idx()) {
-                self.blocked(Stage::FolderIface);
-                let _ = self.iface[fi].set(None);
-                return;
-            }
-        }
+        // A module that does not parse leaves out its broken declarations
+        // (`grammar.recovery.item`). Its interface is built every run and
+        // never stored, so a warm run reports what a clean one does (#310):
+        // the key ignores comments, which can break the parse. An
+        // unchanged module's clean parse is a `parse` entry, so this
+        // parses only edited modules.
+        let broken = !self.folder_parses(fi);
         // A REPL input's interface carries every item it declares, for
         // later inputs, which see them whatever their `pub`. Its session
         // scope reads the earlier inputs outside the world, so its key
@@ -4434,10 +4428,10 @@ impl Run<'_> {
             .modules
             .iter()
             .any(|m| self.repl_number(m.idx()).is_some());
-        if !input && self.take_reused(fi, own) {
+        if !input && !broken && self.take_reused(fi, own) {
             return;
         }
-        let stored = if input {
+        let stored = if input || broken {
             None
         } else {
             self.lookup(EntryKind::Iface, own)
@@ -4456,7 +4450,7 @@ impl Run<'_> {
         let last = stored.as_deref().and_then(decode_reads);
         let names = self.names();
         let last_key = (input || last.is_some()).then(|| key_of(last.as_deref().unwrap_or(&[])));
-        if let Some(key) = last_key
+        if let Some(key) = last_key.filter(|_| !broken)
             && let Some(sections) = self.lookup(EntryKind::Iface, key)
             && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
@@ -4568,16 +4562,18 @@ impl Run<'_> {
         // The folders the interface names, so a hit finds them without
         // decoding its items (#213).
         let msec = encode_mentioned(&mentions);
-        self.put(
-            EntryKind::Iface,
-            key,
-            &[
-                &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
-            ],
-        );
+        if !broken {
+            self.put(
+                EntryKind::Iface,
+                key,
+                &[
+                    &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
+                ],
+            );
+        }
         // The read list goes after the entry it keys: a concurrent build
         // that reads the list finds the entry too.
-        if !input {
+        if !input && !broken {
             let bytes = encode_reads(&reads);
             if stored.as_deref() != Some(bytes.as_slice()) {
                 self.put(EntryKind::Iface, own, &[&bytes]);
@@ -4618,12 +4614,13 @@ impl Run<'_> {
         iface.private_names = out.private_names.into_iter().collect();
         iface.loop_names = out.loop_names.into_iter().collect();
         iface.names_hash = nhash;
+        iface.set_broken(&names, out.broken_names, &mentions);
         lock(&self.diags).append(&diags);
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
         self.iface_index.insert(folder.id, &iface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
-        if !input {
+        if !input && !broken {
             self.leave_reused(fi, own, reads, key, idiags, &mentions);
         }
     }
@@ -5360,9 +5357,8 @@ impl Run<'_> {
         else {
             return fallback;
         };
-        if !self.parse_of(target.idx()).is_ok() {
-            return fallback;
-        }
+        // The anchors of a folder with a broken module are this run's:
+        // its interface is never stored (`folder_iface`).
         hd_resolve::anchor::resolve(&self.src(target.idx()), anchor).unwrap_or(fallback)
     }
 
@@ -5421,7 +5417,11 @@ impl Run<'_> {
             own_hash,
             &reach,
         );
-        if let Some(sections) = self.lookup(EntryKind::Graph, key)
+        // A folder with a module that does not parse is checked every
+        // run and never stored (`folder_iface`, #310).
+        let parses = self.folder_parses(fi);
+        if parses
+            && let Some(sections) = self.lookup(EntryKind::Graph, key)
             && let Some(found) = sections
                 .first()
                 .and_then(|b| decode_header_findings(b, &own.items))
@@ -5490,7 +5490,9 @@ impl Run<'_> {
             return;
         };
         let bytes = encode_header_findings(&findings, &own.items);
-        self.put(EntryKind::Graph, key, &[&bytes, &uses]);
+        if parses {
+            self.put(EntryKind::Graph, key, &[&bytes, &uses]);
+        }
         self.keep_input(
             folder.modules[0].idx(),
             |e| &mut e.header,
@@ -6338,42 +6340,34 @@ impl Run<'_> {
         lock(&self.counters)
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
+        // A module that does not parse is checked every run, its broken
+        // declarations left out (`grammar.recovery.item`), and never
+        // stored: the key ignores comments and blank lines, which can
+        // still break the parse (a detached documentation comment), so a
+        // warm run reports what a clean one does (#310).
+        let parses = self.parses(mi);
         // Typed analysis facts are deliberately off-band, not persisted in Check
         // entries. Recheck selected root bodies on a Lint miss; dependencies keep
         // ordinary cache hits, and a Lint hit skips the analysis walk entirely.
-        let cached_analysis = self.lint_cached(mi, key);
+        let cached_analysis = if parses {
+            self.lint_cached(mi, key)
+        } else {
+            None
+        };
         let analysis_missing = cached_analysis.is_none() && self.lint_runs(mi);
         // Only a fresh check makes a rendered body's text.
-        let cached = if analysis_missing || self.renders_module(mi) {
+        let cached = if !parses || analysis_missing || self.renders_module(mi) {
             None
         } else {
             self.lookup(EntryKind::Check, key)
         };
         if let Some(sections) = cached {
-            // The key ignores comments and blank lines, which can still
-            // break the parse (a detached documentation comment).
-            if !self.parses(mi) {
-                for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
-                    self.blocked(s);
-                }
-                let _ = self.prep[mi].set(None);
-                let _ = self.check[mi].set(None);
-                return None;
-            }
             if let Some(findings) = cached_analysis {
                 self.lint_keep(mi, findings);
             }
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
             let _ = self.prep[mi].set(None);
-            return None;
-        }
-        if !self.parses(mi) {
-            for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
-                self.blocked(s);
-            }
-            let _ = self.prep[mi].set(None);
-            let _ = self.check[mi].set(None);
             return None;
         }
         let mut scratch = DiagBuf::default();
@@ -6414,6 +6408,22 @@ impl Run<'_> {
         let finish = sp.add(TaskKind::ModuleFinish(m), &[body]);
         sp.edge(finish, pr);
         Some(finish)
+    }
+
+    /// Whether a module this run parsed has a parse diagnostic. A scan
+    /// of the modules, for an error path only.
+    fn parse_failed(&self) -> bool {
+        self.parse
+            .iter()
+            .any(|p| p.get().is_some_and(|p| !p.is_ok()))
+    }
+
+    /// Whether every module of folder `fi` parses ([`Self::parses`]).
+    fn folder_parses(&self, fi: usize) -> bool {
+        self.table.folders[fi]
+            .modules
+            .iter()
+            .all(|m| self.parses(m.idx()))
     }
 
     /// Whether the module's bytes parse without a diagnostic: a `parse`
@@ -6690,7 +6700,7 @@ impl Run<'_> {
         hd_check::results::omitted_results(&cx, &inference_methods);
         // Top-level statements first: their bindings are visible to every
         // function body of the module (`crates/hd_tir/DESIGN.md` §4.13.10).
-        let mut stmts = hd_check::init::init_statements(src.root());
+        let mut stmts = hd_check::init::init_statements(&src);
         // In test code, a top-level registration call is in test position
         // (`module.testing.test-position`): it registers a test case below,
         // and is not a module initialization statement.
@@ -6840,9 +6850,13 @@ impl Run<'_> {
             // trait declares again holds that declaration's item
             // (`duplicate-module-name`, which a `tests:` block reports in
             // this body's `diags`): that error is the answer, there is no
-            // signature to check the body against.
+            // signature to check the body against. So is a parse error that
+            // broke the trait it implements (`grammar.recovery.item`).
             if lookup.item(def).is_none_or(|i| i.sig().is_none())
-                && (prep.use_errors || diags.has_errors() || self.file_has_errors(m))
+                && (prep.use_errors
+                    || diags.has_errors()
+                    || self.file_has_errors(m)
+                    || self.parse_failed())
             {
                 continue;
             }
@@ -8512,8 +8526,10 @@ impl Run<'_> {
             let _ = self.check[m].set(None);
             return;
         }
-        self.put(EntryKind::Check, key, &sections);
-        self.lint_store(m, key, &lines);
+        if self.parses(m) {
+            self.put(EntryKind::Check, key, &sections);
+            self.lint_store(m, key, &lines);
+        }
         lock(&self.counters)
             .modules_checked
             .push(self.table.modules[m].path.clone());
@@ -8657,7 +8673,8 @@ impl Run<'_> {
                 buf.add_fix(title, safety, &edits);
             }
         }
-        let has_errors = buf.has_errors();
+        // A module that does not parse has its parse errors besides.
+        let has_errors = buf.has_errors() || !self.parses(m);
         lock(&self.diags).append(&buf);
         let regs = sections
             .get(4)
@@ -10708,7 +10725,7 @@ impl Run<'_> {
                         hd_resolve::Src::child(head.node, hd_syntax::SyntaxKind::RequirementRow);
                     (span(head.node), row.map(span))
                 }),
-            init: hd_check::init::init_statements(src.root())
+            init: hd_check::init::init_statements(&src)
                 .first()
                 .map(|s| span(*s)),
         };

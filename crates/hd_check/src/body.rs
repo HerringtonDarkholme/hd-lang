@@ -3143,7 +3143,7 @@ impl Ck<'_, '_> {
         );
     }
 
-    fn has_poisoned_impl(&mut self, target: Ty) -> bool {
+    pub(crate) fn has_poisoned_impl(&mut self, target: Ty) -> bool {
         let pool = self.pool();
         let target = self.resolved(target);
         for item in self.cx.lookup.poisoned_impls() {

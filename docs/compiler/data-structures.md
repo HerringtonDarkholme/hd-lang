@@ -210,8 +210,9 @@ fresh. That is simpler, and the saved allocation was never measured.
 3. Any check whose operand or expected type contains poison stays silent.
    Only the error that created the poison reports. The `HAS_POISON` meta
    flag (§3.9.2) makes "contains poison" one load.
-4. Sources of poison: an unknown name, a broken header, a syntax error
-   node, a failed limit, and an item whose interface is poison.
+4. Sources of poison: an unknown name, a broken header, a top-level item
+   that holds a syntax error (`grammar.recovery.item`), a failed limit, and
+   an item whose interface is poison.
 5. A poisoned item still exports: its interface record carries `Poison`
    where its type is unknown, so dependents check the rest without noise.
 

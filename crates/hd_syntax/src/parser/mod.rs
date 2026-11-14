@@ -56,12 +56,27 @@ pub struct Parse {
     pub diagnostics: Vec<Diagnostic>,
     pub items: ItemIndex,
     pub symbols: Interner,
+    /// The top-level children whose source holds a diagnostic, in tree
+    /// order ([`broken_items`]). Empty, with no work done, for a clean
+    /// parse.
+    pub broken: Vec<NodeIdx>,
 }
 
 impl Parse {
     #[must_use]
     pub fn is_ok(&self) -> bool {
         self.diagnostics.is_empty()
+    }
+
+    /// Whether top-level child `node` holds a diagnostic of this parse,
+    /// so no check reads it (`grammar.recovery.item`).
+    #[must_use]
+    pub fn is_broken(&self, node: NodeIdx) -> bool {
+        !self.broken.is_empty()
+            && self
+                .broken
+                .binary_search_by_key(&node.raw(), |n| n.raw())
+                .is_ok()
     }
 
     #[must_use]
@@ -85,12 +100,14 @@ pub fn parse(source: &[u8]) -> Parse {
     let (items, symbols) = build_item_index(&tree, &lexed.tokens, text);
     diagnostics.sort_stable_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
     diagnostics.dedup_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
+    let broken = broken_items(&tree, &lexed.tokens, &diagnostics);
     Parse {
         tokens: lexed.tokens,
         tree,
         diagnostics,
         items,
         symbols,
+        broken,
     }
 }
 
@@ -899,6 +916,40 @@ fn diag(code: Code, lo: u32, hi: u32, message: impl Into<String>) -> Diagnostic 
         },
         message,
     )
+}
+
+/// The top-level children a diagnostic falls in (`grammar.recovery.item`):
+/// each child owns the source from its first token to the next child's
+/// first token, so a diagnostic at a line end or at the end of the file
+/// belongs to the item it ends. `diagnostics` is sorted by start. One pass
+/// over the root's children, with a binary search each, and only when
+/// the parse reported something.
+fn broken_items(tree: &GreenTree, tokens: &TokenBuf, diagnostics: &[Diagnostic]) -> Vec<NodeIdx> {
+    if diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let starts: Vec<(NodeIdx, u32)> = tree
+        .root()
+        .children()
+        .filter_map(|child| {
+            // A node with no token has a `NONE` first token.
+            let (first, _) = tree.span_tokens(child.index());
+            let first = first.raw() as usize;
+            (first < tokens.len()).then(|| (child.index(), tokens.start[first]))
+        })
+        .collect();
+    let mut out = Vec::new();
+    for (i, &(node, lo)) in starts.iter().enumerate() {
+        let hi = starts.get(i + 1).map_or(u32::MAX, |&(_, next)| next);
+        let at = diagnostics.partition_point(|diagnostic| diagnostic.primary.lo < lo);
+        if diagnostics
+            .get(at)
+            .is_some_and(|diagnostic| diagnostic.primary.lo < hi)
+        {
+            out.push(node);
+        }
+    }
+    out
 }
 
 fn build_item_index(tree: &GreenTree, tokens: &TokenBuf, source: &str) -> (ItemIndex, Interner) {

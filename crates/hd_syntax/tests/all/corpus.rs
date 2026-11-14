@@ -75,6 +75,9 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/check-fix-legacy-syntax/src/lib.hd",
     // A check case whose last header ends the file at its colon.
     "cli/check-header-colon-ends-the-file/main.hd",
+    // A check case whose broken function hides none of the others' errors
+    // (`grammar.recovery.item`).
+    "cli/syntax-error-other-items/items.hd",
     // A lint case whose identifier is deliberately not NFC, to show that
     // lint reports compiler errors first.
     "cli/lint-mixed-script-prerequisites/src/main.hd",

@@ -1378,7 +1378,7 @@ The poison type follows [§3.6](../../docs/compiler/data-structures.md#36-the-po
 | --- | --- |
 | unknown name, failed `use` | at the name or the `use` |
 | broken header (own module or a dependency) | once, at the header, in its module |
-| syntax error node | by the parser |
+| a top-level item that holds a syntax error (`grammar.recovery.item`) | by the parser; the item is not checked, and its name binds poison |
 | a failed check (mismatch, missing method) | at that check; the expression's type becomes poison |
 | a cycle in M1 | once per cycle |
 

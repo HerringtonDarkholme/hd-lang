@@ -113,7 +113,7 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 /// source (`fn.type.lifetime.elide`); a function's is the resolver's
 /// (`ref.dep.elide`).
 pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
-    for item in src.root().children() {
+    for item in src.items() {
         match item.kind() {
             // A top-level binding's annotation (`ref.local.escape.top-level`).
             SyntaxKind::LetStmt => {

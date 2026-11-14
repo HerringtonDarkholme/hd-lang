@@ -12,9 +12,8 @@
 //   expected code, and no code beyond its `# cascade:` list; its `# fixed:`
 //   variant checks clean.
 // - Each errors-per-run file: every diagnostic lands on a marked line with
-//   the marked code, and every marked line is reported, except that a file
-//   with a syntax error need not report later phases (hd type-checks only
-//   source that parses).
+//   the marked code, and every marked line is reported, a syntax error's
+//   neighbours too (`grammar.recovery.item`).
 // It also fails when a fixture file is used by none of these.
 //
 // Usage: node --experimental-strip-types bench/metrics/check-fixtures.ts
@@ -265,11 +264,7 @@ export function markerProblem(text: string, found: readonly Diagnostic[]): strin
   if (stray.length > 0) {
     return `unmarked or wrong diagnostics: ${describe(stray)}`;
   }
-  const parses = ![...marks.values()].includes("syntax-error");
-  const missing = [...marks].filter(
-    ([line, code]) =>
-      (parses || code === "syntax-error") && !found.some((item) => Number(item.line) === line),
-  );
+  const missing = [...marks].filter(([line]) => !found.some((item) => Number(item.line) === line));
   if (missing.length > 0) {
     return `marked lines not reported: ${missing.map(([line, code]) => `${code}@${line}`).join(" ")}`;
   }

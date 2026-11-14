@@ -887,7 +887,7 @@ impl Lower<'_, '_, '_> {
     /// `annot.target.*`, `annot.error.form.misplaced`).
     pub(super) fn check_module_decorators(&mut self, items: &HashMap<DefId, &Item>) {
         let src = self.src;
-        for n in src.root().children() {
+        for n in src.items() {
             let top = |k: u16| Place {
                 kind: k,
                 ..Place::default()

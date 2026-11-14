@@ -59,13 +59,20 @@ fn unfinished() -> i32:
     values := [  # error: unclosed-delimiter
         +1
     +2
+
+fn checked() -> string:
+    broken(1)  # no error: `broken` holds a parsing error
+    +3  # error: type-mismatch
 ```
 
 1. r[grammar.recovery.statement] After the first parsing error in a statement, an implementation must suppress further parsing errors rooted in that statement.
 2. r[grammar.recovery.unclosed] After an `unclosed-delimiter` error, an implementation must suppress parsing errors on later lines within that delimiter.
+3. r[grammar.recovery.item] A top-level item whose source holds a parsing error is not checked, and a use of a name it declares or binds reports nothing more. Every other top-level item of the file is checked. An item's source runs from its first token to the next top-level item.
 
 > **Why.** One diagnostic identifies the root cause without presenting its
-> syntactic fallout as independent mistakes.
+> syntactic fallout as independent mistakes. Checking the other items
+> reports every independent mistake in one run, as Go's `go/types` and
+> TypeScript do after a syntax error.
 
 ## Test Blocks
 

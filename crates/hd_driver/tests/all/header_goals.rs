@@ -253,22 +253,36 @@ fn a_comment_edit_keeps_the_cached_findings_and_moves_their_positions() {
     assert!(hits >= 2, "{hits}");
 }
 
-/// A parse error blocks the folder's interface on a warm run as on a
-/// clean one, so no cached header finding is replayed past it (#310).
+/// A module that does not parse is checked with its broken items left
+/// out, and its entries are neither read nor stored, so a warm run
+/// reports what a clean one does (#310, `grammar.recovery.item`): a
+/// broken `second` hides its header finding, and a broken line beside it
+/// does not.
 #[test]
-fn a_parse_error_hides_the_cached_header_findings() {
+fn a_parse_error_hides_only_its_own_items_cached_header_findings() {
     let store = MemoryStore::default();
     let files = [("lib/defs.hd", LIB), ("without/main.hd", WITHOUT)];
     let (cold, _, _) = analyze_in(&store, &files, "without/main.hd");
     assert_eq!(cold.len(), 1, "{cold:#?}");
-    for broken in [
-        WITHOUT.replace("    1\n", "    1 +\n"),
-        format!("// note\n{WITHOUT}"),
+    for (broken, codes) in [
+        (
+            WITHOUT.replace("    1\n", "    1 +\n"),
+            &["syntax-error"][..],
+        ),
+        (
+            format!("// note\n{WITHOUT}"),
+            &["syntax-error", "unsatisfied-trait-bound"][..],
+        ),
     ] {
         let files = [("lib/defs.hd", LIB), ("without/main.hd", broken.as_str())];
         let (warm, _, _) = analyze_in(&store, &files, "without/main.hd");
         let (fresh, _, _) = analyze_in(&MemoryStore::default(), &files, "without/main.hd");
         assert_eq!(warm, fresh, "{broken:?}");
-        assert!(warm.iter().all(|d| d.contains("syntax-error")), "{warm:#?}");
+        assert_eq!(warm.len(), codes.len(), "{warm:#?}");
+        for (d, code) in warm.iter().zip(codes) {
+            assert!(d.contains(code), "{warm:#?}");
+            // At its declaration, not the file's start.
+            assert!(!d.contains(":0..0:"), "{warm:#?}");
+        }
     }
 }

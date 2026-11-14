@@ -167,9 +167,9 @@ impl Ck<'_, '_> {
     }
 
     /// A module path `module.name` whose module exports no `name`:
-    /// `private-import` when the module declares it without `pub`
-    /// (`expr.name.qualified.private`), else `unknown-import`
-    /// (`expr.name.qualified.missing`).
+    /// nothing when its declaration is broken, `private-import` when the
+    /// module declares it without `pub` (`expr.name.qualified.private`),
+    /// else `unknown-import` (`expr.name.qualified.missing`).
     pub(crate) fn missing_export(&mut self, module: u32, name: &str, n: NodeRef<'_>) {
         let path = self
             .cx
@@ -179,6 +179,18 @@ impl Ck<'_, '_> {
             .cloned()
             .unwrap_or_default();
         let sym = self.cx.names.syms.intern(name);
+        // A declaration whose source holds a parse diagnostic
+        // (`grammar.recovery.item`): that error is the answer.
+        if self
+            .cx
+            .lookup
+            .ifaces
+            .iter()
+            .any(|f| f.broken_names.contains(&(path.clone(), sym)))
+        {
+            self.read_poison_name = true;
+            return;
+        }
         if self
             .cx
             .lookup

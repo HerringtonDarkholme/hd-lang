@@ -168,7 +168,10 @@ pass. `precede` wraps a finished node through `forward_parent`;
 
 - **Recovery sets.** A `Newline` or `Dedent` ends a statement. A token at
   column 0 always starts a new top-level item, so one broken item never
-  swallows the next (`errors-per-run`). Inside brackets, the closing
+  swallows the next (`errors-per-run`). `Parse::broken` lists the
+  top-level children a diagnostic falls in, each owning the source up to
+  the next child; no check reads them (`grammar.recovery.item`), and the
+  list is empty, at no cost, for a clean parse. Inside brackets, the closing
   delimiter and `,` are the recovery set. Junk is wrapped in an `ERROR`
   node. The parser reports only the first error in a statement, and none
   where the lexer already reported.

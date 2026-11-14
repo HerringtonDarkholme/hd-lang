@@ -10,7 +10,7 @@ use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{ImplKind, ItemData};
+use hd_resolve::{ImplKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Place, PlaceRoot, Ref, Tag, TirSink};
@@ -306,8 +306,8 @@ impl ModuleInit {
 /// constructor expressions run at its source position
 /// (`data.shared.module-init.order`).
 #[must_use]
-pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
-    root.children()
+pub fn init_statements<'t>(src: &Src<'t>) -> Vec<NodeRef<'t>> {
+    src.items()
         .filter(|c| {
             matches!(
                 c.kind(),
