@@ -380,8 +380,8 @@ jobs:
         run: |
           set -uo pipefail
           cargo build --release -p hd_cli --features plant-quadratic
-          HD_SCALE_SHAPES=fn-items pnpm run metrics -- --only scale > planted.log 2>&1
-          status=$?
+          status=0
+          HD_SCALE_SHAPES=fn-items pnpm run metrics -- --only scale > planted.log 2>&1 || status=$?
           cat planted.log
           test "$status" -eq 1
           grep -q "FAIL scale: fn-items check: .*hashes" planted.log
