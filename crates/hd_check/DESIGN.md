@@ -1322,9 +1322,19 @@ infer_results:   for each registered callable, in source order: seen(f)
 
 seen(f):
     Done     -> its result and row
-    Active   -> a cycle if its result is omitted: report once, result Poison
+    Active, Waiting
+             -> a cycle if its result is omitted: report once, result Poison
     Pending  -> if its result is omitted, or the caller forces it:
-                Active; check its body (final by TC-4); Done; settle rows
+                inside a body's check: that body waits for f, result Poison
+                otherwise: drive(f)
+
+drive(f):  an explicit stack, from [f]
+    top Done      -> pop
+    top Pending or Waiting
+                  -> Active; check its body (final by TC-4)
+                     read no pending callable: Done; pop; settle rows
+                     read some: drop the check; Waiting; push them,
+                                the first read on top
 ```
 
 - A reference is a call or a use as a value, since both need the type.
@@ -1346,12 +1356,23 @@ seen(f):
   first, each at depth one. It skips a callable that names a top-level
   binding no statement has declared yet, or reaches one that does: its
   check depends on the statement that calls it, so it waits for that
-  call. Native recursion is left only within a cycle of omitted results,
-  which is an error, and under such a waiting callable.
+  call.
+- No body is checked inside another's check. A check that reads a
+  pending callable, in a cycle of omitted results or under a callable
+  `callees_first` skipped, is dropped; `drive` checks what it read and
+  then checks it again, so its body runs twice. The callables above a
+  waiting one on the stack are ones it read, so the waiting ones form a
+  path, and a read of one of them closes a cycle. Rows settle when the
+  stack holds no waiting callable; before that a row on the path waits
+  for its first member anyway. Native depth stays one for any length of
+  cycle or chain (#1824).
 
 ### 9.3 Cost
 
-M1 does each such body's work once, as M2 would have. The reference
+M1 does each such body's work once, as M2 would have, except a body
+that `drive` drops: it runs once more per check that read a callable
+not checked yet, at most once more than the distinct pending callables
+it reads, so twice in a chain or a cycle. The reference
 graph costs one scan of the registered bodies' tokens per module.
 `callees_first` walks only pending callables, each of which it then
 checks, so its walks add up to the references of the bodies it checks. The cost is lost

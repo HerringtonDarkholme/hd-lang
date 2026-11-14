@@ -1254,6 +1254,7 @@ typing/invalid/signed-exponent.hd	type	reject:type-mismatch	lang/05-expressions.
 typing/valid/nonpublic-main-ordinary.hd	type	accept	lang/10-modules.md#entry-point
 typing/valid/inferred-mutable-from-mutable.hd	type	accept	lang/04-type-system.md#access-permission
 typing/valid/inferred-results-a-long-chain-of-omitted-results-checks.hd	type	accept	lang/07-functions.md#r-fn.decl.result-inferred
+runtime/valid/inferred-results-a-body-waits-for-callees-a-later-name-holds-back.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 runtime/valid/identity-ignores-permissions.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/indirect-supertrait-cycle.hd	type	reject:supertrait-cycle	lang/09-traits.md#trait-declarations
 typing/valid/supertrait-chain.hd	type	accept	lang/09-traits.md#trait-declarations

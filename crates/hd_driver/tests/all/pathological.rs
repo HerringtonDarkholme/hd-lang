@@ -211,6 +211,73 @@ fn omitted_result_chains_check_once_per_function_at_depth_one() {
     }
 }
 
+// Checker: #1824, a body never checks another inside its own check: one
+// that reads a pending callable waits for it on an explicit stack. A cycle
+// of omitted results, and a chain whose tail reads a top-level binding
+// declared after the statement that calls it, report their one error with
+// each body checked at most twice, at depth one.
+/// `g_0` calls `g_1` and so on, and the last calls `g_0`.
+fn omitted_result_cycle(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = writeln!(s, "fn g_{i}(x: i32): g_{}(x)", (i + 1) % n);
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    println(g_0(1))\n");
+    s
+}
+
+/// A chain of `n` called from a statement before `z` is declared; its
+/// tail reads `z`, so the chain waits for that statement's call.
+fn omitted_result_chain_reading_later_top(n: usize) -> String {
+    let mut s = String::from("y := g_0(+1)\nprintln(y)\nlet z: i32 = 1\n");
+    for i in 0..n {
+        let _ = writeln!(s, "fn g_{i}(x: i32): g_{}(x)", i + 1);
+    }
+    let _ = writeln!(s, "fn g_{n}(x: i32): x + z");
+    s
+}
+
+#[test]
+fn waiting_bodies_check_at_most_twice_at_depth_one() {
+    type Shape = (fn(usize) -> String, usize, &'static str);
+    let shapes: [Shape; 2] = [
+        (
+            omitted_result_cycle,
+            0,
+            "recursive-function-needs-result-type",
+        ),
+        (
+            omitted_result_chain_reading_later_top,
+            1,
+            "top-level-read-before-initialization",
+        ),
+    ];
+    for (generate, extra, code) in shapes {
+        // 10,000 aborted on the native stack before the explicit one.
+        for n in [1000, 10_000] {
+            let (out, counts) =
+                hd_check::work::count_item_body_checks(|| compile(&generate(n), &Goal::Analyze));
+            let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+            assert_eq!(codes, [code], "{code} {n}: {}", out.render());
+            let chain: Vec<_> = counts.iter().filter(|c| c.owner.contains("/g_")).collect();
+            assert_eq!(
+                chain.len(),
+                n + extra,
+                "{code} {n}: one record per function"
+            );
+            for c in &chain {
+                assert!(
+                    c.checks <= 2 && c.max_active_depth == 1,
+                    "{code} {n}: {} checked {} times, at depth {}",
+                    c.owner,
+                    c.checks,
+                    c.max_active_depth
+                );
+            }
+        }
+    }
+}
+
 // Checker: #1776, each alias of a chain checks its own right-hand side,
 // and the walk keeps its own stack. Past `TYPE_DEPTH` levels a chain is
 // `type-too-large` (`types.limit.type-size.error`), and the work stays

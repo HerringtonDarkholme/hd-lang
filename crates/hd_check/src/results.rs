@@ -11,10 +11,13 @@
 //! Such a body is checked before its callers: those that reach no cycle
 //! callees first, then the rest in source order. A body about to be
 //! checked for a caller first has the pending bodies it reaches checked,
-//! callees first, so a chain of them does not nest body checks. A callee
-//! whose omitted result is still being checked closes a cycle
-//! (`fn.decl.omitted-cycle`), reported once at the cycle's member that
-//! comes first in source order (`fn.decl.omitted-cycle.report`). A callee
+//! callees first. A body never checks another inside its own check: one
+//! that reads a pending callable waits for it, and an explicit stack
+//! checks the callable and then the body again ([`drive`]), so no chain
+//! or cycle of them nests body checks. A callee whose omitted result is
+//! being checked, or waits, closes a cycle (`fn.decl.omitted-cycle`),
+//! reported once at the cycle's member that comes first in source order
+//! (`fn.decl.omitted-cycle.report`). A callee
 //! whose omitted row is still open is no error: the call records an edge,
 //! and the rows of the recursive group are the least solution of its edges
 //! once no member is being checked (`req.row.omitted.cycle`).
@@ -42,6 +45,9 @@ enum State {
     Pending(NodeIdx),
     /// Its body is being checked.
     Active(NodeIdx),
+    /// Its check read a pending callable, so the check was dropped; it
+    /// runs again once [`drive`] has checked what it read.
+    Waiting(NodeIdx),
     /// Checked: its result, and its body with the body's diagnostics until
     /// `Body(m)` takes them.
     Done {
@@ -118,8 +124,14 @@ pub struct Results {
     waits: Vec<(DefId, RowEdge, RowId)>,
     /// The callables in source order.
     order: Vec<DefId>,
-    /// The callables being checked, innermost last.
+    /// The callable being checked: at most one, since a body never
+    /// checks another inside its own check.
     active: Vec<DefId>,
+    /// The pending callables the active body read, which it waits for.
+    blocked: Vec<DefId>,
+    /// The waiting callables of the running [`drive`], outermost first:
+    /// each read the next, and the last read the active one.
+    chain: Vec<DefId>,
     /// The `recursive-function-needs-result-type` reports, and those of
     /// the module's top-level statements' calls of open rows.
     module_diags: DiagBuf,
@@ -174,7 +186,12 @@ impl Results {
     /// A copy for a forked context, taken after M1: every callable is
     /// done, so no body is copied, and nothing waits.
     pub(crate) fn fork(&self) -> Results {
-        debug_assert!(self.waits.is_empty() && self.active.is_empty() && self.dirty.is_empty());
+        debug_assert!(
+            self.waits.is_empty()
+                && self.active.is_empty()
+                && self.chain.is_empty()
+                && self.dirty.is_empty()
+        );
         let state = self
             .state
             .iter()
@@ -182,6 +199,7 @@ impl Results {
                 let s = match s {
                     State::Pending(n) => State::Pending(*n),
                     State::Active(n) => State::Active(*n),
+                    State::Waiting(n) => State::Waiting(*n),
                     State::Done { ret, .. } => State::Done {
                         ret: *ret,
                         body: None,
@@ -206,6 +224,8 @@ impl Results {
             waits: Vec::new(),
             order: self.order.clone(),
             active: Vec::new(),
+            blocked: Vec::new(),
+            chain: Vec::new(),
             module_diags: DiagBuf::default(),
             reported: hd_base::HashSet::default(),
             template_named: self.template_named.clone(),
@@ -280,13 +300,15 @@ impl Results {
         self.module_diags.error(Code::MissingResultType, span, &msg);
     }
 
-    /// One report per cycle, at its member first in source order.
+    /// One report per cycle, at its member first in source order. The
+    /// cycle runs from `def` along the waiting chain to the active body.
     fn cycle(&mut self, cx: &BodyCx<'_>, def: DefId) {
-        let Some(at) = self.active.iter().position(|d| *d == def) else {
+        let path = || self.chain.iter().chain(&self.active);
+        let Some(at) = path().position(|d| *d == def) else {
             return;
         };
-        let Some(first) = self.active[at..]
-            .iter()
+        let Some(first) = path()
+            .skip(at)
             .copied()
             .min_by_key(|d| self.omits[d].position)
         else {
@@ -296,7 +318,7 @@ impl Results {
         if !self.reported.insert(first) {
             return;
         }
-        let Some(State::Active(n)) = self.state.get(&first) else {
+        let Some(State::Active(n) | State::Waiting(n)) = self.state.get(&first) else {
             return;
         };
         let node = cx.src.parse.tree.node(*n);
@@ -915,8 +937,9 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
 /// first, each from this depth, so a chain of them does not nest native
 /// body checks (`crates/hd_check/DESIGN.md` (type checking) §9.2). A
 /// callable that names a top-level binding not declared yet, or reaches
-/// one that does, waits for its caller as before: its check depends on
-/// the moment of the call. So do the members of its own cycle.
+/// one that does, waits for its caller: its check depends on the moment
+/// of the call. So do the members of its own cycle. Both are checked by
+/// the caller's [`drive`] when its check reads them.
 /// Returns whether it checked any.
 fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
     let plan = plan(cx);
@@ -986,17 +1009,7 @@ fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
         if !ready.get(&plan.comp[i as usize]).copied().unwrap_or(false) {
             continue;
         }
-        let d = plan.defs[i as usize];
-        let n = {
-            let mut r = cx.results.borrow_mut();
-            let Some(&State::Pending(n)) = r.state.get(&d) else {
-                continue;
-            };
-            r.state.insert(d, State::Active(n));
-            r.active.push(d);
-            n
-        };
-        check(cx, d, n);
+        drive(cx, plan.defs[i as usize]);
         checked = true;
     }
     checked
@@ -1006,11 +1019,12 @@ fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
 /// is checked first when it is not done and the caller needs it: for an
 /// omitted result, or with `force`. Rows alone never order checking: a
 /// call of an open row records an edge. A callee whose omitted result is
-/// being checked closes a cycle: the error is reported and the call is
-/// poison.
+/// being checked, or waits, closes a cycle: the error is reported and the
+/// call is poison. A body being checked never checks a pending callee: it
+/// waits for it ([`drive`]), and the call is poison until then.
 fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
     let mut prepared = false;
-    let node = loop {
+    loop {
         let mut r = cx.results.borrow_mut();
         let omits = *r.omits.get(&def)?;
         if let Some(&reader) = r.active.last() {
@@ -1026,7 +1040,7 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
                 let ret = omits.ret.then_some(*ret);
                 return Some(Seen { ret, row });
             }
-            State::Active(_) => {
+            State::Active(_) | State::Waiting(_) => {
                 let ret = if omits.ret {
                     r.cycle(cx, def);
                     Some(Ty::POISON)
@@ -1038,26 +1052,79 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
             State::Pending(_) if !omits.ret && !force => {
                 return Some(Seen { ret: None, row });
             }
+            State::Pending(_) if !r.active.is_empty() => {
+                r.blocked.push(def);
+                return Some(Seen {
+                    ret: omits.ret.then_some(Ty::POISON),
+                    row,
+                });
+            }
             State::Pending(_) if omits.ret && !prepared => {
                 drop(r);
                 prepared = true;
                 callees_first(cx, omits.position);
             }
-            State::Pending(n) => {
-                let n = *n;
-                r.state.insert(def, State::Active(n));
-                r.active.push(def);
-                break n;
+            State::Pending(_) => {
+                drop(r);
+                drive(cx, def);
             }
         }
-    };
-    check(cx, def, node)
+    }
+}
+
+/// Checks the pending callable `root` from an explicit stack, never by
+/// native recursion (AGENTS.md): a check that read pending callables
+/// waits, they are checked above it, callees first in the order it read
+/// them, and then it is checked again. Each callable above a waiting one
+/// is one it read, directly or through those between, so the waiting
+/// ones form the chain from `root` to the active body ([`Results::cycle`]).
+/// Cost: a body is checked once, plus once per check that read a
+/// callable not checked yet; each such read leaves that callable done
+/// before the body runs again, so a body runs at most once more than the
+/// distinct pending callables it reads (twice in a chain or a cycle).
+fn drive(cx: &BodyCx<'_>, root: DefId) {
+    debug_assert!(cx.results.borrow().chain.is_empty(), "one drive at a time");
+    let mut stack = vec![root];
+    while let Some(&def) = stack.last() {
+        let n = {
+            let mut r = cx.results.borrow_mut();
+            let n = match r.state.get(&def) {
+                Some(State::Pending(n)) => *n,
+                Some(State::Waiting(n)) => {
+                    let n = *n;
+                    debug_assert_eq!(r.chain.last(), Some(&def), "waits on the chain's end");
+                    r.chain.pop();
+                    n
+                }
+                // Done: checked through another reader since it was pushed.
+                _ => {
+                    stack.pop();
+                    continue;
+                }
+            };
+            r.state.insert(def, State::Active(n));
+            r.active.push(def);
+            n
+        };
+        let blocked = check(cx, def, n);
+        if blocked.is_empty() {
+            stack.pop();
+            continue;
+        }
+        let mut first = hd_base::HashSet::default();
+        let fresh: Vec<DefId> = blocked.into_iter().filter(|d| first.insert(*d)).collect();
+        stack.extend(fresh.into_iter().rev());
+    }
 }
 
 /// Checks the body of `def`, which the caller made active, and settles
-/// what it changed.
-fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Option<Seen> {
-    let omits = *cx.results.borrow().omits.get(&def)?;
+/// what it changed. A check that read pending callables is dropped: `def`
+/// waits, and they are returned for [`drive`] to check first.
+fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Vec<DefId> {
+    let at = node;
+    let Some(omits) = cx.results.borrow().omits.get(&def).copied() else {
+        return Vec::new();
+    };
     // Its own diagnostics: a caller's trial cannot roll them back, and a
     // later row pass replaces them together with this provisional body.
     let mut diags = DiagBuf::default();
@@ -1075,6 +1142,12 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Option<Seen> {
     };
     let mut r = cx.results.borrow_mut();
     r.active.pop();
+    let blocked = std::mem::take(&mut r.blocked);
+    if !blocked.is_empty() {
+        r.state.insert(def, State::Waiting(at));
+        r.chain.push(def);
+        return blocked;
+    }
     if let Some(left) = facts.fuel_left {
         r.remaining.insert(def, left);
     }
@@ -1126,11 +1199,16 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Option<Seen> {
     if previous_error != has_errors {
         r.changed(def);
     }
-    r.settle(cx);
+    // Rows settle once the drive's chain is done: a row on it waits for
+    // the chain's first member, so settling after each check would visit
+    // every waiting row once per check.
+    if r.chain.is_empty() {
+        r.settle(cx);
+    }
     drop(r);
     drain_rows(cx);
     recheck_readers(cx);
-    seen(cx, def, false)
+    Vec::new()
 }
 
 /// Force the row signatures requested by a body without nesting body
@@ -1140,7 +1218,11 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Option<Seen> {
 fn drain_rows(cx: &BodyCx<'_>) {
     {
         let mut r = cx.results.borrow_mut();
-        if r.draining_rows || !r.active.is_empty() || r.deferred_rows.is_empty() {
+        if r.draining_rows
+            || !r.active.is_empty()
+            || !r.chain.is_empty()
+            || r.deferred_rows.is_empty()
+        {
             return;
         }
         r.draining_rows = true;
@@ -1166,7 +1248,12 @@ fn drain_rows(cx: &BodyCx<'_>) {
 fn recheck_readers(cx: &BodyCx<'_>) {
     {
         let mut r = cx.results.borrow_mut();
-        if r.rechecking || r.draining_rows || !r.active.is_empty() || r.dirty.is_empty() {
+        if r.rechecking
+            || r.draining_rows
+            || !r.active.is_empty()
+            || !r.chain.is_empty()
+            || r.dirty.is_empty()
+        {
             return;
         }
         r.rechecking = true;
@@ -1236,6 +1323,11 @@ pub(crate) fn row_now(cx: &BodyCx<'_>, def: DefId, written: RowId) -> RowId {
 /// top-level statements'), each checked once its callee's row is solved.
 pub(crate) fn add_waits(cx: &BodyCx<'_>, owner: DefId, waits: Vec<(RowEdge, RowId)>) {
     let mut r = cx.results.borrow_mut();
+    // A check that waits for a callable is dropped, and its next check
+    // adds them.
+    if !r.blocked.is_empty() {
+        return;
+    }
     r.waits
         .extend(waits.into_iter().map(|(e, row)| (owner, e, row)));
     r.check_waits(cx);
