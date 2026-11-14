@@ -237,20 +237,34 @@ fn omitted_result_chain_reading_later_top(n: usize) -> String {
     s
 }
 
+/// A valid chain that waits: its tail names `z`, an unannotated top-level
+/// binding declared after the statement that calls `g_0`, so no body of
+/// the chain is checked before that call. The tail's `z` is its own
+/// local, so each body waits for its callee once and the program checks.
+fn omitted_result_chain_naming_later_top(n: usize) -> String {
+    let mut s = String::from("y := g_0(+1)\nprintln(y)\nz := 1\n");
+    for i in 0..n {
+        let _ = writeln!(s, "fn g_{i}(x: i32): g_{}(x)", i + 1);
+    }
+    let _ = writeln!(s, "fn g_{n}(x: i32):\n    z := x + 1\n    z");
+    s
+}
+
 #[test]
 fn waiting_bodies_check_at_most_twice_at_depth_one() {
-    type Shape = (fn(usize) -> String, usize, &'static str);
-    let shapes: [Shape; 2] = [
+    type Shape = (fn(usize) -> String, usize, &'static [&'static str]);
+    let shapes: [Shape; 3] = [
         (
             omitted_result_cycle,
             0,
-            "recursive-function-needs-result-type",
+            &["recursive-function-needs-result-type"],
         ),
         (
             omitted_result_chain_reading_later_top,
             1,
-            "top-level-read-before-initialization",
+            &["top-level-read-before-initialization"],
         ),
+        (omitted_result_chain_naming_later_top, 1, &[]),
     ];
     for (generate, extra, code) in shapes {
         // 10,000 aborted on the native stack before the explicit one.
@@ -258,21 +272,27 @@ fn waiting_bodies_check_at_most_twice_at_depth_one() {
             let (out, counts) =
                 hd_check::work::count_item_body_checks(|| compile(&generate(n), &Goal::Analyze));
             let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
-            assert_eq!(codes, [code], "{code} {n}: {}", out.render());
+            assert_eq!(codes, code, "{code:?} {n}: {}", out.render());
             let chain: Vec<_> = counts.iter().filter(|c| c.owner.contains("/g_")).collect();
             assert_eq!(
                 chain.len(),
                 n + extra,
-                "{code} {n}: one record per function"
+                "{code:?} {n}: one record per function"
             );
             for c in &chain {
                 assert!(
                     c.checks <= 2 && c.max_active_depth == 1,
-                    "{code} {n}: {} checked {} times, at depth {}",
+                    "{code:?} {n}: {} checked {} times, at depth {}",
                     c.owner,
                     c.checks,
                     c.max_active_depth
                 );
+            }
+            // The valid chain really waits: each body but the tail is
+            // dropped once for its pending callee and checked again.
+            if code.is_empty() {
+                let checks: usize = chain.iter().map(|c| c.checks).sum();
+                assert_eq!(checks, 2 * n + 1, "{n}: the chain's body checks");
             }
         }
     }

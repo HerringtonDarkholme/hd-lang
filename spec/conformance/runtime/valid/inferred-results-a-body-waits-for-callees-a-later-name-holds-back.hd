@@ -1,12 +1,14 @@
 # test: omitted results that a later top-level name holds back are checked when a statement calls them
-# Spec 07 Functions: fn.decl.result-inferred. `g_2` names `z`, which a
-# statement declares after the one that calls `g_0`, so each body is
-# checked at that call. `g_0` reads `g_1` and `g_2` before either is
-# checked, and `g_1` reads `g_2`; each result is inferred once they are.
+# Spec 07 Functions: fn.decl.result-inferred. `g_2` names `z`, and the
+# unannotated top-level `z` is declared by a statement after the one
+# that calls `g_0`, so `g_2` and the callers that reach it are not
+# checked before that call. `g_0`'s check reads `g_1` and `g_2` while
+# they are pending and waits; `g_1`'s waits for `g_2`. `g_2`'s `z` is its
+# own local, so each result is inferred once its callees are checked.
 # expect-stdout: 6
 y := g_0(+1)
 println(y)
-let z: i32 = 1
+z := 1
 
 fn g_0(x: i32): g_1(x) + g_2(x)
 
