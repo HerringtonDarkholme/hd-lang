@@ -6626,6 +6626,7 @@ impl Run<'_> {
                 .collect_checked_facts(m)
                 .then(std::cell::RefCell::default),
             locals: &locals,
+            enclosing: std::cell::OnceCell::new(),
             tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
                 blocks: &blocks,
                 scope,
@@ -8080,6 +8081,7 @@ impl Run<'_> {
             dbg_refs: std::cell::RefCell::default(),
             source_facts: None,
             locals: &tlocals,
+            enclosing: std::cell::OnceCell::new(),
             tests: None,
             file_name: &self.table.files[tm],
             session: &session,
@@ -8157,6 +8159,7 @@ impl Run<'_> {
             dbg_refs: std::cell::RefCell::default(),
             source_facts: None,
             locals: &tlocals,
+            enclosing: std::cell::OnceCell::new(),
             tests: None,
             file_name: &self.table.files[tm],
             session: &[],

@@ -802,15 +802,56 @@ fn local_heads<'t>(
     }
 }
 
-/// Whether `name` is a type, const or row parameter, or the `Self`, of a
-/// declaration around byte `at`. A body that cannot see one is a local
-/// impl's that does not take it (`names.local-type.refs.impl`). It walks
-/// one path down the tree: called only for a name that reached nothing.
-#[must_use]
-pub fn is_enclosing_parameter(src: &Src<'_>, at: u32, name: &str) -> bool {
-    let (lists, self_owner) = enclosing_generics(src, src.root(), at);
-    (name == "Self" && self_owner.is_some())
-        || parameter_names(src, &lists).any(|t| src.text(t) == name)
+/// The type, const and row parameters, and the `Self`, of a module's
+/// declarations, by name, with the bytes each declaration encloses
+/// (#1877). The checker asks it, for a name that reached nothing, whether
+/// a declaration around the use declares it: a body that cannot see one
+/// is a local impl's that does not take it (`names.local-type.refs.impl`).
+/// Built by one walk of the module's tree, on the first such name; each
+/// question is then one hash probe and one binary search.
+pub struct EnclosingParams {
+    by_name: HashMap<Box<str>, crate::Innermost>,
+}
+
+impl EnclosingParams {
+    #[must_use]
+    pub fn new<'s>(src: &Src<'s>) -> Self {
+        let mut extents: HashMap<&'s str, Vec<(usize, u32, u32)>> = HashMap::default();
+        let mut add = |name: &'s str, lo: u32, hi: u32| {
+            crate::work::enclosing_names(1);
+            let list = extents.entry(name).or_default();
+            list.push((list.len(), lo, hi));
+        };
+        for n in src.root().descendants() {
+            if decl_kind(src, n).is_none() {
+                continue;
+            }
+            // A use at a declaration's first byte is outside it.
+            let span = src.span(n);
+            let (lo, hi) = (span.lo.saturating_add(1), span.hi);
+            if matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl) {
+                add("Self", lo, hi);
+            }
+            if let Some(gl) = Src::child(n, SyntaxKind::GenericParameterList) {
+                for t in parameter_names(src, &[gl.index()]) {
+                    add(src.text(t), lo, hi);
+                }
+            }
+        }
+        let by_name = extents
+            .into_iter()
+            .map(|(name, list)| (Box::from(name), crate::Innermost::new(&list)))
+            .collect();
+        EnclosingParams { by_name }
+    }
+
+    /// Whether `name` is a type, const or row parameter, or the `Self`, of
+    /// a declaration around byte `at`.
+    #[must_use]
+    pub fn holds(&self, name: &str, at: u32) -> bool {
+        crate::work::enclosing_names(1);
+        self.by_name.get(name).is_some_and(|m| m.at(at).is_some())
+    }
 }
 
 /// The name tokens of the parameters of the generic lists `lists`.

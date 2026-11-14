@@ -1577,3 +1577,49 @@ fn local_declarations_are_found_by_one_probe_each() {
         }
     });
 }
+
+/// A local function inside a function of 1,024 type parameters, whose `n`
+/// parameters name unknown types, and whose body names `n` unknown const
+/// arguments.
+fn local_fn_unknown_types(n: usize) -> String {
+    let list: Vec<String> = (0..1024).map(|i| format!("T{i}")).collect();
+    let params: Vec<String> = (0..n).map(|i| format!("p{i}: U{i}")).collect();
+    let mut s = format!(
+        "struct Fixed[N < const i32]:\n    v: i32\n\nfn outer[{}]() -> i32:\n    fn inner({}) -> i32:\n",
+        list.join(", "),
+        params.join(", ")
+    );
+    for i in 0..n {
+        let _ = writeln!(s, "        let f{i}: Fixed[C{i}] = Fixed {{ v: +1 }}");
+    }
+    s.push_str("        +1\n    +1\n");
+    s
+}
+
+// Checker: #1877, a name that reaches nothing asks the module's index of
+// enclosing parameters, built once, with one probe: a walk down from the
+// root scanning each level's children, then a compare with each of the
+// 1,024 enclosing parameters, cost that per use.
+#[test]
+fn unknown_names_in_a_local_function_ask_the_enclosing_index_once_each() {
+    on_test_stack(|| {
+        for n in [1_000, 10_000] {
+            let (out, work) = hd_resolve::work::count_enclosing_work(|| {
+                compile(&local_fn_unknown_types(n), &Goal::Analyze)
+            });
+            let unknown = out
+                .diags
+                .code
+                .iter()
+                .filter(|c| matches!(c.as_str(), "unknown-type" | "unknown-name"))
+                .count();
+            assert!(unknown >= n, "{n}: {}", out.render());
+            // The 1,025 names indexed once (`Self` of none, `T0`..`T1023`,
+            // `N`), then a few questions per use (5 measured).
+            assert!(
+                work <= 1_100 + 6 * n as u64,
+                "enclosing work for {n} uses: {work}"
+            );
+        }
+    });
+}

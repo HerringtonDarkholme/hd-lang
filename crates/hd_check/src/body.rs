@@ -55,6 +55,10 @@ pub struct BodyCx<'a> {
     /// The module's block-local declarations, lifted to hidden items
     /// (`crates/hd_tir/DESIGN.md` "Local items lift to hidden module items").
     pub locals: &'a hd_resolve::Locals,
+    /// The module's declarations' parameter names by the bytes they
+    /// enclose, made on the first name that reaches nothing
+    /// ([`Self::enclosing_params`]).
+    pub enclosing: std::cell::OnceCell<hd_resolve::EnclosingParams>,
     /// The module's file as diagnostics name it, which a `dbg` line's
     /// location starts with (`module.dbg.location`).
     pub file_name: &'a str,
@@ -84,6 +88,15 @@ pub struct TestsView<'a> {
 }
 
 impl<'a> BodyCx<'a> {
+    /// Whether `name` is a type, const or row parameter, or the `Self`,
+    /// of a declaration around byte `at`: asked only for a name that
+    /// reached nothing (`names.local-type.refs.impl`).
+    pub(crate) fn is_enclosing_parameter(&self, name: &str, at: u32) -> bool {
+        self.enclosing
+            .get_or_init(|| hd_resolve::EnclosingParams::new(&self.src))
+            .holds(name, at)
+    }
+
     /// The module-level names seen at byte `at`: the `tests:` block's
     /// scope inside the block (`names.tests.inside-only`), else the
     /// module's.

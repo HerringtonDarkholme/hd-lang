@@ -79,3 +79,26 @@ pub(crate) fn local_probe() {
         }
     });
 }
+
+thread_local! {
+    static ENCLOSING: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the work of the checker's enclosing-parameter index on this
+/// thread ([`crate::EnclosingParams`]): one per parameter name indexed,
+/// and one per question.
+pub fn count_enclosing_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = ENCLOSING.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = ENCLOSING.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of enclosing-parameter work.
+pub(crate) fn enclosing_names(n: u64) {
+    ENCLOSING.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n));
+        }
+    });
+}

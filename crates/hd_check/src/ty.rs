@@ -322,9 +322,7 @@ impl Ck<'_, '_> {
                         self.read_poison_name = true;
                         ConstName::Poison
                     }
-                    _ if !in_binding
-                        && hd_resolve::is_enclosing_parameter(&src, src.span(a).lo, name) =>
-                    {
+                    _ if !in_binding && self.cx.is_enclosing_parameter(name, src.span(a).lo) => {
                         ConstName::Untaken
                     }
                     _ => ConstName::Unknown,
@@ -725,7 +723,7 @@ impl Ck<'_, '_> {
             // A single name that reaches nothing is `unknown-type`, or
             // `unknown-trait` where a trait is written (`req.key.in-scope`).
             if let [name] = segs.as_slice() {
-                if hd_resolve::is_enclosing_parameter(&self.cx.src, self.cx.src.span(n).lo, name) {
+                if self.cx.is_enclosing_parameter(name, self.cx.src.span(n).lo) {
                     let msg = format!(
                         "`{name}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
                     );

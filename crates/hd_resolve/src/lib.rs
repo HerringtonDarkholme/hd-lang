@@ -43,9 +43,9 @@ pub use iface::{
 pub use known::KnownItems;
 pub use locals::{Innermost, Locals};
 pub use lower::{
-    Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, Reads, Recorded,
-    SessionScope, TopBindings, USE_CODES, UseDecl, World, body_nodes, build_folder, head_name_span,
-    heads, is_enclosing_parameter, is_prelude_name, is_test_prelude_name, local_items,
+    Cx, EnclosingParams, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE,
+    Reads, Recorded, SessionScope, TopBindings, USE_CODES, UseDecl, World, body_nodes,
+    build_folder, head_name_span, heads, is_prelude_name, is_test_prelude_name, local_items,
     prelude_modules, prelude_rows, runtime_module, test_prelude_item, test_use_decls, tests_items,
     traitless_block, use_decls, use_diags,
 };

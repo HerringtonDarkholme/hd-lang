@@ -140,6 +140,7 @@ impl<'a> BodyFork<'a> {
             dbg_refs: RefCell::default(),
             source_facts: self.collect_source_facts.then(RefCell::default),
             locals: self.locals,
+            enclosing: std::cell::OnceCell::new(),
             file_name: self.file_name,
             tests: self.tests,
             session: self.session,
