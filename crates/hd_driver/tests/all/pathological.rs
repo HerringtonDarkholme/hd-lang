@@ -2247,3 +2247,69 @@ fn compared_wide_values_walk_the_fields_once_per_run() {
         );
     });
 }
+
+/// A trait and `n` generic structs, each implementing it by calling the
+/// method through its parameter's bound: review F11's shape, where each
+/// body's init facts listed every impl method of the module.
+fn bound_dispatch_impls(n: usize) -> String {
+    let mut s = String::from("trait Get:\n    fn get(&self) -> i32\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "\nstruct W{i}[A]:\n    v: A\n\nimpl[A < Get] Get for W{i}[A]:\n    fn get(&self) -> i32: self.v.get()\n"
+        );
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker and driver: #1893, a call through a bound names its dispatch
+// set by one key in a body's init facts, and the module's summary lists
+// each key's methods once: every body listed every impl method, so the
+// summary was quadratic, and at 6,000 impls its `check` entry passed the
+// disk cache's entry limit and a no-edit rerun checked everything again.
+#[test]
+fn bound_dispatch_names_its_impls_once_per_module() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) = hd_check::work::count_scan_work(|| {
+                compile(&bound_dispatch_impls(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(200), work(2_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 200 and 2,000 impls: {small} and {large}"
+        );
+        let bytes = |n: usize| {
+            let mut src = MemorySources::default();
+            src.insert("main.hd", &bound_dispatch_impls(n));
+            let store = hd_cache::MemoryStore::default();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let cold = build(&host, "app", &Goal::Analyze);
+            assert!(cold.diags.is_empty(), "{n}: {}", cold.render());
+            let written = store.bytes();
+            let warm = build(&host, "app", &Goal::Analyze);
+            assert!(
+                warm.counters.modules_checked.is_empty(),
+                "{n}: a rerun with no edit checked {:?}",
+                warm.counters.modules_checked
+            );
+            assert_eq!(store.bytes(), written, "{n}: a rerun wrote entries");
+            written
+        };
+        let (small, large) = (bytes(200), bytes(2_000));
+        assert!(
+            large <= 12 * small,
+            "cache bytes for 200 and 2,000 impls: {small} and {large}"
+        );
+    });
+}

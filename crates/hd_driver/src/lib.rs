@@ -11306,8 +11306,9 @@ fn decode_generic_edges(
 
 /// A module's init summary in its `check` entry: the statement count
 /// first, which `InitOrder` peeks, then the path table, then the rows.
-/// Each set is written in path order, so the bytes are a function of the
-/// summary.
+/// Each set is written in the order of its paths' hashes, a stable id
+/// that needs no text (a `DefId` follows interning order, which parallel
+/// checking does not fix), so the bytes are a function of the summary.
 fn encode_summary(
     sum: &hd_check::init::InitSummary,
     names: &Names<'_>,
@@ -11315,21 +11316,28 @@ fn encode_summary(
 ) -> Vec<u8> {
     let mut t = hd_types::wire::TableWriter::new(names.pool, names.paths, names.syms);
     let mut body = Writer::default();
-    let set = |t: &mut hd_types::wire::TableWriter<'_>, w: &mut Writer, s: &HashSet<DefId>| {
-        let mut v: Vec<DefId> = s.iter().copied().collect();
-        v.sort_stable_by_cached_key(|d| names.path(*d));
+    let list = |t: &mut hd_types::wire::TableWriter<'_>,
+                w: &mut Writer,
+                s: &mut dyn Iterator<Item = DefId>| {
+        let mut v: Vec<DefId> = s.collect();
+        v.sort_stable_by_key(|d| names.paths.hash(hd_base::PathId::from_raw(d.raw())).0);
         w.len_of(&v);
         for d in v {
             w.u32(t.def(d));
         }
     };
+    let facts =
+        |t: &mut hd_types::wire::TableWriter<'_>, w: &mut Writer, f: &hd_check::init::InitFacts| {
+            list(t, w, &mut f.reads.iter().copied());
+            list(t, w, &mut f.calls.iter().copied());
+            list(t, w, &mut f.dispatch.iter().copied());
+        };
     body.len_of(&sum.stmts);
     for st in &sum.stmts {
         body.u32(st.first_inst);
         lines.write(&mut body, st.lo);
         lines.write(&mut body, st.hi);
-        set(&mut t, &mut body, &st.facts.reads);
-        set(&mut t, &mut body, &st.facts.calls);
+        facts(&mut t, &mut body, &st.facts);
     }
     body.len_of(&sum.globals);
     for (d, at) in &sum.globals {
@@ -11339,8 +11347,12 @@ fn encode_summary(
     body.len_of(&sum.fns);
     for (d, f) in &sum.fns {
         body.u32(t.def(*d));
-        set(&mut t, &mut body, &f.reads);
-        set(&mut t, &mut body, &f.calls);
+        facts(&mut t, &mut body, f);
+    }
+    body.len_of(&sum.dispatch);
+    for (k, methods) in &sum.dispatch {
+        body.u32(t.def(*k));
+        list(&mut t, &mut body, &mut methods.iter().copied());
     }
     let mut w = Writer::default();
     w.len_of(&sum.stmts);
@@ -11368,18 +11380,24 @@ fn decode_summary(
     let set = |r: &mut Reader<'_>| -> Option<HashSet<DefId>> {
         (0..r.count()).map(|_| t.def(r.u32())).collect()
     };
+    let facts = |r: &mut Reader<'_>| -> Option<hd_check::init::InitFacts> {
+        Some(hd_check::init::InitFacts {
+            reads: set(r)?,
+            calls: set(r)?,
+            dispatch: set(r)?,
+        })
+    };
     let mut sum = hd_check::init::InitSummary::default();
     for _ in 0..r.count() {
         let first_inst = r.u32();
         let lo = lines.read(&mut r);
         let hi = lines.read(&mut r);
-        let reads = set(&mut r)?;
-        let calls = set(&mut r)?;
+        let facts = facts(&mut r)?;
         sum.stmts.push(hd_check::init::StmtSummary {
             first_inst,
             lo,
             hi,
-            facts: hd_check::init::InitFacts { reads, calls },
+            facts,
         });
     }
     for _ in 0..r.count() {
@@ -11388,10 +11406,14 @@ fn decode_summary(
     }
     for _ in 0..r.count() {
         let d = t.def(r.u32())?;
-        let reads = set(&mut r)?;
-        let calls = set(&mut r)?;
-        sum.fns
-            .push((d, hd_check::init::InitFacts { reads, calls }));
+        sum.fns.push((d, facts(&mut r)?));
+    }
+    for _ in 0..r.count() {
+        let k = t.def(r.u32())?;
+        let methods = (0..r.count())
+            .map(|_| t.def(r.u32()))
+            .collect::<Option<Vec<DefId>>>()?;
+        sum.dispatch.push((k, methods));
     }
     r.ok().then_some(sum)
 }

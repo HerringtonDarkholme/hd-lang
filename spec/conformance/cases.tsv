@@ -1258,6 +1258,8 @@ typing/invalid/initialization-implicit-an-ordering-operator-reaches-partial-cmp-
 typing/invalid/initialization-implicit-calling-a-value-reaches-apply-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/init-read-through-trait-dispatch.hd	runtime	accept	lang/10-modules.md#module-initialization
 runtime/valid/init-a-concrete-trait-call-reaches-only-its-impl.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.dispatch
+runtime/valid/init-a-bound-call-reaches-only-the-impl-methods-of-its-name.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.dispatch
+typing/invalid/init-a-bound-call-reaches-the-same-named-method-of-every-impl.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.dispatch
 runtime/valid/unsigned-exponent.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/signed-exponent.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/nonpublic-main-ordinary.hd	type	accept	lang/10-modules.md#entry-point
@@ -2688,6 +2690,7 @@ runtime/valid/folder-graph-tests-block-edges.hd	runtime	accept	lang/10-modules.m
 typing/valid/pub-use-chain.hd	type	accept	lang/10-modules.md#r-module.pub-use.chain
 typing/invalid/pub-use-loop.hd	type	reject:re-export-loop	lang/10-modules.md#r-module.pub-use.chain.loop
 runtime/valid/init-group-order.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.step
+runtime/valid/init-group-a-bound-call-reaches-the-impls-of-its-module.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.dependency
 typing/invalid/init-group-cycle.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.cycle.stuck
 runtime/valid/string-prefix-plain-dollar-digit.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
 runtime/valid/literal-suffix-default-parameter.hd	runtime	accept	lang/07-functions.md#r-fn.type.no-names

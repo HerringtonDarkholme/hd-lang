@@ -7,7 +7,15 @@ use std::collections::BTreeSet;
 
 use hd_base::DefId;
 
-use crate::init::InitSummary;
+use crate::init::{CallNode, InitSummary};
+
+/// A node of a cycle's call graph: a body, or a dispatch key of the
+/// module at this index.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Node {
+    Body(DefId),
+    Dispatch(usize, DefId),
+}
 
 /// One step of a module cycle's initialization: a module of the cycle,
 /// by its index in identity order, and one of its statements.
@@ -53,18 +61,29 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
     }
     // The bindings each body reaches, through its calls: each body's set
     // pushed to its callers until nothing grows.
-    let mut reach: HashMap<DefId, BTreeSet<usize>> = HashMap::default();
-    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::default();
-    for sum in modules {
+    // A dispatch key reaches the methods of its own module's impls, so
+    // it is a node per module.
+    let node = |m: usize, c: CallNode| match c {
+        CallNode::Body(d) => Node::Body(d),
+        CallNode::Dispatch(k) => Node::Dispatch(m, k),
+    };
+    let mut reach: HashMap<Node, BTreeSet<usize>> = HashMap::default();
+    let mut callers: HashMap<Node, Vec<Node>> = HashMap::default();
+    for (m, sum) in modules.iter().enumerate() {
         for (d, f) in &sum.fns {
             let set = hd_base::btree_set(f.reads.iter().filter_map(|g| binding.get(g)).copied());
-            reach.entry(*d).or_default().extend(set);
-            for c in &f.calls {
-                callers.entry(*c).or_default().push(*d);
+            reach.entry(Node::Body(*d)).or_default().extend(set);
+            for c in f.callees() {
+                callers.entry(node(m, c)).or_default().push(Node::Body(*d));
+            }
+        }
+        for (k, methods) in &sum.dispatch {
+            for d in methods {
+                (callers.entry(Node::Body(*d)).or_default()).push(Node::Dispatch(m, *k));
             }
         }
     }
-    let mut work: Vec<DefId> = reach
+    let mut work: Vec<Node> = reach
         .iter()
         .filter(|(_, s)| !s.is_empty())
         .map(|(d, _)| *d)
@@ -83,8 +102,9 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
     // Each statement's dependencies, as bindings.
     let deps: Vec<BTreeSet<usize>> = modules
         .iter()
-        .flat_map(|sum| &sum.stmts)
-        .map(|st| {
+        .enumerate()
+        .flat_map(|(m, sum)| sum.stmts.iter().map(move |st| (m, st)))
+        .map(|(m, st)| {
             let mut set = hd_base::btree_set(
                 st.facts
                     .reads
@@ -92,8 +112,8 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
                     .filter_map(|g| binding.get(g))
                     .copied(),
             );
-            for c in &st.facts.calls {
-                set.extend(reach.get(c).into_iter().flatten().copied());
+            for c in st.facts.callees() {
+                set.extend(reach.get(&node(m, c)).into_iter().flatten().copied());
             }
             set
         })
@@ -170,6 +190,7 @@ mod tests {
             facts: InitFacts {
                 reads: reads.iter().map(|r| d(*r)).collect(),
                 calls: calls.iter().map(|c| d(*c)).collect(),
+                ..InitFacts::default()
             },
             ..StmtSummary::default()
         }
@@ -193,11 +214,43 @@ mod tests {
                         InitFacts {
                             reads: r.iter().map(|x| d(*x)).collect(),
                             calls: c.iter().map(|x| d(*x)).collect(),
+                            ..InitFacts::default()
                         },
                     )
                 })
                 .collect(),
+            dispatch: Vec::new(),
         }
+    }
+
+    #[test]
+    fn a_dispatch_key_reaches_the_methods_of_its_own_module() {
+        // prices: `let markup = 5`; method 20 of an impl reads `markup` (10),
+        // and function 21 calls through the key 40 that reaches it. catalog
+        // names the key 40 too, which reaches no method of its own.
+        let mut prices = module(vec![stmt(&[], &[])], &[(10, 0)], &[(20, &[10], &[])]);
+        prices.fns.push((
+            d(21),
+            InitFacts {
+                dispatch: [d(40)].into_iter().collect(),
+                ..InitFacts::default()
+            },
+        ));
+        prices.dispatch = vec![(d(40), vec![d(20)])];
+        let through = |calls: &[u32], key: bool| {
+            let mut st = stmt(&[], calls);
+            if key {
+                st.facts.dispatch.insert(d(40));
+            }
+            let mut catalog = module(vec![st], &[(1, 0)], &[]);
+            catalog.dispatch = vec![(d(40), vec![])];
+            cycle_order(&[&catalog, &prices])
+        };
+        assert_eq!(
+            through(&[21], false),
+            CycleOrder::Steps(vec![(1, 0), (0, 0)])
+        );
+        assert_eq!(through(&[], true), CycleOrder::Steps(vec![(0, 0), (1, 0)]));
     }
 
     #[test]

@@ -1,0 +1,37 @@
+# module.init.definite.dispatch: a call through a bound reaches the method of its name in every impl of the module, here one that reads a later binding.
+trait Name:
+    fn name(self) -> string
+    fn loud(self) -> string:
+        "loud"
+
+struct Tag:
+    n: i32
+
+struct Plain:
+    n: i32
+
+struct Other:
+    n: i32
+
+fn named[T < Name](x: T) -> string:
+    x.name()
+
+first := "${named(Tag { n: 1 })} ${Plain { n: 2 }.loud()}" # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Name for Tag:
+    fn name(self) -> string:
+        "a"
+
+impl Name for Plain:
+    fn name(self) -> string:
+        "p"
+
+impl Name for Other:
+    fn name(self) -> string:
+        "o${later}"
+    fn loud(self) -> string:
+        "O${later}"
+
+pub fn main() -> void $ Console:
+    println("$first $later")

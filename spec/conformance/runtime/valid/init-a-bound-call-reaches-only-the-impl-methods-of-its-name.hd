@@ -1,0 +1,39 @@
+# test: a call through a bound reaches every impl's method of the name it calls, not their other methods, and a chosen impl's default reaches only the default
+# Spec lang/10-modules.md: module.init.definite.dispatch.
+# expect-stdout: a loud 5
+trait Name:
+    fn name(self) -> string
+    fn loud(self) -> string:
+        "loud"
+
+struct Tag:
+    n: i32
+
+struct Plain:
+    n: i32
+
+struct Other:
+    n: i32
+
+fn named[T < Name](x: T) -> string:
+    x.name()
+
+first := "${named(Tag { n: 1 })} ${Plain { n: 2 }.loud()}"
+later := +5
+
+impl Name for Tag:
+    fn name(self) -> string:
+        "a"
+
+impl Name for Plain:
+    fn name(self) -> string:
+        "p"
+
+impl Name for Other:
+    fn name(self) -> string:
+        "o"
+    fn loud(self) -> string:
+        "O${later}"
+
+pub fn main() -> void $ Console:
+    println("$first $later")

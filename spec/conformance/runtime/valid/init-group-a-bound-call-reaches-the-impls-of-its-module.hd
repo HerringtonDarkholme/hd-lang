@@ -1,0 +1,14 @@
+# test: a call through a bound in another module of the group reaches that module's impls, so catalog's binding waits for prices' markup
+# Spec 10 Order Inside A Cycle: module.init.cycle.dependency, module.init.cycle.step; module.init.definite.dispatch.
+# fixture-package-tree: init-dispatch-group/src/shop/catalog.hd
+use pkg.shop.prices.{price_of, Tea}
+let featured = price_of(Tea { n: 1 })
+
+pub fn base_price(sku: string) -> i32:
+    if sku == "tea": 10 else: 20
+
+tests:
+    use std.testing.assert_equal
+
+    it("runs after markup"):
+        assert_equal(featured, 15, reason="10 + markup 5")

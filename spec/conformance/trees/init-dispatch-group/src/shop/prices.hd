@@ -1,0 +1,16 @@
+use pkg.shop.catalog.{base_price}
+
+pub trait Priced:
+    fn price(self) -> i32
+
+pub struct Tea:
+    pub n: i32
+
+let markup = +5
+
+impl Priced for Tea:
+    fn price(self) -> i32:
+        base_price("tea") + markup
+
+pub fn price_of[T < Priced](x: T) -> i32:
+    x.price()

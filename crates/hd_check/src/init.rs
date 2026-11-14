@@ -138,6 +138,31 @@ pub(crate) struct CondFlow {
 pub struct InitFacts {
     pub reads: HashSet<DefId>,
     pub calls: HashSet<DefId>,
+    /// The dispatch sets it calls through (`module.init.definite.dispatch`),
+    /// each named once by its key: a trait's method, for every method of
+    /// that name in the module's impls of the trait, or a trait, for
+    /// every method of them. The module's summary lists each key's
+    /// methods once ([`InitSummary::dispatch`]), so a body's facts do not
+    /// grow with the module's impls.
+    pub dispatch: HashSet<DefId>,
+}
+
+impl InitFacts {
+    /// The nodes these facts call: bodies, then dispatch keys.
+    pub fn callees(&self) -> impl Iterator<Item = CallNode> + '_ {
+        (self.calls.iter().map(|d| CallNode::Body(*d)))
+            .chain(self.dispatch.iter().map(|k| CallNode::Dispatch(*k)))
+    }
+}
+
+/// A node of a module's init call graph: a body, or a dispatch key
+/// ([`InitFacts::dispatch`]), whose callees are the methods it reaches.
+/// A trait method is both: its default body, and the key of the impls'
+/// same-named methods.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallNode {
+    Body(DefId),
+    Dispatch(DefId),
 }
 
 /// One top-level statement of a module's init summary.
@@ -164,6 +189,9 @@ pub struct InitSummary {
     pub globals: Vec<(DefId, u32)>,
     /// What each body of the module reaches directly, when anything.
     pub fns: Vec<(DefId, InitFacts)>,
+    /// The methods each dispatch key the facts name reaches in this
+    /// module ([`InitFacts::dispatch`]).
+    pub dispatch: Vec<(DefId, Vec<DefId>)>,
 }
 
 /// The init summary of the module `cx` checked: its statements, its
@@ -196,16 +224,32 @@ pub fn summary(
                 InitFacts {
                     reads: f.reads.clone(),
                     calls,
+                    dispatch: f.dispatch.clone(),
                 },
             )
         })
-        .filter(|(_, f)| !f.reads.is_empty() || !f.calls.is_empty())
+        .filter(|(_, f)| !f.reads.is_empty() || !f.calls.is_empty() || !f.dispatch.is_empty())
         .collect();
     fns.sort_stable_by_cached_key(|(d, _)| cx.names.path(*d));
+    // Each key once, with its methods: O(keys named + their methods).
+    let keys: HashSet<DefId> = (stmts.iter().map(|s| &s.facts))
+        .chain(fns.iter().map(|(_, f)| f))
+        .flat_map(|f| f.dispatch.iter().copied())
+        .collect();
+    let mut dispatch: Vec<(DefId, Vec<DefId>)> = init.with_impl_methods(cx, |index| {
+        keys.into_iter()
+            .map(|k| {
+                let reached = index.reached(cx, k);
+                (k, reached.iter().copied().filter(|m| keep(*m)).collect())
+            })
+            .collect()
+    });
+    dispatch.sort_stable_by_cached_key(|(k, _)| cx.names.path(*k));
     InitSummary {
         stmts,
         globals,
         fns,
+        dispatch,
     }
 }
 
@@ -261,12 +305,14 @@ pub struct ModuleInit {
 }
 
 /// The methods of a module's own trait impls, made in one pass over its
-/// items: by trait, what a call through a bound or a trait value reaches,
+/// items: by trait, and by trait and name, what a call through a bound
+/// or a trait value reaches (a dispatch key, [`InitFacts::dispatch`]),
 /// and by impl and name, the one method a call with a chosen impl
 /// reaches.
 #[derive(Clone, Default)]
 struct ImplMethods {
-    by_trait: HashMap<DefId, Vec<(Symbol, DefId)>>,
+    by_trait: HashMap<DefId, Vec<DefId>>,
+    same_name: HashMap<(DefId, Symbol), Vec<DefId>>,
     by_impl: HashMap<(DefId, Symbol), DefId>,
 }
 
@@ -280,19 +326,42 @@ impl ImplMethods {
             if let Some(ItemData::Impl { trait_, .. }) = cx.lookup.item(*owner).map(|i| &i.data)
                 && *trait_ != DefId::NONE
             {
-                index
-                    .by_trait
-                    .entry(*trait_)
-                    .or_default()
-                    .push((it.name, it.def));
+                crate::work::scan_work(1);
+                index.by_trait.entry(*trait_).or_default().push(it.def);
+                (index.same_name.entry((*trait_, it.name)).or_default()).push(it.def);
                 index.by_impl.entry((*owner, it.name)).or_insert(it.def);
             }
         }
         index
     }
+
+    /// The methods the dispatch key `key` reaches: a trait method's
+    /// same-named methods of the module's impls of its trait, or every
+    /// method of the module's impls of a trait. One probe.
+    fn reached(&self, cx: &BodyCx<'_>, key: DefId) -> &[DefId] {
+        crate::work::scan_work(1);
+        let Some(item) = cx.lookup.item(key) else {
+            return &[];
+        };
+        let found = match &item.data {
+            ItemData::Method { owner, .. } => self.same_name.get(&(*owner, item.name)),
+            _ => self.by_trait.get(&key),
+        };
+        found.map_or(&[], Vec::as_slice)
+    }
 }
 
 impl ModuleInit {
+    /// `f` of the index of the module's impl methods: the one built
+    /// already, or one built now (a forked body's index stays with its
+    /// fork).
+    fn with_impl_methods<R>(&self, cx: &BodyCx<'_>, f: impl FnOnce(&ImplMethods) -> R) -> R {
+        match &self.impl_methods {
+            Some(index) => f(index),
+            None => f(&ImplMethods::of(cx)),
+        }
+    }
+
     /// The top-level bindings of the module whose source is `src`.
     pub(crate) fn top_bindings(
         &mut self,
@@ -1356,7 +1425,7 @@ impl Ck<'_, '_> {
             lookup.item(*owner).map(|o| &o.data),
             Some(ItemData::Trait(_))
         ) {
-            self.note_dispatch(*owner, Some(item.name));
+            self.fact_dispatch(def);
         }
     }
 
@@ -1413,25 +1482,6 @@ impl Ck<'_, '_> {
         self.note_call(method);
     }
 
-    /// Every method of the module's impls of `trait_`, or only those named
-    /// `name`: what a call through a bound, a trait value or an
-    /// implementation that is not known reaches.
-    fn note_dispatch(&mut self, trait_: DefId, name: Option<Symbol>) {
-        let cx = self.cx;
-        let mut init = cx.init.borrow_mut();
-        let by_trait = &init
-            .impl_methods
-            .get_or_insert_with(|| ImplMethods::of(cx))
-            .by_trait;
-        let reached = by_trait.get(&trait_).map_or(&[][..], Vec::as_slice);
-        crate::work::scan_work(1 + reached.len());
-        for (n, d) in reached {
-            if name.is_none_or(|x| x == *n) {
-                self.fact_call(*d);
-            }
-        }
-    }
-
     /// Records that a body took the implementation `ev` of `trait_`, which
     /// calls its methods now, as an operator, an interpolation, a `for`
     /// or a `?` does, or later, as a generic function does with a bound
@@ -1441,13 +1491,13 @@ impl Ck<'_, '_> {
     pub(crate) fn note_impl_use(&mut self, trait_: DefId, ev: Option<&Evidence>) {
         let Some(Evidence::Impl { row, .. }) = ev else {
             if !matches!(ev, Some(Evidence::Builtin(_) | Evidence::Poison)) {
-                self.note_dispatch(trait_, None);
+                self.fact_dispatch(trait_);
             }
             return;
         };
         let cx = self.cx;
         let Some(table) = cx.impl_table(row.module) else {
-            return self.note_dispatch(trait_, None);
+            return self.fact_dispatch(trait_);
         };
         let at = row.row as usize;
         if row.module == OWN_TABLE
@@ -1467,10 +1517,10 @@ impl Ck<'_, '_> {
         if row.module != OWN_TABLE && table.plan[at].is_empty() {
             return;
         }
-        self.note_dispatch(trait_, None);
+        self.fact_dispatch(trait_);
         for step in &table.plan[at] {
             let (PlanStep::Bound { trait_, .. } | PlanStep::Bind { trait_, .. }) = step;
-            self.note_dispatch(*trait_, None);
+            self.fact_dispatch(*trait_);
         }
     }
 }
@@ -1486,19 +1536,41 @@ pub fn definite_init(
 ) {
     let init = cx.init.borrow();
     let at: HashMap<DefId, usize> = init.globals.values().map(|g| (g.def, g.stmt)).collect();
-    // The latest statement among the bindings each function reads,
-    // through its calls: its callees' values pushed to the callers, so a
+    // The call graph: each body's callees, and each dispatch key named
+    // by a body or a statement with the methods it reaches, listed once
+    // per key. O(facts + the methods of the keys named).
+    let mut callers: HashMap<CallNode, Vec<CallNode>> = HashMap::default();
+    let mut keys: HashSet<DefId> = HashSet::default();
+    for (d, f) in &init.facts {
+        for c in f.callees() {
+            callers.entry(c).or_default().push(CallNode::Body(*d));
+        }
+        keys.extend(f.dispatch.iter().copied());
+    }
+    keys.extend(
+        per_stmt
+            .iter()
+            .flat_map(|s| s.facts.dispatch.iter().copied()),
+    );
+    let reached: HashMap<DefId, Vec<DefId>> = init.with_impl_methods(cx, |index| {
+        keys.iter()
+            .map(|&k| (k, index.reached(cx, k).to_vec()))
+            .collect()
+    });
+    for (k, ms) in &reached {
+        for m in ms {
+            (callers.entry(CallNode::Body(*m)).or_default()).push(CallNode::Dispatch(*k));
+        }
+    }
+    // The latest statement among the bindings each node reads, through
+    // its calls: its callees' values pushed to the callers, so a
     // statement is tested without walking the graph again.
-    let mut latest: HashMap<DefId, usize> = HashMap::default();
-    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::default();
+    let mut latest: HashMap<CallNode, usize> = HashMap::default();
     let mut work = Vec::new();
     for (d, f) in &init.facts {
         if let Some(m) = f.reads.iter().filter_map(|g| at.get(g)).max() {
-            latest.insert(*d, *m);
-            work.push(*d);
-        }
-        for c in &f.calls {
-            callers.entry(*c).or_default().push(*d);
+            latest.insert(CallNode::Body(*d), *m);
+            work.push(CallNode::Body(*d));
         }
     }
     while let Some(d) = work.pop() {
@@ -1515,7 +1587,7 @@ pub fn definite_init(
             .reads
             .iter()
             .filter_map(|g| at.get(g))
-            .chain(f.calls.iter().filter_map(|c| latest.get(c)))
+            .chain(f.callees().filter_map(|c| latest.get(&c)))
             .max();
         if worst.is_none_or(|w| *w < i) {
             continue;
@@ -1523,14 +1595,22 @@ pub fn definite_init(
         // Only an error names the binding: the earliest one, by statement.
         let mut seen = HashSet::default();
         let mut reads = f.reads.clone();
-        let mut work: Vec<DefId> = f.calls.iter().copied().collect();
+        let mut work: Vec<CallNode> = f.callees().collect();
         while let Some(d) = work.pop() {
             if !seen.insert(d) {
                 continue;
             }
-            if let Some(ff) = init.facts.get(&d) {
-                reads.extend(ff.reads.iter().copied());
-                work.extend(ff.calls.iter().copied());
+            match d {
+                CallNode::Body(d) => {
+                    if let Some(ff) = init.facts.get(&d) {
+                        reads.extend(ff.reads.iter().copied());
+                        work.extend(ff.callees());
+                    }
+                }
+                CallNode::Dispatch(k) => {
+                    let ms = reached.get(&k).into_iter().flatten();
+                    work.extend(ms.map(|m| CallNode::Body(*m)));
+                }
             }
         }
         // The earliest late binding, by statement then name: a stable choice.

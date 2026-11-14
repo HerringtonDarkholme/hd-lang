@@ -28,6 +28,8 @@ pub(crate) enum BodyUndo {
     Read(DefId),
     /// A function call added to the init facts.
     Call(DefId),
+    /// A dispatch key added to the init facts.
+    Dispatch(DefId),
     /// A binding added to the possibly-uninitialized set.
     UninitAdded(LocalId),
     /// A binding removed from the possibly-uninitialized set.
@@ -135,6 +137,14 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Records that the body calls through the dispatch key `key`
+    /// ([`crate::init::InitFacts::dispatch`]).
+    pub(crate) fn fact_dispatch(&mut self, key: DefId) {
+        if self.facts.dispatch.insert(key) {
+            self.log_undo(BodyUndo::Dispatch(key));
+        }
+    }
+
     /// Replaces the possibly-uninitialized set.
     pub(crate) fn set_uninit(&mut self, s: HashSet<LocalId>) {
         let old = std::mem::replace(&mut self.uninit, s);
@@ -196,6 +206,9 @@ impl Ck<'_, '_> {
                 }
                 BodyUndo::Call(d) => {
                     self.facts.calls.remove(&d);
+                }
+                BodyUndo::Dispatch(d) => {
+                    self.facts.dispatch.remove(&d);
                 }
                 BodyUndo::UninitAdded(l) => {
                     self.uninit.remove(&l);

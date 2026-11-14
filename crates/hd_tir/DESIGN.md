@@ -473,8 +473,12 @@ So `ModuleFinish` writes an **init summary** per module
 (`hd_check::init::InitSummary`), from the facts the checker records
 while it checks (never from TIR): for each function and top-level
 statement, the top-level bindings it reads directly, the same-folder
-functions it calls, and the trait methods it dispatches
-([`module.init.definite.dispatch`](../../spec/lang/10-modules.md#r-module.init.definite.dispatch)).
+functions it calls, and the dispatch sets it calls through
+([`module.init.definite.dispatch`](../../spec/lang/10-modules.md#r-module.init.definite.dispatch)),
+each named by one key (a trait's method, or a trait for all of its
+methods). The summary lists each key's methods in the module's impls once,
+so its size is linear in the module's facts and impl methods, not their
+product.
 `InitOrder(F)` reads the summaries of each module cycle of the folder,
 orders statements by
 [Order Inside A Cycle](../../spec/lang/10-modules.md#order-inside-a-cycle),
