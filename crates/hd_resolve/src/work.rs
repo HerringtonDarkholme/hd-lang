@@ -174,3 +174,28 @@ pub(crate) fn enclosing_step() {
         }
     });
 }
+
+thread_local! {
+    static MEMBER_PAIRS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the work of checking that inherent members of one name do not
+/// clash on this thread: one per member, one per earlier member it is
+/// compared with, and one per item indexed for numeric families. Use the
+/// driver's serial executor to measure a whole build.
+pub fn count_member_pairs<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = MEMBER_PAIRS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = MEMBER_PAIRS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of inherent member comparison.
+pub(crate) fn member_pairs(n: u64) {
+    hd_base::work::add(hd_base::work::Counter::MemberPairs, n);
+    MEMBER_PAIRS.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n));
+        }
+    });
+}

@@ -12,7 +12,7 @@ use crate::iface::{ImplKind, Item, ItemData, Names};
 
 /// A head-index key of the overlap check: an outer constructor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum HeadKey {
+pub(crate) enum HeadKey {
     Def(DefId),
     Trait(DefId),
     /// A constructor by number, and a tuple's arity.
@@ -304,7 +304,7 @@ impl<'a> Universe<'a> {
     /// The outer constructor of `t` as a head-index key. `None` for a
     /// parameter, or any other type that may unify with many: such a head
     /// is compared with every earlier one.
-    fn head_key(&self, t: Ty) -> Option<HeadKey> {
+    pub(crate) fn head_key(&self, t: Ty) -> Option<HeadKey> {
         let pool = self.pool();
         // `unify` matches outer constructors, so a key is the constructor
         // alone; a primitive is its own constructor.

@@ -2154,6 +2154,9 @@ typing/invalid/default-body-inherent-method.hd	type	reject:unknown-method	lang/0
 runtime/valid/default-body-supertrait-member.hd	runtime	accept	lang/09-traits.md#r-trait.default.visible
 typing/invalid/trait-variance-marker.hd	type	reject:invalid-variance	lang/09-traits.md#r-trait.decl.generic.no-variance
 typing/invalid/inherent-member-unifying-targets.hd	type	reject:duplicate-inherent-member	lang/09-traits.md#r-trait.inherent.unique-unifying
+typing/invalid/inherent-member-generic-target-after-instance.hd	type	reject:duplicate-inherent-member	lang/09-traits.md#r-trait.inherent.unique-unifying
+typing/invalid/local-struct-inherent-member-twice.hd	type	reject:duplicate-inherent-member	lang/09-traits.md#r-trait.inherent.unique-unifying
+runtime/valid/inherent-members-of-distinct-heads-share-a-name.hd	runtime	accept	lang/09-traits.md#r-trait.inherent.unique-unifying.disjoint
 runtime/valid/inherent-members-disjoint-targets.hd	runtime	accept	lang/09-traits.md#r-trait.inherent.unique-unifying.disjoint
 runtime/valid/associated-function-calls.hd	runtime	accept	lang/09-traits.md#associated-function-calls
 runtime/valid/a-static-trait-call-with-a-constant-result-picks-its-arm-per-instance.hd	runtime	accept	lang/09-traits.md#associated-function-calls

@@ -6,6 +6,7 @@
 //! folder's items are lowered, over every module of the folder; a type
 //! or trait from another folder is read from its frozen interface.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::borrow::Cow;
 
@@ -15,7 +16,7 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::TyData;
 
 use super::{Head, ModIn, ModOut, Resolver, member_name};
-use crate::header::Universe;
+use crate::header::{HeadKey, Universe};
 use crate::iface::{HeadKind, ImplKind, Item, ItemData, Names};
 use crate::view::Src;
 
@@ -280,6 +281,7 @@ impl Folder<'_, '_> {
         // By member name: each declaration's implementation, target and place.
         let mut by_name: HashMap<String, Vec<Decl>> = HashMap::default();
         let mut order = Vec::new();
+        let mut ground = None;
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
                 let Some(Item {
@@ -312,7 +314,7 @@ impl Folder<'_, '_> {
                     }
                     by_name.entry(name).or_default().push((
                         h.def,
-                        self.targets(h.def, *self_ty),
+                        self.targets(h.def, *self_ty, &mut ground),
                         m.src.span(f),
                         super::has_cfg(&m.src, f),
                     ));
@@ -323,25 +325,61 @@ impl Folder<'_, '_> {
             names: self.names,
             impls: HashMap::default(),
         };
+        // Per name, the earlier members by the head of each target
+        // (`Universe::head_key`): only members whose targets share a head,
+        // or have none, can unify, so each member is compared with those
+        // alone, not with every earlier member of its name (#1929).
+        let mut by_head: HashMap<HeadKey, Vec<usize>> = HashMap::default();
+        let mut wild: Vec<usize> = Vec::new();
+        let mut cands: Vec<usize> = Vec::new();
         for name in order {
             let decls = &by_name[&name];
+            by_head.clear();
+            wild.clear();
             for (j, (def, tys, span, configured)) in decls.iter().enumerate() {
-                let clash = decls[..j].iter().any(|(d, ts, _, earlier_configured)| {
-                    if d == def && (*configured || *earlier_configured) {
-                        return false;
+                cands.clear();
+                let keys: Vec<Option<HeadKey>> = tys.iter().map(|&t| u.head_key(t)).collect();
+                if keys.iter().any(Option::is_none) {
+                    cands.extend(0..j);
+                } else {
+                    for k in keys.iter().flatten() {
+                        cands.extend(by_head.get(k).into_iter().flatten());
                     }
-                    ts.iter().any(|t| {
-                        tys.iter().any(|ty| {
-                            let mut sub = HashMap::default();
-                            u.unify(*t, *ty, *d, *def, &mut sub)
-                        })
-                    })
-                });
+                    cands.extend(&wild);
+                    cands.sort_stable();
+                    cands.dedup();
+                }
+                crate::work::member_pairs(cands.len() as u64 + 1);
+                let clash =
+                    cands
+                        .iter()
+                        .map(|&i| &decls[i])
+                        .any(|(d, ts, _, earlier_configured)| {
+                            if d == def && (*configured || *earlier_configured) {
+                                return false;
+                            }
+                            ts.iter().any(|t| {
+                                tys.iter().any(|ty| {
+                                    let mut sub = HashMap::default();
+                                    u.unify(*t, *ty, *d, *def, &mut sub)
+                                })
+                            })
+                        });
                 if clash {
                     let msg = format!(
                         "`{name}` is already an inherent member of a type this one unifies with"
                     );
                     diags.error(Code::DuplicateInherentMember, *span, &msg);
+                }
+                if keys.iter().any(Option::is_none) {
+                    wild.push(j);
+                } else {
+                    for k in keys.into_iter().flatten() {
+                        let at = by_head.entry(k).or_default();
+                        if at.last() != Some(&j) {
+                            at.push(j);
+                        }
+                    }
                 }
             }
         }
@@ -353,7 +391,15 @@ impl Folder<'_, '_> {
     /// implements the bound (`trait.target.numeric-family.each`), so a
     /// member of it clashes only with a member of one of those types. Any
     /// other target stands for itself.
-    fn targets(&self, def: DefId, self_ty: hd_types::Ty) -> Vec<hd_types::Ty> {
+    ///
+    /// `ground` holds each trait's impls with a ground target, made once
+    /// from the program's items on the first bounded parameter target.
+    fn targets(
+        &self,
+        def: DefId,
+        self_ty: hd_types::Ty,
+        ground: &mut Option<HashMap<DefId, Vec<hd_types::Ty>>>,
+    ) -> Vec<hd_types::Ty> {
         let pool = self.names.pool;
         let TyData::Param(p) = pool.get(self_ty) else {
             return vec![self_ty];
@@ -367,25 +413,28 @@ impl Folder<'_, '_> {
         let Some(bound) = bound else {
             return vec![self_ty];
         };
-        let members: Vec<hd_types::Ty> = self
-            .own
-            .values()
-            .filter_map(|i| match &i.data {
-                ItemData::Impl {
+        let ground = ground.get_or_insert_with(|| {
+            let mut by_trait: HashMap<DefId, Vec<hd_types::Ty>> = HashMap::default();
+            for i in self.own.values() {
+                crate::work::member_pairs(1);
+                if let ItemData::Impl {
                     trait_,
                     self_ty,
                     kind,
                     ..
-                } if *trait_ == bound && kind.is_impl() && !pool.has_param(*self_ty) => {
-                    Some(*self_ty)
+                } = &i.data
+                    && *trait_ != DefId::NONE
+                    && kind.is_impl()
+                    && !pool.has_param(*self_ty)
+                {
+                    by_trait.entry(*trait_).or_default().push(*self_ty);
                 }
-                _ => None,
-            })
-            .collect();
-        if members.is_empty() {
-            vec![self_ty]
-        } else {
-            members
+            }
+            by_trait
+        });
+        match ground.get(&bound) {
+            Some(members) => members.clone(),
+            None => vec![self_ty],
         }
     }
 

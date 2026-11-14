@@ -1851,3 +1851,39 @@ fn method_calls_ask_only_the_traits_visible_to_them() {
         }
     });
 }
+
+/// `n` functions, each declaring a local struct `P` with an inherent
+/// `get` and calling it: `n` inherent members of one name, each of its
+/// own head.
+fn inherent_members_of_one_name(n: usize) -> String {
+    let mut out = String::from("pub fn main() -> void: pass\n");
+    for i in 0..n {
+        let _ = write!(
+            out,
+            "fn g{i}() -> i32:\n    struct P:\n        a: i32\n    impl P:\n        fn get(self) -> i32: self.a\n    p := P {{ a: +1 }}\n    p.get()\n"
+        );
+    }
+    out
+}
+
+// Resolver: #1929, a module's inherent members of one name are compared
+// only with the earlier ones whose targets share a head, not pairwise.
+#[test]
+fn inherent_members_are_compared_by_target_head() {
+    on_test_stack(|| {
+        let mut base = 0;
+        for n in [2_000, 20_000] {
+            let (out, pairs) = hd_resolve::work::count_member_pairs(|| {
+                compile(&inherent_members_of_one_name(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            if n == 2_000 {
+                base = pairs;
+            }
+            assert!(
+                base > 0 && pairs <= 10 * base * 5 / 4,
+                "inherent member comparisons for 2,000 and {n}: {base}, {pairs}"
+            );
+        }
+    });
+}

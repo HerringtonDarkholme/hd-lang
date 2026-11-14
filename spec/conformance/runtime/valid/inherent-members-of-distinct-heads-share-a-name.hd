@@ -1,0 +1,48 @@
+# test: inherent members of one name on targets that cannot unify are each their own type's
+# Spec 09 Inherent Implementations: trait.inherent.unique-unifying.disjoint, trait.inherent.target-match.
+struct Box[T]:
+    value: T
+
+impl Box[i32]:
+    fn show(self) -> string:
+        "int ${self.value}"
+
+impl Box[string]:
+    fn show(self) -> string:
+        "text ${self.value}"
+
+struct Tag:
+    name: string
+
+impl Tag:
+    fn show(self) -> string:
+        "tag ${self.name}"
+
+fn first() -> i32:
+    struct P:
+        a: i32
+
+    impl P:
+        fn get(self) -> i32:
+            self.a
+
+    P { a: 1 }.get()
+
+fn second() -> i32:
+    struct P:
+        a: i32
+
+    impl P:
+        fn get(self) -> i32:
+            self.a * 10
+
+    P { a: 2 }.get()
+
+tests:
+    use std.testing.assert_equal
+
+    it("each target's member answers its own receivers"):
+        assert_equal(Box { value: 3 }.show(), "int 3", reason="Box[i32]")
+        assert_equal(Box { value: "x" }.show(), "text x", reason="Box[string]")
+        assert_equal(Tag { name: "t" }.show(), "tag t", reason="another struct")
+        assert_equal(first() + second(), 21, reason="two local structs named P")

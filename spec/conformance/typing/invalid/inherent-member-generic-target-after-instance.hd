@@ -1,0 +1,16 @@
+# test: a generic implementation's member clashes with the same-named member of an earlier instance's implementation
+# Spec 09 Inherent Implementations: trait.inherent.unique-unifying, trait.inherent.unique-unifying.unify.
+struct Box[T]:
+    value: T
+
+impl Box[i32]:
+    fn show(self) -> string:
+        "int box"
+
+impl Box[string]:
+    fn show(self) -> string:
+        "text box"
+
+impl[T] Box[T]:
+    fn show(self) -> string: # diagnostic: duplicate-inherent-member
+        "box"

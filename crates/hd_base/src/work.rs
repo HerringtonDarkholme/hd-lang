@@ -58,6 +58,7 @@ counters! {
     UseFacts = "use_facts",
     LoanQueries = "loan_queries",
     TraitLookup = "trait_lookup",
+    MemberPairs = "member_pairs",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

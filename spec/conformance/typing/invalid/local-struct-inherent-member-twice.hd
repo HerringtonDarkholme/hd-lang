@@ -1,0 +1,25 @@
+# test: two implementations of one local struct may not both declare a member name
+# Spec 09 Inherent Implementations: trait.inherent.unique-unifying.
+fn first() -> i32:
+    struct P:
+        a: i32
+
+    impl P:
+        fn get(self) -> i32:
+            self.a
+
+    impl P:
+        fn get(self) -> i32: # diagnostic: duplicate-inherent-member
+            self.a + 1
+
+    P { a: 1 }.get()
+
+fn second() -> i32:
+    struct P:
+        a: i32
+
+    impl P:
+        fn get(self) -> i32:
+            self.a
+
+    P { a: 2 }.get()
