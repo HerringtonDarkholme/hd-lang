@@ -69,21 +69,26 @@ impl SealedTraits {
     /// Whether a row of this module answers goals on `trait_`.
     #[must_use]
     pub fn supplies(&self, trait_: DefId) -> bool {
-        trait_ != DefId::NONE
-            && [
-                self.any,
-                self.any_val,
-                self.any_ref,
-                self.inspectable,
-                self.tuple,
-                self.fn_trait,
-                self.fn_mut_trait,
-                self.structure,
-                self.union_type,
-                self.static_bound,
-                self.copy,
-            ]
-            .contains(&trait_)
+        trait_ != DefId::NONE && self.supplied().contains(&trait_)
+    }
+
+    /// The traits a row of this module answers goals on
+    /// ([`Self::supplies`]); `DefId::NONE` for one std does not declare.
+    #[must_use]
+    pub fn supplied(&self) -> [DefId; 11] {
+        [
+            self.any,
+            self.any_val,
+            self.any_ref,
+            self.inspectable,
+            self.tuple,
+            self.fn_trait,
+            self.fn_mut_trait,
+            self.structure,
+            self.union_type,
+            self.static_bound,
+            self.copy,
+        ]
     }
 }
 

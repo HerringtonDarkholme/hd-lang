@@ -2160,3 +2160,48 @@ fn using_bindings_reach_their_own_dispose_and_scope() {
         );
     });
 }
+
+/// `n` traits that each declare a method of one name, with a defaulted
+/// parameter, each implemented by its own struct and called once: the
+/// scale check's `type-defaults` shape.
+fn same_name_traits(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "trait Mix{i}[Rhs = Self]:\n    fn mix(&self, other: Rhs) -> i32\n\nstruct P{i}:\n    a: i32\n\nimpl Mix{i} for P{i}:\n    fn mix(&self, other: P{i}) -> i32: self.a + other.a\n\n"
+        );
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(
+            s,
+            "    p{i} := P{i} {{ a: +1 }}\n    t = p{i}.mix(P{i} {{ a: t }})"
+        );
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+// Checker: #1925, a method call on a receiver of a known head asks only
+// the traits with an impl row for that head (each impl table's inverse
+// head index), and the compiler-supplied ones: each call solved a goal
+// for every available trait declaring the name.
+#[test]
+fn same_name_trait_methods_ask_the_traits_with_rows_for_the_receiver() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&same_name_traits(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        // Per call: the traits with rows for its receiver (one) and the
+        // supplied ones, where every trait declaring `mix` was asked.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 traits: {small} and {large}"
+        );
+    });
+}

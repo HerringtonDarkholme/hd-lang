@@ -1,0 +1,52 @@
+# test: a method several traits declare is found on each receiver form: a struct, a generic struct, a primitive, a tuple, a bounded generic impl and a block-local impl
+# Spec 09 Method Resolution: trait.resolve.lookup, trait.resolve.ambiguous.
+# expect-stdout: 1 2 3 4 5 6
+trait Mix:
+    fn mix(&self) -> i32
+
+trait Other:
+    fn mix(&self) -> i32
+
+trait Show:
+    fn show(&self) -> i32
+
+trait Loud:
+    fn loud(&self) -> i32
+
+struct A:
+    n: i32
+
+struct Pair[T]:
+    left: T
+
+impl Mix for A:
+    fn mix(&self) -> i32: self.n
+
+impl[T] Other for Pair[T]:
+    fn mix(&self) -> i32: 2
+
+impl Mix for i32:
+    fn mix(&self) -> i32: 3
+
+impl Other for (i32, i32):
+    fn mix(&self) -> i32: 4
+
+impl Show for i32:
+    fn show(&self) -> i32: 5
+
+impl[T < Show] Loud for Pair[T]:
+    fn loud(&self) -> i32: self.left.show()
+
+fn local() -> i32:
+    struct B:
+        n: i32
+    impl Mix for B:
+        fn mix(&self) -> i32: self.n
+    B { n: 6 }.mix()
+
+pub fn main() -> void $ Console:
+    a := A { n: 1 }
+    p := Pair { left: "x" }
+    let i: i32 = 3
+    let t: (i32, i32) = (1, 2)
+    println("${a.mix()} ${p.mix()} ${i.mix()} ${t.mix()} ${Pair { left: +7 }.loud()} ${local()}")

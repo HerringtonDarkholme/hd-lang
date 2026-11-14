@@ -4186,6 +4186,7 @@ runtime/valid/trait-availability-prelude-and-scope.hd	runtime	accept	lang/09-tra
 runtime/valid/local-traits-of-one-method-name-nest.hd	runtime	accept	lang/09-traits.md#r-trait.avail.scope
 typing/invalid/local-trait-method-outside-its-block.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.avail.not-candidate
 typing/invalid/nested-local-traits-ambiguous-method.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.resolve.ambiguous
+typing/invalid/a-receiver-implementing-two-traits-of-one-method-name-is-ambiguous.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.resolve.ambiguous
 typing/invalid/assoc-call-type-no-candidate.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.assoc-call.type.none
 typing/invalid/assoc-call-parameter-two-bounds.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.assoc-call.parameter.one
 runtime/valid/trait-qualified-associated-and-named-calls.hd	runtime	accept	lang/09-traits.md#r-trait.qualified.arguments
@@ -6600,6 +6601,7 @@ runtime/valid/fn-call-used-as-a-function-value-calls-its-receiver.hd	runtime	acc
 typing/invalid/a-method-call-does-not-wait-for-a-later-receiver-argument.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-argument
 typing/invalid/a-method-reference-needs-the-receivers-trait-selecting-argument.hd	type	reject:cannot-infer-type	lang/07-functions.md#r-fn.ref.lookup
 typing/valid/an-earlier-annotation-selects-a-receivers-method-trait.hd	type	accept	lang/09-traits.md#r-trait.resolve.lookup
+runtime/valid/a-method-several-traits-declare-is-found-on-each-receiver-form.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.lookup
 typing/valid/one-pending-method-trait-keeps-later-receiver-context.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
 typing/invalid/a-method-trait-choice-reports-once-without-later-context.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-argument
 typing/invalid/a-method-call-needs-its-whole-receiver-type-before-lookup.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-receiver

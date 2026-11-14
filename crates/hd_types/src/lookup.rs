@@ -133,20 +133,44 @@ pub struct RefTable {
     /// (folder, then row) orders within a group.
     rows: Vec<(u32, u64, ImplRef)>,
     by_trait: HashMap<u32, (u32, u32)>,
+    /// Each head key code's traits, each once (`ImplTable::traits_by_key`).
+    traits_by_key: HashMap<u64, Vec<DefId>>,
 }
 
 impl RefTable {
     fn build(mut rows: Vec<(u32, u64, ImplRef)>) -> Self {
         rows.sort_stable_by_key(|(t, k, r)| (*t, *k, r.module.raw(), r.row));
         let mut by_trait: HashMap<u32, (u32, u32)> = HashMap::default();
-        for (i, (t, _, _)) in rows.iter().enumerate() {
+        let mut traits_by_key: HashMap<u64, Vec<DefId>> = HashMap::default();
+        let mut last = None;
+        for (i, (t, k, _)) in rows.iter().enumerate() {
             let i = u32::try_from(i).expect("rows");
             by_trait
                 .entry(*t)
                 .and_modify(|e| e.1 = i + 1)
                 .or_insert((i, i + 1));
+            // Sorted by trait, then code: one entry per (trait, code).
+            if last != Some((*t, *k)) {
+                last = Some((*t, *k));
+                traits_by_key
+                    .entry(*k)
+                    .or_default()
+                    .push(DefId::from_raw(*t));
+            }
         }
-        RefTable { rows, by_trait }
+        RefTable {
+            rows,
+            by_trait,
+            traits_by_key,
+        }
+    }
+
+    /// Appends the traits with a row that a goal of head key `key` may
+    /// take ([`crate::solver::ImplTable::traits_at`]).
+    fn traits_at(&self, codes: [Option<u64>; 3], out: &mut Vec<DefId>) {
+        for code in codes.into_iter().flatten() {
+            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+        }
     }
 
     fn bucket(&self, s: u32, e: u32, code: u64) -> &[(u32, u64, ImplRef)] {
@@ -356,6 +380,32 @@ impl<'a> Impls<'a> {
     pub fn unowned_at(self, trait_: DefId, key: HeadKey) -> bool {
         let Impls::Owned(v) = self;
         v.extra.unowned.has(trait_, key)
+    }
+
+    /// Every trait with a row that a goal on `self_ty` may take in some
+    /// table this view reads: the own table, each folder of the closure,
+    /// the unowned rows and the directory. A superset of the traits whose
+    /// [`Self::candidates`] for `self_ty` are not empty, unordered and
+    /// possibly repeated. `None` when `self_ty`'s head key is `Any` or
+    /// `Param`, which takes rows of every key.
+    ///
+    /// Cost: one probe per table of the view, plus the traits found;
+    /// every table's inverse was built once with its head index.
+    #[must_use]
+    pub fn traits_for_head(self, pool: Types<'_>, self_ty: Ty) -> Option<Vec<DefId>> {
+        let key = HeadKey::of(pool, self_ty);
+        let codes = crate::solver::key_codes(key)?;
+        let Impls::Owned(v) = self;
+        let mut out = Vec::new();
+        if let Some(t) = v.own {
+            t.traits_at(key, &mut out);
+        }
+        for f in v.folders.iter().flatten() {
+            f.table.traits_at(key, &mut out);
+        }
+        v.extra.unowned.traits_at(codes, &mut out);
+        v.extra.directory.traits_at(codes, &mut out);
+        Some(out)
     }
 
     /// The candidate rows of `self_ty: trait_[args]` in content order (§3.2,

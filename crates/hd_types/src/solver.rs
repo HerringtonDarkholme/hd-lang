@@ -610,19 +610,64 @@ pub struct ImplTable {
     /// The head index (§3.3): within each trait's row range, the rows
     /// sorted by `(head key code, row)`. Built by `index`.
     pub by_key: Vec<u32>,
+    /// The inverse of the head index: each head key code's traits, each
+    /// once, so a receiver of a known head finds the traits that may
+    /// answer it without asking every trait. Built by `index`.
+    pub traits_by_key: HashMap<u64, Vec<DefId>>,
 }
 
 impl ImplTable {
     /// Builds the head index once the rows are in place.
     pub fn index(&mut self) {
         let mut perm: Vec<u32> = (0..u32::try_from(self.def.len()).expect("impls")).collect();
+        let mut traits_by_key: HashMap<u64, Vec<DefId>> = HashMap::default();
         for &(s, e) in self.by_trait.values() {
-            perm[s as usize..e as usize]
-                .sort_stable_by_key(|&r| (self.head_key[r as usize].code(), r));
+            let rows = &mut perm[s as usize..e as usize];
+            rows.sort_stable_by_key(|&r| (self.head_key[r as usize].code(), r));
+            let mut last = None;
+            for &r in rows.iter() {
+                let code = self.head_key[r as usize].code();
+                if last != Some(code) {
+                    last = Some(code);
+                    traits_by_key
+                        .entry(code)
+                        .or_default()
+                        .push(self.trait_[r as usize]);
+                }
+            }
         }
         self.by_key = perm;
+        self.traits_by_key = traits_by_key;
     }
 
+    /// Appends the traits with a row that a goal of head key `key` may
+    /// take, as [`Self::candidates`] reads them: the rows of `key`, the
+    /// `Param` rows and, for a tuple, the `TupleAny` rows. Returns false,
+    /// adding nothing, for `Any` or `Param`, which read rows of every key.
+    pub fn traits_at(&self, key: HeadKey, out: &mut Vec<DefId>) -> bool {
+        let Some(codes) = key_codes(key) else {
+            return false;
+        };
+        for code in codes.into_iter().flatten() {
+            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+        }
+        true
+    }
+}
+
+/// The head key codes whose rows a goal of head key `key` may take
+/// ([`ImplTable::candidates`]): `key`'s, `Param`'s and, for a tuple,
+/// `TupleAny`'s. `None` for `Any` and `Param`, which take every code.
+#[must_use]
+pub fn key_codes(key: HeadKey) -> Option<[Option<u64>; 3]> {
+    if matches!(key, HeadKey::Any | HeadKey::Param) {
+        return None;
+    }
+    let tuple = matches!(key, HeadKey::Tuple(_)).then(|| HeadKey::TupleAny.code());
+    Some([Some(key.code()), Some(HeadKey::Param.code()), tuple])
+}
+
+impl ImplTable {
     /// The rows in `[s, e)` with one head key code, in row order.
     fn bucket(&self, s: u32, e: u32, code: u64) -> &[u32] {
         let rows = &self.by_key[s as usize..e as usize];

@@ -4622,7 +4622,43 @@ impl Ck<'_, '_> {
                 choice: (ChoiceKind::TraitValue, tr.raw()),
             }));
         }
-        self.trait_part(t, sym, &self.available_traits(sym))
+        let traits = self
+            .traits_with_rows(t, sym)
+            .unwrap_or_else(|| self.available_traits(sym));
+        // The traits `trait_part` asks, one goal each.
+        crate::work::scan_work(traits.len());
+        self.trait_part(t, sym, &traits)
+    }
+
+    /// The available traits declaring `sym` that a receiver of type `t`
+    /// may implement, in the method index's order: those with an impl row
+    /// for `t`'s head key in a table the solver reads
+    /// (`Impls::traits_for_head`), and the compiler-supplied ones. Each
+    /// other available trait has no candidate and is no supplied
+    /// implementation, so `trait_part` would find nothing for it. `None`
+    /// when `t`'s head key reads rows of every key; the caller then asks
+    /// every available trait.
+    ///
+    /// Cost: one probe per impl table of the view, then one probe of the
+    /// method index and one of the scope per trait found, where asking
+    /// every available trait declaring `sym` solved a goal per trait
+    /// (#1925).
+    fn traits_with_rows(&self, t: Ty, sym: Symbol) -> Option<Vec<(DefId, DefId)>> {
+        let mut found =
+            hd_types::solver::Impls::Owned(self.cx.impls).traits_for_head(self.pool(), t)?;
+        found.extend(
+            self.cx
+                .names
+                .known
+                .sealed()
+                .supplied()
+                .into_iter()
+                .filter(|d| *d != DefId::NONE),
+        );
+        crate::work::scan_work(found.len());
+        let mut traits = self.declaring_among(found, sym);
+        traits.retain(|&(tr, _)| self.trait_available(tr));
+        Some(traits)
     }
 
     /// `trait.bound.depth.limit`: the lookup of `name` needs a proof deeper
