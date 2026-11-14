@@ -1,0 +1,16 @@
+# test: an initializer that calls a private function whose row is still open needs that row's requirements once it is solved
+# Spec 10: module.init.requirement-free.non-script, module.init.requirement-free.operations.
+# `helper` omits its row, which is solved after the initializer reads it,
+# to `$ Database`; the initializer must be requirement-free.
+trait Database
+
+fn query() -> i32 $ Database:
+    1
+
+let x: i32 = helper() # diagnostic: missing-requirement
+
+fn helper() -> i32:
+    query()
+
+pub fn main() -> void:
+    pass

@@ -40,6 +40,7 @@ use crate::body::{BodyCx, Ck, Infer, check_fn_body};
 /// key nested deeper comes from polymorphic recursion and stops the solve.
 pub(crate) const MAX_KEY_DEPTH: u32 = 32;
 
+#[derive(Clone, Copy)]
 enum State {
     /// Not checked yet: its declaration.
     Pending(NodeIdx),
@@ -48,12 +49,9 @@ enum State {
     /// Its check read a pending callable, so the check was dropped; it
     /// runs again once [`drive`] has checked what it read.
     Waiting(NodeIdx),
-    /// Checked: its result, and its body with the body's diagnostics until
-    /// `Body(m)` takes them.
-    Done {
-        ret: Ty,
-        body: Option<Box<(StageResult<Body>, DiagBuf)>>,
-    },
+    /// Checked: its result. Its body, with the body's diagnostics, is in
+    /// [`Results::bodies`] until `Body(m)` takes it.
+    Done { ret: Ty },
 }
 
 /// What a registered callable's declaration leaves out.
@@ -103,6 +101,9 @@ enum RowState {
 #[derive(Default)]
 pub struct Results {
     state: HashMap<DefId, State>,
+    /// The body of each done callable, with its diagnostics, until
+    /// `Body(m)` takes it; a callable checked again loses it.
+    bodies: HashMap<DefId, Box<(StageResult<Body>, DiagBuf)>>,
     omits: HashMap<DefId, Omits>,
     rows: HashMap<DefId, RowState>,
     /// Signature dependencies recorded by checking, including reads that
@@ -192,24 +193,9 @@ impl Results {
                 && self.chain.is_empty()
                 && self.dirty.is_empty()
         );
-        let state = self
-            .state
-            .iter()
-            .map(|(d, s)| {
-                let s = match s {
-                    State::Pending(n) => State::Pending(*n),
-                    State::Active(n) => State::Active(*n),
-                    State::Waiting(n) => State::Waiting(*n),
-                    State::Done { ret, .. } => State::Done {
-                        ret: *ret,
-                        body: None,
-                    },
-                };
-                (*d, s)
-            })
-            .collect();
         Results {
-            state,
+            state: self.state.clone(),
+            bodies: HashMap::default(),
             omits: self.omits.clone(),
             rows: self.rows.clone(),
             readers: HashMap::default(),
@@ -371,9 +357,9 @@ impl Results {
     /// it: the body's own diagnostics until `Body(m)` takes them, else
     /// (the top-level statements) the module's.
     fn diags_of(&mut self, owner: DefId) -> &mut DiagBuf {
-        match self.state.get_mut(&owner) {
-            Some(State::Done { body: Some(b), .. }) => &mut b.1,
-            _ => &mut self.module_diags,
+        match self.bodies.get_mut(&owner) {
+            Some(b) => &mut b.1,
+            None => &mut self.module_diags,
         }
     }
 
@@ -1086,7 +1072,7 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
     debug_assert!(cx.results.borrow().chain.is_empty(), "one drive at a time");
     let mut stack = vec![root];
     while let Some(&def) = stack.last() {
-        let n = {
+        let (n, omits) = {
             let mut r = cx.results.borrow_mut();
             let n = match r.state.get(&def) {
                 Some(State::Pending(n)) => *n,
@@ -1104,9 +1090,12 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
             };
             r.state.insert(def, State::Active(n));
             r.active.push(def);
-            n
+            // `omitted_results` registers a callable's state together
+            // with its omits, and only a registered callable has a state;
+            // ruled out: a missing entry.
+            (n, r.omits[&def])
         };
-        let blocked = check(cx, def, n);
+        let blocked = check(cx, def, n, omits);
         if blocked.is_empty() {
             stack.pop();
             continue;
@@ -1117,14 +1106,12 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
     }
 }
 
-/// Checks the body of `def`, which the caller made active, and settles
-/// what it changed. A check that read pending callables is dropped: `def`
-/// waits, and they are returned for [`drive`] to check first.
-fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Vec<DefId> {
+/// Checks the body of `def`, which the caller made active, with what its
+/// declaration `omits`, and settles what it changed. A check that read
+/// pending callables is dropped: `def` waits, and they are returned for
+/// [`drive`] to check first.
+fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx, omits: Omits) -> Vec<DefId> {
     let at = node;
-    let Some(omits) = cx.results.borrow().omits.get(&def).copied() else {
-        return Vec::new();
-    };
     // Its own diagnostics: a caller's trial cannot roll them back, and a
     // later row pass replaces them together with this provisional body.
     let mut diags = DiagBuf::default();
@@ -1159,13 +1146,8 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx) -> Vec<DefId> {
         r.body_errors.remove(&def);
     }
     let old_ret = r.returns.insert(def, ret);
-    r.state.insert(
-        def,
-        State::Done {
-            ret,
-            body: Some(Box::new((checked, diags))),
-        },
-    );
+    r.state.insert(def, State::Done { ret });
+    r.bodies.insert(def, Box::new((checked, diags)));
     if omits.row {
         let old_row = match r.rows.get(&def) {
             Some(RowState::Solved(row)) => Some(*row),
@@ -1271,6 +1253,7 @@ fn recheck_readers(cx: &BodyCx<'_>) {
             }
             let at = r.omits[&def].at;
             r.state.insert(def, State::Pending(at));
+            r.bodies.remove(&def);
             def
         };
         seen(cx, def, true);
@@ -1335,10 +1318,7 @@ pub(crate) fn add_waits(cx: &BodyCx<'_>, owner: DefId, waits: Vec<(RowEdge, RowI
 
 /// The body M1 checked for `def` and its diagnostics, once.
 pub fn take(cx: &BodyCx<'_>, def: DefId) -> Option<(StageResult<Body>, DiagBuf)> {
-    match cx.results.borrow_mut().state.get_mut(&def) {
-        Some(State::Done { body, .. }) => body.take().map(|b| *b),
-        _ => None,
-    }
+    cx.results.borrow_mut().bodies.remove(&def).map(|b| *b)
 }
 
 /// The module-level reports, once: the cycles, and the top-level

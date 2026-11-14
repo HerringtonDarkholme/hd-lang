@@ -1,0 +1,14 @@
+# test: a cycle member that writes its row and calls an open row is reported once
+# Spec 07 Recursion Without A Result Type: fn.decl.omitted-cycle. `g_0`
+# writes `$ Console` and omits its result; it calls `say`, whose row is
+# still open, and `g_1`, which closes the cycle. The cycle is one error,
+# and `say`'s row is solved without another.
+fn g_0(x: i32) $ Console: # diagnostic: recursive-function-needs-result-type
+    say(x)
+    g_1(x)
+
+fn g_1(x: i32): g_0(x)
+
+fn say(x: i32) -> void:
+    if x > 5:
+        println(g_0(x - 1))

@@ -4234,6 +4234,7 @@ runtime/valid/init-group-statements-by-identity.hd	runtime	accept	lang/10-module
 typing/invalid/entry-init-provider-get.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
 typing/invalid/entry-init-provider-scope.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
 typing/invalid/entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.non-script
+typing/invalid/entry-init-requirement-through-open-row.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
 typing/invalid/non-entry-init-provider-scope.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
 typing/invalid/non-entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.non-script
 typing/invalid/non-entry-init-block-on.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts.v2
@@ -4586,6 +4587,7 @@ runtime/valid/list-replace-not-seen-by-loop.hd	runtime	accept	lang/06-control-fl
 typing/invalid/omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
 typing/invalid/omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
 typing/invalid/omitted-result-cycle-reported-once.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle.report
+typing/invalid/omitted-result-cycle-with-written-row-calls-open-row.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
 typing/valid/omitted-result-cycle-one-annotated.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
 runtime/valid/same-line-function-body.hd	runtime	accept	lang/07-functions.md#r-fn.body.same-line
 runtime/valid/call-keeps-argument-usable.hd	runtime	accept	lang/07-functions.md#r-fn.param.no-transfer
