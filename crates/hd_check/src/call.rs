@@ -5197,8 +5197,8 @@ impl Ck<'_, '_> {
             self_ty,
             args: mut targs,
         } = target;
-        self.note_call(method);
         let Some(sig) = self.sig_of(method) else {
+            self.note_call(method);
             return Ok(self.poison_value(n));
         };
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
@@ -5274,6 +5274,7 @@ impl Ck<'_, '_> {
                 self.err(Code::DynMemberUnavailable, n, &format!(
                     "`{method_name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
                 ));
+                self.note_call(method);
                 return Ok((Ref(NONE), Ty::POISON));
             }
         }
@@ -5286,6 +5287,7 @@ impl Ck<'_, '_> {
                     n,
                     &dyn_type_param_message(&method_name),
                 );
+                self.note_call(method);
                 return Ok((Ref(NONE), Ty::POISON));
             }
         }
@@ -5326,6 +5328,7 @@ impl Ck<'_, '_> {
                 self.call_choice(tref, method, n)?
             }
         };
+        self.note_method_call(method, choice);
         let ret = self.normalize_deep(inst(sig.ret))?;
         let mut all = targs.clone();
         all.extend(&vars);

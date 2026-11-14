@@ -233,7 +233,8 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, index: NodeIdx }
 ```
 
 - Preorder with subtree sizes: a child walk is a loop, and skipping a
-  subtree is one addition. `parent_links` builds parent links on demand.
+  subtree is one addition. `parent_links` builds parent links on demand;
+  `parent` keeps them, built on its first question.
 - **Typed views.** Three remain: `Decl` (any named declaration, with
   `name` and `body`), and `Block` and `ImplDecl` (`header_types`), the
   ones hd_doc names. The resolver, checker and lints read children by

@@ -1246,6 +1246,7 @@ typing/invalid/initialization-implicit-a-missing-impl-adds-no-initialization-err
 typing/invalid/initialization-implicit-a-question-mark-reaches-from-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-01.hd	type	reject:top-level-read-before-initialization	std/cmp.md#r-std-cmp.min-max.result
 typing/invalid/initialization-implicit-a-trait-value-reaches-every-impl-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
+typing/invalid/initialization-implicit-a-using-disposal-reaches-its-impls-dispose-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-unary-operator-reaches-neg-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-arithmetic-operator-reaches-add-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-equality-operator-reaches-eq-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
@@ -1256,6 +1257,7 @@ typing/invalid/initialization-implicit-an-interpolation-reaches-the-display-impl
 typing/invalid/initialization-implicit-an-ordering-operator-reaches-partial-cmp-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-calling-a-value-reaches-apply-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/init-read-through-trait-dispatch.hd	runtime	accept	lang/10-modules.md#module-initialization
+runtime/valid/init-a-concrete-trait-call-reaches-only-its-impl.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.dispatch
 runtime/valid/unsigned-exponent.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/signed-exponent.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/nonpublic-main-ordinary.hd	type	accept	lang/10-modules.md#entry-point

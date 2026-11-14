@@ -2119,3 +2119,44 @@ fn row_keys_cost_one_probe_per_use() {
         );
     });
 }
+
+/// `n` types that implement `Disposable`, each disposed by a `using`
+/// binding in a function main calls: the form of the scale check's
+/// `syntax-items` shape that grew.
+fn using_bindings(n: usize) -> String {
+    let mut s = String::from("use std.ops.Disposable\n\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "struct Res{i}:\n    n: i32\n\nimpl Disposable for Res{i}:\n    fn dispose(&mut self) -> void:\n        pass\n\nfn run{i}(x: i32) -> i32:\n    using res = box(Res{i} {{ n: x }})\n    x\n\n"
+        );
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    t = run{i}(t)");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+// Checker: #1923, a trait method call whose impl is chosen reaches that
+// impl's method in the module's initialization facts, and a binding's
+// scope is found up its parent links: every `using` reached every
+// `dispose` of the module, and every scope question scanned the module's
+// items from the root.
+#[test]
+fn using_bindings_reach_their_own_dispose_and_scope() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&using_bindings(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(200), work(2_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 200 and 2,000 `using` bindings: {small} and {large}"
+        );
+    });
+}

@@ -1,0 +1,25 @@
+# test: a trait method call on a concrete type reaches its own impl's method, not another type's
+# Spec lang/10-modules.md: module.init.definite.dispatch, module.init.definite.implicit.
+# expect-stdout: a 5
+struct Tag:
+    n: i32
+
+struct Other:
+    n: i32
+
+trait Name:
+    fn name(self) -> string
+
+impl Name for Tag:
+    fn name(self) -> string:
+        "a"
+
+first := Tag { n: 1 }.name()
+later := +5
+
+impl Name for Other:
+    fn name(self) -> string:
+        "b${later}"
+
+pub fn main() -> void $ Console:
+    println("$first $later")

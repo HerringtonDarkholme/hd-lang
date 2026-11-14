@@ -4216,15 +4216,14 @@ fn first_block(p: NodeRef<'_>) -> Option<NodeRef<'_>> {
 /// statement to the end of its suite (`ref.dep.scope.temporary`).
 fn scope_of(tree: &GreenTree, n: NodeIdx, temp: bool) -> Option<Scope> {
     let x = n.raw();
-    let mut path = vec![tree.root()];
-    while let Some(c) = path.last().and_then(|p| {
-        p.children().find(|c| {
-            let (lo, hi) = range(*c);
-            lo <= x && x < hi
-        })
-    }) {
-        path.push(c);
+    // The nodes from the root down to `n`: its ancestors by their parent
+    // links, in the depth of `n`, not the siblings scanned at each level.
+    let mut path = vec![tree.node(n)];
+    while let Some(up) = path.last().and_then(|p| tree.parent(p.index())) {
+        path.push(tree.node(up));
     }
+    path.reverse();
+    crate::work::scan_work(path.len());
     let mut lo = temp.then_some(x);
     let mut region = None;
     let mut lp = None;

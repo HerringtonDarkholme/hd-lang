@@ -271,9 +271,13 @@ thread_local! {
 /// Count the steps `run` takes on this thread through the checker's
 /// declaration scans that an index or memo bounds: the heads an enum
 /// tagging pass indexes and reads (`crate::facts`), the member types a
-/// copy query walks (`crate::moves`), and the fields a struct's field
-/// index holds and a literal or field read visits (`crate::expr`). Use
-/// the driver's serial executor to measure a whole build.
+/// copy query walks (`crate::moves`), the fields a struct's field index
+/// holds and a literal or field read visits (`crate::expr`), a row's
+/// key index and its probes (`crate::rows`), a trait method lookup's
+/// probes (`crate::call`), the impl methods a call's initialization
+/// facts reach (`crate::init`) and the nodes of a scope path
+/// (`crate::dep_results`). Use the driver's serial executor to measure a
+/// whole build.
 pub fn count_scan_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = SCAN_WORK.with(|c| c.replace(Some(0)));
     let result = run();

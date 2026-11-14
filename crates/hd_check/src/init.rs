@@ -13,7 +13,7 @@ use hd_diag::{Code, DiagBuf};
 use hd_resolve::{ImplKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
-use hd_tir::ir::{BodyKind, NONE, Place, PlaceRoot, Ref, Tag, TirSink};
+use hd_tir::ir::{BodyKind, ChoiceKind, NONE, Place, PlaceRoot, Ref, Tag, TirSink};
 use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
@@ -252,12 +252,44 @@ pub struct ModuleInit {
     /// for an earlier statement reads them before they have a type
     /// (`names.init.references`).
     pub(crate) pending: HashMap<Symbol, (DefId, u32)>,
-    /// The methods of the module's own trait impls, by trait; built on
-    /// first use (`module.init.definite.dispatch`).
-    impl_methods: Option<HashMap<DefId, Vec<(Symbol, DefId)>>>,
+    /// The methods of the module's own trait impls; built on first use
+    /// (`module.init.definite.dispatch`).
+    impl_methods: Option<ImplMethods>,
     /// The module's top-level bindings by name, which a named constant
     /// reads; built on first use (#1673).
     top_bindings: Option<std::sync::Arc<hd_resolve::TopBindings>>,
+}
+
+/// The methods of a module's own trait impls, made in one pass over its
+/// items: by trait, what a call through a bound or a trait value reaches,
+/// and by impl and name, the one method a call with a chosen impl
+/// reaches.
+#[derive(Clone, Default)]
+struct ImplMethods {
+    by_trait: HashMap<DefId, Vec<(Symbol, DefId)>>,
+    by_impl: HashMap<(DefId, Symbol), DefId>,
+}
+
+impl ImplMethods {
+    fn of(cx: &BodyCx<'_>) -> Self {
+        let mut index = Self::default();
+        for it in cx.lookup.own {
+            let ItemData::Method { owner, .. } = &it.data else {
+                continue;
+            };
+            if let Some(ItemData::Impl { trait_, .. }) = cx.lookup.item(*owner).map(|i| &i.data)
+                && *trait_ != DefId::NONE
+            {
+                index
+                    .by_trait
+                    .entry(*trait_)
+                    .or_default()
+                    .push((it.name, it.def));
+                index.by_impl.entry((*owner, it.name)).or_insert(it.def);
+            }
+        }
+        index
+    }
 }
 
 impl ModuleInit {
@@ -1328,27 +1360,72 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// A call of the trait method `method` whose impl choice is `choice`
+    /// (`module.init.definite.dispatch`): a written impl of this module
+    /// reaches its own method of that name, an impl of another module
+    /// with nothing to dispatch reaches nothing here, and a bound, a trait
+    /// value, a compiler-supplied impl or a choice still waiting reaches
+    /// every implementation of the method in the module, as
+    /// [`Self::note_call`] records. One probe for a chosen impl, where
+    /// every call dispatched to every impl of the method.
+    pub(crate) fn note_method_call(&mut self, method: DefId, choice: (ChoiceKind, u32)) {
+        let lookup = self.cx.lookup;
+        let chosen = (choice.0 == ChoiceKind::Impl)
+            .then(|| DefId::from_raw(choice.1))
+            .filter(|d| *d != DefId::NONE);
+        let Some(impl_def) = chosen else {
+            return self.note_call(method);
+        };
+        self.fact_call(method);
+        crate::work::scan_work(1);
+        let Some(item) = lookup.item(method) else {
+            return;
+        };
+        if lookup.own_index.contains_key(&impl_def) {
+            let cx = self.cx;
+            let reached = cx
+                .init
+                .borrow_mut()
+                .impl_methods
+                .get_or_insert_with(|| ImplMethods::of(cx))
+                .by_impl
+                .get(&(impl_def, item.name))
+                .copied();
+            // An impl that leaves the method to the trait's default
+            // reaches the default, `method` itself.
+            if let Some(m) = reached {
+                self.fact_call(m);
+            }
+            return;
+        }
+        // An impl of another module has no body here; a generic one
+        // reaches this module through the impls its bounds take.
+        if matches!(
+            lookup.item(impl_def).map(|i| &i.data),
+            Some(ItemData::Impl {
+                kind: ImplKind::Written,
+                ..
+            })
+        ) && lookup.item(impl_def).is_some_and(|i| i.generics.is_empty())
+        {
+            return;
+        }
+        self.note_call(method);
+    }
+
     /// Every method of the module's impls of `trait_`, or only those named
     /// `name`: what a call through a bound, a trait value or an
     /// implementation that is not known reaches.
     fn note_dispatch(&mut self, trait_: DefId, name: Option<Symbol>) {
         let cx = self.cx;
         let mut init = cx.init.borrow_mut();
-        let by_trait = init.impl_methods.get_or_insert_with(|| {
-            let mut by_trait: HashMap<DefId, Vec<(Symbol, DefId)>> = HashMap::default();
-            for it in cx.lookup.own {
-                let ItemData::Method { owner, .. } = &it.data else {
-                    continue;
-                };
-                if let Some(ItemData::Impl { trait_, .. }) = cx.lookup.item(*owner).map(|i| &i.data)
-                    && *trait_ != DefId::NONE
-                {
-                    by_trait.entry(*trait_).or_default().push((it.name, it.def));
-                }
-            }
-            by_trait
-        });
-        for (n, d) in by_trait.get(&trait_).into_iter().flatten() {
+        let by_trait = &init
+            .impl_methods
+            .get_or_insert_with(|| ImplMethods::of(cx))
+            .by_trait;
+        let reached = by_trait.get(&trait_).map_or(&[][..], Vec::as_slice);
+        crate::work::scan_work(1 + reached.len());
+        for (n, d) in reached {
             if name.is_none_or(|x| x == *n) {
                 self.fact_call(*d);
             }

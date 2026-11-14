@@ -145,9 +145,22 @@ pub struct GreenTree {
     first_token: Vec<TokenIdx>,
     last_token: Vec<TokenIdx>,
     subtree_len: Vec<u32>,
+    /// Each node's parent ([`Self::parent_links`]), made on the first
+    /// [`Self::parent`] question.
+    parents: std::sync::OnceLock<Vec<NodeIdx>>,
 }
 
 impl GreenTree {
+    /// The parent of node `index`, `None` for the root. The first question
+    /// builds every node's link in one pass over the tree; each question
+    /// is then one read, so a walk from a node to the root costs its depth,
+    /// not the siblings a descent from the root would scan at each level.
+    #[must_use]
+    pub fn parent(&self, index: NodeIdx) -> Option<NodeIdx> {
+        let up = self.parents.get_or_init(|| self.parent_links())[index.idx()];
+        (up != NodeIdx::NONE).then_some(up)
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.kind.len()

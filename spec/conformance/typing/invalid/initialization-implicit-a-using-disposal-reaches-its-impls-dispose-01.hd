@@ -1,0 +1,20 @@
+# test: a `using` binding's disposal reaches the `dispose` of the impl its type takes
+# Spec lang/10-modules.md: module.init.definite.implicit.
+use std.ops.Disposable
+
+struct Res:
+    n: i32
+
+fn run() -> i32:
+    using res = box(Res { n: 1 })
+    1
+
+first := run() # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Disposable for Res:
+    fn dispose(&mut self) -> void:
+        self.n = later
+
+pub fn main() -> void $ Console:
+    println(first)
