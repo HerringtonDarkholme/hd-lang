@@ -14322,6 +14322,42 @@ mod instantiation_chain_tests {
     use super::*;
 
     #[test]
+    fn copied_wrapper_keeps_its_active_never_inline_ancestor() {
+        let source = r"use std.annotation.inline
+@inline(.Never)
+fn root(x: i32) -> i32:
+    if x == 0: +7 else: bridge(x - 1) + bridge(x - 1)
+@inline(.Always)
+fn bridge(x: i32) -> i32: root(x)
+pub fn main() -> void $ Console: println(root(4))
+";
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", source);
+        let store = warm_std_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+        };
+        let out = build_packages(
+            &host,
+            "inline_cycle",
+            &Packages {
+                level: OptLevel::Optimized,
+                build_profile: BuildProfile::Release,
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        assert!(out.wasm.is_some());
+    }
+
+    #[test]
     fn pathological_optimized_chains_have_linear_callee_preparation_work() {
         let mut measured = Vec::new();
         for count in [1000, 10000] {
