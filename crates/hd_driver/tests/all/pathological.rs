@@ -1977,3 +1977,40 @@ fn type_walks_visit_each_distinct_node_once() {
         }
     });
 }
+
+/// `n` enums, each with a `Serialize` derivation block of its own.
+fn enum_views(n: usize) -> String {
+    let mut s = String::from(
+        "use std.serde.Serialize\nuse std.structure.Structure\n\npub fn main() -> void: pass\n",
+    );
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "\nenum E{i}:\n    A(v: i32)\n\nimpl Serialize for E{i} by Structure:\n    Self += []\n"
+        );
+    }
+    s
+}
+
+// Checker: #1910, the enum tagging pass finds each enum's derivation
+// blocks in an index of the heads built once: a scan of every head per
+// enum was quadratic in the items.
+#[test]
+fn enum_tagging_reads_each_enums_blocks_from_one_index() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&enum_views(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let small = work(200);
+        let large = work(2_000);
+        // The heads indexed once, then the enum and its one block: about
+        // 4 per enum, where the scan read every head per enum.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 200 and 2,000 enums: {small} and {large}"
+        );
+    });
+}

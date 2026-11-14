@@ -3536,6 +3536,7 @@ typing/invalid/serde-enum-tagging-serialize-view.hd	type	reject:enum-tagging-not
 typing/invalid/serde-enum-tagging-view-name-conflict.hd	type	reject:enum-tag-name-conflict	std/serde.md#r-std-serde.enum-tagging.view-name-conflict
 typing/invalid/serde-enum-tagging-view-rename-all-not-static.hd	type	reject:enum-tag-name-not-static	std/serde.md#r-std-serde.enum-tagging.view-rename-all-static
 typing/invalid/serde-enum-tagging-view-replacement.hd	type	reject:enum-tagging-not-on-declaration	std/serde.md#r-std-serde.enum-tagging.declaration-fact
+typing/invalid/serde-enum-tagging-views-of-several-enums.hd	type	reject:enum-tagging-not-on-declaration	std/serde.md#r-std-serde.enum-tagging.declaration-fact
 typing/invalid/serde-internal-direct-rename-conflict.hd	type	reject:enum-tag-name-conflict	std/serde.md#r-std-serde.enum-tagging.internal-name-conflict
 typing/invalid/serde-internal-direct-tuple-variant.hd	type	reject:invalid-internal-tagged-variant	std/serde.md#r-std-serde.enum-tagging.internal-shapes
 typing/invalid/serde-internal-explicit-rename-precedence.hd	type	reject:enum-tag-name-conflict	std/serde.md#r-std-serde.enum-tagging.internal-name-conflict

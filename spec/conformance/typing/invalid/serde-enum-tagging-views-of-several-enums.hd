@@ -1,0 +1,26 @@
+# test: enum tagging views are matched to their own enum among several, with a no-trait block as the declaration
+# Rule: std-serde.enum-tagging.declaration-fact.
+use std.serde.{Deserialize, Serialize, tag}
+use std.structure.Structure
+
+enum First:
+    A(value: i32)
+
+enum Second:
+    B(value: i32)
+
+impl Second by Structure:
+    Self += [tag("kind")]
+
+impl Serialize for First by Structure:
+    Self += [tag("kind")] # diagnostic: enum-tagging-not-on-declaration
+
+impl Serialize for Second by Structure:
+    Self += []
+
+impl Deserialize for Second by Structure:
+    Self += []
+
+pub fn main() -> void:
+    _ := First.A(value=1)
+    _ := Second.B(value=2)

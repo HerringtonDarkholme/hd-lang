@@ -15,7 +15,7 @@
 //! then checks like `let f: D[A] = v`. Every error is reported once, at the
 //! decorator or member-line element.
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, HashMap, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_resolve::facts::fact_lines as resolved_fact_lines;
@@ -892,22 +892,46 @@ fn check_enum_tagging(
 /// Checks the effective enum declaration metadata, and rejects direct
 /// per-view tagging facts, once all exact local and module item heads are
 /// available.
+///
+/// Cost: one pass over `heads` indexes each `by` impl of no trait,
+/// `Serialize` or `Deserialize` under its self type's declaration; each
+/// enum then reads its own entry. Linear in the heads, where a scan of
+/// every head per enum was quadratic (#1910).
 pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut DiagBuf) {
     let serialize = cx.names.item("std.serde", "Serialize");
     let deserialize = cx.names.item("std.serde", "Deserialize");
     let tagging = cx.names.item("std.serde", "EnumTagging");
+    // Per self type: the first no-trait `by` impl, and the `Serialize` and
+    // `Deserialize` `by` impls in head order.
+    let mut by_impls: HashMap<DefId, (Option<&Head<'_>>, Vec<&Head<'_>>)> = HashMap::default();
+    crate::work::scan_work(heads.len());
+    for candidate in heads {
+        let Some(ItemData::Impl {
+            trait_,
+            by: Some(_),
+            self_ty,
+            ..
+        }) = cx.lookup.item(candidate.def).map(|item| &item.data)
+        else {
+            continue;
+        };
+        let TyData::Adt { def, .. } = cx.names.pool.get(*self_ty) else {
+            continue;
+        };
+        if *trait_ == DefId::NONE {
+            by_impls.entry(def).or_default().0.get_or_insert(candidate);
+        } else if *trait_ == serialize || *trait_ == deserialize {
+            by_impls.entry(def).or_default().1.push(candidate);
+        }
+    }
     for head in heads.iter().filter(|head| head.kind == HeadKind::Enum) {
         let Some(item) = cx.lookup.item(head.def) else {
             continue;
         };
-        let traitless = heads.iter().find(|candidate| {
-            matches!(
-                cx.lookup.item(candidate.def).map(|item| &item.data),
-                Some(ItemData::Impl { trait_, by: Some(_), self_ty, .. })
-                    if *trait_ == DefId::NONE
-                        && matches!(cx.names.pool.get(*self_ty), TyData::Adt { def, .. } if def == head.def)
-            )
-        });
+        let (traitless, views) = by_impls
+            .get(&head.def)
+            .map_or((None, &[][..]), |(t, v)| (*t, &v[..]));
+        crate::work::scan_work(1 + views.len());
         let declaration = crate::structure::declaration_facts(
             cx,
             item,
@@ -935,15 +959,9 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
                 .into_iter()
                 .any(|value| concrete_fact(cx, value, tagging));
 
-        for view_head in heads.iter().filter(|candidate| {
-            matches!(
-                cx.lookup.item(candidate.def).map(|item| &item.data),
-                Some(ItemData::Impl { trait_, by: Some(_), self_ty, .. })
-                    if (*trait_ == serialize || *trait_ == deserialize)
-                        && matches!(cx.names.pool.get(*self_ty), TyData::Adt { def, .. } if def == head.def)
-            )
-        }) {
-            let Some(block) = crate::structure::block_facts(cx, view_head.def, view_head.node) else {
+        for &view_head in views {
+            let Some(block) = crate::structure::block_facts(cx, view_head.def, view_head.node)
+            else {
                 continue;
             };
             let block_sources = block
@@ -969,15 +987,14 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
             let replacement = lines
                 .iter()
                 .find(|line| line.name == "Self" && !line.extend);
-            if declaration_has_tagging && !direct_tagging
+            if declaration_has_tagging
+                && !direct_tagging
                 && let Some(line) = replacement
             {
                 diags.error(
                     Code::EnumTaggingNotOnDeclaration,
-                    line.list.map_or_else(
-                        || cx.src.span(view_head.node),
-                        |list| cx.src.span(list),
-                    ),
+                    line.list
+                        .map_or_else(|| cx.src.span(view_head.node), |list| cx.src.span(list)),
                     "a per-trait replacement cannot remove the enum declaration's tagging fact",
                 );
             }

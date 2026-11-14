@@ -73,8 +73,6 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
  * first run's findings name the issue that tracks each one.
  */
 export const KNOWN: ReadonlyMap<string, string> = new Map([
-  ["enum-items check", "#1910"],
-  ["enum-items build", "#1910"],
   ["dyn-values build", "#1908"],
   ["row-chain build", "#1920"],
   ["row-traits check", "#1921"],
@@ -97,8 +95,6 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["paren-nest build", "#1919"],
   ["type-defaults check", "#1925"],
   ["type-defaults build", "#1925"],
-  ["syntax-items build", "#1923"],
-  ["syntax-items check", "#1923"],
   ["bool-nest build", "#1905"],
   ["tuple-nest build", "#1924"],
   ["tuple-nest check", "#1924"],

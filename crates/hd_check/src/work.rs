@@ -264,6 +264,32 @@ pub(crate) fn decision_rows(n: usize) {
     });
 }
 
+thread_local! {
+    static SCAN_WORK: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the steps `run` takes on this thread through the checker's
+/// declaration scans that an index or memo bounds: the heads an enum
+/// tagging pass indexes and reads (`crate::facts`), the member types a
+/// copy query walks (`crate::moves`), and the fields a struct's field
+/// index holds and a literal or field read visits (`crate::expr`). Use
+/// the driver's serial executor to measure a whole build.
+pub fn count_scan_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = SCAN_WORK.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = SCAN_WORK.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` steps of a bounded declaration scan.
+pub(crate) fn scan_work(n: usize) {
+    SCAN_WORK.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::{count_join_work, join_work};
