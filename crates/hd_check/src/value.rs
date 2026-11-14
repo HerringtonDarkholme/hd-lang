@@ -49,15 +49,42 @@ pub(crate) fn projection_too_deep(shown: &str) -> String {
     )
 }
 
+/// The containment walks of one body or header stage. A body's walks
+/// share `done`; with `shared`, closed types a clean walk
+/// left are also published to the run's memo for the body's impl
+/// universe, and a walk stops at a published type. So a wide type is
+/// walked once per run and universe, not once per body that holds it:
+/// O(distinct member types) per run plus one probe per member per body.
 #[derive(Default)]
-pub(crate) struct ProjectionCycles {
+pub(crate) struct ProjectionCycles<'a> {
     done: HashMap<Ty, Option<Ty>>,
     reported: HashSet<Ty>,
     checked: HashSet<Ty>,
     normalized: HashMap<Ty, Ty>,
+    /// The run's memo and the impl universe of a view with no hidden
+    /// local impl: then a closed type's answer is the same in every body.
+    shared: Option<(
+        &'a hd_types::solver::GlobalMemo,
+        hd_types::solver::ImplUniverseId,
+    )>,
+    /// A projection past the depth limit was met: the body's `done`
+    /// holds answers that stopped there, so nothing more is published.
+    tainted: bool,
 }
 
-impl ProjectionCycles {
+impl<'a> ProjectionCycles<'a> {
+    /// Walks that publish their clean closed types to `memo` for
+    /// `universe`, and stop at the ones published.
+    pub(crate) fn shared(
+        memo: &'a hd_types::solver::GlobalMemo,
+        universe: hd_types::solver::ImplUniverseId,
+    ) -> Self {
+        ProjectionCycles {
+            shared: Some((memo, universe)),
+            ..ProjectionCycles::default()
+        }
+    }
+
     pub(crate) fn check(
         &mut self,
         pool: hd_types::Types<'_>,
@@ -75,10 +102,14 @@ impl ProjectionCycles {
         // which then ends as for any other open projection; the first is
         // reported, once per head.
         let mut too_deep = None;
+        let shared = self.shared.filter(|_| !self.tainted);
+        let mut left = Vec::new();
         let cycle = Self::search(
             &mut self.done,
             ty,
             fuel,
+            &mut |t| shared.is_some_and(|(memo, u)| !t.is_local() && memo.contained(u, t)),
+            &mut left,
             &mut |t| {
                 if let Some(&n) = self.normalized.get(&t) {
                     return n;
@@ -150,9 +181,18 @@ impl ProjectionCycles {
                     | TyData::Row(_)
                     | TyData::Context(_) => {}
                 }
+                crate::work::scan_work(1 + children.len());
                 children
             },
         )?;
+        if too_deep.is_some() {
+            self.tainted = true;
+        } else if cycle.is_none()
+            && let Some((memo, u)) = shared
+        {
+            left.retain(|t| !t.is_local());
+            memo.publish_contained(u, &left);
+        }
         if let Some(head) = too_deep.filter(|&h| self.reported.insert(h)) {
             return Ok(Some(Unsized::TooDeep(head)));
         }
@@ -161,10 +201,14 @@ impl ProjectionCycles {
             .then_some(Unsized::Cycle))
     }
 
+    /// `known` answers a type published clean, where the walk stops;
+    /// `left` collects each type the walk leaves with no cycle found.
     fn search(
         done: &mut HashMap<Ty, Option<Ty>>,
         root: Ty,
         fuel: &mut Fuel,
+        known: &mut impl FnMut(Ty) -> bool,
+        left: &mut Vec<Ty>,
         normalize: &mut impl FnMut(Ty) -> Ty,
         expand: &mut impl FnMut(Ty) -> Vec<Ty>,
     ) -> Result<Option<Ty>, ()> {
@@ -178,6 +222,7 @@ impl ProjectionCycles {
                 path.pop();
                 done.insert(raw, None);
                 done.insert(t, None);
+                left.extend([raw, t]);
                 continue;
             }
             if let Some(&cycle) = done.get(&raw) {
@@ -187,6 +232,10 @@ impl ProjectionCycles {
                     }
                     return Ok(cycle);
                 }
+                continue;
+            }
+            if known(raw) {
+                done.insert(raw, None);
                 continue;
             }
             if !fuel.charge(1) {
@@ -751,6 +800,8 @@ mod containment_tests {
                             &mut done,
                             Ty(i),
                             &mut fuel,
+                            &mut |_| false,
+                            &mut Vec::new(),
                             &mut |t| if (5000..6000).contains(&t.0) {
                                 Ty(1000)
                             } else {
@@ -783,6 +834,8 @@ mod containment_tests {
                 &mut done,
                 Ty(0),
                 &mut fuel,
+                &mut |_| false,
+                &mut Vec::new(),
                 &mut |t| if t == Ty(1000) { Ty(0) } else { t },
                 &mut expand
             ),
@@ -794,6 +847,8 @@ mod containment_tests {
                     &mut done,
                     Ty(i),
                     &mut fuel,
+                    &mut |_| false,
+                    &mut Vec::new(),
                     &mut |t| if t == Ty(1000) { Ty(0) } else { t },
                     &mut expand
                 ),
@@ -810,7 +865,15 @@ mod containment_tests {
         let mut expand = |t: Ty| vec![Ty(t.0 + 1)];
         let mut fuel = Fuel::new(20);
         assert_eq!(
-            ProjectionCycles::search(&mut done, Ty(0), &mut fuel, &mut |t| t, &mut expand),
+            ProjectionCycles::search(
+                &mut done,
+                Ty(0),
+                &mut fuel,
+                &mut |_| false,
+                &mut Vec::new(),
+                &mut |t| t,
+                &mut expand
+            ),
             Err(())
         );
         assert!(done.is_empty());

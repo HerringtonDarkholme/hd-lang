@@ -2796,6 +2796,7 @@ pub struct GlobalMemo {                    // one per run; shared by checking an
     envs: Mutex<HashMap<EnvClauses, EnvKey>>,
     copy_blockers: Mutex<HashMap<Ty, Option<Ty>>>,   // closed types' `ref.move.holds` answers
     field_indices: Mutex<HashMap<DefId, Arc<HashMap<Symbol, u32>>>>, // struct fields by name
+    contained: Mutex<HashSet<(ImplUniverseId, Ty)>>,  // closed types with no projection cycle
     hits: AtomicU64, misses: AtomicU64,
 }
 pub struct BodyMemo {                      // per body; lent per call; never rolled back

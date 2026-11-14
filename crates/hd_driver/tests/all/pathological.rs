@@ -2205,3 +2205,45 @@ fn same_name_trait_methods_ask_the_traits_with_rows_for_the_receiver() {
         );
     });
 }
+
+/// One struct of `n` fields, and `n` functions that each hold a tuple of
+/// two values of it and compare them: review F15's shape, with the
+/// struct inside a body's own tuple type so the body's containment walk
+/// reaches its fields.
+fn compared_wide_values(n: usize) -> String {
+    let mut s = String::from("@derive(Eq)\nstruct Wide:\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    f{i}: i32");
+    }
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "\nfn same{i}(a: Wide, b: Wide) -> bool:\n    pair := (a, b)\n    pair._0 == pair._1\n"
+        );
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker: #1894, a closed type found clean by one body's containment
+// walk is published for the run's other bodies in that impl universe:
+// every body that held the struct walked all its fields again.
+#[test]
+fn compared_wide_values_walk_the_fields_once_per_run() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) = hd_check::work::count_scan_work(|| {
+                compile(&compared_wide_values(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(200), work(2_000));
+        // Per field: one step of the one walk; per body: its tuple and
+        // one probe of the published struct.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 200 and 2,000 fields and bodies: {small} and {large}"
+        );
+    });
+}

@@ -399,7 +399,7 @@ struct ItemCheck<'c, 'a> {
     cx: &'c HeaderCx<'a>,
     env: ParamEnv,
     memo: BodyMemo,
-    cycles: crate::value::ProjectionCycles,
+    cycles: crate::value::ProjectionCycles<'static>,
     fuel: Fuel,
     item: DefId,
     out: &'c mut Vec<Finding>,

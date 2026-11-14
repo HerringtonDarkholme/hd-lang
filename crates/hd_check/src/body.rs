@@ -5172,10 +5172,16 @@ impl Ck<'_, '_> {
         let open = self.b.body_mut().ty.clone();
         // Inferred instances are concrete only after the obligations settle.
         // This memo belongs to this finalization, never a speculative trial.
-        let mut cycles = crate::value::ProjectionCycles::default();
+        let local_impls = self.cx.locals.has_impls();
+        // With no local impl, every value sees the module's whole view, so
+        // the clean closed types are shared with the run's other bodies.
+        let mut cycles = if local_impls {
+            crate::value::ProjectionCycles::default()
+        } else {
+            crate::value::ProjectionCycles::shared(self.cx.global, self.cx.impls.universe)
+        };
         let mut cycle_scope = self.impl_stretch;
         let cycle_at = self.at;
-        let local_impls = self.cx.locals.has_impls();
         // The header check walked the function's written types under the
         // same impls, and reported what they hold.
         if !local_impls {

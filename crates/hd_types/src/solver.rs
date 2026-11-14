@@ -944,6 +944,11 @@ pub struct GlobalMemo {
     /// Each struct's fields by name, as indices in declaration order: the
     /// checker's literals and field reads probe it once per name.
     field_indices: Mutex<HashMap<DefId, Arc<HashMap<Symbol, u32>>>>,
+    /// The closed types whose containment walk (the checker's
+    /// `ProjectionCycles`) found no projection cycle and no projection
+    /// past the depth limit, by the impl universe it normalized in: a
+    /// later walk in that universe stops at them.
+    contained: Mutex<HashSet<(ImplUniverseId, Ty)>>,
     hits: AtomicU64,
     misses: AtomicU64,
 }
@@ -1048,6 +1053,25 @@ impl GlobalMemo {
             .unwrap_or_else(PoisonError::into_inner)
             .entry(t)
             .or_insert(blocker);
+    }
+
+    /// Whether the closed type `t` was published as clean in `universe`
+    /// ([`Self::publish_contained`]).
+    #[must_use]
+    pub fn contained(&self, universe: ImplUniverseId, t: Ty) -> bool {
+        self.contained
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&(universe, t))
+    }
+
+    /// Publishes closed types whose containment walk in `universe` was
+    /// clean: every walk of them there gives the same answer.
+    pub fn publish_contained(&self, universe: ImplUniverseId, tys: &[Ty]) {
+        self.contained
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(tys.iter().map(|&t| (universe, t)));
     }
 
     /// The fields of struct `def` by name, as `names` lists them in
