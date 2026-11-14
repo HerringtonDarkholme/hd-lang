@@ -234,6 +234,21 @@ for (const commit of git("rev-list", "--reverse", `${base}..${head}`).split("\n"
   ) {
     continue;
   }
+  // A new test in an existing file counts too: an added `#[test]`
+  // function in a crate, or an added `it(`/`test(` case in a .test.ts.
+  const testDiff = git(
+    "show",
+    "--format=",
+    "--unified=0",
+    commit,
+    "--",
+    "crates/*/tests/**",
+    "crates/*/src/**",
+    "**/*.test.ts",
+  );
+  if (/^\+\s*#\[test\]/m.test(testDiff) || /^\+\s*(it|test)\(\s*["'`]/m.test(testDiff)) {
+    continue;
+  }
   untested.push(`${commit.slice(0, 9)} ${message.split("\n")[0].slice(0, 100)}`);
 }
 report(
