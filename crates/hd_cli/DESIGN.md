@@ -189,7 +189,9 @@ no FILE, no `-p` and no `--format`, as the Commands table and
 3. Of each diagnostic, in output order, take its first `Exact` fix-it
    whose edits fit package source files, or a missing-capability fix
    that inserts grants into `hd.toml`. An overlapping edit waits
-   (`cli.check.fix.overlap`). Other manifest fixes, dependencies and `std` are
+   (`cli.check.fix.overlap`); the taken edits are kept per file in order
+   of their start, so each test is O(log n), and a fix-it whose own edits
+   overlap is not taken. Other manifest fixes, dependencies and `std` are
    never edited. Capability fixes insert all missing grants together, so
    the round bound does not limit how many capabilities can be listed.
 4. Apply the round's fix-its together and check again. The round is safe

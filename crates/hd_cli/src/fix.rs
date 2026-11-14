@@ -222,7 +222,7 @@ fn fix(mut texts: Texts, mode: Mode, mut check: impl FnMut(&Texts) -> Vec<Diag>)
     // skip so that a fix-it they overlapped gets its turn.
     let mut rejected = BTreeSet::new();
     for _ in 0..ROUNDS {
-        let offered = plan(&diags, &texts, &rejected, mode);
+        let (offered, _) = plan(&diags, &texts, &rejected, mode);
         if offered.is_empty() {
             break;
         }
@@ -286,17 +286,66 @@ fn adds_none(before: &[Diag], after: &[Diag]) -> bool {
     counts.values().all(|n| *n >= 0)
 }
 
+/// The byte ranges of the fix-its taken so far, per file, each keyed by
+/// its start. They overlap nowhere, so a range that starts before a byte
+/// and reaches past it is the last one starting before it: a test costs
+/// O(log n) in the n edits taken, not a scan of them (#1851).
+#[derive(Default)]
+struct Taken<'a> {
+    files: BTreeMap<&'a str, BTreeMap<u32, u32>>,
+    /// The taken ranges each test looked at.
+    looked: usize,
+}
+
+impl<'a> Taken<'a> {
+    /// Whether `e` overlaps a taken edit (`overlap`): one starts in it or
+    /// at its start, or the last one starting before it reaches past its
+    /// start.
+    fn overlaps(&mut self, e: &Edit) -> bool {
+        let Some(ranges) = self.files.get(e.file.as_str()) else {
+            return false;
+        };
+        let inside = e.start..e.end.max(e.start.saturating_add(1));
+        let before = ranges.range(..e.start).next_back();
+        self.looked += 1 + usize::from(before.is_some());
+        ranges.range(inside).next().is_some() || before.is_some_and(|(_, &end)| end > e.start)
+    }
+
+    /// Takes the edits of one fix-it when they overlap neither a taken
+    /// edit nor one another; whether it took them.
+    fn take(&mut self, edits: &'a [Edit]) -> bool {
+        if edits.iter().any(|e| self.overlaps(e)) {
+            return false;
+        }
+        let mut own: Vec<&Edit> = edits.iter().collect();
+        own.sort_stable_by(|a, b| (&a.file, a.start, a.end).cmp(&(&b.file, b.start, b.end)));
+        if own.windows(2).any(|w| overlap(w[0], w[1])) {
+            return false;
+        }
+        for e in edits {
+            self.files
+                .entry(e.file.as_str())
+                .or_default()
+                .insert(e.start, e.end);
+        }
+        true
+    }
+}
+
 /// The fix-its a check offers to apply, in output order: of each
 /// diagnostic, its first exact fix-it not rejected before, when every edit
-/// lies in an allowed package file and fits its text, and no edit overlaps an edit
-/// of a fix-it taken before it (`cli.check.fix.overlap`).
+/// lies in an allowed package file and fits its text, and no edit overlaps
+/// another of it or an edit of a fix-it taken before it
+/// (`cli.check.fix.overlap`). With them, how many taken edits the overlap
+/// tests looked at.
 fn plan(
     diags: &[Diag],
     texts: &Texts,
     rejected: &BTreeSet<(Key, String)>,
     mode: Mode,
-) -> Vec<Change> {
+) -> (Vec<Change>, usize) {
     let mut taken: Vec<Change> = Vec::new();
+    let mut ranges = Taken::default();
     // Each file's line index, built when a fix-it is first taken in it.
     let mut lines: BTreeMap<&str, LineIndex> = BTreeMap::new();
     for d in diags {
@@ -321,14 +370,7 @@ fn plan(
         let Some(first) = f.edits.first() else {
             continue;
         };
-        if !f.edits.iter().all(fits) {
-            continue;
-        }
-        let overlaps = taken
-            .iter()
-            .flat_map(|c| &c.edits)
-            .any(|a| f.edits.iter().any(|b| overlap(a, b)));
-        if overlaps {
+        if !f.edits.iter().all(fits) || !ranges.take(&f.edits) {
             continue;
         }
         let text = &texts[&first.file];
@@ -345,7 +387,7 @@ fn plan(
             edits: f.edits.clone(),
         });
     }
-    taken
+    (taken, ranges.looked)
 }
 
 /// Whether an edit's byte range lies in `text`, on character boundaries.
@@ -361,14 +403,23 @@ fn overlap(a: &Edit, b: &Edit) -> bool {
 }
 
 /// `texts` with the edits of `changes` applied. The edits overlap nowhere
-/// and fit their texts, so they apply from the end of each file backwards.
+/// and fit their texts, so each file is rebuilt in one pass over its edits
+/// in order: O(text + edits), not a shift of the text per edit.
 fn apply(texts: &Texts, changes: &[Change]) -> Texts {
     let mut out = texts.clone();
     let mut edits: Vec<&Edit> = changes.iter().flat_map(|c| &c.edits).collect();
-    edits.sort_stable_by(|a, b| (&b.file, b.start, b.end).cmp(&(&a.file, a.start, a.end)));
-    for e in edits {
-        if let Some(text) = out.get_mut(&e.file) {
-            text.replace_range(e.start as usize..e.end as usize, &e.text);
+    edits.sort_stable_by(|a, b| (&a.file, a.start).cmp(&(&b.file, b.start)));
+    for file in edits.chunk_by(|a, b| a.file == b.file) {
+        if let Some(text) = out.get_mut(&file[0].file) {
+            let mut done = String::with_capacity(text.len());
+            let mut at = 0;
+            for e in file {
+                done.push_str(&text[at..e.start as usize]);
+                done.push_str(&e.text);
+                at = e.end as usize;
+            }
+            done.push_str(&text[at..]);
+            *text = done;
         }
     }
     out
@@ -376,7 +427,7 @@ fn apply(texts: &Texts, changes: &[Change]) -> Texts {
 
 #[cfg(test)]
 mod tests {
-    use super::{Mode, ROUNDS, Texts, fix, plan};
+    use super::{Mode, ROUNDS, Texts, apply, fix, plan};
     use crate::report::{Diag, Edit, Fix};
     use hd_diag::Code;
     use std::collections::BTreeSet;
@@ -413,7 +464,7 @@ mod tests {
             diag(Code::UnknownName, "b", Some((0, "b"))),
             diag(Code::UnknownName, "c", Some((1, "c"))),
         ];
-        let taken = plan(&diags, &texts("xy\n"), &BTreeSet::new(), Mode::Check);
+        let (taken, _) = plan(&diags, &texts("xy\n"), &BTreeSet::new(), Mode::Check);
         let messages: Vec<&str> = taken.iter().map(|c| c.message.as_str()).collect();
         assert_eq!(messages, ["insert a", "insert c"]);
     }
@@ -437,6 +488,64 @@ mod tests {
         assert_eq!(messages, ["insert a", "insert b"]);
     }
 
+    /// An exact fix-it with one edit per `(start, end, text)`.
+    fn edits(message: &str, edits: &[(u32, u32, &str)]) -> Diag {
+        let mut d = diag(Code::UnknownName, message, None);
+        d.fixes.push(Fix {
+            message: message.to_owned(),
+            edits: edits
+                .iter()
+                .map(|&(start, end, text)| Edit {
+                    file: "f.hd".to_owned(),
+                    start,
+                    end,
+                    text: text.to_owned(),
+                })
+                .collect(),
+            exact: true,
+        });
+        d
+    }
+
+    /// `cli.check.fix.overlap`: a range taken before a byte overlaps an edit
+    /// at that byte when it reaches past it, and one that ends there does
+    /// not; a fix-it whose own edits overlap is not taken either.
+    #[test]
+    fn an_edit_inside_a_taken_range_overlaps_it() {
+        let diags = [
+            edits("replace", &[(1, 4, "R")]),
+            edits("inside", &[(2, 2, "i")]),
+            edits("across", &[(3, 6, "a")]),
+            edits("itself", &[(6, 8, "s"), (7, 7, "t")]),
+            edits("after", &[(4, 4, "A"), (0, 1, "Z")]),
+        ];
+        let (taken, _) = plan(&diags, &texts("abcdefgh\n"), &BTreeSet::new(), Mode::Check);
+        let messages: Vec<&str> = taken.iter().map(|c| c.message.as_str()).collect();
+        assert_eq!(messages, ["replace", "after"]);
+        assert_eq!(apply(&texts("abcdefgh\n"), &taken)["f.hd"], "ZRAefgh\n");
+    }
+
+    /// #1851: each fix-it is tested against the taken ranges around its
+    /// edits, not every one taken: n fix-its, each second one at the
+    /// start of the one before it, look at fewer than 2n ranges.
+    #[test]
+    fn overlap_tests_grow_linearly_with_the_fix_its() {
+        for n in [2_000_u32, 20_000] {
+            let diags: Vec<Diag> = (0..n)
+                .map(|i| diag(Code::UnknownName, "x", Some((i / 2, "y"))))
+                .collect();
+            let text = "x".repeat(n as usize);
+            let (taken, looked) = plan(&diags, &texts(&text), &BTreeSet::new(), Mode::Check);
+            assert_eq!(taken.len(), n as usize / 2);
+            assert!(
+                looked < 2 * n as usize,
+                "{n} fix-its: {looked} ranges looked at"
+            );
+            let fixed = &apply(&texts(&text), &taken)["f.hd"];
+            assert_eq!(fixed.len(), text.len() + taken.len());
+        }
+    }
+
     /// A suggestion, or an edit outside the source files or past the end
     /// of its file, is not taken.
     #[test]
@@ -453,6 +562,7 @@ mod tests {
                 &BTreeSet::new(),
                 Mode::Check,
             )
+            .0
             .is_empty()
         );
     }
@@ -468,7 +578,7 @@ mod tests {
             ),
             diag(Code::RedundantLetMut, "redundant mut", Some((1, ""))),
         ];
-        let taken = plan(&diags, &texts("xy\n"), &BTreeSet::new(), Mode::Lint);
+        let (taken, _) = plan(&diags, &texts("xy\n"), &BTreeSet::new(), Mode::Lint);
         assert_eq!(taken.len(), 1);
         assert_eq!(taken[0].diag.0, Some("redundant-let-mut"));
     }
