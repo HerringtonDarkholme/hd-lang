@@ -338,7 +338,10 @@ and trait values, from counts inside it.
   `[start, len]` into `tys`, so `list_items` lends `&[Ty]` with no cast.
 - `meta` is computed from the children's flags at intern time.
 - **No per-thread copies.** Threads share one pool. Appends serialize on
-  the one append lock, which is Zig 0.14's scheme.
+  the one append lock. Zig differs: it keeps one item list per thread
+  (`locals: []Local`), puts the thread id in the top bits of each
+  `Index`, and shards and locks only the dedup maps. hd's one lock has
+  not shown as a cost in serial runs (compile-time audit 2026-11-14, C9).
 - **Constants are not in the pool**, except an evaluated const generic
   argument (`Const`: its scalar type and value), which is part of a
   type's identity. TIR keeps each body's constants as
