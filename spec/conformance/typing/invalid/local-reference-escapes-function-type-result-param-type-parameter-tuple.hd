@@ -1,0 +1,17 @@
+# test: a result element a type parameter fills depends on the same input element
+# Spec 07 Function Types: fn.type.lifetime.result.param.position. With
+# `T = (&'a Point, &'b Point)`, the first element of `fn(T) -> T`'s result
+# depends on the first element of its input, here a local `q`.
+struct Point:
+    x: i32
+
+fn keep[T](f: fn(T) -> T) -> fn(T) -> T:
+    f
+
+fn same['a, 'b](t: (&'a Point, &'b Point)) -> (&'a Point, &'b Point):
+    t
+
+fn first_past_first(p: &Point) -> &Point:
+    q := Point { x: 1 }
+    g := keep(same)
+    g((&q, p))._0 # diagnostic: local-reference-escapes

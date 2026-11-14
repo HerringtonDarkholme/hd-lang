@@ -234,6 +234,15 @@ impl FnDeps {
     pub const NONE: FnDeps = FnDeps(u32::MAX);
 }
 
+/// Where a reference slot of a function type's instance comes from
+/// ([`Types::instance_deps`]): a slot of the type it instantiates, or a
+/// position of what replaced one of its holes.
+#[derive(Clone, Copy)]
+enum Origin {
+    Slot(usize),
+    Hole(Ty, u32),
+}
+
 /// How a function type's `params` spell its inputs tuple
 /// (`fn.type.ctor.inputs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1220,6 +1229,171 @@ impl<'a> Types<'a> {
         self.fn_deps(&ins, &vec![w; n_out])
     }
 
+    /// The map of a function type rebuilt from one with `before`'s
+    /// parameters, result and map by replacing type holes (a type
+    /// parameter, an inference variable, a projection) in it
+    /// (`fn.type.lifetime.result.param`): a reference slot a hole's
+    /// replacement adds carries that hole's lifetime at that position of
+    /// the replacement, which each occurrence of the hole shares, so a
+    /// result slot depends on the input slots at the same position of the
+    /// same hole, as `fn(T) -> T` at `&Point` depends on its input. A slot
+    /// that `before` had keeps its lifetime, and with an open map a result
+    /// slot a hole adds may also depend on the inputs that write a
+    /// lifetime, when only one hole adds result slots. `before`'s map when
+    /// nothing was added, or when the two do not line up or the map cannot
+    /// say it (a union's members rebuilt). Cost: nothing for a result
+    /// with no reference; else one walk of each type, which, as
+    /// [`Self::ref_slots`], does not enter the function types inside it.
+    fn instance_deps(self, (gp, gr, gd): (&[Ty], Ty, FnDeps), (ip, ir): (&[Ty], Ty)) -> FnDeps {
+        // No result slot: the map stays `NONE` or open.
+        if !self.has_ref(ir) {
+            return gd;
+        }
+        let slots = |ps: &[Ty]| ps.iter().map(|&p| self.ref_slots(p)).sum::<usize>();
+        let (g_in, g_out) = (slots(gp), self.ref_slots(gr));
+        if slots(ip) == g_in && self.ref_slots(ir) == g_out {
+            return gd;
+        }
+        let mut ins = Vec::new();
+        let mut at = 0;
+        for (&g, &i) in gp.iter().zip(ip) {
+            if !self.slot_origins(g, i, &mut at, &mut ins, 0) {
+                return gd;
+            }
+        }
+        let mut outs = Vec::new();
+        let mut at_out = 0;
+        if gp.len() != ip.len() || !self.slot_origins(gr, ir, &mut at_out, &mut outs, 0) {
+            return gd;
+        }
+        let (g_ins, g_outs, open) = match self.deps_of(gd) {
+            Some((i, o)) if i.len() == g_in && o.len() == g_out && !o.is_empty() => {
+                (i.to_vec(), o.to_vec(), Vec::new())
+            }
+            Some((i, [])) if i.len() == g_in => (Vec::new(), Vec::new(), i.to_vec()),
+            _ => (Vec::new(), Vec::new(), Vec::new()),
+        };
+        // A slot with no written lifetime, and each (hole, position),
+        // takes the next fresh word, past any a map writes.
+        let mut holes: HashMap<(Ty, u32), u32> = HashMap::default();
+        let mut fresh: u32 = 1 << 30;
+        let mut word = |o: Origin| {
+            let next = || {
+                fresh = fresh.saturating_add(1);
+                fresh
+            };
+            match o {
+                Origin::Slot(k) => g_ins.get(k).copied().unwrap_or_else(next),
+                Origin::Hole(h, m) => *holes.entry((h, m)).or_insert_with(next),
+            }
+        };
+        let mut in_words: Vec<u32> = ins.iter().map(|&o| word(o)).collect();
+        let out_words: Vec<u32> = outs
+            .iter()
+            .map(|&o| match o {
+                Origin::Slot(j) => g_outs.get(j).copied().unwrap_or(0),
+                Origin::Hole(h, m) => holes.get(&(h, m)).copied().unwrap_or(0),
+            })
+            .collect();
+        // An open map: the inputs that write a lifetime may also be the
+        // source of a slot a hole adds to the result, which one word says
+        // only when one (hole, position) adds result slots.
+        if open.contains(&1) {
+            let added: hd_base::HashSet<u32> =
+                out_words.iter().copied().filter(|&w| w != 0).collect();
+            let mut one = added.iter().copied();
+            let (Some(target), None) = (one.next(), one.next()) else {
+                return gd;
+            };
+            for (w, o) in in_words.iter_mut().zip(&ins) {
+                if let Origin::Slot(k) = o
+                    && open.get(*k) == Some(&1)
+                {
+                    *w = target;
+                }
+            }
+            if out_words.contains(&0) {
+                return gd;
+            }
+        }
+        self.fn_deps(&in_words, &out_words)
+    }
+
+    /// Appends the origin of each reference slot of `i`, an instance of
+    /// `g`, in [`Self::ref_slots`] order, numbering `g`'s own slots from
+    /// `at`. False when the two do not line up.
+    fn slot_origins(self, g: Ty, i: Ty, at: &mut usize, out: &mut Vec<Origin>, depth: u32) -> bool {
+        if depth > hd_base::limits::TYPE_DEPTH {
+            return false;
+        }
+        if g == i {
+            let n = self.ref_slots(g);
+            out.extend((*at..*at + n).map(Origin::Slot));
+            *at += n;
+            return true;
+        }
+        if !self.has_ref(i) && !self.has_ref(g) {
+            return true;
+        }
+        let d = depth + 1;
+        let pairs = |a: TyList, b: TyList, at: &mut usize, out: &mut Vec<Origin>| {
+            let (a, b) = (self.list_items(a), self.list_items(b));
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(&x, &y)| self.slot_origins(x, y, at, out, d))
+        };
+        match (self.get(g), self.get(i)) {
+            (TyData::Param(_) | TyData::Infer(_) | TyData::Assoc { .. }, _)
+                if self.ref_slots(g) == 0 =>
+            {
+                let mut m: u32 = 0;
+                for _ in 0..self.ref_slots(i) {
+                    out.push(Origin::Hole(g, m));
+                    m = m.saturating_add(1);
+                }
+                true
+            }
+            (
+                TyData::Ref {
+                    inner: a,
+                    counted: ca,
+                    ..
+                },
+                TyData::Ref {
+                    inner: b,
+                    counted: cb,
+                    ..
+                },
+            ) if ca == cb => {
+                if !ca {
+                    out.push(Origin::Slot(*at));
+                    *at += 1;
+                }
+                self.slot_origins(a, b, at, out, d)
+            }
+            (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
+                pairs(a, b, at, out)
+                    && match (ra, rb) {
+                        (Some(x), Some(y)) => self.slot_origins(x, y, at, out, d),
+                        _ => ra.is_none() && rb.is_none(),
+                    }
+            }
+            // A function type inside has no slot of the outer one.
+            (TyData::Fn { .. }, TyData::Fn { .. }) => true,
+            (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
+            | (
+                TyData::TraitValue {
+                    def: x, args: a, ..
+                },
+                TyData::TraitValue {
+                    def: y, args: b, ..
+                },
+            ) if x == y => pairs(a, b, at, out),
+            _ => false,
+        }
+    }
+
     /// A dependency map's input and result lifetimes; `None` for `NONE`.
     #[must_use]
     pub fn deps_of(self, d: FnDeps) -> Option<(&'a [u32], &'a [u32])> {
@@ -1809,8 +1983,14 @@ impl<'a> Types<'a> {
                 inputs,
                 deps,
             } => {
+                let before = params;
                 let params = list(m, params);
+                let result_before = result;
                 let result = m.ty(result);
+                let deps = self.instance_deps(
+                    (self.list_items(before), result_before, deps),
+                    (self.list_items(params), result),
+                );
                 TyData::Fn {
                     params,
                     result,
@@ -2103,14 +2283,20 @@ impl<'a> Types<'a> {
                 suspends,
                 inputs,
                 deps,
-            } => TyData::Fn {
-                params: l(params),
-                result: self.subst(result, f),
-                row: self.subst_row(row, f),
-                suspends,
-                inputs,
-                deps,
-            },
+            } => {
+                let (ps, r) = (l(params), self.subst(result, f));
+                TyData::Fn {
+                    params: ps,
+                    result: r,
+                    row: self.subst_row(row, f),
+                    suspends,
+                    inputs,
+                    deps: self.instance_deps(
+                        (self.list_items(params), result, deps),
+                        (self.list_items(ps), r),
+                    ),
+                }
+            }
             TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
             TyData::Context(r) => TyData::Context(self.subst_row(r, f)),
             TyData::TraitValue {
@@ -2982,6 +3168,156 @@ mod tests {
         assert_eq!(types.fn_ty_deps(f(&[r, r], r)), types.deps_of(at_first));
         let none = types.fn_deps(&[1, 2, 3], &[0]);
         assert_eq!(types.fn_ty_deps(f(&[r, r, r], r)), types.deps_of(none));
+    }
+
+    /// `fn(T) -> T` and `fn(T, U) -> T` at references: a result slot a
+    /// type parameter fills depends on the input slots at the same
+    /// position of the same parameter, and on no other
+    /// (`fn.type.lifetime.result.param`), whether a substitution or an
+    /// inference variable fills it.
+    #[test]
+    fn an_instance_result_shares_the_lifetimes_of_its_parameters_inputs() {
+        let pool = InternPool::new();
+        let types = pool.types();
+        let r = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let param = |index| {
+            pool.intern_ty(&TyData::Param(ParamRef {
+                owner: DefId::from_raw(1),
+                index,
+            }))
+        };
+        let (t, u) = (param(0), param(1));
+        let f = |params: &[Ty], result: Ty| {
+            pool.intern_ty(&TyData::Fn {
+                params: pool.list(params),
+                result,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: FnDeps::NONE,
+            })
+        };
+        let at = |x: Ty, y: Ty| move |p: ParamRef| Some(if p.index == 0 { x } else { y });
+        let deps = |t| types.fn_ty_deps(t).map(|(i, o)| (i.to_vec(), o.to_vec()));
+        let ident = types.subst(f(&[t], t), &at(r, r));
+        assert_eq!(deps(ident), Some((vec![1], vec![1])));
+        let first = types.subst(f(&[t, u], t), &at(r, r));
+        assert_eq!(deps(first), Some((vec![1, 2], vec![1])));
+        // A pair: each result position shares its own input position.
+        let pair = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&[r, r]),
+            rest: None,
+        });
+        let both = types.subst(f(&[t], t), &at(pair, pair));
+        assert_eq!(deps(both), Some((vec![1, 2], vec![1, 2])));
+        // `U` only in the result has no source.
+        let other = types.subst(f(&[t], u), &at(r, r));
+        assert_eq!(deps(other), Some((vec![1], vec![0])));
+    }
+
+    /// [`Types::instance_deps`] over each shape a type parameter may sit
+    /// in: under a local and a counted reference, in a tuple with a rest,
+    /// in a generic instance, next to a part that changes but holds no
+    /// reference, and with an open map; and the shapes it leaves the map
+    /// of: a union, which substitution rebuilds in the pool's order, and a
+    /// type deeper than `TYPE_DEPTH`.
+    #[test]
+    fn an_instance_map_follows_each_shape_a_type_parameter_fills() {
+        let pool = InternPool::new();
+        let types = pool.types();
+        let rf = |inner, counted| {
+            pool.intern_ty(&TyData::Ref {
+                inner,
+                mutable: false,
+                counted,
+            })
+        };
+        let r = rf(Ty::I32, false);
+        let param = |index| {
+            pool.intern_ty(&TyData::Param(ParamRef {
+                owner: DefId::from_raw(1),
+                index,
+            }))
+        };
+        let (t, u) = (param(0), param(1));
+        let f = |params: &[Ty], result: Ty, deps: FnDeps| {
+            pool.intern_ty(&TyData::Fn {
+                params: pool.list(params),
+                result,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps,
+            })
+        };
+        let plain = |params: &[Ty], result: Ty| f(params, result, FnDeps::NONE);
+        let at = |x: Ty, y: Ty| move |p: ParamRef| Some(if p.index == 0 { x } else { y });
+        let deps = |t| types.fn_ty_deps(t).map(|(i, o)| (i.to_vec(), o.to_vec()));
+        let tuple = |elems: &[Ty], rest| {
+            pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(elems),
+                rest,
+            })
+        };
+        // `fn(&T) -> &T` at `&i32`: the outer reference is the type's own
+        // slot, whose map (none here) the instance keeps; the inner is
+        // `T`'s, shared. `fn(*T) -> T` passes the counted reference by.
+        let by_ref = types.subst(plain(&[rf(t, false)], rf(t, false)), &at(r, r));
+        assert_eq!(deps(by_ref), Some((vec![1, 2], vec![0, 2])));
+        let counted = types.subst(plain(&[rf(t, true)], t), &at(r, r));
+        assert_eq!(deps(counted), Some((vec![1], vec![1])));
+        // A tuple with a rest, and a generic instance.
+        let list = |a| {
+            pool.intern_ty(&TyData::Adt {
+                def: DefId::from_raw(5),
+                args: pool.list(&[a]),
+            })
+        };
+        let rest = types.subst(plain(&[tuple(&[t], Some(list(u)))], t), &at(r, r));
+        assert_eq!(deps(rest), Some((vec![1, 2], vec![1])));
+        let inst = types.subst(plain(&[list(t)], t), &at(r, r));
+        assert_eq!(deps(inst), Some((vec![1], vec![1])));
+        let trait_value = pool.intern_ty(&TyData::TraitValue {
+            def: DefId::from_raw(6),
+            args: pool.list(&[t]),
+            bindings: Vec::new(),
+        });
+        let by_dyn = types.subst(plain(&[trait_value], t), &at(r, r));
+        assert_eq!(deps(by_dyn), Some((vec![1], vec![1])));
+        // `U` at `i32` changes a part that holds no reference.
+        let beside = types.subst(plain(&[u, t], t), &at(r, Ty::I32));
+        assert_eq!(deps(beside), Some((vec![1], vec![1])));
+        // An open map, `fn(&'a i32, T) -> T`: the written input joins the
+        // one hole the result takes. With `U` in the result too, which no
+        // input fills, the map stays open.
+        let open = types.fn_deps_written(&[r, t], t, &[1, 0]);
+        let joined = types.subst(f(&[r, t], t, open), &at(r, r));
+        assert_eq!(deps(joined), Some((vec![1, 1], vec![1])));
+        let pair_out = tuple(&[t, u], None);
+        let open2 = types.fn_deps_written(&[r, t], pair_out, &[1, 0]);
+        let unjoined =
+            types.instance_deps((&[r, t], pair_out, open2), (&[r, r], tuple(&[r, r], None)));
+        assert_eq!(unjoined, open2);
+        // A union in the inputs, or in the result, keeps the map.
+        let union = pool.intern_ty(&TyData::Union(pool.list(&[t, rf(Ty::BOOL, false)])));
+        let in_union = types.subst(plain(&[union], t), &at(r, r));
+        assert_eq!(deps(in_union), None);
+        let out_union = types.subst(plain(&[t], union), &at(r, r));
+        assert_eq!(deps(out_union), None);
+        // Past `TYPE_DEPTH`, the walk stops and keeps the map.
+        let mut deep = (t, Ty::I32);
+        for _ in 0..=hd_base::limits::TYPE_DEPTH {
+            deep = (tuple(&[r, deep.0], None), tuple(&[r, deep.1], None));
+        }
+        let generic = plain(&[deep.0, u], u);
+        let too_deep = types.subst(generic, &|p: ParamRef| {
+            Some(if p.index == 0 { Ty::I32 } else { r })
+        });
+        assert_eq!(deps(too_deep), None);
     }
 
     #[test]

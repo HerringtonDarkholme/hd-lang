@@ -1,0 +1,16 @@
+# test: a type-parameter result cannot depend on an input another type parameter adds
+# Spec 07 Function Types: fn.type.lifetime.result.param.position; spec 13
+# ref.generic.call. In `fn(T, U) -> T` at `&Point`, the result's slot
+# shares only the lifetime of `T`'s input, so `right`, whose result
+# borrows from its second input, does not fit.
+struct Point:
+    x: i32
+
+fn first[T, U](f: fn(T, U) -> T, x: T, y: U) -> T:
+    f(x, y)
+
+fn right['a, 'b](a: &'a Point, b: &'b Point) -> &'b Point:
+    b
+
+fn bad['p, 'q](p: &'p Point, q: &'q Point) -> &'p Point:
+    first(right, p, q) # diagnostic: type-mismatch

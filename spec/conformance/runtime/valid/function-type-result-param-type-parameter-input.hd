@@ -1,0 +1,55 @@
+# test: a function value whose result depends on its input fits `fn(T) -> T` at a reference
+# Spec 07 Function Types: fn.type.lifetime.result.param; spec 13
+# ref.generic.call. A reference slot `T` adds to `f`'s result shares the
+# lifetime of the slot `T` adds to its input, so `ident` fits, whichever
+# argument fixes `T` first, and also through a function-typed input;
+# the call's result holds what `p` holds.
+# expect-stdout: 3
+# expect-stdout: 3
+# expect-stdout: 4
+# expect-stdout: 9
+struct Point:
+    x: i32
+
+fn app[T](f: fn(T) -> T, x: T) -> T:
+    f(x)
+
+fn app_after[T](x: T, f: fn(T) -> T) -> T:
+    f(x)
+
+fn first[T, U](f: fn(T, U) -> T, x: T, y: U) -> T:
+    f(x, y)
+
+fn twice[T](g: fn(fn(T) -> T, T) -> T, f: fn(T) -> T, x: T) -> T:
+    g(f, x)
+
+fn apply(f: fn(&Point) -> &Point, x: &Point) -> &Point:
+    f(x)
+
+fn ident(x: &Point) -> &Point:
+    x
+
+fn left['a, 'b](a: &'a Point, b: &'b Point) -> &'a Point:
+    a
+
+fn use_it(p: &Point) -> &Point:
+    app(ident, p)
+
+fn use_after(p: &Point) -> &Point:
+    app_after(p, ident)
+
+fn use_first['p, 'q](p: &'p Point, q: &'q Point) -> &'p Point:
+    first(left, p, q)
+
+fn use_nested(p: &Point) -> &Point:
+    twice(apply, ident, p)
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    q := Point { x: 5 }
+    println(use_it(&p).x)
+    println(use_after(&p).x)
+    r := Point { x: 4 }
+    println(use_first(&r, &q).x)
+    s := Point { x: 9 }
+    println(use_nested(&s).x)

@@ -1,0 +1,31 @@
+# test: a result element a type parameter fills depends on the same input element only
+# Spec 07 Function Types: fn.type.lifetime.result.param.position. With
+# `T = (&'a Point, &'b Point)`, `fn(T) -> T` is
+# `fn((&'a Point, &'b Point)) -> (&'a Point, &'b Point)`, so the result's
+# first element depends on the input's first element only, and it
+# outlives the local `q` passed second.
+# expect-stdout: 3
+# expect-stdout: 1
+struct Point:
+    x: i32
+
+fn keep[T](f: fn(T) -> T) -> fn(T) -> T:
+    f
+
+fn same['a, 'b](t: (&'a Point, &'b Point)) -> (&'a Point, &'b Point):
+    t
+
+fn first_past_second(p: &Point) -> &Point:
+    q := Point { x: 1 }
+    g := keep(same)
+    g((p, &q))._0
+
+fn second_in_body(p: &Point) -> i32:
+    q := Point { x: 1 }
+    g := keep(same)
+    g((p, &q))._1.x
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3 }
+    println(first_past_second(&p).x)
+    println(second_in_body(&p))

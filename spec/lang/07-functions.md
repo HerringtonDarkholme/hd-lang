@@ -644,7 +644,8 @@ fn demo(a: &User, b: &User) -> usize:
 11. r[fn.type.lifetime.value] A named function's or method's value has the dependencies of its signature, after elision, with an unbound method's receiver as its first input.
 12. r[fn.type.lifetime.call] A call through a function value depends on what its arguments in each result position's lifetime depend on, as [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call) states for a named call.
 13. r[fn.type.lifetime.call.written] A call through a function value passes the argument for an input position that writes a lifetime variable at that lifetime, which the argument must outlive, whatever the result holds. The written lifetime goes with the value through bindings, fields, captures and a call's result, and passing the value for a parameter whose type writes a lifetime there makes that lifetime the value's. With `f: fn(&'a Point) -> T`, `f(&q)` and `g := f; g(&q)` of a local `q` are errors. Error: `local-reference-escapes`.
-14. r[fn.type.lifetime.result.param] A type parameter in a function type's result may hold the lifetimes its input positions write. An instance whose result holds a reference may depend on each input position that writes a lifetime and on no other, and a call that passes a function value for that type depends on what its arguments at those lifetimes depend on. With `good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T`, `good(ident, p)` with `ident(x: &Point) -> &Point` is a `&Point` that depends on `p`.
+14. r[fn.type.lifetime.result.param] A type parameter in a function type's result may hold the lifetimes of its input positions. An instance whose result holds a reference may depend on each input position that writes a lifetime and on those that [`fn.type.lifetime.result.param.position`](#r-fn.type.lifetime.result.param.position) names, and on no other. A call passing a function value for that type depends on what its arguments at those lifetimes depend on. With `good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T`, `good(ident, p)` with `ident(x: &Point) -> &Point` is a `&Point` that depends on `p`.
+15. r[fn.type.lifetime.result.param.position] A result position that a type parameter fills depends on the input positions that the same parameter fills at the same position of its type argument, and on no other. With `T = (&'a A, &'b B)`, `fn(T) -> T` is `fn((&'a A, &'b B)) -> (&'a A, &'b B)`: its result's first element depends on its input's first element, and its second on its second. With `app[T](f: fn(T) -> T, x: T) -> T`, `app(ident, p)` is a `&Point` that depends on `p`, and with `fn(T, U) -> T` at `&Point` for both, a function returning its second input is an error. Error: `type-mismatch`.
 
 ```text
 struct User:
@@ -678,6 +679,10 @@ fn make(f: fn() -> &User) -> void:  # error: reference-result-without-source
 > function type that needs its own variables, as a struct field's type
 > may, comes with stored references. A value that borrows from fewer inputs
 > satisfies every lifetime promise of one that may borrow from more.
+>
+> A type parameter is replaced position for position, as Rust substitutes
+> it, so filling `T` with a tuple of references gives each element its own
+> lifetime instead of one lifetime for all of `T`.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
 [Closure Annotations](#closure-annotations).

@@ -1,0 +1,16 @@
+# test: a call's type-parameter result holds what its argument for that parameter holds
+# Spec 13 ref.generic.call; spec 07 fn.type.lifetime.result.param.
+# `ident` fits `fn(T) -> T` at `&Point`, and `app(ident, &q)` returns what
+# `&q` holds, so returning it lets the local `q` escape.
+struct Point:
+    x: i32
+
+fn app[T](f: fn(T) -> T, x: T) -> T:
+    f(x)
+
+fn ident(x: &Point) -> &Point:
+    x
+
+fn leak(p: &Point) -> &Point:
+    q := Point { x: 1 }
+    app(ident, &q) # diagnostic: local-reference-escapes
