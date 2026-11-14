@@ -46,8 +46,9 @@ checking.
   V8. No native backend is planned (#188 closed).
 - The compiler process has no memory cap. The shared cache defaults to
   10 GB with LRU eviction.
-- Release builds omit the standard `name` section and keep the compact
-  `hd.names` for backtraces.
+- Release builds omit the standard `name` section. A module `hd build`
+  writes carries `hd.positions` for backtraces and drops `hd.names`;
+  a module run in process keeps the compact `hd.names`.
 - Resources use `using` with `Disposable`, `using!` with
   `AsyncDisposable`, and `@auto_closing` calls whose `AutoClosing`
   result is registered for cleanup (`flow.using.*`,
