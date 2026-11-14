@@ -61,10 +61,58 @@ options already known, and what "decided" looks like.
 
 - Title: the defect or goal in plain words, under ~70 characters:
   "`pub` on a local function is accepted", not "G2 from coverage audit".
-- Labels: one priority (P1 to P4) and one area (checker, cli, runtime, std,
-  wasmtime, perf, design, documentation); add `chat` only when the item is
-  fully specified (rule, today, done check) and needs no owner decision;
-  `owner-decision` when it waits on the owner. Never invent labels.
+- Labels: follow the labelling guide below. Never invent labels.
+
+## Labelling Guide
+
+An open issue carries exactly these labels and no others.
+
+**One priority, P0 to P4: its place in the work queue.** The next item
+taken is the highest priority, oldest first, among issues that are not
+blocked, parked or waiting on the owner. Priority is order, not kind: a
+perf ticket can be P1 and a crash can wait at P3.
+
+| Label | Meaning |
+|---|---|
+| P0 | The owner named it, or main is red. Taken before anything else. |
+| P1 | Running in a lane or chat now, or the next item for a free worker. |
+| P2 | The current goal's work, taken once P1 is empty. |
+| P3 | A later goal's work, taken once P2 is empty. |
+| P4 | Not scheduled. Taken only when a cheap fix appears. |
+
+The current goals, in order, come from the owner: checker first, zero
+unsupported, then core coverage; correct programs before diagnostics;
+scale on realistic shapes. When the owner reorders them, relabel.
+
+- Moving work into a lane or chat's next slot makes it P1. Finishing
+  P1 work pulls the next P2 up.
+- An umbrella or a parked issue has no priority.
+- A blocked issue keeps the priority it will have once unblocked. Each
+  blocker carries at least that priority.
+
+**One area: where the fix lands.**
+
+| Label | Where |
+|---|---|
+| compiler | `crates/`, including the hosts |
+| stdlib | `lib/std`, `spec/std` |
+| language | `spec/lang`, conformance fixtures |
+| cli | the `hd` command, `bench/`, CI and tooling |
+
+**At most one state, only when the issue is not ready.**
+
+| Label | Meaning |
+|---|---|
+| blocked | Linked to an open blocker as a GitHub dependency |
+| owner-decision | Waits on the owner; the body states the question |
+| parked | Parked by the owner; the body names what reopens it |
+| umbrella | Indexes other issues; has no work of its own |
+
+**`chat`** marks an issue in chat's queue (#1065). Without it, the issue
+belongs to the lanes.
+
+There are no kind labels such as bug, perf, design or docs: the title
+says what the issue is.
 
 ## Example
 

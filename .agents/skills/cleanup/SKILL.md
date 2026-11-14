@@ -100,6 +100,9 @@ Drop rows whose issue is closed. Each remaining row cites an open issue.
 ## 8. Issue sweep
 
 For every open issue, one of these is true. Fix those that aren't.
+Check its labels against the labelling guide in
+`.agents/skills/write-issue/SKILL.md`, and that P1 is exactly the work
+running or next.
 - **Running or queued:** it is in a lane or in chat's queue (#1065).
 - **Blocked:** labelled `blocked`, with each blocker linked as a GitHub
   dependency, so the blocker shows "blocking" too:
