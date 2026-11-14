@@ -903,7 +903,8 @@ struct Slot {
 /// outside another function type, each suspension after its
 /// result's slots, as a struct's lifetime, and one whole slot for a
 /// referent with no slot of its own that holds origins
-/// ([`Slot::whole`]). [`Layouts`] makes each once.
+/// ([`Slot::whole`]). [`Layouts`] makes each once, and walks a part that
+/// has no slots once per check ([`Layouts::slotless`]).
 struct Layout {
     slots: Vec<Slot>,
     /// The top slots.
@@ -914,9 +915,10 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(pool: Types<'_>, suspend: DefId, lifetimed: Lifetimed<'_>, t: Ty) -> Layout {
+    fn new(ls: &Layouts<'_>, t: Ty) -> Layout {
+        let (pool, lifetimed) = (ls.pool, ls.lifetimed);
         let mut slots = Vec::new();
-        Self::walk(pool, suspend, lifetimed, t, true, 0, &mut slots);
+        Self::walk(ls, t, true, 0, &mut slots);
         for k in 0..slots.len() {
             let fun = slots[k].fun && !slots[k].hold;
             slots[k].written = fun
@@ -936,23 +938,20 @@ impl Layout {
     }
 
     /// Pushes the slots of `t` onto `out`. Any type may hold a suspension,
-    /// so only depth stops the walk.
-    fn walk(
-        pool: Types<'_>,
-        suspend: DefId,
-        lifetimed: Lifetimed<'_>,
-        t: Ty,
-        top: bool,
-        depth: u32,
-        out: &mut Vec<Slot>,
-    ) {
-        if depth > hd_base::limits::TYPE_DEPTH {
+    /// so only depth stops the walk, and a part found to have no slots,
+    /// which the pool shares between its uses, is not entered again
+    /// ([`Layouts::slotless`]): a type of n doubled levels,
+    /// `((s, s), (s, s))`, costs n steps, not 2^n. A part with slots is
+    /// entered once per use, so a layout's work is its slots' paths.
+    fn walk(ls: &Layouts<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
+        let (pool, suspend, lifetimed) = (ls.pool, ls.suspend, ls.lifetimed);
+        if depth > hd_base::limits::TYPE_DEPTH || ls.slotless.borrow().contains(&t) {
             return;
         }
+        crate::work::layout_step();
+        let start = out.len();
         let d = depth + 1;
-        let walk = |t: Ty, top: bool, out: &mut Vec<Slot>| {
-            Self::walk(pool, suspend, lifetimed, t, top, d, out);
-        };
+        let walk = |t: Ty, top: bool, out: &mut Vec<Slot>| Self::walk(ls, t, top, d, out);
         let hold = matches!(pool.get(t), TyData::Adt { def, .. } if def == suspend);
         let slot = Slot {
             ty: t,
@@ -1017,6 +1016,11 @@ impl Layout {
             }
             _ => {}
         }
+        // Only a walk the depth limit cut nowhere is the type's whole
+        // answer.
+        if out.len() == start && depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH {
+            ls.slotless.borrow_mut().insert(t);
+        }
     }
 
     /// Each top slot's run: itself and the slots behind it, `[start, end)`.
@@ -1049,6 +1053,8 @@ struct Layouts<'a> {
     suspend: DefId,
     lifetimed: Lifetimed<'a>,
     types: RefCell<HashMap<Ty, Rc<Layout>>>,
+    /// The types whose walk pushed no slot ([`Layout::walk`]).
+    slotless: RefCell<HashSet<Ty>>,
     fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
 }
 
@@ -1059,6 +1065,7 @@ impl<'a> Layouts<'a> {
             suspend,
             lifetimed,
             types: RefCell::default(),
+            slotless: RefCell::default(),
             fields: RefCell::default(),
         }
     }
@@ -1067,7 +1074,7 @@ impl<'a> Layouts<'a> {
         if let Some(l) = self.types.borrow().get(&t) {
             return Rc::clone(l);
         }
-        let l = Rc::new(Layout::new(self.pool, self.suspend, self.lifetimed, t));
+        let l = Rc::new(Layout::new(self, t));
         self.types.borrow_mut().insert(t, Rc::clone(&l));
         l
     }

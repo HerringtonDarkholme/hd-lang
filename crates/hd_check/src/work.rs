@@ -187,6 +187,30 @@ pub(crate) fn header_type() {
 }
 
 thread_local! {
+    static LAYOUT_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the types the dependent-result checks' slot layout walk enters
+/// on this thread (`crate::dep_results::Layout::walk`), one per entry,
+/// not per part it skips. Use the driver's serial executor to measure a
+/// whole build.
+pub fn count_layout_steps<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = LAYOUT_STEPS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = LAYOUT_STEPS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One type the slot layout walk enters.
+pub(crate) fn layout_step() {
+    LAYOUT_STEPS.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}
+
+thread_local! {
     static HELD_TYPES: Cell<Option<u64>> = const { Cell::new(None) };
 }
 

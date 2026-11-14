@@ -1429,14 +1429,41 @@ const SHORT_MESSAGE: usize = 2 * hd_resolve::iface::SHOWN_TYPE_BYTES + 80;
 
 #[test]
 fn a_mismatch_on_a_doubled_tuple_prints_a_short_type() {
-    // 22 levels expand to 4 million strings, 29 MB uncut. Past that the
-    // checker's layout walk, which expands the type too, is the cost.
+    // 22 levels expand to 4 million strings, 29 MB uncut.
     for levels in [18, 22] {
         let message = only_message(&doubled_tuple(levels), "type-mismatch");
         assert!(
             message.len() <= SHORT_MESSAGE && message.contains("found ((((((((..., ...)"),
             "{levels} levels: {} bytes: {message}",
             message.len()
+        );
+    }
+}
+
+// Checker: #1870, the dependent-result checks' slot layout walk
+// (`hd_check::dep_results::Layout::walk`) enters a part with no slots once
+// per check, however often the pool shares it. It pushed one step per
+// leaf of the expanded type: 60 levels did not finish in 2 minutes.
+#[test]
+fn a_doubled_tuple_of_strings_lays_out_in_linear_steps() {
+    let steps = |levels: usize| {
+        let (out, steps) =
+            hd_check::work::count_layout_steps(|| compile(&doubled_tuple(levels), &Goal::Analyze));
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(
+            codes,
+            ["type-mismatch"],
+            "{levels} levels: {}",
+            out.render()
+        );
+        steps
+    };
+    // One step per level, and a few for the bindings' other types.
+    for levels in [20, 60, 200] {
+        let n = usize::try_from(steps(levels)).expect("steps");
+        assert!(
+            levels <= n && n <= levels + 10,
+            "{levels} levels: {n} steps"
         );
     }
 }
