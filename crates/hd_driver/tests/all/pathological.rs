@@ -1680,3 +1680,44 @@ fn import_hints_name_a_module_and_several_homes_from_the_index() {
         "{shown}"
     );
 }
+
+/// `n` traits, each with a written implementation and a delegating one
+/// that writes its associated function, and a newtype that derives `Eq`
+/// for every 100th: a derivation still finds its template by a scan of
+/// the module's items, which only a few keep fast.
+fn trait_impls(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "trait T{i}:\n    fn m{i}(self) -> i32\n    fn k{i}() -> i32\n\nstruct S{i}:\n    x: i32\n\nimpl T{i} for S{i}:\n    fn m{i}(self) -> i32:\n        self.x\n    fn k{i}() -> i32:\n        1\n\nstruct D{i}:\n    S{i}\n\nimpl T{i} for D{i} by S{i}:\n    fn k{i}() -> i32:\n        2\n\n"
+        );
+        if i % 100 == 0 {
+            let _ = write!(s, "@derive(Eq)\ntype M{i}(i32)\n\n");
+        }
+    }
+    s
+}
+
+// Resolver: #1888, an implementation finds its trait, its part and its
+// trait's methods through the folder's index of items, one probe each,
+// and checks its methods against the trait's names hashed once: a scan
+// of every item of the folder per implementation cost n² / 2.
+#[test]
+fn trait_impls_find_their_traits_by_one_probe_each() {
+    on_test_stack(|| {
+        let mut base = 0;
+        for n in [2_000, 20_000] {
+            let (out, probes) =
+                hd_resolve::work::count_item_probes(|| compile(&trait_impls(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            if n == 2_000 {
+                base = probes;
+            }
+            assert!(
+                base > 0 && probes <= 10 * base * 5 / 4,
+                "implementation work for 2,000 and {n} traits: {base}, {probes}"
+            );
+        }
+    });
+}

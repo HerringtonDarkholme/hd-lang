@@ -1,0 +1,19 @@
+# test: a method the trait does not declare is reported in a second implementation of the trait, after a first that writes only the trait's methods
+# Spec 09 Implementation Declarations: trait.impl.extra-methods.
+
+trait Named:
+    fn name(self) -> string
+
+struct Admin: pass
+
+struct Guest: pass
+
+impl Named for Admin:
+    fn name(self) -> string:
+        "admin"
+
+impl Named for Guest:
+    fn name(self) -> string:
+        "guest"
+    fn wave(self) -> string: # diagnostic: extra-trait-member
+        "hi"

@@ -1,0 +1,10 @@
+# test: a method the trait does not declare is reported in an implementation of a std trait
+# Spec 09 Implementation Declarations: trait.impl.extra-methods.
+
+struct Guest: pass
+
+impl Eq for Guest:
+    fn eq(&self, other: &Self) -> bool:
+        true
+    fn ne(&self, other: &Self) -> bool: # diagnostic: extra-trait-member
+        false

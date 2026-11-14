@@ -1,0 +1,18 @@
+# test: a method the trait does not declare is reported in a delegating implementation
+# Spec 09 Implementation Declarations: trait.impl.extra-methods.
+
+trait Named:
+    fn name(self) -> string
+
+struct Admin: pass
+
+impl Named for Admin:
+    fn name(self) -> string:
+        "admin"
+
+struct Team:
+    Admin
+
+impl Named for Team by Admin:
+    fn cheer(self) -> string: # diagnostic: extra-trait-member
+        "go"

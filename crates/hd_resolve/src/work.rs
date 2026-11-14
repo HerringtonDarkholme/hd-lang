@@ -7,6 +7,7 @@ use std::cell::Cell;
 thread_local! {
     static SCOPE_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
     static OUTER_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
+    static ITEM_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Count the probes header lowering makes into a generic scope on this
@@ -126,4 +127,29 @@ pub(crate) fn hint_work(n: u64) {
             c.set(Some(w + n));
         }
     });
+}
+
+/// Count the work of matching the folder's implementations with their
+/// traits on this thread: one per item looked up by `DefId`, and one per
+/// implementation method checked against its trait's names. Use the
+/// driver's serial executor to measure a whole build.
+pub fn count_item_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = ITEM_PROBES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = ITEM_PROBES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` steps of matching implementations with their traits.
+pub(crate) fn item_probes(n: usize) {
+    ITEM_PROBES.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}
+
+/// One item looked up by `DefId`.
+pub(crate) fn item_probe() {
+    item_probes(1);
 }

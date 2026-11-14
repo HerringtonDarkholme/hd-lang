@@ -8889,8 +8889,9 @@ pub fn build_folder(
             blocks,
         });
     }
-    drop_extra_methods(&r, &mut out.modules);
-    delegations(&r, &mut out.modules);
+    let index = FolderItems::new(&out.modules);
+    drop_extra_methods(&r, &mut out.modules, &index);
+    delegations(&r, &mut out.modules, &index);
     caller_chains(
         out.modules
             .iter_mut()
@@ -9095,13 +9096,49 @@ fn own_trait_generics(
     out
 }
 
+/// The folder's lowered items by `DefId`, as (module, item): the first of
+/// each `DefId`, as a scan would find it. Built once, after every module
+/// is lowered, so each implementation finds its trait, part and trait
+/// methods by one probe (#1888). The passes that read it only add items
+/// after their scan, so the positions hold while it is read.
+struct FolderItems(HashMap<DefId, (usize, usize)>);
+
+impl FolderItems {
+    fn new(modules: &[ModOut]) -> Self {
+        let mut at = HashMap::default();
+        for (mi, m) in modules.iter().enumerate() {
+            for (ii, it) in m.items.iter().enumerate() {
+                at.entry(it.def).or_insert((mi, ii));
+            }
+        }
+        FolderItems(at)
+    }
+
+    /// The item `d`: the folder's, or else another folder's or a seed.
+    fn get<'a>(
+        &self,
+        r: &Resolver<'_, '_>,
+        modules: &'a [ModOut],
+        d: DefId,
+    ) -> Option<std::borrow::Cow<'a, Item>> {
+        crate::work::item_probe();
+        match self.0.get(&d) {
+            Some(&(mi, ii)) => Some(std::borrow::Cow::Borrowed(&modules[mi].items[ii])),
+            None => r.item(d).map(std::borrow::Cow::Owned),
+        }
+    }
+}
+
 /// Leaves out of a written or delegating implementation each method its
 /// trait does not declare (spec 09 `trait.impl.extra-methods`): such a
 /// method is no part of the trait implementation, so a later call to it is
 /// the ordinary unknown method. The checker reports it once, where its body
 /// is checked.
-fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
-    let mut drops: Vec<(usize, usize, Vec<DefId>)> = Vec::new();
+fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems) {
+    // Each trait's method names, hashed once however many implementations
+    // it has; `None` for a trait reference that names no trait.
+    let mut declared: HashMap<DefId, Option<HashSet<Symbol>>> = HashMap::default();
+    let mut drops: Vec<(usize, usize, DefId)> = Vec::new();
     for (mi, m) in modules.iter().enumerate() {
         for (ii, it) in m.items.iter().enumerate() {
             let ItemData::Impl {
@@ -9116,28 +9153,26 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
             if *trait_ == DefId::NONE {
                 continue;
             }
-            let found = modules
-                .iter()
-                .flat_map(|m| m.items.iter())
-                .find(|i| i.def == *trait_)
-                .map(|i| i.data.clone())
-                .or_else(|| r.item(*trait_).map(|i| i.data));
-            let Some(ItemData::Trait(td)) = found else {
+            let names = declared.entry(*trait_).or_insert_with(|| {
+                match index.get(r, modules, *trait_).as_deref().map(|i| &i.data) {
+                    Some(ItemData::Trait(td)) => Some(td.methods.iter().map(|&(n, _)| n).collect()),
+                    _ => None,
+                }
+            });
+            let Some(names) = names else {
                 continue;
             };
-            let extra: Vec<DefId> = methods
-                .iter()
-                .filter(|(n, _)| !td.methods.iter().any(|(t, _)| t == n))
-                .map(|(_, d)| *d)
-                .collect();
-            if !extra.is_empty() {
-                drops.push((mi, ii, extra));
+            crate::work::item_probes(methods.len());
+            if methods.iter().any(|(n, _)| !names.contains(n)) {
+                drops.push((mi, ii, *trait_));
             }
         }
     }
-    for (mi, ii, extra) in drops {
-        if let ItemData::Impl { methods, .. } = &mut modules[mi].items[ii].data {
-            methods.retain(|(_, d)| !extra.contains(d));
+    for (mi, ii, trait_) in drops {
+        if let Some(Some(names)) = declared.get(&trait_)
+            && let ItemData::Impl { methods, .. } = &mut modules[mi].items[ii].data
+        {
+            methods.retain(|(n, _)| names.contains(n));
         }
     }
 }
@@ -9162,17 +9197,10 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
 ///
 /// An implementation whose part is not an embedded field of a struct
 /// takes nothing: the checker reports it (`invalid-delegation`).
-fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
+fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems) {
     let names = &r.cx.names;
     let pool = names.pool;
-    let item = |d: DefId| -> Option<Item> {
-        modules
-            .iter()
-            .flat_map(|m| m.items.iter())
-            .find(|i| i.def == d)
-            .cloned()
-            .or_else(|| r.item(d))
-    };
+    let item = |d: DefId| index.get(r, modules, d);
     let mut found: Vec<Taken> = Vec::new();
     for (mi, m) in modules.iter().enumerate() {
         for (ii, it) in m.items.iter().enumerate() {
@@ -9208,23 +9236,30 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
             // A delegating implementation takes the methods with a receiver
             // from an embedded field. A derived newtype takes every method
             // from its base type (trait.derive.newtype.base).
-            let (part, receivers_only) = match (kind, by, item(c).map(|i| i.data)) {
+            let target = item(c);
+            let (part, receivers_only) = match (kind, by, target.as_deref().map(|i| &i.data)) {
                 (ImplKind::Delegated, Some(by), Some(ItemData::Struct(fields, _))) => {
                     let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
                         continue;
                     };
                     (at_args(field.ty), true)
                 }
-                (ImplKind::Derived, _, Some(ItemData::Newtype(inner))) => (at_args(inner), false),
+                (ImplKind::Derived, _, Some(ItemData::Newtype(inner))) => (at_args(*inner), false),
                 _ => continue,
             };
-            let Some(ItemData::Trait(td)) = item(trait_).map(|i| i.data) else {
+            let trait_item = item(trait_);
+            let Some(ItemData::Trait(td)) = trait_item.as_deref().map(|i| &i.data) else {
                 continue;
             };
+            // What the implementation writes, hashed once: each trait
+            // member then asks one probe, not a scan of the written ones.
+            crate::work::item_probes(assoc.len() + methods.len());
+            let bound: HashSet<DefId> = assoc.iter().map(|&(x, _)| x).collect();
+            let written: HashSet<Symbol> = methods.iter().map(|&(w, _)| w).collect();
             let binds: Vec<(DefId, Ty)> = td
                 .assoc
                 .iter()
-                .filter(|(_, a)| !assoc.iter().any(|(x, _)| x == a))
+                .filter(|(_, a)| !bound.contains(a))
                 .map(|&(_, a)| {
                     (
                         a,
@@ -9240,7 +9275,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
             let targs = pool.list_items(trait_args);
             let mut fwd = Vec::new();
             for &(name, tm) in &td.methods {
-                if methods.iter().any(|(w, _)| *w == name) {
+                if written.contains(&name) {
                     continue;
                 }
                 let Some(sig) = item(tm).and_then(|i| i.sig().cloned()) else {

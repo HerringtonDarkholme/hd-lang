@@ -4303,6 +4303,9 @@ typing/invalid/uninhabited-binding.hd	type	reject:uninhabited-binding	lang/04-ty
 typing/invalid/a-tuple-spread-of-a-diverging-value-is-never.hd	type	reject:uninhabited-binding	lang/04-type-system.md#r-types.bind.never
 typing/invalid/extra-trait-member.hd	type	reject:extra-trait-member	lang/09-traits.md#r-trait.impl.extra-methods
 typing/invalid/extra-associated-type.hd	type	reject:extra-trait-member	lang/09-traits.md#r-trait.impl.extra-methods
+typing/invalid/extra-trait-member-in-a-second-implementation.hd	type	reject:extra-trait-member	lang/09-traits.md#r-trait.impl.extra-methods
+typing/invalid/extra-trait-member-in-a-delegating-implementation.hd	type	reject:extra-trait-member	lang/09-traits.md#r-trait.impl.extra-methods
+typing/invalid/extra-trait-member-in-an-implementation-of-a-std-trait.hd	type	reject:extra-trait-member	lang/09-traits.md#r-trait.impl.extra-methods
 typing/invalid/missing-associated-type-binding.hd	type	reject:missing-trait-method	lang/09-traits.md#r-trait.impl.required
 typing/invalid/duplicate-impl-member.hd	type	reject:duplicate-trait-member	lang/09-traits.md#r-trait.decl.unique
 typing/invalid/duplicate-method-generic-sibling.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare

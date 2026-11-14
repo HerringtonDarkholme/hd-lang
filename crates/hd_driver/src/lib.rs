@@ -8462,16 +8462,22 @@ impl Run<'_> {
             .filter(|i| i.fn_attrs().is_some_and(|a| a.track_caller))
             .map(|i| i.def)
             .collect();
+        // Each method's frame names its impl's type: the impls by item,
+        // indexed in the same pass, so a method finds its impl by one
+        // probe, not a scan of the module's items (#1888).
+        let mut impls: HashMap<DefId, (&[hd_resolve::Generic], hd_types::Ty)> = HashMap::default();
+        for i in &all_items {
+            if let ItemData::Impl { self_ty, .. } = &i.data {
+                impls.entry(i.def).or_insert((&i.generics, *self_ty));
+            }
+        }
         positions::write_frame_names(
             &mut fw,
             &self.paths,
             &body_items,
             &|d| {
-                let item = all_items.iter().find(|i| i.def == d)?;
-                let ItemData::Impl { self_ty, .. } = &item.data else {
-                    return None;
-                };
-                Some(positions::self_type_name(&names, &item.generics, *self_ty))
+                let &(generics, self_ty) = impls.get(&d)?;
+                Some(positions::self_type_name(&names, generics, self_ty))
             },
             &|d| tracked.contains(&d),
         );
