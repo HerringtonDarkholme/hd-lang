@@ -151,6 +151,18 @@ pub struct Results {
     /// The unresolved rows. Solving visits this set, without sweeping
     /// unrelated callables that have already finished.
     waiting: hd_base::HashSet<DefId>,
+    /// The waiting rows with an edge to each callable, appended as a row
+    /// starts waiting; an entry whose row stopped waiting is skipped.
+    waiters: HashMap<DefId, Vec<DefId>>,
+    /// The callables whose check finished since the last settle. Every
+    /// waiting row was blocked after that settle, so only a row that
+    /// reaches one of them can be ready now ([`Results::solve_ready`]).
+    settled_since: Vec<DefId>,
+    /// The callees of each waiting row's edges, in edge order.
+    wait_callees: HashMap<DefId, Vec<DefId>>,
+    /// Per waiting row, the edge that last reached a callable not done:
+    /// the next search for one starts there.
+    undone_hint: HashMap<DefId, usize>,
     /// In a forked context: how many of `template_named` it was forked
     /// with ([`crate::fork`]).
     named_base: usize,
@@ -219,6 +231,10 @@ impl Results {
             errors: self.has_errors(),
             body_errors: hd_base::HashSet::default(),
             waiting: self.waiting.clone(),
+            waiters: self.waiters.clone(),
+            settled_since: Vec::new(),
+            wait_callees: self.wait_callees.clone(),
+            undone_hint: HashMap::default(),
             named_base: self.template_named.len(),
             plan: self.plan.clone(),
         }
@@ -401,42 +417,160 @@ impl Results {
     /// the least rows that satisfy each member of the group
     /// (`req.row.omitted.cycle`), by a monotone pass over the edges in
     /// source order until nothing grows.
+    ///
+    /// Every row still waiting after a settle is blocked, so a row can be
+    /// ready now only if it reaches a callable checked since then. The
+    /// search starts at those callables' rows and the rows calling them,
+    /// then at the rows calling each group it solves. Cost: the rows and
+    /// edges it visits, each once per settle; a row with an edge to a
+    /// callable not done stops it, found from that row's last such edge.
+    /// So a settle costs what changed, not every waiting row (#1839).
     fn solve_ready(&mut self, cx: &BodyCx<'_>) {
+        let settled = std::mem::take(&mut self.settled_since);
         if self.waiting.is_empty() {
             return;
         }
-        let mut waiting: Vec<DefId> = self.waiting.iter().copied().collect();
-        waiting.sort_stable_by_key(|def| self.omits[def].position);
-        // A waiting row is blocked when an edge reaches a callable not
-        // checked yet, directly or through another blocked row.
-        let mut blocked: Vec<DefId> = Vec::new();
+        let mut seeds: Vec<DefId> = Vec::new();
+        for c in settled {
+            seeds.push(c);
+            if let Some(ws) = self.waiters.get(&c) {
+                seeds.extend(ws.iter().copied());
+            }
+        }
+        let mut search = ReadySearch::default();
         loop {
-            let before = blocked.len();
-            for d in &waiting {
-                if blocked.contains(d) {
-                    continue;
-                }
-                let Some(RowState::Waiting { edges, .. }) = self.rows.get(d) else {
+            let ready = self.find_ready(&seeds, &mut search);
+            if ready.is_empty() {
+                return;
+            }
+            seeds = ready
+                .iter()
+                .filter_map(|d| self.waiters.get(d))
+                .flatten()
+                .copied()
+                .collect();
+            self.solve_group(cx, ready);
+        }
+    }
+
+    /// Whether waiting row `d` has an edge to a callable not done: the
+    /// scan starts at the edge that last had one and wraps around.
+    fn reaches_undone(&mut self, d: DefId) -> bool {
+        let callees = &self.wait_callees[&d];
+        let from = self.undone_hint.get(&d).copied().unwrap_or(0);
+        let n = callees.len();
+        for k in 0..n {
+            crate::work::solve_work(1);
+            let i = (from + k) % n;
+            if !matches!(self.state.get(&callees[i]), Some(State::Done { .. })) {
+                self.undone_hint.insert(d, i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The waiting rows reachable from `seeds` through waiting rows'
+    /// edges that reach no callable not done, by Tarjan's strongly
+    /// connected components: a component is blocked when a member has an
+    /// edge to a callable not done or to a blocked component. `search`
+    /// keeps each row's verdict for the rest of the settle.
+    fn find_ready(&mut self, seeds: &[DefId], search: &mut ReadySearch) -> Vec<DefId> {
+        let mut ready = Vec::new();
+        for &seed in seeds {
+            if !self.waiting.contains(&seed) || search.ids.contains_key(&seed) {
+                continue;
+            }
+            self.visit(seed, search);
+            while let Some(frame) = search.frames.last_mut() {
+                let v = frame.v;
+                let Some(&w) = frame.callees.get(frame.next) else {
+                    search.frames.pop();
+                    let node = search.nodes[v];
+                    if node.low == v {
+                        Self::pop_component(node.pos, search, &mut ready);
+                    }
+                    // A finished component passes on its verdict; a member
+                    // of the parent's component, its low link.
+                    let node = search.nodes[v];
+                    if let Some(parent) = search.frames.last() {
+                        let pn = &mut search.nodes[parent.v];
+                        if node.on_stack {
+                            pn.low = pn.low.min(node.low);
+                        } else {
+                            pn.blocked |= node.blocked;
+                        }
+                    }
                     continue;
                 };
-                if edges.iter().any(|e| {
-                    !matches!(self.state.get(&e.callee), Some(State::Done { .. }))
-                        || blocked.contains(&e.callee)
-                }) {
-                    blocked.push(*d);
+                frame.next += 1;
+                crate::work::solve_work(1);
+                if !self.waiting.contains(&w) {
+                    continue;
+                }
+                match search.ids.get(&w).copied() {
+                    None => self.visit(w, search),
+                    Some(wi) => {
+                        let wn = search.nodes[wi];
+                        let vn = &mut search.nodes[v];
+                        if wn.on_stack {
+                            vn.low = vn.low.min(wi);
+                        } else {
+                            vn.blocked |= wn.blocked;
+                        }
+                    }
                 }
             }
-            if blocked.len() == before {
-                break;
-            }
         }
-        let group: Vec<DefId> = waiting
-            .into_iter()
-            .filter(|d| !blocked.contains(d))
-            .collect();
-        if group.is_empty() {
-            return;
+        ready
+    }
+
+    /// Enters row `v`: a row with an edge to a callable not done is
+    /// blocked and needs no walk of its edges.
+    fn visit(&mut self, v: DefId, search: &mut ReadySearch) {
+        crate::work::solve_work(1);
+        let index = search.nodes.len();
+        let blocked = self.reaches_undone(v);
+        search.ids.insert(v, index);
+        search.rows.push(v);
+        search.nodes.push(SearchNode {
+            low: index,
+            on_stack: true,
+            blocked,
+            pos: search.stack.len(),
+        });
+        search.stack.push(index);
+        // A blocked row's edges need no walk: its component is blocked.
+        let callees = if blocked {
+            Vec::new()
+        } else {
+            self.wait_callees[&v].clone()
+        };
+        search.frames.push(SearchFrame {
+            v: index,
+            callees,
+            next: 0,
+        });
+    }
+
+    /// Pops the component whose root is at `pos` on the stack: blocked
+    /// as a whole when any member is, else ready.
+    fn pop_component(pos: usize, search: &mut ReadySearch, ready: &mut Vec<DefId>) {
+        let members = search.stack.split_off(pos);
+        let blocked = members.iter().any(|&m| search.nodes[m].blocked);
+        for &m in &members {
+            search.nodes[m].on_stack = false;
+            search.nodes[m].blocked = blocked;
         }
+        if !blocked {
+            ready.extend(members.iter().map(|&m| search.rows[m]));
+        }
+    }
+
+    /// Solves the rows of `group`, which reach only callables done and
+    /// rows solved or in `group`.
+    fn solve_group(&mut self, cx: &BodyCx<'_>, mut group: Vec<DefId>) {
+        group.sort_stable_by_key(|def| self.omits[def].position);
         let pool = cx.names.pool.types();
         let mut cur: HashMap<DefId, RowData> = HashMap::default();
         let mut edges: Vec<(DefId, RowEdge)> = Vec::new();
@@ -487,6 +621,8 @@ impl Results {
             let row = cx.names.pool.row(&cur.remove(&d).unwrap_or_default());
             self.rows.insert(d, RowState::Solved(row));
             self.waiting.remove(&d);
+            self.wait_callees.remove(&d);
+            self.undone_hint.remove(&d);
             if row != RowId::EMPTY {
                 self.changed(d);
             }
@@ -546,6 +682,35 @@ impl Results {
             }
         }
     }
+}
+
+/// One settle's search for ready rows ([`Results::find_ready`]): each
+/// row entered gets the next index into `rows` and `nodes`.
+#[derive(Default)]
+struct ReadySearch {
+    ids: HashMap<DefId, usize>,
+    rows: Vec<DefId>,
+    nodes: Vec<SearchNode>,
+    stack: Vec<usize>,
+    frames: Vec<SearchFrame>,
+}
+
+#[derive(Clone, Copy)]
+struct SearchNode {
+    low: usize,
+    on_stack: bool,
+    /// An edge to a callable not done or to a blocked component; once
+    /// the row's component is popped, whether the component is blocked.
+    blocked: bool,
+    /// Where the row went on the stack.
+    pos: usize,
+}
+
+/// A row being walked: its index, its callees and the next one to take.
+struct SearchFrame {
+    v: usize,
+    callees: Vec<DefId>,
+    next: usize,
 }
 
 /// A row parameter's name as its owner declares it.
@@ -1147,6 +1312,7 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx, omits: Omits) -> Vec<DefId>
     }
     let old_ret = r.returns.insert(def, ret);
     r.state.insert(def, State::Done { ret });
+    r.settled_since.push(def);
     r.bodies.insert(def, Box::new((checked, diags)));
     if omits.row {
         let old_row = match r.rows.get(&def) {
@@ -1161,7 +1327,13 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx, omits: Omits) -> Vec<DefId>
                 edges: facts.edges,
             }
         };
-        if matches!(state, RowState::Waiting { .. }) {
+        if let RowState::Waiting { edges, .. } = &state {
+            let callees: Vec<DefId> = edges.iter().map(|e| e.callee).collect();
+            for &c in &callees {
+                r.waiters.entry(c).or_default().push(def);
+            }
+            r.wait_callees.insert(def, callees);
+            r.undone_hint.remove(&def);
             r.waiting.insert(def);
         } else {
             r.waiting.remove(&def);

@@ -89,8 +89,13 @@ provider patch is needed.
   row: a monotone pass over the edges in source order, `row(f) =
   uses(f) ∪ subst(row(g)) − minus` per edge, until nothing grows. That
   is the least solution
-  ([`req.row.omitted.cycle`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle)),
-  and solving a ready set together needs no explicit SCCs. Then the
+  ([`req.row.omitted.cycle`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle)).
+  Every row still waiting after a settle is blocked, so the next settle
+  looks only at rows that reach a callable checked since: a Tarjan
+  search from those callables' rows and their callers' rows, which
+  stops at a row with an edge to a callable not done. Each solved group
+  then seeds a search from its callers. A settle costs the rows and
+  edges it visits, not every waiting row (#1839). Then the
   deferred checks whose callees are solved run, `missing-requirement` at
   the call. The sweep checks every registered body, so every row is
   solved before `Body(m)` reads one.

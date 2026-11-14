@@ -1354,3 +1354,62 @@ fn a_proof_past_the_depth_limit_prints_a_short_type() {
         );
     }
 }
+
+// Checker: #1839, a settle solves the omitted rows that reach only
+// checked callables by searching from what it changed, not by a fixpoint
+// over every waiting row: in a ring of direct calls each check settles
+// with every earlier member's row waiting, which cost W^4 (a ring of 400
+// took 3.2 billion steps).
+/// `h{i}` calls `h{i+1}`, the last calls `h0`, each with an omitted row.
+fn row_ring(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let next = (i + 1) % n;
+        let _ = writeln!(
+            s,
+            "fn h{i}(k: i32) -> void:\n    if k > 0:\n        h{next}(k - 1)\n"
+        );
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    h0(3)\n    println(\"x\")\n");
+    s
+}
+
+/// `hub` calls each `w{i}`, and each calls `hub`: the hub's row waits on
+/// every member until the last is checked.
+fn row_hub(n: usize) -> String {
+    let mut s = String::from("fn hub(k: i32) -> void:\n    if k > 0:\n");
+    for i in 0..n {
+        let _ = writeln!(s, "        w{i}(k - 1)");
+    }
+    for i in 0..n {
+        let _ = writeln!(
+            s,
+            "fn w{i}(k: i32) -> void:\n    if k > 0:\n        hub(k - 1)\n"
+        );
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    hub(3)\n    println(\"x\")\n");
+    s
+}
+
+/// A generated program of a size.
+type Generator = fn(usize) -> String;
+
+#[test]
+fn waiting_rows_settled_one_by_one_cost_linear_solve_work() {
+    let shapes: [(&str, Generator); 2] = [("ring", row_ring), ("hub", row_hub)];
+    for (name, generate) in shapes {
+        let mut base = 0;
+        for n in [1000, 10_000] {
+            let (out, work) =
+                hd_check::work::count_solve_work(|| compile(&generate(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{name} {n}: {}", out.render());
+            if n == 1000 {
+                base = work;
+            }
+            assert!(
+                base > 0 && work <= 11 * base,
+                "{name}: solve work for 1,000 and {n} rows: {base}, {work}"
+            );
+        }
+    }
+}

@@ -249,3 +249,26 @@ mod tests {
         assert_eq!(outer, 4);
     }
 }
+
+thread_local! {
+    static SOLVE: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the omitted-row solving work `run` does on this thread
+/// (`crate::results`): one per waiting row and per edge a settle visits.
+/// Use the driver's serial executor to measure a whole build.
+pub fn count_solve_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = SOLVE.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = SOLVE.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` units of omitted-row solving work.
+pub(crate) fn solve_work(n: usize) {
+    SOLVE.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}
