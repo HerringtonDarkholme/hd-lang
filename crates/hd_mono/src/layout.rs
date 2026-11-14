@@ -8,6 +8,9 @@ use hd_base::{HashMap, HashSet};
 
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
+mod enum_boxing;
+pub use enum_boxing::EnumBoxingCache;
+
 /// The A1 class of a move-only type argument (§13.2): one non-null
 /// reference, the only class a key shares. Its `Debug` text is hashed
 /// into instance keys ([`instance_key`]).
@@ -86,7 +89,7 @@ pub trait LayoutEnv {
         self.enum_declared(def).is_some()
     }
     /// How an enum's declaration lays out its instances
-    /// ([`enum_boxing`]).
+    /// ([`enum_boxing()`]).
     fn enum_boxing(&self, def: DefId) -> EnumBoxing;
     /// Whether the instance `def[args]` of an enum is boxed: by its
     /// declaration ([`Self::enum_boxing`]), or, for one that holds a
@@ -112,22 +115,6 @@ pub trait LayoutEnv {
     fn option(&self) -> DefId;
 }
 
-/// The self-recursive enums among `enums`, the program's enum declarations
-/// (`crates/hd_wasm/DESIGN.md` §15.2): those whose declaration reaches itself through
-/// value positions. Value positions are enum payloads, tuple elements and
-/// `T?`, and another enum's argument when that enum holds the parameter
-/// in a value position. Data, collections, functions and trait values are
-/// references and end a path. A cycle decides, so a payload naming its
-/// own enum at growing arguments (`E[T?]` in `E[T]`) is boxed like a
-/// plain one, and every other enum's value layout is finite. A projection
-/// in a value position (`S::Item`) names no declaration here: an enum
-/// that holds one and is in no cycle is decided per instance
-/// ([`recursive_instance`]).
-#[must_use]
-pub fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) -> HashSet<DefId> {
-    value_graph(pool, env, enums).0
-}
-
 /// How an enum's declaration lays out its instances.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnumBoxing {
@@ -135,7 +122,7 @@ pub enum EnumBoxing {
     /// holds no projection by value.
     Value,
     /// Every instance is boxed: the declaration is self-recursive
-    /// ([`recursive_enums`]).
+    /// ([`EnumBoxingCache`]).
     Boxed,
     /// The declaration holds a projection by value and is in no cycle:
     /// each instance decides from its resolved payloads
@@ -144,90 +131,17 @@ pub enum EnumBoxing {
     ByInstance,
 }
 
-/// The self-recursive enums among `enums`, and those that hold a
-/// projection in a value position.
-fn value_graph(
-    pool: &InternPool,
-    env: &dyn LayoutEnv,
-    enums: &[DefId],
-) -> (HashSet<DefId>, HashSet<DefId>) {
-    let mut g = ValueGraph {
-        enums: enums.iter().copied().collect(),
-        ..ValueGraph::default()
-    };
-    for &e in enums {
-        for v in env.enum_declared(e).unwrap_or_default() {
-            for f in v {
-                g.walk(pool, e, f);
-            }
-        }
-    }
-    let index: HashMap<DefId, usize> = enums.iter().enumerate().map(|(i, d)| (*d, i)).collect();
-    let succ: Vec<Vec<usize>> = enums
-        .iter()
-        .map(|e| {
-            g.edges
-                .get(e)
-                .map(|to| to.iter().filter_map(|d| index.get(d).copied()).collect())
-                .unwrap_or_default()
-        })
-        .collect();
-    let comp = sccs(&succ);
-    let mut size: HashMap<usize, usize> = HashMap::default();
-    for c in &comp {
-        *size.entry(*c).or_default() += 1;
-    }
-    let mut out = HashSet::default();
-    for (i, e) in enums.iter().enumerate() {
-        if size[&comp[i]] > 1 || succ[i].contains(&i) {
-            out.insert(*e);
-        }
-    }
-    (out, g.opaque)
-}
-
-/// How `def`'s declaration lays out its instances, as [`recursive_enums`]
-/// finds over every enum. Only the enums `def` can hold decide it: their
-/// declarations are all this reads.
+/// How `def`'s declaration lays out its instances. A one-off query; callers
+/// classifying several declarations share an [`EnumBoxingCache`].
 #[must_use]
 pub fn enum_boxing(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> EnumBoxing {
-    let mut enums = vec![def];
-    let mut seen: HashSet<DefId> = enums.iter().copied().collect();
-    let mut at = 0;
-    while let Some(&e) = enums.get(at) {
-        at += 1;
-        let mut todo: Vec<Ty> = env.enum_declared(e).unwrap_or_default().concat();
-        while let Some(t) = todo.pop() {
-            match pool.get(t) {
-                TyData::Adt { def, args } => {
-                    todo.extend_from_slice(pool.list_items(args));
-                    if env.enum_declared(def).is_some() && seen.insert(def) {
-                        enums.push(def);
-                    }
-                }
-                TyData::Tuple { elems, rest } => {
-                    todo.extend_from_slice(pool.list_items(elems));
-                    todo.extend(rest);
-                }
-                TyData::Ref { inner, .. } => todo.push(inner),
-                _ => {}
-            }
-        }
-    }
-    let (recursive, opaque) = value_graph(pool, env, &enums);
-    if recursive.contains(&def) {
-        EnumBoxing::Boxed
-    } else if opaque.contains(&def) {
-        EnumBoxing::ByInstance
-    } else {
-        EnumBoxing::Value
-    }
+    EnumBoxingCache::default().classify(pool, env, def)
 }
 
 /// Whether the instance `def[args]` of an [`EnumBoxing::ByInstance`] enum
 /// is boxed: whether its payloads, at `args` with every projection
 /// resolved ([`LayoutEnv::enum_variants`]), hold `def` again, at any
-/// arguments, through the value positions of [`recursive_enums`] and a
+/// arguments, through the value positions of [`EnumBoxingCache`] and a
 /// union's members. A [`EnumBoxing::Boxed`] enum is an address and ends a
 /// path.
 ///
@@ -302,56 +216,6 @@ pub fn recursive_instance(
         }
     }
     false
-}
-
-/// The enum graph of `recursive_enums`.
-#[derive(Default)]
-struct ValueGraph {
-    enums: HashSet<DefId>,
-    /// Enum to the enums it holds in a value position.
-    edges: HashMap<DefId, Vec<DefId>>,
-    /// An enum's parameters it holds in a value position.
-    uses: HashSet<(DefId, u16)>,
-    /// Arguments of an enum's parameter not known to be held yet: the
-    /// declaration that wrote each, and the argument.
-    waiting: HashMap<(DefId, u16), Vec<(DefId, Ty)>>,
-    /// Enums with a projection in a value position.
-    opaque: HashSet<DefId>,
-}
-
-impl ValueGraph {
-    /// Walks `t`, a type `from` holds by value.
-    fn walk(&mut self, pool: &InternPool, from: DefId, t: Ty) {
-        let mut todo = vec![(from, t)];
-        while let Some((f, t)) = todo.pop() {
-            match pool.get(t) {
-                TyData::Param(p) if p.owner == f => {
-                    if self.uses.insert((f, p.index)) {
-                        todo.extend(self.waiting.remove(&(f, p.index)).unwrap_or_default());
-                    }
-                }
-                TyData::Adt { def, args } if self.enums.contains(&def) => {
-                    self.edges.entry(f).or_default().push(def);
-                    for (j, &a) in pool.list_items(args).iter().enumerate() {
-                        let j = u16::try_from(j).expect("parameters");
-                        if self.uses.contains(&(def, j)) {
-                            todo.push((f, a));
-                        } else {
-                            self.waiting.entry((def, j)).or_default().push((f, a));
-                        }
-                    }
-                }
-                TyData::Tuple { elems, rest } => {
-                    todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
-                    todo.extend(rest.map(|r| (f, r)));
-                }
-                TyData::Assoc { .. } => {
-                    self.opaque.insert(f);
-                }
-                _ => {}
-            }
-        }
-    }
 }
 
 /// Strongly connected components of a graph given by successor lists:
@@ -903,7 +767,7 @@ mod tests {
         inline_map_key, instance_key, known_key, strip_newtype,
     };
     use hd_base::SliceSort as _;
-    use hd_base::{DefId, Hash128, InstId};
+    use hd_base::{DefId, Hash128, HashMap, HashSet, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
 
     struct Env;
@@ -1022,8 +886,128 @@ mod tests {
         assert_eq!(strip_newtype(&p, &mutual, a), a);
     }
 
+    // Retired contextual walker: independent oracle for the shared type graph.
+    /// The self-recursive enums among `enums`, the program's enum declarations
+    /// (`crates/hd_wasm/DESIGN.md` §15.2): those whose declaration reaches itself through
+    /// value positions. Value positions are enum payloads, tuple elements and
+    /// `T?`, and another enum's argument when that enum holds the parameter
+    /// in a value position. Data, collections, functions and trait values are
+    /// references and end a path. A cycle decides, so a payload naming its
+    /// own enum at growing arguments (`E[T?]` in `E[T]`) is boxed like a
+    /// plain one, and every other enum's value layout is finite. A projection
+    /// in a value position (`S::Item`) names no declaration here: an enum
+    /// that holds one and is in no cycle is decided per instance
+    /// ([`recursive_instance`]).
+    #[must_use]
+    fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) -> HashSet<DefId> {
+        value_graph(pool, env, enums).0
+    }
+
+    /// The self-recursive enums among `enums`, and those that hold a
+    /// projection in a value position.
+    fn value_graph(
+        pool: &InternPool,
+        env: &dyn LayoutEnv,
+        enums: &[DefId],
+    ) -> (HashSet<DefId>, HashSet<DefId>) {
+        let mut g = ValueGraph {
+            enums: enums.iter().copied().collect(),
+            ..ValueGraph::default()
+        };
+        for &e in enums {
+            for v in env.enum_declared(e).unwrap_or_default() {
+                for f in v {
+                    g.walk(pool, e, f);
+                }
+            }
+        }
+        let index: HashMap<DefId, usize> = enums.iter().enumerate().map(|(i, d)| (*d, i)).collect();
+        let succ: Vec<Vec<usize>> = enums
+            .iter()
+            .map(|e| {
+                g.edges
+                    .get(e)
+                    .map(|to| to.iter().filter_map(|d| index.get(d).copied()).collect())
+                    .unwrap_or_default()
+            })
+            .collect();
+        let comp = super::sccs(&succ);
+        let mut size: HashMap<usize, usize> = HashMap::default();
+        for c in &comp {
+            *size.entry(*c).or_default() += 1;
+        }
+        let mut out = HashSet::default();
+        for (i, e) in enums.iter().enumerate() {
+            if size[&comp[i]] > 1 || succ[i].contains(&i) {
+                out.insert(*e);
+            }
+        }
+        (out, g.opaque)
+    }
+
+    /// The enum graph of `recursive_enums`.
+    #[derive(Default)]
+    struct ValueGraph {
+        enums: HashSet<DefId>,
+        /// Enum to the enums it holds in a value position.
+        edges: HashMap<DefId, Vec<DefId>>,
+        /// An enum's parameters it holds in a value position.
+        uses: HashSet<(DefId, u16)>,
+        /// Arguments of an enum's parameter not known to be held yet: the
+        /// declaration that wrote each, and the argument.
+        waiting: HashMap<(DefId, u16), Vec<(DefId, Ty)>>,
+        /// Enums with a projection in a value position.
+        opaque: HashSet<DefId>,
+    }
+
+    impl ValueGraph {
+        /// Walks `t`, a type `from` holds by value.
+        fn walk(&mut self, pool: &InternPool, from: DefId, t: Ty) {
+            let mut todo = vec![(from, t)];
+            while let Some((f, t)) = todo.pop() {
+                match pool.get(t) {
+                    TyData::Param(p) if p.owner == f => {
+                        if self.uses.insert((f, p.index)) {
+                            todo.extend(self.waiting.remove(&(f, p.index)).unwrap_or_default());
+                        }
+                    }
+                    TyData::Adt { def, args } if self.enums.contains(&def) => {
+                        self.edges.entry(f).or_default().push(def);
+                        for (j, &a) in pool.list_items(args).iter().enumerate() {
+                            let j = u16::try_from(j).expect("parameters");
+                            if self.uses.contains(&(def, j)) {
+                                todo.push((f, a));
+                            } else {
+                                self.waiting.entry((def, j)).or_default().push((f, a));
+                            }
+                        }
+                    }
+                    TyData::Tuple { elems, rest } => {
+                        todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
+                        todo.extend(rest.map(|r| (f, r)));
+                    }
+                    TyData::Assoc { .. } => {
+                        self.opaque.insert(f);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     /// Declared enums for `recursive_enums`, by raw id.
-    struct Decls(Vec<(u32, Vec<Vec<Ty>>)>);
+    struct Decls {
+        values: HashMap<u32, Vec<Vec<Ty>>>,
+        reads: std::cell::Cell<usize>,
+    }
+    impl Decls {
+        fn new(values: impl IntoIterator<Item = (u32, Vec<Vec<Ty>>)>) -> Self {
+            Self {
+                values: values.into_iter().collect(),
+                reads: std::cell::Cell::new(0),
+            }
+        }
+    }
     impl LayoutEnv for Decls {
         fn raw_buffer(&self, _def: DefId) -> bool {
             false
@@ -1035,10 +1019,8 @@ mod tests {
             self.enum_declared(def)
         }
         fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
-            self.0
-                .iter()
-                .find(|(d, _)| *d == def.raw())
-                .map(|(_, v)| v.clone())
+            self.reads.set(self.reads.get() + 1);
+            self.values.get(&def.raw()).cloned()
         }
         fn enum_boxing(&self, _: DefId) -> super::EnumBoxing {
             super::EnumBoxing::Value
@@ -1081,7 +1063,7 @@ mod tests {
         // 3: `Wrap[T] = W(T) | N`; 4: `Loop = A(Wrap[Loop])`.
         // 5: `Hold[T] = H(List[T])` (9 is a data type); 6: `Flat = F(Hold[Flat])`.
         let list_of = |t: Ty| adt(9, &[t]);
-        let decls = Decls(vec![
+        let decls = Decls::new([
             (1, vec![vec![param(1, 0)], vec![tree, tree]]),
             (2, vec![vec![grow], vec![param(2, 0)]]),
             (3, vec![vec![param(3, 0)], vec![]]),
@@ -1090,7 +1072,7 @@ mod tests {
             (6, vec![vec![adt(5, &[adt(6, &[])])]]),
         ]);
         let all: Vec<DefId> = (1..=6).map(d).collect();
-        let rec = super::recursive_enums(&p, &decls, &all);
+        let rec = recursive_enums(&p, &decls, &all);
         let mut got: Vec<u32> = rec.iter().map(|x| x.raw()).collect();
         got.sort_stable();
         assert_eq!(got, [1, 2, 4]);
@@ -1098,6 +1080,236 @@ mod tests {
         for e in &all {
             let boxed = super::enum_boxing(&p, &decls, *e) == super::EnumBoxing::Boxed;
             assert_eq!(boxed, rec.contains(e));
+        }
+        // In ascending order, Wrap and Hold are cached before their callers.
+        // A held Self argument still creates a cycle; an ignored one does not.
+        for mut order in [all.clone(), all.iter().copied().rev().collect()] {
+            let mut cache = super::EnumBoxingCache::default();
+            order.extend(all.iter().copied());
+            for e in order {
+                let boxed = cache.classify(&p, &decls, e) == super::EnumBoxing::Boxed;
+                assert_eq!(boxed, rec.contains(&e), "declaration {}", e.raw());
+            }
+        }
+    }
+
+    #[test]
+    fn enum_queries_share_graph_work_at_width_1000_depth_20_and_depth_20000() {
+        use super::{EnumBoxing, EnumBoxingCache};
+        for (width, depth) in [(100u32, 20u32), (1000, 20), (1, 20_000)] {
+            let p = InternPool::new();
+            let declarations = Decls::new((0..width).flat_map(|column| {
+                let p = &p;
+                (1..=depth).map(move |level| {
+                    let raw = column * depth + level;
+                    let child = if level == 1 {
+                        Ty::I32
+                    } else {
+                        p.intern_ty(&TyData::Adt {
+                            def: DefId::from_raw(raw - 1),
+                            args: TyList::EMPTY,
+                        })
+                    };
+                    (raw, vec![vec![], vec![child]])
+                })
+            }));
+            for descending in [false, true] {
+                let mut cache = EnumBoxingCache::default();
+                declarations.reads.set(0);
+                let ((), work) = crate::work::count_enum_steps(|| {
+                    for n in 0..width * depth {
+                        let raw = if descending { width * depth - n } else { n + 1 };
+                        assert_eq!(
+                            cache.classify(&p, &declarations, DefId::from_raw(raw)),
+                            EnumBoxing::Value
+                        );
+                    }
+                });
+                assert_eq!(declarations.reads.get(), (width * depth) as usize);
+                assert!(work <= 16 * u64::from(width * depth), "{work}");
+                let ((), cached) = crate::work::count_enum_steps(|| {
+                    for raw in 1..=width * depth {
+                        assert_eq!(
+                            cache.classify(&p, &declarations, DefId::from_raw(raw)),
+                            EnumBoxing::Value
+                        );
+                    }
+                });
+                assert_eq!(cached, 0);
+                assert_eq!(declarations.reads.get(), (width * depth) as usize);
+            }
+        }
+    }
+
+    #[test]
+    fn unrelated_declarations_and_shared_type_dags_do_not_multiply_queries() {
+        use super::{EnumBoxing, EnumBoxingCache};
+        let p = InternPool::new();
+        let mut ty = Ty::I32;
+        for _ in 0..20 {
+            ty = p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[ty, ty]),
+                rest: None,
+            });
+        }
+        for size in [1000u32, 10_000] {
+            let declarations = Decls::new((1..=size).map(|raw| (raw, vec![vec![ty]])));
+            let mut cache = EnumBoxingCache::default();
+            let ((), first) = crate::work::count_enum_steps(|| {
+                assert_eq!(
+                    cache.classify(&p, &declarations, DefId::from_raw(1)),
+                    EnumBoxing::Value
+                );
+            });
+            assert_eq!(declarations.reads.get(), 1);
+            assert!(first <= 12 * 21 + 8, "shared depth 20: {first}");
+            let ((), cached) = crate::work::count_enum_steps(|| {
+                assert_eq!(
+                    cache.classify(&p, &declarations, DefId::from_raw(1)),
+                    EnumBoxing::Value
+                );
+            });
+            assert_eq!(cached, 0);
+            assert_eq!(declarations.reads.get(), 1);
+            let ((), all) = crate::work::count_enum_steps(|| {
+                for raw in 2..=size {
+                    assert_eq!(
+                        cache.classify(&p, &declarations, DefId::from_raw(raw)),
+                        EnumBoxing::Value
+                    );
+                }
+            });
+            assert!(all <= 8 * u64::from(size), "{size} shared roots: {all}");
+            assert_eq!(declarations.reads.get(), size as usize);
+        }
+    }
+
+    #[test]
+    fn enum_queries_reuse_projection_flags_and_distinguish_mutual_cycles() {
+        use super::{EnumBoxing, EnumBoxingCache};
+        let p = InternPool::new();
+        let d = DefId::from_raw;
+        let adt = |raw| {
+            p.intern_ty(&TyData::Adt {
+                def: d(raw),
+                args: TyList::EMPTY,
+            })
+        };
+        let projection = p.intern_ty(&TyData::Assoc {
+            assoc: d(100),
+            trait_: d(101),
+            self_ty: Ty::I32,
+            args: TyList::EMPTY,
+        });
+        let tuple = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::I32, projection]),
+            rest: None,
+        });
+        let wrapped = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[tuple, Ty::BOOL]),
+            rest: None,
+        });
+        let reference = p.intern_ty(&TyData::Ref {
+            inner: adt(6),
+            mutable: false,
+            counted: true,
+        });
+        let declarations = Decls::new([
+            (1, vec![vec![tuple]]),
+            (2, vec![vec![tuple]]),
+            (3, vec![vec![adt(4)]]),
+            (4, vec![vec![adt(3)]]),
+            (5, vec![vec![adt(3), reference]]),
+            (6, vec![vec![Ty::I32]]),
+            (8, vec![vec![wrapped]]),
+        ]);
+        let mut cache = EnumBoxingCache::default();
+        for (raw, expected) in [
+            (1, EnumBoxing::ByInstance),
+            (2, EnumBoxing::ByInstance),
+            (8, EnumBoxing::ByInstance),
+            (3, EnumBoxing::Boxed),
+            (4, EnumBoxing::Boxed),
+            (5, EnumBoxing::Value),
+            (6, EnumBoxing::Value),
+            (7, EnumBoxing::Value),
+            (7, EnumBoxing::Value),
+        ] {
+            assert_eq!(cache.classify(&p, &declarations, d(raw)), expected);
+        }
+    }
+
+    #[test]
+    fn cached_enum_graph_matches_contextual_value_walk_in_different_query_orders() {
+        use super::{EnumBoxing, EnumBoxingCache};
+        for seed in 0..64u32 {
+            let p = InternPool::new();
+            let d = DefId::from_raw;
+            let param = |owner, index| {
+                p.intern_ty(&TyData::Param(hd_types::ParamRef {
+                    owner: d(owner),
+                    index,
+                }))
+            };
+            let adt = |raw, args: &[Ty]| {
+                p.intern_ty(&TyData::Adt {
+                    def: d(raw),
+                    args: p.list(args),
+                })
+            };
+            let mut state = seed + 1;
+            let mut next = || {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                state
+            };
+            let declarations = Decls::new((1..=12u32).map(|raw| {
+                let first = param(raw, 0);
+                let second = param(raw, 1);
+                let target = next() % 12 + 1;
+                let child = adt(target, &[second, first]);
+                let field = match next() % 6 {
+                    0 => first,
+                    1 => child,
+                    2 => p.intern_ty(&TyData::Tuple {
+                        elems: p.list(&[second, child]),
+                        rest: Some(first),
+                    }),
+                    3 => p.intern_ty(&TyData::Ref {
+                        inner: child,
+                        mutable: false,
+                        counted: true,
+                    }),
+                    4 => p.intern_ty(&TyData::Assoc {
+                        assoc: d(100),
+                        trait_: d(101),
+                        self_ty: first,
+                        args: TyList::EMPTY,
+                    }),
+                    _ => adt(target, &[adt(next() % 12 + 1, &[first, second]), second]),
+                };
+                (raw, vec![vec![], vec![field]])
+            }));
+            let all: Vec<_> = (1..=12).map(d).collect();
+            let (recursive, opaque) = value_graph(&p, &declarations, &all);
+            for offset in [0, 5, 11] {
+                let mut cache = EnumBoxingCache::default();
+                for step in 0..12 {
+                    let e = d((step + offset) % 12 + 1);
+                    let expected = if recursive.contains(&e) {
+                        EnumBoxing::Boxed
+                    } else if opaque.contains(&e) {
+                        EnumBoxing::ByInstance
+                    } else {
+                        EnumBoxing::Value
+                    };
+                    assert_eq!(
+                        cache.classify(&p, &declarations, e),
+                        expected,
+                        "seed {seed}, offset {offset}, declaration {}",
+                        e.raw()
+                    );
+                }
+            }
         }
     }
 

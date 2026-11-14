@@ -7,6 +7,31 @@ use std::cell::Cell;
 
 thread_local! {
     static TYPE_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
+    static ENUM_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Counts declaration reads, type/parameter visits and graph entries of enum
+/// classification. A cached query performs none of these operations.
+pub fn count_enum_steps<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    struct Restore(Option<u64>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ENUM_STEPS.set(self.0);
+        }
+    }
+    let restore = Restore(ENUM_STEPS.replace(Some(0)));
+    let result = run();
+    let work = ENUM_STEPS.get().unwrap_or(0);
+    drop(restore);
+    (result, work)
+}
+
+pub(crate) fn enum_step() {
+    ENUM_STEPS.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
 }
 
 /// Counts the type nodes collection walks while `run` runs on this

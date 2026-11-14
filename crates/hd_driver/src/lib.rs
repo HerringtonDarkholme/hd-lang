@@ -832,8 +832,8 @@ struct ProgramTables {
     test_impls: hd_types::solver::ImplTable,
     /// How each enum's declaration lays out its instances
     /// (`hd_mono::layout::enum_boxing`), found once on the first layout
-    /// that asks.
-    recursive_enums: Mutex<HashMap<DefId, hd_mono::layout::EnumBoxing>>,
+    /// that asks, sharing reached declarations and held-parameter facts.
+    recursive_enums: Mutex<hd_mono::layout::EnumBoxingCache>,
     /// Whether each instance of an enum that holds a projection is boxed
     /// (`hd_mono::layout::recursive_instance`), found once per instance.
     recursive_instances: Mutex<HashMap<(DefId, TyList), bool>>,
@@ -9214,7 +9214,7 @@ impl Run<'_> {
             universe,
             extra,
             test_impls,
-            recursive_enums: Mutex::new(HashMap::default()),
+            recursive_enums: Mutex::new(hd_mono::layout::EnumBoxingCache::default()),
             recursive_instances: Mutex::new(HashMap::default()),
             drop_defs: OnceLock::new(),
         });
@@ -12185,12 +12185,10 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn enum_boxing(&self, def: DefId) -> hd_mono::layout::EnumBoxing {
-        if let Some(known) = lock(&self.p.recursive_enums).get(&def) {
-            return *known;
-        }
-        let boxing = hd_mono::layout::enum_boxing(&self.run.pool, self, def);
-        lock(&self.p.recursive_enums).insert(def, boxing);
-        boxing
+        // Declaration reads only decode items and erase function dependencies;
+        // they cannot reenter enum classification. Keep one shared query under
+        // the lock, so concurrent bodies never duplicate graph discovery.
+        lock(&self.p.recursive_enums).classify(&self.run.pool, self, def)
     }
     fn recursive_enum(&self, def: DefId, args: TyList) -> bool {
         use hd_mono::layout::EnumBoxing;
