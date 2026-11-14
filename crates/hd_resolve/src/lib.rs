@@ -17,6 +17,7 @@ pub mod assoc;
 pub mod const_eval;
 pub mod error_type;
 pub mod facts;
+mod generic_scope;
 pub mod header;
 pub mod iface;
 pub mod intrinsics;
@@ -26,6 +27,7 @@ pub mod lower;
 pub mod seed;
 pub mod variance;
 pub mod view;
+pub mod work;
 
 pub use header::Universe;
 pub use iface::{

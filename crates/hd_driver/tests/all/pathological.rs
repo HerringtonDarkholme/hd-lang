@@ -983,6 +983,53 @@ fn generic_parameters_far_past_the_limit_report_once_per_declaration() {
     });
 }
 
+/// A struct of `n` type parameters, each the type of one field.
+fn struct_of_parameters(n: usize) -> String {
+    let params = (0..n)
+        .map(|i| format!("T{i}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut out = format!("struct Wide[{params}]:\n");
+    for i in 0..n {
+        let _ = writeln!(out, "    f{i}: T{i}");
+    }
+    out
+}
+
+/// The generic-scope probes header lowering makes for
+/// `struct_of_parameters(n)`, and the diagnostic codes.
+fn scope_probes(n: usize) -> (u64, Vec<String>) {
+    let (out, probes) =
+        hd_resolve::work::count_scope_probes(|| compile(&struct_of_parameters(n), &Goal::Analyze));
+    let codes = out
+        .diags
+        .code
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect();
+    (probes, codes)
+}
+
+// Resolver: #1857, a use of a generic parameter finds it by name in O(1),
+// not by a scan of the parameters in scope: n parameters each used once,
+// at the limit and far past it, where the rejected names still bind.
+#[test]
+fn generic_parameter_uses_probe_the_scope_linearly() {
+    on_test_stack(|| {
+        let (at_limit, codes) = scope_probes(1024);
+        assert!(codes.is_empty(), "{codes:?}");
+        for n in [2_000, 70_000] {
+            let (probes, codes) = scope_probes(n);
+            assert_eq!(codes, ["too-many-generic-parameters"], "{n} parameters");
+            let scale = (n / 1024 + 1) as u64;
+            assert!(
+                at_limit > 0 && probes <= scale * at_limit * 5 / 4,
+                "scope probes for 1,024 and {n} parameters: {at_limit} and {probes}",
+            );
+        }
+    });
+}
+
 // Checker: #1852, a negative float pattern is read as its value, so its
 // column is split by value: n rows, not n² / 2.
 #[test]

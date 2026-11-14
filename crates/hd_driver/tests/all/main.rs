@@ -47,6 +47,7 @@ mod function_value_loan_work;
 mod function_value_native_drop;
 mod generic_inference_join;
 mod generic_local_fn_run;
+mod generic_scope_uses;
 mod generics_determinism;
 mod header_copies_run;
 mod header_goals;

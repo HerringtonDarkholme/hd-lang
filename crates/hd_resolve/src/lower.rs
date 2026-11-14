@@ -26,6 +26,7 @@ use hd_types::{
 };
 
 use crate::const_eval::{ConstArg, ConstName};
+use crate::generic_scope::{Entry, Scoped};
 use crate::iface::{
     CallAttrs, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item,
     ItemData, Lookup, Names, ResultPath, TraitData, Variant, fill_trait_args, fill_type_args,
@@ -1886,41 +1887,94 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
     }
 }
 
-/// The type parameters in scope while lowering one header.
+/// A type parameter in scope.
+#[derive(Clone)]
+struct TyParam {
+    name: Symbol,
+    ty: Ty,
+    /// Each bound's trait with its (default-filled) arguments.
+    bounds: Vec<BoundRef>,
+    /// Its bounds are not lowered yet: whether one is `Tuple` is not known.
+    pending: bool,
+    /// A bound names no trait, already reported: a projection from it
+    /// adds no second error.
+    poisoned: bool,
+}
+
+impl TyParam {
+    fn new(name: Symbol, ty: Ty) -> Self {
+        TyParam {
+            name,
+            ty,
+            bounds: Vec::new(),
+            pending: false,
+            poisoned: false,
+        }
+    }
+}
+
+impl Entry for TyParam {
+    fn name(&self) -> Symbol {
+        self.name
+    }
+    fn ty(&self) -> Option<Ty> {
+        Some(self.ty)
+    }
+}
+
+impl Entry for (Symbol, RowParamRef) {
+    fn name(&self) -> Symbol {
+        self.0
+    }
+}
+
+impl Entry for (Symbol, ParamRef, Ty, Span) {
+    fn name(&self) -> Symbol {
+        self.0
+    }
+}
+
+impl Entry for (Symbol, Span) {
+    fn name(&self) -> Symbol {
+        self.0
+    }
+}
+
+impl Entry for Symbol {
+    fn name(&self) -> Symbol {
+        *self
+    }
+}
+
+/// The generic parameters in scope while lowering one header, each kind
+/// indexed by name, so a use finds its parameter in O(1) (#1857).
 #[derive(Clone, Default)]
 struct Gen {
-    /// Type parameters in scope: name, type, and each bound's trait with
-    /// its (default-filled) arguments.
-    tys: Vec<(Symbol, Ty, Vec<BoundRef>)>,
-    rows: Vec<(Symbol, RowParamRef)>,
+    /// Type parameters in scope.
+    tys: Scoped<TyParam>,
+    rows: Scoped<(Symbol, RowParamRef)>,
     /// Const parameters in scope: name, stable slot, declared scalar type,
     /// and declaration span for kind diagnostics.
-    consts: Vec<(Symbol, ParamRef, Ty, Span)>,
+    consts: Scoped<(Symbol, ParamRef, Ty, Span)>,
     /// Lifetime variables in scope, spelled with their `'`
     /// (`types.lifetime.scope`).
-    lifetimes: Vec<Symbol>,
+    lifetimes: Scoped<Symbol>,
     /// A lifetime past `hd_base::limits::GENERIC_PARAMS` was declared in
     /// scope and reported: it and every later one are left out, and a
     /// lifetime name not in scope reports nothing more.
     lifetimes_past: bool,
     /// Where each type parameter's name is declared.
-    decls: Vec<(Symbol, Span)>,
+    decls: Scoped<(Symbol, Span)>,
     self_ty: Option<Ty>,
     /// The lifetime of each reference slot of an implementation's target,
     /// which `self` and `Self` take (`ref.lifetime.struct.impl`).
     self_slots: Vec<u16>,
     self_trait: Option<DefId>,
-    /// Type parameters of the list being lowered whose bounds are not
-    /// lowered yet: whether one is bounded by `Tuple` is not known.
-    pending: Vec<Ty>,
-    /// Type parameters with a bound that names no trait, already
-    /// reported: a projection from one adds no second error.
-    poisoned: Vec<Ty>,
 }
 
 impl Gen {
     /// Adds one header's bindings while retaining the enclosing scope's
-    /// vectors and bounds. Signature lowering appends entries; only the
+    /// entries and bounds. Signature lowering appends entries; only the
     /// bounds of newly appended type parameters are filled in place.
     fn with_scope<R>(&mut self, lower: impl FnOnce(&mut Self) -> R) -> R {
         let lengths = (
@@ -1928,9 +1982,7 @@ impl Gen {
             self.rows.len(),
             self.consts.len(),
             self.decls.len(),
-            self.pending.len(),
             self.lifetimes.len(),
-            self.poisoned.len(),
         );
         let context = (self.self_ty, self.self_trait);
         let value = lower(self);
@@ -1938,9 +1990,7 @@ impl Gen {
         self.rows.truncate(lengths.1);
         self.consts.truncate(lengths.2);
         self.decls.truncate(lengths.3);
-        self.pending.truncate(lengths.4);
-        self.lifetimes.truncate(lengths.5);
-        self.poisoned.truncate(lengths.6);
+        self.lifetimes.truncate(lengths.4);
         (self.self_ty, self.self_trait) = context;
         value
     }
@@ -2169,7 +2219,7 @@ impl Lower<'_, '_, '_> {
                 .names
                 .pool
                 .intern_ty(&TyData::Param(ParamRef { owner: def, index }));
-            gn.tys.push((name, t, Vec::new()));
+            gn.tys.push(TyParam::new(name, t));
             out.push(Generic::plain(name));
         }
         for &gl in &lists {
@@ -2187,13 +2237,7 @@ impl Lower<'_, '_, '_> {
         {
             let args: Vec<Ty> = names
                 .iter()
-                .map(|n| {
-                    gn.tys
-                        .iter()
-                        .rev()
-                        .find(|(s, _, _)| s == n)
-                        .map_or(Ty::POISON, |t| t.1)
-                })
+                .map(|n| gn.tys.last(*n).map_or(Ty::POISON, |t| t.ty))
                 .collect();
             let args = self.names.pool.list(&args);
             let bound = self.names.pool.intern_ty(&TyData::TraitValue {
@@ -2203,8 +2247,12 @@ impl Lower<'_, '_, '_> {
             });
             out[0].bound = Some(tr);
             out[0].bounds = vec![bound];
-            if let Some(t) = gn.tys.iter_mut().rev().find(|t| t.0 == out[0].name) {
-                t.2.push((tr, args));
+            if let Some(t) = gn
+                .tys
+                .last_index(out[0].name)
+                .and_then(|i| gn.tys.get_mut(i))
+            {
+                t.bounds.push((tr, args));
             }
         }
         self.diags.truncate(mark);
@@ -2245,16 +2293,16 @@ impl Lower<'_, '_, '_> {
         let mut out = Vec::with_capacity(names.len() + args.len());
         let self_sym = self.names.syms.intern("Self");
         for n in names {
-            if let Some((_, t, _)) = gn.tys.iter().rev().find(|(s, _, _)| *s == n) {
-                out.push(*t);
+            if let Some(t) = gn.tys.last(n) {
+                out.push(t.ty);
             } else if n == self_sym
                 && let Some(t) = gn.self_ty
             {
                 // The enclosing trait's `Self`, in its own body.
                 out.push(t);
-            } else if let Some((_, slot, _, _)) = gn.consts.iter().rev().find(|c| c.0 == n) {
+            } else if let Some((_, slot, _, _)) = gn.consts.last(n) {
                 out.push(self.names.pool.intern_ty(&TyData::Param(*slot)));
-            } else if let Some((_, r)) = gn.rows.iter().rev().find(|(s, _)| *s == n) {
+            } else if let Some((_, r)) = gn.rows.last(n) {
                 let pool = self.names.pool;
                 let row = pool.row(&hd_types::RowData {
                     keys: vec![],
@@ -2607,9 +2655,9 @@ impl Lower<'_, '_, '_> {
             let segs = self.segments(argument);
             if let [(name, _)] = segs.as_slice() {
                 let sym = self.sym(name);
-                let kind = if gn.tys.iter().any(|(s, _, _)| *s == sym) {
+                let kind = if gn.tys.contains(sym) {
                     Some("type")
-                } else if gn.rows.iter().any(|(s, _)| *s == sym) {
+                } else if gn.rows.contains(sym) {
                     Some("row")
                 } else {
                     None
@@ -2634,9 +2682,7 @@ impl Lower<'_, '_, '_> {
             // level: no parameter or local of the use (`in_binding`).
             let mut lookup = |name: &str, in_binding: bool| {
                 let sym = syms.intern(name);
-                if !in_binding
-                    && let Some((_, slot, ty, _)) = gn.consts.iter().find(|(s, _, _, _)| *s == sym)
-                {
+                if !in_binding && let Some((_, slot, ty, _)) = gn.consts.first(sym) {
                     declared = Some(*ty);
                     return ConstName::Param(*slot);
                 }
@@ -2710,11 +2756,8 @@ impl Lower<'_, '_, '_> {
     fn trait_value(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Option<Ty>) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
-        if let [(name, _)] = segs.as_slice()
-            && gn
-                .consts
-                .iter()
-                .any(|(s, _, _, _)| self.names.text(*s) == name)
+        if let [(name, token)] = segs.as_slice()
+            && gn.consts.contains(self.sym_token(*token))
         {
             let msg = format!("`{name}` is a const parameter, not a trait");
             self.diags.error(Code::GenericKindMismatch, span, &msg);
@@ -2740,11 +2783,8 @@ impl Lower<'_, '_, '_> {
     ) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
-        if let [(name, _)] = segs.as_slice()
-            && gn
-                .consts
-                .iter()
-                .any(|(s, _, _, _)| self.names.text(*s) == name)
+        if let [(name, token)] = segs.as_slice()
+            && gn.consts.contains(self.sym_token(*token))
         {
             let msg = format!("`{name}` is a const parameter, not a trait");
             self.diags.error(Code::GenericKindMismatch, span, &msg);
@@ -2853,15 +2893,12 @@ impl Lower<'_, '_, '_> {
             }
             let segs = self.segments(c);
             if segs.len() == 1
-                && let Some((_, p)) = gn
-                    .rows
-                    .iter()
-                    .find(|(s, _)| self.names.text(*s) == segs[0].0)
+                && let Some((_, p)) = gn.rows.first(self.sym_token(segs[0].1))
             {
                 data.params.push(*p);
                 continue;
             }
-            if segs.len() == 1 && self.type_param_in_row(c, &segs[0].0, gn) {
+            if segs.len() == 1 && self.type_param_in_row(c, &segs[0], gn) {
                 continue;
             }
             if segs
@@ -2886,14 +2923,14 @@ impl Lower<'_, '_, '_> {
 
     /// `req.row.param.unmarked`: a type-kinded parameter written in a row.
     /// Reports whether `name` is such a parameter.
-    fn type_param_in_row(&mut self, c: NodeRef<'_>, name: &str, gn: &Gen) -> bool {
-        if let Some(decl) = gn
-            .consts
-            .iter()
-            .rev()
-            .find(|(s, _, _, _)| self.names.text(*s) == name)
-            .map(|(_, _, _, span)| *span)
-        {
+    fn type_param_in_row(
+        &mut self,
+        c: NodeRef<'_>,
+        (name, token): &(String, hd_base::TokenIdx),
+        gn: &Gen,
+    ) -> bool {
+        let sym = self.sym_token(*token);
+        if let Some(&(_, _, _, decl)) = gn.consts.last(sym) {
             if self.kind_reported.insert(decl.lo) {
                 let msg = format!(
                     "`{name}` is a const parameter used in a row; a row takes a `$` row parameter or a trait key"
@@ -2903,13 +2940,7 @@ impl Lower<'_, '_, '_> {
             }
             return true;
         }
-        let Some(decl) = gn
-            .decls
-            .iter()
-            .rev()
-            .find(|(s, _)| self.names.text(*s) == name)
-            .map(|(_, sp)| *sp)
-        else {
+        let Some(&(_, decl)) = gn.decls.last(sym) else {
             return false;
         };
         if !self.kind_reported.insert(decl.lo) {
@@ -3137,7 +3168,7 @@ impl Lower<'_, '_, '_> {
             // The leading parameter a local declaration takes for it
             // (`outer_takes_self`).
             let sym = self.names.syms.intern("Self");
-            return gn.tys.iter().rev().find(|(s, _, _)| *s == sym).map(|t| t.1);
+            return gn.tys.last(sym).map(|t| t.ty);
         }
         let target = owner.children().filter(|c| c.kind().is_type()).last()?;
         Some(self.ty(Some(target), gn))
@@ -3181,31 +3212,23 @@ impl Lower<'_, '_, '_> {
                 }
                 return self_ty;
             }
-            if let Some((_, t, _)) = gn
-                .tys
-                .iter()
-                .rev()
-                .find(|(s, _, _)| self.names.text(*s) == first)
-            {
-                let t = *t;
+            let sym = self.sym_token(ft);
+            if let Some(t) = gn.tys.last(sym) {
+                let t = t.ty;
                 return if self.type_arguments_written(n, &first) {
                     Ty::POISON
                 } else {
                     t
                 };
             }
-            if gn.rows.iter().any(|(s, _)| self.names.text(*s) == first) {
+            if gn.rows.contains(sym) {
                 let msg = format!(
                     "`{first}` is a row parameter, not a type: write it in a row after `$`, as in `$ {first}`"
                 );
                 self.diags.error(Code::GenericKindMismatch, span, &msg);
                 return Ty::POISON;
             }
-            if gn
-                .consts
-                .iter()
-                .any(|(s, _, _, _)| self.names.text(*s) == first)
-            {
+            if gn.consts.contains(sym) {
                 let msg = format!(
                     "`{first}` is a const parameter, not a type: write it in a const generic argument"
                 );
@@ -3426,7 +3449,7 @@ impl Lower<'_, '_, '_> {
                         self.diags
                             .error(Code::TooManyGenericParameters, self.src.span(p), &msg);
                     }
-                } else if gn.lifetimes.contains(&name) {
+                } else if gn.lifetimes.contains(name) {
                     let msg = format!("`{text}` is already a lifetime in scope");
                     self.diags
                         .error(Code::DuplicateBinding, self.src.span(p), &msg);
@@ -3641,7 +3664,7 @@ impl Lower<'_, '_, '_> {
     /// [`Self::lifetime`] of the lifetime token `t`.
     fn lifetime_of(&mut self, t: hd_base::TokenIdx, gn: &Gen) -> u16 {
         let name = self.sym_token(t);
-        if let Some(i) = gn.lifetimes.iter().position(|l| *l == name) {
+        if let Some(i) = gn.lifetimes.first_index(name) {
             return u16::try_from(i + 1).unwrap_or(u16::MAX);
         }
         if gn.lifetimes_past {
@@ -3711,12 +3734,12 @@ impl Lower<'_, '_, '_> {
     fn inputs_tuple(&self, t: Ty, gn: &Gen) -> bool {
         match self.names.pool.get(t) {
             TyData::Tuple { .. } | TyData::Poison => true,
-            TyData::Param(_) => {
-                gn.pending.contains(&t)
-                    || gn.tys.iter().any(|(_, p, bounds)| {
-                        *p == t && bounds.iter().any(|(def, _)| *def == self.names.known.tuple)
-                    })
-            }
+            TyData::Param(_) => gn.tys.of_ty(t).is_some_and(|p| {
+                p.pending
+                    || p.bounds
+                        .iter()
+                        .any(|(def, _)| *def == self.names.known.tuple)
+            }),
             _ => false,
         }
     }
@@ -3776,7 +3799,7 @@ impl Lower<'_, '_, '_> {
                     .decls
                     .iter()
                     .filter_map(|(name, _)| {
-                        if let Some((_, r)) = gn.rows.iter().find(|(s, _)| s == name) {
+                        if let Some((_, r)) = gn.rows.first(*name) {
                             return Some(pool.intern_ty(&TyData::Row(pool.row(
                                 &hd_types::RowData {
                                     keys: vec![],
@@ -3784,10 +3807,7 @@ impl Lower<'_, '_, '_> {
                                 },
                             ))));
                         }
-                        gn.tys
-                            .iter()
-                            .find(|(s, _, _)| s == name)
-                            .map(|(_, t, _)| *t)
+                        gn.tys.first(*name).map(|t| t.ty)
                     })
                     .collect();
                 // A trait method's opaque identity includes its implementation
@@ -3968,8 +3988,9 @@ impl Lower<'_, '_, '_> {
                 {
                     cands.push((tr, TyList::EMPTY));
                 }
-                if let Some((_, _, bounds)) = gn.tys.iter().find(|(_, t, _)| *t == base) {
-                    cands.extend(bounds.iter().copied());
+                let param = gn.tys.of_ty(base);
+                if let Some(p) = param {
+                    cands.extend(p.bounds.iter().copied());
                 }
                 // The projection names the trait that declares the
                 // associated type, which a bound may reach through its
@@ -3990,7 +4011,7 @@ impl Lower<'_, '_, '_> {
                     self.diags
                         .error(Code::AmbiguousAssociatedType, self.src.span(n), &msg);
                 }
-                if decls.is_empty() && cands.is_empty() && gn.poisoned.contains(&base) {
+                if decls.is_empty() && cands.is_empty() && param.is_some_and(|p| p.poisoned) {
                     return Ty::POISON;
                 }
                 if decls.is_empty() {
@@ -4099,7 +4120,6 @@ impl Lower<'_, '_, '_> {
             })
             .collect();
         let mut out = Vec::new();
-        let start = gn.tys.len();
         for (i, g) in params.iter().enumerate() {
             let Some(t) = g.name(&self.src.parse.tokens) else {
                 continue;
@@ -4122,7 +4142,7 @@ impl Lower<'_, '_, '_> {
                     self.diags
                         .error(Code::TooManyGenericParameters, self.src.span(*g), &msg);
                 }
-                gn.tys.push((name, Ty::POISON, Vec::new()));
+                gn.tys.push(TyParam::new(name, Ty::POISON));
                 continue;
             }
             let name_span = self.src.token_span(t);
@@ -4133,13 +4153,9 @@ impl Lower<'_, '_, '_> {
             // enclosing implementation's or trait's, or an earlier one of
             // this list (`names.type-param.no-redeclare`).
             if self.r.frozen.is_none()
-                && (gn.tys.iter().any(|(s, _, _)| *s == name)
-                    || gn.rows.iter().any(|(s, _)| *s == name)
-                    || gn.consts.iter().any(|(s, _, _, _)| *s == name))
+                && (gn.tys.contains(name) || gn.rows.contains(name) || gn.consts.contains(name))
             {
-                let kind = if g.kind() == SyntaxKind::ConstParameter
-                    || gn.consts.iter().any(|(s, _, _, _)| *s == name)
-                {
+                let kind = if g.kind() == SyntaxKind::ConstParameter || gn.consts.contains(name) {
                     "generic"
                 } else {
                     "type"
@@ -4162,6 +4178,8 @@ impl Lower<'_, '_, '_> {
                 .is_some();
             let const_parameter = g.kind() == SyntaxKind::ConstParameter;
             let mut const_type = None;
+            // The type parameter's entry, at the index it was pushed at.
+            let mut slot = None;
             if const_parameter {
                 let slot = ParamRef { owner, index };
                 let declared = self.ty(Src::type_child(*g), gn);
@@ -4187,9 +4205,11 @@ impl Lower<'_, '_, '_> {
                     .names
                     .pool
                     .intern_ty(&TyData::Param(ParamRef { owner, index }));
-                gn.tys.push((name, t, Vec::new()));
+                slot = Some(gn.tys.push(TyParam {
+                    pending: true,
+                    ..TyParam::new(name, t)
+                }));
                 gn.decls.push((name, name_span));
-                gn.pending.push(t);
             }
             let mut generic = Generic::plain(name);
             generic.const_type = const_type;
@@ -4199,11 +4219,11 @@ impl Lower<'_, '_, '_> {
             } else if g.direct_token(toks, TokenKind::Minus).is_some() {
                 generic.variance = -1;
             }
-            out.push((generic, *g, row, const_parameter));
+            out.push((generic, *g, row, const_parameter, slot));
         }
         let mut done = Vec::new();
         let mut defaulted = false;
-        for (position, (mut g, node, row, const_parameter)) in out.into_iter().enumerate() {
+        for (position, (mut g, node, row, const_parameter, slot)) in out.into_iter().enumerate() {
             self.generic_default_rules(&params, position, row, &mut defaulted);
             if const_parameter {
                 done.push(g);
@@ -4213,10 +4233,7 @@ impl Lower<'_, '_, '_> {
             let mut bound_lifetimes = Vec::new();
             let mut lifted = false;
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
-                let me = (!row)
-                    .then(|| gn.tys[start..].iter().find(|(s, _, _)| *s == g.name))
-                    .flatten()
-                    .map(|(_, t, _)| *t);
+                let me = slot.map(|i| gn.tys[i].ty);
                 let relaxed = self.relaxed_tokens(bl);
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                     // A bound that names no trait is already reported. It
@@ -4289,18 +4306,13 @@ impl Lower<'_, '_, '_> {
                 .find(|b| **b != Ty::POISON)
                 .and_then(|b| self.trait_of(*b))
                 .filter(|d| *d != self.names.known.static_bound);
-            if !row && let Some(slot) = gn.tys[start..].iter_mut().find(|(s, _, _)| *s == g.name) {
-                slot.2 = bounds
+            if let Some(p) = slot.and_then(|i| gn.tys.get_mut(i)) {
+                p.bounds = bounds
                     .iter()
                     .filter_map(|b| self.names.pool.trait_value(*b))
                     .collect();
-                if bounds.contains(&Ty::POISON) {
-                    gn.poisoned.push(slot.1);
-                }
-            }
-            if let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name) {
-                let t = *t;
-                gn.pending.retain(|p| *p != t);
+                p.poisoned = bounds.contains(&Ty::POISON);
+                p.pending = false;
             }
             if !row && !lifted {
                 bounds.push(self.copy_bound());
@@ -4542,8 +4554,7 @@ impl Lower<'_, '_, '_> {
             .names
             .pool
             .intern_ty(&TyData::Param(ParamRef { owner, index }));
-        let slot = gn.tys.len();
-        gn.tys.push((name, ty, Vec::new()));
+        let slot = gn.tys.push(TyParam::new(name, ty));
         gn.decls.push((name, self.src.span(n)));
 
         let mut bounds = Vec::new();
@@ -4601,13 +4612,11 @@ impl Lower<'_, '_, '_> {
             .filter(|def| *def != self.names.known.static_bound);
         // This parameter's entry, at the index it was pushed at.
         if let Some(entry) = gn.tys.get_mut(slot) {
-            entry.2 = bounds
+            entry.bounds = bounds
                 .iter()
                 .filter_map(|bound| self.names.pool.trait_value(*bound))
                 .collect();
-        }
-        if bounds.contains(&Ty::POISON) {
-            gn.poisoned.push(ty);
+            entry.poisoned = bounds.contains(&Ty::POISON);
         }
         // A function's parameter, so `Copy` by default
         // (`ref.copy.generic.default`).
@@ -4693,9 +4702,7 @@ impl Lower<'_, '_, '_> {
                     // `names.type-param.no-redeclare`: no parameter reuses
                     // the name of a type parameter in scope, the
                     // function's own or an enclosing one's.
-                    if gn.tys.iter().any(|(s, _, _)| *s == sym)
-                        || gn.rows.iter().any(|(s, _)| *s == sym)
-                    {
+                    if gn.tys.contains(sym) || gn.rows.contains(sym) {
                         let msg = format!("`{name}` is a type parameter in scope");
                         self.diags
                             .error(Code::DuplicateBinding, self.src.span(p), &msg);
@@ -5021,10 +5028,7 @@ impl Lower<'_, '_, '_> {
                 std::iter::once(t).chain(t.descendants()).any(|c| {
                     c.direct_tokens().any(|k| {
                         toks.kind(k) == TokenKind::Lifetime
-                            && gn
-                                .lifetimes
-                                .iter()
-                                .any(|l| self.names.text(*l) == self.src.text(k))
+                            && gn.lifetimes.contains(self.sym_token(k))
                     })
                 })
             });
