@@ -1139,3 +1139,78 @@ fn locating_many_diagnostics_indexes_their_file_once() {
         );
     }
 }
+
+/// Builds and runs the literal decision chain on the scheduler's worker stack.
+/// Control continuation counts include target lookup and branch compaction.
+fn emitted_literal_decisions(generate: fn(usize) -> String, strings: bool) {
+    std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(move || {
+            let program = |n: usize| {
+                let mut source = generate(n);
+                let argument = if strings {
+                    format!("\"k{}\"", n / 2)
+                } else {
+                    (n / 2).to_string()
+                };
+                let _ = write!(
+                    source,
+                    "\npub fn main() -> void $ Console:\n    println(run({argument}))\n"
+                );
+                source
+            };
+            let goal = Goal::Program {
+                entry: "main".into(),
+            };
+            let initial = compile(&program(1), &goal);
+            assert!(!initial.diags.has_errors(), "{}", initial.render());
+            let mut base = 0;
+            for n in [1000, 10_000, 50_000] {
+                let (out, work) = hd_wasm::work::count_control(|| compile(&program(n), &goal));
+                assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
+                let wasm = out.wasm.as_deref().expect("the program links");
+                let ran = crate::release_profile_run::run_wasm(
+                    if strings {
+                        "deep-string-match"
+                    } else {
+                        "deep-integer-match"
+                    },
+                    wasm,
+                );
+                assert!(
+                    ran.status.success(),
+                    "size {n}: {}",
+                    String::from_utf8_lossy(&ran.stderr)
+                );
+                assert_eq!(
+                    String::from_utf8_lossy(&ran.stdout),
+                    format!("{}\n", (n / 2) % 7)
+                );
+                assert!(
+                    ran.stderr.is_empty(),
+                    "{}",
+                    String::from_utf8_lossy(&ran.stderr)
+                );
+                if n == 1000 {
+                    base = work;
+                }
+                assert!(
+                    base > 0 && work <= (n / 1000) as u64 * base * 5 / 4,
+                    "control work for 1000 and {n} arms: {base}, {work}"
+                );
+            }
+        })
+        .expect("worker-stack thread")
+        .join()
+        .expect("build and run without overflowing the worker stack");
+}
+
+#[test]
+fn literal_match_builds_and_runs_fifty_thousand_arms_on_a_worker_stack() {
+    emitted_literal_decisions(literal_match, false);
+}
+
+#[test]
+fn string_match_builds_and_runs_fifty_thousand_arms_on_a_worker_stack() {
+    emitted_literal_decisions(string_match, true);
+}

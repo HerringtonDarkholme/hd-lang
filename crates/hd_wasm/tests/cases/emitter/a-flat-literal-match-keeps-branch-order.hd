@@ -1,0 +1,13 @@
+# @dump: wat
+# expected: each literal keeps its arm, with branch-only arms simplified without reordering tests
+fn classify(value: i32) -> i32:
+    match value:
+        0 => 7
+        1 => 8
+        _ => 9
+
+fn text(value: string) -> i32:
+    match value:
+        "first" => 7
+        "second" => 8
+        _ => 9

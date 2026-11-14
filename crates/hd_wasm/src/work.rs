@@ -5,8 +5,15 @@
 use std::cell::Cell;
 
 thread_local! {
+    static CONTROL: Cell<Option<u64>> = const { Cell::new(None) };
     static USE_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOAN_QUERIES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Counts control continuations, target-index operations and branch-shape
+/// census/compaction visits on this thread.
+pub fn count_control<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&CONTROL, run)
 }
 
 /// Counts the work the emitter spends on its per-value use facts while
@@ -50,6 +57,10 @@ pub(crate) fn use_facts(n: usize) {
 
 pub(crate) fn loan_queries(n: usize) {
     add(&LOAN_QUERIES, n);
+}
+
+pub(crate) fn control(n: usize) {
+    add(&CONTROL, n);
 }
 
 fn add(counter: &'static std::thread::LocalKey<Cell<Option<u64>>>, n: usize) {

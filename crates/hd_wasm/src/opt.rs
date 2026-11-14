@@ -83,6 +83,7 @@
 //! its init writes, with a constant, as that constant.
 
 mod bounds;
+mod branch_shapes;
 
 /// Select a checked or range-proven copy of an innermost counted loop.
 pub(crate) fn version_loop_bounds(f: &mut Func) -> bool {
@@ -2980,7 +2981,15 @@ fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
 /// Rules 5, 6 and 20: rewrites each `if` of those shapes.
 fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
     let mut changed = false;
-    while let Some((next, origins)) = shape_once(f, np, arity) {
+    loop {
+        let sites = ifs(&f.body);
+        if branch_shapes::run(f, &sites) {
+            changed = true;
+            continue;
+        }
+        let Some((next, origins)) = shape_once(f, np, arity, &sites) else {
+            break;
+        };
         f.body = next;
         origins.finish(f);
         changed = true;
@@ -2989,11 +2998,18 @@ fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
 }
 
 /// The body after the first rewrite by rule 5, 6 or 19, if there is one.
-fn shape_once(f: &mut Func, np: u32, arity: &Arity) -> Option<(Vec<Ins>, Remap)> {
+fn shape_once(
+    f: &mut Func,
+    np: u32,
+    arity: &Arity,
+    sites: &[(usize, Option<usize>, usize)],
+) -> Option<(Vec<Ins>, Remap)> {
+    if sites.is_empty() {
+        return None;
+    }
     let (reads, writes) = counts(f);
     let b = &f.body;
-    let sites = ifs(b);
-    for &(s, e, n) in &sites {
+    for &(s, e, n) in sites {
         let Ins::Op(I::If(wasm_encoder::BlockType::Empty)) = b[s] else {
             continue;
         };
@@ -3072,7 +3088,7 @@ fn shape_once(f: &mut Func, np: u32, arity: &Arity) -> Option<(Vec<Ins>, Remap)>
     sites
         .iter()
         .rev()
-        .find_map(|&site| chain(f, site, &sites, &mut by_start, arity))
+        .find_map(|&site| chain(f, site, sites, &mut by_start, arity))
 }
 
 /// Rule 20: a short-circuit value `T; if (result i32) X else i32.const K
@@ -3327,6 +3343,7 @@ fn ifs(b: &[Ins]) -> Vec<(usize, Option<usize>, usize)> {
     let mut open: Vec<(usize, bool, Option<usize>)> = Vec::new();
     let mut out = Vec::new();
     for (k, i) in b.iter().enumerate() {
+        crate::work::control(1);
         match i {
             Ins::Op(I::If(_)) => open.push((k, true, None)),
             Ins::Op(I::Block(_) | I::Loop(_)) => open.push((k, false, None)),
@@ -4040,6 +4057,11 @@ mod origin_tests {
     use super::*;
     use crate::module::{HEAP, Val, mem};
     use wasm_encoder::BlockType;
+
+    fn batch_branch_shapes(f: &mut Func) -> bool {
+        let sites = ifs(&f.body);
+        branch_shapes::run(f, &sites)
+    }
 
     #[test]
     fn an_ungenerated_helper_has_enough_shape_to_remove_fallthrough_controls() {
@@ -6238,5 +6260,104 @@ mod origin_tests {
         let (changed, body) = shaped(2, vec![], body);
         assert!(changed);
         assert!(matches!(body[0], Ins::Op(I::Block(BlockType::Empty))));
+    }
+    #[test]
+    fn branch_only_shapes_compact_at_width_1000_depth_20_and_depth_50000() {
+        let symbols = Symbols::default();
+        let mut baseline = 0;
+        for (width, depth) in [(100usize, 20u32), (1000, 20), (1, 50_000)] {
+            let mut body = Vec::new();
+            for _ in 0..width {
+                body.push(Ins::Op(I::Block(BlockType::Empty)));
+                for level in 1..=depth {
+                    body.extend([
+                        Ins::Op(I::LocalGet(0)),
+                        Ins::Op(I::If(BlockType::Empty)),
+                        Ins::Op(I::Br(level)),
+                        Ins::Op(I::Else),
+                    ]);
+                }
+                body.extend(std::iter::repeat_n(Ins::Op(I::End), depth as usize + 1));
+            }
+            let size = body.len();
+            let mut f = tracked(&symbols, 1, 0, body);
+            let (changed, work) = crate::work::count_control(|| batch_branch_shapes(&mut f));
+            assert!(changed);
+            assert!(
+                work <= 4 * size as u64,
+                "{width} x {depth}: {work} for {size} instructions"
+            );
+            if width == 100 {
+                baseline = work;
+            }
+            if width == 1000 {
+                assert!(work <= 10 * baseline);
+            }
+            assert_eq!(f.body.len(), width * (2 + 2 * depth as usize));
+            assert!(
+                !f.body
+                    .iter()
+                    .any(|ins| matches!(ins, Ins::Op(I::If(_) | I::Else)))
+            );
+            validate_void_block_fixture(&f);
+            assert!(!batch_branch_shapes(&mut f));
+        }
+    }
+    #[test]
+    fn branch_only_compaction_preserves_a_targeted_if_label() {
+        let symbols = Symbols::default();
+        let mut f = tracked(
+            &symbols,
+            1,
+            0,
+            vec![
+                Ins::Op(I::Block(BlockType::Empty)),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::If(BlockType::Empty)),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::BrIf(0)),
+                Ins::Op(I::Else),
+                Ins::Op(I::Br(1)),
+                Ins::Op(I::End),
+                Ins::Op(I::End),
+            ],
+        );
+        validate_void_block_fixture(&f);
+        assert!(!batch_branch_shapes(&mut f));
+        assert!(matches!(f.body[2], Ins::Op(I::If(BlockType::Empty))));
+        assert!(matches!(f.body[4], Ins::Op(I::BrIf(0))));
+        assert!(matches!(f.body[6], Ins::Op(I::Br(1))));
+        validate_void_block_fixture(&f);
+    }
+    #[test]
+    fn branch_only_compaction_remaps_every_branch_table_target() {
+        let symbols = Symbols::default();
+        let mut f = tracked(&symbols, 1, 0, Vec::new());
+        let table = f.intern_labels(vec![1, 1]);
+        f.body = vec![
+            Ins::Op(I::Block(BlockType::Empty)),
+            Ins::Op(I::LocalGet(0)),
+            Ins::Op(I::If(BlockType::Empty)),
+            Ins::Op(I::Br(1)),
+            Ins::Op(I::Else),
+            Ins::Op(I::LocalGet(0)),
+            Ins::Op(I::BrTable(table, 1)),
+            Ins::Op(I::End),
+            Ins::Op(I::End),
+        ];
+        f.origins = None;
+        validate_void_block_fixture(&f);
+        assert!(batch_branch_shapes(&mut f));
+        let mapped = f
+            .body
+            .iter()
+            .find_map(|ins| match ins {
+                Ins::Op(I::BrTable(id, default)) => Some((*id, *default)),
+                _ => None,
+            })
+            .expect("the table remains");
+        assert_eq!(f.label_list(mapped.0), [0, 0]);
+        assert_eq!(mapped.1, 0);
+        validate_void_block_fixture(&f);
     }
 }
