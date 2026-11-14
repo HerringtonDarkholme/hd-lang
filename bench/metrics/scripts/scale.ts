@@ -93,6 +93,7 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["list-type-nest build", "#1915"],
   ["generic-nest check", "#1912"],
   ["generic-nest build", "#1912"],
+  ["paren-nest check", "#1919"],
   ["paren-nest build", "#1919"],
   ["bool-nest build", "#1905"],
   ["tuple-nest build", "#1924"],
@@ -210,7 +211,10 @@ const WARM: ReadonlyMap<string, string> = new Map([
  * small constant over a copy of one warm std cache, which subtracting
  * k = 0 removes. Throws before any run when `cache` is empty.
  */
-export function measuredEnv(cache: string, extra: Readonly<Record<string, string>> = {}) {
+export function measuredEnv(
+  cache: string,
+  extra: Readonly<Record<string, string>> = {},
+): Record<string, string> {
   if (!cache) {
     throw new Error("scale: every hd run needs a scratch HD_CACHE of its own");
   }
