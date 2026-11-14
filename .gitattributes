@@ -34,7 +34,7 @@ spec/conformance/cli/lint-flow-advice/** text eol=lf
 
 spec/conformance/cli/fmt-width/** text eol=lf
 
-# A missing import's fix-it in a CRLF file: checked out with CRLF
-# everywhere, so every platform tests the line ending it adds.
-spec/conformance/cli/check-fix-std-import-crlf/src/*.hd text eol=crlf
-spec/conformance/cli/check-fix-std-import-crlf/want/* text eol=crlf
+# A missing import's fix-it in a CRLF file: stored with CRLF bytes and
+# never converted, so every checkout on every platform has them.
+spec/conformance/cli/check-fix-std-import-crlf/src/*.hd -text
+spec/conformance/cli/check-fix-std-import-crlf/want/* -text

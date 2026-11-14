@@ -1,7 +1,9 @@
 # The case `check-fix-std-import` in a file with `\r\n` line endings
-# (checked out so on every platform, `.gitattributes`): the added `use`
-# goes before the `\r` that ends the last `use` line and starts with the
-# file's own `\r\n`, so the fixed file keeps one line ending.
+# (stored as CRLF bytes and never converted, `.gitattributes`): the added
+# `use` goes before the `\r` that ends the last `use` line and starts with
+# the file's own `\r\n`, so the fixed file keeps one line ending. It is
+# the same package (`shop`, `src/lib.hd`) as that case, and cases share
+# compiled objects: a cached check of the LF file is never reused here.
 run: hd check --format json
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unknown-trait","file":"src/lib.hd","line":8,"fixes":[{"message":"add `use std.num.Integer`","edits":[{"file":"src/lib.hd","start":104,"end":104,"text":"\r\nuse std.num.Integer"}]}]},{"kind":"diagnostic","code":"unknown-trait","file":"src/lib.hd","line":11,"fixes":[{"message":"add `use std.num.Integer`","edits":[{"file":"src/lib.hd","start":104,"end":104,"text":"\r\nuse std.num.Integer"}]}]},{"kind":"summary","errors":2,"status":101}]

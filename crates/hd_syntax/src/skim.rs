@@ -64,10 +64,28 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
         // Never a byte of UTF-8 text.
         content.push(0xff);
     }
+    // A cached diagnostic's fix-it holds byte offsets and line-ending text
+    // (a missing import's `use` line takes the file's ending), so every
+    // hash that keys diagnostics covers the line-ending form too. An LF
+    // file's hashes are as before.
+    let endings = crlf_lines(source, &lexed.tokens);
+    let with_endings = |hash: Hash128| {
+        if endings.is_empty() {
+            return hash;
+        }
+        let mut bytes = hash.0.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&endings);
+        hash128(&bytes)
+    };
+    if !endings.is_empty() {
+        // Never a byte of UTF-8 text.
+        content.push(0xfe);
+        content.extend_from_slice(&endings);
+    }
     HeaderSkeleton {
         source_hash: hash128(source),
-        api_text_hash,
-        template_text_hash,
+        api_text_hash: with_endings(api_text_hash),
+        template_text_hash: with_endings(template_text_hash),
         token_hash: hash128(&content),
         code_lines: lines.into_iter().map(|(start, _)| start).collect(),
         bodies,
@@ -268,6 +286,22 @@ fn code_lines(tokens: &TokenBuf) -> Vec<(u32, u32)> {
         }
         if let Some(end) = end {
             out.push((start, end));
+        }
+    }
+    out
+}
+
+/// The indices of the lines that end in `\r\n`, as little-endian `u32`s:
+/// the file's line-ending form. One look at the two bytes before each line
+/// start the lexer recorded; no pass over the text.
+fn crlf_lines(source: &[u8], tokens: &TokenBuf) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (line, &next) in tokens.line_start.iter().enumerate().skip(1) {
+        let next = next as usize;
+        if next >= 2 && source.get(next - 2) == Some(&b'\r') && source.get(next - 1) == Some(&b'\n')
+        {
+            let ended = u32::try_from(line - 1).unwrap_or(u32::MAX);
+            out.extend_from_slice(&ended.to_le_bytes());
         }
     }
     out
@@ -532,6 +566,29 @@ mod tests {
             skim(source.as_bytes()).bodies,
             skeleton_from_layout(source, &tokens)
         );
+    }
+
+    /// The hashes that key cached diagnostics see the line-ending form
+    /// (#1862): a fix-it holds the file's ending and byte offsets.
+    #[test]
+    fn keyed_hashes_follow_the_line_endings() {
+        let lf = "use std.a # x\n\nfn f() -> i32:\n    +1\n";
+        let crlf = lf.replace('\n', "\r\n");
+        let one = lf.replacen('\n', "\r\n", 1);
+        let (a, b, c) = (
+            skim(lf.as_bytes()),
+            skim(crlf.as_bytes()),
+            skim(one.as_bytes()),
+        );
+        for (x, y) in [(&a, &b), (&a, &c), (&b, &c)] {
+            assert_ne!(x.token_hash, y.token_hash);
+            assert_ne!(x.api_text_hash, y.api_text_hash);
+            assert_ne!(x.template_text_hash, y.template_text_hash);
+        }
+        // A plain comment edit still keeps them, in a CRLF file too.
+        let edited = skim(crlf.replace("# x", "# y").as_bytes());
+        assert_eq!(edited.token_hash, b.token_hash);
+        assert_eq!(edited.api_text_hash, b.api_text_hash);
     }
 
     #[test]
