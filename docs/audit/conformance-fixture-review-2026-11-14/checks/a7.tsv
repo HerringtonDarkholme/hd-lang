@@ -1410,10 +1410,10 @@ std/fs/memory-file-system/memory-fs-handle-shared.hd	accept	std/fs.md#r-std-fs.m
 std/fs/memory-file-system/memory-fs-normalized-keys.hd	accept	std/fs.md#r-std-fs.memory.normalized-keys	-71	
 std/fs/scripted-modification-times/memory-fs-modified.hd	accept	std/fs.md#r-std-fs.memory.set-modified	-40	
 std/fs/walking-and-globbing/fs-walk.hd	accept	std/fs.md#r-std-fs.walk.order	-55	
-runtime/valid/hash-bytes-derived.hd	accept	std/hash.md#r-std-hash.bytes.derive-enum	-4	
-runtime/valid/hash-bytes-scalars.hd	accept	std/hash.md#r-std-hash.bytes.integer	-4	
-runtime/valid/hash-bytes-sequences.hd	accept	std/hash.md#r-std-hash.bytes.string	-11	
-runtime/valid/hasher-write-methods.hd	accept	std/hash.md#r-std-hash.default.typed-writes	-109	
+std/hash/bytes-written/hash-bytes-derived.hd	accept	std/hash.md#r-std-hash.bytes.derive-enum	-4	
+std/hash/bytes-written/hash-bytes-scalars.hd	accept	std/hash.md#r-std-hash.bytes.integer	-4	
+std/hash/bytes-written/hash-bytes-sequences.hd	accept	std/hash.md#r-std-hash.bytes.string	-11	
+std/hash/default-hasher/hasher-write-methods.hd	accept	std/hash.md#r-std-hash.default.typed-writes	-109	
 runtime/valid/map-sys.hd	accept	std/host.md#map-sys	-12	
 runtime/valid/host-env-as.hd	accept	std/host.md#r-std-host.env-as.shared-error-signature	-20	
 runtime/valid/env-decode-errors.hd	accept	std/host.md#r-std-host.env-decode.prefix-decl	-15	

@@ -202,10 +202,10 @@ runtime/valid/generic-trait-instantiation-by-argument.hd	A7b	lost '' gained ','	
 runtime/valid/generic-trait-literal-default-instantiation.hd	A7b	lost '' gained ','	lang/09-traits.md#method-resolution
 runtime/valid/generic-trait-method-qualified-call.hd	A7b	lost '' gained ','	lang/09-traits.md#method-resolution
 runtime/valid/generic-trait-qualified-calls.hd	A7b	lost '' gained ',,,,'	lang/09-traits.md#method-resolution
-runtime/valid/hash-bytes-derived.hd	A7b	lost '' gained ','	std/hash.md#r-std-hash.bytes.derive-enum
-runtime/valid/hash-bytes-scalars.hd	A7b	lost '' gained ','	std/hash.md#r-std-hash.bytes.integer
-runtime/valid/hash-bytes-sequences.hd	A7b	lost '' gained ',,,'	std/hash.md#r-std-hash.bytes.string
-runtime/valid/hasher-write-methods.hd	A7b	lost '' gained ',,,,,,,,,,,,'	std/hash.md#r-std-hash.default.typed-writes
+std/hash/bytes-written/hash-bytes-derived.hd	A7b	lost '' gained ','	std/hash.md#r-std-hash.bytes.derive-enum
+std/hash/bytes-written/hash-bytes-scalars.hd	A7b	lost '' gained ','	std/hash.md#r-std-hash.bytes.integer
+std/hash/bytes-written/hash-bytes-sequences.hd	A7b	lost '' gained ',,,'	std/hash.md#r-std-hash.bytes.string
+std/hash/default-hasher/hasher-write-methods.hd	A7b	lost '' gained ',,,,,,,,,,,,'	std/hash.md#r-std-hash.default.typed-writes
 runtime/valid/hd-run-command-forwarding.hd	A7b	lost '' gained ',,,'	std/testing.md#running-executables
 std/collections/heap/heap-order.hd	A7b	lost '' gained ',,'	std/collections.md#r-std-collections.heap.pop
 runtime/valid/homogeneous-varargs.hd	A7b	lost '' gained '()'	lang/07-functions.md#varargs

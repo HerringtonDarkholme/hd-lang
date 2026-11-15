@@ -1287,7 +1287,7 @@ Ledger: b037 (50): 4 rows. Plausible 2, spec question 2 (the target class).
   also assume a 32-bit `usize`. A grep for "wasm32" or "32-bit" in the
   fixtures finds 6 files: these two, `runtime/panic/usize-width-u32.hd`,
   `runtime/valid/sized-integer-arithmetic.hd`, `runtime/valid/num-parse-unsigned.hd`
-  and `runtime/valid/hasher-write-methods.hd`. The README names no target, and
+  and `std/hash/default-hasher/hasher-write-methods.hd`. The README names no target, and
   no directive selects one.
 - Plausible B3: `runtime/valid/union-members-name-self-and-hold-a-reference.hd`
   (`first()` never reads `x`, so the `&i32` payload is unused).
@@ -2452,7 +2452,7 @@ Ledger: b152 (45): 47 rows (45 are the tier-forced pointer-loan citation above).
 b153 (45): 17 (mostly the same). b154 (42): 3. b155 (45): 9.
 
 - **Checks that cannot fail (B3)**:
-  - `runtime/valid/map-many-string-keys.hd` compares `keys_of(values)` with itself.
+  - `std/hash/default-hasher/map-many-string-keys.hd` compares `keys_of(values)` with itself.
   - `runtime/valid/fs-glob*.hd`: the pattern `"c[a-]*.md"` expects `[]`, so it can't
     tell whether the dash in a character class works.
   - `std/encoding/base64/encoding-decode-errors.hd`: the Display check only asserts

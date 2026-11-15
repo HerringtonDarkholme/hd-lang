@@ -795,14 +795,14 @@ b154	std/encoding/base64/encoding-decode-errors.hd	FIX	B3	Display check only ass
 b154	std/error/standard-error-types/std-errors-erased.hd	FIX	B5	Imports ParseNumberError, which the program never names; remove it from the use line.
 b154	std/encoding/base64/encoding-properties.hd	UNSURE	C1	The bad-base64 table repeats encoding-decode-errors.hd cases with the same inputs and expectations, such as "Zm-_", "Zg=a", "Zh==" and "Zm9v\n".
 b155	std/fs/walking-and-globbing/fs-glob.hd	FIX	B3	glob!("tree/c[a-]*.md") expects [], which holds even if the dash is dropped or the class matches nothing; add a file such as tree/c-x.md and expect it.
-b155	runtime/valid/map-many-string-keys.hd	FIX	B3	Line 2737 compares keys_of(values) with itself, so it cannot fail; compare with the keys of a map built in reverse insertion order.
-b155	runtime/valid/map-index-groups-keep-order-and-lookups.hd	FIX	B8	Lines 51 and 65 pin a digest of Map and UniqMap iteration order, which types.map.order.unspecified leaves open; compare against a digest of sorted keys.
-b155	runtime/valid/union-hash.hd	FIX	B7	Cites std/hash.md#r-std-hash.hash-of-local, which is about hash_of on locals; the tested rule is the union template rule trait.target.union.enum-shape in lang/09-traits.md.
-b155	runtime/valid/hasher-write-methods.hd	UNSURE	B8	Expects write_usize as 4 bytes (typed_bytes, edge_bytes), per trait.hash.typed-bytes; std-hash.bytes.integer says "its own width", which is 8 bytes on 64-bit targets.
-b155	runtime/valid/fnv1a-hasher.hd	UNSURE	B8	The typed-writes test expects write_usize as 4 bytes, which std-hash.bytes.integer ("its own width") does not fix across targets.
-b155	runtime/valid/fnv1a-usize-byte-oracle.hd	UNSURE	B8	The oracle hashes usize as 4 bytes; std-hash.bytes.integer says usize uses its own width, so the expected digests vary by target.
-b155	runtime/valid/fnv1a-scattered-usize-keys.hd	UNSURE	B8	Literal digests assume usize hashes as 4 bytes; std-hash.bytes.integer says usize uses its own width, so they vary by target.
-b155	runtime/valid/fnv1a-usize-byte-oracle.hd	UNSURE	C1	Its edge list is the same 13 values, with the same FNV-1a expectation, as the first case list in runtime/valid/fnv1a-scattered-usize-keys.hd; only the expected source differs.
+b155	std/hash/default-hasher/map-many-string-keys.hd	FIX	B3	Line 2737 compares keys_of(values) with itself, so it cannot fail; compare with the keys of a map built in reverse insertion order.
+b155	std/hash/default-hasher/map-index-groups-keep-order-and-lookups.hd	FIX	B8	Lines 51 and 65 pin a digest of Map and UniqMap iteration order, which types.map.order.unspecified leaves open; compare against a digest of sorted keys.
+b155	std/hash/default-hasher/union-hash.hd	FIX	B7	Cites std/hash.md#r-std-hash.hash-of-local, which is about hash_of on locals; the tested rule is the union template rule trait.target.union.enum-shape in lang/09-traits.md.
+b155	std/hash/default-hasher/hasher-write-methods.hd	UNSURE	B8	Expects write_usize as 4 bytes (typed_bytes, edge_bytes), per trait.hash.typed-bytes; std-hash.bytes.integer says "its own width", which is 8 bytes on 64-bit targets.
+b155	std/hash/fnv-1a-hasher/fnv1a-hasher.hd	UNSURE	B8	The typed-writes test expects write_usize as 4 bytes, which std-hash.bytes.integer ("its own width") does not fix across targets.
+b155	std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	UNSURE	B8	The oracle hashes usize as 4 bytes; std-hash.bytes.integer says usize uses its own width, so the expected digests vary by target.
+b155	std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd	UNSURE	B8	Literal digests assume usize hashes as 4 bytes; std-hash.bytes.integer says usize uses its own width, so they vary by target.
+b155	std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	UNSURE	C1	Its edge list is the same 13 values, with the same FNV-1a expectation, as the first case list in std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd; only the expected source differs.
 b156	runtime/valid/http-form-map-number.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; no part in the case.
 b156	runtime/valid/http-form-root-list.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case has no Serialize derive or impl.
 b156	runtime/valid/http-form-root-scalar.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case uses no Serialize item.
