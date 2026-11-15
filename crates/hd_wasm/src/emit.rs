@@ -1433,7 +1433,12 @@ struct Em<'i, 'a, 'm> {
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
     cached_buffers: Vec<(u32, u32)>,
     /// Exact range-index reads proven in bounds in this body's loops.
-    proven_list_indices: Vec<u32>,
+    proven_list_indices: hd_base::HashSet<u32>,
+    /// The list proofs' whole-body facts, built on the first loop that
+    /// asks and shared with the body's other emitters (#1982).
+    list_facts: std::sync::Arc<std::sync::OnceLock<list::ListFacts>>,
+    /// Each list root local's aliases, walked on the first loop over it.
+    list_alias_memo: std::cell::RefCell<HashMap<u32, std::rc::Rc<list::Aliases>>>,
     /// What the unchanged headers of the body's reference parameters
     /// prove (`guards.rs`).
     headers: guards::HeaderFacts,
@@ -1641,7 +1646,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             init_key: None,
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
-            proven_list_indices: Vec::new(),
+            proven_list_indices: hd_base::HashSet::default(),
+            list_facts: std::sync::Arc::clone(&facts.list),
+            list_alias_memo: std::cell::RefCell::default(),
             headers: guards::HeaderFacts::default(),
             borrowed: hd_base::HashSet::default(),
             lends: 0,

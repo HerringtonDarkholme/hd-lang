@@ -15,6 +15,8 @@ pub(crate) type BodyFactCell = Arc<OnceLock<BodyFacts>>;
 pub(crate) struct BodyFacts {
     pub(super) topo: Arc<Topology>,
     pub(super) tree: Arc<OnceLock<super::shape::Tree>>,
+    /// The list proofs' facts, built by the first loop that asks.
+    pub(super) list: Arc<OnceLock<super::list::ListFacts>>,
     pub(super) recursive: Arc<hd_tir::own::RecursiveBindings>,
     pub(super) uses: Arc<UseFacts>,
     pub(super) borrow: Arc<OnceLock<super::borrow::BorrowFacts>>,
@@ -71,6 +73,7 @@ impl BodyFacts {
         crate::work::use_facts(b.len());
         Self {
             tree: Arc::default(),
+            list: Arc::default(),
             borrow: Arc::default(),
             short_uses: OnceLock::new(),
             rows: rows.into_iter().map(Arc::from).collect(),

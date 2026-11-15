@@ -40,15 +40,22 @@ impl Em<'_, '_, '_> {
     /// around `j`, before the statement that holds `j`. Blocks are entered
     /// only at their start (a resumed suspending body is the exception,
     /// `susp.rs`), so reaching that statement ran `d`.
+    /// An interval test on the body's [`Tree`] and a binary search of
+    /// `d`'s block's children, which are in position order (#1982).
     pub(super) fn dominates(&self, d: u32, j: u32) -> bool {
-        let (blk, p) = (
-            self.topo.blk[d as usize],
-            self.topo.pos[d as usize] as usize,
-        );
+        let blk = self.topo.blk[d as usize];
         blk != NONE
             && self
-                .block_path(j)
-                .is_some_and(|path| path.iter().any(|&(k, q)| k == blk && q > p))
+                .position_in(blk, j)
+                .is_some_and(|q| q > self.topo.pos[d as usize] as usize)
+    }
+
+    /// The position of the statement of block `blk` that holds
+    /// instruction `j`, when `blk` is around `j`: the entry for `blk` in
+    /// `j`'s [`Em::block_path`], found in O(log) on the [`Tree`].
+    pub(super) fn position_in(&self, blk: u32, j: u32) -> Option<usize> {
+        let k = self.tree().child_above(blk, j)?;
+        Some(self.topo.pos[k as usize] as usize)
     }
 
     /// The body's [`Tree`], built on first use.
@@ -140,7 +147,16 @@ impl Tree {
                 topo.blk[i]
             }
         };
-        let (at, kids) = buckets(n, parent);
+        let (at, mut kids) = buckets(n, parent);
+        // A block's children in the order of the statements that hold
+        // them, so a block's statements are runs of the preorder in
+        // position order ([`Tree::child_above`]).
+        for x in 0..n {
+            if b.tags[x] == Tag::Block {
+                kids[at[x] as usize..at[x + 1] as usize]
+                    .sort_stable_by_key(|&k| topo.pos[k as usize]);
+            }
+        }
         // Preorder from each root, by an explicit stack: an input-deep
         // tree never recurses natively. A subtree is a run of the order.
         let mut pre = vec![NONE; n];
@@ -188,8 +204,24 @@ impl Tree {
         &self.own[self.own_at[l] as usize..self.own_at[l + 1] as usize]
     }
 
+    /// The child of block `blk` whose subtree holds `j`, when `j` is
+    /// strictly below `blk`: an interval test, then a binary search of
+    /// the children, which are in preorder. O(log children).
+    pub(super) fn child_above(&self, blk: u32, j: u32) -> Option<u32> {
+        let (b, p) = (self.pre[blk as usize], self.pre[j as usize]);
+        if b == NONE || p == NONE || p <= b || p > self.last[blk as usize] {
+            return None;
+        }
+        let kids = self.children(blk);
+        // The first child is numbered `b + 1`, at most `p`, so the
+        // partition point is past it.
+        let k = kids.partition_point(|&k| self.pre[k as usize] <= p);
+        Some(kids[k - 1])
+    }
+
     /// The children of instruction `i`: the blocks a non-block runs, the
-    /// non-block statements a block lists.
+    /// non-block instructions a block lists, in the order of their
+    /// statements.
     fn children(&self, i: u32) -> &[u32] {
         let i = i as usize;
         &self.kids[self.at[i] as usize..self.at[i + 1] as usize]

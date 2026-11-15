@@ -231,7 +231,7 @@ struct Falling {
 struct Proof<'e, 'x, 'a, 'm> {
     em: &'e Em<'x, 'a, 'm>,
     /// Each local's stores and the value of a whole one.
-    sets: Vec<Vec<(u32, u32)>>,
+    sets: &'e [Vec<(u32, u32)>],
     /// Locals whose value a reference may change: cells, captured ones,
     /// and those a `Ref` names.
     addressed: Vec<bool>,

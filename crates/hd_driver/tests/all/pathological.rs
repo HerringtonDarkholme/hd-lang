@@ -3279,6 +3279,47 @@ fn list_loop_run(n: usize) -> String {
     s
 }
 
+/// `n` loops one after another, each over its own list by its index:
+/// each list's aliases are walked once, over what reaches that list
+/// (#1982).
+fn list_loop_run_distinct(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for k in 0..n {
+        let _ = writeln!(s, "    xs{k} := [1, 2, 3]");
+        let _ = writeln!(s, "    for i in 0..xs{k}.len():\n        t = t + xs{k}[i]");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// `n` falling-index loops one after another over one list (#1982): each
+/// asks which accesses checked its entry index.
+fn falling_loop_run(n: usize) -> String {
+    let mut s =
+        String::from("pub fn main() -> void $ Console:\n    xs := [1, 2, 3]\n    let t = +0\n");
+    for k in 0..n {
+        let _ = writeln!(s, "    let top{k}: usize = 2\n    t = t + xs[top{k}]");
+        let _ = writeln!(s, "    let v{k}: usize = top{k}\n    while v{k} > 0:");
+        let _ = writeln!(s, "        t = t + xs[v{k} - 1]\n        v{k} = v{k} - 1");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// `n` masked-index loops one after another over one list (#1982), each
+/// under its own length test.
+fn masked_loop_run(n: usize) -> String {
+    let mut s = String::from(
+        "pub fn main() -> void $ Console:\n    xs := [1, 2, 3]\n    let t = +0\n    let m: usize = 3\n",
+    );
+    for _ in 0..n {
+        s.push_str("    if xs.len() > 0:\n        for i in 0..m:\n");
+        s.push_str("            t = t + xs[i & (xs.len() - 1)]\n");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
 fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", source);
@@ -3308,7 +3349,10 @@ fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
 // the body and built each one's block path to ask whether the loop held
 // it: cubic in a nest, quadratic in a run of loops. The body's block tree
 // is now numbered once in preorder, a loop's instructions are a slice of
-// it, and only a proof whose cheap tests pass asks for them.
+// it, and only a proof whose cheap tests pass asks for them. #1982: the
+// counter also counts the whole-body passes (the list facts, once per
+// body, and each list's alias walk, once per list), which each loop
+// repeated, so a run of loops was quadratic.
 #[test]
 fn loop_proofs_list_each_loops_instructions_from_one_tree() {
     on_test_stack(|| {
@@ -3325,11 +3369,16 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
             assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
             work
         };
-        let shapes: [ValueShape; 3] = [
+        let shapes: [ValueShape; 6] = [
             // A level nests two deep: 70 levels stay below the nesting limit.
             ("for-nest", |n| loop_nest(n, "for"), 7, |n| n),
             ("while-nest", |n| loop_nest(n, "while"), 7, |n| n),
             ("list-loop-run", list_loop_run, 100, |n| 6 * n),
+            ("distinct-list-loop-run", list_loop_run_distinct, 100, |n| {
+                6 * n
+            }),
+            ("falling-loop-run", falling_loop_run, 100, |n| 6 * n),
+            ("masked-loop-run", masked_loop_run, 100, |n| 5 * n),
         ];
         for level in [hd_driver::OptLevel::Dev, hd_driver::OptLevel::Optimized] {
             for (name, generate, n, printed) in shapes {
