@@ -793,7 +793,7 @@ annotations/typed-derivation/derivation-blocks/member-line-lists-a-spread-of-a-v
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-name-that-does-not-exist-is-reported-once.hd	A9	reject:unknown-name not mentioned in cited lang/14-annotations.md#member-lines
 std/http/requests-and-responses/http-request-timeout-removed.hd	A9	reject:unknown-field not mentioned in cited std/http.md#r-std-http.types.parsed-messages
 std/http/request-builder/http-request-send-missing-provider.hd	A9	reject:missing-requirement not mentioned in cited std/http.md#r-std-http.request.send-borrowed
-typing/invalid/regex-decode-requires-deserialize.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/regex.md#r-std-regex.decode.regex
+std/regex/typed-decoding/regex-decode-requires-deserialize.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/regex.md#r-std-regex.decode.regex
 std/num/integer-parsing/num-parse-free-function-removed.hd	A9	reject:unknown-import not mentioned in cited std/num.md#parse-impls
 std/error/cause-chain/error-chain-free-function-removed.hd	A9	reject:unknown-import not mentioned in cited std/error.md#r-std-error.chain.method-only
 std/error/error-context/error-context-private-type.hd	A9	reject:private-import not mentioned in cited std/error.md#r-std-error.context.private-wrapper
