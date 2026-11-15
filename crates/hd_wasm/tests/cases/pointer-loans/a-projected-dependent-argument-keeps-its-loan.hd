@@ -1,0 +1,31 @@
+# @dump: wat
+# @build: dev | release
+# expected: a projected tuple reference holds its dependent loan before later arguments run
+# test: dependent result projection loan covers later arguments
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+struct Outer:
+    items: Slots
+
+fn observe(r: &string, alias: *mut Outer) -> string:
+    *r
+
+fn later(alias: *mut Outer) -> *mut Outer:
+    alias.items.push("changed before observe")
+    alias
+
+# subject
+fn probe(p: *mut Outer, alias: *mut Outer) -> string:
+    observe((p.items.at(0), +0)._0, later(alias))
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: Slots { items: ["orig-" + "z".repeat(40)] } })
+    println(probe(p, p))

@@ -102,6 +102,7 @@ impl Em<'_, '_, '_> {
                     let labelled = self.topo.label_of[blk as usize] != NONE;
                     if labelled {
                         self.open(Ctl::Brk(blk));
+                        self.loan_scope_begin(blk);
                     }
                     let mut items = self.items(list);
                     if let Some(k) = self.dead_from(&items, tail) {
@@ -168,6 +169,7 @@ impl Em<'_, '_, '_> {
                 Task::EndIfInst(i, state) => {
                     self.borrow_after_store(i);
                     self.keep_header_read(i);
+                    self.borrow_argument_end(i);
                     self.end_inst(i, state, Ok(()))?;
                 }
             }

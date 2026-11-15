@@ -1,0 +1,30 @@
+# test: dependent result loan ends on argument continue
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+struct Outer:
+    items: Slots
+
+fn observe(r: &string, alias: *mut Outer) -> string:
+    *r
+
+fn later(alias: *mut Outer) -> *mut Outer:
+    alias.items.push("changed before observe")
+    alias
+
+fn probe(p: *mut Outer, alias: *mut Outer) -> void:
+    for round in 0..2:
+        _ := observe(p.items.at(0), if p.items.items.len() == 1: continue else: later(alias))
+    alias.items.push("after the loop")
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: Slots { items: ["orig-" + "z".repeat(40)] } })
+    probe(p, p)
+    println("ok")

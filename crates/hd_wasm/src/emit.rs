@@ -356,6 +356,7 @@ fn body_func<'a>(
         params.clone(),
         fres,
     );
+    em.borrow_init_flags();
     em.f.reason = Some(Reason::Conservative("entry"));
     em.f.names_counts = em.names_counts();
     if em.m.track_origins {
@@ -2257,6 +2258,7 @@ impl Em<'_, '_, '_> {
             self.tail_into(tail, d, blk)?;
         }
         if labelled {
+            self.loan_scope_end(blk)?;
             self.close();
             if let Some(d) = dest {
                 // A break out of the block stored its value in the
@@ -2410,12 +2412,14 @@ impl Em<'_, '_, '_> {
         if self.calls.contains_key(&i)
             || matches!(self.b.tags[i as usize], Tag::CallValue | Tag::DefaultCall)
         {
-            return self.inst_call(i, a, bw);
+            self.inst_call(i, a, bw)?;
+        } else {
+            self.borrow_before_store(i);
+            self.inst_tag(i, a, bw)?;
+            self.borrow_after_store(i);
+            self.keep_header_read(i);
         }
-        self.borrow_before_store(i);
-        self.inst_tag(i, a, bw)?;
-        self.borrow_after_store(i);
-        self.keep_header_read(i);
+        self.borrow_argument_end(i);
         Ok(())
     }
 
@@ -2639,7 +2643,9 @@ impl Em<'_, '_, '_> {
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
                 self.loops += 1;
+                self.loan_scope_begin(i);
                 self.block_into(a, None)?;
+                self.loan_scope_end(i)?;
                 self.loops -= 1;
                 self.f.op(Instruction::Br(0));
                 self.close();
@@ -2674,7 +2680,9 @@ impl Em<'_, '_, '_> {
             Tag::Scope => {
                 self.slot(i)?;
                 self.open(Ctl::Plain);
+                self.loan_scope_begin(i);
                 self.block_into(a, Some(i))?;
+                self.loan_scope_end(i)?;
                 self.close();
             }
             Tag::Match => {
@@ -2682,6 +2690,7 @@ impl Em<'_, '_, '_> {
                 let n = u32::try_from(blocks.len() - 1).expect("arms");
                 self.slot(i)?;
                 self.open(Ctl::Brk(i));
+                self.loan_scope_begin(i);
                 for k in (0..n).rev() {
                     self.open(Ctl::Arm(i, k));
                 }
@@ -2693,9 +2702,9 @@ impl Em<'_, '_, '_> {
                 for arm in &blocks[1..] {
                     self.close();
                     self.block_into(*arm, Some(i))?;
-                    let d = self.depth(Ctl::Brk(i));
-                    self.f.op(Instruction::Br(d));
+                    self.exit(scope::Exit::Brk(i))?;
                 }
+                self.loan_scope_end(i)?;
                 self.close();
             }
             Tag::ToArm => {

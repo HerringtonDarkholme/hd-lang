@@ -1,0 +1,34 @@
+# test: an early return from a later argument releases an already evaluated dependent argument loan
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+struct Outer:
+    items: Slots
+
+fn observe(r: &string, alias: *mut Outer) -> string:
+    *r
+
+fn later_maybe(alias: *mut Outer, fail: bool) -> Result[*mut Outer, string]:
+    if fail:
+        .Err("stop")
+    else:
+        alias.items.push("later")
+        .Ok(alias)
+
+fn probe(p: *mut Outer, alias: *mut Outer, fail: bool) -> Result[string, string]:
+    .Ok(observe(p.items.at(0), later_maybe(alias, fail)?))
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: Slots { items: ["orig-" + "z".repeat(40)] } })
+    match probe(p, p, p.items.items.len() == 1):
+        .Err(_) => pass
+        .Ok(_) => panic("expected an early return")
+    p.items.push("after return")
+    println("ok")

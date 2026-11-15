@@ -1,0 +1,30 @@
+# test: dependent result selected branch loan covers later arguments
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+struct Outer:
+    items: Slots
+
+fn observe(r: &string, alias: *mut Outer) -> string:
+    *r
+
+fn later(alias: *mut Outer) -> *mut Outer:
+    alias.items.push("changed before observe") # panic: borrow-conflict
+    alias
+
+fn probe(p: *mut Outer, other: *mut Outer, pick: bool) -> string:
+    alias := if pick: p else: other
+    observe(if pick: p.items.at(0) else: other.items.at(0), later(alias))
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: Slots { items: ["orig-" + "z".repeat(40)] } })
+    other := box(Outer { items: Slots { items: ["other-" + "y".repeat(40)] } })
+    for round in 0..4:
+        println(probe(p, other, round % 2 == 1))

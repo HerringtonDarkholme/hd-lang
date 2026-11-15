@@ -1255,6 +1255,8 @@ pub struct Module {
     /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
     /// the instruction that takes the loan, and the dereference it lies at.
     pub kept: hd_base::HashSet<crate::emit::LoanSite>,
+    /// Lazily indexed kept origins, shared by all body emitters.
+    pub kept_origins: std::sync::OnceLock<hd_base::HashSet<(hd_base::InstId, u32)>>,
     /// The stores of a call's result whose callee's reference reaches one
     /// more object than its argument, which the page table finds.
     pub result_inner: hd_base::HashSet<(hd_base::InstId, u32)>,
@@ -1329,6 +1331,7 @@ impl Module {
             idle: Default::default(),
             lent: hd_base::HashMap::default(),
             kept: hd_base::HashSet::default(),
+            kept_origins: std::sync::OnceLock::default(),
             result_inner: hd_base::HashSet::default(),
             dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),

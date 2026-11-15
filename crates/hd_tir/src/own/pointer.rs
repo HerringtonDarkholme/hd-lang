@@ -556,39 +556,37 @@ pub fn decide(cx: &impl Context) -> Decisions {
                     continue;
                 };
                 let vu = u32::try_from(v).expect("insts");
-                match b.tags[v] {
-                    Tag::Ref => {
-                        ref_sites(cx, b, *id, vu, |site, object, excl| {
-                            if program(object, excl, accs[id].get(&vu))
-                                && meets((vu + 1).min(iu), call_end, &[], object, excl)
+                if b.tags[v] == Tag::Ref {
+                    ref_sites(cx, b, *id, vu, |site, object, excl| {
+                        if program(object, excl, accs[id].get(&vu))
+                            && meets((vu + 1).min(iu), call_end, &[], object, excl)
+                        {
+                            kept.push((site, object, excl));
+                        }
+                    });
+                }
+                if b.tags[v] == Tag::Read {
+                    let lent =
+                        lent_objects(cx, &out.dyn_types, *id, b, params.get(k), v, k, receiver);
+                    for (mutable, target) in lent {
+                        if program(target, mutable, accs[id].get(&vu))
+                            && meets((vu + 1).min(iu), call_end, &[], target, mutable)
+                        {
+                            kept.push(((*id, vu, u32::MAX), target, mutable));
+                        }
+                    }
+                }
+                if b.tags[v] != Tag::Ref {
+                    // A `Ref` the argument carries through calls'
+                    // results: its loan runs from it to this call.
+                    for r in cx.carried_refs(*id, v) {
+                        ref_sites(cx, b, *id, r, |site, object, excl| {
+                            if program(object, excl, accs[id].get(&r))
+                                && meets((r + 1).min(iu), call_end, &[], object, excl)
                             {
                                 kept.push((site, object, excl));
                             }
                         });
-                    }
-                    Tag::Read => {
-                        let lent =
-                            lent_objects(cx, &out.dyn_types, *id, b, params.get(k), v, k, receiver);
-                        for (mutable, target) in lent {
-                            if program(target, mutable, accs[id].get(&vu))
-                                && meets((vu + 1).min(iu), call_end, &[], target, mutable)
-                            {
-                                kept.push(((*id, vu, u32::MAX), target, mutable));
-                            }
-                        }
-                    }
-                    _ => {
-                        // A `Ref` the argument carries through calls'
-                        // results: its loan runs from it to this call.
-                        for r in cx.carried_refs(*id, v) {
-                            ref_sites(cx, b, *id, r, |site, object, excl| {
-                                if program(object, excl, accs[id].get(&r))
-                                    && meets((r + 1).min(iu), call_end, &[], object, excl)
-                                {
-                                    kept.push((site, object, excl));
-                                }
-                            });
-                        }
                     }
                 }
             }

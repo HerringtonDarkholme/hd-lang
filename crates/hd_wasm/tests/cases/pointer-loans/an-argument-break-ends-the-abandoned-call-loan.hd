@@ -1,0 +1,33 @@
+# @dump: wat
+# @build: dev | release
+# expected: a break leaves through one cleanup ladder and clears the abandoned consumer loan
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+struct Outer:
+    items: Slots
+
+fn observe(r: &string, alias: *mut Outer) -> string:
+    *r
+
+fn later(alias: *mut Outer) -> *mut Outer:
+    alias.items.push("changed before observe")
+    alias
+
+# subject
+fn probe(p: *mut Outer, alias: *mut Outer) -> void:
+    for round in 0..2:
+        _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
+    alias.items.push("after the loop")
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: Slots { items: ["orig-" + "z".repeat(40)] } })
+    probe(p, p)
+    println("ok")

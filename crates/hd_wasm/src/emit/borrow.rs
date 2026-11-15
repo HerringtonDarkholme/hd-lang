@@ -54,6 +54,7 @@
 
 use hd_base::{HashMap, SliceSort as _, StageResult};
 use hd_mono::{ProgramEnv, Target};
+use hd_tir::ir::NONE;
 use hd_tir::ir::{Body, PlaceRoot, Proj, Tag};
 use hd_types::{InternPool, Ty, TyData};
 use wasm_encoder::BlockType;
@@ -84,11 +85,92 @@ struct CaptureOrigins {
     work: usize,
 }
 
+/// Exit positions are collected in the existing ascending preparation walk.
+/// One loan asks one logarithmic range query, rather than rescanning its body.
+fn jump_in_range(jumps: &[u32], from: u32, call: u32, mut probe: impl FnMut()) -> bool {
+    let at = jumps.partition_point(|&jump| {
+        probe();
+        jump <= from
+    });
+    jumps.get(at).is_some_and(|&jump| jump < call)
+}
+
 #[cfg(test)]
 mod capture_origin_tests {
     use super::*;
     use hd_base::{DefId, LocalId, SubId};
     use hd_tir::ir::{TirBuilder, TirSink as _};
+
+    #[test]
+    fn loan_exit_queries_have_logarithmic_work_at_width_and_depth() {
+        for (width, depth) in [(100_u32, 1), (1000, 1), (100, 20), (1000, 20)] {
+            let jumps: Vec<_> = (0..width * depth).map(|i| i * 4 + 2).collect();
+            let mut probes = 0;
+            let mut queries = 0;
+            let bound = jumps.len().ilog2() as usize + 2;
+            for i in 0..width * depth {
+                let start = i * 4;
+                for (from, call, expected) in [
+                    (start, start + 1, false),
+                    (start + 1, start + 3, true),
+                    (start + 2, start + 4, false),
+                ] {
+                    let before = probes;
+                    assert_eq!(jump_in_range(&jumps, from, call, || probes += 1), expected);
+                    assert!(probes - before <= bound);
+                    queries += 1;
+                }
+            }
+            assert_eq!(queries, width as usize * depth as usize * 3);
+            assert!(probes <= queries * bound);
+        }
+        assert!(!jump_in_range(&[], 0, u32::MAX, || {}));
+        assert!(!jump_in_range(&[4], 0, 4, || {}));
+        assert!(!jump_in_range(&[4], 4, 5, || {}));
+        assert!(jump_in_range(&[4], 3, 5, || {}));
+    }
+
+    #[test]
+    fn argument_cleanup_owners_visit_each_instruction_once_at_width_and_depth() {
+        for (width, depth) in [(100, 1), (1000, 1), (100, 20), (1000, 20)] {
+            let mut builder = storage_body(0);
+            let mut outer = Vec::new();
+            let mut checks = Vec::new();
+            for _ in 0..width {
+                let leaf = builder.emit(Tag::Unreachable, 0, 0, Ty::VOID, hd_base::NodeIdx::NONE);
+                let mut child = leaf;
+                for level in 0..depth {
+                    let list = builder.words_record(&[child.0]);
+                    let block =
+                        builder.emit(Tag::Block, list, NONE, Ty::VOID, hd_base::NodeIdx::NONE);
+                    let parent =
+                        builder.emit(Tag::Loop, block.0, 0, Ty::VOID, hd_base::NodeIdx::NONE);
+                    if level == 0 {
+                        checks.push((leaf.0, parent.0));
+                    } else {
+                        checks.push((child.0, parent.0));
+                    }
+                    child = parent;
+                }
+                outer.push(child.0);
+            }
+            let list = builder.words_record(&outer);
+            let root = builder.emit(Tag::Block, list, NONE, Ty::VOID, hd_base::NodeIdx::NONE);
+            builder.body_mut().sub_root = vec![root.0];
+            let b = builder.body_mut();
+            let topo = hd_tir::ir::Topology::new(b);
+            let mut visits = 0;
+            let owners = cleanup_owners(b, &topo, || visits += 1);
+            assert_eq!(visits, b.len());
+            assert_eq!(visits, width * (1 + 2 * depth) + 1);
+            for (child, parent) in checks {
+                assert_eq!(owners[child as usize], parent);
+            }
+            for i in outer {
+                assert_eq!(owners[i as usize], NONE);
+            }
+        }
+    }
 
     #[test]
     fn pointer_key_interning_is_independent_of_other_keys() {
@@ -388,11 +470,35 @@ fn frames_of(b: &Body) -> Vec<u32> {
     out
 }
 
+/// Members precede parents. One reverse pass assigns every instruction
+/// its nearest enclosing boundary, stopping at closure roots.
+fn cleanup_owners(b: &Body, topo: &hd_tir::ir::Topology, mut visit: impl FnMut()) -> Vec<u32> {
+    let mut out = vec![NONE; b.len()];
+    for i in (0..b.len()).rev() {
+        visit();
+        let p = if topo.owner[i] == NONE {
+            topo.blk[i]
+        } else {
+            topo.owner[i]
+        };
+        if topo.is_root[i] || p == NONE {
+            continue;
+        }
+        let parent = p;
+        let p = p as usize;
+        let boundary = matches!(b.tags[p], Tag::Loop | Tag::Scope | Tag::Match)
+            || b.tags[p] == Tag::Block && topo.label_of[p] != NONE;
+        out[i] = if boundary { parent } else { out[p] };
+    }
+    out
+}
+
 /// Immutable storage and capture facts shared by sibling emitters.
 pub(super) struct BorrowFacts {
     storage_roots: std::sync::Arc<StorageRoots>,
     shared: std::sync::Arc<hd_base::HashSet<usize>>,
     frames: std::sync::Arc<[u32]>,
+    cleanup_owners: std::sync::OnceLock<std::sync::Arc<[u32]>>,
 }
 
 impl BorrowFacts {
@@ -402,6 +508,7 @@ impl BorrowFacts {
             storage_roots: std::sync::Arc::new(StorageRoots::new(b)),
             shared: std::sync::Arc::new(super::closure::shared_locals_with(b, recursive)),
             frames: frames_of(b).into(),
+            cleanup_owners: std::sync::OnceLock::default(),
         }
     }
 }
@@ -450,6 +557,8 @@ pub(super) struct Borrows {
     call_loans: HashMap<u32, Vec<CallLoan>>,
     /// Every call loan taken, for the function's exit.
     all_calls: Vec<CallLoan>,
+    /// Sorted early-exit positions, collected during call preparation.
+    jumps: Vec<u32>,
     /// The arguments whose call's result a holder binds: their crossed
     /// objects' header addresses are kept at their evaluation.
     call_holds: hd_base::HashSet<u32>,
@@ -479,10 +588,19 @@ pub(super) struct Borrows {
     /// when that value is dropped, as such a binding borrows it and has no
     /// `Drop` of its own.
     via_call: HashMap<u32, Vec<usize>>,
-    /// The `Ref`s each call's arguments carry through calls' results, and
-    /// whether each is `&mut`: their loans run while the call does
+    /// Carried Ref origins to activate when an argument value completes:
+    /// (consuming call, Ref instruction, mutable), keyed by argument value.
+    /// Their loans start before later arguments evaluate.
     /// ([`super::excl::carried_refs`]).
-    carried: HashMap<u32, Vec<(u32, bool)>>,
+    carried: HashMap<u32, Vec<CarriedLoan>>,
+    /// Origin evaluation flags, separate for every consuming argument.
+    carried_from: HashMap<u32, Vec<u32>>,
+    carried_flag_count: u32,
+    /// Nearest enclosing exit boundary of each consuming call.
+    cleanup_owners: std::sync::Arc<[u32]>,
+    /// Pending origin flags and active loans, grouped once by boundary.
+    cleanup_flags: HashMap<u32, Vec<u32>>,
+    cleanup_loans: HashMap<u32, Vec<CallLoan>>,
     /// The `*T` locals a closure of the body captures with its creator's
     /// own loans through them ([`Em::own_caps`]).
     own_shared: hd_base::HashSet<usize>,
@@ -499,6 +617,15 @@ pub(super) struct Borrows {
     /// which are 0 where its data address is (a trait value of no Wasm
     /// values): no loan is taken then.
     nullable: hd_base::HashSet<u32>,
+}
+
+/// One origin edge of a dependent argument, with its runtime path flag.
+#[derive(Clone, Copy)]
+struct CarriedLoan {
+    call: u32,
+    origin: u32,
+    exclusive: bool,
+    active: u32,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -946,9 +1073,8 @@ impl Em<'_, '_, '_> {
         let mut carried_graph = super::excl::OriginGraph::default();
         let sub = |t| self.sub(t);
         let found = binds(self.pool(), self.env(), self.b, &origin_index, &sub, &sites);
-        let immutable = self
-            .borrow_facts
-            .get_or_init(|| BorrowFacts::new(self.b, &self.recursive_bindings));
+        let facts = std::sync::Arc::clone(&self.borrow_facts);
+        let immutable = facts.get_or_init(|| BorrowFacts::new(self.b, &self.recursive_bindings));
         let mut st = Borrows {
             capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
             storage_roots: std::sync::Arc::clone(&immutable.storage_roots),
@@ -1056,6 +1182,9 @@ impl Em<'_, '_, '_> {
         // Call loans: a `Ref` argument, and a closure argument's captures.
         for i in 0..self.b.tags.len() {
             let call = u32::try_from(i).expect("insts");
+            if matches!(self.b.tags[i], Tag::Break | Tag::Continue | Tag::Return) {
+                st.jumps.push(call);
+            }
             let Some(receiver) = call_info(self.input, self.b, i, self.calls.get(&call)) else {
                 continue;
             };
@@ -1065,61 +1194,73 @@ impl Em<'_, '_, '_> {
                     continue;
                 };
                 let v = u32::try_from(v).expect("insts");
-                match self.b.tags[v as usize] {
-                    Tag::Ref if !st.refs.contains_key(&v) => {
-                        let two_phase = k == 0
-                            && receiver == Some(true)
-                            && ref_mutable(self.pool(), self.env(), self.ty(v));
-                        self.intern_ref_keys(&mut st, v);
-                        st.call_refs.insert(v, (call, two_phase));
-                    }
-                    Tag::Closure => {
-                        st.call_closures.insert(v, call);
-                    }
-                    Tag::Read => {
-                        let pool = self.pool();
-                        let env = self.env();
-                        let param = params.get(k).copied();
-                        let sub = |t| self.sub(t);
-                        let dyn_recv = dyn_receiver(pool, env, (self.b, &sub), v as usize);
-                        let lent = pointer_lent(pool, env, param, self.ty(v), k, receiver).or(
-                            match (k, receiver, dyn_recv) {
-                                (0, Some(m), Some(_)) => Some((m, m)),
-                                _ => None,
-                            },
-                        );
-                        if let Some((mutable, two_phase)) = lent {
-                            if let Some(mut p) = self.b.decode_place(self.b.data[v as usize][0])
-                                && matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-                            {
-                                // A `*dyn` receiver's pointer is the place
-                                // before its dereference.
-                                if dyn_recv.is_some() {
-                                    p.proj.pop();
-                                }
-                                let key = st.capture_origins.key((p.root, p.proj, ANY_FRAME));
-                                st.intern_key(key);
+                if self.b.tags[v as usize] == Tag::Ref && !st.refs.contains_key(&v) {
+                    let two_phase = k == 0
+                        && receiver == Some(true)
+                        && ref_mutable(self.pool(), self.env(), self.ty(v));
+                    self.intern_ref_keys(&mut st, v);
+                    st.call_refs.insert(v, (call, two_phase));
+                }
+                if self.b.tags[v as usize] == Tag::Closure {
+                    st.call_closures.insert(v, call);
+                }
+                if self.b.tags[v as usize] == Tag::Read {
+                    let pool = self.pool();
+                    let env = self.env();
+                    let param = params.get(k).copied();
+                    let sub = |t| self.sub(t);
+                    let dyn_recv = dyn_receiver(pool, env, (self.b, &sub), v as usize);
+                    let lent = pointer_lent(pool, env, param, self.ty(v), k, receiver).or(
+                        match (k, receiver, dyn_recv) {
+                            (0, Some(m), Some(_)) => Some((m, m)),
+                            _ => None,
+                        },
+                    );
+                    if let Some((mutable, two_phase)) = lent {
+                        if let Some(mut p) = self.b.decode_place(self.b.data[v as usize][0])
+                            && matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
+                        {
+                            // A `*dyn` receiver's pointer is the place
+                            // before its dereference.
+                            if dyn_recv.is_some() {
+                                p.proj.pop();
                             }
-                            st.call_ptrs.insert(v, (call, mutable, two_phase));
+                            let key = st.capture_origins.key((p.root, p.proj, ANY_FRAME));
+                            st.intern_key(key);
                         }
+                        st.call_ptrs.insert(v, (call, mutable, two_phase));
                     }
-                    _ => {
-                        let sub = |t| self.sub(t);
-                        let carried = super::excl::carried_refs(
-                            self.pool(),
-                            self.env(),
-                            self.b,
-                            &origin_index,
-                            &mut carried_graph,
-                            &sub,
-                            v as usize,
-                        );
-                        for r in carried {
-                            self.intern_ref_keys(&mut st, r);
-                            st.call_holds.insert(r);
-                            let excl = ref_mutable(self.pool(), self.env(), self.ty(r));
-                            st.carried.entry(call).or_default().push((r, excl));
+                }
+                if !matches!(self.b.tags[v as usize], Tag::Ref | Tag::Closure) {
+                    let sub = |t| self.sub(t);
+                    let carried = super::excl::carried_refs(
+                        self.pool(),
+                        self.env(),
+                        self.b,
+                        &origin_index,
+                        &mut carried_graph,
+                        &sub,
+                        v as usize,
+                    );
+                    for r in carried {
+                        let origins = self.m.kept_origins.get_or_init(|| {
+                            self.m.kept.iter().map(|&(inst, r, _)| (inst, r)).collect()
+                        });
+                        if !origins.contains(&(self.inst, r)) {
+                            continue;
                         }
+                        self.intern_ref_keys(&mut st, r);
+                        st.call_holds.insert(r);
+                        let exclusive = ref_mutable(self.pool(), self.env(), self.ty(r));
+                        let active = st.carried_flag_count;
+                        st.carried_flag_count += 1;
+                        st.carried_from.entry(r).or_default().push(active);
+                        st.carried.entry(v).or_default().push(CarriedLoan {
+                            call,
+                            origin: r,
+                            exclusive,
+                            active,
+                        });
                     }
                 }
             }
@@ -1143,6 +1284,19 @@ impl Em<'_, '_, '_> {
                         .into_iter()
                         .map(|l| st.capture_origins.local(l)),
                 );
+            }
+        }
+        if !st.carried.is_empty() {
+            st.cleanup_owners = std::sync::Arc::clone(immutable.cleanup_owners.get_or_init(|| {
+                cleanup_owners(self.b, &self.topo, || crate::work::use_facts(1)).into()
+            }));
+            for refs in st.carried.values() {
+                for edge in refs {
+                    let owner = st.cleanup_owners[edge.call as usize];
+                    if owner != NONE && jump_in_range(&st.jumps, edge.origin, edge.call, || {}) {
+                        st.cleanup_flags.entry(owner).or_default().push(edge.active);
+                    }
+                }
             }
         }
         self.borrows = st;
@@ -2294,7 +2448,6 @@ impl Em<'_, '_, '_> {
     /// shared loan becomes exclusive, which needs no loan but the
     /// function's own through its pointer.
     pub(super) fn borrow_call_begin(&mut self, i: u32) {
-        self.borrow_carried(i);
         let Some(loans) = self.borrows.call_loans.get(&i).cloned() else {
             return;
         };
@@ -2339,14 +2492,61 @@ impl Em<'_, '_, '_> {
         self.borrows.call_loans.insert(i, out);
     }
 
-    /// As call `i` begins: the loans of the `Ref`s its arguments carry
-    /// through calls' results, on the objects each crossed, until it
-    /// returns.
-    fn borrow_carried(&mut self, i: u32) {
-        let Some(refs) = self.borrows.carried.get(&i).cloned() else {
+    /// Preparation precedes the Wasm signature. Allocate path flags only
+    /// after the real function has its parameters and local namespace.
+    pub(super) fn borrow_init_flags(&mut self) {
+        let flags: Vec<u32> = (0..self.borrows.carried_flag_count)
+            .map(|_| self.f.local(Val::I32))
+            .collect();
+        for refs in self.borrows.carried.values_mut() {
+            for edge in refs {
+                edge.active = flags[edge.active as usize];
+            }
+        }
+        for group in self
+            .borrows
+            .carried_from
+            .values_mut()
+            .chain(self.borrows.cleanup_flags.values_mut())
+        {
+            for flag in group {
+                *flag = flags[*flag as usize];
+            }
+        }
+    }
+
+    /// As argument value `i` completes: retain the loans its references
+    /// carry through dependent results before any later argument evaluates.
+    /// The consuming call releases them when it returns.
+    #[inline]
+    pub(super) fn borrow_argument_end(&mut self, i: u32) {
+        if self.borrows.carried.is_empty() {
             return;
-        };
-        for (r, excl) in refs {
+        }
+        if let Some(flags) = self.borrows.carried_from.get(&i) {
+            for &flag in flags {
+                self.f.i32(1);
+                self.f.set(flag);
+            }
+        }
+        if let Some(refs) = self.borrows.carried.get(&i).cloned() {
+            self.borrow_carried(i, refs);
+        }
+    }
+
+    // Keep emission temporaries out of the per-instruction empty path.
+    #[inline(never)]
+    fn borrow_carried(&mut self, ready: u32, refs: Vec<CarriedLoan>) {
+        for CarriedLoan {
+            call,
+            origin: r,
+            exclusive: excl,
+            active,
+        } in refs
+        {
+            self.f.get(active);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.zero(active);
             let heads = self.borrows.arg_heads.get(&r).cloned().unwrap_or_default();
             let n = heads.len();
             for (j, (head, key, k)) in heads.into_iter().enumerate() {
@@ -2380,13 +2580,45 @@ impl Em<'_, '_, '_> {
                     key: KeyOf::Known(key),
                     delta,
                     upgrade: false,
-                    exit: self.jumps_between(r, i),
+                    exit: self.jumps_between(ready, call),
                 };
                 self.call_loan_add(loan, 1);
-                self.borrows.call_loans.entry(i).or_default().push(loan);
+                // The origin may be inactive on a later loop iteration.
+                // Guard and clear the cloned header at every call end.
+                self.borrows.nullable.insert(header);
+                self.borrows.call_loans.entry(call).or_default().push(loan);
                 if loan.exit {
                     self.borrows.all_calls.push(loan);
+                    let owner = self.borrows.cleanup_owners[call as usize];
+                    if owner != NONE {
+                        self.borrows
+                            .cleanup_loans
+                            .entry(owner)
+                            .or_default()
+                            .push(loan);
+                    }
                 }
+            }
+            self.f.op(I::End);
+        }
+    }
+
+    /// Whether a control boundary needs an argument-loan cleanup ladder.
+    pub(super) fn borrow_has_scope(&self, i: u32) -> bool {
+        self.borrows.cleanup_flags.contains_key(&i)
+    }
+
+    /// At one boundary's common exit, end only its consumers' loans.
+    /// A call outside this boundary still needs its earlier arguments.
+    pub(super) fn borrow_scope_end(&mut self, i: u32) {
+        if let Some(loans) = self.borrows.cleanup_loans.remove(&i) {
+            for loan in loans.into_iter().rev() {
+                self.borrow_end_call_loan(loan);
+            }
+        }
+        if let Some(flags) = self.borrows.cleanup_flags.remove(&i) {
+            for flag in flags {
+                self.f.zero(flag);
             }
         }
     }
@@ -2422,12 +2654,7 @@ impl Em<'_, '_, '_> {
     /// `from` and call `call`, so a loan begun at `from` may outlive its
     /// call's emitted end.
     fn jumps_between(&self, from: u32, call: u32) -> bool {
-        (from + 1..call).any(|j| {
-            matches!(
-                self.b.tags[j as usize],
-                Tag::Break | Tag::Continue | Tag::Return
-            )
-        })
+        jump_in_range(&self.borrows.jumps, from, call, || {})
     }
 
     /// Ends call loan `loan` if it is still held, and clears it.

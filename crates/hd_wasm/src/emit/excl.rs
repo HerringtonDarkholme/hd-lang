@@ -533,7 +533,9 @@ pub(super) fn carried_refs(
     sub: &dyn Fn(Ty) -> Ty,
     v: usize,
 ) -> Vec<u32> {
-    if b.tags.get(v) == Some(&Tag::Ref) {
+    if b.tags.get(v) == Some(&Tag::Ref)
+        || b.tags.get(v) == Some(&Tag::Read) && ref_slots(pool, env, sub(b.ty[v])).is_empty()
+    {
         return Vec::new();
     }
     index.query(v, |value| {
@@ -1948,6 +1950,7 @@ pub(super) fn binds(
 pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
     let decisions = super::loan_facts::decide(input, m);
     m.kept = decisions.kept;
+    m.kept_origins.take();
     m.lent = decisions.lent;
     m.result_inner = decisions.result_inner;
     m.dyn_types = decisions.dyn_types;

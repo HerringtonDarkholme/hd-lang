@@ -17,7 +17,7 @@ use super::{Ctl, Em};
 use crate::module::Val;
 
 /// A way out of a cleanup scope.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum Exit {
     /// To the end of a `Loop`, a `Match` or a labelled `Block`.
     Brk(u32),
@@ -34,6 +34,16 @@ pub(super) enum Exit {
 pub(super) struct ScopeInfo {
     code: u32,
     exits: Vec<Exit>,
+    index: hd_base::HashMap<Exit, usize>,
+}
+
+impl ScopeInfo {
+    fn code(&mut self, exit: Exit) -> usize {
+        *self.index.entry(exit).or_insert_with(|| {
+            self.exits.push(exit);
+            self.exits.len()
+        })
+    }
 }
 
 impl Em<'_, '_, '_> {
@@ -66,6 +76,7 @@ impl Em<'_, '_, '_> {
             ScopeInfo {
                 code,
                 exits: Vec::new(),
+                index: hd_base::HashMap::default(),
             },
         );
         self.slot(i)?;
@@ -85,6 +96,7 @@ impl Em<'_, '_, '_> {
             self.f.set(code);
         }
         self.close();
+        self.borrow_scope_end(i);
         for ((&s, &f), w) in suites.iter().zip(&flags).zip(&waits).rev() {
             // Registered, or resumed into. A suite that ran clears its
             // flag, so a resume into a later rung skips it.
@@ -123,12 +135,7 @@ impl Em<'_, '_, '_> {
             let cancel = {
                 // Its ladder lives until the exits below.
                 let info = self.scopes.get_mut(&i).expect("the scope's ladder");
-                if let Some(k) = info.exits.iter().position(|x| *x == Exit::Cancel) {
-                    k + 1
-                } else {
-                    info.exits.push(Exit::Cancel);
-                    info.exits.len()
-                }
+                info.code(Exit::Cancel)
             };
             self.f.get(super::susp::FRAME);
             self.f.op(I::If(BlockType::Empty));
@@ -146,6 +153,38 @@ impl Em<'_, '_, '_> {
             self.f.op(I::End);
             self.f.op(I::End);
         }
+        self.scope_exits(i, code)
+    }
+
+    /// Reuse the defer exit ladder for abandoned call arguments.
+    pub(super) fn loan_scope_begin(&mut self, i: u32) {
+        if !self.borrow_has_scope(i) {
+            return;
+        }
+        let code = self.f.local(Val::I32);
+        self.scopes.insert(
+            i,
+            ScopeInfo {
+                code,
+                exits: Vec::new(),
+                index: hd_base::HashMap::default(),
+            },
+        );
+        self.open(Ctl::Scope(i));
+    }
+
+    pub(super) fn loan_scope_end(&mut self, i: u32) -> StageResult<()> {
+        if !self.borrow_has_scope(i) {
+            return Ok(());
+        }
+        let code = self.scopes[&i].code;
+        self.f.zero(code);
+        self.close();
+        self.borrow_scope_end(i);
+        self.scope_exits(i, code)
+    }
+
+    fn scope_exits(&mut self, i: u32, code: u32) -> StageResult<()> {
         let exits = self.scopes.remove(&i).map(|s| s.exits).unwrap_or_default();
         for (k, e) in exits.into_iter().enumerate() {
             self.f.get(code);
@@ -187,12 +226,7 @@ impl Em<'_, '_, '_> {
         if let Some((p, s)) = scope {
             // A scope's ladder lives while its body is open.
             let info = self.scopes.get_mut(&s).expect("an open scope's ladder");
-            let k = if let Some(k) = info.exits.iter().position(|x| *x == e) {
-                k + 1
-            } else {
-                info.exits.push(e);
-                info.exits.len()
-            };
+            let k = info.code(e);
             let code = info.code;
             self.f.i32(i32::try_from(k).expect("exits"));
             self.f.set(code);
@@ -288,5 +322,29 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
         self.free_own_frame(self.susp.as_ref().and_then(|s| s.own));
         self.f.i32(0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Exit, ScopeInfo};
+
+    #[test]
+    fn exit_codes_are_stable_at_width_1000_depth_20() {
+        for _ in 0..20 {
+            let mut scope = ScopeInfo {
+                code: 0,
+                exits: Vec::new(),
+                index: hd_base::HashMap::default(),
+            };
+            for i in 0..1000 {
+                assert_eq!(scope.code(Exit::Brk(i)), i as usize + 1);
+            }
+            for i in (0..1000).rev() {
+                assert_eq!(scope.code(Exit::Brk(i)), i as usize + 1);
+            }
+            assert_eq!(scope.exits.len(), 1000);
+            assert_eq!(scope.index.len(), 1000);
+        }
     }
 }
