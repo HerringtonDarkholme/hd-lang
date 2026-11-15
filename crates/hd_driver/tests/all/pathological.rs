@@ -2678,3 +2678,66 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
         }
     });
 }
+
+/// A program generator by size.
+type Generate = fn(usize) -> String;
+
+/// A tuple type, value and pattern nested `n` deep: the scale check's
+/// `tuple-nest`.
+fn tuple_nest(n: usize) -> String {
+    let ty = format!("{}i32{}", "(i32, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, ".repeat(n), ")".repeat(n));
+    let mut pattern = String::from("z");
+    for i in (0..n).rev() {
+        pattern = format!("(a{i}, {pattern})");
+    }
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +1\n    let x: {ty} = {value}\n    let {pattern} = x\n    t = z\n    println(\"$t\")\n"
+    )
+}
+
+/// An option type, value and pattern nested `n` deep: the scale check's
+/// `option-nest`.
+fn option_nest(n: usize) -> String {
+    let ty = format!("i32{}", "?".repeat(n));
+    let value = format!("{}t{}", ".Some(".repeat(n), ")".repeat(n));
+    let pattern = format!("{}v{}", ".Some(".repeat(n), ")".repeat(n));
+    // At depth 0 the binding pattern matches every value.
+    let rest = if n == 0 { "" } else { "        _ => +0\n" };
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +0\n    let o: {ty} = {value}\n    t = match o:\n        {pattern} => v\n{rest}    println(\"$t\")\n"
+    )
+}
+
+// Checker: #1918, #1924, each level of a nested pattern asked whether its
+// part's type is copied, and the walk re-walked every member type below
+// it, since only the type asked entered the memo: O(depth^2) per body.
+// Now a walk that ends clear memoizes every type it visited, and a walk
+// stops at a member type answered before.
+#[test]
+fn nested_pattern_copy_questions_walk_each_type_once() {
+    on_test_stack(|| {
+        let shapes: [(&str, Generate); 2] =
+            [("tuple-nest", tuple_nest), ("option-nest", option_nest)];
+        // A level nests one bracket deep: 150 stays below the limit.
+        let n = 15;
+        for (name, generate) in shapes {
+            let work = |k: usize| {
+                let (out, work) =
+                    hd_check::work::count_scan_work(|| compile(&generate(k), &Goal::Analyze));
+                assert!(!out.diags.has_errors(), "{name} {k}: {}", out.render());
+                work
+            };
+            // The first build also checks what the run's memo then keeps.
+            work(0);
+            let zero = work(0);
+            let small = work(n) - zero;
+            let large = work(10 * n) - zero;
+            assert!(
+                small > 0 && large <= 12 * small,
+                "{name}: scan work over the empty body at {n} and {}: {small} and {large}",
+                10 * n
+            );
+        }
+    });
+}

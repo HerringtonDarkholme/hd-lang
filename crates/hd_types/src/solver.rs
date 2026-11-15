@@ -1103,6 +1103,18 @@ impl GlobalMemo {
             .or_insert(blocker);
     }
 
+    /// Publishes one copy blocker for each of the closed types `ts`, under
+    /// one lock ([`Self::publish_copy_blocker`]).
+    pub fn publish_copy_blockers(&self, ts: impl IntoIterator<Item = Ty>, blocker: Option<Ty>) {
+        let mut m = self
+            .copy_blockers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        for t in ts {
+            m.entry(t).or_insert(blocker);
+        }
+    }
+
     /// Whether the closed type `t` was published as clean in `universe`
     /// ([`Self::publish_contained`]).
     #[must_use]

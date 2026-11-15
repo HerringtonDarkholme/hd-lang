@@ -66,13 +66,23 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
 /// nesting depth. `open` is set when the walk met a type parameter or a
 /// projection, whose answer depends on the body: the answer of a walk
 /// that left it clear holds in every body ([`Ck::not_copied_by`]).
+///
+/// `known` answers a member type asked before (#1918, #1924): a known
+/// `None` skips its subtree, a known blocker is the walk's, since every
+/// member before it in field order was walked clear. Each type the walk
+/// visits is pushed on `visited`: when the walk ends clear, each one's
+/// whole subtree was walked clear, and the caller memoizes them all, so
+/// a nest's levels, each asked in turn, walk each type once per run.
 fn blocker(
     cx: (Types<'_>, &Lookup<'_>, &[Ty]),
     t: Ty,
     normalize: &mut dyn FnMut(Ty) -> Ty,
+    known: &mut dyn FnMut(Ty) -> Option<Option<Ty>>,
     open: &mut bool,
+    visited: &mut Vec<Ty>,
 ) -> Option<Ty> {
     let (pool, lookup, relaxed) = cx;
+    let root = t;
     let mut seen: HashSet<Ty> = HashSet::default();
     let mut work = vec![t];
     while let Some(t) = work.pop() {
@@ -86,6 +96,15 @@ fn blocker(
         if !seen.insert(t) {
             continue;
         }
+        if t != root
+            && let Some(b) = known(t)
+        {
+            match b {
+                None => continue,
+                Some(_) => return b,
+            }
+        }
+        visited.push(t);
         if matches!(pool.get(t), TyData::Param(_) | TyData::Assoc { .. }) {
             *open = true;
         }
@@ -395,16 +414,35 @@ impl Ck<'_, '_> {
             return b;
         }
         let mut open = false;
+        let mut visited = Vec::new();
+        let global = self.cx.global;
+        let CopyQuery { relaxed, memo } = q;
+        let closed_ty = |u: Ty| !u.is_local() && !pool.has_infer(u) && !pool.has_canon(u);
         let b = blocker(
-            (pool, self.cx.lookup, &q.relaxed),
+            (pool, self.cx.lookup, relaxed),
             t,
             &mut |ty| self.norm_ty(ty),
+            &mut |u| {
+                memo.get(&u)
+                    .copied()
+                    .or_else(|| closed_ty(u).then(|| global.copy_blocker(u)).flatten())
+            },
             &mut open,
+            &mut visited,
         );
-        if closed && !open {
-            self.cx.global.publish_copy_blocker(t, b);
+        if b.is_none() {
+            // Each visited type's subtree was walked clear: in this body
+            // whatever it held, in every body when the walk met no
+            // parameter or projection.
+            memo.extend(visited.iter().map(|&u| (u, None)));
+            if !open {
+                global
+                    .publish_copy_blockers(visited.iter().copied().filter(|&u| closed_ty(u)), None);
+            }
+        } else if closed && !open {
+            global.publish_copy_blocker(t, b);
         }
-        q.memo.insert(t, b);
+        memo.insert(t, b);
         b
     }
 
