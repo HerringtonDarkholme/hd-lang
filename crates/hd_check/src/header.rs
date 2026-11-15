@@ -401,7 +401,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         | ItemData::Enum { .. }
         | ItemData::Impl { .. }
         | ItemData::Alias { .. }
-        | ItemData::Newtype(_)
+        | ItemData::Newtype(..)
         | ItemData::Builtin => generics(it.def, &it.generics, 0, &mut env),
     }
     env
@@ -540,7 +540,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 .map(|f| f.ty)
                 .collect(),
             ItemData::Impl { self_ty, .. } => vec![*self_ty],
-            ItemData::Alias { body, .. } | ItemData::Newtype(body) => vec![*body],
+            ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => vec![*body],
             ItemData::Trait(_) | ItemData::AssocType { .. } | ItemData::Builtin => vec![],
         };
         // The positions that other modules can see: every position of a
@@ -558,7 +558,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 | ItemData::Method { .. }
                 | ItemData::Struct(_, _)
                 | ItemData::Enum { .. }
-                | ItemData::Newtype(_)
+                | ItemData::Newtype(..)
                 | ItemData::Alias { .. }
         );
         // A method's `self` is the impl's or trait's own target, checked
@@ -665,7 +665,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Struct(..)
             | ItemData::Enum { .. }
             | ItemData::Alias { .. }
-            | ItemData::Newtype(_)
+            | ItemData::Newtype(..)
             | ItemData::Builtin => {}
         }
         let ItemData::Impl {
@@ -857,7 +857,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Impl { .. }
             | ItemData::AssocType { .. }
             | ItemData::Alias { .. }
-            | ItemData::Newtype(_)
+            | ItemData::Newtype(..)
             | ItemData::Builtin => {}
         }
         match &it.data {
@@ -871,7 +871,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Enum { .. }
             | ItemData::Impl { .. }
             | ItemData::Alias { .. }
-            | ItemData::Newtype(_)
+            | ItemData::Newtype(..)
             | ItemData::Builtin => {}
         }
         for t in tys {
@@ -902,7 +902,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 .cx
                 .lookup
                 .item(def)
-                .is_some_and(|i| matches!(i.data, ItemData::Newtype(_))),
+                .is_some_and(|i| matches!(i.data, ItemData::Newtype(..))),
             _ => false,
         };
         if *kind == ImplKind::Derived
@@ -1252,7 +1252,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let TyData::Adt { def, args } = pool.get(self_ty) else {
             return Ok(());
         };
-        let Some(ItemData::Newtype(inner)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Newtype(inner, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return Ok(());
         };
         let args = pool.list_items(args);
@@ -2157,7 +2157,7 @@ impl ItemCheck<'_, '_> {
                             .map(|f| sub(f.ty))
                             .collect(),
                         // A newtype contains its base (`data.struct.contains`).
-                        Some(ItemData::Newtype(base)) => vec![sub(*base)],
+                        Some(ItemData::Newtype(base, _)) => vec![sub(*base)],
                         _ => Vec::new(),
                     }
                 }

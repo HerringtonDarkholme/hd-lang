@@ -110,7 +110,7 @@ impl MethodIndex {
                 | ItemData::Method { .. }
                 | ItemData::AssocType { .. }
                 | ItemData::Alias { .. }
-                | ItemData::Newtype(_)
+                | ItemData::Newtype(..)
                 | ItemData::Builtin => {}
             }
         }
@@ -1064,7 +1064,7 @@ impl Ck<'_, '_> {
                                     | ItemData::Struct(_, _)
                                     | ItemData::Builtin
                                     | ItemData::Enum { .. }
-                                    | ItemData::Newtype(_)
+                                    | ItemData::Newtype(..)
                                     | ItemData::Alias { .. }
                             )
                         ) =>
@@ -1119,7 +1119,7 @@ impl Ck<'_, '_> {
         let TyData::Adt { def, args } = pool.get(t) else {
             return None;
         };
-        let Some(ItemData::Newtype(inner)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Newtype(inner, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return None;
         };
         Some(subst_owner(pool, def, pool.list_items(args), *inner))
@@ -1860,7 +1860,7 @@ impl Ck<'_, '_> {
         {
             // Reuse the already selected variant index; no second variant search.
             let raw: Vec<_> = match &item.data {
-                ItemData::Newtype(inner) => vec![*inner],
+                ItemData::Newtype(inner, _) => vec![*inner],
                 ItemData::Enum { variants, .. } => variant
                     .and_then(|index| variants.get(index as usize))
                     .map(|v| v.fields.iter().map(|f| f.ty).collect())
@@ -2810,7 +2810,7 @@ impl Ck<'_, '_> {
                 }
                 Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
             }
-            ItemData::Newtype(inner) => {
+            ItemData::Newtype(inner, _) => {
                 let inner = *inner;
                 let name = self.cx.names.text(item.name).to_owned();
                 let targs = self.ctor_args(item, explicit, n);

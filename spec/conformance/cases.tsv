@@ -6114,6 +6114,15 @@ lang/references/moves/deref-borrow-passed-on.hd	type	accept	lang/13-values-and-r
 lang/references/moves/copy-generic-argument-holds-mut.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.generic.argument
 lang/references/moves/copy-list-literal-of-mut-holder.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.collections
 lang/references/moves/copy-opt-out-struct-reuse.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.opt-out
+lang/references/moves/a-newtype-over-a-not-copy-type-moves.hd	type	reject:use-of-moved-value	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-newtype-over-a-copy-type-copies.hd	runtime	accept	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-newtype-over-a-newtype-over-a-not-copy-type-moves.hd	type	reject:use-of-moved-value	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-generic-newtype-copies-at-a-copy-argument.hd	runtime	accept	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-generic-newtype-moves-at-a-not-copy-argument.hd	type	reject:use-of-moved-value	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-newtype-over-a-not-copy-type-is-no-copy-argument.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-list-literal-of-a-newtype-over-a-not-copy-type.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-newtype-over-a-not-copy-type-implements-no-copy-trait.hd	type	reject:missing-supertrait-implementation	lang/04-type-system.md#r-types.newtype.holds
+lang/references/moves/a-newtype-declared-not-copy-moves.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.opt-out
 lang/references/moves/copy-relaxed-parameter-moves.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.generic.relaxed
 lang/references/moves/copy-opt-out-plain-trait.hd	type	reject:missing-supertrait-implementation	lang/13-values-and-references.md#r-ref.copy.trait.default
 lang/references/moves/copy-mut-trait-reference-plain-bound.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.trait.reference
@@ -6152,6 +6161,8 @@ std/option/borrowed-payloads/option-copied.hd	runtime	accept	std/option.md#r-std
 lang/functions/trailing-callback-blocks/trailing-bound-takes-the-bound-row.hd	type	accept	lang/07-functions.md#r-fn.trailing.fn-bound
 std/collections/uniqlist/uniq-list-moves-noncopyable-elements.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.bulk-moves
 std/collections/uniqlist/uniq-list-use-after-move.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.type
+std/collections/uniqlist/a-newtype-over-a-uniq-list-moves.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.type
+std/collections/uniqlist/a-newtype-over-a-uniq-list-moves-through-calls.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 std/collections/uniqmap/uniq-map-moves-noncopyable-values.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.insert
 std/collections/uniqmap/uniq-map-reference-conflicts-with-insert.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-map.get-ref
 std/collections/uniqmap/uniq-map-insert-moves-value.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-map.insert

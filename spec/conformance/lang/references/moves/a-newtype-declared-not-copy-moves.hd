@@ -1,0 +1,13 @@
+# test: `impl !Copy` on a newtype over a Copy type is valid, and its values move
+# Spec 13 Copy: ref.copy.opt-out, ref.copy.moves.
+type Mile(i32)
+
+impl !Copy for Mile
+
+fn keep[T < ?Copy](value: T) -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    mile := Mile(3)
+    keep(mile)
+    keep(mile) # diagnostic: use-of-moved-value

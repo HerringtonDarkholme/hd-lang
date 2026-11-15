@@ -573,7 +573,7 @@ impl FnAttrs {
     }
 }
 
-/// What a struct's or enum's declaration says beyond its members.
+/// What a struct's, enum's or newtype's declaration says beyond its members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct TypeAttrs {
     /// The target kinds a fact type's `@annotate(...)` line allows, as the
@@ -695,7 +695,9 @@ pub enum ItemData {
         /// slot order (`ref.lifetime.alias`).
         lifetimes: Vec<u16>,
     },
-    Newtype(Ty),
+    /// A newtype's base and what its declaration says beyond it: only
+    /// `not_copy` applies.
+    Newtype(Ty, TypeAttrs),
     /// A std type the compiler declares, with rules of its own and no
     /// written declaration: `List` and `Map` (`types.coll.*`) and `Suspend`
     /// (`types.suspend`). Not a struct.
@@ -801,12 +803,14 @@ impl Item {
         matches!(&self.data, ItemData::Trait(t) if !t.relaxed_copy)
     }
     /// What the `Copy` row reads of a type declaration
-    /// (`ref.copy.structure`): its fields and payloads, unless it is
+    /// (`ref.copy.structure`): its fields, payloads or base, unless it is
     /// declared `!Copy`.
     #[must_use]
     pub fn copy_decl(&self) -> CopyDecl {
         match &self.data {
-            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } if a.not_copy => {
+            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } | ItemData::Newtype(_, a)
+                if a.not_copy =>
+            {
                 CopyDecl::NotCopy
             }
             ItemData::Struct(fs, _) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
@@ -818,6 +822,8 @@ impl Item {
                     .map(|f| f.ty)
                     .collect(),
             ),
+            // A newtype holds its base by value (`types.newtype.holds`).
+            ItemData::Newtype(base, _) => CopyDecl::Members(vec![*base]),
             _ => CopyDecl::Copies,
         }
     }
@@ -827,7 +833,7 @@ impl Item {
     pub fn type_decl(&self) -> TypeDecl {
         match &self.data {
             ItemData::Enum { .. } => TypeDecl::Enum,
-            ItemData::Newtype(base) => TypeDecl::Newtype(*base),
+            ItemData::Newtype(base, _) => TypeDecl::Newtype(*base),
             ItemData::Struct(_, _) => TypeDecl::Struct,
             _ => TypeDecl::Builtin,
         }
@@ -857,7 +863,7 @@ impl Item {
             ItemData::Trait(_) => HeadKind::Trait,
             ItemData::Impl { .. } => HeadKind::Impl,
             ItemData::Alias { .. } => HeadKind::Alias,
-            ItemData::Newtype(_) => HeadKind::Newtype,
+            ItemData::Newtype(..) => HeadKind::Newtype,
             ItemData::Method { .. } | ItemData::AssocType { .. } => return None,
         })
     }
@@ -1872,9 +1878,10 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 w.u32(u32::from(*l));
             }
         }
-        ItemData::Newtype(x) => {
+        ItemData::Newtype(x, a) => {
             w.u8(8);
             w.u32(t.ty(*x)?);
+            put_type_attrs(w, t, a)?;
         }
         ItemData::Builtin => w.u8(9),
     }
@@ -2004,7 +2011,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
             }
             ItemData::Alias { body, lifetimes }
         }
-        8 => ItemData::Newtype(t.ty(r.u32())?),
+        8 => ItemData::Newtype(t.ty(r.u32())?, get_type_attrs(r, t)?),
         9 => ItemData::Builtin,
         _ => return None,
     };
@@ -2044,7 +2051,7 @@ fn get_call(r: &mut Reader<'_>, t: &Tables) -> Option<(CallAttrs, u8)> {
     Some((call, flags))
 }
 
-/// A struct's or enum's attributes. The common case, none at all, is one
+/// A struct's, enum's or newtype's attributes. The common case, none at all, is one
 /// byte; otherwise bit 1 adds `targets` and bit 2 `fact_pattern`.
 fn put_type_attrs(w: &mut Writer, t: &mut TableWriter<'_>, a: &TypeAttrs) -> StageResult<()> {
     let flags = u8::from(a.not_copy)
@@ -2600,7 +2607,7 @@ pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &m
             tys.extend(assoc.iter().map(|a| a.1));
         }
         ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
-        ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
+        ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => tys.push(*body),
         ItemData::Builtin => {}
     }
 }

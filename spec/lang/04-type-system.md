@@ -656,6 +656,10 @@ n := i32(m)
 6. r[types.newtype.map-key] In particular, a newtype is not a valid map key until it explicitly implements or derives both `Eq` and `Hash`.
 7. r[types.newtype.construct-ref] Constructing a newtype over an `AnyRef` base creates no new object: the newtype value wraps the base value.
 8. r[types.newtype.construct-value] A newtype construction over an `AnyVal` base, such as `Mile(10)`, is a value, as its base is.
+9. r[types.newtype.holds] A newtype holds its base by value for [`ref.move.holds`](13-values-and-references.md#r-ref.move.holds): a newtype over a type that is not `Copy` is not `Copy`, and its values move.
+
+> **Why.** Rust's rule for its newtypes: a copy of a wrapper would
+> give two owners of a base value that moves, and each would release it.
 
 See also: [Map Key Types](#map-key-types).
 

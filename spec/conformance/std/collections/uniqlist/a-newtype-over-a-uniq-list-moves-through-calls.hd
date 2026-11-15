@@ -1,0 +1,34 @@
+# test: a newtype over a UniqList moves through calls, fields and a return, and its list is released once
+# expect-stdout: 3 3
+# Spec std/collections UniqList: std-collections.uniq-list.type. Spec 04 Newtypes: types.newtype.holds.
+use std.collections.UniqList
+
+type Bag(UniqList[i32])
+
+type Crate(Bag)
+
+struct Shelf:
+    bag: Bag
+
+impl !Copy for Shelf
+
+fn filled(n: i32) -> Bag:
+    let mut items = UniqList::[i32].new()
+    for i in 0..n:
+        items.push(i)
+    Bag(items)
+
+fn pass_on(bag: Bag) -> Bag:
+    bag
+
+fn size(bag: Bag) -> usize:
+    UniqList(bag).len()
+
+pub fn main() -> void $ Console:
+    bag := pass_on(filled(3))
+    shelf := Shelf { bag: bag }
+    crate := Crate(filled(2))
+    moved := shelf
+    kept := crate
+    println("${size(pass_on(moved.bag))} ${size(filled(3))}")
+    _ := kept

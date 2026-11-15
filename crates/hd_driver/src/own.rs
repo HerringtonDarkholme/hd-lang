@@ -65,7 +65,7 @@ impl Env<'_> {
                         hd_resolve::ItemData::Struct(fields, _) => {
                             fields.get(field as usize).map(|f| f.ty)
                         }
-                        hd_resolve::ItemData::Newtype(inner) if field == 0 => Some(*inner),
+                        hd_resolve::ItemData::Newtype(inner, _) if field == 0 => Some(*inner),
                         hd_resolve::ItemData::Enum {
                             shared, variants, ..
                         } => match key.variant {

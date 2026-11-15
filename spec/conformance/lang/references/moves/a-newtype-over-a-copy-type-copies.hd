@@ -1,0 +1,19 @@
+# test: a newtype over a Copy type is Copy, so each use copies it
+# expect-stdout: 3 3 3
+# Spec 04 Newtypes: types.newtype.holds. Spec 13 Copy: ref.copy.structure.
+struct Point:
+    x: i32
+
+type Mile(i32)
+
+type Spot(Point)
+
+fn keep[T](value: T) -> T:
+    value
+
+pub fn main() -> void $ Console:
+    mile := Mile(3)
+    spot := Spot(Point { x: 3 })
+    first := keep(mile)
+    second := keep(spot)
+    println("${i32(first)} ${i32(mile)} ${Point(spot).x + Point(second).x - 3}")

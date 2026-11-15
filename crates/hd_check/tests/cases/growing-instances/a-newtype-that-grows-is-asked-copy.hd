@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# expected: recursive-value-type at `G`'s base (#2004)
+# A newtype holds its base (`types.newtype.holds`), so asking `Copy` of
+# a growing newtype instance stops at the declaration, which holds
+# itself, instead of walking `G[(i32, i32)]`, `G[((i32, i32), (i32,
+# i32))]` and on without end (#2002).
+type G[T](G[(T, T)])
+
+fn take(g: G[i32]) -> G[i32]:
+    h := g
+    h

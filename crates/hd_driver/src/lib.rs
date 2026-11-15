@@ -7717,7 +7717,7 @@ impl Run<'_> {
                         .lookup
                         .own_index
                         .get(&def)
-                        .is_some_and(|&i| matches!(cx.lookup.own[i].data, ItemData::Newtype(_)))
+                        .is_some_and(|&i| matches!(cx.lookup.own[i].data, ItemData::Newtype(..)))
                     && let Some(span) = hd_resolve::lower::derive_span(
                         &names,
                         cx.scope,
@@ -12275,7 +12275,7 @@ impl LayoutEnv for Env<'_> {
     }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
         match &self.p.items.get(def)?.data {
-            ItemData::Newtype(inner) => Some(self.low(*inner)),
+            ItemData::Newtype(inner, _) => Some(self.low(*inner)),
             _ => None,
         }
     }
@@ -12769,7 +12769,7 @@ impl ProgramEnv for Env<'_> {
         if *kind != hd_resolve::ImplKind::Derived {
             return false;
         }
-        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(_))))
+        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
         let item = self.p.items.get(method)?;
@@ -12831,7 +12831,7 @@ impl ProgramEnv for Env<'_> {
         match &self.p.items.get(def)?.data {
             ItemData::Struct(fs, _) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
-            ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
+            ItemData::Newtype(inner, _) => Some(vec![self.low(*inner)]),
             _ => None,
         }
     }

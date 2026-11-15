@@ -1,0 +1,16 @@
+# test: a newtype over a type that is not Copy holds its base, so it moves and a use after the move is an error
+# Spec 04 Newtypes: types.newtype.holds. Spec 13 Moves: ref.move.holds, ref.move.use.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+type Album(Photo)
+
+fn keep[T < ?Copy](value: T) -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    album := Album(Photo { width: 2 })
+    keep(album)
+    keep(album) # diagnostic: use-of-moved-value

@@ -61,7 +61,7 @@ pub fn derived_newtype_findings<'i>(
         if def != newtype {
             continue;
         }
-        let Some(ItemData::Newtype(inner)) = cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Newtype(inner, _)) = cx.lookup.item(def).map(|i| &i.data) else {
             continue;
         };
         let ca = pool.list_items(args);

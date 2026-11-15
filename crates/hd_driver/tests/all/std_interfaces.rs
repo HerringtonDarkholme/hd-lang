@@ -162,7 +162,7 @@ fn std_interfaces_hold_no_poison_type() {
                         tys.extend(assoc.iter().map(|a| a.1));
                     }
                     ItemData::AssocType { .. } => {}
-                    ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
+                    ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => tys.push(*body),
                     ItemData::Builtin => {}
                 }
                 if tys.iter().any(|t| n.pool.has_poison(*t)) {

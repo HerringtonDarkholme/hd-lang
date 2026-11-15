@@ -922,7 +922,7 @@ lang/13-values-and-references.md	60	mixed	lang/references/moves/move-out-of-shar
 lang/13-values-and-references.md	61	mixed	lang/references/moves/move-field-out-of-counted-reference.hd|lang/references/moves/move-field-out-of-counted-mut-reference.hd|lang/references/moves/a-counted-reference-field-is-copied-or-borrowed-not-moved.hd
 lang/13-values-and-references.md	62	mixed	lang/references/moves/span-mut-use-after-move.hd|lang/references/moves/mut-holder-moves-once.hd
 lang/13-values-and-references.md	63	complete	-
-lang/13-values-and-references.md	64	mixed	lang/references/moves/copy-negative-impl-other-trait.hd|lang/references/moves/copy-opt-out-plain-trait.hd|lang/references/moves/copy-relaxed-parameter-moves.hd|lang/references/moves/copy-relaxed-bound-other-trait.hd|lang/references/moves/copy-generic-argument-holds-mut.hd|lang/references/moves/copy-list-literal-of-mut-holder.hd|lang/references/moves/copy-opt-out-struct-reuse.hd
+lang/13-values-and-references.md	64	mixed	lang/references/moves/copy-negative-impl-other-trait.hd|lang/references/moves/copy-opt-out-plain-trait.hd|lang/references/moves/copy-relaxed-parameter-moves.hd|lang/references/moves/copy-relaxed-bound-other-trait.hd|lang/references/moves/copy-generic-argument-holds-mut.hd|lang/references/moves/copy-list-literal-of-mut-holder.hd|lang/references/moves/copy-opt-out-struct-reuse.hd|lang/references/moves/a-newtype-over-a-not-copy-type-moves.hd
 lang/13-values-and-references.md	65	complete	lang/references/moves/copy-relaxed-trait-implemented-by-opt-out.hd
 lang/13-values-and-references.md	66	mixed	lang/expressions/postfix-expressions/indexing/reference-slice-not-checked.hd
 lang/14-annotations.md	1	complete	lang/annotations/two-annotate-forms/decorator-targets.hd

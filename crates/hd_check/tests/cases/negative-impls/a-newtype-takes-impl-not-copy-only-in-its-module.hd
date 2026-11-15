@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# `impl !Copy` marks a newtype as it marks a struct or an enum
+# (`ref.copy.opt-out`), but only in the module that declares the newtype
+# (`ref.copy.opt-out.invalid`): `Meters` is `shelf`'s, so this module's
+# `impl !Copy` is an error and `Meters` stays `Copy`; `Feet` moves.
+use pkg.shelf.{Feet, Meters}
+
+impl !Copy for Meters
+
+fn keep[T < ?Copy](value: T) -> void:
+    pass
+
+fn twice(m: Meters, f: Feet) -> void:
+    keep(m)
+    keep(m)
+    keep(f)
+    keep(f)
+# @file: shelf.hd
+pub type Meters(i32)
+
+pub type Feet(i32)
+
+impl !Copy for Feet

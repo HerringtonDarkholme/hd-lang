@@ -1,0 +1,16 @@
+# test: a generic newtype at an argument that is not Copy moves, and a use after the move is an error
+# Spec 04 Newtypes: types.newtype.holds. Spec 13 Moves: ref.move.holds, ref.move.use.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+type Around[T < ?Copy](T)
+
+fn keep[T < ?Copy](value: T) -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    around := Around(Photo { width: 2 })
+    keep(around)
+    keep(around) # diagnostic: use-of-moved-value

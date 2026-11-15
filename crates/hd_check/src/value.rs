@@ -161,7 +161,7 @@ impl<'a> ProjectionCycles<'a> {
                                             .map(|f| sub(f.ty)),
                                     );
                                 }
-                                hd_resolve::ItemData::Newtype(base) => children.push(sub(*base)),
+                                hd_resolve::ItemData::Newtype(base, _) => children.push(sub(*base)),
                                 hd_resolve::ItemData::Fn(..)
                                 | hd_resolve::ItemData::Trait(..)
                                 | hd_resolve::ItemData::Impl { .. }
@@ -669,7 +669,7 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
                 .chain(variants.iter().flat_map(|v| &v.fields))
                 .map(|f| f.ty),
         ),
-        hd_resolve::ItemData::Newtype(base) => out.push(*base),
+        hd_resolve::ItemData::Newtype(base, _) => out.push(*base),
         hd_resolve::ItemData::Builtin
         | hd_resolve::ItemData::Alias { .. }
         | hd_resolve::ItemData::Fn(..)
@@ -793,13 +793,28 @@ pub(crate) fn holds_itself(
     matches!(
         lookup.item(def).map(|i| &i.data),
         Some(hd_resolve::ItemData::Struct(..) | hd_resolve::ItemData::Enum { .. })
-    ) && with_decided(global, local, pool, lookup, def, |d| {
+    ) && holds_itself_inline(global, local, pool, lookup, def)
+}
+
+/// Whether a value of the struct, enum or newtype `def` holds a value of
+/// it inline, so a walk of an instance's members need not end: the `Copy`
+/// walks stop there. A newtype's members are its base
+/// (`types.newtype.holds`), so `type G[T](G[(T, T)])` grows as a struct
+/// does. One probe of the run's decisions, each decided once per run.
+pub(crate) fn holds_itself_inline(
+    global: &hd_types::solver::GlobalMemo,
+    local: &mut InlineDecls,
+    pool: hd_types::Types<'_>,
+    lookup: &hd_resolve::Lookup<'_>,
+    def: DefId,
+) -> bool {
+    with_decided(global, local, pool, lookup, def, |d| {
         d.get(def).is_some_and(|d| d.cyclic)
     })
 }
 
 /// The declarations the checker's solver reads: its lookup's, except that
-/// a declaration the value rule rejects ([`holds_itself`]) has no members
+/// a declaration that holds itself ([`holds_itself_inline`]) has no members
 /// for the `Copy` row, so the row's walk stops at its instance, as the
 /// ownership walk does (`crate::moves`). Its fields may grow without end
 /// (`struct G[T]: x: G[(T, T)]` holds `G[(i32, i32)]` in `G[i32]`, #2013),
@@ -837,7 +852,7 @@ impl hd_types::solver::Declarations for SolverDecls<'_, '_> {
     fn copy_decl(&self, def: DefId) -> hd_types::solver::CopyDecl {
         match self.decls.copy_decl(def) {
             hd_types::solver::CopyDecl::Members(_)
-                if holds_itself(
+                if holds_itself_inline(
                     self.global,
                     &mut self.local.borrow_mut(),
                     self.decls.pool.types(),

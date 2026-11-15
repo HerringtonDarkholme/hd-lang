@@ -965,7 +965,7 @@ pub(crate) fn new_ck<'a, 'c>(
             | ItemData::Method { .. }
             | ItemData::AssocType { .. }
             | ItemData::Alias { .. }
-            | ItemData::Newtype(_)
+            | ItemData::Newtype(..)
             | ItemData::Builtin => {}
         }
     }

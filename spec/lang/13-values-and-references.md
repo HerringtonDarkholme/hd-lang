@@ -1833,7 +1833,7 @@ fn demo(c: &mut Counter) -> void:
 ```
 
 1. r[ref.move.mut] A `&mut T` value is moved, not copied. A `*mut T` or `&T` value is copied.
-2. r[ref.move.holds] A value whose type holds a `&mut` is moved, not copied. A type holds a `&mut` when it is `&mut T`, a struct with a field whose type holds one, an enum with such a payload, or a tuple, optional, or union with such a member. `SpanMut[T, 'a]` holds one. [Copy](#copy) names the other types whose values move.
+2. r[ref.move.holds] A value whose type holds a `&mut` is moved, not copied. A type holds a `&mut` when it is `&mut T`, or when a struct's field, an enum's payload, a newtype's base, or a tuple's, optional's, or union's member holds one. `SpanMut[T, 'a]` holds one. [Copy](#copy) names the other types whose values move.
 3. r[ref.move.sites] A read of a whole binding that is not copied moves its value at each site in the table below. No `&mut` type is expected at these sites.
 4. r[ref.move.field] A read of a field of a binding, where the field's type is not copied, moves the field out at each site in the table below. The binding is then partly moved. A site that expects a `&mut` type reborrows the field instead, as for a binding. A field of a field moves the same way.
 5. r[ref.move.pattern] A `match` arm or `let` pattern that binds a value whose type is not copied moves that value out of the matched value. When the matched value is a binding, or a field of one, a bound payload or field moves out as a field does. The binding is then partly moved. A `_` pattern moves nothing, and neither does binding only copied parts. A pattern matched through a reference binds as [Matching Through A Reference](#matching-through-a-reference) states.
@@ -2036,10 +2036,10 @@ fn export(photo: Photo) -> Photo:
 ```
 
 1. r[ref.copy.marker] `Copy` is a sealed marker trait that [`std.core`](10-modules.md#core-layer) declares and `std.ops` re-exports, in the prelude. It has no members, and the compiler supplies its implementations.
-2. r[ref.copy.structure] A type is `Copy` unless it is `&mut T`, a type declared `impl !Copy`, a type parameter that is not `Copy`, or a type that holds one as [`ref.move.holds`](#r-ref.move.holds) defines.
+2. r[ref.copy.structure] A type is `Copy` unless it is `&mut T`, a type declared `impl !Copy`, a type parameter that is not `Copy`, or a type that holds one in a field, payload, member, or newtype base ([`ref.move.holds`](#r-ref.move.holds)).
 3. r[ref.copy.moves] A value whose type is not `Copy` is moved, not copied, at each site of [`ref.move.sites`](#r-ref.move.sites).
-4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct or enum `T` is not `Copy`. It has no body and belongs in the module that declares `T`.
-5. r[ref.copy.opt-out.invalid] A negative implementation of a trait other than `Copy`, of a type that is not a struct or an enum, outside its target's module, or with a body is an error. Error: `invalid-negative-impl`.
+4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct, enum, or newtype `T` is not `Copy`. It has no body and belongs in the module that declares `T`.
+5. r[ref.copy.opt-out.invalid] A negative implementation of a trait other than `Copy`, of a type that is not a struct, an enum, or a newtype, outside its target's module, or with a body is an error. Error: `invalid-negative-impl`.
 6. r[ref.copy.no-impl] `impl Copy for T` is an error, as for every sealed trait. Error: `sealed-trait-implementation`.
 7. r[ref.copy.generic.default] Every type parameter is `Copy` unless it is declared `?Copy`: a function's, a method's, a struct's, an enum's, an alias's, an implementation's, and a trait's.
 8. r[ref.copy.generic.argument] A type argument for a `Copy` parameter must be `Copy`. This holds for the inferred arguments of a call, a struct literal, and a variant construction. Error: `unsatisfied-trait-bound`.
@@ -2088,6 +2088,11 @@ fn demo(items: &mut List[i32], x: &mut i32) -> void:
     photo := Photo { width: 2 }
     keep(photo)
     w := photo.width  # error: use-of-moved-value
+
+type Album(Photo)
+
+fn shelve(album: Album) -> (Album, Album):
+    (album, album)  # error: use-of-moved-value
 ```
 
 ```text

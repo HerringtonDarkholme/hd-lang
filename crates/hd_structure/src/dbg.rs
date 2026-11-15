@@ -68,7 +68,7 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
             facts: None,
             shared: Vec::new(),
         }],
-        ItemData::Newtype(base) => vec![Var {
+        ItemData::Newtype(base, _) => vec![Var {
             name: shown.clone(),
             index: 0,
             def,

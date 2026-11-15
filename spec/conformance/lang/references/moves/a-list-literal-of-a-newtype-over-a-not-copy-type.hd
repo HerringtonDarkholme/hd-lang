@@ -1,0 +1,12 @@
+# test: a list literal of a newtype over a type that is not Copy is an error, since a list holds Copy items
+# Spec 04 Newtypes: types.newtype.holds. Spec 13 Copy: ref.copy.collections.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+type Album(Photo)
+
+pub fn main() -> void $ Console:
+    albums := [Album(Photo { width: 2 })] # diagnostic: unsatisfied-trait-bound
+    println("${albums.len()}")

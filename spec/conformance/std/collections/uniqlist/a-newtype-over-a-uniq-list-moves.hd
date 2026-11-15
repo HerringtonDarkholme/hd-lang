@@ -1,0 +1,13 @@
+# test: a newtype over a UniqList moves, so a second use of a moved bag is an error and no copy shares the list
+# Spec std/collections UniqList: std-collections.uniq-list.type. Spec 04 Newtypes: types.newtype.holds.
+use std.collections.UniqList
+
+type Bag(UniqList[i32])
+
+fn size(bag: Bag) -> usize:
+    UniqList(bag).len()
+
+fn sizes() -> usize:
+    bag := Bag(UniqList::[i32].new())
+    first := size(bag)
+    first + size(bag) # diagnostic: use-of-moved-value

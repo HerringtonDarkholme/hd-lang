@@ -418,7 +418,7 @@ impl Ck<'_, '_> {
             }),
             ItemData::Struct(_, _)
             | ItemData::Enum { .. }
-            | ItemData::Newtype(_)
+            | ItemData::Newtype(..)
             | ItemData::Builtin => pool.intern_ty(&TyData::Adt {
                 def,
                 args: pool.list(&args),

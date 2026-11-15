@@ -1,0 +1,14 @@
+# test: a newtype over a type that is not Copy meets the Copy bound of no type parameter
+# Spec 04 Newtypes: types.newtype.holds. Spec 13 Copy: ref.copy.generic.argument.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+type Album(Photo)
+
+fn keep[T](value: T) -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    keep(Album(Photo { width: 2 })) # diagnostic: unsatisfied-trait-bound

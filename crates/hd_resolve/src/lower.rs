@@ -1102,7 +1102,7 @@ struct Resolver<'a, 'b> {
     /// They are recorded by [`lower_aliases`], each after the aliases and
     /// structs its declaration names.
     own_types: RefCell<HashMap<DefId, Vec<Generic>>>,
-    /// The structs and enums an `impl !Copy` names (`ref.copy.opt-out`),
+    /// The structs, enums and newtypes an `impl !Copy` names (`ref.copy.opt-out`),
     /// marked on their items once each module is lowered.
     not_copy: RefCell<HashSet<DefId>>,
     /// The supertraits of the traits of the modules being lowered, as
@@ -5605,7 +5605,7 @@ impl Lower<'_, '_, '_> {
             .error(Code::SealedTraitImplementation, self.src.span(imp), &msg);
     }
 
-    /// `impl !Copy for T` (`ref.copy.opt-out`): `T`, a struct or enum of
+    /// `impl !Copy for T` (`ref.copy.opt-out`): `T`, a struct, enum or newtype of
     /// this module, does not copy. It declares no implementation, so it
     /// adds no item; the module's lowering marks the target.
     fn negative_impl(&mut self, h: &Head<'_>, (trait_, self_ty): (DefId, Ty)) {
@@ -5617,7 +5617,7 @@ impl Lower<'_, '_, '_> {
                 .get(&def)
                 .copied()
                 .or_else(|| self.r.item(def).and_then(|i| i.kind()))
-                .filter(|k| matches!(k, HeadKind::Struct | HeadKind::Enum))
+                .filter(|k| matches!(k, HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype))
                 .map(|_| def),
             _ => None,
         };
@@ -5637,7 +5637,7 @@ impl Lower<'_, '_, '_> {
         let msg = if trait_ != self.names.known.copy {
             Some("only `Copy` has a negative implementation, as `impl !Copy for T`")
         } else if target.is_none() {
-            Some("a negative implementation targets a struct or an enum")
+            Some("a negative implementation targets a struct, an enum or a newtype")
         } else if !placed {
             Some("`impl !Copy` belongs in the module that declares its target")
         } else if Src::child(n, SyntaxKind::Block).is_some() {
@@ -6963,7 +6963,12 @@ impl Lower<'_, '_, '_> {
                 // `@derive` on a newtype names implementations from the
                 // base type's (`trait.derive.newtype`).
                 self.derived(h, &generics, &[t], out);
-                let mut it = Item::new(h.def, h.name, h.public, ItemData::Newtype(t));
+                let mut it = Item::new(
+                    h.def,
+                    h.name,
+                    h.public,
+                    ItemData::Newtype(t, crate::iface::TypeAttrs::default()),
+                );
                 it.generics = generics;
                 out.push(it);
             }
@@ -7748,7 +7753,7 @@ fn misplaced_block_in<'a>(
     }
     let target = item(def)?;
     match &target.data {
-        ItemData::Newtype(_) => {
+        ItemData::Newtype(..) => {
             return Some("a derivation block cannot target a newtype; derive it with `@derive`");
         }
         ItemData::Struct(_, _) | ItemData::Enum { .. } => {}
@@ -8875,10 +8880,13 @@ pub fn build_folder(
         {
             let not_copy = r.not_copy.borrow();
             for it in items.iter_mut().filter(|i| not_copy.contains(&i.def)) {
-                // `impl !Copy` marks a struct or an enum (`ref.copy.opt-out`),
-                // `< ?Copy` a trait (`ref.copy.trait.relaxed`).
+                // `impl !Copy` marks a struct, an enum or a newtype
+                // (`ref.copy.opt-out`), `< ?Copy` a trait
+                // (`ref.copy.trait.relaxed`).
                 match &mut it.data {
-                    ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } => a.not_copy = true,
+                    ItemData::Struct(_, a)
+                    | ItemData::Enum { attrs: a, .. }
+                    | ItemData::Newtype(_, a) => a.not_copy = true,
                     ItemData::Trait(t) => t.relaxed_copy = true,
                     // ruled out: `ref.copy.opt-out.invalid` rejects `impl !Copy`
                     // of any other kind before this point.
@@ -8887,7 +8895,6 @@ pub fn build_folder(
                     | ItemData::Method { .. }
                     | ItemData::AssocType { .. }
                     | ItemData::Alias { .. }
-                    | ItemData::Newtype(_)
                     | ItemData::Builtin => {}
                 }
             }
@@ -9310,7 +9317,9 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems
                     };
                     (at_args(field.ty), true)
                 }
-                (ImplKind::Derived, _, Some(ItemData::Newtype(inner))) => (at_args(*inner), false),
+                (ImplKind::Derived, _, Some(ItemData::Newtype(inner, _))) => {
+                    (at_args(*inner), false)
+                }
                 _ => continue,
             };
             let trait_item = item(trait_);

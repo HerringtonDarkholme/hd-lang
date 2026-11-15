@@ -1228,7 +1228,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         // owner. Lend that place as its base, as a derived receiver does.
         if matches!(
             self.cx.items.item(v.def).map(|i| &i.data),
-            Some(ItemData::Newtype(_))
+            Some(ItemData::Newtype(..))
         ) {
             return self
                 .b

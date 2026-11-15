@@ -1,4 +1,4 @@
-# test: a negative implementation targets a struct or an enum of its module
+# test: a negative implementation targets a struct, an enum or a newtype of its module
 # Spec 13 Copy: ref.copy.opt-out.invalid.
 impl !Copy for i32 # diagnostic: invalid-negative-impl
 

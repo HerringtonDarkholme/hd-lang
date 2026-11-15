@@ -1,0 +1,17 @@
+# test: a generic newtype at a Copy argument is Copy, also through a newtype over it, even when its parameter is declared ?Copy
+# expect-stdout: 4 4
+# Spec 04 Newtypes: types.newtype.holds. Spec 13 Copy: ref.copy.structure.
+type Around[T < ?Copy](T)
+
+type Twice(Around[i32])
+
+fn keep[T](value: T) -> T:
+    value
+
+pub fn main() -> void $ Console:
+    around := Around(4)
+    twice := Twice(Around(4))
+    _ := keep(around)
+    _ := keep(twice)
+    _ := keep(twice)
+    println("${i32(keep(around))} ${i32(around)}")
