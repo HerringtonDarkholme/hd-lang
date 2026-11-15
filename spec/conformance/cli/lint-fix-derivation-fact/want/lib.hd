@@ -19,3 +19,6 @@ struct Quiet:
 @"internal"
 impl Quiet by Structure:
     id += ["key"]
+
+# Spec 14 Facts: annot.fact.unused-block-decorator.lint (a user value, `Loud`)
+# and annot.fact.unused-block-decorator.any-type (a standard value, `Quiet`).

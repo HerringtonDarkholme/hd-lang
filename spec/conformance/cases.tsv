@@ -1033,8 +1033,8 @@ lang/modules/public-uses-and-visibility/private-type-leak.hd	type	reject:private
 lang/data/struct-declarations/private-type-embedded-in-public-data.hd	type	reject:private-type-leak	lang/08-data-and-enums.md#field-visibility
 lang/data/struct-declarations/private-data-embeds-private-type.hd	type	accept	lang/08-data-and-enums.md#field-visibility
 lang/types/variance/variance-position.hd	type	reject:invalid-variance	lang/04-type-system.md#variance
-lang/control-flow/unreachable-code/unreachable-code.hd	type	accept	lang/06-control-flow.md#unreachable-code
-lang/control-flow/blocks-and-completion/unused-local-binding.hd	type	accept	lang/06-control-flow.md#blocks-and-completion
+lang/control-flow/unreachable-code/unreachable-after-return-is-type-checked.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.unreachable.checked
+lang/control-flow/unreachable-code/unreachable-after-infinite-loop-is-type-checked.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.unreachable.checked
 lang/data/construction-and-access/duplicate-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
 lang/requirements/requirements-and-suspension.hd	type	accept	lang/11-requirements-and-suspension.md
 lang/annotations/two-annotate-forms/annotations.hd	type	accept	lang/14-annotations.md#member-metadata
@@ -1096,7 +1096,6 @@ lang/traits/trait-implementations/comparison-traits/a-derived-eq-over-an-eq-argu
 lang/grammar/types/row-kinded-arguments.hd	type	accept	lang/02-grammar.md#types
 lang/grammar/types/row-kind-mismatch.hd	type	reject:generic-kind-mismatch	lang/02-grammar.md#types
 lang/functions/closures/mutable-closure-capture.hd	type	accept	lang/07-functions.md#captures
-lang/control-flow/match-expressions/variant-binding-name-mismatch.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/named-variant-bindings.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/traits/trait-implementations/blanket-impl-and-associated-function.hd	type	accept	lang/09-traits.md#trait-implementations
 lang/types/numeric-conversions/numeric-widening-and-display-list.hd	type	accept	lang/04-type-system.md#numeric-conversions
@@ -1408,7 +1407,6 @@ lang/types/collection-values/list-push-with-room-keeps-values.hd	runtime	accept	
 lang/control-flow/break-continue-and-loop-else/loop-break-join-rows.hd	runtime	accept	lang/06-control-flow.md#r-flow.loop.else.type
 lang/control-flow/while-loops/infinite-loop-break-missing-return.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.exit
 lang/control-flow/while-loops/infinite-loop-variable-condition.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.literal
-lang/control-flow/unreachable-code/unreachable-after-infinite-loop.hd	type	accept	lang/06-control-flow.md#r-flow.unreachable.infinite-loop
 lang/names/binding-expressions/definite-init-diverging-branch.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.definite.diverging
 lang/control-flow/for-loops/for-loops-lists-and-maps.hd	runtime	accept	lang/06-control-flow.md#for-loops
 lang/data/construction-and-access/data-fields-named-in-any-order.hd	runtime	accept	lang/08-data-and-enums.md#data-literals
@@ -1484,7 +1482,6 @@ lang/data/matching-enums/enum-niche-values.hd	runtime	accept	lang/08-data-and-en
 lang/data/matching-enums/enum-payload-match.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 lang/control-flow/match-expressions/bare-variant-pattern-in-match.hd	type	reject:bare-variant-pattern	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/enum-match-missing-variant.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#match-expressions
-lang/data/matching-enums/variant-binding-names-swapped.hd	type	accept	lang/08-data-and-enums.md#matching-enums
 lang/data/matching-enums/contextual-variant-patterns.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 lang/data/matching-enums/contextual-variant-binding-without-type.hd	type	reject:missing-contextual-enum-type	lang/08-data-and-enums.md#matching-enums
 lang/data/matching-enums/contextual-variant-expressions.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
@@ -1501,7 +1498,6 @@ lang/control-flow/match-expressions/match-guards-pick-the-first-arm-whose-guard-
 lang/types/optional-types/optional-propagation.hd	runtime	accept	lang/04-type-system.md#optional-types
 lang/types/result-types/result-propagation.hd	runtime	accept	lang/04-type-system.md#result-types
 lang/modules/use-forms/result-pattern-nested-enum.hd	runtime	accept	lang/10-modules.md#use-forms
-lang/types/optional-types/unused-nested-optional-binding.hd	type	accept	lang/04-type-system.md#optional-types
 lang/control-flow/blocks-and-completion/discarded-optional-result.hd	type	reject:discarded-must-use-value	lang/06-control-flow.md#blocks-and-completion
 lang/control-flow/blocks-and-completion/optional-result-explicitly-discarded.hd	type	accept	lang/06-control-flow.md#blocks-and-completion
 lang/expressions/comprehensions/comprehensions.hd	runtime	accept	lang/05-expressions.md#comprehensions
@@ -2250,8 +2246,6 @@ lang/annotations/typed-derivation/walkers-describers-and-sources/generic-data-me
 lang/annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd	type	reject:generic-member-call	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
 lang/traits/trait-implementations/comparison-traits/newtype-derivation-self.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
 lang/traits/trait-implementations/comparison-traits/newtype-derive-a-self-in-a-map-key-a-newtype-cannot-forward-is-an-error-at-the-derive.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
-lang/annotations/typed-derivation/derivation-blocks/derivation-line-drift.hd	type	accept	lang/14-annotations.md#r-annot.line.drift.lint
-lang/annotations/typed-derivation/derivation-blocks/derivation-line-drift-beside-derive.hd	type	accept	lang/14-annotations.md#r-annot.line.drift.lint.derive
 lang/annotations/typed-derivation/facts/type-level-fact-without-template.hd	type	accept	lang/14-annotations.md#r-annot.fact.type-level-decorator
 lang/annotations/typed-derivation/handles/structure-variant-mismatch.hd	runtime	panic:structure-variant-mismatch	lang/14-annotations.md#r-annot.handle.get.variant
 lang/grammar/declarations/derivation-member-lines.hd	parse	accept	lang/02-grammar.md#r-grammar.impl.derivation-line
@@ -2675,7 +2669,6 @@ lang/expressions/unary-and-binary-operators/operator-traits/operator-string-add.
 lang/expressions/expression-categories/compound-assign-index.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.index-place
 lang/expressions/expression-categories/compound-assign-index-no-read.hd	type	reject:not-writable	lang/05-expressions.md#r-expr.assign.compound.index-place
 lang/modules/public-uses-and-visibility/use-through-pub-use-loop.hd	type	reject:re-export-loop	lang/10-modules.md#r-module.pub-use.chain.loop-use
-lang/annotations/typed-derivation/facts/derivation-block-decorator.hd	type	accept	lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint
 lang/expressions/postfix-expressions/calls/only-apply-and-update-make-a-value-callable-store.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 lang/expressions/unary-and-binary-operators/operator-traits/operator-function-left-exact.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.left-dispatch.exact-function
 lang/requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
@@ -2752,12 +2745,9 @@ lang/grammar/statements/let-mut-bare-list.hd	parse	reject:syntax-error	lang/02-g
 lang/grammar/statements/let-list-without-mut.hd	parse	accept	lang/02-grammar.md#r-grammar.stmt.let-pattern.tuple
 lang/grammar/statements/let-bare-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.let-list.bare
 lang/grammar/statements/let-list-one-name.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.let-pattern.parenthesized
-lang/types/value-types/let-mut-primitive-unused.hd	type	accept	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
-lang/types/value-types/let-mut-primitive-annotation-unused.hd	type	accept	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
 lang/references/writing-through-a-reference/let-mut-optional.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 lang/expressions/postfix-expressions/indexing/compound-assign-map-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.read-value
 lang/expressions/postfix-expressions/indexing/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.map.read-value
-lang/annotations/typed-derivation/facts/derivation-block-decorator-std.hd	type	accept	lang/14-annotations.md#r-annot.fact.unused-block-decorator.any-type
 lang/expressions/unary-and-binary-operators/operator-traits/operator-rhs-default.hd	type	accept	lang/05-expressions.md#r-expr.op.trait.rhs-self
 lang/expressions/unary-and-binary-operators/operator-traits/operator-rhs-default-mismatch.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.trait.rhs-self
 lang/functions/generic-functions/type-argument-list-too-long.hd	type	reject:argument-count	lang/07-functions.md#r-fn.generic.explicit.too-long-count
@@ -2802,7 +2792,7 @@ lang/annotations/error-derivation/error-generated-bounds.hd	type	accept	lang/14-
 lang/annotations/error-derivation/error-without-import.hd	type	accept	lang/14-annotations.md#r-annot.error.no-use
 lang/grammar/statements/same-line-suite-let-list.hd	parse	accept	lang/02-grammar.md#r-grammar.inline.let-pattern
 lang/grammar/statements/same-line-suite-bare-let-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.inline.bare-comma
-lang/grammar/statements/same-line-let-list-unused.hd	type	accept	lang/02-grammar.md#r-grammar.inline.let-pattern
+lang/grammar/statements/same-line-let-list-underscore.hd	type	accept	lang/02-grammar.md#r-grammar.inline.let-pattern
 lang/modules/prelude/string-slice-inside-scalar.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.bad-offset
 lang/modules/prelude/string-slice-compare-inside-scalar.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.bad-offset
 lang/modules/prelude/string-slice-past-end.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.bad-offset
@@ -3246,8 +3236,6 @@ lang/expressions/unary-and-binary-operators/ordering/primitive-char-cmp-method-d
 lang/expressions/unary-and-binary-operators/ordering/primitive-string-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.string-bytes
 lang/expressions/unary-and-binary-operators/equality/primitive-bool-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std
 lang/expressions/unary-and-binary-operators/arithmetic-operators/arithmetic-a-64-bit-product-with-a-zero-operand-is-zero.hd	runtime	accept	lang/05-expressions.md#r-expr.arith.int.checked
-lang/modules/entry-point/private-main.hd	type	accept	lang/10-modules.md#r-module.entry.private-main.lint
-lang/modules/entry-point/private-main-suspending.hd	type	accept	lang/10-modules.md#r-module.entry.private-main.lint
 lang/types/optional-types/option-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant
 lang/types/optional-types/result-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant.result
 lang/types/optional-types/covariant-optional-field.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.option.invariant
@@ -3748,8 +3736,6 @@ lang/types/literal-types/literal-dependent-no-backward.hd	type	reject:implicit-n
 lang/types/literal-types/literal-dependent-no-backward-annotation.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.local.statement
 lang/types/literal-types/literal-erased-any-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.local.erased.reference-values
 lang/types/literal-types/literal-erased-fallback.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.erased.reference-values
-lang/expressions/unary-and-binary-operators/ordering/unsigned-comparison-countdown.hd	type	accept	lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
-lang/expressions/unary-and-binary-operators/ordering/unsigned-comparison-explicit.hd	type	accept	lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
 lang/expressions/unary-and-binary-operators/ordering/unsigned-comparison-signed-countdown.hd	type	accept	lang/05-expressions.md#unsigned-comparisons-with-zero
 lang/control-flow/runtime-panics/sign-fallback-balance-underflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.panic.report.fallback
 lang/expressions/primary-expressions/module-qualified-function-call.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
@@ -3983,7 +3969,6 @@ lang/data/enum-declarations/unknown-variant.hd	type	reject:unknown-variant	lang/
 lang/data/enum-declarations/an-unknown-variant-through-an-enum-alias.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
 lang/data/enum-declarations/two-match-arms-naming-unknown-variants-report-once.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
 lang/data/enum-declarations/a-let-pattern-naming-an-unknown-variant.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
-lang/lexical/identifiers/mixed-script-identifier.hd	parse	accept	lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
 lang/lexical/physical-and-logical-lines/unclosed-delimiter.hd	parse	reject:unclosed-delimiter	lang/01-lexical-structure.md#r-lex.delim.unclosed
 lang/lexical/physical-and-logical-lines/unmatched-delimiter.hd	parse	reject:unmatched-delimiter	lang/01-lexical-structure.md#r-lex.delim.unmatched
 lang/traits/trait-implementations/implementation-ownership/nonlocal-impl.hd	type	reject:nonlocal-impl	lang/09-traits.md#r-trait.own.module.error
@@ -4015,7 +4000,6 @@ lang/traits/method-resolution/result-type-candidate.hd	runtime	accept	lang/09-tr
 lang/traits/method-resolution/numeric-candidate-tie-break.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.literal-arg
 lang/traits/method-resolution/numeric-candidate-no-fit.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg.no-apply
 lang/traits/method-resolution/no-fit-candidate.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.no-apply
-lang/control-flow/blocks-and-completion/unused-after-rejected-trials.hd	type	accept	lang/06-control-flow.md#r-flow.unused.lint
 lang/traits/method-resolution/lazy-result-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.applies.expected
 lang/traits/trait-implementations/comparison-traits/ord-supertrait-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 lang/traits/trait-implementations/generic-inherent-box.hd	runtime	accept	lang/09-traits.md#trait-implementations
@@ -4052,7 +4036,6 @@ lang/modules/prelude/dbg-printer-private.hd	type	reject:private-import	lang/10-m
 lang/modules/prelude/dbg-prints-void.hd	runtime	accept	lang/10-modules.md#r-module.dbg.body.evaluate-first
 lang/modules/prelude/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-module.dbg.no-requirement
 lang/modules/prelude/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.declaration
-lang/modules/prelude/unused-debug-text.hd	type	accept	lang/10-modules.md#r-module.dbg.debug-lint
 std/format/debug-text/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
 std/num/integer-parsing/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned-type-grammar
 std/num/radix-text/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-trip
@@ -4695,7 +4678,6 @@ lang/control-flow/match-expressions/catch-all-and-variant-patterns/match-optiona
 lang/control-flow/match-expressions/payload-patterns/match-payload-positional-then-named.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.payload.order
 lang/control-flow/match-expressions/payload-patterns/match-bare-variant-with-payload.hd	type	reject:pattern-arity	lang/06-control-flow.md#r-flow.match.payload.arity
 lang/control-flow/match-expressions/payload-patterns/match-payload-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
-lang/control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd	type	accept	lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
 lang/control-flow/match-expressions/payload-patterns/match-literal-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 lang/control-flow/match-expressions/payload-patterns/match-variant-shorthand.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.variant.shorthand
 lang/control-flow/match-expressions/payload-bindings/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership-copied

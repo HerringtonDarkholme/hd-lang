@@ -1,5 +1,5 @@
-# test: a configured block beside a same-package @derive remains legal in ordinary checks
-# Spec 14 Line Drift: annot.line.drift.lint.derive.
+# Spec 14 Line Drift: annot.line.drift.lint.derive. A block beside a
+# same-package `@derive` with a member line gets the finding.
 use std.structure.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string

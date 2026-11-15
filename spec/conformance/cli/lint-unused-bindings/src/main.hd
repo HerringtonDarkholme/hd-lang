@@ -14,3 +14,30 @@ fn exercise() -> void:
 
 pub fn main() -> void:
     exercise()
+
+trait Parse[T]:
+    fn parse(raw: T) -> i32
+
+struct Item: pass
+
+impl Parse[i32] for Item:
+    fn parse(raw: i32) -> i32:
+        raw
+
+impl Parse[string] for Item:
+    fn parse(raw: string) -> i32:
+        0
+
+# Spec 06 Control Flow: flow.unused.lint. `text` is read by the candidate
+# that wins after a rejected trial; `extra` is never read.
+fn trials() -> void:
+    text := "7"
+    extra := +99
+    _ := Item::parse(text)
+
+fn pair() -> (i32, i32): (+1, +2)
+
+# Spec 02 Same-Line Suite Bodies: grammar.inline.let-pattern with
+# flow.unused.lint. A same-line suite's bindings are unread.
+fn split(ready: bool) -> void:
+    if ready: let (low, high) = pair()

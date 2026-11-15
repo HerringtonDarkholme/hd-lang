@@ -1,0 +1,6 @@
+# test: a statement after an unconditional return is still type-checked
+# Spec 06 Unreachable Code: flow.unreachable.checked, flow.unreachable.def.
+fn example() -> i32:
+    return +1
+    let label: string = +2  # diagnostic: type-mismatch
+    +3

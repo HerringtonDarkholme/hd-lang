@@ -1,8 +1,0 @@
-# Spec 06 Unreachable Code: flow.unreachable.infinite-loop.
-fn accept(port: i32) -> void:
-    pass
-
-fn serve(port: i32) -> void:
-    while true:
-        accept(port)
-    println("server stopped")

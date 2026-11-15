@@ -28,3 +28,18 @@ pub fn main() -> void:
     _ := borrowed()
     annotated()
     _ := swapped(.Values(+1, +2))
+
+# Spec 04 Binding Forms: types.bind.let-mut-primitive-lint, with an annotation.
+fn count_up() -> i32:
+    let mut n: i32 = +0
+    n = n + +1
+    n
+
+enum Choice:
+    Pair(then_value: i32, else_value: i32)
+
+# Spec 06 Payload Patterns: flow.match.payload.name-mismatch.lint and
+# flow.match.payload.name-mismatch.example, through a type-qualified variant.
+fn qualified(choice: Choice) -> i32:
+    match choice:
+        Choice.Pair(else_value, then_value) => then_value - else_value

@@ -60,7 +60,7 @@ lang/02-grammar.md	10	complete	-
 lang/02-grammar.md	11	complete	-
 lang/02-grammar.md	12	mixed	lang/grammar/statements/discard-binding-ends-in-suite.hd|lang/grammar/statements/return-binding-ends-in-suite.hd
 lang/02-grammar.md	13	mixed	lang/grammar/statements/nested-same-line-if.hd|lang/grammar/statements/same-line-if-in-function-body.hd|lang/grammar/statements/same-line-suite-comma.hd|lang/grammar/statements/same-line-suite-bare-let-list.hd
-lang/02-grammar.md	14	mixed	lang/grammar/statements/same-line-let-list-unused.hd
+lang/02-grammar.md	14	mixed	lang/grammar/statements/same-line-let-list-underscore.hd|cli/lint-unused-bindings/src/main.hd
 lang/02-grammar.md	15	mixed	lang/grammar/statements/header-after-indented-suite.hd
 lang/02-grammar.md	16	complete	-
 lang/02-grammar.md	17	mixed	lang/grammar/statements/copy-assignment-local.hd
@@ -224,7 +224,7 @@ lang/04-type-system.md	53	mixed	lang/types/value-types/struct-field-write-parame
 lang/04-type-system.md	54	mixed	lang/types/value-types/readonly-edge-mut-self-call.hd|lang/references/writing-through-a-reference/readonly-mutation.hd
 lang/04-type-system.md	55	fragment	lang/types/value-types/let-readonly-rebind.hd
 lang/04-type-system.md	56	mixed	lang/types/value-types/let-readonly-fresh-literal.hd
-lang/04-type-system.md	57	mixed	lang/types/value-types/let-mut-primitive-unused.hd|lang/types/value-types/let-mut-primitive-annotation-unused.hd
+lang/04-type-system.md	57	mixed	cli/lint-binding-patterns/src/main.hd
 lang/04-type-system.md	58	mixed	lang/types/value-types/let-mut-pattern.hd|lang/types/value-types/let-mut-pattern-readonly-name.hd
 lang/04-type-system.md	59	complete	lang/types/value-types/let-pattern-mut.hd
 lang/04-type-system.md	60	mixed	lang/types/value-types/uninhabited-binding.hd
@@ -359,7 +359,7 @@ lang/05-expressions.md	74	complete	-
 lang/05-expressions.md	75	mixed	lang/expressions/unary-and-binary-operators/function-equality.hd
 lang/05-expressions.md	76	mixed	lang/expressions/unary-and-binary-operators/equality/eq-contextual-right-operand.hd|lang/expressions/unary-and-binary-operators/equality/eq-contextual-left-operand.hd|lang/expressions/unary-and-binary-operators/equality/eq-contextual-both-operands.hd
 lang/05-expressions.md	77	complete	-
-lang/05-expressions.md	78	mixed	lang/expressions/unary-and-binary-operators/ordering/unsigned-comparison-countdown.hd|lang/expressions/unary-and-binary-operators/ordering/unsigned-comparison-explicit.hd
+lang/05-expressions.md	78	mixed	cli/lint-unsigned-comparisons/src/main.hd
 lang/05-expressions.md	79	complete	-
 lang/05-expressions.md	80	complete	-
 lang/05-expressions.md	81	mixed	lang/expressions/unary-and-binary-operators/incompatible-identity-operands.hd|lang/expressions/unary-and-binary-operators/tuple-identity.hd|lang/expressions/unary-and-binary-operators/identity/enum-identity.hd
@@ -436,7 +436,7 @@ lang/06-control-flow.md	48	complete	lang/control-flow/using-bindings/using-trans
 lang/06-control-flow.md	49	mixed	lang/control-flow/using-bindings/using-reassigned.hd|lang/control-flow/using-bindings/using-not-disposable.hd|lang/control-flow/using-bindings/using-read-only-reference.hd|lang/control-flow/using-bindings/using-outside-bang-function.hd
 lang/06-control-flow.md	50	complete	lang/control-flow/auto-closing-calls/auto-closing-lifo.hd
 lang/06-control-flow.md	51	mixed	lang/control-flow/auto-closing-calls/auto-closing-call-as-value.hd
-lang/06-control-flow.md	52	mixed	lang/control-flow/unreachable-code/unreachable-after-infinite-loop.hd
+lang/06-control-flow.md	52	mixed	cli/lint-flow-advice/src/main.hd
 lang/06-control-flow.md	53	complete	-
 lang/06-control-flow.md	54	complete	-
 lang/06-control-flow.md	55	complete	-
@@ -708,7 +708,7 @@ lang/10-modules.md	30	mixed	lang/modules/prelude/dbg-void-binding.hd
 lang/10-modules.md	31	complete	-
 lang/10-modules.md	32	complete	lang/modules/prelude/dbg-without-requirement.hd
 lang/10-modules.md	33	complete	-
-lang/10-modules.md	34	mixed	lang/modules/prelude/unused-debug-text.hd
+lang/10-modules.md	34	mixed	cli/lint-flow-advice/src/main.hd
 lang/10-modules.md	35	type-fragment	-
 lang/10-modules.md	36	mixed	lang/modules/prelude/println-without-console.hd
 lang/10-modules.md	37	complete	lang/modules/prelude/console-recording-provider.hd
@@ -759,7 +759,7 @@ lang/10-modules.md	81	mixed	lang/modules/name-resolution-across-packages/pub-top
 lang/10-modules.md	82	error-fragment	lang/modules/name-resolution-across-packages/template-names-binding.hd
 lang/10-modules.md	83	complete	-
 lang/10-modules.md	84	fragment	lang/requirements/requirements-and-suspension.hd
-lang/10-modules.md	85	mixed	lang/modules/entry-point/private-main.hd
+lang/10-modules.md	85	mixed	cli/lint-private-entry/src/main.hd
 lang/10-modules.md	86	mixed	lang/modules/entry-point/entry-point-parameters.hd
 lang/10-modules.md	87	mixed	lang/modules/entry-point/nondisplay-entry-error.hd
 lang/10-modules.md	88	type-fragment	-
@@ -962,7 +962,7 @@ lang/14-annotations.md	34	complete	-
 lang/14-annotations.md	35	fragment	lang/annotations/typed-derivation/derivation-blocks/trait-less-derivation-block.hd
 lang/14-annotations.md	36	mixed	lang/annotations/typed-derivation/derivation-blocks/trait-less-block-omit.hd|lang/annotations/typed-derivation/derivation-blocks/trait-less-block-method.hd|lang/annotations/typed-derivation/derivation-blocks/trait-less-block-newtype.hd|lang/annotations/typed-derivation/derivation-blocks/trait-less-block-generic-argument.hd|lang/annotations/typed-derivation/derivation-blocks/trait-less-block-second.hd
 lang/14-annotations.md	37	fragment	lang/annotations/typed-derivation/typed-derivation.hd
-lang/14-annotations.md	38	error-fragment	lang/annotations/typed-derivation/facts/type-level-fact-without-template.hd|lang/annotations/typed-derivation/derivation-blocks/trait-less-self-line-fact.hd|lang/annotations/typed-derivation/facts/derivation-block-decorator.hd|lang/annotations/typed-derivation/facts/duplicate-type-level-fact.hd|lang/annotations/typed-derivation/facts/derivation-block-decorator-std.hd
+lang/14-annotations.md	38	error-fragment	lang/annotations/typed-derivation/facts/type-level-fact-without-template.hd|lang/annotations/typed-derivation/derivation-blocks/trait-less-self-line-fact.hd|cli/lint-fix-derivation-fact/src/lib.hd|lang/annotations/typed-derivation/facts/duplicate-type-level-fact.hd
 lang/14-annotations.md	39	mixed	lang/annotations/typed-derivation/facts/block-on-in-fact.hd
 lang/14-annotations.md	40	complete	-
 lang/14-annotations.md	41	complete	-

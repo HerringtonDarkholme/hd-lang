@@ -13,3 +13,13 @@ fn inferred():
 
 fn signed(value: i32) -> bool:
     value >= 0
+
+# Spec 05 Unsigned Comparisons With Zero: expr.ord.unsigned-zero.binding-type.
+# `t` takes the `usize` default, so the loop condition is always true.
+fn countdown() -> void:
+    let t = 10
+    while t >= 0:
+        t = t - 1
+
+fn below(value: u32) -> bool:
+    value < 0

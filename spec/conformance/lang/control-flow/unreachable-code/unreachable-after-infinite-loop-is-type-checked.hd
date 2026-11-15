@@ -1,0 +1,6 @@
+# test: a statement after an infinite loop that no break targets is still type-checked
+# Spec 06 Unreachable Code: flow.unreachable.checked, flow.unreachable.infinite-loop.
+fn serve() -> void:
+    while true:
+        pass
+    let count: i32 = "many"  # diagnostic: type-mismatch

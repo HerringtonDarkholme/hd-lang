@@ -130,9 +130,26 @@ fn unused_policy_is_independent_and_never_suppresses_must_use_errors() {
 
 #[test]
 fn warm_checks_keep_facts_ephemeral_and_rejected_trials_unique() {
-    let source = include_str!(
-        "../../../../spec/conformance/lang/control-flow/blocks-and-completion/unused-after-rejected-trials.hd"
-    );
+    // `text` is read by the candidate that wins after a rejected trial; `extra`
+    // is never read, so analysis reports exactly one finding.
+    let source = "trait Parse[T]:
+    fn parse(raw: T) -> i32
+
+struct Item: pass
+
+impl Parse[i32] for Item:
+    fn parse(raw: i32) -> i32:
+        raw
+
+impl Parse[string] for Item:
+    fn parse(raw: string) -> i32:
+        0
+
+pub fn main() -> void:
+    text := \"7\"
+    extra := +99
+    _ := Item::parse(text)
+";
     let store = MemoryStore::default();
     let serial = Executor::Serial(SerialOrder::Priority);
     let normal = checked(source, &store, false, serial);

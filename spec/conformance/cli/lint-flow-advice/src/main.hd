@@ -11,9 +11,23 @@ fn forever() -> void:
 fn trace() -> void:
     debug(+4)
 
+# Spec 06 Unreachable Code: flow.unreachable.infinite-loop. No `break` targets
+# the loop, so the statement after it is unreachable.
+fn accept(port: i32) -> void:
+    pass
+
+fn serve(port: i32) -> void:
+    while true:
+        accept(port)
+    println("server stopped")
+
 pub fn main() -> void:
     pass
 
 tests:
     it("quiet ordinary commands"):
         pass
+
+# Spec 06 Unreachable Code: flow.unreachable.def (after `return`),
+# flow.unreachable.lint, and flow.unreachable.policy (`--deny`).
+# Spec 10 Debug Printing: module.dbg.debug-lint.

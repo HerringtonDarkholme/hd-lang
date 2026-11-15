@@ -55,6 +55,9 @@ fn primitive_messages_and_fix_spans_are_preserved() {
         [
             Code::RedundantLetMut,
             Code::VariantBindingNameMismatch,
+            Code::VariantBindingNameMismatch,
+            Code::RedundantLetMut,
+            Code::VariantBindingNameMismatch,
             Code::VariantBindingNameMismatch
         ]
     );
@@ -72,6 +75,13 @@ fn primitive_messages_and_fix_spans_are_preserved() {
     assert_eq!(
         findings.get_text(findings.message[2]),
         "`left` is also a field of `Values`; the field in this position is `right`"
+    );
+    // The annotated `let mut n: i32` and the type-qualified `Choice.Pair(...)` forms.
+    let span = findings.primary[3];
+    assert!(source[span.lo as usize..span.hi as usize].starts_with("mut "));
+    assert_eq!(
+        findings.get_text(findings.message[4]),
+        "`else_value` is also a field of `Pair`; the field in this position is `then_value`"
     );
 }
 
@@ -121,7 +131,7 @@ fn policy_levels_are_independent_and_module_errors_cannot_be_suppressed() {
             policy.set(name, level).unwrap();
             policy.set(other, Level::Allow).unwrap();
             let (_, findings) = lint(source, policy);
-            let found = if name == REDUNDANT_MUT { 1 } else { 2 };
+            let found = if name == REDUNDANT_MUT { 2 } else { 4 };
             assert_eq!(findings.len(), if expected.is_some() { found } else { 0 });
             assert!(findings.severity.iter().all(|s| Some(*s) == expected));
         }

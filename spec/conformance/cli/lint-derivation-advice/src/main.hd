@@ -13,3 +13,12 @@ impl Serialize for Session by Structure:
 
 pub fn main() -> void:
     pass
+
+# Spec 14 Line Drift: annot.line.drift.lint.derive, with standard traits.
+@derive(Debug)
+struct Record:
+    id: i64
+    cache: i64 = 0
+
+impl Serialize for Record by Structure:
+    cache = pass

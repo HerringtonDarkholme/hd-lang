@@ -1,4 +1,5 @@
-# test: differing derivation member lines remain legal in ordinary checks; lint reports the advice
+# Spec 14 Line Drift: annot.line.drift.lint. Traits of this package: the later
+# block, `Count`, configures different member lines than `Show`.
 use std.structure.{Structure, Field, Variant, Walker, Describer}
 
 trait Show:

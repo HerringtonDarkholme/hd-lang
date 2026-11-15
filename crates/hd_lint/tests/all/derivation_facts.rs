@@ -8,11 +8,37 @@ use hd_lint::{ANALYZER, Level, Policy, UNUSED_DERIVATION};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
+/// An unread user value before a derivation block: one `unused-derivation-fact`.
+const BLOCK_DECORATOR: &str = "use std.structure.Structure
+
+struct Style:
+    prefix: string = \"\"
+
+fn style(prefix: string = \"\") -> Style:
+    Style { prefix: prefix }
+
+struct Loud:
+    id: i64
+
+@style(prefix=\"l_\")
+impl Loud by Structure:
+    id += [\"key\"]
+";
+
+/// An unread standard value before a derivation block: one `unused-derivation-fact`.
+const BLOCK_DECORATOR_STD: &str = "use std.structure.Structure
+
+struct Hidden:
+    id: i64
+
+@\"internal\"
+impl Hidden by Structure:
+    id += [\"key\"]
+";
+
 #[test]
 fn warm_interface_and_check_hits_do_not_lose_or_cache_derivation_findings() {
-    let source = include_str!(
-        "../../../../spec/conformance/lang/annotations/typed-derivation/facts/derivation-block-decorator.hd"
-    );
+    let source = BLOCK_DECORATOR;
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
     let store = MemoryStore::default();
@@ -54,9 +80,7 @@ fn warm_interface_and_check_hits_do_not_lose_or_cache_derivation_findings() {
 
 #[test]
 fn selected_file_closure_collects_root_modules_but_not_dependencies_or_unreached_files() {
-    let annotated = include_str!(
-        "../../../../spec/conformance/lang/annotations/typed-derivation/facts/derivation-block-decorator-std.hd"
-    );
+    let annotated = BLOCK_DECORATOR_STD;
     let annotated = format!("{annotated}\npub fn value() -> i32:\n    +1\n");
     let mut sources = MemorySources::default();
     sources.insert("src/main.hd", "use pkg.helper.value\nuse dep.remote.value as remote_value\nfn root() -> i32:\n    value() + remote_value()\n");
@@ -150,9 +174,8 @@ fn invalid_derivation_decorators_keep_the_same_error_prerequisites() {
 
 #[test]
 fn cached_folder_facts_include_sibling_derive_identities() {
-    let original = include_str!(
-        "../../../../spec/conformance/lang/annotations/typed-derivation/derivation-blocks/derivation-line-drift-beside-derive.hd"
-    );
+    let original =
+        include_str!("../../../../spec/conformance/cli/lint-derivation-advice/src/drift_derive.hd");
     let mut sources = MemorySources::default();
     sources.insert("src/lib.hd", original);
     sources.insert(
@@ -199,9 +222,7 @@ fn cached_folder_facts_include_sibling_derive_identities() {
 
 #[test]
 fn registered_module_and_derivation_findings_share_warm_checks() {
-    let annotated = include_str!(
-        "../../../../spec/conformance/lang/annotations/typed-derivation/facts/derivation-block-decorator.hd"
-    );
+    let annotated = BLOCK_DECORATOR;
     let source = format!("{annotated}\npub fn main() -> void: pass\n");
     let mut sources = MemorySources::default();
     sources.insert("src/helper.hd", &source);

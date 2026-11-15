@@ -1,2 +1,4 @@
 fn main() -> void:
     pass
+
+# Spec 10 Entry Point: module.entry.private-main.lint, for `main`.

@@ -4,3 +4,5 @@ use dep.dep.constant
 pub fn main() -> void:
     let аbc = value() + constant()
     _ := аbc
+
+# Spec 01 Identifiers: lex.ident.mixed-script.lint.
