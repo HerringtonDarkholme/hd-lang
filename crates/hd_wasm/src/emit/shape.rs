@@ -3,6 +3,7 @@
 //! projection, a read through a reference). Nothing here decides a count:
 //! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
 
+use hd_base::SliceSort as _;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Word, slot_words};
 
 use super::Em;
@@ -50,14 +51,193 @@ impl Em<'_, '_, '_> {
                 .is_some_and(|path| path.iter().any(|&(k, q)| k == blk && q > p))
     }
 
-    /// Whether `i` belongs to this loop, including its nested control
-    /// blocks but excluding separately invoked closure bodies.
-    pub(super) fn in_loop(&self, i: u32, loop_inst: u32) -> bool {
-        self.block_path(i).is_some_and(|path| {
-            path.iter()
-                .any(|(blk, _)| self.topo.owner[*blk as usize] == loop_inst)
-        })
+    /// The body's [`Tree`], built on first use.
+    pub(super) fn tree(&self) -> &Tree {
+        self.tree.get_or_init(|| Tree::new(self.b, &self.topo))
     }
+
+    /// Whether `i` belongs to this loop, including its nested control
+    /// blocks but excluding separately invoked closure bodies: a strict
+    /// descendant of a block the loop runs. O(the blocks it runs).
+    pub(super) fn in_loop(&self, i: u32, loop_inst: u32) -> bool {
+        // An instruction or block under no root is `NONE`, past every
+        // `last`, and so in no loop.
+        let t = self.tree();
+        let p = t.pre[i as usize];
+        t.children(loop_inst)
+            .iter()
+            .any(|&blk| t.pre[blk as usize] < p && p <= t.last[blk as usize])
+    }
+
+    /// The instructions of loop `loop_inst` ([`Em::in_loop`]) in index
+    /// order: the subtrees of the blocks it runs, O(their size, log).
+    pub(super) fn loop_body(&self, loop_inst: u32) -> Vec<u32> {
+        let t = self.tree();
+        let mut out = Vec::new();
+        for &blk in t.children(loop_inst) {
+            out.extend_from_slice(t.below(blk));
+        }
+        crate::work::loop_scans(out.len());
+        out.sort_stable();
+        out
+    }
+
+    /// Every instruction inside the statements of block `blk` at
+    /// positions `from..=to`, each statement included, in index order:
+    /// the instructions whose [`Em::block_path`] passes through `blk` at
+    /// such a position. O(their number, log).
+    pub(super) fn statements(&self, blk: u32, from: usize, to: usize) -> Vec<u32> {
+        let t = self.tree();
+        let mut out = Vec::new();
+        // A child block listed here sits under the statement that runs it.
+        let record = self.b.record(self.b.data[blk as usize][0]);
+        for &m in record.iter().take(to.saturating_add(1)).skip(from) {
+            if self.b.tags[m as usize] != Tag::Block {
+                out.extend_from_slice(t.subtree(m));
+            }
+        }
+        crate::work::loop_scans(out.len());
+        out.sort_stable();
+        out
+    }
+}
+
+/// A body's block tree in preorder (#1916), one pass to build, so that
+/// whether an instruction is in a loop or a statement is an interval
+/// test, and a loop's instructions are a slice of the order rather than
+/// a scan of the body with a [`Em::block_path`] per instruction.
+///
+/// The tree is the one [`Em::block_path`] walks up: a non-block
+/// instruction's parent is the block that lists it (`Topology::blk`), a
+/// block's is the instruction that runs it (`Topology::owner`), and a
+/// sub-body's root block has none. Only instructions under a root are
+/// numbered: the others have no path. Cost: O(instructions) time and
+/// words, built once per body on the first question.
+pub(super) struct Tree {
+    /// Each instruction's preorder number, or `NONE` when no root is
+    /// above it.
+    pre: Vec<u32>,
+    /// The last preorder number in each instruction's subtree.
+    last: Vec<u32>,
+    /// The instructions in preorder.
+    order: Vec<u32>,
+    /// Each instruction's children, `kids[at[i]..at[i + 1]]`.
+    at: Vec<u32>,
+    kids: Vec<u32>,
+    /// Each loop's own instructions, those whose innermost loop it is
+    /// (`Topology::loop_of`), in index order: `own[own_at[l]..own_at[l + 1]]`.
+    own_at: Vec<u32>,
+    own: Vec<u32>,
+}
+
+impl Tree {
+    fn new(b: &Body, topo: &hd_tir::ir::Topology) -> Self {
+        let n = b.len();
+        let parent = |i: usize| -> u32 {
+            if b.tags[i] == Tag::Block {
+                if topo.is_root[i] { NONE } else { topo.owner[i] }
+            } else {
+                topo.blk[i]
+            }
+        };
+        let (at, kids) = buckets(n, parent);
+        // Preorder from each root, by an explicit stack: an input-deep
+        // tree never recurses natively. A subtree is a run of the order.
+        let mut pre = vec![NONE; n];
+        let mut order = Vec::with_capacity(n);
+        let mut stack = Vec::new();
+        for (i, &root) in topo.is_root.iter().enumerate() {
+            if !root {
+                continue;
+            }
+            stack.push(u32_of(i));
+            // Each instruction has one parent, so none is reached twice.
+            while let Some(x) = stack.pop() {
+                let x = x as usize;
+                pre[x] = u32_of(order.len());
+                order.push(u32_of(x));
+                stack.extend(kids[at[x] as usize..at[x + 1] as usize].iter().rev());
+            }
+        }
+        // A subtree's size, children before parents in reverse preorder.
+        let mut size = vec![1u32; n];
+        for &x in order.iter().rev() {
+            let p = parent(x as usize) as usize;
+            if p < n {
+                size[p] += size[x as usize];
+            }
+        }
+        // `NONE` stays `NONE` for an instruction under no root.
+        let last = (0..n).map(|i| pre[i].saturating_add(size[i] - 1)).collect();
+        let (own_at, own) = buckets(n, |i| topo.loop_of[i]);
+        crate::work::loop_scans(n);
+        Self {
+            pre,
+            last,
+            order,
+            at,
+            kids,
+            own_at,
+            own,
+        }
+    }
+
+    /// The instructions whose innermost loop is `l`, in index order.
+    pub(super) fn own(&self, l: u32) -> &[u32] {
+        let l = l as usize;
+        &self.own[self.own_at[l] as usize..self.own_at[l + 1] as usize]
+    }
+
+    /// The children of instruction `i`: the blocks a non-block runs, the
+    /// non-block statements a block lists.
+    fn children(&self, i: u32) -> &[u32] {
+        let i = i as usize;
+        &self.kids[self.at[i] as usize..self.at[i + 1] as usize]
+    }
+
+    /// Instruction `i` and every instruction below it, in preorder.
+    fn subtree(&self, i: u32) -> &[u32] {
+        let i = i as usize;
+        &self.order[self.pre[i] as usize..=self.last[i] as usize]
+    }
+
+    /// Every instruction below `i`, in preorder.
+    fn below(&self, i: u32) -> &[u32] {
+        let i = i as usize;
+        &self.order[self.pre[i] as usize + 1..=self.last[i] as usize]
+    }
+}
+
+/// Instructions `0..n` grouped by `key` (an instruction, or `NONE` for
+/// none) by counting sort: group `k` is `items[at[k]..at[k + 1]]`, in
+/// index order. O(n).
+fn buckets(n: usize, key: impl Fn(usize) -> u32) -> (Vec<u32>, Vec<u32>) {
+    let mut at = vec![0u32; n + 1];
+    for i in 0..n {
+        let k = key(i) as usize;
+        if k < n {
+            at[k + 1] += 1;
+        }
+    }
+    for i in 0..n {
+        at[i + 1] += at[i];
+    }
+    let mut fill = at.clone();
+    let mut items = vec![0u32; at[n] as usize];
+    for i in 0..n {
+        let k = key(i) as usize;
+        if k < n {
+            items[fill[k] as usize] = u32_of(i);
+            fill[k] += 1;
+        }
+    }
+    (at, items)
+}
+
+fn u32_of(i: usize) -> u32 {
+    // ruled out: TIR names instructions by `u32` words, so a body's
+    // instruction count fits.
+    u32::try_from(i).expect("instructions fit u32")
 }
 
 /// The local that value `r` reads when it is a plain local read,

@@ -2580,3 +2580,101 @@ fn value_ifs_rewrite_in_one_pass_over_the_body() {
         }
     });
 }
+
+/// `for` (or `while`) loops nested `n` deep, each level adding one: the
+/// scale check's `for-nest` and `while-nest` shapes.
+fn loop_nest(n: usize, kind: &str) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for i in 0..n {
+        let indent = "    ".repeat(i + 1);
+        if kind == "for" {
+            let _ = writeln!(s, "{indent}for k{i} in 0..1:");
+        } else {
+            let _ = writeln!(s, "{indent}while t < {}:", i + 1);
+        }
+        let _ = writeln!(s, "{indent}    t = t + 1");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// `n` loops one after another, each over a list by its index: the
+/// range-index proof lists each loop's instructions and the statements
+/// before it.
+fn list_loop_run(n: usize) -> String {
+    let mut s =
+        String::from("pub fn main() -> void $ Console:\n    xs := [1, 2, 3]\n    let t = +0\n");
+    for _ in 0..n {
+        s.push_str("    for i in 0..xs.len():\n        t = t + xs[i]\n");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", source);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = hd_driver::Packages {
+        level,
+        ..hd_driver::Packages::default()
+    };
+    hd_driver::build_packages(
+        &host,
+        "app",
+        &packages,
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    )
+}
+
+// Emitter: #1916, each loop's list proofs scanned every instruction of
+// the body and built each one's block path to ask whether the loop held
+// it: cubic in a nest, quadratic in a run of loops. The body's block tree
+// is now numbered once in preorder, a loop's instructions are a slice of
+// it, and only a proof whose cheap tests pass asks for them.
+#[test]
+fn loop_proofs_list_each_loops_instructions_from_one_tree() {
+    on_test_stack(|| {
+        let work = |name: &str, source: String, level, printed: String| {
+            let (out, work) = hd_wasm::work::count_loop_scans(|| build_at(&source, level));
+            assert!(!out.diags.has_errors(), "{name}: {}", out.render());
+            let ran =
+                crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
+            assert!(
+                ran.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&ran.stderr)
+            );
+            assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+            work
+        };
+        let shapes: [ValueShape; 3] = [
+            // A level nests two deep: 70 levels stay below the nesting limit.
+            ("for-nest", |n| loop_nest(n, "for"), 7, |n| n),
+            ("while-nest", |n| loop_nest(n, "while"), 7, |n| n),
+            ("list-loop-run", list_loop_run, 100, |n| 6 * n),
+        ];
+        for level in [hd_driver::OptLevel::Dev, hd_driver::OptLevel::Optimized] {
+            for (name, generate, n, printed) in shapes {
+                let run = |k| work(name, generate(k), level, format!("{}\n", printed(k)));
+                let zero = run(0);
+                let small = run(n) - zero;
+                let large = run(10 * n) - zero;
+                assert!(
+                    small > 0 && large <= 12 * small,
+                    "{name} {level:?}: loop scans over the empty body at {n} and {}: {small} and {large}",
+                    10 * n
+                );
+            }
+        }
+    });
+}

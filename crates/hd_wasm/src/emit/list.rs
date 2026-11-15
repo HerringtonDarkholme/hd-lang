@@ -326,8 +326,7 @@ impl Em<'_, '_, '_> {
 
     /// Exact usize induction from zero to an unchanged list length.
     /// This is a body-local proof; no callee summaries or unchecked TIR.
-    fn range_indices(&self, loop_inst: u32, test: u32, body: &[u32]) -> Vec<u32> {
-        let sets = self.local_sets();
+    fn range_indices(&self, loop_inst: u32, test: u32) -> Vec<u32> {
         let cond = self.b.data[test as usize][0];
         if Ref(cond).as_inst().is_none()
             || self.b.tags[cond as usize] != Tag::Prim
@@ -356,6 +355,7 @@ impl Em<'_, '_, '_> {
         {
             return Vec::new();
         }
+        let sets = self.local_sets();
         let [a, b] = sets[current].as_slice() else {
             return Vec::new();
         };
@@ -407,7 +407,8 @@ impl Em<'_, '_, '_> {
             return Vec::new();
         };
         let aliases = self.list_aliases(root);
-        if !self.list_loop_safe(root, body, &aliases) {
+        let body = self.loop_body(loop_inst);
+        if !self.list_loop_safe(root, &body, &aliases) {
             return Vec::new();
         }
         // Length observation and loop entry can be separated by arbitrary
@@ -421,15 +422,7 @@ impl Em<'_, '_, '_> {
         else {
             return Vec::new();
         };
-        let prelude: Vec<_> = (0..self.b.len())
-            .map(|i| u32::try_from(i).expect("insts"))
-            .filter(|&x| {
-                self.block_path(x).is_some_and(|p| {
-                    p.iter()
-                        .any(|(k, at)| *k == blk && start < *at && *at <= finish)
-                })
-            })
-            .collect();
+        let prelude = self.statements(blk, start + 1, finish);
         if !self.list_loop_safe(root, &prelude, &aliases) {
             return Vec::new();
         }
@@ -517,16 +510,7 @@ impl Em<'_, '_, '_> {
             .into_iter()
             .find(|(k, _)| *k == blk)
             .map(|(_, at)| at)?;
-        Some(
-            (0..self.b.len())
-                .map(|i| u32::try_from(i).expect("insts"))
-                .filter(|&x| {
-                    self.block_path(x).is_some_and(|p| {
-                        p.iter().any(|&(k, at)| k == blk && from <= at && at <= to)
-                    })
-                })
-                .collect(),
-        )
+        Some(self.statements(blk, from, to))
     }
 
     /// Whether instruction `x` runs only once loop test `test`, an `If`
@@ -558,11 +542,11 @@ impl Em<'_, '_, '_> {
     /// body's local stores once per such loop, as [`Em::range_indices`]
     /// reads them; a walk of the enclosing blocks of each masked access,
     /// and one alias pass per list that has one.
-    fn masked_indices(&self, loop_inst: u32, body: &[u32]) -> Vec<u32> {
-        let own = |x: u32| self.topo.loop_of[x as usize] == loop_inst;
-        if !body.iter().any(|&x| {
-            own(x)
-                && self.b.tags[x as usize] == Tag::Prim
+    fn masked_indices(&self, loop_inst: u32) -> Vec<u32> {
+        let own = self.tree().own(loop_inst);
+        crate::work::loop_scans(own.len());
+        if !own.iter().any(|&x| {
+            self.b.tags[x as usize] == Tag::Prim
                 && self.b.data[x as usize][0] == PrimOp::BitAnd as u32
         }) {
             return Vec::new();
@@ -570,10 +554,7 @@ impl Em<'_, '_, '_> {
         let mut sets = None;
         let mut aliases: Vec<(ListRoot, Vec<bool>)> = Vec::new();
         let mut proven = Vec::new();
-        for &x in body {
-            if !own(x) {
-                continue;
-            }
+        for &x in own {
             let Some((root, index)) = self.elem_access(x as usize) else {
                 continue;
             };
@@ -691,7 +672,7 @@ impl Em<'_, '_, '_> {
     /// loop, `xs[v]` anywhere in the loop and `xs[v - 1]` read after the
     /// test and before the decrement are within bounds. This body's
     /// proof, as [`Em::range_indices`]'s, never consults a callee.
-    fn falling_indices(&self, loop_inst: u32, test: u32, body: &[u32]) -> Vec<u32> {
+    fn falling_indices(&self, loop_inst: u32, test: u32) -> Vec<u32> {
         let usize_ty = Ty::prim(hd_types::Prim::Usize);
         let cond = self.b.data[test as usize][0];
         if Ref(cond).as_inst().is_none()
@@ -751,6 +732,7 @@ impl Em<'_, '_, '_> {
         // The lists an access checked that value against: its index reads
         // `u`, which no store changes between that read and `v`'s.
         let mut roots: Vec<ListRoot> = Vec::new();
+        let mut body: Option<Vec<u32>> = None;
         for x in 0..self.b.len() {
             let Some((root, index)) = self.elem_access(x) else {
                 continue;
@@ -774,14 +756,16 @@ impl Em<'_, '_, '_> {
             }) {
                 continue;
             }
-            to_loop.extend_from_slice(body);
+            to_loop.extend_from_slice(body.get_or_insert_with(|| self.loop_body(loop_inst)));
             let aliases = self.list_aliases(root);
             if self.list_loop_safe(root, &to_loop, &aliases) {
                 roots.push(root);
             }
         }
-        body.iter()
-            .copied()
+        let Some(body) = body.filter(|_| !roots.is_empty()) else {
+            return Vec::new();
+        };
+        body.into_iter()
             .filter(|&y| {
                 let Some((root, index)) = self.elem_access(y as usize) else {
                     return false;
@@ -1105,19 +1089,18 @@ impl Em<'_, '_, '_> {
         if self.susp.is_some() {
             return Ok(Vec::new());
         }
-        let body: Vec<u32> = (0..self.b.len())
-            .map(|i| u32::try_from(i).expect("insts"))
-            .filter(|x| self.in_loop(*x, loop_inst))
-            .collect();
+        // Each proof lists the loop's instructions ([`Em::loop_body`]) only
+        // once its cheap tests pass, so a loop no proof applies to costs
+        // no walk of its body (#1916).
         if let Some((test, false)) = self.list_loop_guard(loop_inst) {
-            let proven = self.range_indices(loop_inst, test, &body);
+            let proven = self.range_indices(loop_inst, test);
             self.proven_list_indices.extend(proven);
-            let proven = self.falling_indices(loop_inst, test, &body);
+            let proven = self.falling_indices(loop_inst, test);
             self.proven_list_indices.extend(proven);
         }
         // Release only, as the guard pass is (owner, 2026-11-11).
         if self.input.optimized {
-            let proven = self.masked_indices(loop_inst, &body);
+            let proven = self.masked_indices(loop_inst);
             self.proven_list_indices.extend(proven);
         }
         self.own_list_caches(loop_inst)

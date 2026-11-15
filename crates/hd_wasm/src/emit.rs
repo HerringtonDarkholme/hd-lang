@@ -1452,6 +1452,9 @@ struct Em<'i, 'a, 'm> {
     part_only: Vec<bool>,
     /// The body's block structure.
     topo: hd_tir::ir::Topology,
+    /// Its block tree in preorder, built on the first loop or statement
+    /// question ([`shape::Tree`]).
+    tree: std::cell::OnceCell<shape::Tree>,
     own_ops: Vec<hd_tir::own::Operand>,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
@@ -1620,6 +1623,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             value_uses: Vec::new(),
             part_only: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
+            tree: std::cell::OnceCell::new(),
             own_ops: Vec::new(),
             hoisted: Vec::new(),
             deferred_uniques: HashMap::default(),

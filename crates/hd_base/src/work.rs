@@ -61,6 +61,7 @@ counters! {
     TypeNodes = "type_nodes",
     DeriveWork = "derive_work",
     MemberPairs = "member_pairs",
+    LoopScans = "loop_scans",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

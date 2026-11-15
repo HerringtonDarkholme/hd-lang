@@ -86,8 +86,6 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["matches build", "#1917"],
   ["enum-arms build", "#1909"],
   ["interpolation build", "#1914"],
-  ["for-nest build", "#1916"],
-  ["while-nest build", "#1916"],
   ["closure-nest build", "#1906"],
   ["option-nest check", "#1918"],
   ["option-nest build", "#1918"],

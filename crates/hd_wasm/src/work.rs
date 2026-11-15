@@ -10,6 +10,7 @@ thread_local! {
     static USE_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOAN_QUERIES: Cell<Option<u64>> = const { Cell::new(None) };
     static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
+    static LOOP_SCANS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -50,6 +51,19 @@ pub fn count_member_layouts<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn member_layouts(n: usize) {
     add(&MEMBER_LAYOUTS, n);
+}
+
+/// Counts the instructions the emitter's loop and statement questions
+/// visit on this thread: each body's block tree once, and each list of
+/// a loop's or a run of statements' instructions it hands out
+/// ([`crate::emit`]'s `Tree`).
+pub fn count_loop_scans<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&LOOP_SCANS, run)
+}
+
+pub(crate) fn loop_scans(n: usize) {
+    hd_base::work::add(hd_base::work::Counter::LoopScans, n as u64);
+    add(&LOOP_SCANS, n);
 }
 
 fn count<R>(
