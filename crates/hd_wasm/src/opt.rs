@@ -909,6 +909,12 @@ fn pushes_zero_constant(ins: &Ins) -> bool {
 /// every incoming path. Facts are persistent sets ([`Zeros`]) kept only at
 /// basic-block entries; one working set carries facts through each block.
 fn zero_releases(f: &mut Func) -> bool {
+    zero_releases_with(f, &mut || {})
+}
+
+/// [`zero_releases`], calling `visit` at each block its fixed point
+/// visits.
+fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
     let symbols = f.symbols.clone();
     let release_width = |ins: &Ins| {
         let Ins::Call(id) = ins else {
@@ -960,6 +966,7 @@ fn zero_releases(f: &mut Func) -> bool {
             &starts,
             (&mut zeros, known),
             &release_width,
+            visit,
         )
     };
     if !gone.iter().any(|g| *g) {
@@ -1040,8 +1047,14 @@ fn zero_sweep(
 }
 
 /// [`zero_releases`]' decisions for any body: the facts at each block's
-/// entry to a fixed point, then the decisions. Hash-consed sets make an
-/// unchanged meet the same set, so a change is one comparison.
+/// entry to a fixed point, then the decisions.
+///
+/// The worklist hands out the lowest queued block first, as clang's
+/// `ForwardDataflowWorklist` hands out blocks in reverse post-order.
+/// Blocks are numbered in body order, where every edge but a loop's
+/// backedge leads forward, so a loop settles before the blocks after it
+/// are visited, and each of those is visited once, not once more per
+/// round of the loops before it: `O(V log B)` heap steps for `V` visits.
 fn zero_fixpoint(
     f: &Func,
     edges: &[ZeroEdges],
@@ -1049,15 +1062,17 @@ fn zero_fixpoint(
     starts: &[usize],
     (zeros, entry): (&mut Zeros, Set),
     release_width: &dyn Fn(&Ins) -> Option<usize>,
+    visit: &mut dyn FnMut(),
 ) -> Vec<bool> {
     // `None`: not reached yet. A function without locals has only empty
     // sets but can still have removable releases.
     let mut facts: Vec<Option<Set>> = vec![None; starts.len()];
     facts[0] = Some(entry);
-    let mut pending = std::collections::VecDeque::from([0]);
+    let mut pending = std::collections::BinaryHeap::from([std::cmp::Reverse(0)]);
     let mut queued = vec![false; starts.len()];
     queued[0] = true;
-    while let Some(point) = pending.pop_front() {
+    while let Some(std::cmp::Reverse(point)) = pending.pop() {
+        visit();
         queued[point] = false;
         let Some(known) = facts[point] else {
             continue;
@@ -1087,7 +1102,7 @@ fn zero_fixpoint(
             if changed {
                 facts[next] = Some(meet);
                 if !queued[next] {
-                    pending.push_back(next);
+                    pending.push(std::cmp::Reverse(next));
                     queued[next] = true;
                 }
             }
@@ -1195,9 +1210,18 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
 
 /// The locals live into each basic block of a body, by a backward pass
 /// to a fixed point (loop backedges included). Each block's set is a
-/// persistent set ([`live_set`]) that shares every subtree its block's
-/// instructions leave alone with the sets it was built from: `n` locals
-/// live across `n` blocks take about `n log n` nodes, not `n²` entries.
+/// persistent set ([`live_set`]) that shares every subtree its block
+/// leaves alone with the sets it was built from: `n` locals live across
+/// `n` blocks take about `n log n` nodes, not `n²` entries.
+///
+/// A block is summarised once, as the textbook `UEVar` and `VarKill` sets
+/// are (Cooper and Torczon, "Engineering a Compiler", 8.6.1): the
+/// first access of each local it touches, a read putting the local in
+/// and a write taking it out. A visit then costs one path per local the
+/// block touches, not one per access, and the fixed point never walks
+/// the instructions again. Dead accesses come from each block's live-out
+/// set and the next access in the block, as LLVM's `LiveVariables`
+/// marks kills within a block.
 struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
@@ -1206,29 +1230,24 @@ struct Live {
     forward: bool,
     sets: Sets,
     into: Vec<Set>,
-}
-
-/// The locals live at one point of [`Live::walk_back`].
-struct After<'a> {
-    sets: &'a Sets,
-    set: Set,
-}
-
-impl After<'_> {
-    fn contains(&self, l: u32) -> bool {
-        self.sets.contains(self.set, l)
-    }
+    /// What is live out of each block, as its last visit found it: at the
+    /// fixed point, the union of its successors' `into`.
+    outs: Vec<Set>,
+    /// The first access of each local block `p` touches, in
+    /// `firsts[first[p]..first[p + 1]]`: the local, and whether it reads.
+    first: Vec<usize>,
+    firsts: Vec<(u32, bool)>,
 }
 
 impl Drop for Live {
     fn drop(&mut self) {
-        crate::work::liveness(self.starts.len() + self.sets.work());
+        crate::work::liveness(self.starts.len() + self.firsts.len() + self.sets.work());
     }
 }
 
 impl Live {
-    fn new(f: &Func) -> Option<Self> {
-        let mut me = Self::blocks(f)?;
+    fn new(f: &Func, sets: Sets) -> Option<Self> {
+        let mut me = Self::blocks(f, sets)?;
         me.settle(f);
         Some(me)
     }
@@ -1254,9 +1273,15 @@ impl Live {
         while let Some(p) = pending.pop() {
             visit();
             queued[p] = false;
-            let mut live = self.out(p, len);
-            for ins in f.body[self.starts[p]..self.end(p, len)].iter().rev() {
-                live = Self::step(&mut self.sets, ins, live);
+            let out = self.out(p, len);
+            self.outs[p] = out;
+            let mut live = out;
+            for &(l, reads) in &self.firsts[self.first[p]..self.first[p + 1]] {
+                live = if reads {
+                    self.sets.insert(live, l)
+                } else {
+                    self.sets.remove(live, l)
+                };
             }
             // Sets only grow from empty here, so a new size is a change.
             if self.sets.len(self.into[p]) == self.sets.len(live) {
@@ -1302,53 +1327,80 @@ impl Live {
         (first, list)
     }
 
-    /// A body's basic blocks, with nothing live into any of them yet.
-    fn blocks(f: &Func) -> Option<Self> {
-        if f.params.len() + f.locals.len() == 0 || f.body.is_empty() {
+    /// A body's basic blocks, with nothing live into any of them yet,
+    /// their sets made in `sets`: hash-consed only for [`coalesce`],
+    /// whose differences need one node per content, and an unconsed
+    /// arena for passes that only ask membership and union. Each block's
+    /// first accesses are found in one forward pass, a local's stamp
+    /// telling whether this block met it already: `O(B + n)`.
+    fn blocks(f: &Func, sets: Sets) -> Option<Self> {
+        let n = f.params.len() + f.locals.len();
+        if n == 0 || f.body.is_empty() {
             return None;
         }
         let edges = zero_edges(&f.body, &f.labels)?;
         let (point_at, starts) = basic_blocks(&edges, f.body.len());
+        let blocks = starts.len();
+        let mut first = Vec::with_capacity(blocks + 1);
+        let mut firsts = Vec::new();
+        let mut met = vec![usize::MAX; n];
+        for (at, ins) in f.body.iter().enumerate() {
+            let p = point_at[at];
+            if starts[p] == at {
+                first.push(firsts.len());
+            }
+            let Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) = ins else {
+                continue;
+            };
+            if std::mem::replace(&mut met[*l as usize], p) != p {
+                firsts.push((*l, matches!(ins, Ins::Op(I::LocalGet(_)))));
+            }
+        }
+        first.push(firsts.len());
         Some(Self {
-            into: vec![Set::EMPTY; starts.len()],
+            into: vec![Set::EMPTY; blocks],
+            outs: vec![Set::EMPTY; blocks],
             forward: forward_only(&edges, &point_at, &starts, f.body.len()),
             edges,
             point_at,
             starts,
-            sets: Sets::default(),
+            sets,
+            first,
+            firsts,
         })
     }
 
     /// For each instruction of a body: a write that no read follows, or a
-    /// read after which its local is dead. A body that only branches forward
-    /// gets this in the one pass that settles its blocks.
+    /// read after which its local is dead. Walking each block back, a
+    /// local's next access in the block answers, a stamp per local saying
+    /// whether there is one; the block's live-out set answers only for
+    /// its last access of each local: `O(B + a log n)` after the fixed
+    /// point, for `a` first accesses, with no set made.
     fn dead_accesses(f: &Func) -> Option<Vec<bool>> {
         let body = &f.body;
+        let me = Self::new(f, Sets::unconsed())?;
         let mut dead = vec![false; body.len()];
-        let mut mark = |at: usize, after: &After| {
-            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
-                dead[at] = !after.contains(*l);
+        let n = f.params.len() + f.locals.len();
+        // `later[l]`: the block whose walk met `l` already;
+        // `next_writes[l]`: whether that next access writes it.
+        let mut later = vec![usize::MAX; n];
+        let mut next_writes = vec![false; n];
+        for p in 0..me.starts.len() {
+            for at in (me.starts[p]..me.end(p, body.len())).rev() {
+                let (l, write) = match body[at] {
+                    Ins::Op(I::LocalGet(l)) => (l, false),
+                    Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => (l, true),
+                    _ => continue,
+                };
+                let i = l as usize;
+                dead[at] = if later[i] == p {
+                    next_writes[i]
+                } else {
+                    !me.sets.contains(me.outs[p], l)
+                };
+                later[i] = p;
+                next_writes[i] = write;
             }
-        };
-        let mut me = Self::blocks(f)?;
-        if me.forward {
-            for p in (0..me.starts.len()).rev() {
-                let mut live = me.out(p, body.len());
-                for at in (me.starts[p]..me.end(p, body.len())).rev() {
-                    mark(
-                        at,
-                        &After {
-                            sets: &me.sets,
-                            set: live,
-                        },
-                    );
-                    live = Self::step(&mut me.sets, &body[at], live);
-                }
-                me.into[p] = live;
-            }
-        } else {
-            me.settle(f);
-            me.walk_back(body, mark);
         }
         Some(dead)
     }
@@ -1378,41 +1430,23 @@ impl Live {
             _ => live,
         }
     }
-
-    /// Visits each instruction of `body`, last to first within each
-    /// block, with the locals live just after it.
-    fn walk_back(&mut self, body: &[Ins], mut visit: impl FnMut(usize, &After)) {
-        for p in 0..self.starts.len() {
-            let mut live = self.out(p, body.len());
-            for at in (self.starts[p]..self.end(p, body.len())).rev() {
-                visit(
-                    at,
-                    &After {
-                        sets: &self.sets,
-                        set: live,
-                    },
-                );
-                live = Self::step(&mut self.sets, &body[at], live);
-            }
-        }
-    }
 }
 
 /// The locals of suspending body `f` live just after its instruction at
 /// `at`, ascending, where a `Save`, which returns at once, reads none:
 /// what a run from there may read before it writes. `None` when the
-/// body's branches are not analysed.
+/// body's branches are not analysed. Only `at`'s block is walked, back
+/// from its live-out set.
 pub(crate) fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
-    let mut me = Live::new(f)?;
-    let mut out = None;
-    me.walk_back(&f.body, |p, live| {
-        if p == at {
-            let mut members = Vec::new();
-            live.sets.members(live.set, &mut members);
-            out = Some(members);
-        }
-    });
-    out
+    let mut me = Live::new(f, Sets::unconsed())?;
+    let p = me.point_at[at];
+    let mut live = me.outs[p];
+    for ins in f.body[at + 1..me.end(p, f.body.len())].iter().rev() {
+        live = Live::step(&mut me.sets, ins, live);
+    }
+    let mut members = Vec::new();
+    me.sets.members(live, &mut members);
+    Some(members)
 }
 
 /// How a local is defined at a position, for [`coalesce`]'s bundles: a
@@ -1556,7 +1590,7 @@ pub fn coalesce(f: &mut Func) {
     if f.raw.is_some() {
         return;
     }
-    let Some(mut live) = Live::new(f) else {
+    let Some(mut live) = Live::new(f, Sets::default()) else {
         return;
     };
     let np = f.params.len();
@@ -1596,7 +1630,7 @@ pub fn coalesce(f: &mut Func) {
         // access makes none. The others stay open, and an earlier block's
         // accesses may pay for theirs. What is live after it and not open
         // opens.
-        let out = live.out(p, len);
+        let out = live.outs[p];
         let accesses = body[start..end]
             .iter()
             .filter(|i| matches!(i, Ins::Op(I::LocalGet(_) | I::LocalSet(_) | I::LocalTee(_))))
@@ -1980,9 +2014,24 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 /// leaves its value under its run nests in or follows another such
 /// rewrite, and holds both or neither end of a moved multi-value copy,
 /// so each run keeps the stack level its rewrite needs.
+///
+/// The liveness pass runs once per call, not once per round: a round's
+/// rewrites change liveness only inside their straight-line spans, so
+/// [`live_once`] hands the next round its dead accesses for the new
+/// body, as LLVM's `LiveIntervals::handleMove` and `LiveVariables`'
+/// kill updates keep liveness across a local rewrite instead of solving
+/// the function again.
 fn live_rules(f: &mut Func, arity: &Arity) -> bool {
+    let Some(mut dead) = Live::dead_accesses(f) else {
+        return false;
+    };
     let mut any = false;
-    while live_once(f, arity) {
+    while let Some(next) = live_once(f, arity, &dead) {
+        debug_assert!(
+            Live::dead_accesses(f).is_none_or(|solved| solved == next),
+            "rule 13's carried dead accesses differ from a new liveness pass"
+        );
+        dead = next;
         any = true;
     }
     any
@@ -1991,10 +2040,20 @@ fn live_rules(f: &mut Func, arity: &Arity) -> bool {
 /// No row, in a `u32` table of [`live_once`].
 const NONE: u32 = u32::MAX;
 
-fn live_once(f: &mut Func, arity: &Arity) -> bool {
-    let Some(dead) = Live::dead_accesses(f) else {
-        return false;
-    };
+/// One round of rules 12 and 13 on the body whose dead accesses are
+/// `dead`, as [`Live::dead_accesses`] gives them. When it rewrites the
+/// body, gives the new body's dead accesses, with no liveness pass.
+///
+/// A rewrite moves liveness only inside its span: a removed pair's local
+/// is dead between its set and its get, and nothing else changes, as a
+/// set kills its local and the get was its first read. A moved push's
+/// local `m` is read later, at the get, with no write of `m` between,
+/// so in each maximal union of one local's move spans, every read of `m`
+/// but the last is live after, and the last, a moved get, is dead
+/// exactly when `m`'s last old access in the union was: what follows the
+/// union is unchanged. Each access is walked in at most one union, and
+/// the moves are sorted once: `O(B + M log M)` for `M` moves, no set.
+fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
     let body = &f.body;
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(body.len());
@@ -2013,6 +2072,8 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
     let mut teed = vec![false; body.len()];
     // `next[at]`: the next access of the local that `at` writes.
     let mut next = vec![NONE; body.len()];
+    // `(m, p, j)`: the read of local `m` at `p` moves to `j`.
+    let mut reads_moved: Vec<(u32, u32, usize)> = Vec::new();
     let mut seen = vec![NONE; f.params.len() + f.locals.len()];
     for (at, ins) in body.iter().enumerate().rev() {
         if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = ins {
@@ -2058,6 +2119,9 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
             // A tee's push stays where it is, and the get reads it again.
             gone[p] = !tee;
             moved[j] = u32::try_from(p).expect("body");
+            if let Ins::Op(I::LocalGet(m)) = body[p] {
+                reads_moved.push((m, moved[j], j));
+            }
             in_copy[p + 1..k].fill(true);
         } else if level && !tee && !in_copy[k] && open.last().is_none_or(|&(_, e)| j <= e) {
             // The value stays under the run; a set read again later
@@ -2078,12 +2142,49 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
         gone[k] = true;
     }
     if !gone.iter().any(|g| *g) && !(0..body.len()).any(dead_write) {
-        return false;
+        return None;
     }
+    // The dead accesses after the rewrites, by old position: a moved get
+    // that reads no local is no access, and each union of one local's
+    // move spans is settled as the doc comment says.
+    let mut after = dead.to_vec();
+    for &(_, _, j) in &reads_moved {
+        after[j] = false;
+    }
+    for (at, &p) in moved.iter().enumerate() {
+        if p != NONE && !matches!(body[p as usize], Ins::Op(I::LocalGet(_))) {
+            after[at] = false;
+        }
+    }
+    reads_moved.sort_stable();
+    let mut i = 0;
+    while i < reads_moved.len() {
+        let (m, lo, mut hi) = reads_moved[i];
+        i += 1;
+        while let Some(&(n, p, j)) = reads_moved.get(i)
+            && n == m
+            && (p as usize) < hi
+        {
+            hi = hi.max(j);
+            i += 1;
+        }
+        // `m`'s old accesses in the union are reads, as no move's span
+        // writes its local.
+        let mut last = dead[lo as usize];
+        let mut r = lo;
+        while r != NONE && (r as usize) < hi {
+            last = dead[r as usize];
+            after[r as usize] = false;
+            r = next[r as usize];
+        }
+        after[hi] = last;
+    }
+    let mut dead_after = Vec::with_capacity(body.len());
     for (at, ins) in body.iter().enumerate() {
         if gone[at] {
             continue;
         }
+        dead_after.push(after[at] && !dead_write(at));
         if let (true, Ins::Op(I::LocalSet(t))) = (teed[at], ins) {
             out.push(Ins::Op(I::LocalTee(*t)));
             origins.copy(at..at + 1);
@@ -2098,6 +2199,7 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
             // A dead set drops its value; rule 15 takes back a pure push
             // just before it.
             if matches!(ins, Ins::Op(I::LocalTee(_))) {
+                dead_after.pop();
                 continue;
             }
             out.push(Ins::Op(I::Drop));
@@ -2109,7 +2211,7 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
     }
     f.body = out;
     origins.finish(f);
-    true
+    Some(dead_after)
 }
 
 /// The pure push that the `local.set` at `k` takes its value from, when
@@ -6169,7 +6271,7 @@ mod origin_tests {
                 op(I::End),
             ]);
             let f = tracked(&symbols, 1, 1, body);
-            let mut live = Live::blocks(&f).expect("blocks");
+            let mut live = Live::blocks(&f, Sets::default()).expect("blocks");
             assert!(!live.forward);
             let blocks = live.starts.len();
             let mut visits = 0;
@@ -6185,6 +6287,112 @@ mod origin_tests {
                     .all(|&row| live.sets.contains(row, 1))
             );
             assert!(live.sets.contains(live.into[0], 0));
+        }
+    }
+
+    /// Rule 13's rounds carry their dead accesses: after each round, the
+    /// carried ones are what a new liveness pass finds. The bodies hold
+    /// each shape a round can leave: two moves of one local whose spans
+    /// cross or nest, with and without a later read of it, a read of the
+    /// moved local inside a span, a span across a panic guard's blocks, a
+    /// tee's push read again, a moved constant, a dead tee, and a loop.
+    #[test]
+    fn rule_13_rounds_carry_the_dead_accesses_a_new_pass_finds() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let (get, set, tee) = (
+            |l| op(I::LocalGet(l)),
+            |l| op(I::LocalSet(l)),
+            |l| op(I::LocalTee(l)),
+        );
+        let add = op(I::I32Add);
+        let drop = op(I::Drop);
+        let crossing = vec![get(0), set(1), get(0), set(2), get(1), get(2), add, drop];
+        let nested = vec![get(0), set(1), get(0), set(2), get(2), get(1), add, drop];
+        let read_inside = vec![get(0), set(1), get(0), drop, get(1), drop];
+        let guard = vec![
+            get(0),
+            set(1),
+            op(I::I32Const(1)),
+            op(I::If(BlockType::Empty)),
+            op(I::Unreachable),
+            op(I::End),
+            get(1),
+            drop,
+        ];
+        let teed = vec![get(0), tee(1), drop, get(1), drop];
+        let constant = vec![op(I::I32Const(7)), set(1), get(1), drop];
+        let dead_tee = vec![get(0), tee(2), drop];
+        let mut cases = Vec::new();
+        for body in [
+            crossing,
+            nested,
+            read_inside,
+            guard,
+            teed,
+            constant,
+            dead_tee,
+        ] {
+            let mut later = body.clone();
+            later.extend([get(0), drop]);
+            let mut looped = vec![op(I::Loop(BlockType::Empty))];
+            looped.extend(later.iter().copied());
+            looped.extend([get(0), op(I::BrIf(0)), op(I::End)]);
+            cases.extend([body, later, looped]);
+        }
+        for body in cases {
+            let mut f = tracked(&symbols, 1, 2, body.clone());
+            let mut dead = Live::dead_accesses(&f).expect("analysed");
+            let mut rounds = 0;
+            while let Some(next) = live_once(&mut f, &Arity::new(), &dead) {
+                assert_eq!(
+                    Some(&next),
+                    Live::dead_accesses(&f).as_ref(),
+                    "{body:?} -> {:?}",
+                    f.body
+                );
+                dead = next;
+                rounds += 1;
+            }
+            assert!(rounds > 0, "{body:?} rewrites");
+        }
+    }
+
+    /// Rule 11's fixed point settles a loop before the blocks after it.
+    /// The loop copies a local its last round wrote, so its exit gets two
+    /// facts; taken first in first out, each of the `n` blocks after it
+    /// was visited once per fact, and now once.
+    #[test]
+    fn zero_facts_settle_a_loop_before_the_blocks_after_it() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for n in [16usize, 256] {
+            let mut body = vec![
+                op(I::Loop(BlockType::Empty)),
+                op(I::LocalGet(1)),
+                op(I::LocalSet(2)),
+                op(I::LocalGet(0)),
+                op(I::LocalSet(1)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(0)),
+                op(I::End),
+            ];
+            for _ in 0..n {
+                body.extend([
+                    op(I::Block(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::BrIf(0)),
+                    op(I::End),
+                ]);
+            }
+            body.extend([op(I::I32Const(0)), op(I::LocalSet(2))]);
+            let mut f = tracked(&symbols, 1, 2, body);
+            let blocks = zero_edges(&f.body, &f.labels)
+                .map(|edges| basic_blocks(&edges, f.body.len()).1.len())
+                .expect("edges");
+            let mut visits = 0;
+            zero_releases_with(&mut f, &mut || visits += 1);
+            assert!(visits <= blocks + 4, "{visits} visits of {blocks} blocks");
         }
     }
 

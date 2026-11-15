@@ -11,11 +11,14 @@
 //! about `d log2 n`, not their size. The recursion follows key bits, so it
 //! is at most 32 deep, whatever the body.
 //!
-//! Nodes are hash-consed, as Filliâtre and Conchon's hash-consed Patricia
-//! trees are ("Type-Safe Modular Hash-Consing", 2006): a trie's shape
-//! depends only on its keys, so two sets with the same keys are one node
-//! however they were built, and a union or difference of sets built apart
-//! still stops where they agree.
+//! An arena from [`Sets::default`] hash-conses its nodes, as Filliâtre
+//! and Conchon's hash-consed Patricia trees are ("Type-Safe Modular
+//! Hash-Consing", 2006): a trie's shape depends only on its keys, so two
+//! sets with the same keys are one node however they were built, and a
+//! difference of sets built apart still stops where they agree. Only
+//! [`super::coalesce`]'s differences need that; the passes that ask only
+//! membership, union and intersection use [`Sets::unconsed`], which
+//! hashes no node.
 
 /// A set in a [`Sets`] arena: a node index, or [`Set::EMPTY`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
