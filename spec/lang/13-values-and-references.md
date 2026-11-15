@@ -2038,7 +2038,7 @@ fn export(photo: Photo) -> Photo:
 1. r[ref.copy.marker] `Copy` is a sealed marker trait that [`std.core`](10-modules.md#core-layer) declares and `std.ops` re-exports, in the prelude. It has no members, and the compiler supplies its implementations.
 2. r[ref.copy.structure] A type is `Copy` unless it is `&mut T`, a type declared `impl !Copy`, a type parameter that is not `Copy`, or a type that holds one in a field, payload, member, or newtype base ([`ref.move.holds`](#r-ref.move.holds)).
 3. r[ref.copy.moves] A value whose type is not `Copy` is moved, not copied, at each site of [`ref.move.sites`](#r-ref.move.sites).
-4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct, enum, or newtype `T` is not `Copy`. It has no body and belongs in the module that declares `T`.
+4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct, enum, or newtype `T` is not `Copy`. It has no body and belongs in the module that declares `T`. A type with a `Drop` implementation must not be `Copy` in any instance ([`module.rt.drop.not-copy`](10-modules.md#r-module.rt.drop.not-copy)).
 5. r[ref.copy.opt-out.invalid] A negative implementation of a trait other than `Copy`, of a type that is not a struct, an enum, or a newtype, outside its target's module, or with a body is an error. Error: `invalid-negative-impl`.
 6. r[ref.copy.no-impl] `impl Copy for T` is an error, as for every sealed trait. Error: `sealed-trait-implementation`.
 7. r[ref.copy.generic.default] Every type parameter is `Copy` unless it is declared `?Copy`: a function's, a method's, a struct's, an enum's, an alias's, an implementation's, and a trait's.

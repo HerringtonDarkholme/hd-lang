@@ -1718,6 +1718,8 @@ pub trait Drop < ?Copy:
 2. r[module.rt.drop.glue] The release glue of a type with a `Drop` implementation calls that implementation on a mutable reference to the value, then releases the value's fields through their own release glue, in field order.
 3. r[module.rt.drop.trace] When the cycle collector traces release glue, the glue calls `drop` in every pass, before tracing the fields, and the releases it makes visit their targets as every other release from the glue does. So a value's `drop` changes nothing while the collector marks or scans; `std.rt.cycle.marking()` is true exactly then.
 4. r[module.rt.drop.caller-read] A std `Drop` hook must not write a place that its caller can still read through a by-value snapshot or live ordinary reference.
+5. r[module.rt.drop.not-copy] A type with a `Drop` implementation is not `Copy` in any instance, so no copy of a value runs its hook. `impl Drop for T` is an error unless `T`'s declaration is not `Copy` whatever its type arguments. Error: `drop-on-copy-type`.
+6. r[module.rt.drop.not-copy.declaration] A declaration is not `Copy` whatever its type arguments when it is declared `impl !Copy` ([`ref.copy.opt-out`](13-values-and-references.md#r-ref.copy.opt-out)). It is also not `Copy` when a field, payload, member or newtype base holds `&mut U`, or a type that is itself not `Copy` for every instance. A type parameter does not count, even one declared `?Copy`, because an instance may be `Copy`. The check is made once on the declaration, not on each instance.
 
 > **Why.** Implicit cleanup is not an ordinary source-level call at its use
 > site. A hidden write could otherwise invalidate a caller's snapshot or violate
