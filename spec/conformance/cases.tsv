@@ -579,7 +579,7 @@ typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-vali
 typing/valid/caret-is-xor-own-stays-a-plain-name-and-caret-is-xor.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
 typing/valid/type-argument-defaults-a-bound-takes-the-trait-argument-default.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/type-argument-defaults-a-bound-with-an-output-binding-takes-the-trait-argument-default.hd	type	accept	lang/04-type-system.md#type-argument-defaults
-typing/valid/join-an-option-join-site-takes-a-later-plain-value.hd	type	accept	std/option.md#r-std-option.unwrap-or
+std/option/optional-methods/join-an-option-join-site-takes-a-later-plain-value.hd	type	accept	std/option.md#r-std-option.unwrap-or
 std/ops/library-defer/defer-a-closure-nested-in-deferred-cleanup-may-propagate-within-itself.hd	type	accept	std/ops.md#r-std-ops.defer.cleanup
 typing/valid/propagation-an-ordinary-function-may-propagate-with-a-query.hd	type	accept	lang/05-expressions.md#propagation
 typing/valid/type-argument-defaults-an-impl-with-a-filled-default-alone-is-valid.hd	type	accept	lang/04-type-system.md#type-argument-defaults
@@ -3411,7 +3411,7 @@ typing/invalid/least-common-type-generic-arguments-of-an-integer-and-a-bool-are-
 std/hash/bytes-written/hash-bytes-result.hd	runtime	accept	std/hash.md#r-std-hash.bytes.result
 runtime/panic/host-result-out-of-range.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.contract-panic
 typing/valid/expect-panic-host-contract.hd	type	accept	lang/06-control-flow.md#r-flow.panic.known-categories
-runtime/valid/option-and-then.hd	runtime	accept	std/option.md#r-std-option.and-then
+std/option/optional-methods/option-and-then.hd	runtime	accept	std/option.md#r-std-option.and-then
 runtime/valid/result-and-then.hd	runtime	accept	std/result.md#r-std-result.and-then
 typing/invalid/result-and-then-error-type.hd	type	reject:type-mismatch	std/result.md#r-std-result.and-then.same-error
 std/num/checked-arithmetic/num-checked-wrapping.hd	runtime	accept	std/num.md#checked-arithmetic
@@ -3427,8 +3427,8 @@ std/num/float-parsing/num-parse-f64-errors.hd	runtime	accept	std/num.md#r-std-nu
 std/num/float-parsing/num-parse-f64-values.hd	runtime	accept	std/num.md#r-std-num.parse-f64.decimal-value
 std/num/float-parsing/num-parse-f64-specials.hd	runtime	accept	std/num.md#r-std-num.parse-f64.special-value
 std/num/float-parsing/num-parse-f64-round-trip.hd	runtime	accept	std/num.md#r-std-num.parse.float64-round-trip
-runtime/valid/option-tests-conversions.hd	runtime	accept	std/option.md#variant-tests-and-conversions
-runtime/panic/option-expect-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.expect.panic
+std/option/variant-tests-and-conversions/option-tests-conversions.hd	runtime	accept	std/option.md#variant-tests-and-conversions
+std/option/variant-tests-and-conversions/option-expect-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.expect.panic
 runtime/panic/power-an-i32-power-of-two-past-the-maximum-panics.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
 runtime/panic/power-a-negative-i32-base-to-an-odd-exponent-past-the-minimum-panics.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
 runtime/panic/power-an-i32-power-of-ten-past-the-maximum-panics.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
@@ -3635,7 +3635,7 @@ std/collections/list-helpers/list-windows-size.hd	runtime	panic:explicit-panic	s
 std/collections/list-helpers/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.copy-first
 std/collections/list-helpers/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row
 std/collections/list-helpers/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
-runtime/valid/map-get-unwrap-or.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
+std/option/optional-methods/map-get-unwrap-or.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
 std/collections/set/set-basics.hd	runtime	accept	std/collections.md#set
 std/iter/iterator-adapters/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.borrow-fn-mut
 std/iter/iterator-adapters/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
@@ -4435,7 +4435,7 @@ lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd	runtim
 lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.continue.new-operand
 lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.dot.continue
 lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.pipe.continue
-runtime/valid/least-common-type-optional-values-widen-every-site.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
+std/option/optional-methods/least-common-type-optional-values-widen-every-site.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
 runtime/valid/least-common-type-weakening-never-and-nested-literals-join.hd	runtime	accept	lang/04-type-system.md#r-types.lct.sites
 lexical/literals/integer-literal-forms.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.int.forms
 lexical/literals/float-literal-forms.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.float.forms
@@ -4843,7 +4843,7 @@ std/error/error-reports/error-report-value-copy.hd	runtime	accept	std/error.md#r
 runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared
 runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
-runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
+std/option/optional-methods/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 std/cmp/ordering-values/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
 runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range
 std/hash/default-hasher/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.typed-writes
@@ -6192,9 +6192,9 @@ typing/invalid/move-field-out-of-deref-in-let-pattern.hd	type	reject:move-out-of
 typing/valid/match-through-reference-reads-payload-field.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern
 runtime/valid/trait-value-meets-supertrait-bounds-whatever-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.member.other-with-opaque
 std/collections/list-helpers/list-in-place-retain-sort-swap.hd	runtime	accept	std/collections.md#r-std-collections.helper.retain
-runtime/valid/option-as-mut.hd	runtime	accept	std/option.md#r-std-option.as-mut
-runtime/valid/option-as-ref.hd	runtime	accept	std/option.md#r-std-option.as-ref
-runtime/valid/option-copied.hd	runtime	accept	std/option.md#r-std-option.copied
+std/option/borrowed-payloads/option-as-mut.hd	runtime	accept	std/option.md#r-std-option.as-mut
+std/option/borrowed-payloads/option-as-ref.hd	runtime	accept	std/option.md#r-std-option.as-ref
+std/option/borrowed-payloads/option-copied.hd	runtime	accept	std/option.md#r-std-option.copied
 typing/valid/trailing-bound-takes-the-bound-row.hd	type	accept	lang/07-functions.md#r-fn.trailing.fn-bound
 std/collections/uniqlist/uniq-list-moves-noncopyable-elements.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.bulk-moves
 std/collections/uniqlist/uniq-list-use-after-move.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.type
@@ -6317,7 +6317,7 @@ runtime/valid/projected-view-binding-keeps-owner.hd	runtime	accept	lang/13-value
 typing/invalid/map-loop-mutable-readonly-place.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.ref.map.writable
 runtime/panic/map-loop-mutable-box-alias.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/map-loop-generic-entry-references.hd	runtime	accept	lang/06-control-flow.md#element-reference-loops
-runtime/valid/map-loop-view-entry-references.hd	runtime	accept	std/option.md#r-std-option.as-mut
+std/option/borrowed-payloads/map-loop-view-entry-references.hd	runtime	accept	std/option.md#r-std-option.as-mut
 runtime/valid/map-loop-shared-entry-references.hd	runtime	accept	lang/06-control-flow.md#element-reference-loops
 runtime/valid/map-loop-mutable-entry-references.hd	runtime	accept	lang/06-control-flow.md#element-reference-loops
 runtime/valid/map-loop-reference-control-flow.hd	runtime	accept	lang/06-control-flow.md#element-reference-loops

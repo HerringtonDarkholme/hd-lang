@@ -1526,7 +1526,7 @@ std/ops/derived-default/derived-default-enum.hd	accept	std/ops.md#r-std-ops.defa
 std/ops/derived-default/derive-default-beside-serialize.hd	accept	std/ops.md#r-std-ops.default.derive.source-fact	-4	
 std/ops/default-trait/void-unit-void-has-the-tuple-template-impls.hd	accept	std/ops.md#r-std-ops.default.std.tuple.any-size	-1	
 std/ops/default-trait/default-standard-types.hd	accept	std/ops.md#standard-implementations	-4	
-runtime/valid/option-and-then.hd	accept	std/option.md#r-std-option.and-then	-8	
+std/option/optional-methods/option-and-then.hd	accept	std/option.md#r-std-option.and-then	-8	
 runtime/valid/path-operations.hd	accept	std/path.md#path-operations	-16	
 runtime/valid/path-stem-with-extension.hd	accept	std/path.md#path-operations	-72	
 runtime/valid/path-parse.hd	accept	std/path.md#paths	-4	

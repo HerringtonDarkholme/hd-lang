@@ -1191,9 +1191,9 @@ std/ops.md	6	mixed	std/ops/derived-default/derived-default-member-not-default.hd
 std/ops.md	7	complete	std/ops/derived-default/derived-default-declared-no-bound.hd
 std/ops.md	8	complete	std/ops/scope-guards/scope-guard-row.hd|std/ops/scope-guards/scope-guard-captures.hd
 std/ops.md	9	complete	std/ops/range-equality/range-eq.hd
-std/option.md	1	complete	runtime/valid/option-and-then.hd
-std/option.md	2	complete	runtime/valid/option-tests-conversions.hd
-std/option.md	3	complete	runtime/valid/option-copied.hd
+std/option.md	1	complete	std/option/optional-methods/option-and-then.hd
+std/option.md	2	complete	std/option/variant-tests-and-conversions/option-tests-conversions.hd
+std/option.md	3	complete	std/option/borrowed-payloads/option-copied.hd
 std/option.md	4	complete	std/error/one-off-errors/error-message.hd
 std/path.md	1	complete	typing/valid/path-newtype.hd
 std/path.md	2	complete	runtime/valid/path-operations.hd

@@ -398,7 +398,7 @@ std/num/float-parsing/number-text-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,
 runtime/valid/operator-string-add.hd	A7b	lost '' gained ','	lang/05-expressions.md#r-expr.op.std.string-generic
 runtime/valid/operator-syntax-without-import.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.prelude.ops-operator-traits
 runtime/valid/operator-traits-run.hd	A7b	lost '' gained ','	lang/05-expressions.md#r-expr.op.desugar
-runtime/valid/option-and-then.hd	A7b	lost '' gained ',,,'	std/option.md#r-std-option.and-then
+std/option/optional-methods/option-and-then.hd	A7b	lost '' gained ',,,'	std/option.md#r-std-option.and-then
 runtime/valid/option-result-prelude-spellings.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#option-and-result
 runtime/valid/optional-propagation.hd	A7b	lost '' gained ','	lang/04-type-system.md#optional-types
 runtime/valid/owned-temporary-match-payloads.hd	A7b	lost '' gained ',,,,,'	lang/06-control-flow.md#match-expressions
