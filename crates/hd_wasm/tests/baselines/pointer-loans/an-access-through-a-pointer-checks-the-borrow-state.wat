@@ -24,7 +24,6 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t
     local.get $t0
     local.get $t0
     i32.load $heap
@@ -83,10 +82,9 @@
     local.get $t1
     i32.const 0
     i32.store $heap offset=8
-    i32.load $heap
-    ;; 30 |     held := &mut t.lead
     local.get $t
-    ;; 32 |     *held = box(User { name: "c", age: +0 })
+    i32.load $heap
+    local.get $t
     local.get $t1
     i32.store $heap
     local.tee $t1

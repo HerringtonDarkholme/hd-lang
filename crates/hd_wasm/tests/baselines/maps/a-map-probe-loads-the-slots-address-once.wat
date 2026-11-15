@@ -9,7 +9,7 @@
     local.get $k
     call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].contains_key[u32, u32]"
   )
-  (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index[u32, u32]" (param $t0 i32) (param $t3 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t4 i64) (local $t6 i64) (local $t7 i64) (local $t5 i64) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32)
+  (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index[u32, u32]" (param $t0 i32) (param $t3 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t6 i64) (local $t4 i64) (local $t7 i64) (local $t5 i64) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32)
     block
     ;; (no span)
       local.get $t0
@@ -46,50 +46,53 @@
         local.get $t6
         local.get $t5
         i64.xor
-        local.set $t4
+        local.set $t6
         local.get $t7
         i64.const -4563226453097033507
         i64.xor
-        local.set $t6
-        local.get $t4
+        local.set $t4
+        local.get $t6
         i64.const 4294967295
         i64.and
         local.tee $t7
-        local.get $t6
+        local.get $t4
         i64.const 4294967295
         i64.and
         local.tee $t5
-        local.get $t4
-        i64.const 32
-        i64.shr_u
-        local.set $t4
         local.get $t6
         i64.const 32
         i64.shr_u
         local.set $t6
+        local.get $t4
+        i64.const 32
+        i64.shr_u
+        local.set $t4
         i64.mul
         local.set $t8
         local.get $t7
-        local.get $t6
+        local.get $t4
         i64.mul
         local.set $t7
-        local.get $t4
+        local.get $t6
         local.get $t5
         i64.mul
-        local.get $t4
         local.get $t6
+        local.get $t4
         i64.mul
-        local.set $t4
+        local.set $t6
         local.get $t7
         i64.xor
-        local.set $t6
-        local.get $t4
+        local.tee $t4
+        local.get $t6
         local.get $t8
         i64.xor
-        local.get $t6
+        local.set $t6
         i64.const 32
         i64.shr_u
+        local.set $t7
         local.get $t6
+        local.get $t7
+        local.get $t4
         i64.const 32
         i64.shl
         i64.or
@@ -102,7 +105,7 @@
       i64.extend_i32_u
       i64.const 72340172838076673
       i64.mul
-      local.set $t4
+      local.set $t6
       local.get $t9
       i32.const 7
       i32.shr_u
@@ -120,8 +123,8 @@
         i32.add
         local.tee $t11
         i64.load $heap
-        local.tee $t6
-        local.get $t4
+        local.tee $t4
+        local.get $t6
         i64.xor
         local.tee $t7
         i64.const 72340172838076673
@@ -207,7 +210,7 @@
             br 0
           end
         end
-        local.get $t6
+        local.get $t4
         i64.const -9187201950435737472
         i64.and
         i64.const 0

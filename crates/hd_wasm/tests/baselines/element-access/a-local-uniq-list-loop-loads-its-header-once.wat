@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $multiply (param $n i32) (result f64) (local $t3 i32) (local $t9 f64) (local $t5 f64) (local $t4 i32) (local $t6 i32) (local $t7 i32) (local $i i32) (local $k i32) (local $t0 i32) (local $t1 i32) (local $j i32) (local $idx i32) (local $t2 i32) (local $t8 f64)
+  (func $multiply (param $n i32) (result f64) (local $t3 i32) (local $t8 f64) (local $t5 f64) (local $t4 i32) (local $t6 i32) (local $t7 i32) (local $i i32) (local $k i32) (local $t0 i32) (local $t1 i32) (local $j i32) (local $idx i32) (local $t2 i32)
     ;; ...
     block
       loop
@@ -78,13 +78,13 @@
                 i32.const 8
                 i32.mul
                 i32.add
-                f64.load $heap
-                local.set $t8
+                local.set $j
     ;; 27 |                 c[idx] = prev + add
                 local.get $t5
     ;; 26 |                 add := aik * b[k * n + j]
-                local.get $t9
                 local.get $t8
+                local.get $j
+                f64.load $heap
                 f64.mul
     ;; 27 |                 c[idx] = prev + add
                 f64.add

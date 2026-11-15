@@ -376,16 +376,21 @@ pub fn static_values(
 
 /// Cleans up `f`'s locals by the rules of the module documentation.
 ///
-/// The rules run in rounds until none applies; the liveness rules run
-/// whenever the others settle. Each rule reads only the function, so a
-/// rule that found nothing to do finds nothing again until some rule
-/// edits the function: [`Settled`] skips it until then. A round after the
-/// last edit then runs only the rules that have not seen the final body,
-/// not every rule again.
+/// Two sweeps of the nine rule groups, independent of body width and
+/// nesting depth. Zero and liveness cleanup run in each sweep, exposing
+/// their results to the next one without waiting for a global fixpoint.
+/// The rewrites are optional: any remaining pattern is valid input code.
+/// [`Settled`] still skips a group that has already seen the current body.
+/// This bounds group scheduling; each group's own walks are unchanged.
 pub fn locals(f: &mut Func, arity: &Arity) {
+    locals_with_work(f, arity, &mut |_| {});
+}
+
+fn locals_with_work(f: &mut Func, arity: &Arity, visit_round: &mut impl FnMut(usize)) {
     let np = u32::try_from(f.params.len()).expect("params");
     let mut settled = Settled::new();
-    loop {
+    for _ in 0..2 {
+        visit_round(f.body.len());
         let mut changed = settled.run(f, Rule::Pairs, |f| pairs(f, np));
         changed |= settled.run(f, Rule::Forward, |f| forward(f, np));
         changed |= settled.run(f, Rule::Shapes, |f| shapes(f, np, arity));
@@ -393,10 +398,9 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         changed |= settled.run(f, Rule::Fold, fold);
         changed |= settled.run(f, Rule::Drops, drops);
         changed |= settled.run(f, Rule::Schedule, |f| schedule(f, np, arity));
-        if !changed
-            && !settled.run(f, Rule::Zero, zero_releases)
-            && !settled.run(f, Rule::Live, |f| live_rules(f, arity))
-        {
+        changed |= settled.run(f, Rule::Zero, zero_releases);
+        changed |= settled.run(f, Rule::Live, |f| live_rules(f, arity));
+        if !changed {
             break;
         }
     }
@@ -5752,6 +5756,67 @@ mod origin_tests {
         assert!(matches!(f.body[5], Ins::Op(I::Return)), "{:?}", f.body);
         assert!(matches!(f.body[9], Ins::Op(I::Br(0))), "{:?}", f.body);
         assert_eq!(spans(&f)[5], 17);
+    }
+
+    #[test]
+    fn local_cleanup_rounds_are_bounded_at_width_1000_and_depth_20() {
+        let symbols = Symbols::default();
+        let opaque = call(&symbols, Sym::Inst(Hash128(1882)));
+        let arity = vec![Some((1, 0)); symbols.len()];
+        let op = Ins::Op;
+        for width in [1, 1000, 10000] {
+            for depth in [1, 20] {
+                let mut body = vec![op(I::Block(BlockType::Empty)); depth];
+                for _ in 0..width {
+                    // The first write becomes dead when pairs forwards the
+                    // second one. Early liveness exposes that fact within
+                    // this sweep rather than waiting for another fixpoint.
+                    body.extend([
+                        op(I::I32Const(1)),
+                        op(I::LocalSet(0)),
+                        op(I::I32Const(42)),
+                        op(I::LocalSet(0)),
+                        op(I::LocalGet(0)),
+                        opaque,
+                    ]);
+                }
+                body.extend(vec![op(I::End); depth]);
+                let input = body.len();
+                let mut f = tracked(&symbols, 0, 1, body);
+                let expected_origins: Vec<_> = f
+                    .body
+                    .iter()
+                    .zip(spans(&f))
+                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_)).then_some(origin))
+                    .collect();
+                let mut plain = f.clone();
+                plain.origins = None;
+                locals(&mut plain, &arity);
+                let mut rounds = Vec::new();
+                locals_with_work(&mut f, &arity, &mut |n| rounds.push(n));
+                assert_eq!(rounds.len(), 2, "{width} x {depth}: {rounds:?}");
+                assert!(rounds.iter().sum::<usize>() <= 2 * input);
+                assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
+                assert!(f.locals.is_empty());
+                let retained: Vec<_> = f
+                    .body
+                    .iter()
+                    .filter(|ins| !matches!(ins, Ins::Op(I::Block(_) | I::End)))
+                    .copied()
+                    .collect();
+                assert_eq!(retained.len(), 2 * width);
+                for pair in retained.chunks_exact(2) {
+                    assert!(matches!(pair, [Ins::Op(I::I32Const(42)), Ins::Call(_)]));
+                }
+                let actual_origins: Vec<_> = f
+                    .body
+                    .iter()
+                    .zip(spans(&f))
+                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_)).then_some(origin))
+                    .collect();
+                assert_eq!(actual_origins, expected_origins);
+            }
+        }
     }
 
     #[test]

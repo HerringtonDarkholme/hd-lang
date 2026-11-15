@@ -130,14 +130,14 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
-    drop
-    drop
     local.get $t5
     local.tee $t4
     if
       local.get $t4
       call $rt:release_ref
     end
+    drop
+    drop
     local.set $t2
     block
       block

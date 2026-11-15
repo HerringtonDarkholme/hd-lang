@@ -57,13 +57,13 @@
     local.get $n
   )
   (func $shouted (param $prices i32) (result i32) (local $t0 i32) (local $t1 i32) (local $p i32) (local $t3 i32) (local $t2 i32)
-    ;; 22 |     for p in &mut out:
-    i32.const 0
     ;; 21 |     let mut out = prices
     local.get $prices
     ;; 22 |     for p in &mut out:
     i32.load $heap offset=4
-    local.tee $t0
+    local.set $t0
+    i32.const 0
+    local.get $t0
     i32.lt_u
     if
       local.get $prices

@@ -14,7 +14,9 @@
     i32.load $heap
     i32.load $heap offset=4
     local.set $t0
+    ;; 10 |     let index: usize = 0
     i32.const 0
+    ;; 11 |     while index < frame.keys.len():
     local.get $t0
     i32.lt_u
     if

@@ -135,11 +135,12 @@
   )
   (func $over_mut (param $xs i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $t2 i32) (local $t3 i32)
     ;; 20 |     for x in &mut *xs:
-    i32.const 0
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
-    local.tee $t0
+    local.set $t0
+    i32.const 0
+    local.get $t0
     i32.lt_u
     if
       local.get $xs

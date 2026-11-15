@@ -143,8 +143,9 @@
     end
   )
   (func $"impl Probes.clean" (param $items i32) (param $n i32) (local $i i32) (local $t0 i32) (local $t1 i32)
-    ;; 18 |         while i < n:
+    ;; 17 |         let i: usize = 0
     i32.const 0
+    ;; 18 |         while i < n:
     local.get $n
     i32.lt_u
     if

@@ -189,11 +189,11 @@
     local.get $l.name.0
     local.get $l.name.1
     call $"Describe.headline[Logger]'2"
-    local.set $t0
-    local.tee $l.name.1
-    local.get $t0
-    call $"impl string.len"
+    local.set $l.name.1
+    local.tee $t0
     local.get $l.name.1
+    call $"impl string.len"
+    local.get $t0
     local.tee $t0
     if
       local.get $t0

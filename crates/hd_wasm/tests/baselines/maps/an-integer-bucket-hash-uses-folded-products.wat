@@ -29,13 +29,16 @@
     local.set $t0
     local.get $t1
     i64.xor
-    local.set $t1
+    local.tee $t1
     local.get $t0
     local.get $t2
     i64.xor
-    local.get $t1
+    local.set $t0
     i64.const 32
     i64.shr_u
+    local.set $t2
+    local.get $t0
+    local.get $t2
     local.get $t1
     i64.const 32
     i64.shl

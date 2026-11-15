@@ -232,17 +232,13 @@
     i32.const 0
     i32.store $heap offset=8
     ;; 34 |     for i in 0..4:
-    i32.const 0
     i32.const 4
-    local.tee $t1
-    i32.lt_u
-    if
-      local.get $p
-      local.get $p
-      i32.load $heap offset=4
-      call $rt:list_unique
-      i32.store $heap offset=4
-    end
+    local.set $t1
+    local.get $p
+    local.get $p
+    i32.load $heap offset=4
+    call $rt:list_unique
+    i32.store $heap offset=4
     block
       loop
         local.get $t2

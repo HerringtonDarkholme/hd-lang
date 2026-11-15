@@ -129,15 +129,15 @@
     global.set $locals
   )
   (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $i i32) (local $t4 f64) (local $t5 i32)
-    ;; 13 |     for i in 0..n:
-    i32.const 0
     ;; 12 |     n := bodies.len()
     local.get $bodies
     i32.load $heap
     i32.load $heap offset=4
     local.tee $n
     ;; 13 |     for i in 0..n:
-    local.tee $t0
+    local.set $t0
+    i32.const 0
+    local.get $t0
     i32.lt_u
     if
       local.get $bodies
