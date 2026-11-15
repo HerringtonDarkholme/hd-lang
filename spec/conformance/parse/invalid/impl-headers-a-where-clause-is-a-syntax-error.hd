@@ -1,3 +1,4 @@
+# test: a where clause on an impl header is a syntax error
 trait Source:
     type Item
     fn get(self) -> Self::Item

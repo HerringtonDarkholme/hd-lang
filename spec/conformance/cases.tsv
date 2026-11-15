@@ -1564,7 +1564,7 @@ parse/valid/mutable-parameter-field-assignment.hd	parse	accept	lang/02-grammar.m
 parse/valid/mut-self-receiver.hd	parse	accept	lang/02-grammar.md#traits-and-implementations
 parse/valid/inherent-and-trait-impls.hd	parse	accept	lang/02-grammar.md#traits-and-implementations
 parse/invalid/associated-binding-outside-bound.hd	parse	reject:syntax-error	lang/02-grammar.md#generic-parameters-and-bounds
-parse/invalid/old-where-clause.hd	parse	reject:syntax-error	lang/02-grammar.md#traits-and-implementations
+parse/invalid/impl-headers-a-where-clause-is-a-syntax-error.hd	parse	reject:syntax-error	lang/02-grammar.md#traits-and-implementations
 parse/valid/embedded-data-member.hd	parse	accept	lang/02-grammar.md#data-types
 parse/valid/trailing-callback-statement.hd	parse	accept	lang/02-grammar.md#declarations
 parse/valid/explicit-generic-arguments-with-placeholder.hd	parse	accept	lang/02-grammar.md#declarations
