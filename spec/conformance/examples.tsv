@@ -1063,11 +1063,11 @@ std/error.md	4	complete	std/error/error-reports/error-report.hd
 std/error.md	5	complete	std/error/one-off-errors/error-message.hd
 std/error.md	6	complete	std/error/error-context/error-context.hd
 std/error.md	7	complete	std/error/standard-error-types/std-errors-erased.hd|std/error/standard-error-types/std-errors-erased-codecs.hd
-std/format.md	1	complete	runtime/valid/debug-source-text.hd
-std/format.md	2	complete	typing/valid/debug-writer-builders.hd
-std/format.md	3	complete	typing/valid/std-types-debug.hd
-std/format.md	4	complete	runtime/valid/display-write-std.hd
-std/format.md	5	complete	runtime/valid/reference-derived-debug.hd|runtime/valid/reference-display.hd
+std/format.md	1	complete	std/format/debug-text/debug-source-text.hd
+std/format.md	2	complete	std/format/debug-builders/debug-writer-builders.hd
+std/format.md	3	complete	std/format/debug-for-standard-types/std-types-debug.hd
+std/format.md	4	complete	std/format/display-for-standard-types/display-write-std.hd
+std/format.md	5	complete	std/format/references/reference-derived-debug.hd|std/format/references/reference-display.hd
 std/fs.md	1	type-fragment	-
 std/fs.md	2	type-fragment	-
 std/fs.md	3	type-fragment	-

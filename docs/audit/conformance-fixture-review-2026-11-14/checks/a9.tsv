@@ -721,7 +721,7 @@ runtime/panic/alias-write-under-tuple-element-loan-panics.hd	A9	panic:borrow-con
 runtime/panic/inlined-reference-parameter-holds-a-shared-variable-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/panic/small-mut-parameter-in-a-loop-holds-its-call-loan-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 std/cmp/derived-equality/reference-derived-eq-cycle.hd	A9	panic:stack-exhausted not mentioned in cited std/cmp.md#r-std-cmp.derive.eq.stack
-runtime/panic/reference-derived-debug-cycle.hd	A9	panic:stack-exhausted not mentioned in cited std/format.md#r-std-format.debug.reference-cycle
+std/format/references/reference-derived-debug-cycle.hd	A9	panic:stack-exhausted not mentioned in cited std/format.md#r-std-format.debug.reference-cycle
 typing/invalid/let-pattern-mut-a-plain-field-in-the-same-pattern-stays-readonly.hd	A9	reject:not-writable not mentioned in cited lang/04-type-system.md#r-types.bind.let-pattern-mut.data-field
 typing/invalid/receiver-ref-mut-from-self-method.hd	A9	reject:not-writable not mentioned in cited lang/07-functions.md#r-fn.method.auto-address.fix
 names/lexical-scopes/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A9	reject:unknown-name not mentioned in cited lang/03-names-and-scopes.md#r-names.scope.not-in-initializer

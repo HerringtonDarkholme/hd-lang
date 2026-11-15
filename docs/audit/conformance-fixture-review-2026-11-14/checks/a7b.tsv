@@ -91,7 +91,7 @@ runtime/valid/data-field-defaults.hd	A7b	lost '' gained ','	lang/08-data-and-enu
 runtime/valid/data-patterns.hd	A7b	lost '' gained '()'	lang/06-control-flow.md#match-expressions
 annotations/typed-derivation/members-and-variants/data-variant-facts-empty.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.variant.data-facts
 runtime/valid/dbg-without-requirement.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.dbg.no-requirement
-runtime/valid/debug-string-runs.hd	A7b	lost '' gained ',,'	std/format.md#r-std-format.debug.source
+std/format/debug-text/debug-string-runs.hd	A7b	lost '' gained ',,'	std/format.md#r-std-format.debug.source
 runtime/valid/debug-tuple-rest.hd	A7b	lost '' gained ',,,'	lang/09-traits.md#r-trait.debug.tuples.rest
 runtime/valid/deep-recursive-release.hd	A7b	lost '' gained ',,'	lang/13-values-and-references.md#r-ref.expr.allocate
 runtime/valid/default-constant-specialization.hd	A7b	lost '' gained ','	lang/07-functions.md#r-fn.default.observable-effects
@@ -513,7 +513,7 @@ runtime/valid/sibling-module-enum-and-trait.hd	A7b	lost '' gained ',,'	lang/10-m
 runtime/valid/single-payload-variant-function-value.hd	A7b	lost '' gained ',,,'	lang/08-data-and-enums.md#enum-declarations
 annotations/typed-derivation/walkers-describers-and-sources/source-fills-defaults.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.impl-fact.fills-defaults
 runtime/valid/split-empty-input-nonempty-separator.hd	A7b	lost '' gained ','	std/text.md#r-std-text.string.split.absent
-runtime/valid/std-derived-implementations.hd	A7b	lost '' gained '(),,,,,,,,,,,,,,,,,,'	std/format.md#r-std-format.debug.std-types
+std/format/debug-for-standard-types/std-derived-implementations.hd	A7b	lost '' gained '(),,,,,,,,,,,,,,,,,,'	std/format.md#r-std-format.debug.std-types
 runtime/valid/std-iter-impl-trait-result-filter.hd	A7b	lost '' gained ',,'	std/iter.md#r-std-iter.adapter.filter.borrow-fn-mut
 runtime/valid/string-builder-interpolation-order.hd	A7b	lost '' gained ','	std/text.md#r-std-text.builder.push-local
 runtime/valid/string-concatenation-and-numeric-selectors.hd	A7b	lost '' gained ','	lang/04-type-system.md#strings
@@ -650,8 +650,8 @@ typing/valid/generic-data-embedding.hd	A7b	lost ',' gained ''	lang/08-data-and-e
 typing/valid/generic-method-dynamically-safe.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.dyn.member.type-param
 typing/valid/index-unsigned-widths.hd	A7b	lost '' gained '()'	lang/05-expressions.md#r-expr.index.list.unsigned
 annotations/two-annotate-forms/metadata-list-any.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.metadata.reference-storage
-typing/valid/std-joined-types-debug.hd	A7b	lost '' gained ',,'	std/format.md#r-std-format.debug.std-types
-typing/valid/std-types-debug.hd	A7b	lost '' gained ',,,'	std/format.md#r-std-format.debug.std-types
+std/format/debug-for-standard-types/std-joined-types-debug.hd	A7b	lost '' gained ',,'	std/format.md#r-std-format.debug.std-types
+std/format/debug-for-standard-types/std-types-debug.hd	A7b	lost '' gained ',,,'	std/format.md#r-std-format.debug.std-types
 annotations/typed-derivation/the-stdstructure-module/structure-module-names.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.structure.decl
 typing/valid/temp-dir-integration.hd	A7b	lost '' gained ','	std/testing.md#r-std-testing.temp-dir.fresh
 typing/valid/test-runner-every-registration-form.hd	A7b	lost '' gained ',,,'	std/testing.md#r-std-testing.runner.body-property

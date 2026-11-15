@@ -1393,10 +1393,10 @@ std/error/error-reports/error-report.hd	accept	std/error.md#r-std-error.report.o
 std/error/root-cause-and-find/error-root-cause.hd	accept	std/error.md#r-std-error.root-cause.method-chain	-9	
 std/error/standard-error-types/std-errors-erased-codecs.hd	accept	std/error.md#r-std-error.std-types.impl.reference-values	-2	
 std/error/standard-error-types/error-message-values.hd	accept	std/error.md#r-std-error.std-types.string-message	-4	
-runtime/valid/debug-string-runs.hd	accept	std/format.md#r-std-format.debug.source	-8	
-runtime/valid/std-derived-implementations.hd	accept	std/format.md#r-std-format.debug.std-types	-92	
-typing/valid/std-joined-types-debug.hd	accept	std/format.md#r-std-format.debug.std-types	-9	
-typing/valid/std-types-debug.hd	accept	std/format.md#r-std-format.debug.std-types	-16	
+std/format/debug-text/debug-string-runs.hd	accept	std/format.md#r-std-format.debug.source	-8	
+std/format/debug-for-standard-types/std-derived-implementations.hd	accept	std/format.md#r-std-format.debug.std-types	-92	
+std/format/debug-for-standard-types/std-joined-types-debug.hd	accept	std/format.md#r-std-format.debug.std-types	-9	
+std/format/debug-for-standard-types/std-types-debug.hd	accept	std/format.md#r-std-format.debug.std-types	-16	
 runtime/valid/fs-helpers.hd	accept	std/fs.md#file-helpers	-4	
 runtime/valid/memory-fs.hd	accept	std/fs.md#memory-file-system	-36	
 runtime/valid/memory-fs-copy.hd	accept	std/fs.md#r-std-fs.copy.bytes	-44	
