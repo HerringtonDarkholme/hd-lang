@@ -1631,7 +1631,7 @@ runtime/panic/num-radix-to-radix-low.hd	A3	runtime/panic/num-radix-to-radix-high
 runtime/panic/num-radix-parse-radix-low.hd	A3	runtime/panic/num-radix-parse-radix-high.hd
 typing/invalid/list-index-negative-literal.hd	A3	typing/invalid/compound-index-negative-literal.hd
 typing/invalid/string-slice-negative-offset.hd	A3	typing/invalid/string-slice-signed-offset.hd
-runtime/panic/cli-command-after-positional.hd	A3	runtime/panic/cli-positional-after-command.hd
+std/cli/subcommands/cli-command-after-positional.hd	A3	std/cli/subcommands/cli-positional-after-command.hd
 typing/valid/literal-first-use-generic-wait.hd	A3	typing/valid/literal-first-use-method.hd
 typing/invalid/literal-first-use-conflict.hd	A3	typing/invalid/literal-first-use-closure-conflict.hd
 runtime/valid/module-qualified-function-value.hd	A3	runtime/valid/module-qualified-function-value-parenthesized.hd

@@ -8,10 +8,10 @@ typing/invalid/a-body-trait-value-type-of-a-function.hd	A9	reject:unknown-trait 
 typing/invalid/a-body-projection-under-an-unknown-bound.hd	A9	reject:unknown-trait not mentioned in cited lang/09-traits.md#r-trait.assoc.no-type
 typing/invalid/a-newtype-call-with-two-arguments.hd	A9	reject:argument-count not mentioned in cited lang/04-type-system.md#r-types.newtype.construct
 names/name-categories/a-struct-called-with-an-unknown-argument.hd	A9	reject:unknown-name not mentioned in cited lang/03-names-and-scopes.md#r-names.type-as-value
-typing/invalid/cli-command-payload-without-cli.hd	A9	reject:member-not-derivable not mentioned in cited std/cli.md#r-std-cli.typed-commands.payload-bound
-typing/invalid/cli-field-without-impl.hd	A9	reject:member-not-derivable not mentioned in cited std/cli.md#r-std-cli.typed.bounds
-typing/invalid/cli-positional-without-cli.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/cli.md#r-std-cli.positional.bound
-typing/invalid/cli-short-without-cli.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/cli.md#r-std-cli.short.bound
+std/cli/typed-records/cli-command-payload-without-cli.hd	A9	reject:member-not-derivable not mentioned in cited std/cli.md#r-std-cli.typed-commands.payload-bound
+std/cli/typed-records/cli-field-without-impl.hd	A9	reject:member-not-derivable not mentioned in cited std/cli.md#r-std-cli.typed.bounds
+std/cli/typed-records/cli-positional-without-cli.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/cli.md#r-std-cli.positional.bound
+std/cli/typed-records/cli-short-without-cli.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/cli.md#r-std-cli.short.bound
 typing/invalid/const-generic-cast.hd	A9	reject:nonconstant-generic-argument not mentioned in cited lang/04-type-system.md#r-types.generic.const.no-cast-or-trait
 typing/invalid/const-generic-identity-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.generic.const.identity
 typing/invalid/const-generic-impl-value-mismatch.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/04-type-system.md#r-types.generic.const.impl-exact
@@ -769,7 +769,7 @@ runtime/panic/pointer-as-shared-argument-later-alias-pop-panics.hd	A9	panic:borr
 typing/invalid/deque-push-not-writable.hd	A9	reject:not-writable not mentioned in cited std/collections.md#r-std-collections.struct.receiver-mut
 lexical/literals/duration-space.hd	A9	reject:syntax-error not mentioned in cited lang/01-lexical-structure.md#r-lex.duration.form
 lexical/literals/duration-fraction.hd	A9	reject:type-mismatch not mentioned in cited lang/01-lexical-structure.md#r-lex.duration.fraction-hint
-typing/invalid/cli-parsed-private.hd	A9	reject:private-member not mentioned in cited std/cli.md#r-std-cli.parsed.private
+std/cli/parsing/cli-parsed-private.hd	A9	reject:private-member not mentioned in cited std/cli.md#r-std-cli.parsed.private
 runtime/panic/parameter-reference-loans-from-aliases-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/i32-remainder-by-zero.hd	A9	panic:integer-division-by-zero not mentioned in cited lang/04-type-system.md#integer-arithmetic
 runtime/panic/i64-remainder-by-zero.hd	A9	panic:integer-division-by-zero not mentioned in cited lang/04-type-system.md#integer-arithmetic
