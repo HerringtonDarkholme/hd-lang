@@ -267,9 +267,15 @@ class Runner {
     const fresh = live.instance === null;
     if (fresh) {
       live.instance = await WebAssembly.instantiate(this.module, live.host.imports);
+      live.repeated = null;
+    } else if (live.repeated === null) {
       // The entry driver always calls an init export. A retained instance
       // has already initialized its modules, so give that driver a no-op.
-      live.repeated = { exports: { ...live.instance.exports, "case.init": () => {} } };
+      // The view inherits the instance's exports rather than copying them,
+      // one per test case (#1902), and is made only for a retained one.
+      live.repeated = {
+        exports: Object.create(live.instance.exports, { "case.init": { value: () => {} } }),
+      };
     }
     return live.host.run(
       fresh ? live.instance : live.repeated,

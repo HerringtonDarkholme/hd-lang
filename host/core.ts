@@ -1563,9 +1563,12 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       return (async () => {
         let status = 0;
         let firstError: unknown = null;
-        const exports = { ...ex };
+        // A view that inherits the exports, not a copy of one entry per
+        // test case (#1902); the instance's own are read-only.
+        const exports: DynamicRecord = Object.create(ex, {
+          [poll]: { value: stack.promising(ex[poll]) },
+        });
         try {
-          exports[poll] = stack.promising(ex[poll]);
           await stack.promising(ex[init])();
           driver?.poll();
           status = await exports[poll](0);
