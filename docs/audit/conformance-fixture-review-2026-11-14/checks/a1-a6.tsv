@@ -7,7 +7,7 @@ trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members	A
 trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller	A1	identical to trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it
 parse/invalid/mutable-field-modifier.hd	A2	same code (comments/directives stripped) as grammar/declarations/grammar-mutable-field-modifier.hd [reject:mutable-field-modifier] [reject:mutable-field-modifier]
 typing/invalid/nonfinal-spread.hd	A2	same code (comments/directives stripped) as grammar/expressions/positional-after-spread.hd [reject:nonfinal-positional-spread] [reject:nonfinal-positional-spread]
-typing/invalid/forward-module-binding.hd	A2	same code (comments/directives stripped) as typing/invalid/exec-binding-read-before-declared.hd [reject:binding-not-yet-visible] [reject:binding-not-yet-visible]
+names/module-scope/forward-module-binding.hd	A2	same code (comments/directives stripped) as names/module-scope/exec-binding-read-before-declared.hd [reject:binding-not-yet-visible] [reject:binding-not-yet-visible]
 typing/invalid/tuple-rest-differs-from-plain.hd	A2	same code (comments/directives stripped) as typing/invalid/tuple-rest-assign.hd [reject:type-mismatch] [reject:type-mismatch]
 typing/invalid/generic-requirement-key-collision.hd	A2	same code (comments/directives stripped) as typing/invalid/generic-provider-key-collision-nested.hd [reject:generic-requirement-key-collision] [reject:generic-requirement-key-collision]
 runtime/panic/competing-suspension-drivers.hd	A2	same code (comments/directives stripped) as runtime/panic/reentrant-suspension-poll.hd [panic:suspension-reentrant-poll] [panic:suspension-competing-driver]
@@ -421,28 +421,28 @@ typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-ma
 typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-map-key.hd	A3	typing/invalid/tuple-template-bounds-an-unhashable-data-member-is-no-map-key.hd
 typing/invalid/tuple-default-a-fixed-element-without-default-fails-the-bound-and-a-rest-list-meets-it.hd	A3	typing/invalid/default-tuple-element-without-default.hd
 typing/invalid/bounds-a-parameter-type-whose-default-copies-an-unmet-argument-reports-one-bound-error.hd	A3	typing/invalid/bounds-a-field-type-whose-default-copies-an-unmet-argument-reports-one-bound-error.hd
-typing/invalid/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-a-struct-called-with-a-named-argument-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-a-struct-called-with-a-named-argument-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-a-struct-called-with-a-named-argument-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/a-context-type-used-as-a-value.hd
-typing/invalid/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/a-context-type-used-as-a-value.hd
-typing/invalid/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd	A3	typing/invalid/a-context-type-used-as-a-value.hd
-typing/invalid/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd
-typing/invalid/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd
-typing/invalid/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
-typing/invalid/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
-typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd	A3	typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd
-typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
-typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
-typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
-typing/invalid/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
-typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd	A3	typing/invalid/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
+names/name-categories/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-a-named-argument-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-a-named-argument-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-a-named-argument-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	A3	names/name-categories/a-context-type-used-as-a-value.hd
+names/name-categories/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd
+names/name-categories/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/a-context-type-used-as-a-value.hd
+names/name-categories/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd	A3	names/name-categories/a-context-type-used-as-a-value.hd
+names/name-categories/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd
+names/name-categories/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd
+names/name-categories/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
+names/name-categories/module-member-a-type-with-fields-through-a-module-is-not-a-value.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
+names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd	A3	names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd
+names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
+names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-trait.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
+names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
+names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
+names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
 typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/requirement-key-unknown-trait.hd
 typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/a-body-row-key-of-a-primitive.hd
 typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
@@ -456,7 +456,7 @@ typing/invalid/local-annotation-row-unknown-trait.hd	A3	typing/invalid/provider-
 typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
 typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
 typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
-typing/invalid/sibling-module-type-not-imported.hd	A3	typing/invalid/sibling-module-alias-not-imported.hd
+names/module-scope/sibling-module-type-not-imported.hd	A3	names/module-scope/sibling-module-alias-not-imported.hd
 typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd
 typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
 typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
@@ -682,12 +682,12 @@ typing/invalid/module-initialization-an-operator-impl-call-reads-a-later-binding
 typing/invalid/module-initialization-a-call-reads-later-pattern-bindings.hd	A3	typing/invalid/module-initialization-a-struct-pattern-binding-is-read-before-its-let.hd
 typing/invalid/module-initialization-a-call-reads-later-pattern-bindings.hd	A3	typing/invalid/module-initialization-a-let-else-binding-is-read-before-its-let.hd
 typing/invalid/module-initialization-a-struct-pattern-binding-is-read-before-its-let.hd	A3	typing/invalid/module-initialization-a-let-else-binding-is-read-before-its-let.hd
-typing/invalid/binding-expressions-an-or-condition-binding-is-uninitialized-in-the-then-branch.hd	A3	typing/invalid/binding-expressions-an-and-condition-binding-is-uninitialized-in-the-else-of-an-if-statement.hd
-typing/invalid/self-type-self-as-a-function-parameter-type-is-unknown.hd	A3	typing/invalid/self-type-self-as-a-struct-field-type-is-unknown.hd
-typing/invalid/self-type-self-as-a-function-parameter-type-is-unknown.hd	A3	typing/invalid/self-outside-trait-or-impl.hd
-typing/invalid/self-type-self-as-a-struct-field-type-is-unknown.hd	A3	typing/invalid/self-outside-trait-or-impl.hd
+names/binding-expressions/binding-expressions-an-or-condition-binding-is-uninitialized-in-the-then-branch.hd	A3	names/binding-expressions/binding-expressions-an-and-condition-binding-is-uninitialized-in-the-else-of-an-if-statement.hd
+names/name-categories/self-type-self-as-a-function-parameter-type-is-unknown.hd	A3	names/name-categories/self-type-self-as-a-struct-field-type-is-unknown.hd
+names/name-categories/self-type-self-as-a-function-parameter-type-is-unknown.hd	A3	names/name-categories/self-outside-trait-or-impl.hd
+names/name-categories/self-type-self-as-a-struct-field-type-is-unknown.hd	A3	names/name-categories/self-outside-trait-or-impl.hd
 typing/invalid/type-argument-defaults-a-struct-written-without-its-required-argument-is-partial.hd	A3	typing/invalid/type-argument-defaults-a-trait-written-without-its-required-argument-is-partial.hd
-typing/invalid/parameter-names-a-trait-method-parameter-may-not-reuse-the-trait-type-parameter-name.hd	A3	typing/invalid/parameter-names-two-trait-method-parameters-may-not-share-a-name.hd
+names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-may-not-reuse-the-trait-type-parameter-name.hd	A3	names/function-and-closure-scopes/parameter-names-two-trait-method-parameters-may-not-share-a-name.hd
 typing/valid/type-argument-defaults-a-bound-takes-the-trait-argument-default.hd	A3	typing/valid/type-argument-defaults-a-bound-with-an-output-binding-takes-the-trait-argument-default.hd
 typing/valid/type-argument-defaults-a-default-may-name-an-earlier-parameter.hd	A3	typing/valid/type-argument-defaults-a-struct-parameter-may-default-to-a-concrete-type.hd
 typing/valid/propagation-a-try-error-converts-through-a-from-impl.hd	A3	typing/valid/propagation-a-try-error-with-an-error-impl-converts-to-a-dyn-error.hd
@@ -1141,8 +1141,8 @@ typing/valid/declarations-a-private-function-may-omit-its-result-type.hd	A3	typi
 typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	A3	typing/valid/declarations-a-public-method-declares-its-result-type.hd
 typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	A3	typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd
 typing/valid/declarations-a-public-method-declares-its-result-type.hd	A3	typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd
-typing/valid/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A3	typing/valid/self-type-a-struct-field-names-a-concrete-type.hd
-typing/valid/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	A3	typing/valid/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd
+names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A3	names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd
+names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	A3	names/function-and-closure-scopes/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd
 typing/valid/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd	A3	typing/valid/misplaced-derivation-a-trait-less-block-may-give-member-and-self-lines.hd
 runtime/panic/integer-add-overflow.hd	A3	runtime/panic/integer-negation-overflow.hd
 runtime/panic/i32-add-overflow-in-function.hd	A3	runtime/panic/i32-min-divided-by-minus-one.hd
@@ -1268,11 +1268,11 @@ lexical/literals/reserved-word-interpolation.hd	A3	lexical/literals/prefixed-str
 typing/invalid/nested-optional-needs-some.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd
 typing/invalid/nested-optional-needs-some.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-double.hd
 typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-double.hd
-typing/invalid/private-field-nothing-visible.hd	A3	typing/invalid/private-own-method-nothing-visible.hd
+names/member-resolution/private-field-nothing-visible.hd	A3	names/member-resolution/private-own-method-nothing-visible.hd
 grammar/statements/copy-assignment-inline.hd	A3	grammar/statements/copy-assignment-local.hd
 grammar/statements/copy-assignment-inline.hd	A3	grammar/statements/copy-assignment-suite-rhs.hd
 grammar/statements/copy-assignment-local.hd	A3	grammar/statements/copy-assignment-suite-rhs.hd
-typing/invalid/private-own-field-beside-promoted.hd	A3	typing/invalid/private-own-field-beside-deep-promoted.hd
+names/member-resolution/private-own-field-beside-promoted.hd	A3	names/member-resolution/private-own-field-beside-deep-promoted.hd
 lexical/literals/float-separator-before-point.hd	A3	lexical/literals/float-separator-after-exponent-marker.hd
 lexical/literals/float-separator-before-point.hd	A3	lexical/literals/float-trailing-separator.hd
 lexical/literals/float-separator-after-exponent-marker.hd	A3	lexical/literals/float-trailing-separator.hd
@@ -1417,7 +1417,7 @@ lexical/literals/radix-literal-suffix-without-separator.hd	A3	lexical/literals/h
 lexical/literals/radix-literal-quote-suffix.hd	A3	lexical/literals/string-literal-suffix.hd
 lexical/literals/reserved-word-suffix.hd	A3	lexical/literals/reserved-word-prefix.hd
 typing/invalid/unary-minus-string.hd	A3	typing/invalid/list-plus-list-names-the-spread-concatenation.hd
-typing/invalid/unknown-string-prefix.hd	A3	typing/invalid/duration-unknown-unit.hd
+names/use-declarations/unknown-string-prefix.hd	A3	names/use-declarations/duration-unknown-unit.hd
 typing/invalid/trait-less-block-newtype.hd	A3	typing/invalid/a-traitless-derivation-block-on-a-primitive.hd
 typing/invalid/trait-less-block-generic-argument.hd	A3	typing/invalid/trait-less-block-generic-bound.hd
 typing/invalid/inline-always-suspends.hd	A3	typing/invalid/inline-always-requirement.hd
@@ -1647,16 +1647,16 @@ typing/invalid/local-impl-before-declaration.hd	A3	typing/invalid/local-impl-clo
 typing/invalid/literal-operand-range-wide.hd	A3	typing/invalid/a-hex-literal-past-every-integer-type-is-out-of-range.hd
 typing/invalid/defer-propagate-query.hd	A3	typing/invalid/defer-propagate-query-suspending.hd
 typing/invalid/an-unknown-propagation-kind-needs-a-fixing-return.hd	A3	typing/invalid/a-nested-closure-cannot-use-the-outer-propagation-kind.hd
-typing/invalid/list-ord-method-float-literal.hd	A3	typing/invalid/list-hash-method-float-literal.hd
-typing/invalid/sibling-module-function-not-imported.hd	A3	typing/invalid/sibling-module-private-function-bare.hd
-typing/invalid/sibling-module-function-not-imported.hd	A3	typing/invalid/sibling-module-binding-not-visible.hd
-typing/invalid/sibling-module-private-function-bare.hd	A3	typing/invalid/sibling-module-binding-not-visible.hd
-typing/invalid/binding-failed-call.hd	A3	typing/invalid/explicit-type-arguments-of-an-unknown-name.hd
-typing/invalid/binding-failed-call.hd	A3	typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd
-typing/invalid/binding-failed-call.hd	A3	typing/invalid/unknown-print-hints-println.hd
-typing/invalid/explicit-type-arguments-of-an-unknown-name.hd	A3	typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd
-typing/invalid/explicit-type-arguments-of-an-unknown-name.hd	A3	typing/invalid/unknown-print-hints-println.hd
-typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd	A3	typing/invalid/unknown-print-hints-println.hd
+names/member-resolution/list-ord-method-float-literal.hd	A3	names/member-resolution/list-hash-method-float-literal.hd
+names/module-scope/sibling-module-function-not-imported.hd	A3	names/module-scope/sibling-module-private-function-bare.hd
+names/module-scope/sibling-module-function-not-imported.hd	A3	names/module-scope/sibling-module-binding-not-visible.hd
+names/module-scope/sibling-module-private-function-bare.hd	A3	names/module-scope/sibling-module-binding-not-visible.hd
+names/module-scope/binding-failed-call.hd	A3	names/module-scope/explicit-type-arguments-of-an-unknown-name.hd
+names/module-scope/binding-failed-call.hd	A3	names/module-scope/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd
+names/module-scope/binding-failed-call.hd	A3	names/module-scope/unknown-print-hints-println.hd
+names/module-scope/explicit-type-arguments-of-an-unknown-name.hd	A3	names/module-scope/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd
+names/module-scope/explicit-type-arguments-of-an-unknown-name.hd	A3	names/module-scope/unknown-print-hints-println.hd
+names/module-scope/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd	A3	names/module-scope/unknown-print-hints-println.hd
 typing/invalid/duplicate-associated-binding-same-type.hd	A3	typing/invalid/duplicate-associated-binding-repeated-trait.hd
 runtime/valid/initialization-implicit-an-interpolation-reads-an-earlier-binding-through-display.hd	A3	runtime/valid/initialization-implicit-an-unrelated-display-impl-is-not-reached.hd
 typing/invalid/entry-point-parameters.hd	A3	typing/invalid/generic-entry-point.hd
@@ -1728,10 +1728,10 @@ runtime/panic/element-reference-remove-at-panics.hd	A3	runtime/panic/element-ref
 runtime/panic/element-reference-pop-panics.hd	A3	runtime/panic/element-reference-clear-panics.hd
 typing/invalid/reference-equality.hd	A3	typing/invalid/reference-inequality.hd
 typing/invalid/f32-literal-out-of-range.hd	A3	typing/invalid/f32-literal-negative-out-of-range.hd
-typing/invalid/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	typing/invalid/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd
-typing/invalid/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	typing/invalid/recursive-closure-the-last-name-of-a-chain-is-not-in-scope-in-its-closure.hd
-typing/invalid/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	typing/invalid/recursive-closure-the-last-name-of-a-chain-is-not-in-scope-in-its-closure.hd
-typing/invalid/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	typing/invalid/recursive-closure-a-two-link-chain-closure-cannot-see-its-own-name.hd
+names/lexical-scopes/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	names/lexical-scopes/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd
+names/lexical-scopes/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	names/lexical-scopes/recursive-closure-the-last-name-of-a-chain-is-not-in-scope-in-its-closure.hd
+names/lexical-scopes/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	names/lexical-scopes/recursive-closure-the-last-name-of-a-chain-is-not-in-scope-in-its-closure.hd
+names/lexical-scopes/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	names/lexical-scopes/recursive-closure-a-two-link-chain-closure-cannot-see-its-own-name.hd
 typing/invalid/bare-dyn-alias.hd	A3	typing/invalid/bare-dyn-body.hd
 typing/invalid/bare-dyn-alias.hd	A3	typing/invalid/bare-dyn-container.hd
 typing/invalid/bare-dyn-alias.hd	A3	typing/invalid/bare-dyn-parameter.hd

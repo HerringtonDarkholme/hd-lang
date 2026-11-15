@@ -30,11 +30,11 @@ runtime/valid/assert-equal-map.hd	A7b	lost '' gained ',,'	lang/10-modules.md#sta
 runtime/valid/assert-equal-tuple.hd	A7b	lost '' gained ','	lang/10-modules.md#standard-testing
 grammar/statements/assignment-and-break-forms.hd	A7b	lost '' gained ','	lang/02-grammar.md#r-grammar.stmt.assign-place
 runtime/valid/associated-type-projections.hd	A7b	lost '' gained ',,,,'	lang/09-traits.md#trait-declarations
-runtime/valid/available-trait-method-across-packages.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
+names/member-resolution/available-trait-method-across-packages.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
 runtime/valid/await-cancelled-host-call.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.cancel.await.kinds
 runtime/valid/await-cancelled-std-task-frame.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.cancel.await.kinds
 runtime/valid/bare-marker-decorator.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.decorator.bare-call-defaults
-runtime/valid/binding-expressions.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#binding-expressions
+names/binding-expressions/binding-expressions.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#binding-expressions
 runtime/valid/block-on-abandoned.hd	A7b	lost '' gained ','	std/task.md#r-std-task.block-on.abandoned
 runtime/valid/bound-inference-chain.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.generic.infer.bound.fixed-point
 runtime/valid/bound-inference-default.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.generic.infer.bound.default
@@ -98,7 +98,7 @@ runtime/valid/default-constant-specialization.hd	A7b	lost '' gained ','	lang/07-
 runtime/valid/default-method-conflict-inherent-resolves.hd	A7b	lost '' gained ','	lang/09-traits.md#default-method-conflicts
 runtime/valid/default-standard-types.hd	A7b	lost '' gained ','	std/ops.md#standard-implementations
 runtime/valid/defaults-run-in-declaration-order-after-every-explicit-argument.hd	A7b	lost '' gained ','	lang/07-functions.md#default-values
-runtime/valid/definite-init-diverging-branch.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#r-names.definite.diverging
+names/binding-expressions/definite-init-diverging-branch.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#r-names.definite.diverging
 runtime/valid/deque-heap-collect.hd	A7b	lost '' gained ',,'	std/collections.md#r-std-collections.heap.collect.linear
 runtime/valid/deque-heap-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,'	std/collections.md#deque
 runtime/valid/derivation-block-applies-template.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.block.form
@@ -122,7 +122,7 @@ runtime/valid/digest-sha256-long.hd	A7b	lost '' gained ','	std/digest.md#r-std-d
 runtime/valid/digest-sha256-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,'	std/digest.md#r-std-digest.sha256.update-ref
 runtime/valid/digest-sha256-stream.hd	A7b	lost '' gained ',,,,,,'	std/digest.md#r-std-digest.sha256.update-ref
 runtime/valid/digest-sha256-vectors.hd	A7b	lost '' gained ',,,'	std/digest.md#r-std-digest.sha256.fips
-runtime/valid/direct-member-hides-promoted.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#member-resolution
+names/member-resolution/direct-member-hides-promoted.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#member-resolution
 runtime/valid/directory-module-and-child.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.path.directory
 runtime/valid/discard-propagated-void-result.hd	A7b	lost '' gained ','	lang/05-expressions.md#propagation
 runtime/valid/display-tuple-rest.hd	A7b	lost '' gained ','	lang/05-expressions.md#r-expr.interp.std.tuple.rest-inline
@@ -137,7 +137,7 @@ runtime/valid/duration-serde-text.hd	A7b	lost '' gained ',,'	std/time.md#r-std-t
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	A7b	lost '' gained ','	lang/09-traits.md#dynamic-trait-values
 runtime/valid/element-reference-nested-copy-independent.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.elem.index
 runtime/valid/embedded-store-copies.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#data-embedding
-runtime/valid/embedded-trait-method-via-part.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#member-resolution
+names/member-resolution/embedded-trait-method-via-part.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#member-resolution
 runtime/valid/empty-string-operations.hd	A7b	lost '' gained ',,'	std/text.md#string-methods
 runtime/valid/encoding-base64-vectors.hd	A7b	lost '' gained ',,,,'	std/encoding.md#r-std-encoding.base64.decode.value
 runtime/valid/encoding-decode-errors.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/encoding.md#r-std-encoding.base64.decode.order
@@ -329,8 +329,8 @@ runtime/valid/list-window-views.hd	A7b	lost '' gained ',,,,,'	std/collections.md
 runtime/valid/literal-payload-patterns.hd	A7b	lost '' gained '()'	lang/08-data-and-enums.md#matching-enums
 runtime/valid/local-impl-visible-after-declaration.hd	A7b	lost '' gained ',,,,'	lang/09-traits.md#r-trait.impl.local.lookup
 runtime/valid/local-inherent-and-trait-impls.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.impl.local.inherent
-runtime/valid/local-shadows-module-namespace.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.scope.shadow
-runtime/valid/loop-iteration-cells.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.loop.per-iteration
+names/lexical-scopes/local-shadows-module-namespace.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.scope.shadow
+names/control-flow-binding-scopes/loop-iteration-cells.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.loop.per-iteration
 runtime/valid/loop-list-cache-preserves-alias-and-cow-boundaries.hd	A7b	lost '' gained ',,,'	lang/04-type-system.md#r-types.coll.value
 runtime/valid/manual-clock.hd	A7b	lost '' gained ',,,,,,'	std/time.md#manual-clock
 runtime/valid/map-entries-most-common.hd	A7b	lost '' gained ',,'	std/collections.md#r-std-collections.map.most-common.ties
@@ -443,8 +443,8 @@ runtime/valid/property-draw-budget.hd	A7b	lost '' gained ',,'	std/testing.md#r-s
 runtime/valid/property-generators-collections.hd	A7b	lost '' gained ',,,,'	std/testing.md#r-std-testing.choices.list-max-ref
 runtime/valid/property-generators-scalars.hd	A7b	lost '' gained ',,,,,,'	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/provider-capture-timing.hd	A7b	lost '' gained ','	lang/07-functions.md#captures
-runtime/valid/pub-own-member-hides-promoted-other-module.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.hide.depth
-runtime/valid/pub-own-member-hides-promoted.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.hide.depth
+names/member-resolution/pub-own-member-hides-promoted-other-module.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.hide.depth
+names/member-resolution/pub-own-member-hides-promoted.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.hide.depth
 runtime/valid/range-length-index-proof.hd	A7b	lost '' gained ',,,,,'	lang/05-expressions.md#r-expr.index.list.range
 runtime/valid/recursive-data-types.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#recursive-data-types
 runtime/valid/recursive-list-tree.hd	A7b	lost '' gained ',,'	lang/08-data-and-enums.md#r-data.struct.contains.ends
@@ -507,8 +507,8 @@ runtime/valid/sha256-handle-shared.hd	A7b	lost '' gained ','	std/digest.md#r-std
 runtime/valid/shared-enum-data-defaults.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#shared-enum-constructor-data
 runtime/valid/shared-enum-fact-evaluation.hd	A7b	lost '' gained ',,,'	lang/08-data-and-enums.md#r-data.shared.module-init
 runtime/valid/shared-mutable-child-no-invariants.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#field-access
-runtime/valid/shorter-promotion-path-wins.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
-runtime/valid/sibling-method-generic-scopes.hd	A7b	lost '' gained ',,,'	lang/03-names-and-scopes.md#r-names.generic.params.visible
+names/member-resolution/shorter-promotion-path-wins.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
+names/function-and-closure-scopes/sibling-method-generic-scopes.hd	A7b	lost '' gained ',,,'	lang/03-names-and-scopes.md#r-names.generic.params.visible
 runtime/valid/sibling-module-enum-and-trait.hd	A7b	lost '' gained ',,'	lang/10-modules.md#r-module.vis.variants
 runtime/valid/single-payload-variant-function-value.hd	A7b	lost '' gained ',,,'	lang/08-data-and-enums.md#enum-declarations
 runtime/valid/source-fills-defaults.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.impl-fact.fills-defaults
@@ -555,7 +555,7 @@ runtime/valid/test-registration-qualified-prop.hd	A7b	lost '' gained ','	lang/10
 runtime/valid/test-registration-renamed-import.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.testing.reg.identity.spellings
 runtime/valid/test-timeout-options.hd	A7b	lost '' gained ','	std/testing.md#r-std-testing.option.timeout-any-duration
 runtime/valid/testing-commands.hd	A7b	lost '' gained ',,,,,,,,,,,'	std/testing.md#r-std-testing.commands.declare
-runtime/valid/tests-block-impl-provider.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.tests.module-items
+names/module-scope/tests-block-impl-provider.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#r-names.tests.module-items
 runtime/valid/text-parse-trait.hd	A7b	lost '' gained ',,,'	std/text.md#r-std-text.parse.trait
 runtime/valid/text-prefix-helpers.hd	A7b	lost '' gained ',,'	std/text.md#prefix-helpers
 runtime/valid/text-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/text.md#r-std-text.string.split
@@ -595,7 +595,7 @@ runtime/valid/typeid-empty-tuple-name.hd	A7b	lost '' gained ','	lang/09-traits.m
 runtime/valid/typeid-of-equality.hd	A7b	lost '' gained ',,,,'	lang/09-traits.md#inspectable-and-typeid
 runtime/valid/typeid-qualified-trait-name.hd	A7b	lost '' gained ',,'	lang/09-traits.md#r-trait.typeid.name.qualified
 runtime/valid/typeid-same-name-modules.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.identity.modules
-runtime/valid/unavailable-trait-method-invisible.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
+names/member-resolution/unavailable-trait-method-invisible.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
 runtime/valid/unit-test-manual-clock.hd	A7b	lost '' gained ','	std/testing.md#unit-test-providers
 runtime/valid/use-module-member-beside-root-declaration.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.use.grouped
 runtime/valid/user-defined-iterator-trait.hd	A7b	lost '' gained ',,,,'	lang/06-control-flow.md#iteration-protocols

@@ -12,7 +12,7 @@ runtime/valid/assert-equal-i32.hd	A17	line 5: assert_equal(x, x): assert_equal(4
 runtime/valid/assert-equal-string.hd	A17	line 5: assert_equal(x, x): assert_equal("ada", "ada", reason="identical literals are equal")
 runtime/valid/assert-equal-string.hd	A17	line 6: assert_equal(x, x): assert_equal("", "", reason="empty strings are equal")
 runtime/valid/multibyte-scalar-strings.hd	A17	line 14: assert_equal(x, x): assert_equal("\u{E9}", "\u{E9}", reason="the same precomposed scalar")
-runtime/valid/use-declaration-position-independent.hd	A17	line 14: assert(true): assert(true, reason="grouped names are visible too")
+names/use-declarations/use-declaration-position-independent.hd	A17	line 14: assert(true): assert(true, reason="grouped names are visible too")
 runtime/valid/encoding-base64-vectors.hd	A17	line 97: assert_equal(x, x): assert_equal(Base64.Url, Base64.Url, reason="same variant")
 runtime/valid/typeid-same-name-modules.hd	A17	line 15: assert(true): .None => assert(true, reason="different declarations")
 runtime/valid/erased-error-result.hd	A17	line 55: assert(true): .None => assert(true, reason="the default source")

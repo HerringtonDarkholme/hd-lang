@@ -518,7 +518,7 @@ other rule.
 
 - `parse/invalid/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
 - `typing/invalid/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
-- `typing/invalid/forward-module-binding.hd` = `typing/invalid/exec-binding-read-before-declared.hd`
+- `names/module-scope/forward-module-binding.hd` = `names/module-scope/exec-binding-read-before-declared.hd`
 - `typing/invalid/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `typing/invalid/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
 - `typing/invalid/generic-requirement-key-collision.hd` = `typing/invalid/generic-provider-key-collision-nested.hd`
 - `typing/valid/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `typing/valid/row-union-private-result.hd` (`req.row.union.sites`)
@@ -861,10 +861,10 @@ Ledger: b011 (50): 15 rows. Confirmed 2, plausible 6, rejected 7.
 
 Ledger: b013 (46): 3 rows. Plausible 2, unverified 1. No high-value finding.
 
-- Plausible: `typing/invalid/redeclare-core-type.hd` cites `#name-categories`; the
-  error rule is `module.prelude.no-shadow`. `typing/valid/part-trait-method-ignored-by-lookup.hd`
-  repeats the last assert of `runtime/valid/embedded-trait-method-via-part.hd`.
-- Unverified B5: `typing/valid/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd`
+- Plausible: `names/name-categories/redeclare-core-type.hd` cites `#name-categories`; the
+  error rule is `module.prelude.no-shadow`. `names/member-resolution/part-trait-method-ignored-by-lookup.hd`
+  repeats the last assert of `names/member-resolution/embedded-trait-method-via-part.hd`.
+- Unverified B5: `names/member-resolution/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd`
   (unused `double`).
 
 #### b012 (`lang/03-names-and-scopes.md`)
@@ -874,7 +874,7 @@ Ledger: b012 (38): 9 rows. Confirmed 9.
 - **Wrong citation (B7), 8 fixtures**: the `declaration-checks-…-type-parameter-{323..330}.hd`
   set (4 reject, 4 accept) cites `#function-and-closure-scopes`. The rule
   they test, `names.type-param.no-redeclare`, is under `### Type Parameters`.
-- **Title doesn't match the code (B1)**: `runtime/valid/branch-scopes-shadow.hd`.
+- **Title doesn't match the code (B1)**: `names/control-flow-binding-scopes/branch-scopes-shadow.hd`.
   There is no outer `value`, so nothing is shadowed. The branches only declare
   independent locals.
 
@@ -882,13 +882,13 @@ Ledger: b012 (38): 9 rows. Confirmed 9.
 
 Ledger: b015 (44): 2 rows. Confirmed 1, unverified 1.
 
-- **Rejected for the wrong reason (B2)**: `typing/invalid/local-impl-trait-value-before-declaration.hd`.
+- **Rejected for the wrong reason (B2)**: `names/member-resolution/local-impl-trait-value-before-declaration.hd`.
   Line 11 `let labeled: &dyn Labeled = invoice` fails because the `&` is missing
   ("a value never becomes a trait value reference by itself"), not because the
   local `impl` comes later. A compiler that ignored `names.member.known-impl`
   would still pass. Fix: write `&invoice`, so that only the impl's position
   is wrong.
-- Unverified: `runtime/valid/local-impl-known-after-declaration.hd` (`hd check`
+- Unverified: `names/member-resolution/local-impl-known-after-declaration.hd` (`hd check`
   did not finish under machine load).
 
 **Kind to watch: rejected for the wrong reason.** A reject case whose marked
@@ -900,24 +900,24 @@ not implemented. This is the most valuable B2 kind.
 Ledger: b014 (45): 4 rows. Plausible 4. Little was checked with `hd`
 because of machine load.
 
-- Plausible merges: `typing/invalid/private-own-field-beside-promoted.hd` ~ half
-  of `typing/invalid/private-own-field-needs-another-name.hd`.
-  `typing/invalid/duration-unknown-unit.hd` ~ `typing/invalid/unknown-literal-suffix.hd`
+- Plausible merges: `names/member-resolution/private-own-field-beside-promoted.hd` ~ half
+  of `names/member-resolution/private-own-field-needs-another-name.hd`.
+  `names/use-declarations/duration-unknown-unit.hd` ~ `names/use-declarations/unknown-literal-suffix.hd`
   (a duration unit is arguably its own form, so they are likely both needed).
-- Plausible B7: `typing/valid/let-else-scope.hd` cites `names.let-else.not-in-else`
+- Plausible B7: `names/local-bindings/let-else-scope.hd` cites `names.let-else.not-in-else`
   but never reads the name in `else`.
-- Plausible B2: `typing/invalid/use-names-exec-binding.hd` (tree case). Line 8
+- Plausible B2: `names/module-scope/use-names-exec-binding.hd` (tree case). Line 8
   also reads a name the failed import leaves unbound.
 
 #### b016 (`lang/03-names-and-scopes.md`)
 
 Ledger: b016 (45): 2 rows. Plausible 2.
 
-- Plausible B7: `typing/invalid/a-function-name-in-a-local-annotation-is-an-unknown-type.hd`
+- Plausible B7: `names/module-scope/a-function-name-in-a-local-annotation-is-an-unknown-type.hd`
   cites `names.module.other-module.type`, but `helper` is in the same module.
   `names.category.syntax` fits better.
-- Plausible C1: `typing/invalid/sibling-module-private-function-bare.hd` ~
-  `typing/invalid/sibling-module-function-not-imported.hd` (they differ only in
+- Plausible C1: `names/module-scope/sibling-module-private-function-bare.hd` ~
+  `names/module-scope/sibling-module-function-not-imported.hd` (they differ only in
   `pub`, which the cited rule does not mention).
 - Tooling note: some `hd check` runs printed their result and then did not
   exit within 60 seconds under heavy machine load. One file that hung did not
@@ -935,7 +935,7 @@ Ledger: b018 (24): 4 rows. Confirmed 3, plausible 1.
   This pattern (the marker on the top-level call) is probably widespread.
   **Owner question:** should a panic marker sit on the raising line or on the
   entry call? Then fix all of them at once.
-- **A latent second error (B2, minor)**: `typing/invalid/module-qualified-without-use.hd`.
+- **A latent second error (B2, minor)**: `names/use-declarations/module-qualified-without-use.hd`.
   `fn timeout(…) -> void: time.s(seconds)` returns a `Duration` from a `void`
   function. With the `use` added, it is still a `type-mismatch`. Fix:
   `_ := time.s(seconds)`.
@@ -946,9 +946,9 @@ Ledger: b018 (24): 4 rows. Confirmed 3, plausible 1.
 
 Ledger: b017 (44): 4 rows. Plausible 2, rejected 2.
 
-- Plausible B7: `typing/invalid/a-struct-called-with-an-unknown-argument.hd` cites
+- Plausible B7: `names/name-categories/a-struct-called-with-an-unknown-argument.hd` cites
   `names.type-as-value` (whose code is `type-used-as-value`) but expects
-  `unknown-name`. `typing/invalid/duplicate-method-generic-sibling.hd` cites
+  `unknown-name`. `names/name-categories/duplicate-method-generic-sibling.hd` cites
   `names.type-param.no-redeclare`; a repeat inside one list is `names.type-param.unique`.
 - Rejected: `tests-block-use-leak.hd`. The `use` repeats a test-prelude name,
   but line 5 is non-test code, so a leak of either the `use` or the test
@@ -1550,7 +1550,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `typing/invalid/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `typing/invalid/bare-ok-call-pattern.hd` (b056)
 - `typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
 - `typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
-- `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
+- `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `typing/valid/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
 - `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)
@@ -1912,7 +1912,7 @@ names. `a18_missing_amp.sh` runs `hd check` (private cache, about 25 s) on all
 hint: **15** (`full/a18.tsv`). When the cited rule is about references (anchors
 ending `.reference-values`, `.reference-fix`, `ref-value`), the missing `&` is
 the point. **The likely wrong-reason ones** (the rule is about something else):
-- `typing/invalid/local-impl-trait-value-before-declaration.hd` (b015, confirmed)
+- `names/member-resolution/local-impl-trait-value-before-declaration.hd` (b015, confirmed)
 - `typing/invalid/concrete-reference-bound-associated-type-mismatch.hd` (b079, confirmed)
 - `typing/invalid/closure-not-inspectable.hd`, `typing/invalid/spelled-function-type-not-inspectable.hd`
   (Inspectable rules)

@@ -2,7 +2,7 @@ typing/invalid/generic-erasure-without-bound.hd	A18	lang/09-traits.md#r-trait.er
 typing/invalid/closure-not-inspectable.hd	A18	lang/09-traits.md#inspectable-types
 typing/invalid/spelled-function-type-not-inspectable.hd	A18	lang/09-traits.md#r-trait.inspectable.not.function
 typing/invalid/literal-trait-value-no-one-fit.hd	A18	lang/04-type-system.md#r-types.literal.local.erased.reference-values
-typing/invalid/local-impl-trait-value-before-declaration.hd	A18	lang/03-names-and-scopes.md#r-names.member.known-impl
+names/member-resolution/local-impl-trait-value-before-declaration.hd	A18	lang/03-names-and-scopes.md#r-names.member.known-impl
 typing/invalid/trait-generic-instantiations-unrelated.hd	A18	lang/09-traits.md#r-trait.decl.generic.invariant
 typing/invalid/concrete-value-binding-mismatch.hd	A18	lang/09-traits.md#r-trait.dyn.binding.reference-convert
 typing/invalid/inspectable-child-trait-without-impl.hd	A18	lang/09-traits.md#r-trait.erase.child-impl

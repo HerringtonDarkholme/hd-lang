@@ -11,11 +11,11 @@ runtime/valid/module-qualified-associated-call.hd	std.text	the task asks for a m
 runtime/valid/module-qualified-type.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
 runtime/valid/module-qualified-variant.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
 grammar/patterns/module-qualified-variant-pattern.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
-runtime/valid/module-alias-function-value.hd	std.time	the task asks for a module alias of a real std module, which needs the whole-module import use std.time as clock
+names/use-declarations/module-alias-function-value.hd	std.time	the task asks for a module alias of a real std module, which needs the whole-module import use std.time as clock
 runtime/valid/module-qualified-generic-function-value.hd	std.cmp	the task asks for a generic member of a real std module, cmp.min, which needs the whole-module import use std.cmp
 runtime/valid/module-qualified-prelude-function.hd	std.format	debug is language tier, but the whole-module import use std.format also covers the stdlib-tier items of std.format
 runtime/valid/module-qualified-beside-direct-use.hd	std.cmp, std.cmp.max, std.cmp.min	the task asks for cmp.max and cmp.min beside direct and aliased uses of the same std functions, which are stdlib tier
-runtime/valid/local-shadows-module-namespace.hd	std.cmp	the task asks for a local value that shadows a real std module name, which needs the whole-module import use std.cmp
+names/lexical-scopes/local-shadows-module-namespace.hd	std.cmp	the task asks for a local value that shadows a real std module name, which needs the whole-module import use std.cmp
 typing/invalid/module-path-private-std-function.hd	std.text	the owner decision (PRIVATE-STD, 2026-10-04) names the module path text.hex_digit through a real std module, which needs the whole-module import use std.text
 typing/invalid/std-child-path-through-parent.hd	std.testing	the rule under test forbids a std child path through its parent, which needs a real std parent module import use std.testing
 typing/valid/literals-a-num-suffix-marker-resolves-through-a-module-alias.hd	std.ops	the migrated test qualifies the language-tier num_suffix marker through a real std.ops module alias; that module import also exposes unrelated stdlib items
@@ -83,7 +83,7 @@ runtime/valid/a-suspending-closure-keeps-its-argument-copy.hd	std.time.Clock, st
 runtime/valid/a-store-keeping-its-own-fields-sees-every-write-before-it.hd	std.time.Clock, std.time.ms, std.time.sleep	a store must keep the copies a suspension in a replacing field can make stale, and a real suspension needs sleep! with its Clock requirement
 runtime/valid/race-woken-child-polls-before-sibling.hd	std.time.Clock, std.time.ms, std.time.s, std.time.sleep	the first child must be woken by a completion while its sibling is polled, and a timer is the only host wait a language-tier fixture can reach
 runtime/valid/race-completed-child-beats-cancelled-sibling.hd	std.time.Clock, std.time.s, std.time.sleep	the cancelled sibling must be a suspension that waits, and a timer is the only host wait a language-tier fixture can reach
-typing/invalid/a-local-annotation-through-a-module-that-lacks-the-type.hd	std.text	a single-file case needs a module in scope that lacks the named type; std.text is the smallest one
+names/name-categories/a-local-annotation-through-a-module-that-lacks-the-type.hd	std.text	a single-file case needs a module in scope that lacks the named type; std.text is the smallest one
 runtime/valid/a-flag-cycle-answers-alike-in-every-build.hd	std.json.encode, std.serde.Serialize, std.serde.rename	the release fold of a flag cycle (#1542) is checked on the cycle it exists for: a recursive type's derived regular(), which std.json.encode branches on
 runtime/valid/associated-payload-writes-in-a-suspending-function.hd	std.time.Clock, std.time.ms, std.time.sleep	a payload borrow held across a real suspension needs a host wait, and a timer is the only one a language-tier fixture can reach
 runtime/valid/a-cast-reads-through-an-explicit-star-in-every-position.hd	std.time.Clock, std.time.ms, std.time.sleep	a cast in a suspending function reads its reference after a real suspension, which needs a host wait, and a timer is the only one a language-tier fixture can reach

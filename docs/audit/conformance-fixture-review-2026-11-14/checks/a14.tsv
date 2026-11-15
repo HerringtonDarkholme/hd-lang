@@ -2,10 +2,10 @@ parse/invalid/mutable-field-modifier.hd	A14	reject:mutable-field-modifier: same 
 typing/invalid/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd	A14	reject:bare-variant-pattern: same code after renaming as typing/invalid/bare-ok-call-pattern.hd
 typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd	A14	reject:duplicate-data-pattern-field: same code after renaming as typing/invalid/duplicate-data-pattern-field.hd
 typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd	A14	reject:unknown-field: same code after renaming as typing/invalid/variant-pattern-unknown-field.hd
-typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A14	accept: same code after renaming as typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd
+typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A14	accept: same code after renaming as names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd
 typing/valid/field-shorthand-a-shorthand-field-counts-as-given.hd	A14	accept: same code after renaming as typing/valid/field-shorthand-shorthand-fields-from-parameters-give-every-field.hd
 typing/invalid/nonfinal-spread.hd	A14	reject:nonfinal-positional-spread: same code after renaming as grammar/expressions/positional-after-spread.hd
-typing/invalid/forward-module-binding.hd	A14	reject:binding-not-yet-visible: same code after renaming as typing/invalid/exec-binding-read-before-declared.hd
+names/module-scope/forward-module-binding.hd	A14	reject:binding-not-yet-visible: same code after renaming as names/module-scope/exec-binding-read-before-declared.hd
 typing/invalid/tuple-rest-differs-from-plain.hd	A14	reject:type-mismatch: same code after renaming as typing/invalid/tuple-rest-assign.hd
 typing/invalid/generic-requirement-key-collision.hd	A14	reject:generic-requirement-key-collision: same code after renaming as typing/invalid/generic-provider-key-collision-nested.hd
 lexical/literals/repeated-numeric-separator.hd	A14	reject:invalid-token: same code after renaming as lexical/literals/double-numeric-separator.hd
