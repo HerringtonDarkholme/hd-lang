@@ -1,0 +1,9 @@
+# @dump: stdout
+# @build: release
+# Release keeps this check of every build (`types.arith.always`,
+# `trait.num.from-i64-checked`, `std-time.duration.non-negative`): it panics
+# with `integer-overflow`.
+fn f(a: i64, b: i64) -> i64: a / b
+
+pub fn main() -> void $ Console:
+    println(f(-9223372036854775807 - 1, -1))

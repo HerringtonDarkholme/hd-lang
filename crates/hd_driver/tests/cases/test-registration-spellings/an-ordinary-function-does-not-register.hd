@@ -1,0 +1,11 @@
+# @dump: tests
+# An ordinary function renamed `check` registers nothing: its call in a
+# `tests:` block is `invalid-test-statement` (`module.testing.reg.identity`).
+use pkg.helpers.note as check
+
+tests:
+    check("adds"):
+        pass
+
+# @file: helpers.hd
+pub fn note(name: string, body: fn!() -> void) -> void: pass

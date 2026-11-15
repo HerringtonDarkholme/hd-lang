@@ -1,0 +1,31 @@
+# @dump: tests
+# Impls declared in a `tests:` block (`names.tests.module-items`): a test
+# build selects them where its checker proved them, at `Collect` too (#270).
+# `greet(Clock)` needs `Show for Clock`, which only the block declares.
+trait Show:
+    fn show(self) -> string
+
+struct Clock:
+    hour: i32
+
+fn greet[T < Show](t: T) -> string:
+    "hi ${t.show()}"
+
+pub fn main() -> void $ Console:
+    println(greet(Clock { hour: 3 }))
+
+tests:
+    use std.testing.assert_equal
+
+    struct Tag:
+        name: string
+
+    impl Show for Tag:
+        fn show(self) -> string: "tag:${self.name}"
+
+    impl Show for Clock:
+        fn show(self) -> string: "clock:${self.hour}"
+
+    it("selects the block's impls"):
+        assert_equal(greet(Tag { name: "a" }), "hi tag:a", reason="a test-only type")
+        assert_equal(greet(Clock { hour: 3 }), "hi clock:3", reason="a library type")

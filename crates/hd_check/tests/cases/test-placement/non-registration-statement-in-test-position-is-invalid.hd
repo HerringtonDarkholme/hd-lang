@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# @build: tests
+# A non-registration statement in test position is `invalid-test-statement`.
+tests:
+    let shared: i32 = 0
+
+    it("counts"):
+        pass

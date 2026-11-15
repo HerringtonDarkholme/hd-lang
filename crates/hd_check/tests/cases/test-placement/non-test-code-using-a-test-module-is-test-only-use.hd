@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @main: src/main.hd
+# Non-test code using a test module (`*_test.hd`) is `test-only-use`.
+use self.helper_test.{helper}
+
+pub fn main() -> void:
+    helper()
+
+# @file: src/helper_test.hd
+pub fn helper() -> void:
+    pass

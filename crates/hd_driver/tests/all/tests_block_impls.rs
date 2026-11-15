@@ -1,8 +1,7 @@
-//! Impls declared in a `tests:` block (`names.tests.module-items`): a test
-//! build selects them where its checker proved them, at `Collect` too
-//! (#270), and the library build, which compiles no test code
-//! (`module.test.code`), never sees them, even from the store a test build
-//! just filled.
+//! Impls declared in a `tests:` block (`names.tests.module-items`): the
+//! library build, which compiles no test code (`module.test.code`), never
+//! sees them, even from the store a test build just filled. The test build's
+//! own checks are stage cases (`tests/cases/tests-block-impls/`).
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -64,15 +63,6 @@ fn tests(store: &hd_cache::MemoryStore) -> Output {
 }
 
 #[test]
-fn a_test_build_collects_the_block_impls() {
-    let out = tests(&crate::warm_store());
-    assert!(out.diags.is_empty(), "{}", out.render());
-    assert_eq!(out.tests.len(), 1);
-    assert_eq!(out.tests[0].unsupported, None);
-    assert!(out.wasm.is_some());
-}
-
-#[test]
 fn the_library_build_does_not_see_the_block_impls() {
     let store = crate::warm_store();
     let test_build = tests(&store);
@@ -91,57 +81,4 @@ fn the_library_build_does_not_see_the_block_impls() {
         .collect();
     assert_eq!(codes, [Code::UnsatisfiedTraitBound], "{}", out.render());
     assert!(out.wasm.is_none());
-}
-
-/// The module and its `tests:` block both implement `Show for Clock`.
-const OVERLAP: &str = "\
-trait Show:
-    fn show(self) -> string
-
-struct Clock:
-    hour: i32
-
-impl Show for Clock:
-    fn show(self) -> string: \"${self.hour}h\"
-
-fn greet[T < Show](t: T) -> string:
-    \"hi ${t.show()}\"
-
-tests:
-    use std.testing.assert_equal
-
-    impl Show for Clock:
-        fn show(self) -> string: \"clock:${self.hour}\"
-
-    it(\"greets the clock\"):
-        assert_equal(greet(Clock { hour: 3 }), \"hi 3h\", reason=\"the module's impl\")
-";
-
-fn overlap_codes(goal: &Goal) -> Vec<Code> {
-    let mut src = MemorySources::default();
-    src.insert("main.hd", OVERLAP);
-    let store = crate::warm_store();
-    let host = Host {
-        render_tir: &[],
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let out = build(&host, "app", goal);
-    out.diags
-        .content_order()
-        .into_iter()
-        .map(|i| out.diags.code[i])
-        .collect()
-}
-
-#[test]
-fn a_block_impl_overlapping_a_module_impl_is_reported_in_the_test_role() {
-    let tests = Goal::Tests {
-        module: None,
-        filter: None,
-    };
-    assert_eq!(overlap_codes(&tests), [Code::OverlappingImpl]);
-    assert_eq!(overlap_codes(&Goal::CheckTests), [Code::OverlappingImpl]);
 }

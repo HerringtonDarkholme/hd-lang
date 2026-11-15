@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @main: src/main.hd
+# `src/main.hd` is the package's entry module: a parameter is
+# `entry-point-parameters` at the name.
+pub fn main(n: i32) -> void:
+    pass
+
+# @file: src/lib.hd
+pub fn one() -> i32:
+    1

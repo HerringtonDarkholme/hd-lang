@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# @main: src/tool.hd
+# Unnamed, `src/tool.hd` is a library module and `main` an ordinary function.
+pub fn main() -> i32:
+    1
+
+# @file: src/lib.hd
+pub fn one() -> i32:
+    1

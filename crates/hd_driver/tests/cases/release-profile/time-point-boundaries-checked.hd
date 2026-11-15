@@ -1,0 +1,15 @@
+# @dump: stdout
+# Time point additions and deadlines up to the boundaries print
+# 9223372036854775807, -1, 9223372036854775807 and -1 in a checked build.
+use std.time.{Clock, Duration, ManualClock, Timestamp}
+
+pub fn main!() -> void $ Console:
+    println((Timestamp::from_unix_milliseconds(9223372036854775806) + Duration::milliseconds(1)).unix_milliseconds())
+    println((Timestamp::from_unix_milliseconds(-9223372036854775807 - 1) + Duration::milliseconds(9223372036854775807)).unix_milliseconds())
+    high := ManualClock::new(Timestamp::from_unix_milliseconds(9223372036854775806))
+    high.sleep!(Duration::milliseconds(1))
+    high.sleep!(Duration::milliseconds(0))
+    println(high.now().unix_milliseconds())
+    low := ManualClock::new(Timestamp::from_unix_milliseconds(-9223372036854775807 - 1))
+    low.sleep!(Duration::milliseconds(9223372036854775807))
+    println(low.now().unix_milliseconds())

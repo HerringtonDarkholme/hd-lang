@@ -1,0 +1,17 @@
+# @dump: tests
+# A registration body that needs a capability the test runner does not bind
+# is `missing-requirement`, once per body (`PropertyRunner`, `Console`).
+use std.testing.{Choices, PropertyRunner, it_each, it_prop, it_prop_with}
+
+tests:
+    it_each("table", [1], body=fn!(value: i32):
+        println(value)
+    )
+
+    it_prop("property", prop=fn!(value: i32):
+        _ := $.use(PropertyRunner)
+    )
+
+    it_prop_with("generated", gen=fn(c: &mut Choices) -> i32: 1, prop=fn!(value: i32):
+        println(value)
+    )

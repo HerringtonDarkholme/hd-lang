@@ -1,7 +1,7 @@
 //! Plain hd stage cases and separate generated baselines.
 //! `HD_BLESS=1` updates only `tests/baselines/`.
 
-use hd_testkit::stages::{Program, node_host, program_wasm, shown_run, stdout};
+use hd_testkit::stages::{Build, Program, node_host, program_wasm, shown_run, stdout};
 use std::time::Duration;
 
 #[test]
@@ -55,8 +55,8 @@ fn the_shared_host_answers_as_a_lone_run_and_keeps_no_state_between_runs() {
         .enumerate()
     {
         let p = Program::new(text).expect("program");
-        let wasm = program_wasm(&p).expect("builds");
-        let shared = stdout(&p);
+        let wasm = program_wasm(&p, Build::default()).expect("builds");
+        let shared = stdout(&p, Build::default());
         assert_eq!(shared, expected, "run {k}");
         assert_eq!(shared, lone_run(&wasm, &k.to_string()), "run {k}");
     }
@@ -68,7 +68,7 @@ fn a_run_that_overruns_fails_alone_and_the_next_gets_a_new_host() {
         Program::new("pub fn main() -> void $ Console:\n    while true:\n        println(\"\")\n")
             .expect("program");
     let failed = node_host::run(
-        &program_wasm(&spin).expect("builds"),
+        &program_wasm(&spin, Build::default()).expect("builds"),
         &[],
         Duration::from_millis(500),
     );
@@ -77,5 +77,8 @@ fn a_run_that_overruns_fails_alone_and_the_next_gets_a_new_host() {
         "{failed:?}"
     );
     let prints = Program::new(PRINTS).expect("program");
-    assert_eq!(stdout(&prints), "exit: 0\n-- stdout\none\n-- stderr\ntwo\n");
+    assert_eq!(
+        stdout(&prints, Build::default()),
+        "exit: 0\n-- stdout\none\n-- stderr\ntwo\n"
+    );
 }

@@ -48,8 +48,15 @@ pub struct Program {
     /// The fuel of each body and header goal of the case's package
     /// (`# @fuel: N`), smaller than `Fuel::BODY_DEFAULT`, so a small case
     /// reaches `item-too-complex` (`fn.limit.complexity.error`) at a chosen
-    /// step. The `tir` view builds with it (`Packages::body_fuel`).
+    /// step. The `tir`, `diagnostics`, `stdout` and `tests` views build with
+    /// it (`Packages::body_fuel`).
     pub fuel: Option<u64>,
+    /// The file that holds the case's own text when it is not `main.hd`
+    /// (`# @main: src/main.hd`), for a case about package layout.
+    pub main: Option<String>,
+    /// The package's executable entry modules, by path below `src/`
+    /// (`# @entry: tool`), as a manifest's `[[bin]]` names them.
+    pub entries: Vec<String>,
     marked: bool,
 }
 
@@ -70,6 +77,8 @@ impl Program {
             hosts: Vec::new(),
             repl: None,
             fuel: None,
+            main: None,
+            entries: Vec::new(),
             marked: span.is_some(),
         })
     }
@@ -87,8 +96,11 @@ impl Program {
     /// The file that holds the case's own text: `main.hd`, or `repl#N`
     /// for REPL input `N`.
     fn main_file(&self) -> String {
-        self.repl
-            .map_or_else(|| "main.hd".to_owned(), hd_project::repl_file)
+        match (&self.repl, &self.main) {
+            (Some(n), _) => hd_project::repl_file(*n),
+            (None, Some(main)) => main.clone(),
+            (None, None) => "main.hd".to_owned(),
+        }
     }
 
     fn sources(&self) -> hd_project::MemorySources {
@@ -115,7 +127,11 @@ impl Program {
 /// earlier inputs each begin at `@input: K`, numbered 1 up, as `@file`
 /// begins a module. The `tir` view checks the joined session; `wat`
 /// builds the inputs in order and shows the final extension module.
-/// `@fuel: N` gives the `tir` view's package `N` steps of fuel per item.
+/// `@fuel: N` gives the package `N` steps of fuel per item in the `tir`,
+/// `diagnostics`, `stdout` and `tests` views. `@main: PATH` names the file
+/// of the case's own text, `main.hd` by default, for a case about package
+/// layout (`src/main.hd`); `@entry: NAME` names an executable entry module
+/// (`src/NAME.hd`), as a manifest does.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -126,6 +142,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut profile = None;
     let mut repl = None;
     let mut fuel = None;
+    let mut main_path = None;
+    let mut entries = Vec::new();
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
@@ -145,7 +163,16 @@ pub fn parse(text: &str) -> Result<Case, String> {
             if !header
                 && matches!(
                     name,
-                    "dump" | "build" | "profile" | "host" | "helpers" | "helper" | "repl" | "fuel"
+                    "dump"
+                        | "build"
+                        | "profile"
+                        | "host"
+                        | "helpers"
+                        | "helper"
+                        | "repl"
+                        | "fuel"
+                        | "main"
+                        | "entry"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -164,6 +191,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                                 | "layout"
                                 | "diagnostics"
                                 | "stdout"
+                                | "tests"
                         ) {
                             return Err(format!("unknown dump `{view}`"));
                         }
@@ -214,15 +242,15 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     current = hd_project::repl_file(next);
                 }
                 "host" => hosts.extend(value.split_whitespace().map(str::to_owned)),
+                "main" => {
+                    if !module_path_ok(value) {
+                        return Err(format!("invalid module path `{value}`"));
+                    }
+                    main_path = Some(value.to_owned());
+                }
+                "entry" => entries.extend(value.split_whitespace().map(str::to_owned)),
                 "file" => {
-                    let path = Path::new(value);
-                    if value.is_empty()
-                        || value.contains('\\')
-                        || path.extension().is_none_or(|e| e != "hd")
-                        || path
-                            .components()
-                            .any(|c| !matches!(c, Component::Normal(_)))
-                    {
+                    if !module_path_ok(value) {
                         return Err(format!("invalid module path `{value}`"));
                     }
                     if declared.iter().any(|n| n == value)
@@ -265,14 +293,51 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.hosts = hosts;
     program.repl = repl;
     program.fuel = fuel;
-    if fuel.is_some() && (repl.is_some() || dumps.iter().any(|d| d != "tir")) {
-        return Err("a `@fuel` case shows only the `tir` view of a package".to_owned());
+    if (main_path.is_some() || !entries.is_empty())
+        && (repl.is_some()
+            || program.profile.is_some()
+            || dumps
+                .iter()
+                .any(|d| !matches!(d.as_str(), "diagnostics" | "stdout" | "tests")))
+    {
+        return Err(
+            "an `@main` or `@entry` case shows only the `diagnostics`, `stdout` and `tests` views, with no profile or REPL"
+                .to_owned(),
+        );
+    }
+    if main_path
+        .as_ref()
+        .is_some_and(|main| program.files.iter().any(|(name, _)| name == main))
+    {
+        return Err("`@main` names a module the case also declares with `@file`".to_owned());
+    }
+    program.main = main_path;
+    program.entries = entries;
+    if fuel.is_some()
+        && (repl.is_some()
+            || dumps
+                .iter()
+                .any(|d| !matches!(d.as_str(), "tir" | "diagnostics" | "stdout" | "tests")))
+    {
+        return Err(
+            "a `@fuel` case shows only the `tir`, `diagnostics`, `stdout` and `tests` views of a package"
+                .to_owned(),
+        );
     }
     Ok(Case {
         program,
         dumps,
         build,
     })
+}
+
+/// Whether `value` is a relative `.hd` path inside the case's package.
+fn module_path_ok(value: &str) -> bool {
+    let path = Path::new(value);
+    !value.is_empty()
+        && !value.contains('\\')
+        && path.extension().is_some_and(|e| e == "hd")
+        && path.components().all(|c| matches!(c, Component::Normal(_)))
 }
 
 /// A view's output, either a flat marked excerpt or rows attributed to
@@ -571,10 +636,32 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
+/// The packages of a `diagnostics`, `stdout` or `tests` build of `p` as
+/// `build`: the case's `@fuel`, `@profile` and `@entry`, and `@build`'s level (`release` runs the
+/// optimized pipeline, and a program gets the release profile), engine
+/// target and checked runtime.
+fn packages(p: &Program, build: Build) -> hd_driver::Packages<'static> {
+    let mut packages = hd_driver::Packages {
+        body_fuel: p.fuel,
+        profile: p.profile.clone(),
+        entries: p.entries.clone(),
+        checked: build.checked,
+        target: build.target,
+        ..hd_driver::Packages::default()
+    };
+    if build.release {
+        packages.level = hd_driver::OptLevel::Optimized;
+        packages.build_profile = hd_driver::BuildProfile::Release;
+    }
+    packages
+}
+
 /// The diagnostics view: every diagnostic of the case's `Analyze` build,
-/// as `severity: file:line:column: code: message`, in source order.
+/// as `severity: file:line:column: code: message`, in source order. With
+/// `@build: tests` it checks the `tests:` blocks too (`Goal::CheckTests`,
+/// as `hd check --tests` does).
 #[must_use]
-pub fn diagnostics(p: &Program) -> String {
+pub fn diagnostics(p: &Program, build: Build) -> String {
     let src = p.sources();
     let host = Host {
         render_tir: &[],
@@ -583,21 +670,112 @@ pub fn diagnostics(p: &Program) -> String {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let packages = hd_driver::Packages {
-        body_fuel: p.fuel,
-        ..hd_driver::Packages::default()
+    let packages = packages(p, build);
+    let goal = if build.tests {
+        Goal::CheckTests
+    } else {
+        Goal::Analyze
     };
-    hd_driver::build_packages(&host, "app", &packages, &Goal::Analyze).render_located()
+    hd_driver::build_packages(&host, "app", &packages, &goal).render_located()
 }
 
-/// The stdout view: the program built from `main` on the dev pipeline and
-/// run on the default host, as its exit status, standard output and
+/// The tests view: the `tests:` blocks built as `hd test` builds them
+/// (`Goal::Tests`), as the build's diagnostics, then the test plan, one
+/// case per line (`kind "name" file:line`, with its `ignore`, expected
+/// panic or reason it cannot run), then, when the build has no errors,
+/// each result record of the runnable cases from the shared Node host
+/// ([`node_host::run_tests`]), after its case's name.
+#[must_use]
+pub fn tests(p: &Program, at: Build) -> String {
+    let src = p.sources();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: shared_store(),
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = packages(p, at);
+    let goal = Goal::Tests {
+        module: None,
+        filter: None,
+    };
+    let built = hd_driver::build_packages(&host, "app", &packages, &goal);
+    let mut out = built.render_located();
+    let _ = writeln!(out, "-- plan");
+    for case in &built.tests {
+        let _ = write!(
+            out,
+            "{} {:?} {}:{}",
+            case.kind, case.name, case.file, case.line
+        );
+        for (label, value) in [
+            ("ignore", &case.ignore),
+            ("expect panic", &case.expect_panic),
+            ("cannot run", &case.unsupported),
+        ] {
+            if let Some(value) = value {
+                let _ = write!(out, "; {label}: {value}");
+            }
+        }
+        out.push('\n');
+    }
+    let runs: Vec<_> = built
+        .tests
+        .iter()
+        .filter(|case| case.ignore.is_none())
+        .filter_map(|case| case.run.map(|run| (case, run)))
+        .collect();
+    if built.diags.has_errors() || runs.is_empty() {
+        return out;
+    }
+    let Some(wasm) = &built.wasm else {
+        out.push_str("-- no program\n");
+        return out;
+    };
+    let list: Vec<String> = runs
+        .iter()
+        .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
+        .collect();
+    let _ = writeln!(out, "-- results");
+    match node_host::run_tests(wasm, &list.join(","), RUN_LIMIT) {
+        Ok(ran) if ran.exit == 0 => {
+            for line in String::from_utf8_lossy(&ran.stdout).lines() {
+                // `{"test":N,...}`: the case's export index, then the rest.
+                let parsed = line.strip_prefix("{\"test\":").and_then(|rest| {
+                    let (index, rest) = rest.split_once(',')?;
+                    Some((index.parse::<u32>().ok()?, rest))
+                });
+                match parsed.and_then(|(index, rest)| {
+                    runs.iter()
+                        .find(|(_, (test, _))| *test == index)
+                        .map(|(case, _)| (case, rest))
+                }) {
+                    Some((case, rest)) => {
+                        let _ = writeln!(out, "{}: {{{rest}", case.name);
+                    }
+                    None => {
+                        let _ = writeln!(out, "{line}");
+                    }
+                }
+            }
+        }
+        Ok(ran) => out.push_str(&shown_run(&ran.exit.to_string(), &ran.stdout, &ran.stderr)),
+        Err(error) => {
+            let _ = writeln!(out, "host failed: {error}");
+        }
+    }
+    out
+}
+
+/// The stdout view: the program built from `main` on the dev pipeline (or
+/// as `@build` says) and run on the default host, as its exit status, standard output and
 /// standard error; or its diagnostics when it does not build. Every run of
 /// the test process goes to one long-lived Node host ([`node_host`]),
 /// which reports what a lone `node host/run.ts` run of the program would.
 #[must_use]
-pub fn stdout(p: &Program) -> String {
-    let wasm = match program_wasm(p) {
+pub fn stdout(p: &Program, build: Build) -> String {
+    let wasm = match program_wasm(p, build) {
         Ok(wasm) => wasm,
         Err(failed) => return failed,
     };
@@ -611,12 +789,12 @@ pub fn stdout(p: &Program) -> String {
 /// stage program runs in milliseconds; one that overruns fails alone.
 const RUN_LIMIT: std::time::Duration = std::time::Duration::from_mins(1);
 
-/// The program of `p` built from `main` on the dev pipeline, or the
-/// `stdout` view's text for a build that fails.
+/// The program of `p` built from `main` as `build` says (the dev pipeline
+/// by default), or the `stdout` view's text for a build that fails.
 ///
 /// # Errors
 /// The build reports diagnostics or writes no Wasm.
-pub fn program_wasm(p: &Program) -> Result<Vec<u8>, String> {
+pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
     let src = p.sources();
     let host = Host {
         render_tir: &[],
@@ -625,9 +803,10 @@ pub fn program_wasm(p: &Program) -> Result<Vec<u8>, String> {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let built = hd_driver::build(
+    let built = hd_driver::build_packages(
         &host,
         "app",
+        &packages(p, at),
         &Goal::Program {
             entry: "main".into(),
         },
@@ -668,8 +847,9 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
         "tir" => tir(p),
         "own" => own::view(p, build),
         "wat" => wat_for(p, build),
-        "diagnostics" => diagnostics(p),
-        "stdout" => stdout(p),
+        "diagnostics" => diagnostics(p, build),
+        "stdout" => stdout(p, build),
+        "tests" => tests(p, build),
         _ => return None,
     })
 }
@@ -692,6 +872,8 @@ pub struct Build {
     pub checked: bool,
     /// Link a complete program, runtime helpers included.
     pub program: bool,
+    /// The `diagnostics` view checks the `tests:` blocks too.
+    pub tests: bool,
 }
 
 impl Build {
@@ -724,6 +906,7 @@ impl Build {
                 "std" => build.std = true,
                 "program" => build.program = true,
                 "checked" => build.checked = true,
+                "tests" => build.tests = true,
                 _ => return None,
             }
         }

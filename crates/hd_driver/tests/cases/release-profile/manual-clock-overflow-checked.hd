@@ -1,0 +1,8 @@
+# @dump: stdout
+# A manual clock sleep past the last time point panics with
+# `integer-overflow` in a checked build.
+use std.time.{Clock, Duration, ManualClock, Timestamp}
+
+pub fn main!() -> void:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(1))
+    clock.sleep!(Duration::milliseconds(9223372036854775807))

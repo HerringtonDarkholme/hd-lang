@@ -1,0 +1,12 @@
+# @dump: stdout
+# @build: release
+# Release keeps this check of every build (`types.arith.always`,
+# `trait.num.from-i64-checked`, `std-time.duration.non-negative`): it panics
+# with `integer-overflow`.
+use std.num.Num
+
+fn f[N < Num](n: i64) -> N:
+    N::from_i64(n)
+
+pub fn main() -> void $ Console:
+    println(f::[i8](300))

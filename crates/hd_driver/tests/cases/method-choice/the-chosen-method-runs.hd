@@ -1,0 +1,65 @@
+# @dump: tests
+# Method choice among several traits (spec 03 "Method Lookup", spec 09
+# "Inherent Methods Win"): an inherent method wins, a trait-qualified call
+# or a bound picks its trait, and a trait that is not available is not a
+# candidate. Every case passes.
+use std.testing.assert_equal
+use pkg.shelf.{Item}
+
+trait Left:
+    fn label(self) -> i32
+
+trait Right:
+    fn label(self) -> i32
+
+struct User:
+    value: i32
+
+impl Left for User:
+    fn label(self) -> i32: self.value
+
+impl Right for User:
+    fn label(self) -> i32: self.value + 100
+
+struct Gauge:
+    reading: i32
+
+impl Gauge:
+    fn label(self) -> i32: self.reading
+
+impl Left for Gauge:
+    fn label(self) -> i32: 1
+
+impl Right for Gauge:
+    fn label(self) -> i32: 2
+
+trait Mine:
+    fn tag(self) -> i32
+
+impl Mine for Item:
+    fn tag(self) -> i32: 40
+
+fn through[T < Right](x: T) -> i32:
+    x.label()
+
+tests:
+    it("an inherent method wins"):
+        assert_equal(Gauge { reading: 9 }.label(), 9, reason="inherent")
+    it("a qualified call picks its trait"):
+        user := User { value: 5 }
+        assert_equal(Left::label(user), 5, reason="Left")
+        assert_equal(Right::label(user), 105, reason="Right")
+    it("a bound picks its trait"):
+        assert_equal(through(User { value: 5 }), 105, reason="bound Right")
+    it("an unavailable trait is skipped"):
+        assert_equal(Item { value: 2 }.tag(), 40, reason="Mine, not Tagged")
+
+# @file: shelf.hd
+pub trait Tagged:
+    fn tag(self) -> i32
+
+pub struct Item:
+    pub value: i32
+
+impl Tagged for Item:
+    fn tag(self) -> i32: self.value

@@ -1,0 +1,14 @@
+# @dump: tests
+# The prelude's `it` outside test position is `misplaced-test-case` once per
+# use (three here), never `unknown-name`.
+tests:
+    fn helper() -> void:
+        it("in a helper"):
+            pass
+
+    fn register() -> void:
+        make := it
+
+    it("outer"):
+        it("inner"):
+            pass

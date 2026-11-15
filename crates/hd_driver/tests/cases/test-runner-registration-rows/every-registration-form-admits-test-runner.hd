@@ -1,0 +1,27 @@
+# @dump: tests
+# The body of every registration form may use `TestRunner`, as a plain `it`
+# body does (`module.testing.unit-row.test-runner`): no diagnostics.
+use std.testing.{Choices, TestRunner, it_each, it_prop, it_prop_with}
+use std.time.s
+
+fn pick(regions: List[string]) -> string $ TestRunner:
+    regions[$.use(TestRunner).row(regions.len())]
+
+fn small(choices: &mut Choices) -> i32:
+    choices.int(1..=10)
+
+tests:
+    it("timed", timeout=1s):
+        _ := pick(["a", "b"])
+
+    it_each("table", [1, 2], body=fn!(attempt: i32):
+        _ := pick(["a", "b"])
+    )
+
+    it_prop("property", prop=fn!(quantity: i32):
+        _ := pick(["a", "b"])
+    )
+
+    it_prop_with("generated", gen=small, prop=fn!(quantity: i32):
+        _ := pick(["a", "b"])
+    )

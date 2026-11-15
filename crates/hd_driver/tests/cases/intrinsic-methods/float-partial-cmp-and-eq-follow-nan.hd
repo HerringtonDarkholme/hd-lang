@@ -1,0 +1,31 @@
+# @dump: tests
+# Float `partial_cmp` and `==` follow NaN (`expr.eq.std.intrinsic`): NaN is
+# unordered and unequal. Every case passes.
+use std.testing.assert_equal
+
+fn partial[T < PartialOrd](a: T, b: T) -> i32:
+    match a.partial_cmp(&b):
+        .Some(.Less) => -1
+        .Some(.Equal) => 0
+        .Some(.Greater) => 1
+        .None => 9
+
+fn less[T < PartialOrd](a: T, b: T) -> bool:
+    a < b
+
+fn same[T < Eq](a: T, b: T) -> bool:
+    a == b
+
+tests:
+    it("ordered"):
+        assert_equal(partial(1.5, 0.5), 1, reason="value")
+        assert_equal(partial(1.5, 1.5), 0, reason="value")
+        assert_equal(partial(-1.5, 1.5), -1, reason="value")
+        assert_equal(same(0.0, -0.0), true, reason="value")
+    it("NaN is unordered and unequal"):
+        nan := 0.0 / 0.0
+        assert_equal(partial(nan, 1.0), 9, reason="value")
+        assert_equal(partial(1.0, nan), 9, reason="value")
+        assert_equal(partial(nan, nan), 9, reason="value")
+        assert_equal(less(nan, 1.0), false, reason="value")
+        assert_equal(same(nan, nan), false, reason="value")

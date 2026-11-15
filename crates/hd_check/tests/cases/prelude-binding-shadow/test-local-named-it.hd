@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# @build: tests
+# A test local named `it` shadows the prelude: one `prelude-name-shadow`.
+tests:
+    it("x"):
+        it := +1
+        _ := it

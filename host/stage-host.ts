@@ -7,7 +7,12 @@
 // `{"wasmLen","args"}`, then the Wasm bytes. The answer is a 4-byte
 // big-endian header length, the header JSON
 // `{"exit","stdoutLen","stderrLen"}`, then the standard output and error
-// bytes.
+// bytes. A header with `tests`, the `hd test` case list
+// `test:init:kind,...`, runs those cases of a test program as `test.ts`
+// does (`test-run.ts`, a fresh worker thread per program); its standard
+// output is their result records, one JSON object per line, without the
+// fields that change from run to run (`us`, the time, and `frames`, the
+// Wasm offsets of a trap).
 //
 // Each run is `run.ts`'s lone run without a configuration (`runHere`): a
 // new compile, host, instance and memory, closed standard input, no grants,
@@ -19,6 +24,7 @@
 // this process, leaves the request unanswered; the driver restarts the
 // process and fails that run alone.
 import { runHere } from "./run-here.ts";
+import { configOf, prestart, supervise } from "./test-run.ts";
 import { Ok } from "./wire.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
@@ -30,7 +36,7 @@ const OUT = 1;
 
 // Reads exactly `count` bytes of standard input, or null at its end before any
 // byte. A request cut short is the driver's bug.
-function readExact(count: number): Buffer | null {
+function readExact(count: number): Buffer<ArrayBuffer> | null {
   const out = Buffer.alloc(count);
   let at = 0;
   while (at < count) {
@@ -52,7 +58,7 @@ function writeAll(bytes: Uint8Array): void {
   }
 }
 
-async function runOne(wasm: Buffer, args: string[]): Promise<[number, string, string]> {
+async function runOne(wasm: Buffer<ArrayBuffer>, args: string[]): Promise<[number, string, string]> {
   let stdout = "";
   let stderr = "";
   const sink = {
@@ -82,6 +88,26 @@ async function runOne(wasm: Buffer, args: string[]): Promise<[number, string, st
   return [status & 0xff, stdout, stderr];
 }
 
+async function runTests(wasm: Buffer<ArrayBuffer>, tests: string): Promise<[number, string, string]> {
+  let records = "";
+  try {
+    const module = await WebAssembly.compile(wasm);
+    await supervise(module, configOf(tests), (text) => {
+      records += text;
+    });
+  } catch (error) {
+    return [1, "", `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`];
+  }
+  const stable = records
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => {
+      const { us: _us, frames: _frames, ...record } = JSON.parse(line);
+      return `${JSON.stringify(record)}\n`;
+    });
+  return [0, stable.join(""), ""];
+}
+
 for (;;) {
   const length = readExact(4);
   if (length === null) {
@@ -89,7 +115,15 @@ for (;;) {
   }
   const header: Dynamic = JSON.parse(readExact(length.readUInt32BE(0))!.toString("utf8"));
   const wasm = readExact(header.wasmLen) ?? Buffer.alloc(0);
-  const [exit, stdout, stderr] = await runOne(wasm, header.args ?? []);
+  const [exit, stdout, stderr] =
+    typeof header.tests === "string"
+      ? await runTests(wasm, header.tests)
+      : await runOne(wasm, header.args ?? []);
+  // After a test program, the next one's worker thread loads while the
+  // driver builds it.
+  if (typeof header.tests === "string") {
+    prestart();
+  }
   const out = Buffer.from(stdout, "utf8");
   const err = Buffer.from(stderr, "utf8");
   const answer = Buffer.from(

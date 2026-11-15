@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @profile: tick
+# `Console` is in the runtime profile: no error.
+pub fn main() -> void $ Console:
+    pass

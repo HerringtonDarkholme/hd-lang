@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# @profile: tick
+# A host trait the runtime profile leaves out (`Clock`; the profile holds
+# `Console` and `Tick`) is `nonhost-entry-requirement` at its key.
+use std.time.Clock
+
+pub fn main() -> void $ Console + Clock:
+    pass

@@ -61,13 +61,33 @@ pub fn starts() -> (usize, usize) {
 /// # Errors
 /// The host could not start, crashed, or overran `limit`.
 pub fn run(wasm: &[u8], args: &[&str], limit: Duration) -> Result<Ran, String> {
+    request(wasm, args, None, limit)
+}
+
+/// Runs the cases `tests` (`test:init:kind,...`, as `hd test` lists them)
+/// of the test program `wasm` on the shared host, as `host/test.ts` does.
+/// Its standard output is one result record per line, without the time
+/// and trap offsets that change from run to run.
+///
+/// # Errors
+/// As [`run`].
+pub fn run_tests(wasm: &[u8], tests: &str, limit: Duration) -> Result<Ran, String> {
+    request(wasm, &[], Some(tests), limit)
+}
+
+fn request(
+    wasm: &[u8],
+    args: &[&str],
+    tests: Option<&str>,
+    limit: Duration,
+) -> Result<Ran, String> {
     let mut slot = HOST.lock().unwrap_or_else(PoisonError::into_inner);
     if slot.is_none() {
         *slot = Some(start().map_err(|e| format!("node host did not start: {e}"))?);
         STARTS.fetch_add(1, Ordering::SeqCst);
     }
     let process = slot.as_mut().expect("started host");
-    let answer = send(&mut process.stdin, wasm, args)
+    let answer = send(&mut process.stdin, wasm, args, tests)
         .map_err(|e| format!("node host took no request: {e}"))
         .and_then(|()| match process.answers.recv_timeout(limit) {
             Ok(Ok(ran)) => Ok(ran),
@@ -123,9 +143,14 @@ fn start() -> std::io::Result<Process> {
     })
 }
 
-/// Writes one request frame: the header length, `{"wasmLen","args"}`, the
-/// Wasm bytes.
-fn send(stdin: &mut ChildStdin, wasm: &[u8], args: &[&str]) -> std::io::Result<()> {
+/// Writes one request frame: the header length, `{"wasmLen","args"}` and
+/// `tests` when given, the Wasm bytes.
+fn send(
+    stdin: &mut ChildStdin,
+    wasm: &[u8],
+    args: &[&str],
+    tests: Option<&str>,
+) -> std::io::Result<()> {
     let mut header = format!("{{\"wasmLen\":{},\"args\":[", wasm.len());
     for (k, arg) in args.iter().enumerate() {
         if k > 0 {
@@ -133,7 +158,12 @@ fn send(stdin: &mut ChildStdin, wasm: &[u8], args: &[&str]) -> std::io::Result<(
         }
         json_string(arg, &mut header);
     }
-    header.push_str("]}");
+    header.push(']');
+    if let Some(tests) = tests {
+        header.push_str(",\"tests\":");
+        json_string(tests, &mut header);
+    }
+    header.push('}');
     let len = u32::try_from(header.len()).map_err(std::io::Error::other)?;
     stdin.write_all(&len.to_be_bytes())?;
     stdin.write_all(header.as_bytes())?;

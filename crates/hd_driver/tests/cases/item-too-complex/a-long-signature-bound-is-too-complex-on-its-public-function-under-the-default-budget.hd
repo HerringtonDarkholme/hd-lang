@@ -1,0 +1,19 @@
+# @dump: stdout
+# The default budget checks the same program cleanly.
+pub trait Marker
+
+pub struct Box[T]:
+    value: T
+
+impl Marker for i32
+
+impl[T < Marker] Marker for Box[T]
+
+pub struct Need[T < Marker]:
+    value: T
+
+pub fn deep(value: Need[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[i32]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]) -> void:
+    pass
+
+pub fn main() -> void:
+    pass

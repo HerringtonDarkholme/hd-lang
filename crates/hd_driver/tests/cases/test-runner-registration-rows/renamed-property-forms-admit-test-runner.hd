@@ -1,0 +1,12 @@
+# @dump: tests
+# Renamed property forms admit `TestRunner` too: no diagnostics.
+use std.testing.{Choices, TestRunner, it_prop as property, it_prop_with as generated}
+
+tests:
+    property("renamed property", prop=fn!(quantity: i32):
+        _ := $.use(TestRunner).row(1)
+    )
+
+    generated("renamed generated", gen=fn(c: &mut Choices) -> i32: 1, prop=fn!(quantity: i32):
+        _ := $.use(TestRunner).row(1)
+    )

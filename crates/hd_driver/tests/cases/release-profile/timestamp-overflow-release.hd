@@ -1,0 +1,8 @@
+# @dump: stdout
+# @build: release
+# A time point addition past the last time point panics with
+# `integer-overflow`, in a release build too, where ordinary addition wraps.
+use std.time.{Duration, Timestamp}
+
+pub fn main() -> void $ Console:
+    println((Timestamp::from_unix_milliseconds(9223372036854775807) + Duration::milliseconds(1)).unix_milliseconds())

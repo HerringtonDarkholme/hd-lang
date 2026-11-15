@@ -1,0 +1,33 @@
+# @dump: tests
+# A shallower own member hides a promoted one; the part's stays reachable
+# through its path. The case passes.
+use std.testing.assert_equal
+
+struct Gauge:
+    Clock
+    pub ticks: i32
+
+struct Clock:
+    pub ticks: i32
+    pub label: i32
+
+impl Clock:
+    pub fn read(self) -> i32:
+        self.ticks
+
+    pub fn advance(&mut self, by: i32) -> void:
+        self.ticks = self.ticks + by
+
+struct Device:
+    Clock
+    id: i32
+
+struct Rack:
+    Device
+    slot: i32
+
+tests:
+    it("the own field wins"):
+        gauge := Gauge { Clock: Clock { ticks: 1, label: 0 }, ticks: 8 }
+        assert_equal(gauge.ticks, 8, reason="own pub field hides the part's")
+        assert_equal(gauge.Clock.ticks, 1, reason="the part through its path")

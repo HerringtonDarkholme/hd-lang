@@ -1,0 +1,16 @@
+# @dump: stdout
+# The default budget checks the same program cleanly.
+trait Read:
+    fn read(&self) -> i32
+
+struct Part:
+    value: i32
+
+impl Read for Part:
+    fn read(&self) -> i32: self.value
+
+@derive(Read)
+type Whole(Part)
+
+pub fn main() -> void:
+    pass

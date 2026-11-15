@@ -1,0 +1,18 @@
+# @dump: stdout
+# @fuel: 0
+# Newtype derivation analysis that runs out of fuel reports
+# `item-too-complex` only.
+trait Read:
+    fn read(&self) -> i32
+
+struct Part:
+    value: i32
+
+impl Read for Part:
+    fn read(&self) -> i32: self.value
+
+@derive(Read)
+type Whole(Part)
+
+pub fn main() -> void:
+    pass

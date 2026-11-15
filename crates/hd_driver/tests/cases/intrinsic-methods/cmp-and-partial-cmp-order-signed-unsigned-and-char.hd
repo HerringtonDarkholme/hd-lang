@@ -1,0 +1,35 @@
+# @dump: tests
+# `cmp` and `partial_cmp` order signed, unsigned and `char` values
+# (`expr.ord.std.intrinsic`). Every case passes.
+use std.testing.assert_equal
+
+fn order[T < Ord](a: T, b: T) -> i32:
+    match a.cmp(&b):
+        .Less => -1
+        .Equal => 0
+        .Greater => 1
+
+fn partial[T < PartialOrd](a: T, b: T) -> i32:
+    match a.partial_cmp(&b):
+        .Some(.Less) => -1
+        .Some(.Equal) => 0
+        .Some(.Greater) => 1
+        .None => 9
+
+fn less[T < PartialOrd](a: T, b: T) -> bool:
+    a < b
+
+tests:
+    it("signed"):
+        assert_equal(order(+3, +4), -1, reason="value")
+        assert_equal(order(+4, +4), 0, reason="value")
+        assert_equal(order(+5, -4), 1, reason="value")
+        assert_equal(partial(i64(-5), i64(4)), -1, reason="value")
+        assert_equal(less(-5, +4), true, reason="value")
+    it("unsigned"):
+        assert_equal(order(u32(4000000000), u32(1)), 1, reason="value")
+        assert_equal(order(u64(1), u64(18000000000000000000)), -1, reason="value")
+        assert_equal(partial(u8(200), u8(100)), 1, reason="value")
+        assert_equal(less(u32(1), u32(4000000000)), true, reason="value")
+    it("char"):
+        assert_equal(order('a', 'b'), -1, reason="value")

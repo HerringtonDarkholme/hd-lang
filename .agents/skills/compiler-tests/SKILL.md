@@ -32,8 +32,8 @@ Design record: issues #657 and #675,
 | `crates/<crate>/tests/baselines/<topic>/<name>.<view>` | its generated output, one file per view |
 
 The crate is the stage whose view the case uses: `hd_syntax` (tokens,
-tree), `hd_check` (tir), `hd_wasm` (wat), `hd_driver` (own,
-counts, layout). The harness is `crates/hd_testkit/src/stages.rs`; every crate
+tree), `hd_check` (tir, diagnostics), `hd_wasm` (wat), `hd_driver` (own,
+counts, layout, stdout, tests). The harness is `crates/hd_testkit/src/stages.rs`; every crate
 runs its cases with `cargo test -p <crate> --test stages` (`hd_syntax`:
 `cargo test -p hd_syntax --test all stages::`). Cases are discovered
 recursively; no generated output belongs in a source case. A baseline
@@ -71,6 +71,15 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
   - `# @repl: N` makes the case REPL input `N`; each `# @input: K` after
     its code starts earlier input `K` (1 up). The `tir` and `wat` views
     inspect input `N` after the earlier inputs are built.
+  - `# @fuel: N` gives each item of the package `N` steps of fuel, so a
+    small case reaches `item-too-complex` (`tir`, `diagnostics`, `stdout`,
+    `tests`).
+  - `# @main: src/main.hd` puts the case's own text in that file, and
+    `# @entry: tool` names an executable entry module, for a package
+    layout case (`diagnostics`, `stdout`, `tests`).
+  - For `diagnostics`, `stdout` and `tests`, `@build: release` builds as
+    `--release` does, `checked` links the checked runtime, and `tests`
+    makes `diagnostics` check the `tests:` blocks (`hd check --tests`).
 - **The subject** (optional): a caret line `#^^^` under the code it marks,
   or a `# subject` line before a statement (it covers the lines indented
   deeper after it). Without a marker the whole file is dumped, each source
@@ -93,6 +102,9 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 | `wat` | the Wasm instructions that came from the subject: calls by name (`rt:retain_known`, `identity[i32]`, `println`), locals by source name or field path (`bodies`, `b.vx`), temporaries `t0`, `t1`... |
 | `counts` | only the retains, releases, frees and uniqueness checks inside the subject, with what they count and why (`last use`, `conservative: copy read`) |
 | `layout` | a type's fields, offsets, sizes, counted parts and cycle-capable bit |
+| `diagnostics` | every diagnostic of the case's check, `severity: file:line:column: code: message` |
+| `stdout` | the program built from `main` and run on the shared Node host: its exit status, standard output and standard error, or its build's diagnostics |
+| `tests` | the `tests:` blocks built as `hd test` builds them: diagnostics, the test plan, and each runnable case's result record from the shared Node host |
 
 Pick the narrowest view for the topic: `counts` for reference counting,
 `layout` for representation, `wat` only when the instructions themselves

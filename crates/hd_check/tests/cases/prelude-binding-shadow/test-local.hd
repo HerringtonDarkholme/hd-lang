@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# @build: tests
+# A test local must not take a prelude name (`module.prelude.no-shadow`):
+# one `prelude-name-shadow` at the name, and no error after it.
+tests:
+    it("x"):
+        let Result = +1
+        _ := Result

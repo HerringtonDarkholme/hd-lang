@@ -1,0 +1,20 @@
+# @dump: tests
+# The intrinsic `add` method overflows as `+` does: all four cases panic
+# with the same report.
+use std.ops.Add
+
+fn plus[T < Add[Out = T]](a: T, b: T) -> T:
+    a + b
+
+tests:
+    it("operator"):
+        let largest: i32 = 2147483647
+        _ := largest + 1
+    it("method at i32"):
+        let largest: i32 = 2147483647
+        _ := plus(largest, 1)
+    it("method at i64"):
+        let largest: i64 = 9223372036854775807
+        _ := plus(largest, 1)
+    it("method at i8, called directly"):
+        _ := Add::[i8]::add(i8(127), i8(1))

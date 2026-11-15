@@ -1,0 +1,8 @@
+# @dump: tests
+# A test build validates the entry point too: `entry-point-parameters`.
+pub fn main(n: i32) -> void:
+    pass
+
+tests:
+    it("runs"):
+        pass

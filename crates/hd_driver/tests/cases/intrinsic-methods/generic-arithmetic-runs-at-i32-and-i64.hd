@@ -1,0 +1,37 @@
+# @dump: tests
+# Generic arithmetic through the number types' std operator traits
+# (`expr.op.std.intrinsic-method`) computes what the operator computes. Every
+# case passes.
+use std.ops.{Add, Sub, Mul, Div, Rem, Neg, BitAnd, BitXor, Not, Shl, Shr}
+use std.testing.assert_equal
+
+fn twice[T < Add[Out = T]](x: T) -> T:
+    x + x
+
+fn mixed[T < Sub[Out = T] & Mul[Out = T] & Div[Out = T] & Rem[Out = T]](a: T, b: T) -> T:
+    (a - b) * b / b % (a - b)
+
+fn negate[T < Neg[Out = T]](x: T) -> T:
+    -x
+
+fn bits[T < BitAnd[Out = T] & BitXor[Out = T] & Not[Out = T]](a: T, b: T) -> T:
+    ~(a & b) ^ b
+
+fn round_trip[T < Shl[u8, Out = T] & Shr[u8, Out = T]](x: T, n: u8) -> T:
+    (x << n) >> n
+
+tests:
+    it("i32"):
+        assert_equal(twice(+5), +10, reason="value")
+        assert_equal(mixed(+17, +5), +0, reason="value")
+        assert_equal(negate(+7), -7, reason="value")
+        assert_equal(bits(+12, +10), -3, reason="value")
+        assert_equal(round_trip(-8, 2), -8, reason="value")
+    it("i64"):
+        big := i64(4000000000)
+        assert_equal(twice(big), i64(8000000000), reason="value")
+        assert_equal(mixed(i64(17), i64(5)), i64(0), reason="value")
+        assert_equal(negate(big), i64(-4000000000), reason="value")
+        assert_equal(round_trip(i64(-8), 2), i64(-8), reason="value")
+    it("unsigned shifts drop the high bits"):
+        assert_equal(round_trip(u32(4026531840), 4), u32(0), reason="value")

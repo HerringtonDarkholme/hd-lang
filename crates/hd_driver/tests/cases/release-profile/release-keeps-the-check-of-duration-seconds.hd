@@ -1,0 +1,9 @@
+# @dump: stdout
+# @build: release
+# Release keeps this check of every build (`types.arith.always`,
+# `trait.num.from-i64-checked`, `std-time.duration.non-negative`): it panics
+# with `integer-overflow`.
+use std.time.Duration
+
+pub fn main() -> void $ Console:
+    println(Duration::seconds(9223372036854776).as_milliseconds())

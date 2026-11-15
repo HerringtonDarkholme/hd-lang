@@ -1,0 +1,44 @@
+# @dump: stdout
+# The same program as `release-arithmetic-wraps-at-every-width`, built
+# checked: the first overflow panics with `integer-overflow`.
+fn add8(a: i8, b: i8) -> i8: a + b
+fn sub8u(a: u8, b: u8) -> u8: a - b
+fn mul16(a: i16, b: i16) -> i16: a * b
+fn add16u(a: u16, b: u16) -> u16: a + b
+fn neg32(a: i32) -> i32: -a
+fn mul32u(a: u32, b: u32) -> u32: a * b
+fn add64(a: i64, b: i64) -> i64: a + b
+fn sub64u(a: u64, b: u64) -> u64: a - b
+fn mul64(a: i64, b: i64) -> i64: a * b
+fn neg64(a: i64) -> i64: -a
+fn sizes(a: usize, b: usize) -> usize: a - b
+fn pow8(a: i8, e: u32) -> i8: a ** e
+fn pow32(a: i32, e: u32) -> i32: a ** e
+fn pow64u(a: u64, e: u32) -> u64: a ** e
+fn shl8(a: u8, n: u32) -> u8: a << n
+fn shr16(a: i16, n: u32) -> i16: a >> n
+fn shl32(a: i32, n: u64) -> i32: a << n
+fn shl64(a: i64, n: u8) -> i64: a << n
+fn rem32(a: i32, b: i32) -> i32: a % b
+
+pub fn main() -> void $ Console:
+    println(add8(127, 1))
+    println(sub8u(0, 1))
+    println(mul16(300, 300))
+    println(add16u(65535, 2))
+    println(neg32(-2147483648))
+    println(mul32u(65536, 65537))
+    println(add64(9223372036854775807, 1))
+    println(sub64u(0, 1))
+    println(mul64(4294967296, 4294967297))
+    println(neg64(-9223372036854775807 - 1))
+    println(sizes(0, 1))
+    println(pow8(3, 5))
+    println(pow32(3, 40))
+    println(pow64u(3, 50))
+    println(pow32(2, 10))
+    println(shl8(1, 9))
+    println(shr16(-256, 17))
+    println(shl32(1, 33))
+    println(shl64(1, 65))
+    println(rem32(-2147483648, -1))

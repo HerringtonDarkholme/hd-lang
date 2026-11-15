@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @build: tests
+# @main: src/lib.hd
+# A test module is no entry module: its `main` owes nothing.
+pub fn one() -> i32:
+    1
+
+# @file: src/lib_test.hd
+pub fn main(n: i32) -> i32:
+    n
