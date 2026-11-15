@@ -7352,7 +7352,14 @@ lang/references/pointer-loans/adversarial/pointer-loan-extra-dependent-result-al
 lang/references/pointer-loans/adversarial/pointer-loan-extra-other-task-field-write-panics.hd	runtime	panic:borrow-conflict	std/time.md#r-std-time.helper.sleep
 lang/references/pointer-loans/adversarial/pointer-loan-extra-abandoned-task-ends-its-loans.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 lang/references/pointer-loans/adversarial/pointer-loan-extra-hidden-alias-in-another-object-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
-lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-argument-read-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-shared-argument-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-shared-argument-reads.hd	runtime	accept	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-two-shared-arguments.hd	runtime	accept	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-binding-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-shared-binding-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.convert.lend.loan
+lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-two-shared-bindings.hd	runtime	accept	lang/13-values-and-references.md#r-ref.convert.lend.loan
 lang/references/pointer-loans/same-root/pointer-loan-same-root-whole-object.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 lang/references/pointer-loans/same-root/pointer-loan-same-root-field.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 lang/references/pointer-loans/same-root/pointer-loan-same-root-method-write.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place

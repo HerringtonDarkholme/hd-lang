@@ -305,13 +305,14 @@ A writable reference converts to a read-only one, and a counted reference lends 
 
 1. r[ref.convert.weaken] A writable reference converts implicitly to the read-only one of its kind: `*mut T` to `*T`, and `&mut T` to `&T`. A `*mut T` also converts to `*T?` where an optional is expected. The conversion makes no new reference: both refer to the same place.
 2. r[ref.convert.lend] A counted reference converts implicitly to a local one where a local reference is expected: `*T` to `&T`, and `*mut T` to `&mut T` or `&T`. Both refer to the same place.
-3. r[ref.convert.no-upgrade] A read-only reference, `*T` or `&T`, never converts to a writable one, `*mut T` or `&mut T`. Using one where a writable reference is expected is an error. Error: `mutable-upgrade`.
-4. r[ref.convert.no-counted] A local reference never converts to a counted one, as [`ref.local.escape.counted`](#r-ref.local.escape.counted) states.
-5. r[ref.convert.listed-only] Reference conversions are limited to this section and [Trait Value References](09-traits.md#trait-value-references).
-6. r[ref.convert.readonly-covariant] A readonly container reference permits `*mut U` to `*U` weakening through covariant container arguments and tuple elements.
-7. r[ref.convert.readonly-payload] The same weakening enters an enum argument beneath a readonly reference when every field of the enum that mentions that type parameter is exactly the parameter, a whole payload or shared field, as `T` is in `Option[T]`; a parameter inside a field's type, as in `*mut T` or `List[T]`, keeps its declared variance.
-8. r[ref.convert.readonly-invariant] The conversion preserves invariant arguments and the operands of mutable references retained in the target.
-9. r[ref.convert.readonly-representation] The conversion preserves representation and reference identity, without copying elements or inserting wrappers.
+3. r[ref.convert.lend.loan] Converting a `*mut T` to `&mut T` takes an exclusive run-time loan on the whole object it refers to, for the `&mut`'s lifetime. Converting it to `&T` takes a shared loan. Each holds as a dereference in a reference's path does under [`ref.excl.alias.call-loan`](#r-ref.excl.alias.call-loan), so a conflicting access through another `*mut` panics. Panic: `borrow-conflict`.
+4. r[ref.convert.no-upgrade] A read-only reference, `*T` or `&T`, never converts to a writable one, `*mut T` or `&mut T`. Using one where a writable reference is expected is an error. Error: `mutable-upgrade`.
+5. r[ref.convert.no-counted] A local reference never converts to a counted one, as [`ref.local.escape.counted`](#r-ref.local.escape.counted) states.
+6. r[ref.convert.listed-only] Reference conversions are limited to this section and [Trait Value References](09-traits.md#trait-value-references).
+7. r[ref.convert.readonly-covariant] A readonly container reference permits `*mut U` to `*U` weakening through covariant container arguments and tuple elements.
+8. r[ref.convert.readonly-payload] The same weakening enters an enum argument beneath a readonly reference when every field of the enum that mentions that type parameter is exactly the parameter, a whole payload or shared field, as `T` is in `Option[T]`; a parameter inside a field's type, as in `*mut T` or `List[T]`, keeps its declared variance.
+9. r[ref.convert.readonly-invariant] The conversion preserves invariant arguments and the operands of mutable references retained in the target.
+10. r[ref.convert.readonly-representation] The conversion preserves representation and reference identity, without copying elements or inserting wrappers.
 
 ```text
 fn edit(r: &mut i32) -> void:
@@ -726,6 +727,8 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
 7. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose path dereferences a `*mut` or a `*T` takes a run-time loan from its evaluation until its call returns. A `&mut self` receiver's loan is shared until the call begins, then exclusive. A closure argument holds the run-time loans of the references it captures until its call returns.
 8. r[ref.excl.alias.path-pointer] A run-time loan holds each object its place's path reads a `*mut` or a `*T` from, so replacing such a pointer slot conflicts until the loan ends, in every build.
 9. r[ref.excl.alias.untracked-path] A reference whose place passes through no `*T`, no variable a closure shares and no top-level binding a reference reaches takes no run-time loan, so an alias reads or writes its place in place.
+
+See also: [`ref.convert.lend.loan`](#r-ref.convert.lend.loan), the loan a `*mut T` takes where it converts to `&mut T` or `&T`.
 
 ### Lifetime Variables
 

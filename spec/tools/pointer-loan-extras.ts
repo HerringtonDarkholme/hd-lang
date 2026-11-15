@@ -909,6 +909,7 @@ pub fn main() -> void $ Console:
   {
     name: "pointer-lent-as-mut-argument-panics",
     panic: true,
+    rule: "ref.convert.lend.loan",
     what: "a pointer passed where `&mut` is expected lends its whole object from its evaluation, so a later argument that writes through an alias panics",
     source: `struct Cell:
     value: string
@@ -924,6 +925,162 @@ fn observe(c: &mut Cell, n: usize) -> string:
 
 fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
     observe(boxed, write_other(alias))
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-mut-argument-read-panics",
+    panic: true,
+    rule: "ref.convert.lend.loan",
+    what: "a pointer passed where `&mut` is expected lends its whole object exclusively, so a later argument that reads through an alias panics",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn read_other(alias: *mut Cell) -> usize:
+    alias.other.len() # panic: borrow-conflict
+
+fn observe(c: &mut Cell, n: usize) -> string:
+    c.value
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    observe(boxed, read_other(alias))
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-shared-argument-panics",
+    panic: true,
+    rule: "ref.convert.lend.loan",
+    what: "a pointer passed where `&` is expected lends its whole object shared from its evaluation, so a later argument that writes through an alias panics",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn write_other(alias: *mut Cell) -> usize:
+    alias.other = fresh() # panic: borrow-conflict
+    1
+
+fn observe(c: &Cell, n: usize) -> string:
+    c.value
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    observe(boxed, write_other(alias))
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-shared-argument-reads",
+    panic: false,
+    rule: "ref.convert.lend.loan",
+    what: "a pointer passed where `&` is expected lends its object shared, so a later argument that reads through an alias runs",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn read_other(alias: *mut Cell) -> usize:
+    alias.other.len()
+
+fn observe(c: &Cell, n: usize) -> string:
+    c.value
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    observe(boxed, read_other(alias))
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-two-shared-arguments",
+    panic: false,
+    rule: "ref.convert.lend.loan",
+    what: "two pointers to one object passed where `&` is expected take two shared loans, which coexist",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn both(a: &Cell, b: &Cell) -> string:
+    _ := b.other.len()
+    a.value
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    both(boxed, alias)
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-mut-binding-panics",
+    panic: true,
+    rule: "ref.convert.lend.loan",
+    what: "a pointer bound where `&mut` is expected lends its whole object exclusively until the binding's last use, so a write through an alias panics",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    let r: &mut Cell = boxed
+    alias.other = fresh() # panic: borrow-conflict
+    r.value
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-shared-binding-panics",
+    panic: true,
+    rule: "ref.convert.lend.loan",
+    what: "a pointer bound where `&` is expected lends its whole object shared until the binding's last use, so a write through an alias panics",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    let r: &Cell = boxed
+    alias.other = fresh() # panic: borrow-conflict
+    r.value
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+@@TAIL@@`,
+  },
+  {
+    name: "pointer-lent-as-two-shared-bindings",
+    panic: false,
+    rule: "ref.convert.lend.loan",
+    what: "two pointers to one object bound where `&` is expected take two shared loans, which coexist",
+    source: `struct Cell:
+    value: string
+    other: string
+
+@@HELPERS@@
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    let a: &Cell = boxed
+    let b: &Cell = alias
+    _ := b.other.len()
+    a.value
 
 pub fn main() -> void $ Console:
     boxed := box(Cell { value: orig(), other: fresh() })
@@ -970,4 +1127,11 @@ export const extraColumns: Record<string, [string, string]> = {
   "other-task-field-write-panics": ["loan needed", "runs"],
   "abandoned-task-ends-its-loans": ["loan needed", "runs"],
   "pointer-lent-as-mut-argument-panics": ["loan needed", "runs"],
+  "pointer-lent-as-mut-argument-read-panics": ["loan needed", "runs"],
+  "pointer-lent-as-shared-argument-panics": ["loan needed", "runs"],
+  "pointer-lent-as-shared-argument-reads": ["elided", "runs"],
+  "pointer-lent-as-two-shared-arguments": ["elided", "runs"],
+  "pointer-lent-as-mut-binding-panics": ["loan needed", "runs"],
+  "pointer-lent-as-shared-binding-panics": ["loan needed", "runs"],
+  "pointer-lent-as-two-shared-bindings": ["elided", "runs"],
 };
