@@ -77,13 +77,14 @@
 //!     (`&&` for K = 0, `||` for K = 1) whose result only feeds a
 //!     `br_if`, an `if`, or either after an `i32.eqz` is a chain of
 //!     branches: no join of the two arms, and no test of the joined value
-//!     ([`chain`]).
+//!     ([`chains`]).
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
 
 mod bounds;
 mod branch_shapes;
+mod chains;
 
 /// Select a checked or range-proven copy of an innermost counted loop.
 pub(crate) fn version_loop_bounds(f: &mut Func) -> bool {
@@ -2983,252 +2984,30 @@ fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
 }
 
 /// Rules 5, 6 and 20: rewrites each `if` of those shapes. Each round reads
-/// the body's `if`s once; rule 5's branch-only arms and rule 6 rewrite every
-/// site of the round in one rebuild, and a round with neither rewrites the
-/// first site rule 5 or 20 takes.
+/// the body's `if`s once and rewrites every site of one rule in one
+/// rebuild: rule 5's branch-only arms, then rule 6, then rule 20
+/// ([`chains::run`]). A rewrite can make a new site (the inner `&&` of `a
+/// && b && c` feeds the branch once the outer one does), so rounds repeat
+/// until none rewrites.
+///
+/// Rule 5 needs no other form: [`branch_shapes::run`] takes every site no
+/// branch targets, and in one that a branch targets, the branch is in the
+/// kept arm (the other is a lone `br` out of the `if`), which no rewrite
+/// that drops the `if` keeps.
 fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
     let mut changed = false;
     loop {
         let sites = ifs(&f.body);
-        if branch_shapes::run(f, &sites) || branch_shapes::value_arms(f, np, &sites) {
+        if branch_shapes::run(f, &sites)
+            || branch_shapes::value_arms(f, np, &sites)
+            || chains::run(f, &sites, arity)
+        {
             changed = true;
             continue;
         }
-        let Some((next, origins)) = shape_once(f, arity, &sites) else {
-            break;
-        };
-        f.body = next;
-        origins.finish(f);
-        changed = true;
+        break;
     }
     changed
-}
-
-/// The body after the first rewrite by rule 5 or 20, if there is one.
-fn shape_once(
-    f: &mut Func,
-    arity: &Arity,
-    sites: &[(usize, Option<usize>, usize)],
-) -> Option<(Vec<Ins>, Remap)> {
-    if sites.is_empty() {
-        return None;
-    }
-    let b = &f.body;
-    for &(s, e, n) in sites {
-        let Ins::Op(I::If(wasm_encoder::BlockType::Empty)) = b[s] else {
-            continue;
-        };
-        // No `else` is an empty arm.
-        let then = s + 1..e.unwrap_or(n);
-        let other = e.map_or(n..n, |e| e + 1..n);
-        // Rule 5.
-        let lone_br = |r: std::ops::Range<usize>| match &b[r] {
-            [Ins::Op(I::Br(d))] if *d >= 1 => Some(*d),
-            _ => None,
-        };
-        for (exit, keep, negate) in [
-            (other.clone(), then.clone(), true),
-            (then.clone(), other.clone(), false),
-        ] {
-            if let Some(d) = lone_br(exit.clone())
-                && let Some(kept) = shifted(&b[keep.clone()], -1, &mut f.labels)
-            {
-                let mut out = b[..s].to_vec();
-                if negate {
-                    out.push(Ins::Op(I::I32Eqz));
-                }
-                out.push(Ins::Op(I::BrIf(d - 1)));
-                let mut origins = Remap::new(f.origins.as_deref());
-                origins.copy(0..s);
-                let origin = origins.first(s..s + 1).or_else(|| origins.first(exit));
-                origins.repeat(origin, usize::from(negate) + 1);
-                origins.copy(keep.clone());
-                origins.copy(n + 1..b.len());
-                out.extend(kept);
-                out.extend_from_slice(&b[n + 1..]);
-                return Some((out, origins));
-            }
-        }
-    }
-    // Rule 20, outermost value first: `a && b && c` feeding a branch is
-    // the outer `&&` feeding it, and then the inner one feeds it too.
-    let mut by_start = None;
-    sites
-        .iter()
-        .rev()
-        .find_map(|&site| chain(f, site, sites, &mut by_start, arity))
-}
-
-/// Rule 20: a short-circuit value `T; if (result i32) X else i32.const K
-/// end` (`&&` for K = 0, `||` for K = 1) whose result only feeds a branch
-/// becomes a chain of branches. The value form makes a backend join the
-/// two arms and test the joined value: a taken jump onto a branch on
-/// every evaluation, which Cranelift does not thread (#1725).
-///
-/// The test after the value, flipped by an `i32.eqz` before it, is one of:
-/// - `br_if d`: when K takes the branch, `T; i32.eqz; br_if d; X` and the
-///   test; else `T; if; X` and the test to `d+1`, then `end`;
-/// - `if A else B end`: the arm K picks (`Outer`) is reached from two
-///   places and the other (`Inner`) from one, so `Inner` nests inside the
-///   test of `X`: `T; if; X; if Inner end; end` when `Outer` is empty, else
-///   `block; T; if; X; if Inner; br 2; end; end; Outer; end`.
-///
-/// Each moved run keeps its branch targets ([`shifted`]). Cost: a test of
-/// each `if` in [`shape_once`]'s scan, and each rewrite is one more pass
-/// over the body, as a rule 5 rewrite is; a site that does not rewrite
-/// copies nothing. The block form walks back
-/// over `T`, at most [`OPERAND_REACH`] instructions; a fall-through
-/// `br_if` walks back to its label.
-fn chain(
-    f: &mut Func,
-    (s, e, n): (usize, Option<usize>, usize),
-    sites: &[(usize, Option<usize>, usize)],
-    by_start: &mut Option<Vec<(usize, Option<usize>, usize)>>,
-    arity: &Arity,
-) -> Option<(Vec<Ins>, Remap)> {
-    use wasm_encoder::{BlockType, ValType};
-    let b = &f.body;
-    let (Ins::Op(I::If(BlockType::Result(ValType::I32))), Some(e)) = (b[s], e) else {
-        return None;
-    };
-    let k = short_circuit(&b[e + 1..n])?;
-    let x = s + 1..e;
-    if targets_self(&b[x.clone()], &f.labels) {
-        return None;
-    }
-    let flip = matches!(b.get(n + 1), Some(Ins::Op(I::I32Eqz)));
-    let c = n + 1 + usize::from(flip);
-    // The output and its origins, made only once the site rewrites: a
-    // value `if` that is not a short circuit feeding a branch, as `x =
-    // if c: a else: 0`, copies nothing, so a body of many costs its length.
-    let start = |f: &Func| {
-        // The rewrite copies the body once.
-        crate::work::control(f.body.len());
-        let origins = Remap::new(f.origins.as_deref());
-        let origin = origins
-            .first(s..s + 1)
-            .or_else(|| origins.first(n + 1..c + 1));
-        (Vec::with_capacity(f.body.len() + 4), origins, origin)
-    };
-    let new = |out: &mut Vec<Ins>, origins: &mut Remap, origin: Option<u32>, i: I| {
-        out.push(Ins::Op(i));
-        origins.repeat(origin, 1);
-    };
-    let (mut out, mut origins, origin);
-    match *b.get(c)? {
-        // K takes the branch exactly when K, flipped, is nonzero.
-        Ins::Op(I::BrIf(d)) => {
-            if k == u32::from(flip) {
-                // K falls through: `T; if; X; br_if d+1; end`. Inside the
-                // new `if`, the branch reaches no stack values.
-                if label_has_values(f, s, d) {
-                    return None;
-                }
-                (out, origins, origin) = start(f);
-                out.extend_from_slice(&b[..e]);
-                origins.copy(0..e);
-                out[s] = Ins::Op(I::If(BlockType::Empty));
-                out.extend(shifted(&b[n + 1..=c], 1, &mut f.labels)?);
-                origins.copy(n + 1..c + 1);
-                new(&mut out, &mut origins, origin, I::End);
-                out.extend_from_slice(&b[c + 1..]);
-                origins.copy(c + 1..b.len());
-            } else {
-                (out, origins, origin) = start(f);
-                out.extend_from_slice(&b[..s]);
-                origins.copy(0..s);
-                new(&mut out, &mut origins, origin, I::I32Eqz);
-                new(&mut out, &mut origins, origin, I::BrIf(d));
-                out.extend(shifted(&b[x.clone()], -1, &mut f.labels)?);
-                origins.copy(x);
-                out.extend_from_slice(&b[n + 1..]);
-                origins.copy(n + 1..b.len());
-            }
-        }
-        Ins::Op(I::If(bt)) if !matches!(bt, BlockType::FunctionType(_)) => {
-            let starts = by_start.get_or_insert_with(|| {
-                let mut v = sites.to_vec();
-                v.sort_stable_by_key(|site| site.0);
-                v
-            });
-            let at = starts.binary_search_by_key(&c, |site| site.0).ok()?;
-            let (_, ce, cn) = starts[at];
-            let a = c + 1..ce.unwrap_or(cn);
-            let other = ce.map_or(cn..cn, |ce| ce + 1..cn);
-            // A nested short-circuit value is a value use: it stays.
-            if matches!(bt, BlockType::Result(_)) && short_circuit(&b[other.clone()]).is_some() {
-                return None;
-            }
-            // `then` is reached when the value is nonzero.
-            let (then, otherwise) = if flip { (other, a) } else { (a, other) };
-            let (outer, inner) = if k == 0 {
-                (otherwise, then)
-            } else {
-                (then, otherwise)
-            };
-            if inner.is_empty() && outer.is_empty() {
-                return None;
-            }
-            if outer.is_empty() {
-                // `T; if; X; if Inner end; end`: no path leaves through
-                // the `if` on K, as `Outer` is empty.
-                (out, origins, origin) = start(f);
-                out.extend_from_slice(&b[..e]);
-                origins.copy(0..e);
-                out[s] = Ins::Op(I::If(BlockType::Empty));
-                if k == 1 {
-                    new(&mut out, &mut origins, origin, I::I32Eqz);
-                }
-                // `Outer` is empty, so the test's `if` is void.
-                out.push(b[c]);
-                origins.copy(c..c + 1);
-                out.extend(shifted(&b[inner.clone()], 1, &mut f.labels)?);
-                origins.copy(inner);
-                out.push(b[cn]);
-                origins.copy(cn..cn + 1);
-                new(&mut out, &mut origins, origin, I::End);
-            } else {
-                let j = operand_start(b, s, arity, &f.symbols)?;
-                (out, origins, origin) = start(f);
-                out.extend_from_slice(&b[..j]);
-                origins.copy(0..j);
-                new(&mut out, &mut origins, origin, I::Block(bt));
-                out.extend(shifted(&b[j..s], 1, &mut f.labels)?);
-                origins.copy(j..s);
-                new(&mut out, &mut origins, origin, I::If(BlockType::Empty));
-                out.extend(shifted(&b[x.clone()], 1, &mut f.labels)?);
-                origins.copy(x);
-                if k == 1 {
-                    new(&mut out, &mut origins, origin, I::I32Eqz);
-                }
-                if inner.is_empty() {
-                    new(&mut out, &mut origins, origin, I::BrIf(1));
-                } else {
-                    out.push(Ins::Op(I::If(BlockType::Empty)));
-                    origins.copy(c..c + 1);
-                    let falls = !matches!(
-                        b[inner.end - 1],
-                        Ins::Op(I::Br(_) | I::BrTable(..) | I::Return | I::Unreachable)
-                    );
-                    out.extend(shifted(&b[inner.clone()], 2, &mut f.labels)?);
-                    origins.copy(inner);
-                    if falls {
-                        new(&mut out, &mut origins, origin, I::Br(2));
-                    }
-                    new(&mut out, &mut origins, origin, I::End);
-                }
-                new(&mut out, &mut origins, origin, I::End);
-                out.extend_from_slice(&b[outer.clone()]);
-                origins.copy(outer);
-                out.push(b[cn]);
-                origins.copy(cn..cn + 1);
-            }
-            out.extend_from_slice(&b[cn + 1..]);
-            origins.copy(cn + 1..b.len());
-        }
-        _ => return None,
-    }
-    Some((out, origins))
 }
 
 /// K of a short-circuit value's `else` arm `i32.const K`, K 0 or 1.
@@ -3237,31 +3016,6 @@ fn short_circuit(arm: &[Ins]) -> Option<u32> {
         [Ins::Op(I::I32Const(k @ (0 | 1)))] => Some(k.cast_unsigned()),
         _ => None,
     }
-}
-
-/// Whether the label `d` levels out from instruction `at` takes values: a
-/// branch to it then carries stack values from below its test.
-fn label_has_values(f: &Func, at: usize, mut d: u32) -> bool {
-    use wasm_encoder::BlockType;
-    let mut nested = 0u32;
-    // Only a block's start and `end` change which labels are in scope.
-    for i in f.body[..at].iter().rev() {
-        if let Ins::Op(I::End) = i {
-            nested += 1;
-        } else if let Ins::Op(I::Block(bt) | I::If(bt) | I::Loop(bt)) = i {
-            if nested > 0 {
-                nested -= 1;
-            } else if d > 0 {
-                d -= 1;
-            } else if let Ins::Op(I::Loop(_)) = i {
-                // A loop's label takes its parameters.
-                return matches!(bt, BlockType::FunctionType(_));
-            } else {
-                return !matches!(bt, BlockType::Empty);
-            }
-        }
-    }
-    !f.results.is_empty()
 }
 
 /// How far [`operand_start`] walks back.
@@ -3344,23 +3098,6 @@ fn ifs(b: &[Ins]) -> Vec<(usize, Option<usize>, usize)> {
         }
     }
     out
-}
-
-/// Whether instructions `r`, an arm of an `if`, branch to that `if`.
-fn targets_self(r: &[Ins], labels: &[Vec<u32>]) -> bool {
-    let mut d = 0u32;
-    for i in r {
-        match i {
-            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => d += 1,
-            Ins::Op(I::End) => d = d.saturating_sub(1),
-            Ins::Op(I::Br(l) | I::BrIf(l)) if *l == d => return true,
-            Ins::Op(I::BrTable(ls, def)) if *def == d || labels[ls.0 as usize].contains(&d) => {
-                return true;
-            }
-            _ => {}
-        }
-    }
-    false
 }
 
 /// Instructions `r` moved into `by` more blocks, or out of `-by` blocks:

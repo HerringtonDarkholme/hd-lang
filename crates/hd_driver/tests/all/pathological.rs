@@ -2741,3 +2741,94 @@ fn nested_pattern_copy_questions_walk_each_type_once() {
         }
     });
 }
+
+/// `n` statements each testing a `&&` value: rule 20's `if` with an
+/// empty other arm.
+fn and_if_run(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +1\n");
+    for _ in 0..n {
+        s.push_str("    if t > 0 && t < 5:\n        t = t + 1\n");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// `n` statements each testing a `||` value: rule 20's block form.
+fn or_if_run(n: usize) -> String {
+    and_if_run(n).replace("t > 0 && t < 5", "t > 3 || t > 0")
+}
+
+/// `n` statements each testing a negated `||` value: the `if` form with
+/// an empty other arm and the value flipped.
+fn not_or_if_run(n: usize) -> String {
+    and_if_run(n).replace("t > 0 && t < 5", "!(t > 3 || t < 0)")
+}
+
+/// `n` statements each testing a `||` value with both arms written.
+fn or_else_run(n: usize) -> String {
+    and_if_run(n).replace(
+        "    if t > 0 && t < 5:\n        t = t + 1\n",
+        "    if t > 3 || t > 0:\n        t = t + 1\n    else:\n        t = t - 1\n",
+    )
+}
+
+/// `n` loops each going on early on a `&&` value: a `br_if` to a loop.
+fn and_continue_run(n: usize) -> String {
+    and_if_run(n).replace(
+        "    if t > 0 && t < 5:\n        t = t + 1\n",
+        "    while t < 3:\n        t = t + 1\n        if t > 0 && t < 2:\n            continue\n",
+    )
+}
+
+/// `n` loops each testing a `&&` value: rule 20's `br_if` forms.
+fn and_while_run(n: usize) -> String {
+    and_if_run(n).replace("    if t > 0 && t < 5:", "    while t > 0 && t < 3:")
+}
+
+// Emitter: #1978, rule 20 (a `&&` or `||` value feeding a branch) rewrote
+// one site per pass over the body, so a body of n such conditions cost n
+// passes. Now one pass names each branch's target by its label, rewrites
+// every site that overlaps no other, and names the depths again.
+#[test]
+fn branch_feeding_logic_values_rewrite_in_one_pass_over_the_body() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |name: &str, source: String, printed: String| {
+            let (out, work) = hd_wasm::work::count_control(|| compile(&source, &goal));
+            assert!(!out.diags.has_errors(), "{name}: {}", out.render());
+            let ran =
+                crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
+            assert!(
+                ran.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&ran.stderr)
+            );
+            assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+            work
+        };
+        let shapes: [ValueShape; 6] = [
+            ("and-if-run", and_if_run, 100, |n| (n + 1).min(5)),
+            ("not-or-if-run", not_or_if_run, 100, |n| (n + 1).min(4)),
+            ("or-else-run", or_else_run, 100, |n| n + 1),
+            ("and-continue-run", and_continue_run, 100, |n| {
+                if n == 0 { 1 } else { 3 }
+            }),
+            ("or-if-run", or_if_run, 100, |n| n + 1),
+            ("and-while-run", and_while_run, 100, |n| {
+                if n == 0 { 1 } else { 3 }
+            }),
+        ];
+        for (name, generate, n, printed) in shapes {
+            let zero = work(name, generate(0), format!("{}\n", printed(0)));
+            let small = work(name, generate(n), format!("{}\n", printed(n))) - zero;
+            let large = work(name, generate(10 * n), format!("{}\n", printed(10 * n))) - zero;
+            assert!(
+                small > 0 && large <= 12 * small,
+                "{name}: control work over the empty body at {n} and {}: {small} and {large}",
+                10 * n
+            );
+        }
+    });
+}
