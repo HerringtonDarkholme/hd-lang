@@ -220,7 +220,10 @@ thread_local! {
 }
 
 /// Count the types the origin-slot limit's count enters on this thread
-/// (`crate::dep_results::SlotCounts`), one per distinct type it counts.
+/// (`crate::dep_results::SlotCounts`), one per distinct type it counts,
+/// and the distinct parts each walk for the projections and parameters a
+/// type holds enters (`crate::dep_results::own_proj`, `wholes`,
+/// `bare_parts`, `proj_holds`).
 pub fn count_slot_counts<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = SLOT_COUNTS.with(|c| c.replace(Some(0)));
     let result = run();
@@ -228,7 +231,7 @@ pub fn count_slot_counts<R>(run: impl FnOnce() -> R) -> (R, u64) {
     (result, n)
 }
 
-/// One type the origin-slot count enters.
+/// One type the origin-slot count, or a projection or parameter walk, enters.
 pub(crate) fn slot_count_step() {
     SLOT_COUNTS.with(|c| {
         if let Some(n) = c.get() {

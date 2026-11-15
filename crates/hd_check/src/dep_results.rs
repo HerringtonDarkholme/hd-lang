@@ -606,14 +606,22 @@ type ProjLifetimes<'f> = &'f dyn Fn(Ty) -> Vec<u32>;
 /// hold (`trait.dyn.ref.convert`, `types.opaque.borrows`). A trait's own
 /// `Self::Item` lists no trait arguments, so [`holds_local_ref`] says no to
 /// it, but it holds what the trait's lifetimes name all the same
-/// ([`own_proj`]).
+/// ([`own_proj`]). Each distinct part is entered once, so each projection
+/// is listed once, and a part the pool shares costs its distinct nodes,
+/// not its paths (#1984); [`bare_parts`] and [`proj_holds`] walk the same
+/// way.
 fn wholes(ls: &Layouts<'_>, t: Ty) -> (Vec<Ty>, bool) {
     let (pool, mut out, mut other) = (ls.pool, Vec::new(), false);
     if !ls.of(t).slots.is_empty() || !pool.has_assoc(t) {
         return (out, other);
     }
+    let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![t];
     while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        crate::work::slot_count_step();
         match pool.get(t) {
             TyData::Assoc { .. } => out.push(t),
             TyData::TraitValue { .. } | TyData::Opaque { .. } => other = true,
@@ -632,13 +640,19 @@ fn wholes(ls: &Layouts<'_>, t: Ty) -> (Vec<Ty>, bool) {
 /// `types.opaque.borrows`).
 fn bare_parts(pool: Types<'_>, t: Ty) -> (Vec<hd_types::ParamRef>, bool) {
     let (mut out, mut other) = (Vec::new(), false);
+    let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![t];
     while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        crate::work::slot_count_step();
         match pool.get(t) {
             TyData::TraitValue { .. } | TyData::Opaque { .. } => other = true,
             _ if !pool.has_param(t) => {}
-            TyData::Param(p) if !out.contains(&p) => out.push(p),
-            TyData::Param(_) | TyData::Assoc { .. } => {}
+            // Each distinct parameter type is entered once, so listed once.
+            TyData::Param(p) => out.push(p),
+            TyData::Assoc { .. } => {}
             _ => pool.children(t, &mut stack),
         }
     }
@@ -651,8 +665,13 @@ fn bare_parts(pool: Types<'_>, t: Ty) -> (Vec<hd_types::ParamRef>, bool) {
 /// `Self::Item` lists no arguments, and holds each of the trait's
 /// parameters.
 fn proj_holds(pool: Types<'_>, proj: Ty, p: hd_types::ParamRef) -> bool {
+    let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![proj];
     while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        crate::work::slot_count_step();
         match pool.get(t) {
             _ if !pool.has_param(t) => {}
             TyData::Param(x) if x == p => return true,
@@ -916,7 +935,7 @@ struct Layout {
 
 impl Layout {
     fn new(ls: &Layouts<'_>, t: Ty) -> Layout {
-        let (pool, lifetimed) = (ls.pool, ls.lifetimed);
+        let pool = ls.pool;
         let mut slots = Vec::new();
         Self::walk(ls, t, true, 0, &mut slots);
         for k in 0..slots.len() {
@@ -928,7 +947,7 @@ impl Layout {
         let tops: Vec<usize> = (0..slots.len()).filter(|&k| slots[k].top).collect();
         // A trait value may hold a local reference (`trait.dyn.ref.convert`),
         // and so may a trait's own projection where the trait has lifetimes.
-        let holds = holds_local_ref(pool, t) || is_dyn(pool, t) || own_proj(pool, lifetimed, t);
+        let holds = holds_local_ref(pool, t) || is_dyn(pool, t) || ls.own_proj(t);
         let width = if tops.is_empty() {
             usize::from(holds)
         } else {
@@ -944,7 +963,7 @@ impl Layout {
     /// `((s, s), (s, s))`, costs n steps, not 2^n. A part with slots is
     /// entered once per use, so a layout's work is its slots' paths.
     fn walk(ls: &Layouts<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
-        let (pool, suspend, lifetimed) = (ls.pool, ls.suspend, ls.lifetimed);
+        let (pool, suspend) = (ls.pool, ls.suspend);
         if depth > hd_base::limits::TYPE_DEPTH || ls.slotless.borrow().contains(&t) {
             return;
         }
@@ -974,7 +993,7 @@ impl Layout {
                 walk(inner, false, out);
                 // A referent with no slot of its own that holds origins is
                 // one place, which a store fills whole.
-                if out.len() == k + 1 && whole_referent(pool, lifetimed, inner) {
+                if out.len() == k + 1 && whole_referent(ls, inner) {
                     out.push(Slot {
                         ty: inner,
                         top: false,
@@ -1136,6 +1155,9 @@ struct Layouts<'a> {
     types: RefCell<HashMap<Ty, Rc<Layout>>>,
     /// The types whose walk pushed no slot ([`Layout::walk`]).
     slotless: RefCell<HashSet<Ty>>,
+    /// Each type's [`own_proj`] answer under `lifetimed`, kept for every
+    /// part a search enters ([`Layouts::own_proj`]).
+    own_projs: RefCell<HashMap<Ty, bool>>,
     fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
 }
 
@@ -1147,6 +1169,7 @@ impl<'a> Layouts<'a> {
             lifetimed,
             types: RefCell::default(),
             slotless: RefCell::default(),
+            own_projs: RefCell::default(),
             fields: RefCell::default(),
         }
     }
@@ -1333,16 +1356,20 @@ type Lifetimed<'f> = &'f dyn Fn(DefId) -> bool;
 /// `trait Shelf['b]`'s bodies, of a trait with a lifetime parameter. It lists
 /// no trait arguments, so [`holds_local_ref`] says no to it, but it holds
 /// what the trait's lifetimes name, as `S::Item` with `S < Shelf['a]` does
-/// (`ref.lifetime.trait.bound-argument`).
+/// (`ref.lifetime.trait.bound-argument`). Each distinct part is entered
+/// once: a part the pool shares, as `(A[S], A[S])` through a chain of
+/// aliases, costs its distinct nodes, not its paths (#1984).
 fn own_proj(pool: Types<'_>, lifetimed: Lifetimed<'_>, t: Ty) -> bool {
     if !pool.has_assoc(t) {
         return false;
     }
+    let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![t];
     while let Some(t) = stack.pop() {
-        if !pool.has_assoc(t) {
+        if !pool.has_assoc(t) || !seen.insert(t) {
             continue;
         }
+        crate::work::slot_count_step();
         match pool.get(t) {
             TyData::Assoc {
                 trait_, self_ty, ..
@@ -1376,10 +1403,59 @@ fn lifetimed<'l>(lookup: &'l hd_resolve::Lookup<'_>) -> impl Fn(DefId) -> bool +
 /// `S < Shelf['a]` (`ref.lifetime.trait.bound-argument`), a trait's own
 /// projection where the trait has lifetimes ([`own_proj`]) included. A
 /// trait value's origins are its reference's (`ref.dep.trait`).
-fn whole_referent(pool: Types<'_>, lifetimed: Lifetimed<'_>, t: Ty) -> bool {
-    pool.has_assoc(t)
-        && !is_dyn(pool, t)
-        && (holds_local_ref(pool, t) || own_proj(pool, lifetimed, t))
+fn whole_referent(ls: &Layouts<'_>, t: Ty) -> bool {
+    let pool = ls.pool;
+    pool.has_assoc(t) && !is_dyn(pool, t) && (holds_local_ref(pool, t) || ls.own_proj(t))
+}
+
+impl Layouts<'_> {
+    /// [`own_proj`] under this check's `lifetimed`, answered for each
+    /// distinct part once over the whole check: a part's answer is its
+    /// own projection's or any of its parts', so the types a check lays
+    /// out, each a part of the next as a chain of aliases makes them, cost
+    /// their distinct nodes together, not each its own subtree (#1984).
+    fn own_proj(&self, t: Ty) -> bool {
+        let pool = self.pool;
+        let mut memo = self.own_projs.borrow_mut();
+        let mut stack = vec![(t, false)];
+        let mut parts = Vec::new();
+        while let Some((n, entered)) = stack.pop() {
+            if memo.contains_key(&n) {
+                continue;
+            }
+            if !pool.has_assoc(n) {
+                memo.insert(n, false);
+                continue;
+            }
+            parts.clear();
+            let own = match pool.get(n) {
+                TyData::Assoc {
+                    trait_, self_ty, ..
+                } if pool.get(self_ty)
+                    == TyData::Param(hd_types::ParamRef {
+                        owner: trait_,
+                        index: 0,
+                    })
+                    && (self.lifetimed)(trait_) =>
+                {
+                    true
+                }
+                _ => {
+                    pool.children(n, &mut parts);
+                    false
+                }
+            };
+            if own || entered || parts.is_empty() {
+                crate::work::slot_count_step();
+                let any = own || parts.iter().any(|p| memo.get(p) == Some(&true));
+                memo.insert(n, any);
+            } else {
+                stack.push((n, true));
+                stack.extend(parts.iter().map(|&p| (p, false)));
+            }
+        }
+        memo[&t]
+    }
 }
 
 /// What reference type `t` refers to.

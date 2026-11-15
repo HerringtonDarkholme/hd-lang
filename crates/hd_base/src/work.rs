@@ -62,6 +62,7 @@ counters! {
     DeriveWork = "derive_work",
     MemberPairs = "member_pairs",
     LoopScans = "loop_scans",
+    SlotPathNodes = "slot_path_nodes",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

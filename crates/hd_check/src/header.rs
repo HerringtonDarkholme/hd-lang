@@ -1520,6 +1520,10 @@ impl<'a> ItemCheck<'_, 'a> {
         }
         let mut work = vec![Work::Ty(t, slot)];
         let mut kids: Vec<Work> = Vec::new();
+        // A part the pool shares, as `(A[S], A[S])` through a chain of
+        // aliases, is checked once per slot: its rules and its parts give
+        // the same findings at each of its paths (#1984).
+        let mut seen: hd_base::HashSet<(Ty, u32, bool)> = hd_base::HashSet::default();
         while let Some(w) = work.pop() {
             let (t, slot) = match w {
                 Work::Clean(t, mark) => {
@@ -1529,10 +1533,18 @@ impl<'a> ItemCheck<'_, 'a> {
                     continue;
                 }
                 Work::Key(k, slot) => {
+                    if !seen.insert((k, slot, true)) {
+                        continue;
+                    }
                     self.check_key(k, slot);
                     (k, slot)
                 }
-                Work::Ty(t, slot) => (t, slot),
+                Work::Ty(t, slot) => {
+                    if !seen.insert((t, slot, false)) {
+                        continue;
+                    }
+                    (t, slot)
+                }
             };
             let closed = !(pool.has_param(t)
                 || pool.has_infer(t)

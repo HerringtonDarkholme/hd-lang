@@ -314,6 +314,66 @@ fn alias_chain(n: u32, public: bool) -> String {
     s
 }
 
+/// #1984's program: `type A0[S < Source] = S::Item`, then `type A{i}[S <
+/// Source] = (A{i-1}[S], A{i-1}[S])`, and a function taking and returning
+/// `A{n}[S]`. The source grows linearly in `n`; the type doubles.
+fn param_alias_chain(n: u32) -> String {
+    let mut s = String::from("trait Source:\n    type Item\n\ntype A0[S < Source] = S::Item\n");
+    for i in 1..=n {
+        let _ = writeln!(s, "type A{i}[S < Source] = (A{}[S], A{}[S])", i - 1, i - 1);
+    }
+    let _ = writeln!(s, "fn id[S < Source](s: S, v: A{n}[S]) -> A{n}[S]: v");
+    s
+}
+
+// Resolver and checker: #1984, a chain of generic aliases doubles its
+// type at each level. Each walk along its slot paths (whether an alias
+// keeps its parameters in order, the borrowing opaque types of a result),
+// the checker's projection walks and its header check enter each distinct
+// node once, not each of its 2^n paths (60 levels did not finish in 60 s;
+// 200 levels check in 0.09 s release).
+#[test]
+fn a_generic_alias_chain_walks_each_distinct_node_once() {
+    on_test_stack(|| {
+        let work = |n| {
+            let ((out, checked), folded) = hd_resolve::work::count_slot_path_nodes(|| {
+                hd_check::work::count_slot_counts(|| {
+                    hd_check::work::count_header_types(|| {
+                        compile(&param_alias_chain(n), &Goal::Analyze)
+                    })
+                })
+            });
+            let ((out, headers), walked) = (out, checked);
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            (folded, walked, headers)
+        };
+        work(1);
+        let (small, large) = (work(20), work(200));
+        assert!(
+            small.0 > 0 && large.0 <= small.0 * 10 * 5 / 4,
+            "slot path nodes for 20 and 200 levels: {} and {}",
+            small.0,
+            large.0
+        );
+        // The header check, the origin-slot count and the projection walks
+        // enter each
+        // distinct interned node once, and the pool interns each alias's
+        // expanded body, `A{i}`'s `i` nodes with its own parameter: `n²/2`
+        // nodes for `n` levels, so these grow with the square of the
+        // levels, not with their paths (2^n). Known: keeping alias bodies
+        // unexpanded would make them linear.
+        for (what, a, b) in [
+            ("projection walk nodes", small.1, large.1),
+            ("header types", small.2, large.2),
+        ] {
+            assert!(
+                a > 0 && b <= a * 100 * 5 / 4,
+                "{what} for 20 and 200 levels: {a} and {b}"
+            );
+        }
+    });
+}
+
 /// The header types an alias chain of `n` checks, and its codes.
 fn alias_chain_work(n: u32) -> (u64, Vec<String>) {
     alias_chain_work_of(n, false)

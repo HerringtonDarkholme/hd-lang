@@ -1090,6 +1090,8 @@ struct Resolver<'a, 'b> {
     /// This folder's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
     aliases: RefCell<HashMap<DefId, AliasBody>>,
+    /// Each alias's [`Lower::alias_in_order`] answer, asked at every use.
+    in_order: RefCell<HashMap<DefId, bool>>,
     seeds: HashMap<DefId, Item>,
     /// The declared parameters of the traits of the modules being lowered,
     /// lowered before any other header, so a trait reference fills its
@@ -1940,29 +1942,39 @@ type BoundRef = (DefId, TyList);
 /// lifetime of each body reference slot.
 type AliasBody = (Vec<bool>, Ty, Vec<u16>);
 
-/// Calls `f` on each type in `t` along the paths that hold its reference
-/// slots, in [`Types::ref_slots`] order: through a reference of either
-/// kind, `mut`, an optional, a tuple's elements and a type's arguments.
-/// Callers look only at parameters, references and opaque types, so a
-/// part that holds none is skipped whole. The walk keeps its own stack:
-/// a type nested 20,000 deep, as a chain of aliases makes, is no native
-/// recursion, and a chain's closed parts cost nothing.
-fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
-    let mut stack = vec![t];
-    while let Some(t) = stack.pop() {
-        if !(pool.has_param(t) || pool.has_ref(t) || pool.has_opaque(t)) {
-            continue;
-        }
-        let d = pool.get(t);
-        f(&d);
-        let at = stack.len();
-        match d {
-            TyData::Ref { inner: i, .. } => stack.push(i),
+/// What a slot path of [`fold_slot_paths`] meets in an alias body: a
+/// parameter of the alias, by index, or a local reference.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SlotItem {
+    Param(u16),
+    Ref,
+}
+
+/// Folds what `t`'s slot paths meet, in [`Types::ref_slots`] order:
+/// through a reference of either kind, `mut`, an optional, a tuple's
+/// elements and rest and a type's arguments. A node's value is `leaf` of
+/// the node, then each part's value joined on in written order; a part
+/// that holds no parameter, reference or opaque type is skipped whole.
+/// Each distinct node is folded once, from its parts' values, so a type
+/// the pool shares (`type A{i}[S] = (A{i-1}[S], A{i-1}[S])`) costs its
+/// distinct nodes, not its `2^i` paths (#1984). `join` refuses a value
+/// past its caller's bound, and the fold then answers `None`. The walk
+/// keeps its own stack: a type nested 20,000 deep, as a chain of aliases
+/// makes, is no native recursion.
+fn fold_slot_paths<V: Clone + Default>(
+    pool: Types<'_>,
+    t: Ty,
+    leaf: impl Fn(&TyData) -> V,
+    join: impl Fn(&mut V, &V) -> bool,
+) -> Option<V> {
+    fn parts(pool: Types<'_>, d: &TyData) -> Vec<Ty> {
+        match *d {
+            TyData::Ref { inner, .. } => vec![inner],
             TyData::Tuple { elems, rest } => {
-                stack.extend(pool.list_items(elems).iter().chain(rest.as_ref()));
+                pool.list_items(elems).iter().copied().chain(rest).collect()
             }
             TyData::Union(args) | TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                stack.extend_from_slice(pool.list_items(args));
+                pool.list_items(args).to_vec()
             }
             // No path to a reference slot goes through these.
             TyData::Prim(_)
@@ -1976,11 +1988,56 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
             | TyData::Infer(_)
             | TyData::Canon(_)
             | TyData::Row(_)
-            | TyData::Context(_) => {}
+            | TyData::Context(_) => Vec::new(),
         }
-        // Parts in written order: the first is popped first.
-        stack[at..].reverse();
     }
+    let mut done: HashMap<Ty, V> = HashMap::default();
+    // `(node, entered)`: a node is entered, then folded once its parts are.
+    let mut stack = vec![(t, false)];
+    while let Some((n, entered)) = stack.pop() {
+        if done.contains_key(&n) {
+            continue;
+        }
+        if !(pool.has_param(n) || pool.has_ref(n) || pool.has_opaque(n)) {
+            done.insert(n, V::default());
+            continue;
+        }
+        let d = pool.get(n);
+        let ps = parts(pool, &d);
+        if entered || ps.is_empty() {
+            crate::work::slot_path_node();
+            let mut v = leaf(&d);
+            for p in &ps {
+                if !join(&mut v, &done[p]) {
+                    return None;
+                }
+            }
+            done.insert(n, v);
+        } else {
+            stack.push((n, true));
+            stack.extend(ps.into_iter().map(|p| (p, false)));
+        }
+    }
+    done.remove(&t)
+}
+
+/// The items `t`'s slot paths meet, in order, where `item` names one;
+/// `None` past `cap` of them.
+fn slot_items(
+    pool: Types<'_>,
+    t: Ty,
+    cap: usize,
+    item: impl Fn(&TyData) -> Option<SlotItem>,
+) -> Option<Vec<SlotItem>> {
+    fold_slot_paths(
+        pool,
+        t,
+        |d| item(d).into_iter().collect::<Vec<_>>(),
+        |v, part| {
+            v.extend_from_slice(part);
+            v.len() <= cap
+        },
+    )
 }
 
 /// A type parameter in scope.
@@ -3454,7 +3511,14 @@ impl Lower<'_, '_, '_> {
             // An alias may move or repeat its arguments, so a lifetime
             // written in one has no known slot, unless the alias keeps
             // them in order, as `Option[T]` does (`ref.lifetime.alias-in-order`).
-            if kind == HeadKind::Alias && !placed_alias && !self.alias_in_order(def) {
+            // Only a written lifetime has a slot to keep: with none among
+            // the arguments' slots, the alias's slots are all unwritten
+            // either way, and its order is not asked.
+            let written = self
+                .slots
+                .as_ref()
+                .is_some_and(|slots| slots[before..].iter().any(|l| *l != 0));
+            if kind == HeadKind::Alias && !placed_alias && written && !self.alias_in_order(def) {
                 self.unplaced_slots(n, before);
             }
             self.place_slots(n, before, t, true);
@@ -3465,22 +3529,34 @@ impl Lower<'_, '_, '_> {
     /// Whether the alias `def` uses each of its parameters once, in order,
     /// where it has reference slots, and adds none of its own, so the
     /// slots of its arguments are the slots of the type it names.
+    ///
+    /// The answer is kept per alias, and found by [`slot_items`], which
+    /// folds each distinct node of the body once and stops past one more
+    /// parameter than the alias has: a body that repeats its parameter
+    /// `2^n` times (`type A{i}[S] = (A{i-1}[S], A{i-1}[S])`) costs its
+    /// distinct nodes, not its `2^n` paths (#1984).
     fn alias_in_order(&self, def: DefId) -> bool {
+        if let Some(&known) = self.r.in_order.borrow().get(&def) {
+            return known;
+        }
         let Some((rows, body, _)) = self.alias_body(def) else {
             return false;
         };
         let pool = self.names.pool.types();
-        let mut seen = Vec::new();
-        slot_paths(pool, body, &mut |d| {
-            if let TyData::Param(p) = d
-                && p.owner == def
-            {
-                seen.push(p.index);
-            }
-        });
-        pool.ref_slots(body) == 0
-            && seen.len() == rows.len()
-            && seen.iter().enumerate().all(|(i, &p)| p as usize == i)
+        let answer = pool.ref_slots(body) == 0
+            && slot_items(pool, body, rows.len(), |d| match d {
+                TyData::Param(p) if p.owner == def => Some(SlotItem::Param(p.index)),
+                _ => None,
+            })
+            .is_some_and(|seen| {
+                seen.len() == rows.len()
+                    && seen
+                        .iter()
+                        .enumerate()
+                        .all(|(i, &p)| p == SlotItem::Param(u16::try_from(i).unwrap_or(u16::MAX)))
+            });
+        self.r.in_order.borrow_mut().insert(def, answer);
+        answer
     }
 
     /// Reorders and repeats the written slots of a lifetime alias's type
@@ -3520,28 +3596,42 @@ impl Lower<'_, '_, '_> {
                 slots_by_param.push(vec![0; n]);
             }
         }
+        // Each item adds at least one slot: a parameter whose argument
+        // has none is left out, so there are no more items than slots.
+        let want = pool.ref_slots(expanded);
+        let Some(items) = slot_items(pool, body, want, |data| match data {
+            TyData::Param(p)
+                if p.owner == def
+                    && slots_by_param
+                        .get(usize::from(p.index))
+                        .is_some_and(|s| !s.is_empty()) =>
+            {
+                Some(SlotItem::Param(p.index))
+            }
+            TyData::Ref { counted: false, .. } => Some(SlotItem::Ref),
+            // ruled out: a visitor over every part; only a parameter and a local reference have slots.
+            _ => None,
+        }) else {
+            return false;
+        };
         let mut declared_at = 0;
         let mut out = Vec::new();
-        slot_paths(pool, body, &mut |data| match data {
-            TyData::Param(p) if p.owner == def => {
-                if let Some(slots) = slots_by_param.get(usize::from(p.index)) {
-                    out.extend_from_slice(slots);
+        for item in items {
+            match item {
+                SlotItem::Param(p) => out.extend_from_slice(&slots_by_param[usize::from(p)]),
+                SlotItem::Ref => {
+                    let lifetime = body_lifetimes.get(declared_at).copied().unwrap_or(0);
+                    declared_at += 1;
+                    out.push(
+                        lifetime
+                            .checked_sub(1)
+                            .and_then(|l| lifetime_args.get(usize::from(l)).copied())
+                            .unwrap_or(0),
+                    );
                 }
             }
-            TyData::Ref { counted: false, .. } => {
-                let lifetime = body_lifetimes.get(declared_at).copied().unwrap_or(0);
-                declared_at += 1;
-                out.push(
-                    lifetime
-                        .checked_sub(1)
-                        .and_then(|l| lifetime_args.get(usize::from(l)).copied())
-                        .unwrap_or(0),
-                );
-            }
-            // ruled out: a visitor over every part; only a parameter and a local reference have slots.
-            _ => {}
-        });
-        if out.len() != pool.ref_slots(expanded) {
+        }
+        if out.len() != want {
             return false;
         }
         let Some(slots) = &mut self.slots else {
@@ -4978,10 +5068,16 @@ impl Lower<'_, '_, '_> {
     ) {
         let pool = self.names.pool.types();
         let ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
-        let mut opaque = 0;
-        slot_paths(pool, ret, &mut |d| {
-            opaque += usize::from(matches!(d, TyData::Opaque { borrows: true, .. }));
-        });
+        let opaque = fold_slot_paths(
+            pool,
+            ret,
+            |d| usize::from(matches!(d, TyData::Opaque { borrows: true, .. })),
+            |n: &mut usize, part| {
+                *n = n.saturating_add(*part);
+                true
+            },
+        )
+        .unwrap_or(0);
         let out = slots.get(ins..).unwrap_or_default();
         // A field path's slot names its source (`ref.result.path.lifetime`).
         if out.iter().filter(|l| **l == 0).count() <= opaque + paths {
@@ -8544,6 +8640,7 @@ fn resolver<'a, 'b>(
         row_params: HashMap::default(),
         const_params: HashMap::default(),
         aliases: RefCell::new(HashMap::default()),
+        in_order: RefCell::new(HashMap::default()),
         seeds: HashMap::default(),
         own_traits: HashMap::default(),
         own_types: RefCell::new(HashMap::default()),

@@ -226,3 +226,29 @@ pub fn derive_work(n: usize) {
         }
     });
 }
+
+thread_local! {
+    static SLOT_PATH_NODES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the type nodes folded along slot paths on this thread: whether
+/// an alias keeps its parameters in order (`ref.lifetime.alias-in-order`),
+/// where a lifetime alias places its slots, and the borrowing opaque types
+/// of a result; one per distinct node of each type asked. Use the driver's
+/// serial executor to measure a whole build.
+pub fn count_slot_path_nodes<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = SLOT_PATH_NODES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = SLOT_PATH_NODES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One type node folded along slot paths.
+pub(crate) fn slot_path_node() {
+    hd_base::work::add(hd_base::work::Counter::SlotPathNodes, 1);
+    SLOT_PATH_NODES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}
