@@ -6922,6 +6922,7 @@ std/time/clock/cold-function-value-copy-inputs-keep-owners.hd	runtime	accept	std
 lang/functions/function-types-and-values/a-returned-parameter-keeps-its-callers-lifetime.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 std/time/clock/manual-clock-sleep-deadline-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.manual.sleep.deadline-overflow
 std/time/duration/timestamp-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.timestamp.add.checked-overflow
+lang/references/dependent-results/inlined-method-result-argument-keeps-its-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

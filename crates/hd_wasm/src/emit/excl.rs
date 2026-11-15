@@ -520,7 +520,8 @@ pub(super) fn held_mutable(
 }
 
 /// The `Ref`s whose loans argument value `v` carries through calls'
-/// results, when it is no `Ref` itself, as `observe(p.items.get_mut(1)
+/// results (including an inlined getter's containing-object origins),
+/// when it is no `Ref` itself, as `observe(p.items.get_mut(1)
 /// .expect("slot"))` passes the `&mut p.items` it got: each takes its call
 /// loan until the call that `v` is an argument of returns.
 pub(super) fn carried_refs(
@@ -542,12 +543,21 @@ pub(super) fn carried_refs(
             body: b,
             index,
             sub,
+            call_argument: true,
         };
         let mut out = Vec::new();
         let mut seen = hd_base::HashSet::default();
         for (_, bind, _) in graph.collect(value, |c, graph| context.prepare(c, graph)) {
-            if let Bind::Call(a) = bind
-                && let Some(r) = index.value(a as usize).filter(|&r| b.tags[r] == Tag::Ref)
+            // Inlining exposes the returned Ref directly. Its argument's
+            // containing objects remain a separate origin: the local &self
+            // inside the scope does not itself cross their counted pointers.
+            let reference = match bind {
+                Bind::Begin(r) | Bind::Call(r) | Bind::CallParent(r) => Some(r),
+                _ => None,
+            };
+            if let Some(r) = reference
+                .and_then(|r| index.value(r as usize))
+                .filter(|&r| b.tags[r] == Tag::Ref)
             {
                 let r = u32::try_from(r).expect("insts"); // ruled out: u32 TIR IDs.
                 if seen.insert(r) {
@@ -927,6 +937,9 @@ struct OriginContext<'a> {
     body: &'a Body,
     index: &'a OriginIndex,
     sub: &'a dyn Fn(Ty) -> Ty,
+    /// A call argument has no holder registration to follow its reborrow root.
+    /// Retain the inlined argument's Ref origin until the consuming call.
+    call_argument: bool,
 }
 
 impl OriginContext<'_> {
@@ -993,18 +1006,22 @@ impl OriginContext<'_> {
                 .filter_map(|v| self.part(v, OriginMap::Offset(0)))
                 .collect();
             let mut parents = None;
+            // Holder registration already follows a returned Ref's reborrow
+            // roots. A transient call argument instead needs the inlined
+            // receiver's own Ref origin as well as the result's origin.
             if direct.is_some()
                 && let Some(a) = self.index.argument(c)
                 && let Some(v) = self.index.value(a as usize)
-                && b.tags[v] == Tag::Read
-                && matches!(
-                    kind(self.pool, self.env, (self.sub)(b.ty[v])),
-                    Kind::Ref {
-                        whole: true,
-                        fat: false,
-                        ..
-                    }
-                )
+                && (self.call_argument && b.tags[v] == Tag::Ref
+                    || b.tags[v] == Tag::Read
+                        && matches!(
+                            kind(self.pool, self.env, (self.sub)(b.ty[v])),
+                            Kind::Ref {
+                                whole: true,
+                                fat: false,
+                                ..
+                            }
+                        ))
             {
                 let set = graph.sets.atom_with(Bind::CallParent(a), || {
                     arg_loan(self.pool, self.env, b, self.sub, a)
@@ -1748,6 +1765,7 @@ impl<'a> OriginWalk<'a> {
                 body,
                 index,
                 sub,
+                call_argument: false,
             },
             graph: OriginGraph::default(),
         }

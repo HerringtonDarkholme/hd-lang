@@ -1,0 +1,28 @@
+# @dump: wat
+# @build: dev | release
+# expected: the loan remains held through observe after inlining at
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+struct Outer:
+    items: Slots
+
+fn observe(r: &string, alias: *mut Outer) -> string:
+    for round in 0..16:
+        alias.items.push("w-" + "x".repeat(40)) # panic: borrow-conflict
+    *r
+
+# subject
+fn probe(p: *mut Outer, alias: *mut Outer) -> string:
+    observe(p.items.at(0), alias)
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: Slots { items: ["orig-" + "z".repeat(40)] } })
+    println(probe(p, p))
