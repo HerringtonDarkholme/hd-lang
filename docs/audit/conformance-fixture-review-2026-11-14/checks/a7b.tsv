@@ -285,7 +285,7 @@ runtime/valid/iterator-skip-take-while.hd	A7b	lost '' gained ',,'	std/iter.md#r-
 runtime/valid/iterator-trait-adapter-structs.hd	A7b	lost '' gained ',,,,,,,,,,'	std/iter.md#iterator-adapters
 runtime/valid/iterator-zip-iterable.hd	A7b	lost '' gained ','	std/iter.md#r-std-iter.adapter.zip-iterable.order
 runtime/valid/json-adversarial-inputs.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/json.md#r-std-json.parse.strict
-runtime/valid/json-decode-bytes-matches-old.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/json.md#r-std-json.parse
+runtime/valid/json-parse-and-from-json-agree-with-a-reference-parser-and-reader.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/json.md#r-std-json.parse
 runtime/valid/json-decode-streaming.hd	A7b	lost '' gained ',,'	std/json.md#r-std-json.decode.no-tree
 runtime/valid/json-encode-pretty.hd	A7b	lost '' gained ',,,,,'	std/json.md#r-std-json.encode-pretty
 runtime/valid/json-encode-text-writer-matches-tree.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/json.md#r-std-json.encode
@@ -462,7 +462,7 @@ runtime/valid/regex-find-all.hd	A7b	lost '' gained ',,'	std/regex.md#all-matches
 runtime/valid/regex-leftmost-first.hd	A7b	lost '' gained ',,,,,'	std/regex.md#searching
 runtime/valid/regex-linear-time.hd	A7b	lost '' gained ','	std/regex.md#time-bound
 runtime/valid/regex-model-properties.hd	A7b	lost '' gained '(),,,,,,,,,,,,,,,,,,'	std/regex.md#r-std-regex.find.leftmost
-runtime/valid/regex-pike-vm-matches-old-engine.hd	A7b	lost '' gained '(()),,,,,,,,,,,,,,,,'	std/regex.md#r-std-regex.find.leftmost-first
+runtime/valid/regex-matches-groups-replacements-and-splits-agree-with-a-reference-engine.hd	A7b	lost '' gained '(()),,,,,,,,,,,,,,,,'	std/regex.md#r-std-regex.find.leftmost-first
 runtime/valid/regex-prefilter-matches-plain-vm.hd	A7b	lost '' gained '(()),,,,,,,,,,,,,,,,'	std/regex.md#r-std-regex.find.leftmost
 runtime/valid/regex-repetition.hd	A7b	lost '' gained ','	std/regex.md#repetition
 runtime/valid/regex-replace.hd	A7b	lost '' gained ',,,,,,'	std/regex.md#replacing-and-splitting

@@ -1,6 +1,6 @@
-# test: block on through a helper in non entry module init panics
+# test: block_on through a helper during non-entry module initialization panics
 # Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
-# fixture-package-tree: migrated-block-on-through-a-helper-in-non-entry-module-init-panics/src/main.hd
+# fixture-package-tree: block-on-through-a-helper-during-non-entry-module-initialization-panics/src/main.hd
 use pkg.helper.get # panic: suspension-forbidden-context
 
 pub fn main() -> void $ Console:

@@ -1483,7 +1483,7 @@ runtime/valid/json-typed-errors.hd	accept	std/json.md#r-std-json.error.path	-60
 runtime/valid/json-errors.hd	accept	std/json.md#r-std-json.error.position-bytes	-43	
 runtime/valid/json-numbers.hd	accept	std/json.md#r-std-json.number.eq	-7	
 runtime/valid/json-object-value-copy.hd	accept	std/json.md#r-std-json.object.value	-2	
-runtime/valid/json-decode-bytes-matches-old.hd	accept	std/json.md#r-std-json.parse	-372	
+runtime/valid/json-parse-and-from-json-agree-with-a-reference-parser-and-reader.hd	accept	std/json.md#r-std-json.parse	-372	
 runtime/valid/json-suite.hd	accept	std/json.md#r-std-json.parse.grammar	-8	
 runtime/valid/json-float-text.hd	accept	std/json.md#r-std-json.parse.number.float-via-parse	-23	
 runtime/valid/json-number-grammar.hd	accept	std/json.md#r-std-json.parse.number.grammar	3	
@@ -1550,7 +1550,7 @@ runtime/valid/regex-literals-escapes.hd	accept	std/regex.md#literals-and-escapes
 runtime/valid/regex-errors.hd	accept	std/regex.md#pattern-errors	-132	
 runtime/valid/regex-model-properties.hd	accept	std/regex.md#r-std-regex.find.leftmost	-258	
 runtime/valid/regex-prefilter-matches-plain-vm.hd	accept	std/regex.md#r-std-regex.find.leftmost	-236	
-runtime/valid/regex-pike-vm-matches-old-engine.hd	accept	std/regex.md#r-std-regex.find.leftmost-first	-240	
+runtime/valid/regex-matches-groups-replacements-and-splits-agree-with-a-reference-engine.hd	accept	std/regex.md#r-std-regex.find.leftmost-first	-240	
 runtime/valid/regex-repetition.hd	accept	std/regex.md#repetition	-5	
 runtime/valid/regex-replace.hd	accept	std/regex.md#replacing-and-splitting	-24	
 runtime/valid/regex-split.hd	accept	std/regex.md#replacing-and-splitting	-4	

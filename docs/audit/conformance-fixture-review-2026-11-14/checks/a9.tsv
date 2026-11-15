@@ -777,7 +777,7 @@ typing/invalid/delegated-associated-type-return-mismatch.hd	A9	reject:type-misma
 typing/invalid/source-without-fills-defaults-bounds-defaulted-member.hd	A9	reject:member-not-derivable not mentioned in cited lang/14-annotations.md#r-annot.impl-fact.fills-defaults.exempt
 typing/invalid/the-checker-rejects-a-trait-value-for-a-bound-its-trait-does-not-extend.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/text.md#more-string-methods
 runtime/panic/block-on-in-a-defer-suite-of-a-suspending-function-panics.hd	A9	panic:suspension-forbidden-context not mentioned in cited std/task.md#block-on
-runtime/panic/block-on-through-a-helper-in-non-entry-module-init-panics.hd	A9	panic:suspension-forbidden-context not mentioned in cited std/task.md#block-on
+runtime/panic/block-on-through-a-helper-during-non-entry-module-initialization-panics.hd	A9	panic:suspension-forbidden-context not mentioned in cited std/task.md#block-on
 typing/invalid/a-typed-key-without-an-implementation-is-an-error-signed.hd	A9	reject:type-mismatch not mentioned in cited lang/05-expressions.md#r-expr.index.trait.choice
 typing/invalid/a-typed-key-without-an-implementation-is-an-error-narrow.hd	A9	reject:type-mismatch not mentioned in cited lang/05-expressions.md#r-expr.index.trait.choice
 typing/invalid/a-default-type-without-an-implementation-is-an-error.hd	A9	reject:type-mismatch not mentioned in cited lang/05-expressions.md#r-expr.index.trait.choice

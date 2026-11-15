@@ -1,6 +1,6 @@
 # test: a non entry module function called from main may block on
 # Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
-# fixture-package-tree: migrated-a-non-entry-module-function-called-from-main-may-block-on/src/main.hd
+# fixture-package-tree: block-on-a-non-entry-module-function-called-from-main-may-block-on/src/main.hd
 # expect-stdout: 45
 use pkg.helper.get
 

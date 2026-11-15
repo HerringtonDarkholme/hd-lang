@@ -3704,7 +3704,7 @@ runtime/valid/regex-named-groups.hd	runtime	accept	std/regex.md#captures
 runtime/valid/regex-replace.hd	runtime	accept	std/regex.md#replacing-and-splitting
 runtime/valid/regex-split.hd	runtime	accept	std/regex.md#replacing-and-splitting
 runtime/valid/regex-captures-linear-time.hd	runtime	accept	std/regex.md#time-bound
-runtime/valid/regex-pike-vm-matches-old-engine.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost-first
+runtime/valid/regex-matches-groups-replacements-and-splits-agree-with-a-reference-engine.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost-first
 runtime/valid/regex-prefilter-matches-plain-vm.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost
 runtime/valid/regex-match-value-copy.hd	runtime	accept	std/regex.md#r-std-regex.match.value
 runtime/valid/test-registration-renamed-import.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.spellings
@@ -4174,7 +4174,7 @@ runtime/valid/json-encode-pretty.hd	runtime	accept	std/json.md#r-std-json.encode
 runtime/valid/serde-derive-read-default.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.unskipped-default
 runtime/valid/json-encode-text-writer-matches-tree.hd	runtime	accept	std/json.md#r-std-json.encode
 runtime/valid/json-decode-streaming.hd	runtime	accept	std/json.md#r-std-json.decode.no-tree
-runtime/valid/json-decode-bytes-matches-old.hd	runtime	accept	std/json.md#r-std-json.parse
+runtime/valid/json-parse-and-from-json-agree-with-a-reference-parser-and-reader.hd	runtime	accept	std/json.md#r-std-json.parse
 typing/invalid/serde-derive-member-not-deserialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
 typing/invalid/boundary-result-needs-deserialize.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.in
 typing/invalid/boundary-nested-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
@@ -5318,11 +5318,11 @@ runtime/valid/negative-and-positive-float-patterns-match-their-values.hd	runtime
 runtime/valid/a-negative-float-pattern-on-f32-and-negative-int-patterns-match.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 runtime/valid/negative-float-arms-split-by-value.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 runtime/panic/block-on-in-a-defer-suite-of-a-suspending-function-panics.hd	runtime	panic:suspension-forbidden-context	std/task.md#block-on
-runtime/panic/block-on-through-a-helper-in-non-entry-module-init-panics.hd	runtime	panic:suspension-forbidden-context	std/task.md#block-on
+runtime/panic/block-on-through-a-helper-during-non-entry-module-initialization-panics.hd	runtime	panic:suspension-forbidden-context	std/task.md#block-on
 runtime/valid/block-on-outside-forbidden-contexts-runs.hd	runtime	accept	std/task.md#block-on
 runtime/valid/the-count-is-balanced-after-a-defer-suite-and-a-default-expression.hd	runtime	accept	std/task.md#block-on
 runtime/valid/the-entry-module-init-may-block-on.hd	runtime	accept	std/task.md#block-on
-runtime/valid/a-non-entry-module-function-called-from-main-may-block-on.hd	runtime	accept	std/task.md#block-on
+runtime/valid/block-on-a-non-entry-module-function-called-from-main-may-block-on.hd	runtime	accept	std/task.md#block-on
 runtime/valid/generic-local-identity-call.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/generic-local-multiple-instantiations.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/generic-local-captures-and-parameters.hd	runtime	accept	std/text.md#joining-and-building
