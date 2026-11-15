@@ -1525,6 +1525,19 @@ impl Inputs<'_> {
                 .any(|s0| ids.get(s0) == Some(&l) && s < lay.slots[s0].end)
     }
 
+    /// The body's own lifetime of parameter slot `o`, which [`Self::allows`]
+    /// reads: the function's map's, or what a closure parameter's
+    /// annotation writes there. `None` for another origin, or a slot no
+    /// lifetime of the body's names.
+    fn lifetime_of(&self, o: Origin) -> Option<u32> {
+        let Origin::Param(p, s) = o else {
+            return None;
+        };
+        let own = (self.own.and_then(|own| own.params.get(p as usize)))
+            .and_then(|x| x.1.get(s as usize).copied());
+        own.or_else(|| (self.annotated.get(&p)?.get(s as usize).copied()).filter(|&l| l != 0))
+    }
+
     fn ty(&self, r: u32) -> Option<Ty> {
         (r & hd_tir::ir::Ref::CONST_BIT == 0)
             .then(|| self.b.ty.get(r as usize).copied())
@@ -1776,12 +1789,7 @@ impl Ck<'_, '_> {
             None => None,
         };
         let dep = match &sig {
-            Some(sig) => {
-                let is_self = |s| names.text(s) == "self";
-                let dep = DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
-                    .with_paths(ls, &sig.paths);
-                self.with_wholes(ls, dep)
-            }
+            Some(sig) => self.with_wholes(ls, self.call_dep(ls, sig)),
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
         let ids = dep.all_ids();
@@ -2261,10 +2269,20 @@ impl Ck<'_, '_> {
             // a tuple's rest part is traced no further.
             stack.push(Trace::Value(f, rest.to_vec()));
         } else if tag == Tag::CallValue {
+            // A field of the result is at the call's own lifetimes, which
+            // the function value's type gives it, whatever function the
+            // value holds: `g(p).f(&q)` with `g: fn(&Point) -> Holder[T]`
+            // passes `&q` at `p`'s lifetime.
+            let callee = b.data[i][0];
+            if let Some(dep) = arg_ty(b, callee).and_then(|t| DepSig::of_fn(ls, t))
+                && let Some(Spot::Field(at)) = fn_spot(self.cx, ls.pool, dep.ret, &path)
+            {
+                self.result_field_at(ls, (v, &dep), &path, at, push);
+            }
             // A call through a function value returns part of that value's
             // type: `f(p)(&q)` calls the function type in `f`'s result.
             let full = std::iter::once(Part::Result).chain(path).collect();
-            stack.push(Trace::Value(b.data[i][0], full));
+            stack.push(Trace::Value(callee, full));
         } else if matches!(tag, Tag::Call | Tag::Await)
             && let Some(sig) = (Callee::from_words(b.record(b.data[i][0])))
                 .map(|c| match c {
@@ -2283,15 +2301,7 @@ impl Ck<'_, '_> {
                     }
                 }
                 Some(Spot::Field(at)) => {
-                    let dep = DepSig::new(ls, &sig.params, |_| false, sig.ret, &sig.lifetimes);
-                    for (k, slot) in self
-                        .field_inputs(ls, sig.ret, &path, at)
-                        .unwrap_or_default()
-                    {
-                        if let Some(Some(l)) = dep.outs.get(slot) {
-                            push(k, Var::At(v, *l));
-                        }
-                    }
+                    self.result_field_at(ls, (v, &self.call_dep(ls, sig)), &path, at, push);
                 }
                 Some(Spot::ResultField { from, at, lo, ty }) => {
                     let rec = rec.and_then(|r| r.get(lo..)).unwrap_or(&[]);
@@ -2303,6 +2313,33 @@ impl Ck<'_, '_> {
                     }
                 }
                 None => {}
+            }
+        }
+    }
+
+    /// The map a call of the function or method `sig` passes and returns
+    /// its arguments' origins by (`ref.dep.position`): the receiver's
+    /// lifetime elides, and a result path takes its parameter's.
+    fn call_dep(&self, ls: &Layouts<'_>, sig: &hd_resolve::FnSig) -> DepSig {
+        let is_self = |s| self.cx.names.text(s) == "self";
+        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).with_paths(ls, &sig.paths)
+    }
+
+    /// The input slots of the function type in the field that `path`
+    /// reads at step `at` of call `v`'s result, by the call's map `dep`:
+    /// each at the call's lifetime of the result slot that holds the
+    /// struct's lifetime it writes ([`Var::At`]), elided or written.
+    fn result_field_at(
+        &self,
+        ls: &Layouts<'_>,
+        (v, dep): (u32, &DepSig),
+        path: &[Part],
+        at: usize,
+        push: &mut dyn FnMut(usize, Var),
+    ) {
+        for (k, slot) in self.field_inputs(ls, dep.ret, path, at).unwrap_or_default() {
+            if let Some(Some(l)) = dep.outs.get(slot) {
+                push(k, Var::At(v, *l));
             }
         }
     }

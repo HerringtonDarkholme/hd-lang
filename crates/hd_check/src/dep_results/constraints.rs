@@ -1360,6 +1360,37 @@ impl Gen<'_, '_> {
         }
         let results: HashMap<Region, &(Option<usize>, Vec<u32>)> =
             self.universal.iter().map(|(k, &u)| (u, k)).collect();
+        // The components of the call lifetimes a later call of the
+        // function value they returned passes at ([`Var::At`]), each with
+        // the calls that made them, and, made once per component on its
+        // first checked edge, the body's own lifetimes of the parameter
+        // slots those calls passed there.
+        let (mut at_comps, mut at_made) = (HashSet::default(), HashSet::default());
+        for (&call, rs) in &self.returned {
+            for &(_, r) in rs {
+                at_comps.insert(sol.component(r));
+                at_made.insert((sol.component(r), call));
+            }
+        }
+        let at_lifetimes = std::cell::RefCell::<HashMap<u32, Vec<u32>>>::default();
+        // The call that made the lifetime passes its own arguments at it,
+        // which only make it longer.
+        let at_allows = |e: &Edge, o: Origin| {
+            let (to, c) = (e.to, sol.component(e.to));
+            if !at_comps.contains(&c) || at_made.contains(&(c, e.inst)) {
+                return true;
+            }
+            let mut memo = at_lifetimes.borrow_mut();
+            let lts = memo.entry(c).or_insert_with(|| {
+                let mut lts: Vec<u32> = (sol.value(to).iter())
+                    .filter_map(|x| self.s.lifetime_of(self.loans[x as usize]))
+                    .collect();
+                lts.sort_stable();
+                lts.dedup();
+                lts
+            });
+            lts.iter().all(|&l| self.s.allows(o, l))
+        };
         let allowed = |e: &Edge, l: Loan| {
             let o = self.loans[l as usize];
             let global = matches!(o, Origin::Global(_));
@@ -1388,8 +1419,16 @@ impl Gen<'_, '_> {
                         .all(|&(l, _)| global || self.s.allows(o, l))
                 }
                 Category::Forward => global || matches!(o, Origin::Param(..)),
-                Category::Bound => (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
-                    .all(|&(l, _)| global || self.s.allows(o, l)),
+                // A call lifetime is at least each of the body's own
+                // lifetimes its call passed a parameter's slot at, whatever
+                // function value the result holds
+                // (`fn.type.lifetime.call.written`).
+                Category::Bound => {
+                    global
+                        || (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
+                            .all(|&(l, _)| self.s.allows(o, l))
+                            && at_allows(e, o)
+                }
                 _ => global,
             }
         };

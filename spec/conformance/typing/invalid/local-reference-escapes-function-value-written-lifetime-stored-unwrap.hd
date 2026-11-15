@@ -1,0 +1,27 @@
+# test: a function value read from a field of a call's result through a reference passes its argument at the call's lifetime the field's type writes, though the stored function writes none
+# Spec 07 Function Types: fn.type.lifetime.call.written. `wrap` ties
+# `'a` to `p`, and `unwrap` keeps it, so `&q` is passed at `p`'s
+# lifetime.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Outer['a, T]:
+    n: i32
+    h: Holder['a, T]
+
+fn wrap['a, T](h: Holder['a, T], p: &'a Point) -> Outer['a, T]:
+    Outer { n: 1, h: h }
+
+fn unwrap['a, T](o: &Outer['a, T]) -> Holder['a, T]:
+    o.h
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+fn unwrapped(p: &Point) -> i32:
+    q := Point { x: 1 }
+    o := wrap(Holder { f: x_of }, p)
+    (unwrap(&o).f)(&q) # diagnostic: local-reference-escapes

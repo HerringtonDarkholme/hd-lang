@@ -53,8 +53,7 @@ the repository has been changed yet.
 
 **Owner questions** (details in the batch sections): panic-marker line
 convention (the raising line or the entry call); a target directive for
-`usize`-width cases; the tier-forced pointer-loan citations; a possible
-soundness gap (`function-value-written-lifetime-call-result-field.hd`); spec
+`usize`-width cases; the tier-forced pointer-loan citations; spec
 gaps in nesting limits for prefix `*` and `**` chains, the compound-store code
 through `Apply`, covariant list joins against `types.lct.no-combine`, how
 bound depth is counted (64 against 65 or 66), and `dependent-result-counted-lend.hd`
@@ -202,7 +201,6 @@ unless it says otherwise.
     report text; b007, b061, b112, b136). [Move them to `cli/` cases, which compare text.]
 15. **[decide] Spec questions. File one `owner-decision` issue each (use the
     `write-issue` skill):**
-    - a possible soundness gap: `function-value-written-lifetime-call-result-field.hd` (b071);
     - nesting and chain limits for prefix `*` and `**` (b008);
     - the error code for a compound store through `Apply` (b040);
     - covariant list joins against `types.lct.no-combine` (b029);
@@ -1797,18 +1795,8 @@ Ledger: b069 (46): 5 rows. Plausible 5.
 
 #### b070, b071 (`lang/07-functions.md`)
 
-Ledger: b070 (44): 2 rows. b071 (46): 1 row.
+Ledger: b070 (44): 2 rows. b071 (46): 0 rows.
 
-- **Possible soundness gap, owner question**: `typing/valid/function-value-written-lifetime-call-result-field.hd`,
-  function `named`: `(relay(Holder { f: x_of }, p).f)(&q)` with a local `q`.
-  `Holder['a, T]`'s field type `fn(&'a Point) -> T` writes `'a`, and `relay` ties
-  `'a` to `p`. Read literally, `fn.type.lifetime.call.written` says `&q` must
-  outlive `'a`, so the call should be rejected. The fixture's header claims an
-  exception, "or the field's function writes no lifetime" (`x_of` writes
-  none). `hd` accepts this literal form, but the reviewer reports that the same
-  call with the `Holder` as a *parameter* is rejected (`local-reference-escapes`).
-  Either the exception should be stated in the spec and applied the same way
-  to both forms, or this accept case pins a soundness hole.
 - **Expected output never checked (A16)**: `runtime/valid/known-consumer-mixed-loop-contexts.hd`
   (also found by script).
 - Plausible B4: `runtime/valid/inlined-function-result-variance.hd` (no `@inline`,

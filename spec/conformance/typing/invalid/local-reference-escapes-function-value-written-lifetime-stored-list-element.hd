@@ -1,0 +1,17 @@
+# test: a function value read from a field of a list element of a call's result passes its argument at the call's lifetime the field's type writes, though the stored function writes none
+# Spec 07 Function Types: fn.type.lifetime.call.written.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn listed['a, T](h: Holder['a, T], p: &'a Point) -> List[Holder['a, T]]:
+    [h]
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+fn first(p: &Point) -> i32:
+    q := Point { x: 1 }
+    (listed(Holder { f: x_of }, p)[0].f)(&q) # diagnostic: local-reference-escapes

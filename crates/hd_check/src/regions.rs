@@ -304,6 +304,12 @@ impl Solution {
         self.comp[a as usize] == self.comp[b as usize]
     }
 
+    /// The component `r` ended in: one key for every region sharing its
+    /// value.
+    pub(crate) fn component(&self, r: Region) -> u32 {
+        self.comp[r as usize]
+    }
+
     /// The checked edges whose source holds a loan that `allowed` rejects
     /// for that edge, by instruction, then in edge order: the first is the
     /// one to report.

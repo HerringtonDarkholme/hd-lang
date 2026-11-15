@@ -1,9 +1,12 @@
 # test: a function value read from a field of a call's result accepts an argument that outlives the caller's lifetime the field writes
 # Spec 07 Function Types: fn.type.lifetime.call.written. The valid
 # counterparts of the call-result field forms: the argument is the
-# caller's `p`, or the field's function writes no lifetime; and a
-# field read through a counted reference, a list element or a function
-# value's result, and a field whose type writes the lifetime at one input.
+# caller's `p`, the field's type writes no lifetime, or no argument of
+# the call fixes the lifetime the field's type writes; and a field read
+# through a counted reference, a list element or a function value's
+# result, and a field whose type writes the lifetime at one input. A
+# field read through a method's result whose receiver is a local, and
+# in a closure whose parameter's annotation writes the lifetime.
 struct Point:
     x: i32
 
@@ -29,6 +32,16 @@ fn unwrap['a, T](o: &Outer['a, T]) -> Holder['a, T]:
 fn pass_on[T](h: Plain[T]) -> Plain[T]:
     h
 
+fn keep['a, T](h: Holder['a, T]) -> Holder['a, T]:
+    h
+
+struct Maker:
+    n: i32
+
+impl Maker:
+    fn make(&self, p: &Point) -> Holder[i32]:
+        Holder { f: x_of }
+
 fn x_of(p: &Point) -> i32:
     p.x
 
@@ -53,6 +66,16 @@ fn unwritten[T](h: Plain[T]) -> T:
     q := Point { x: 1 }
     (pass_on(h).f)(&q)
 
-fn named(p: &Point) -> i32:
+fn free(p: &Point) -> i32:
     q := Point { x: 1 }
-    (relay(Holder { f: x_of }, p).f)(&q)
+    (keep(Holder { f: x_of }).f)(&q)
+
+fn local_receiver(p: &Point) -> i32:
+    q := Point { x: 1 }
+    m := Maker { n: 1 }
+    (m.make(&q).f)(&q)
+
+fn in_closure['a](p: &'a Point) -> i32:
+    g := fn(x: &'a Point):
+        (relay(Holder { f: x_of }, x).f)(x)
+    g(p)

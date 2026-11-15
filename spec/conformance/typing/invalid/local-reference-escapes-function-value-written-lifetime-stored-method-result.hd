@@ -1,0 +1,23 @@
+# test: a function value read from a field of a method's result passes its argument at the receiver's lifetime the result elides to, though the stored function writes none
+# Spec 07 Function Types: fn.type.lifetime.call.written; Spec 13:
+# ref.dep.elide. `make`'s result `Holder[i32]` elides `'a` to the
+# receiver's lifetime, here `m`'s, so `&q` is passed there.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+struct Maker:
+    n: i32
+
+impl Maker:
+    fn make(&self, p: &Point) -> Holder[i32]:
+        Holder { f: x_of }
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+fn via_method(m: &Maker, p: &Point) -> i32:
+    q := Point { x: 1 }
+    (m.make(p).f)(&q) # diagnostic: local-reference-escapes

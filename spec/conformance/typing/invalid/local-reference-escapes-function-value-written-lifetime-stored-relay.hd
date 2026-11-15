@@ -1,0 +1,19 @@
+# test: a function value read from a field of a call's result passes its argument at the call's lifetime the field's type writes, though the stored function writes none
+# Spec 07 Function Types: fn.type.lifetime.call.written. `relay` ties
+# `'a` to `p`, so the field's type passes `&q` at `p`'s lifetime;
+# that `x_of` writes no lifetime does not widen it.
+struct Point:
+    x: i32
+
+struct Holder['a, T]:
+    f: fn(&'a Point) -> T
+
+fn relay['a, T](h: Holder['a, T], p: &'a Point) -> Holder['a, T]:
+    h
+
+fn x_of(p: &Point) -> i32:
+    p.x
+
+fn named(p: &Point) -> i32:
+    q := Point { x: 1 }
+    (relay(Holder { f: x_of }, p).f)(&q) # diagnostic: local-reference-escapes
