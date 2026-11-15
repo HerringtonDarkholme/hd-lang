@@ -1,0 +1,18 @@
+# test: a counted reference binding lent as `&mut` may hold any value, so a dependent result of it is lent from the binding itself and escapes
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.place.
+struct Node:
+    value: i32
+    next: *Node?
+
+fn last(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => last(m)
+        .None => n
+
+fn reset(m: &mut *Node):
+    *m = box(Node { value: 0, next: .None })
+
+fn borrowed(n: &Node, k: *Node) -> &Node:
+    let mut m = k
+    reset(&mut m)
+    last(m) # diagnostic: local-reference-escapes

@@ -5611,7 +5611,13 @@ typing/valid/dependent-result-element-source.hd	type	accept	lang/13-values-and-r
 typing/invalid/dependent-result-local-source.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.call.local
 typing/invalid/dependent-result-captured.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.call.local
 typing/invalid/dependent-result-store-caller-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.store
-typing/invalid/dependent-result-counted-lend.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/valid/dependent-result-counted-lend.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
+runtime/valid/dependent-result-counted-lend.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/valid/dependent-result-counted-lend-bindings.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-counted-lend-local-list.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-counted-lend-fresh-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-counted-lend-mut-borrowed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-counted-lend-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/suspension-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local
 typing/valid/suspension-holds-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension
 typing/invalid/suspension-forward-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local

@@ -1,0 +1,16 @@
+# test: a counted reference bound from a local list is lent from that list, so a dependent result of it escapes
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
+# ref.dep.origin.element.
+struct Node:
+    value: i32
+    next: *Node?
+
+fn last(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => last(m)
+        .None => n
+
+fn from_local(n: &Node) -> &Node:
+    xs := [box(Node { value: 1, next: .None })]
+    m := xs[0]
+    last(m) # diagnostic: local-reference-escapes

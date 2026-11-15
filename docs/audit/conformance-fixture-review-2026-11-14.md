@@ -56,8 +56,7 @@ convention (the raising line or the entry call); a target directive for
 `usize`-width cases; the tier-forced pointer-loan citations; spec
 gaps in nesting limits for prefix `*` and `**` chains, the compound-store code
 through `Apply`, covariant list joins against `types.lct.no-combine`, how
-bound depth is counted (64 against 65 or 66), and `dependent-result-counted-lend.hd`
-(spec against checker); the 21 accept cases in `typing/warnings/`; and the
+bound depth is counted (64 against 65 or 66); the 21 accept cases in `typing/warnings/`; and the
 message-only fixtures (hints and fix-its) that could move to `cli/` cases.
 
 **Rubric row counts (Haiku, unverified unless stated):** B7 286, B1 236, C1 118,
@@ -205,7 +204,6 @@ unless it says otherwise.
     - the error code for a compound store through `Apply` (b040);
     - covariant list joins against `types.lct.no-combine` (b029);
     - how bound depth is counted, 64 against 65 or 66 (b084);
-    - `dependent-result-counted-lend.hd`, spec against checker (b127);
     - `unknown-name` against `invalid-facts-of-target` precedence (pilot);
     - the `*mut`-to-`&mut` loan claim (b120);
     - the empty-row spelling `$()` against `$ ()`.
@@ -2309,12 +2307,9 @@ Ledger: b122 (45): 0 rows. b123 (45): 4 rows.
 
 #### b126, b127 (`lang/13-values-and-references.md`, dependent results)
 
-Ledger: b126 (37): 1 row. b127 (44): 5 rows.
+Ledger: b126 (37): 1 row. b127 (44): 4 rows.
 
 - Duplicate, already in A2: `typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd`.
-- **Spec question, the spec and the checker may disagree**: `typing/invalid/dependent-result-counted-lend.hd`.
-  The origin rule the title cites (`ref.dep.origin.lend`) predicts no error, but
-  the checker reports the local `m`. Either the rule or the checker is wrong.
 - Plausible B7: `typing/invalid/a-pointer-read-from-a-place-keeps-its-root-nested-field.hd`
   (cites a call rule; there is no call). `runtime/valid/dependent-result-capture-static.hd`
   (an accept case citing the error-only `ref.dep.capture-elide.ambiguous`).

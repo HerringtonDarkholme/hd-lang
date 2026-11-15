@@ -1,0 +1,76 @@
+# test: a counted reference read through a binding, a field two levels down, a loop, a method receiver or a reborrow is lent from the place it was read from
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
+# ref.dep.origin.projection, ref.dep.origin.counted. Each binding holds
+# only values read from places of `n` or `o`, so each result has their
+# origins.
+struct Node:
+    value: i32
+    next: *Node?
+
+struct Link:
+    next: *Node?
+
+struct Outer:
+    value: i32
+    link: Link
+
+impl Node:
+    fn me(&self) -> &Node:
+        self
+
+fn last(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => last(m)
+        .None => n
+
+fn through_let(n: &Node) -> &Node:
+    next := n.next
+    match next:
+        .Some(m) => through_let(m)
+        .None => n
+
+fn two_down(o: &Outer) -> &Node?:
+    match o.link.next:
+        .Some(m) => .Some(last(m))
+        .None => .None
+
+fn pick(n: &Node) -> &Node:
+    n
+
+fn in_loop(n: &Node) -> &Node:
+    let mut cur = n
+    while true:
+        match cur.next:
+            .Some(m) => cur = pick(m)
+            .None => return cur
+    cur
+
+fn receiver(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => m.me()
+        .None => n
+
+fn reborrow(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => m
+        .None => n
+
+fn rebound(n: &Node) -> &Node:
+    match n.next:
+        .Some(k) =>
+            m := k
+            last(m)
+        .None => n
+
+fn reassigned(n: &Node) -> &Node:
+    let mut o: *Node? = .None
+    o = n.next
+    match o:
+        .Some(m) => last(m)
+        .None => n
+
+fn in_tuple(n: &Node) -> &Node:
+    t := (n.next, 1)
+    match t:
+        (.Some(m), _) => last(m)
+        _ => n

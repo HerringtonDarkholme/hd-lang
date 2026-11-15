@@ -1,0 +1,17 @@
+# test: a counted reference parameter holds the caller's value too, so a dependent result lent from it escapes even after a store of a place's value
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.place. The call
+# owns `k`'s own storage, which its first value lies in.
+struct Node:
+    value: i32
+    next: *Node?
+
+fn last(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => last(m)
+        .None => n
+
+fn reassigned(n: &Node, mut k: *Node) -> &Node:
+    match n.next:
+        .Some(x) => k = x
+        .None => pass
+    last(k) # diagnostic: local-reference-escapes

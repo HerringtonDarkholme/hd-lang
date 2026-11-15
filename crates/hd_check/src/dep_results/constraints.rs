@@ -58,6 +58,15 @@ struct Gen<'s, 'a> {
     /// The value each `:=` local that is no parameter is bound to, indexed
     /// once on first use ([`Gen::local_target`]).
     shorts: std::cell::OnceCell<HashMap<u32, u32>>,
+    /// The values stored into each local that is no parameter, by
+    /// [`Gen::binding_values`], indexed once on first use: `None` for a
+    /// local a mutable `Ref` or a closure may also write.
+    stored: std::cell::OnceCell<HashMap<u32, Option<Vec<u32>>>>,
+    /// The region of what a counted reference read from each such
+    /// binding is lent from, made once per binding ([`Gen::lend`]).
+    lent: HashMap<u32, Region>,
+    /// The binding of each region of [`Gen::lent`].
+    lent_by: HashMap<Region, u32>,
 }
 
 /// What the result checks need: the function's map with what each
@@ -479,18 +488,156 @@ impl Gen<'_, '_> {
     }
 
     /// Puts what a counted reference argument `a` is lent from into `r`
-    /// (`ref.dep.origin.lend`).
+    /// (`ref.dep.origin.lend`): the place it was read from. A read of a
+    /// binding is lent from what each value stored into the binding is
+    /// lent from (`ref.dep.origin.binding`), and a part of a value read
+    /// from a place, as a pattern binds it, from that place
+    /// (`ref.dep.origin.projection`): `m` of `match n.next: .Some(m)` is
+    /// lent from `n`. A work list, not recursion: a chain of bindings is
+    /// as long as the program. Each binding's stores are traced once, into
+    /// its own region ([`Gen::lent`]), which every later lend reuses.
     fn lend(&mut self, a: u32, r: Region) {
-        let mut v = a as usize;
+        self.lend_all(vec![(a, r)]);
+    }
+
+    /// [`Gen::lend`] of each value of `todo` into its region.
+    fn lend_all(&mut self, mut todo: Vec<(u32, Region)>) {
         let b = self.s.b;
-        while b.tags[v] == Tag::Coerce && self.s.ty(b.data[v][0]).is_some() {
-            v = b.data[v][0] as usize;
+        while let Some((a, r)) = todo.pop() {
+            // A constant holds no counted reference.
+            if self.s.ty(a).is_none() {
+                continue;
+            }
+            let mut v = a as usize;
+            while b.tags[v] == Tag::Coerce && self.s.ty(b.data[v][0]).is_some() {
+                v = b.data[v][0] as usize;
+            }
+            // A construction is lent from its parts (`ref.dep.origin.parts`).
+            if matches!(b.tags[v], Tag::NewVariant | Tag::NewStruct | Tag::NewTuple) {
+                slots(b, v, |_, x, word| {
+                    if word == Word::Value(Role::Consume) {
+                        todo.push((x, r));
+                    }
+                });
+                continue;
+            }
+            // A value no place holds, a box or a call's result, lies in
+            // the binding it was stored into, which keeps it, or in the
+            // hidden local of the argument (`ref.dep.origin.temporary`).
+            if b.tags[v] != Tag::Read {
+                let o = self
+                    .lent_by
+                    .get(&r)
+                    .map_or(Origin::Hidden(w(v)), |&l| Origin::Local(l));
+                self.seed(r, o);
+                continue;
+            }
+            let word = b.data[v][0];
+            let place = b.decode_place(word);
+            let through = |p: &hd_tir::ir::Place| p.proj.contains(&Proj::Deref);
+            match place.as_ref().map(|p| (p.root, p.proj.first().copied())) {
+                Some((PlaceRoot::Local(l), _))
+                    if !place.as_ref().is_some_and(through)
+                        && let Some(lr) = self.binding_region(l.raw(), &mut todo) =>
+                {
+                    self.flow(lr, r);
+                }
+                Some((PlaceRoot::Value(x), first))
+                    if !matches!(first, Some(Proj::Deref | Proj::Elem(_)))
+                        && self.read_of(x.0).is_some() =>
+                {
+                    todo.push((x.0, r));
+                }
+                _ => {
+                    let at = self.place(w(v), word, 0, (false, false)).0;
+                    self.lies_in(at, r);
+                }
+            }
         }
-        let at = match b.tags[v] {
-            Tag::Read => self.place(w(v), b.data[v][0], 0, (false, false)).0,
-            _ => Some(Ok(Origin::Hidden(w(v)))),
+    }
+
+    /// The region of what binding `l` is lent from, made on first use,
+    /// which queues each value stored into it on `todo`. `None` for a
+    /// local [`Gen::binding_values`] does not know every value of.
+    fn binding_region(&mut self, l: u32, todo: &mut Vec<(u32, Region)>) -> Option<Region> {
+        if let Some(&lr) = self.lent.get(&l) {
+            return Some(lr);
+        }
+        let at = todo.len();
+        todo.extend(self.binding_values(l)?.iter().map(|&s| (s, 0)));
+        let lr = self.t.fresh(1).start;
+        self.lent.insert(l, lr);
+        self.lent_by.insert(lr, l);
+        todo[at..].iter_mut().for_each(|x| x.1 = lr);
+        Some(lr)
+    }
+
+    /// The region of what the counted reference binding behind place
+    /// `word` is lent from, for a place through a read of it (`*m`,
+    /// `m.x`), as [`Gen::lend`] lends the read (`ref.dep.origin.counted`).
+    /// `None` for another place.
+    fn counted_binding(&mut self, word: u32) -> Option<Region> {
+        let b = self.s.b;
+        let p = b.decode_place(word)?;
+        let (PlaceRoot::Value(v), Some(Proj::Deref)) = (p.root, p.proj.first()) else {
+            return None;
         };
-        self.lies_in(at, r);
+        let read = self.read_of(v.0)?;
+        let q = b.decode_place(b.data[read as usize][0])?;
+        let (PlaceRoot::Local(l), true) = (q.root, q.proj.is_empty()) else {
+            return None;
+        };
+        if !(self.s.ty(read))
+            .and_then(|t| local_ref(self.s.pool, t))
+            .is_some_and(|x| x.0)
+        {
+            return None;
+        }
+        let mut todo = Vec::new();
+        let lr = self.binding_region(l.raw(), &mut todo)?;
+        self.lend_all(todo);
+        Some(lr)
+    }
+
+    /// The values stored into local `l`, whole or in part: all that it
+    /// holds when no mutable `Ref` of it writes it, and it is no parameter,
+    /// whose first value the caller passed. A closure's store into a
+    /// captured local is a store of the same body. One pass over the body
+    /// on first use indexes every local.
+    fn binding_values(&self, l: u32) -> Option<&[u32]> {
+        use hd_tir::ir::local_flags::PARAM;
+        let b = self.s.b;
+        let index = self.stored.get_or_init(|| {
+            let mut index: HashMap<u32, Option<Vec<u32>>> = HashMap::default();
+            for i in 0..b.tags.len() {
+                let (tag, [word, value]) = (b.tags[i], b.data[i]);
+                let written = match tag {
+                    Tag::Store => Some(value),
+                    Tag::Ref if value & hd_tir::ir::ref_word::MUT != 0 => None,
+                    _ => continue,
+                };
+                let Some(p) = b.decode_place(word) else {
+                    continue;
+                };
+                let PlaceRoot::Local(l) = p.root else {
+                    continue;
+                };
+                if p.proj.contains(&Proj::Deref) {
+                    continue;
+                }
+                let entry = index.entry(l.raw()).or_insert_with(|| Some(Vec::new()));
+                match (entry, written) {
+                    (Some(vs), Some(v)) => vs.push(v),
+                    (entry, _) => *entry = None,
+                }
+            }
+            index
+        });
+        let flags = *b.local_flags.get(l as usize)?;
+        if flags & PARAM != 0 {
+            return None;
+        }
+        index.get(&l)?.as_deref()
     }
 
     /// A call by its map `sig` (`ref.dep.call`): one fresh variable per
@@ -1057,7 +1204,9 @@ impl Gen<'_, '_> {
             Tag::Ref if !me.0.is_empty() => {
                 let inv = is_mut(pool, me.1);
                 let (at, place) = self.place(i, a, usize::MAX, (true, inv));
-                if !self.path_ref(i, at, me.0[0]) {
+                if let Some(lr) = self.counted_binding(a) {
+                    self.flow(lr, me.0[0]);
+                } else if !self.path_ref(i, at, me.0[0]) {
                     self.lies_in(at, me.0[0]);
                 }
                 if exclusive::site(self.s, i) {
@@ -1189,6 +1338,9 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         owns: Vec::new(),
         returned: HashMap::default(),
         shorts: std::cell::OnceCell::new(),
+        stored: std::cell::OnceCell::new(),
+        lent: HashMap::default(),
+        lent_by: HashMap::default(),
     };
     let widths: Vec<u32> = (b.local_ty.iter().map(|&t| g.width(t)))
         .chain((0..b.tags.len()).map(|i| g.width(b.ty[i]).max(u32::from(b.tags[i] == Tag::Ref))))

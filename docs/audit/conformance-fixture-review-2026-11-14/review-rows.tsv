@@ -604,7 +604,6 @@ b127	typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-li
 b127	typing/valid/a-copied-local-reference-in-a-list-keeps-its-own-source.hd	FIX	B1	Title says the independent owner keeps the original box alive, but the code uses locals p and q and no box. Retitle to match.
 b127	typing/invalid/a-pointer-read-from-a-place-keeps-its-root-nested-field.hd	FIX	B7	Cites ref.dep.call.pointer, but no call is made; &ps[0].p.name is a counted crossing. Cite ref.dep.origin.counted.
 b127	runtime/valid/dependent-result-capture-static.hd	FIX	B7	Accept case cites ref.dep.capture-elide.ambiguous, an error-only rule. Cite ref.generic.static.fn-conjunction, which matches its F < FnMut & 'static bounds.
-b127	typing/invalid/dependent-result-counted-lend.hd	UNSURE	B1	Title's rule (origins of the read place, i.e. parameter n) predicts no error; checker reports local m. Verify against ref.dep.origin.lend.
 b128	typing/invalid/dependent-result-function-type-position.hd	FIX	B2	Line 8 `&u.name` also returns a reference to value parameter `u`, a second error hd never reports, since it stops at line 7.
 b128	typing/valid/suspension-holds-arguments.hd	FIX	B1	Title promises a 'static argument may be returned, but no function in the fixture takes or returns a 'static argument.
 b129	runtime/valid/reference-arguments-keep-their-values.hd	FIX	B1	Title promises preserving tuples and counted values, but the fixture has only a newtype, structs and a string; no tuple or *T value is passed.
