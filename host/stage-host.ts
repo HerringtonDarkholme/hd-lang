@@ -58,7 +58,10 @@ function writeAll(bytes: Uint8Array): void {
   }
 }
 
-async function runOne(wasm: Buffer<ArrayBuffer>, args: string[]): Promise<[number, string, string]> {
+async function runOne(
+  wasm: Buffer<ArrayBuffer>,
+  args: string[],
+): Promise<[number, string, string]> {
   let stdout = "";
   let stderr = "";
   const sink = {
@@ -88,7 +91,10 @@ async function runOne(wasm: Buffer<ArrayBuffer>, args: string[]): Promise<[numbe
   return [status & 0xff, stdout, stderr];
 }
 
-async function runTests(wasm: Buffer<ArrayBuffer>, tests: string): Promise<[number, string, string]> {
+async function runTests(
+  wasm: Buffer<ArrayBuffer>,
+  tests: string,
+): Promise<[number, string, string]> {
   let records = "";
   try {
     const module = await WebAssembly.compile(wasm);
