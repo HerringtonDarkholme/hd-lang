@@ -468,6 +468,34 @@ pub mod meta {
     }
 }
 
+/// An item's reference slot counts, kept with it in the pool: the low
+/// word is [`Types::ref_slots`], the high word
+/// [`Types::fn_written_slots`]; a list's are its items' sums. Each count
+/// saturates at `u32::MAX`, past every limit (`types.limit.references`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Slots(u64);
+
+impl Slots {
+    const NONE: Slots = Slots(0);
+
+    fn new(refs: u32, written: u32) -> Self {
+        Slots(u64::from(written) << 32 | u64::from(refs))
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    const fn refs(self) -> u32 {
+        self.0 as u32
+    }
+    const fn written(self) -> u32 {
+        (self.0 >> 32) as u32
+    }
+    fn plus(self, o: Slots) -> Slots {
+        Slots::new(
+            self.refs().saturating_add(o.refs()),
+            self.written().saturating_add(o.written()),
+        )
+    }
+}
+
 impl PoolTag {
     /// Whether `data` is an offset into `extra` (§3.9.2's table); the other
     /// tags keep their whole payload inline in `data`.
@@ -500,6 +528,9 @@ struct Cols {
     tag: AppendVec<PoolTag>,
     data: AppendVec<u32>,
     meta: AppendVec<u32>,
+    /// Each item's reference slot counts ([`Slots`]), kept with the item as
+    /// its meta word is, so a count is one read.
+    slots: AppendVec<u64>,
     extra: AppendVec<u32>,
     tys: AppendVec<Ty>,
 }
@@ -507,7 +538,7 @@ struct Cols {
 impl Cols {
     /// Appends one item. The caller serializes appends, so the columns
     /// stay row-aligned.
-    fn push(&self, c: &Content<'_>, meta: u32) -> u32 {
+    fn push(&self, c: &Content<'_>, meta: u32, slots: Slots) -> u32 {
         let data = if c.tag == PoolTag::List {
             let len = u32::try_from(c.tys.len()).expect("list");
             let start = self.tys.push_run(len, Ty::NEVER, c.tys.iter().copied());
@@ -521,6 +552,7 @@ impl Cols {
         let i = self.tag.push(c.tag);
         self.data.push(data);
         self.meta.push(meta);
+        self.slots.push(slots.0);
         i
     }
 
@@ -757,12 +789,12 @@ impl LocalPool {
         Self::default()
     }
 
-    fn intern(&self, c: &Content<'_>, meta: u32) -> u32 {
+    fn intern(&self, c: &Content<'_>, meta: u32, slots: Slots) -> u32 {
         let h32 = low(c.hash());
         let mut idx = self.index.borrow_mut();
         let found = idx.find(h32, |i| c.matches(&self.cols, i));
         let row = found.unwrap_or_else(|| {
-            let i = self.cols.push(c, meta);
+            let i = self.cols.push(c, meta, slots);
             idx.insert(h32, i);
             i
         });
@@ -831,11 +863,16 @@ impl<'a> Types<'a> {
         c.meta[i]
     }
 
+    fn slots_word(self, id: u32) -> Slots {
+        let (c, i) = self.at(id);
+        Slots(c.slots[i])
+    }
+
     /// Interns in the local pool when the item holds a variable, else in
     /// the global pool.
-    fn intern(self, tag: PoolTag, data: u32, rec: (&[u32], &[Ty]), meta: u32) -> u32 {
+    fn intern(self, tag: PoolTag, data: u32, rec: (&[u32], &[Ty]), meta: u32, slots: Slots) -> u32 {
         if meta & meta::HAS_INFER == 0 {
-            return self.global.intern(tag, data, rec, meta);
+            return self.global.intern(tag, data, rec, meta, slots);
         }
         let (head, tys) = rec;
         self.local
@@ -848,6 +885,7 @@ impl<'a> Types<'a> {
                     tys,
                 },
                 meta,
+                slots,
             )
     }
 }
@@ -888,7 +926,14 @@ impl InternPool {
     /// Interns `tag` with an inline `data` word or with the record `head`
     /// then `tys`. A hit allocates nothing: the content is hashed and
     /// compared where it lies.
-    fn intern(&self, tag: PoolTag, data: u32, (head, tys): (&[u32], &[Ty]), meta: u32) -> u32 {
+    fn intern(
+        &self,
+        tag: PoolTag,
+        data: u32,
+        (head, tys): (&[u32], &[Ty]),
+        meta: u32,
+        slots: Slots,
+    ) -> u32 {
         // A global type never holds a local one (§3.4).
         assert!(
             meta & meta::HAS_INFER == 0,
@@ -931,7 +976,7 @@ impl InternPool {
                     .append
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                self.cols.push(&c, meta)
+                self.cols.push(&c, meta, slots)
             };
             idx.insert(h32, i);
             i
@@ -1066,7 +1111,10 @@ impl<'a> Types<'a> {
     #[must_use]
     pub fn list(self, tys: &[Ty]) -> TyList {
         let meta = tys.iter().fold(0, |m, t| meta::join(m, self.meta_of(*t)));
-        TyList(self.intern(PoolTag::List, 0, (&[], tys), meta))
+        let slots = tys
+            .iter()
+            .fold(Slots::NONE, |s, t| s.plus(self.slots_word(t.0)));
+        TyList(self.intern(PoolTag::List, 0, (&[], tys), meta, slots))
     }
 
     /// A list's items, borrowed from the pool: no copy.
@@ -1106,7 +1154,7 @@ impl<'a> Types<'a> {
             words.push(p.owner.raw());
             words.push(u32::from(p.index));
         }
-        RowId(self.intern(PoolTag::Row, 0, (&words, &[]), meta))
+        RowId(self.intern(PoolTag::Row, 0, (&words, &[]), meta, Slots::NONE))
     }
 
     /// Interns a dependency map ([`FnDeps`]): `ins` gives each input
@@ -1122,7 +1170,7 @@ impl<'a> Types<'a> {
             return FnDeps::NONE;
         }
         let (words, _) = Self::dependency_words(ins, outs);
-        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0))
+        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0, Slots::NONE))
     }
 
     /// Canonical order follows the inputs, independent of hash-table order.
@@ -1202,7 +1250,7 @@ impl<'a> Types<'a> {
             words[0] = n;
             words.push(u32::from(x));
         }
-        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0))
+        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0, Slots::NONE))
     }
 
     /// The map an instance of a function type with an open map, whose
@@ -1591,6 +1639,7 @@ impl<'a> Types<'a> {
             TyData::Row(r) => (T::RowTy, r.0, meta::level(self.row_meta(*r))),
             TyData::Context(r) => (T::Context, r.0, meta::level(self.row_meta(*r))),
         };
+        let slots = self.slots_of_data(t);
         let mut buf = [0u32; 5];
         let rec: &[u32] = match t {
             TyData::Adt { def, args } => {
@@ -1655,11 +1704,11 @@ impl<'a> Types<'a> {
                     w.push(d.raw());
                     w.push(t.0);
                 }
-                return Ty(self.intern(tag, data, (&w, &[]), meta));
+                return Ty(self.intern(tag, data, (&w, &[]), meta, slots));
             }
             _ => &[],
         };
-        Ty(self.intern(tag, data, (rec, &[]), meta))
+        Ty(self.intern(tag, data, (rec, &[]), meta, slots))
     }
 
     /// The inputs tuple of a function type with these `params`
@@ -2129,7 +2178,7 @@ impl<'a> Types<'a> {
     /// written lifetimes follow this order (`FnSig::lifetimes`).
     #[must_use]
     pub fn ref_slots(self, t: Ty) -> usize {
-        self.ref_slots_at(t, 0)
+        self.slots_word(t.0).refs() as usize
     }
 
     /// The reference slots of every function type in `t`, which a
@@ -2142,64 +2191,41 @@ impl<'a> Types<'a> {
     /// inside one.
     #[must_use]
     pub fn fn_written_slots(self, t: Ty) -> usize {
-        self.fn_written_slots_at(t, 0)
+        self.slots_word(t.0).written() as usize
     }
 
-    fn fn_written_slots_at(self, t: Ty, depth: u32) -> usize {
-        if depth > hd_base::limits::TYPE_DEPTH {
-            return 0;
-        }
-        let d = depth + 1;
-        let list = |l| {
-            self.list_items(l)
-                .iter()
-                .map(|&a| self.fn_written_slots_at(a, d))
-                .sum::<usize>()
-        };
-        match self.get(t) {
+    /// The [`Slots`] of a type built from `t`'s parts, from their own
+    /// words: one read per part, so each distinct type is counted once,
+    /// when it is interned, and a doubled type (`type R{i} = (R{i-1},
+    /// R{i-1})`) costs its distinct nodes, not its `2^i` paths (#2024).
+    fn slots_of_data(self, t: &TyData) -> Slots {
+        let of = |t: Ty| self.slots_word(t.0);
+        let list = |l: TyList| self.slots_word(l.0);
+        match t {
+            TyData::Ref { counted, inner, .. } => {
+                let inner = of(*inner);
+                Slots::new(
+                    inner.refs().saturating_add(u32::from(!counted)),
+                    inner.written(),
+                )
+            }
+            TyData::Opaque { borrows, .. } => Slots::new(u32::from(*borrows), 0),
+            TyData::Tuple { elems, rest } => {
+                rest.map_or(list(*elems), |r| list(*elems).plus(of(r)))
+            }
+            // A union's member order is the pool's, so no record reaches a
+            // function type inside one: its written slots are none.
+            TyData::Union(members) => Slots::new(list(*members).refs(), 0),
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(*args),
+            // A function type's own slots are outside every enclosing
+            // type's reference slots; its written slots are those of the
+            // function types in its inputs and result, then the reference
+            // slots of its inputs and of its result.
             TyData::Fn { params, result, .. } => {
-                let own: usize = self
-                    .list_items(params)
-                    .iter()
-                    .map(|&a| self.ref_slots(a))
-                    .sum::<usize>()
-                    + self.ref_slots(result);
-                list(params) + self.fn_written_slots_at(result, d) + own
+                let parts = list(*params).plus(of(*result));
+                Slots::new(0, parts.written().saturating_add(parts.refs()))
             }
-            TyData::Ref { inner, .. } => self.fn_written_slots_at(inner, d),
-            TyData::Tuple { elems, rest } => {
-                list(elems) + rest.map_or(0, |r| self.fn_written_slots_at(r, d))
-            }
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args),
-            _ => 0,
-        }
-    }
-
-    fn ref_slots_at(self, t: Ty, depth: u32) -> usize {
-        if depth > hd_base::limits::TYPE_DEPTH || !self.has_ref(t) {
-            return 0;
-        }
-        let d = depth + 1;
-        let list = |l| {
-            self.list_items(l)
-                .iter()
-                .map(|&a| self.ref_slots_at(a, d))
-                .sum::<usize>()
-        };
-        match self.get(t) {
-            TyData::Ref {
-                counted: false,
-                inner,
-                ..
-            } => 1 + self.ref_slots_at(inner, d),
-            TyData::Ref { inner, .. } => self.ref_slots_at(inner, d),
-            TyData::Opaque { borrows: true, .. } => 1,
-            TyData::Tuple { elems, rest } => {
-                list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))
-            }
-            TyData::Union(members) => list(members),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args),
-            _ => 0,
+            _ => Slots::NONE,
         }
     }
 
@@ -2655,6 +2681,119 @@ impl Erase {
 
 #[cfg(test)]
 mod tests {
+    /// #2024: `type R0 = &T`, `type R{i} = (R{i-1}, R{i-1})`, and a
+    /// function type over each level. Each count is read from the item's
+    /// own word, set once when the item is interned from its parts' words,
+    /// so building and asking the chain costs pool items linear in its
+    /// levels, where the walk took a step per path (`2^n`).
+    #[test]
+    fn slot_counts_of_a_doubled_chain_cost_its_distinct_nodes() {
+        use super::{FnDeps, Inputs, InternPool, RowId, Ty, TyData};
+        let chain = |n: u32| {
+            let pool = InternPool::new();
+            let before = pool.item_count();
+            let mut r = pool.intern_ty(&TyData::Ref {
+                inner: Ty::I32,
+                mutable: false,
+                counted: false,
+            });
+            let mut f = Ty::I32;
+            for _ in 0..n {
+                r = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&[r, r]),
+                    rest: None,
+                });
+                let g = pool.intern_ty(&TyData::Fn {
+                    params: pool.list(&[r]),
+                    result: Ty::I32,
+                    row: RowId::EMPTY,
+                    suspends: false,
+                    inputs: Inputs::Fixed,
+                    deps: FnDeps::NONE,
+                });
+                f = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&[f, g]),
+                    rest: None,
+                });
+            }
+            let t = pool.types();
+            (
+                t.ref_slots(r),
+                t.fn_written_slots(f),
+                pool.item_count() - before,
+            )
+        };
+        let (refs, written, small) = chain(20);
+        assert_eq!(refs, 1 << 20);
+        // Level i's function type writes the 2^i slots of its input.
+        assert_eq!(written, (1 << 21) - 2);
+        let (refs, written, large) = chain(200);
+        assert_eq!(
+            (refs, written),
+            (u32::MAX as usize, u32::MAX as usize),
+            "saturated"
+        );
+        assert!(
+            large <= 10 * small + 10,
+            "pool items for 20 and 200 levels: {small} and {large}"
+        );
+    }
+
+    /// Each form's counts, as the walks over paths gave them: a counted
+    /// reference adds no slot, a borrowing opaque type one, a union's
+    /// members' slots count and its function types write none, and a
+    /// function type's own slots are outside its enclosing type's.
+    #[test]
+    fn slot_counts_follow_each_type_form() {
+        use super::{FnDeps, Inputs, InternPool, RowId, Ty, TyData};
+        let pool = InternPool::new();
+        let t = pool.types();
+        let r = |inner, counted| {
+            pool.intern_ty(&TyData::Ref {
+                inner,
+                mutable: true,
+                counted,
+            })
+        };
+        let local = r(Ty::I32, false);
+        let counted = r(local, true);
+        assert_eq!((t.ref_slots(local), t.ref_slots(counted)), (1, 1));
+        let opaque = |borrows| {
+            pool.intern_ty(&TyData::Opaque {
+                owner: hd_base::DefId::from_raw(5),
+                site: 0,
+                borrows,
+                args: pool.list(&[local]),
+                bound: Ty::I32,
+            })
+        };
+        assert_eq!(
+            (t.ref_slots(opaque(true)), t.ref_slots(opaque(false))),
+            (1, 0)
+        );
+        let f = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[local, counted]),
+            result: local,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+            deps: FnDeps::NONE,
+        });
+        assert_eq!((t.ref_slots(f), t.fn_written_slots(f)), (0, 3));
+        let union = pool.intern_ty(&TyData::Union(pool.list(&[local, f])));
+        assert_eq!((t.ref_slots(union), t.fn_written_slots(union)), (1, 0));
+        let held = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&[f, local]),
+            rest: Some(r(f, false)),
+        });
+        assert_eq!((t.ref_slots(held), t.fn_written_slots(held)), (2, 6));
+        let adt = pool.intern_ty(&TyData::Adt {
+            def: hd_base::DefId::from_raw(9),
+            args: pool.list(&[held, union]),
+        });
+        assert_eq!((t.ref_slots(adt), t.fn_written_slots(adt)), (3, 6));
+    }
+
     #[test]
     fn dependency_canonicalization_preserves_order_with_linear_work() {
         for width in [100, 1000] {
