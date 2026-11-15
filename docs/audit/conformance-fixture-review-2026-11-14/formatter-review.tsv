@@ -56,7 +56,7 @@ grammar/types/tuple-rest-syntax.hd	HARMLESS
 grammar/expressions/tuples-and-groups.hd	HARMLESS	
 grammar/types/type-forms-and-row-owners.hd	HARMLESS	
 grammar/use-declarations/use-declaration-forms.hd	WEAKENED	Trailing comma in the grouped use with an alias removed; the title names that form.
-parse/valid/use-group-trailing-comma.hd	ERASED	All three grouped-use trailing commas removed.
+modules/use-forms/use-group-trailing-comma.hd	ERASED	All three grouped-use trailing commas removed.
 lexical/processing-model/utf8-bom.hd	ERASED	Leading BOM bytes stripped.
 grammar/declarations/vararg-and-spread.hd	HARMLESS	
 grammar/statements/a-top-level-chain-declares-every-name-once.hd	HARMLESS	
@@ -91,7 +91,7 @@ grammar/statements/let-after-same-line-if-keeps-else.hd	ERASED	Same-line if ... 
 lexical/literals/literal-suffix-calls.hd	HARMLESS	
 grammar/source-files-and-suites/local-declarations-in-block-suites.hd	HARMLESS	
 grammar/source-files-and-suites/long-else-if-chain.hd	HARMLESS	
-runtime/valid/module-initialization-before-main.hd	HARMLESS	
+modules/module-initialization/module-initialization-before-main.hd	HARMLESS	
 runtime/valid/module-qualified-function-value-parenthesized.hd	ERASED	Parenthesized (time.s) became time.s; the parenthesized function value is gone.
 lexical/literals/multiline-string-literals.hd	HARMLESS	
 lexical/whitespace-and-indentation/no-final-line-ending.hd	ERASED	A final line ending was added; the file no longer ends without one.

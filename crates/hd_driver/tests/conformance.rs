@@ -2445,7 +2445,7 @@ fn suite_case(path: &str, serial: usize) -> Case {
 fn a_package_tree_fixture_takes_its_place_in_the_tree() {
     // README "Package Trees": the primary file takes the package path of
     // the header, next to the tree's files, which are not cases.
-    let case = suite_case("runtime/valid/integration-shared-use.hd", 5);
+    let case = suite_case("modules/path-inferred-modules/integration-shared-use.hd", 5);
     let fixture = fixture(&case).expect("a package-tree fixture");
     assert!(fixture.tree);
     assert!(fixture.deps.is_empty());

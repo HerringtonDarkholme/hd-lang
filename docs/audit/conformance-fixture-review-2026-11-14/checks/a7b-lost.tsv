@@ -7,11 +7,11 @@ grammar/use-declarations/single-and-grouped-use.hd	A7b	lost ',' gained ''	lang/0
 grammar/patterns/spread-pattern-syntax.hd	A7b	lost ',' gained ''	lang/02-grammar.md#r-grammar.pattern.tuple-spread
 grammar/test-blocks/test-block.hd	A7b	lost ',' gained ''	lang/02-grammar.md#test-blocks
 grammar/use-declarations/use-declaration-forms.hd	A7b	lost ',' gained ''	lang/02-grammar.md#r-grammar.use.self-root
-parse/valid/use-group-trailing-comma.hd	A7b	lost ',,,' gained ''	lang/10-modules.md#r-module.use.trailing-comma
+modules/use-forms/use-group-trailing-comma.hd	A7b	lost ',,,' gained ''	lang/10-modules.md#r-module.use.trailing-comma
 lexical/processing-model/utf8-bom.hd	A7b	lost '\ufeff' gained ''	lang/01-lexical-structure.md#r-lex.encoding.bom
 lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd	A7b	lost ',,,' gained ''	lang/01-lexical-structure.md#r-lex.continue.delimiters
 std/json/parsing/json-number-grammar.hd	A7b	lost ',' gained ''	std/json.md#r-std-json.parse.number.grammar
-runtime/valid/module-initialization-before-main.hd	A7b	lost ',' gained ''	lang/10-modules.md#module-initialization
+modules/module-initialization/module-initialization-before-main.hd	A7b	lost ',' gained ''	lang/10-modules.md#module-initialization
 runtime/valid/module-qualified-function-value-parenthesized.hd	A7b	lost '()' gained ''	lang/05-expressions.md#r-expr.name.qualified
 grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd	A7b	lost ',,,,,,,,,,,,,,,,,' gained ''	lang/02-grammar.md#r-grammar.generic.default.type-row
 grammar/statements/grammar-assignment-nonplace.hd	A7b	lost '()' gained ''	lang/02-grammar.md#r-grammar.stmt.assign-place

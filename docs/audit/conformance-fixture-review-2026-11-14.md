@@ -1431,12 +1431,12 @@ only *gained* trailing commas, which is harmless. **21 lost tokens**
 (`full/a7b-lost.tsv`), and for these the formatter rewrote the very form
 under test:
 - `lexical/processing-model/utf8-bom.hd`: **its leading U+FEFF was stripped**, the one thing it tests.
-- `parse/valid/use-group-trailing-comma.hd`, `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
+- `modules/use-forms/use-group-trailing-comma.hd`, `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
   (17 commas), `grammar/use-declarations/use-declaration-forms.hd`, `grammar/use-declarations/single-and-grouped-use.hd`,
   `grammar/test-blocks/test-block.hd`, `grammar/patterns/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
   `data/data-embedding/data-embedding.hd`, `functions/functions-and-closures.hd`,
   `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
-  `std/json/parsing/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
+  `std/json/parsing/json-number-grammar.hd`, `modules/module-initialization/module-initialization-before-main.hd`,
   `typing/valid/composite-ordering.hd`, `data/construction-and-access/data-types.hd`,
   `data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd`,
   `data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd`: trailing commas removed.
@@ -2142,55 +2142,55 @@ Ledger: b095 (31): 7 rows. Confirmed 4, plausible 3.
   (only `struct User: pass` against a one-field struct). Plausible:
   `trait-method-result-type-mismatch.hd` ~ `trait-method-signature.hd`.
 - Plausible B1: `typing/valid/trait-implementations-an-impl-may-omit-a-method-with-a-default-body.hd`
-  (an accept case titled "must write every"). `typing/valid/closable-handle-closed.hd`
+  (an accept case titled "must write every"). `modules/wasm-boundary/closable-handle-closed.hd`
   (a type case claiming disposal).
 
 #### b096, b097 (`lang/10-modules.md`)
 
 Ledger: b096 (39): 1 row. b097 (45): 1 row. A pair took 132 s.
 
-- **Depends on map order (B8)**: `runtime/valid/boundary-map-round-trip.hd` asserts
+- **Depends on map order (B8)**: `modules/wasm-boundary/boundary-map-round-trip.hd` asserts
   that a `Map` iterates in insertion order.
-- Plausible B1: `typing/valid/module-initialization-a-function-reads-an-earlier-binding.hd`
+- Plausible B1: `modules/module-initialization/module-initialization-a-function-reads-an-earlier-binding.hd`
   (nothing reads `count` and `read()` is never called).
 
 #### b098, b099 (`lang/10-modules.md`)
 
 Ledger: b098 (43): 1 row. b099 (45): 3 rows. Plausible 4.
 
-- Plausible B1: `runtime/valid/entry-exit-code-map.hd` (`main` takes only the `Ok`
+- Plausible B1: `modules/entry-point/main-maps-an-error-to-an-exit-code.hd` (`main` takes only the `Ok`
   path; the error-to-`ExitCode(2)` mapping is never run through `main`).
-  `runtime/valid/init-constants-only-module-reads-its-constants.hd`.
-  `typing/invalid/optional-none-comparison-still-checks-eq-initialization.hd` (a type
+  `modules/module-initialization/init-constants-only-module-reads-its-constants.hd`.
+  `modules/module-initialization/optional-none-comparison-still-checks-eq-initialization.hd` (a type
   case that claims an optimizer property).
-- Plausible C1: `typing/invalid/host-on-a-private-trait.hd` ~ `host-declaration-private.hd`.
+- Plausible C1: `modules/wasm-boundary/host-on-a-private-trait.hd` ~ `host-declaration-private.hd`.
 
 #### b100, b101 (`lang/10-modules.md`)
 
 Ledger: b100 (45): 1 row. b101 (45): 0 rows. Clean apart from one plausible
-diagnostic-line question: `typing/invalid/module-path-case-fold-collision.hd` marks
+diagnostic-line question: `modules/path-inferred-modules/module-path-case-fold-collision.hd` marks
 the body line, while sibling duplicate-module fixtures mark the declaration line.
 
 #### b104, b105 (`lang/10-modules.md`)
 
 Ledger: b104 (25): 1 row. b105 (35): 1 row.
 
-- **Formatter (A7b)**: `parse/valid/use-group-trailing-comma.hd`. The reviewer
+- **Formatter (A7b)**: `modules/use-forms/use-group-trailing-comma.hd`. The reviewer
   independently found the missing trailing comma that the formatter removed.
-- **Stale term in the title (B1)**: `typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd`.
+- **Stale term in the title (B1)**: `modules/standard-testing/assert-equal-fieldless-data-without-partial-eq.hd`.
   hd has no partial-equality trait (`trait.cmp.one-eq`).
 
 #### b102, b103 (`lang/10-modules.md`)
 
 Ledger: b102 (45): 4 rows. b103 (44): 1 row. Plausible 4, rejected 1.
 
-- **Wrong reason (B4), plausible-strong**: `typing/invalid/relative-path-into-std.hd`.
+- **Wrong reason (B4), plausible-strong**: `modules/use-roots/relative-path-into-std.hd`.
   The `user-modules` tree has no `std` module, so `super.std.text` fails as a
   missing module and the "no relative path into std" rule is never reached.
-  `typing/invalid/integration-super-above-test-root.hd` (`tests/checkout.hd` is a
+  `modules/use-roots/integration-super-above-test-root.hd` (`tests/checkout.hd` is a
   root file, so `root-file.super` rejects first).
-- Plausible: `runtime/valid/slicing-every-range-form-slices-a-string.hd` (no range
-  syntax at all). `typing/invalid/debug-missing-derive.hd` (B7).
+- Plausible: `modules/prelude/slicing-every-range-form-slices-a-string.hd` (no range
+  syntax at all). `modules/standard-testing/debug-missing-derive.hd` (B7).
 - Rejected C1: `root-file-super.hd` ~ `root-file-lib-super.hd` (the `main.hd`/`lib.hd`
   difference is deliberate; see A2 triage).
 
@@ -2212,11 +2212,11 @@ Ledger: b106 (43): 11 rows. b107 (45): 6 rows. Plausible ~15.
 - Plausible B2: `requirements/cancellation/abandon-active-ancestor.hd` (the panic marker is on
   the caller's line; the b018 owner question).
 - Plausible B7: `requirements/cancellation/suspending-call-with-defer.hd` and `…-in-scoped-defer.hd`
-  (cite cancellation; nothing is cancelled). `runtime/valid/result-pattern-nested-enum.hd`.
-  `typing/invalid/unknown-std-module.hd` and `unknown-dep-module.hd` (the cited rules
+  (cite cancellation; nothing is cancelled). `modules/use-forms/result-pattern-nested-enum.hd`.
+  `modules/use-forms/unknown-std-module.hd` and `unknown-dep-module.hd` (the cited rules
   state no error; `unknown-module` is defined only in the README diagnostics list).
 - Plausible: `…/context-values-a-provider-that-does-not-implement-its-key-is-a-type-mismatch.hd` (B1). `requirements/provider-scopes/nested-provider-restoration.hd`
-  ~ `…-a-later-entry-wins-over-a-spread-269.hd` (C1). `parse/invalid/direct-variant-use.hd`
+  ~ `…-a-later-entry-wins-over-a-spread-269.hd` (C1). `modules/use-forms/direct-variant-use.hd`
   (`hd` reports it at use resolution; is it really a parse error?).
 
 #### b114, b115 (`lang/11-requirements-and-suspension.md`)
@@ -2559,7 +2559,7 @@ version fixes it:
 - `grammar/statements/same-line-for-list.hd`: Same-line for suites and same-line bodies became indented; no same-line for remains.
 - `lexical/physical-and-logical-lines/same-line-loop-else.hd`: Same-line for and while suites with else became indented blocks; no same-line loop else remains.
 - `grammar/statements/same-line-suite-let-list.hd`: Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
-- `parse/valid/use-group-trailing-comma.hd`: All three grouped-use trailing commas removed.
+- `modules/use-forms/use-group-trailing-comma.hd`: All three grouped-use trailing commas removed.
 - `lexical/processing-model/utf8-bom.hd`: Leading BOM bytes stripped.
 - `lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: Same-line if body became indented, so the .Variant line no longer follows a same-line if.
 - `lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: Every list whose lines open with a bracket or bang collapsed to one line.

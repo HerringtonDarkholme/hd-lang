@@ -123,7 +123,7 @@ test("editor token classes match classify on the examples and runtime fixtures",
     "spec/conformance/requirements/provider-scopes/context-values-install-providers.hd",
     "spec/conformance/runtime/valid/propagation-from-two-domains.hd",
     "spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd",
-    "spec/conformance/runtime/valid/println-console-stdout.hd",
+    "spec/conformance/modules/prelude/println-console-stdout.hd",
     ...[
       "closures",
       "derive",

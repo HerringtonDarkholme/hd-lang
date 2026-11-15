@@ -24,7 +24,7 @@ import topLevel from "../examples/top-level.hd";
 import packageMain from "../examples/package/src/main.hd";
 import packageModels from "../examples/package/src/models/mod.hd";
 import packageUser from "../examples/package/src/models/user.hd";
-import hello from "../../../spec/conformance/runtime/valid/println-console-stdout.hd";
+import hello from "../../../spec/conformance/modules/prelude/println-console-stdout.hd";
 import { DEFAULT_MAIN, type Project } from "./project.ts";
 
 export interface Example {

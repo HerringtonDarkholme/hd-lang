@@ -13,10 +13,10 @@ requirements/provider-scopes/generic-requirement-key-collision.hd	A2	same code (
 requirements/suspendt-protocol/competing-suspension-drivers.hd	A2	same code (comments/directives stripped) as requirements/suspendt-protocol/reentrant-suspension-poll.hd [panic:suspension-reentrant-poll] [panic:suspension-competing-driver]
 requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/row-subsumption/row-union-private-result.hd [accept] [accept]
 requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd [reject:unknown-associated-type] [reject:unknown-associated-type]
-typing/invalid/root-file-super.hd	A2	same code (comments/directives stripped) as typing/invalid/root-file-lib-super.hd [reject:unknown-module] [reject:unknown-module]
+modules/use-roots/root-file-super.hd	A2	same code (comments/directives stripped) as modules/use-roots/root-file-lib-super.hd [reject:unknown-module] [reject:unknown-module]
 requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd [reject:generic-kind-mismatch] [reject:generic-kind-mismatch]
 lexical/comments/module-documentation.hd	A2	same code (comments/directives stripped) as lexical/comments/module-documentation-second-block.hd [reject:doc-comment-without-target] [accept]
-typing/invalid/module-named-pkg.hd	A2	same code (comments/directives stripped) as typing/invalid/root-mod-file.hd [reject:reserved-module-name], typing/invalid/module-path-not-identifier.hd [reject:invalid-module-path] [reject:reserved-module-name]
+modules/path-inferred-modules/module-named-pkg.hd	A2	same code (comments/directives stripped) as modules/path-inferred-modules/root-mod-file.hd [reject:reserved-module-name], modules/path-inferred-modules/module-path-not-identifier.hd [reject:invalid-module-path] [reject:reserved-module-name]
 runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A2	same code (comments/directives stripped) as typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd [accept] [accept]
 parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd
 parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
@@ -85,9 +85,9 @@ annotations/error-derivation/error-markers-transparent-on-a-struct-without-field
 annotations/two-annotate-forms/facts-of-a-call-is-not-a-function-declaration.hd	A3	annotations/two-annotate-forms/facts-of-a-parameter-is-not-a-function-declaration.hd
 annotations/two-annotate-forms/facts-of-closure.hd	A3	annotations/two-annotate-forms/facts-of-as-value.hd
 annotations/two-annotate-forms/facts-of-a-missing-argument-follows-the-call-rules.hd	A3	annotations/two-annotate-forms/facts-of-an-extra-argument-follows-the-call-rules.hd
-typing/invalid/unknown-std-module.hd	A3	typing/invalid/unknown-std-module-grouped.hd
-typing/invalid/unknown-std-module.hd	A3	typing/invalid/unknown-pkg-module.hd
-typing/invalid/unknown-std-module-grouped.hd	A3	typing/invalid/unknown-pkg-module.hd
+modules/use-forms/unknown-std-module.hd	A3	modules/use-forms/unknown-std-module-grouped.hd
+modules/use-forms/unknown-std-module.hd	A3	modules/use-forms/unknown-pkg-module.hd
+modules/use-forms/unknown-std-module-grouped.hd	A3	modules/use-forms/unknown-pkg-module.hd
 typing/invalid/generic-inference-an-integer-and-a-bool-literal-do-not-join.hd	A3	typing/invalid/generic-inference-optional-conflict.hd
 typing/invalid/identity-operands-a-literal-operand-has-no-identity.hd	A3	typing/invalid/identity-operands-a-type-parameter-without-an-anyref-bound-has-no-identity.hd
 typing/invalid/identity-operands-a-literal-operand-has-no-identity.hd	A3	typing/invalid/identity-operands-a-struct-against-an-integer-is-one-error.hd
@@ -658,30 +658,30 @@ requirements/suspending-functions/direct-contexts-block-on-in-a-parameter-defaul
 requirements/suspending-functions/direct-contexts-block-on-in-a-type-annotation-argument-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-annotation-argument-is-forbidden.hd
 requirements/suspending-functions/direct-contexts-block-on-in-a-type-annotation-argument-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
 requirements/suspending-functions/direct-contexts-block-on-in-a-field-annotation-argument-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
-typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-function-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-bound-method-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-bound-method-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-bound-method-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-an-unbound-method-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-static-method-call-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-operator-impl-call-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-trait-default-method-call-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-static-method-call-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-an-operator-impl-call-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-static-method-call-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-trait-default-method-call-reads-a-later-binding.hd
-typing/invalid/module-initialization-an-operator-impl-call-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-trait-default-method-call-reads-a-later-binding.hd
-typing/invalid/module-initialization-a-call-reads-later-pattern-bindings.hd	A3	typing/invalid/module-initialization-a-struct-pattern-binding-is-read-before-its-let.hd
-typing/invalid/module-initialization-a-call-reads-later-pattern-bindings.hd	A3	typing/invalid/module-initialization-a-let-else-binding-is-read-before-its-let.hd
-typing/invalid/module-initialization-a-struct-pattern-binding-is-read-before-its-let.hd	A3	typing/invalid/module-initialization-a-let-else-binding-is-read-before-its-let.hd
+modules/module-initialization/module-initialization-a-function-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-function-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-an-unbound-method-value-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-static-method-call-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-operator-impl-call-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-static-method-call-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-an-operator-impl-call-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-static-method-call-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-an-operator-impl-call-reads-a-later-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-a-later-binding.hd
+modules/module-initialization/module-initialization-a-call-reads-later-pattern-bindings.hd	A3	modules/module-initialization/module-initialization-a-struct-pattern-binding-is-read-before-its-let.hd
+modules/module-initialization/module-initialization-a-call-reads-later-pattern-bindings.hd	A3	modules/module-initialization/module-initialization-a-let-else-binding-is-read-before-its-let.hd
+modules/module-initialization/module-initialization-a-struct-pattern-binding-is-read-before-its-let.hd	A3	modules/module-initialization/module-initialization-a-let-else-binding-is-read-before-its-let.hd
 names/binding-expressions/binding-expressions-an-or-condition-binding-is-uninitialized-in-the-then-branch.hd	A3	names/binding-expressions/binding-expressions-an-and-condition-binding-is-uninitialized-in-the-else-of-an-if-statement.hd
 names/name-categories/self-type-self-as-a-function-parameter-type-is-unknown.hd	A3	names/name-categories/self-type-self-as-a-struct-field-type-is-unknown.hd
 names/name-categories/self-type-self-as-a-function-parameter-type-is-unknown.hd	A3	names/name-categories/self-outside-trait-or-impl.hd
@@ -720,31 +720,31 @@ typing/invalid/const-evaluation-complements-no-boolean.hd	A3	typing/invalid/cons
 typing/invalid/const-evaluation-complements-no-boolean.hd	A3	typing/invalid/const-evaluation-not-takes-a-boolean.hd
 typing/invalid/const-evaluation-compares-operands-of-one-type.hd	A3	typing/invalid/const-evaluation-not-takes-a-boolean.hd
 std/ops/derived-default/derive-default-an-enum-marking-one-variant-default-is-valid.hd	A3	std/ops/derived-default/derive-default-an-enum-without-the-derive-marks-no-variant.hd
-typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
-typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-an-unbound-method-value-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-unbound-method-value-argument-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-static-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-static-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-generic-impl-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-static-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-a-static-method-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
+modules/module-initialization/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd	A3	modules/module-initialization/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
 requirements/requirement-rows/row-parameters/row-parameters-a-type-argument-fills-a-type-parameter.hd	A3	requirements/requirement-rows/row-parameters/row-parameters-a-row-parameter-used-as-a-row-is-valid.hd
 requirements/requirement-rows/row-parameters/row-parameters-a-row-parameter-fills-a-function-row.hd	A3	requirements/requirement-rows/row-parameters/row-parameters-a-row-parameter-used-as-a-row-is-valid.hd
 typing/valid/impl-targets-an-inherent-impl-of-a-struct-is-well-formed.hd	A3	typing/valid/impl-targets-a-trait-impl-for-a-row-generic-function-type-is-well-formed.hd
@@ -1134,9 +1134,9 @@ typing/valid/unary-minus-on-an-i64-sum-is-valid.hd	A3	typing/valid/unary-minus-o
 typing/valid/unary-minus-on-an-i8-sum-near-the-minimum-is-valid.hd	A3	typing/valid/unary-minus-on-an-f32-parameter-is-valid.hd
 typing/valid/unary-minus-on-an-i8-sum-near-the-minimum-is-valid.hd	A3	typing/valid/unary-minus-on-an-f64-sum-is-valid.hd
 typing/valid/unary-minus-on-an-f32-parameter-is-valid.hd	A3	typing/valid/unary-minus-on-an-f64-sum-is-valid.hd
-typing/valid/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	A3	typing/valid/prelude-a-function-named-identity-shadows-no-prelude-name.hd
-typing/valid/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	A3	typing/valid/prelude-a-parameter-named-name-shadows-no-prelude-name.hd
-typing/valid/prelude-a-function-named-identity-shadows-no-prelude-name.hd	A3	typing/valid/prelude-a-parameter-named-name-shadows-no-prelude-name.hd
+modules/prelude/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	A3	modules/prelude/prelude-a-function-named-identity-shadows-no-prelude-name.hd
+modules/prelude/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	A3	modules/prelude/prelude-a-parameter-named-name-shadows-no-prelude-name.hd
+modules/prelude/prelude-a-function-named-identity-shadows-no-prelude-name.hd	A3	modules/prelude/prelude-a-parameter-named-name-shadows-no-prelude-name.hd
 functions/declarations/declarations-a-private-function-may-omit-its-result-type.hd	A3	functions/declarations/declarations-a-public-function-declares-its-result-type.hd
 functions/declarations/declarations-a-private-method-may-omit-its-result-type.hd	A3	functions/declarations/declarations-a-public-method-declares-its-result-type.hd
 functions/declarations/declarations-a-private-method-may-omit-its-result-type.hd	A3	functions/declarations/declarations-a-trait-impl-method-declares-its-result-type.hd
@@ -1198,24 +1198,24 @@ control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-pass.hd
 control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-return.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-a-panic.hd
 runtime/panic/string-offset-inside-scalar.hd	A3	runtime/panic/string-slice-at-continuation-byte.hd
 typing/invalid/none-to-any.hd	A3	typing/invalid/none-without-expected-type.hd
-typing/invalid/prelude-shadow.hd	A3	typing/invalid/prelude-shadow-console-parameter.hd
-typing/invalid/prelude-shadow.hd	A3	typing/invalid/prelude-shadow-hash-local.hd
-typing/invalid/prelude-shadow.hd	A3	typing/invalid/prelude-shadow-println-function.hd
-typing/invalid/prelude-shadow.hd	A3	typing/invalid/prelude-shadow-result-generic.hd
-typing/invalid/prelude-shadow-console-parameter.hd	A3	typing/invalid/prelude-shadow-println-function.hd
-typing/invalid/prelude-shadow-console-parameter.hd	A3	typing/invalid/prelude-shadow-result-generic.hd
-typing/invalid/prelude-shadow-println-function.hd	A3	typing/invalid/prelude-shadow-result-generic.hd
+modules/prelude/prelude-shadow.hd	A3	modules/prelude/prelude-shadow-console-parameter.hd
+modules/prelude/prelude-shadow.hd	A3	modules/prelude/prelude-shadow-hash-local.hd
+modules/prelude/prelude-shadow.hd	A3	modules/prelude/prelude-shadow-println-function.hd
+modules/prelude/prelude-shadow.hd	A3	modules/prelude/prelude-shadow-result-generic.hd
+modules/prelude/prelude-shadow-console-parameter.hd	A3	modules/prelude/prelude-shadow-println-function.hd
+modules/prelude/prelude-shadow-console-parameter.hd	A3	modules/prelude/prelude-shadow-result-generic.hd
+modules/prelude/prelude-shadow-println-function.hd	A3	modules/prelude/prelude-shadow-result-generic.hd
 typing/invalid/overlapping-tuple-impl.hd	A3	typing/invalid/overlapping-option-impl.hd
 grammar/types/curried-function-type.hd	A3	grammar/types/mutable-list-parameter-index-assignment.hd
 typing/invalid/missing-trait-method.hd	A3	typing/invalid/trait-impl-missing-method.hd
 typing/invalid/trait-method-signature.hd	A3	typing/invalid/trait-method-result-type-mismatch.hd
-typing/invalid/it-shadowed.hd	A3	typing/invalid/test-prelude-shadow-assert.hd
-typing/invalid/it-shadowed.hd	A3	typing/invalid/test-prelude-shadow-assert-equal.hd
-typing/invalid/test-prelude-shadow-assert.hd	A3	typing/invalid/test-prelude-shadow-assert-equal.hd
-typing/valid/console-error-entry.hd	A3	runtime/valid/no-entry-point-no-tests.hd
-typing/valid/console-error-entry.hd	A3	runtime/valid/result-entry-point-ok.hd
-runtime/valid/no-entry-point-no-tests.hd	A3	runtime/valid/result-entry-point-ok.hd
-typing/invalid/entry-result-not-termination.hd	A3	typing/invalid/entry-string-error.hd
+modules/prelude/it-shadowed.hd	A3	modules/prelude/test-prelude-shadow-assert.hd
+modules/prelude/it-shadowed.hd	A3	modules/prelude/test-prelude-shadow-assert-equal.hd
+modules/prelude/test-prelude-shadow-assert.hd	A3	modules/prelude/test-prelude-shadow-assert-equal.hd
+modules/entry-point/console-error-entry.hd	A3	modules/entry-point/no-entry-point-no-tests.hd
+modules/entry-point/console-error-entry.hd	A3	modules/entry-point/result-entry-point-ok.hd
+modules/entry-point/no-entry-point-no-tests.hd	A3	modules/entry-point/result-entry-point-ok.hd
+modules/entry-point/entry-result-not-termination.hd	A3	modules/entry-point/entry-string-error.hd
 grammar/expressions/named-call-arguments.hd	A3	grammar/expressions/spread-before-named-argument.hd
 lexical/literals/stray-dollar.hd	A3	lexical/literals/stray-dollar-in-string.hd
 grammar/statements/same-line-let-comma.hd	A3	grammar/statements/same-line-if-in-function-body.hd
@@ -1223,18 +1223,18 @@ grammar/statements/discard-binding-ends-in-suite.hd	A3	grammar/statements/return
 grammar/statements/discard-binding-ends-in-suite.hd	A3	grammar/statements/same-line-if-in-function-body.hd
 grammar/statements/return-binding-ends-in-suite.hd	A3	grammar/statements/same-line-if-in-function-body.hd
 grammar/statements/nested-same-line-if.hd	A3	grammar/statements/same-line-if-in-function-body.hd
-runtime/panic/assert-equal-bool-unequal.hd	A3	runtime/panic/assert-equal-char-unequal.hd
-runtime/panic/assert-equal-bool-unequal.hd	A3	runtime/panic/assert-equal-f64-unequal.hd
-runtime/panic/assert-equal-bool-unequal.hd	A3	runtime/panic/assert-equal-list-unequal.hd
-runtime/panic/assert-equal-bool-unequal.hd	A3	runtime/panic/assert-equal-string-unequal.hd
-runtime/panic/assert-equal-char-unequal.hd	A3	runtime/panic/assert-equal-f64-unequal.hd
-runtime/panic/assert-equal-char-unequal.hd	A3	runtime/panic/assert-equal-list-unequal.hd
-runtime/panic/assert-equal-char-unequal.hd	A3	runtime/panic/assert-equal-string-unequal.hd
-runtime/panic/assert-equal-f64-unequal.hd	A3	runtime/panic/assert-equal-list-unequal.hd
-runtime/panic/assert-equal-f64-unequal.hd	A3	runtime/panic/assert-equal-string-unequal.hd
-runtime/panic/assert-equal-list-unequal.hd	A3	runtime/panic/assert-equal-string-unequal.hd
-runtime/panic/assert-failure-in-main.hd	A3	runtime/panic/assert-equal-lists-in-main.hd
-typing/invalid/initialization-implicit-an-equality-reads-a-later-binding-through-eq.hd	A3	typing/invalid/optional-none-comparison-still-checks-eq-initialization.hd
+modules/standard-testing/assert-equal-bool-unequal.hd	A3	modules/standard-testing/assert-equal-char-unequal.hd
+modules/standard-testing/assert-equal-bool-unequal.hd	A3	modules/standard-testing/assert-equal-f64-unequal.hd
+modules/standard-testing/assert-equal-bool-unequal.hd	A3	modules/standard-testing/assert-equal-list-unequal.hd
+modules/standard-testing/assert-equal-bool-unequal.hd	A3	modules/standard-testing/assert-equal-string-unequal.hd
+modules/standard-testing/assert-equal-char-unequal.hd	A3	modules/standard-testing/assert-equal-f64-unequal.hd
+modules/standard-testing/assert-equal-char-unequal.hd	A3	modules/standard-testing/assert-equal-list-unequal.hd
+modules/standard-testing/assert-equal-char-unequal.hd	A3	modules/standard-testing/assert-equal-string-unequal.hd
+modules/standard-testing/assert-equal-f64-unequal.hd	A3	modules/standard-testing/assert-equal-list-unequal.hd
+modules/standard-testing/assert-equal-f64-unequal.hd	A3	modules/standard-testing/assert-equal-string-unequal.hd
+modules/standard-testing/assert-equal-list-unequal.hd	A3	modules/standard-testing/assert-equal-string-unequal.hd
+modules/standard-testing/assert-failure-in-main.hd	A3	modules/standard-testing/assert-equal-lists-in-main.hd
+modules/module-initialization/initialization-implicit-an-equality-reads-a-later-binding-through-eq.hd	A3	modules/module-initialization/optional-none-comparison-still-checks-eq-initialization.hd
 functions/parameters/nonfinal-vararg-declaration.hd	A3	functions/parameters/nonfinal-vararg-then-parameter.hd
 typing/invalid/function-result-type-mismatch.hd	A3	typing/invalid/top-level-let-annotation-type-mismatch.hd
 functions/declarations/inferred-results-recursion-through-an-annotated-function-is-valid.hd	A3	functions/declarations/omitted-result-cycle-one-annotated.hd
@@ -1252,7 +1252,7 @@ typing/invalid/writable-places-a-store-through-a-shared-reference-is-not-writabl
 typing/invalid/writable-places-a-store-through-a-shared-reference-is-not-writable.hd	A3	typing/invalid/writable-places-a-store-through-a-field-of-an-immutable-parameter-is-not-writable.hd
 typing/invalid/writable-places-a-store-through-a-field-of-a-shared-reference-is-not-writable.hd	A3	typing/invalid/writable-places-a-store-through-a-field-of-an-immutable-parameter-is-not-writable.hd
 grammar/statements/a-parenthesized-chain-is-a-value.hd	A3	grammar/statements/a-three-link-chain-binds-every-name.hd
-parse/invalid/wildcard-use.hd	A3	parse/invalid/pub-path-only-use.hd
+modules/use-forms/wildcard-use.hd	A3	modules/use-forms/pub-path-only-use.hd
 typing/invalid/empty-list-without-context.hd	A3	typing/invalid/empty-map-without-context.hd
 typing/invalid/empty-list-without-context.hd	A3	typing/invalid/empty-list-let-without-annotation.hd
 typing/invalid/empty-list-without-context.hd	A3	typing/invalid/a-tuple-rest-with-an-untyped-empty-list-needs-context.hd
@@ -1410,7 +1410,7 @@ annotations/typed-derivation/the-structure-trait/structure-outside-template.hd	A
 annotations/typed-derivation/derivation-blocks/self-cannot-be-omitted-in-a-member-line.hd	A3	annotations/typed-derivation/derivation-blocks/extending-a-member-line-cannot-take-pass.hd
 annotations/typed-derivation/walkers-describers-and-sources/generic-data-member-call.hd	A3	annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd
 annotations/typed-derivation/derivation-blocks/derivation-block-trait-without-template.hd	A3	annotations/typed-derivation/derivation-blocks/derivation-block-comparison-trait.hd
-typing/invalid/it-without-body.hd	A3	typing/invalid/it-argument-after-body.hd
+modules/standard-testing/it-without-body.hd	A3	modules/standard-testing/it-argument-after-body.hd
 typing/invalid/primitive-suffix-integer-range.hd	A3	typing/invalid/primitive-suffix-negative-range.hd
 lexical/literals/suffix-after-separator.hd	A3	lexical/literals/prefix-separator-without-digits.hd
 lexical/literals/radix-literal-suffix-without-separator.hd	A3	lexical/literals/hex-literal-letter-suffix.hd
@@ -1462,14 +1462,14 @@ typing/invalid/a-local-row-default-cannot-name-itself.hd	A3	typing/invalid/a-loc
 typing/invalid/a-local-row-default-cannot-name-a-later-parameter.hd	A3	typing/invalid/a-local-generic-default-cannot-name-a-later-type.hd
 typing/invalid/a-local-row-default-must-have-row-kind.hd	A3	typing/invalid/a-local-type-default-must-have-type-kind.hd
 grammar/statements/let-mut-bare-list.hd	A3	grammar/statements/let-bare-list.hd
-runtime/panic/string-slice-inside-scalar.hd	A3	runtime/panic/string-slice-compare-inside-scalar.hd
-runtime/panic/string-slice-inside-scalar.hd	A3	runtime/panic/string-slice-past-end.hd
-runtime/panic/string-slice-inside-scalar.hd	A3	runtime/panic/string-slice-compare-past-end.hd
-runtime/panic/string-slice-compare-inside-scalar.hd	A3	runtime/panic/string-slice-past-end.hd
-runtime/panic/string-slice-compare-inside-scalar.hd	A3	runtime/panic/string-slice-compare-past-end.hd
-runtime/panic/string-slice-past-end.hd	A3	runtime/panic/string-slice-compare-past-end.hd
-runtime/panic/string-slice-range-boundary.hd	A3	runtime/panic/string-slice-range-out-of-range.hd
-runtime/panic/string-slice-reversed.hd	A3	runtime/panic/string-slice-compare-reversed.hd
+modules/prelude/string-slice-inside-scalar.hd	A3	modules/prelude/string-slice-compare-inside-scalar.hd
+modules/prelude/string-slice-inside-scalar.hd	A3	modules/prelude/string-slice-past-end.hd
+modules/prelude/string-slice-inside-scalar.hd	A3	modules/prelude/string-slice-compare-past-end.hd
+modules/prelude/string-slice-compare-inside-scalar.hd	A3	modules/prelude/string-slice-past-end.hd
+modules/prelude/string-slice-compare-inside-scalar.hd	A3	modules/prelude/string-slice-compare-past-end.hd
+modules/prelude/string-slice-past-end.hd	A3	modules/prelude/string-slice-compare-past-end.hd
+modules/prelude/string-slice-range-boundary.hd	A3	modules/prelude/string-slice-range-out-of-range.hd
+modules/prelude/string-slice-reversed.hd	A3	modules/prelude/string-slice-compare-reversed.hd
 runtime/panic/int-widths-an-i64-product-past-the-maximum-panics.hd	A3	runtime/panic/int-widths-a-u64-product-past-the-maximum-panics.hd
 runtime/panic/int-widths-an-i64-product-past-the-maximum-panics.hd	A3	runtime/panic/int-widths-negating-the-i8-minimum-panics.hd
 runtime/panic/int-widths-an-i64-product-past-the-maximum-panics.hd	A3	runtime/panic/int-widths-a-u8-difference-below-zero-panics.hd
@@ -1502,18 +1502,18 @@ grammar/types/type-argument-rest-element.hd	A3	grammar/types/function-type-rest-
 grammar/expressions/tuple-element-spread.hd	A3	grammar/expressions/tuple-spread-not-last.hd
 annotations/typed-derivation/templates/template-outside-trait-module.hd	A3	annotations/typed-derivation/templates/template-reexported-from-other-package.hd
 std/collections/list-methods/list-slice-out-of-range.hd	A3	std/collections/list-methods/list-slice-reversed.hd
-typing/invalid/unknown-std-name.hd	A3	typing/invalid/unknown-package-name.hd
+modules/use-forms/unknown-std-name.hd	A3	modules/use-forms/unknown-package-name.hd
 requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd
 requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-a-body-row-slot-is-one-kind-error.hd
 functions/generic-functions/row-slot-bare-explicit-key.hd	A3	functions/generic-functions/row-slot-bare-explicit-alias.hd
-typing/invalid/private-std-function.hd	A3	typing/invalid/private-std-type.hd
-typing/invalid/std-only-use.hd	A3	typing/invalid/std-only-use-size-of.hd
-typing/warnings/private-main.hd	A3	typing/warnings/private-main-suspending.hd
+modules/use-forms/private-std-function.hd	A3	modules/use-forms/private-std-type.hd
+modules/runtime-modules/std-only-use.hd	A3	modules/runtime-modules/std-only-use-size-of.hd
+modules/entry-point/private-main.hd	A3	modules/entry-point/private-main-suspending.hd
 typing/invalid/option-invariant.hd	A3	typing/invalid/fn-reference-optional-invariant.hd
 typing/invalid/optional-payload-weakening.hd	A3	typing/invalid/optional-generic-payload-weakening.hd
 std/contract/require/contract-require-custom-message.hd	A3	std/contract/require/contract-require-default-message.hd
 typing/invalid/no-widening-operator.hd	A3	typing/invalid/no-widening-float.hd
-typing/invalid/test-prelude-assert-outside.hd	A3	typing/invalid/test-prelude-assert-equal-outside.hd
+modules/prelude/test-prelude-assert-outside.hd	A3	modules/prelude/test-prelude-assert-equal-outside.hd
 typing/invalid/shift-count-signed.hd	A3	typing/invalid/shift-count-negated-literal-is-a-mismatch.hd
 std/num/conversion-to-and-from-u64/num-u64-from-overflow.hd	A3	std/num/conversion-to-and-from-u64/num-u64-from-overflow-i64.hd
 runtime/panic/power-an-i32-power-of-two-past-the-maximum-panics.hd	A3	runtime/panic/power-a-negative-i32-base-to-an-odd-exponent-past-the-minimum-panics.hd
@@ -1630,7 +1630,7 @@ std/text/character-classification/char-to-digit-radix-low.hd	A3	std/text/charact
 std/num/radix-text/num-radix-to-radix-low.hd	A3	std/num/radix-text/num-radix-to-radix-high.hd
 std/num/radix-text/num-radix-parse-radix-low.hd	A3	std/num/radix-text/num-radix-parse-radix-high.hd
 typing/invalid/list-index-negative-literal.hd	A3	typing/invalid/compound-index-negative-literal.hd
-typing/invalid/string-slice-negative-offset.hd	A3	typing/invalid/string-slice-signed-offset.hd
+modules/prelude/string-slice-negative-offset.hd	A3	modules/prelude/string-slice-signed-offset.hd
 std/cli/subcommands/cli-command-after-positional.hd	A3	std/cli/subcommands/cli-positional-after-command.hd
 typing/valid/literal-first-use-generic-wait.hd	A3	typing/valid/literal-first-use-method.hd
 typing/invalid/literal-first-use-conflict.hd	A3	typing/invalid/literal-first-use-closure-conflict.hd
@@ -1658,8 +1658,8 @@ names/module-scope/explicit-type-arguments-of-an-unknown-name.hd	A3	names/module
 names/module-scope/explicit-type-arguments-of-an-unknown-name.hd	A3	names/module-scope/unknown-print-hints-println.hd
 names/module-scope/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd	A3	names/module-scope/unknown-print-hints-println.hd
 typing/invalid/duplicate-associated-binding-same-type.hd	A3	typing/invalid/duplicate-associated-binding-repeated-trait.hd
-runtime/valid/initialization-implicit-an-interpolation-reads-an-earlier-binding-through-display.hd	A3	runtime/valid/initialization-implicit-an-unrelated-display-impl-is-not-reached.hd
-typing/invalid/entry-point-parameters.hd	A3	typing/invalid/generic-entry-point.hd
+modules/module-initialization/initialization-implicit-an-interpolation-reads-an-earlier-binding-through-display.hd	A3	modules/module-initialization/initialization-implicit-an-unrelated-display-impl-is-not-reached.hd
+modules/entry-point/entry-point-parameters.hd	A3	modules/entry-point/generic-entry-point.hd
 lexical/identifiers/non-nfc-identifier.hd	A3	lexical/identifiers/non-nfc-raw-identifier.hd
 lexical/identifiers/raw-identifier-around-other-text.hd	A3	lexical/identifiers/raw-identifier-unclosed.hd
 parse/invalid/placeholder-in-ordinary-type.hd	A3	parse/invalid/placeholder-in-a-declaration.hd
@@ -1977,16 +1977,16 @@ annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-list-of-another-element-type-is-a-type-mismatch.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-spread-of-a-value-that-is-not-a-list-is-a-type-mismatch.hd
 std/http/client/http-client-base-url-removed.hd	A3	std/http/client/http-client-default-header-removed.hd
-runtime/valid/test-prelude-test-module-assertions.hd	A3	runtime/valid/test-prelude-integration-assertions.hd
-typing/invalid/prelude-explicit-hasher.hd	A3	typing/invalid/prelude-explicit-poll.hd
-typing/invalid/prelude-explicit-hasher.hd	A3	typing/invalid/prelude-explicit-poll-context.hd
-typing/invalid/prelude-explicit-hasher.hd	A3	typing/invalid/prelude-explicit-waker.hd
-typing/invalid/prelude-explicit-poll.hd	A3	typing/invalid/prelude-explicit-poll-context.hd
-typing/invalid/prelude-explicit-poll.hd	A3	typing/invalid/prelude-explicit-waker.hd
-typing/invalid/prelude-explicit-poll-context.hd	A3	typing/invalid/prelude-explicit-waker.hd
-typing/invalid/host-declaration-private.hd	A3	typing/invalid/host-declaration-function.hd
-typing/invalid/host-declaration-private.hd	A3	typing/invalid/host-on-a-private-trait.hd
-typing/invalid/host-declaration-function.hd	A3	typing/invalid/host-on-a-private-trait.hd
+modules/prelude/test-prelude-test-module-assertions.hd	A3	modules/prelude/test-prelude-integration-assertions.hd
+modules/prelude/prelude-explicit-hasher.hd	A3	modules/prelude/prelude-explicit-poll.hd
+modules/prelude/prelude-explicit-hasher.hd	A3	modules/prelude/prelude-explicit-poll-context.hd
+modules/prelude/prelude-explicit-hasher.hd	A3	modules/prelude/prelude-explicit-waker.hd
+modules/prelude/prelude-explicit-poll.hd	A3	modules/prelude/prelude-explicit-poll-context.hd
+modules/prelude/prelude-explicit-poll.hd	A3	modules/prelude/prelude-explicit-waker.hd
+modules/prelude/prelude-explicit-poll-context.hd	A3	modules/prelude/prelude-explicit-waker.hd
+modules/wasm-boundary/host-declaration-private.hd	A3	modules/wasm-boundary/host-declaration-function.hd
+modules/wasm-boundary/host-declaration-private.hd	A3	modules/wasm-boundary/host-on-a-private-trait.hd
+modules/wasm-boundary/host-declaration-function.hd	A3	modules/wasm-boundary/host-on-a-private-trait.hd
 typing/invalid/local-reference-escapes-trait-argument-parameter.hd	A3	typing/invalid/local-reference-escapes-trait-argument-impl-parameter.hd
 typing/invalid/local-reference-escapes-trait-argument-parameter.hd	A3	typing/invalid/local-reference-escapes-trait-argument-result.hd
 typing/invalid/local-reference-escapes-trait-argument-bound.hd	A3	typing/invalid/local-reference-escapes-trait-argument-bound-nested.hd
@@ -2073,18 +2073,18 @@ control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-sl
 control-flow/for-loops/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
 typing/invalid/a-cast-with-two-arguments-is-an-argument-count-error.hd	A3	typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd
 data/shared-enum-constructor-data/shared-initializer-enum-type-parameter-is-unknown.hd	A3	data/shared-enum-constructor-data/shared-default-enum-type-parameter-is-unknown.hd
-typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-provider-context-result.hd
-typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-provider-context-argument.hd
-typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-union-case.hd
-typing/invalid/boundary-not-safe-erased-error.hd	A3	typing/invalid/boundary-not-safe-newtype-base.hd
-typing/invalid/boundary-not-safe-erased-error.hd	A3	typing/invalid/boundary-not-safe-provider-context-result.hd
-typing/invalid/boundary-not-safe-erased-error.hd	A3	typing/invalid/boundary-not-safe-union-case.hd
-typing/invalid/boundary-not-safe-newtype-base.hd	A3	typing/invalid/boundary-not-safe-provider-context-result.hd
-typing/invalid/boundary-not-safe-newtype-base.hd	A3	typing/invalid/boundary-not-safe-union-case.hd
-typing/invalid/boundary-not-safe-provider-context-result.hd	A3	typing/invalid/boundary-not-safe-provider-context-argument.hd
-typing/invalid/boundary-not-safe-provider-context-result.hd	A3	typing/invalid/boundary-not-safe-union-case.hd
-typing/invalid/boundary-not-safe-provider-context-argument.hd	A3	typing/invalid/boundary-not-safe-union-case.hd
-typing/invalid/host-never-argument.hd	A3	typing/invalid/host-never-nested-result.hd
+modules/wasm-boundary/boundary-not-safe-function.hd	A3	modules/wasm-boundary/boundary-not-safe-provider-context-result.hd
+modules/wasm-boundary/boundary-not-safe-function.hd	A3	modules/wasm-boundary/boundary-not-safe-provider-context-argument.hd
+modules/wasm-boundary/boundary-not-safe-function.hd	A3	modules/wasm-boundary/boundary-not-safe-union-case.hd
+modules/wasm-boundary/boundary-not-safe-erased-error.hd	A3	modules/wasm-boundary/boundary-not-safe-newtype-base.hd
+modules/wasm-boundary/boundary-not-safe-erased-error.hd	A3	modules/wasm-boundary/boundary-not-safe-provider-context-result.hd
+modules/wasm-boundary/boundary-not-safe-erased-error.hd	A3	modules/wasm-boundary/boundary-not-safe-union-case.hd
+modules/wasm-boundary/boundary-not-safe-newtype-base.hd	A3	modules/wasm-boundary/boundary-not-safe-provider-context-result.hd
+modules/wasm-boundary/boundary-not-safe-newtype-base.hd	A3	modules/wasm-boundary/boundary-not-safe-union-case.hd
+modules/wasm-boundary/boundary-not-safe-provider-context-result.hd	A3	modules/wasm-boundary/boundary-not-safe-provider-context-argument.hd
+modules/wasm-boundary/boundary-not-safe-provider-context-result.hd	A3	modules/wasm-boundary/boundary-not-safe-union-case.hd
+modules/wasm-boundary/boundary-not-safe-provider-context-argument.hd	A3	modules/wasm-boundary/boundary-not-safe-union-case.hd
+modules/wasm-boundary/host-never-argument.hd	A3	modules/wasm-boundary/host-never-nested-result.hd
 conformance-language/unknown-return-type-no-cascade.hd	A3	conformance-language/poisoned-binary-chain-expectation.hd
 conformance-language/poison-a-data-literal-of-an-enum-reports-once.hd	A3	conformance-language/poison-a-literal-of-an-unknown-type-reports-once.hd
 conformance-language/poison-a-field-of-a-poisoned-base-reports-once.hd	A3	conformance-language/poison-a-method-on-a-poisoned-receiver-reports-once.hd
@@ -2108,12 +2108,12 @@ requirements/provider-scopes/provider-context-without-dot.hd	A3	requirements/pro
 requirements/provider-scopes/provider-context-without-operation.hd	A3	requirements/provider-scopes/provider-context-without-entries.hd
 lexical/literals/unicode-escape-without-braces.hd	A3	lexical/literals/unicode-escape-without-digits.hd
 typing/invalid/union-constructor-call-under-an-unknown-annotation.hd	A3	typing/invalid/union-constructor-value-under-an-unknown-annotation.hd
-runtime/panic/host-character-rejects-lower-surrogate.hd	A3	runtime/panic/host-character-rejects-upper-surrogate.hd
-runtime/panic/host-character-rejects-lower-surrogate.hd	A3	runtime/panic/host-character-rejects-above-unicode-maximum.hd
-runtime/panic/host-character-rejects-lower-surrogate.hd	A3	runtime/panic/host-character-rejects-high-bits-before-narrowing.hd
-runtime/panic/host-character-rejects-upper-surrogate.hd	A3	runtime/panic/host-character-rejects-above-unicode-maximum.hd
-runtime/panic/host-character-rejects-upper-surrogate.hd	A3	runtime/panic/host-character-rejects-high-bits-before-narrowing.hd
-runtime/panic/host-character-rejects-above-unicode-maximum.hd	A3	runtime/panic/host-character-rejects-high-bits-before-narrowing.hd
+modules/wasm-boundary/host-character-rejects-lower-surrogate.hd	A3	modules/wasm-boundary/host-character-rejects-upper-surrogate.hd
+modules/wasm-boundary/host-character-rejects-lower-surrogate.hd	A3	modules/wasm-boundary/host-character-rejects-above-unicode-maximum.hd
+modules/wasm-boundary/host-character-rejects-lower-surrogate.hd	A3	modules/wasm-boundary/host-character-rejects-high-bits-before-narrowing.hd
+modules/wasm-boundary/host-character-rejects-upper-surrogate.hd	A3	modules/wasm-boundary/host-character-rejects-above-unicode-maximum.hd
+modules/wasm-boundary/host-character-rejects-upper-surrogate.hd	A3	modules/wasm-boundary/host-character-rejects-high-bits-before-narrowing.hd
+modules/wasm-boundary/host-character-rejects-above-unicode-maximum.hd	A3	modules/wasm-boundary/host-character-rejects-high-bits-before-narrowing.hd
 grammar/expressions/a-colon-in-parentheses-before-a-bracketed-type-suggests-its-call.hd	A3	grammar/expressions/a-colon-in-parentheses-before-no-type-gives-the-schematic-hint.hd
 grammar/expressions/a-colon-in-parentheses-before-a-bracketed-type-suggests-its-call.hd	A3	grammar/expressions/a-colon-in-parentheses-before-a-comma-gives-the-schematic-hint.hd
 grammar/expressions/a-colon-in-parentheses-before-a-bracketed-type-suggests-its-call.hd	A3	grammar/expressions/a-colon-in-parentheses-after-a-long-operand-gives-the-schematic-hint.hd
@@ -2161,22 +2161,22 @@ typing/warnings/let-mut-primitive-unused.hd	A6	directory says otherwise; expecta
 typing/warnings/let-mut-primitive-annotation-unused.hd	A6	directory says otherwise; expectation accept, cites lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
 annotations/typed-derivation/facts/derivation-block-decorator-std.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.fact.unused-block-decorator.any-type
 grammar/statements/same-line-let-list-unused.hd	A6	directory says otherwise; expectation accept, cites lang/02-grammar.md#r-grammar.inline.let-pattern
-typing/warnings/private-main.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint
-typing/warnings/private-main-suspending.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint
+modules/entry-point/private-main.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint
+modules/entry-point/private-main-suspending.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint
 typing/warnings/unsigned-comparison-countdown.hd	A6	directory says otherwise; expectation accept, cites lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
 typing/warnings/unsigned-comparison-explicit.hd	A6	directory says otherwise; expectation accept, cites lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
 lexical/identifiers/mixed-script-identifier.hd	A6	directory says otherwise; expectation accept, cites lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
 control-flow/blocks-and-completion/unused-after-rejected-trials.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unused.lint
-typing/warnings/unused-debug-text.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.dbg.debug-lint
+modules/prelude/unused-debug-text.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.dbg.debug-lint
 control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
-runtime/valid/resource-disposed-result.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/resource-handle-inherits-methods.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/no-entry-point-no-tests.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/result-entry-point-ok.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/wasm-boundary/reading-a-closed-handle-returns-closed.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/wasm-boundary/resource-handle-inherits-methods.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/entry-point/no-entry-point-no-tests.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/entry-point/result-entry-point-ok.hd	A4	runtime accept with no assert, stdout check, or scenario
 functions/trailing-callback-blocks/fn-trailing-bound.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/test-expect-panic.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/standard-testing/test-expect-panic.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/test-body-explicit-closure.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/it-each-options.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/standard-testing/it-each-options.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/testing/derived-arbitrary/derived-arbitrary-recursive-members.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/testing/derived-arbitrary/derived-arbitrary-no-finite-value.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/testing/derived-arbitrary/derived-arbitrary-no-finite-data.hd	A4	runtime accept with no assert, stdout check, or scenario
@@ -2194,19 +2194,19 @@ std/contract/require/contract-require-pass.hd	A4	runtime accept with no assert, 
 std/contract/require/contract-require-trailing-block.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/contract/require/contract-require-reads-self.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/testing/runner-capabilities/property-body-discard-message-fails.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/discarded-host-error-payload.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/doc-test-compile-fail.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/wasm-boundary/discarded-host-error-payload.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/path-inferred-modules/doc-test-compile-fail.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/ord-supertrait-dispatch.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/generic-inherent-box.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/i64-widening-checked.hd	A4	runtime accept with no assert, stdout check, or scenario
 data/shared-enum-constructor-data/shared-enum-data-computed-once.hd	A4	runtime accept with no assert, stdout check, or scenario
 requirements/requirement-rows/closure-result-keeps-requirement-row.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/trait-default-method-instantiates-params.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/doc-test-console-row.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/path-inferred-modules/doc-test-console-row.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/reference-enum-replace-build.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/collections/uniqlist/uniq-list-field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/boundary-fieldless-struct-crosses.hd	A4	runtime accept with no assert, stdout check, or scenario
+modules/wasm-boundary/boundary-fieldless-struct-crosses.hd	A4	runtime accept with no assert, stdout check, or scenario
 functions/closures/known-closure-consumers-preserve-captures.hd	A4	runtime accept with no assert, stdout check, or scenario
 functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd	A4	runtime accept with no assert, stdout check, or scenario
