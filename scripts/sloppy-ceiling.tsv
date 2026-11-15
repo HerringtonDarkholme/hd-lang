@@ -30,4 +30,4 @@ sloppy-unreachable	hd_tir	1
 sloppy-unreachable	hd_types	2
 sloppy-unreachable	hd_wasm	16
 sloppy-unwrap	hd_driver	4
-sloppy-unwrap	hd_wasm	3
+sloppy-unwrap	hd_wasm	2
