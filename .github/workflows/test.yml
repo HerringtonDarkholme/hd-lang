@@ -424,15 +424,15 @@ jobs:
           fi
           changed="$(git diff --name-only "$base" HEAD)"
           echo "$changed"
-          if echo "$changed" | grep -qE '^(crates/hd_run_wasmtime/|crates/hd_run/|crates/hd_cli/|host/|\.github/|Cargo\.lock$|Cargo\.toml$|rust-toolchain)'; then
+          if echo "$changed" | grep -qE '^(crates/hd_cache/|crates/hd_run_wasmtime/|crates/hd_run/|crates/hd_cli/|host/|\.github/|Cargo\.lock$|Cargo\.toml$|rust-toolchain)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The wasmtime host has code per operating system (process groups, Job
-  # objects, pipes), so its crates are also checked and tested on Windows
-  # and macOS. Linux is covered by the jobs above.
+  # The wasmtime host and disk cache depend on OS behavior (process
+  # groups, Job objects, pipes and file locks), so their crates are also
+  # checked and tested on Windows and macOS. Linux is covered above.
   hosts:
     name: Host crates on ${{ matrix.os }} (${{ matrix.shard }})
     needs: host-scope
