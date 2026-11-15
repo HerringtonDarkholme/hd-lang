@@ -387,7 +387,8 @@ thread_local! {
 
 /// Count the work of finding the traits a method call can use on this
 /// thread ([`crate::TraitsInScope`]): one per binding, trait method and
-/// local trait indexed, and one per trait a call looks at.
+/// local trait indexed, one per trait a call looks at, and one per
+/// inherent method a call's receiver is tried against.
 pub fn count_trait_lookup_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = TRAIT_LOOKUP.with(|c| c.replace(Some(0)));
     let result = run();

@@ -25,6 +25,15 @@ use crate::ty::Named;
 pub struct MethodIndex {
     /// Inherent methods: (impl, method).
     pub inherent: HashMap<Symbol, Vec<(DefId, DefId)>>,
+    /// Where each inherent method of a name sits in `inherent`, by the
+    /// struct, enum or newtype its impl's target names, so a receiver of
+    /// that type is tried against those impls alone, as rustc's
+    /// `inherent_impls` keys them by the self type's ADT.
+    inherent_by_def: HashMap<(Symbol, DefId), Vec<u32>>,
+    /// Where the inherent methods of a name whose impl's target names no
+    /// struct, enum or newtype sit in `inherent`: a parameter, a tuple, a
+    /// reference or a primitive, each tried against every receiver.
+    inherent_open: HashMap<Symbol, Vec<u32>>,
     /// Trait methods: (trait, method).
     pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
     /// Each trait's method by name, for the traits of `traits`.
@@ -56,9 +65,10 @@ fn name_distance(left: &str, right: &str) -> usize {
 impl MethodIndex {
     /// An interface closure has one index, independent of each module's private items.
     #[must_use]
-    pub fn interfaces(lookup: &hd_resolve::Lookup<'_>) -> Self {
+    pub fn interfaces(lookup: &hd_resolve::Lookup<'_>, pool: hd_types::Types<'_>) -> Self {
         let mut ix = Self::default();
         ix.extend(
+            pool,
             lookup
                 .ifaces
                 .iter()
@@ -69,14 +79,22 @@ impl MethodIndex {
 
     /// Own declarations win, including declarations also held by an interface (#346).
     #[must_use]
-    pub fn with_own(lookup: &hd_resolve::Lookup<'_>, shared: std::sync::Arc<Self>) -> Self {
+    pub fn with_own(
+        lookup: &hd_resolve::Lookup<'_>,
+        pool: hd_types::Types<'_>,
+        shared: std::sync::Arc<Self>,
+    ) -> Self {
         let mut ix = Self::default();
-        ix.extend(lookup.own.iter());
+        ix.extend(pool, lookup.own.iter());
         ix.shared = Some(shared);
         ix
     }
 
-    fn extend<'a>(&mut self, items: impl Iterator<Item = &'a hd_resolve::Item>) {
+    fn extend<'a>(
+        &mut self,
+        pool: hd_types::Types<'_>,
+        items: impl Iterator<Item = &'a hd_resolve::Item>,
+    ) {
         for it in items {
             let next = u32::try_from(self.seen.len()).unwrap_or(u32::MAX);
             match self.seen.entry(it.def) {
@@ -88,11 +106,25 @@ impl MethodIndex {
             match &it.data {
                 // A trait impl's methods are found through its trait.
                 ItemData::Impl {
-                    trait_, methods, ..
+                    trait_,
+                    methods,
+                    self_ty,
+                    ..
                 } => {
                     if *trait_ == DefId::NONE {
+                        let head = match pool.get(*self_ty) {
+                            TyData::Adt { def, .. } => Some(def),
+                            _ => None,
+                        };
                         for (n, m) in methods {
-                            self.inherent.entry(*n).or_default().push((it.def, *m));
+                            let all = self.inherent.entry(*n).or_default();
+                            let at = u32::try_from(all.len()).unwrap_or(u32::MAX);
+                            all.push((it.def, *m));
+                            match head {
+                                Some(d) => self.inherent_by_def.entry((*n, d)).or_default(),
+                                None => self.inherent_open.entry(*n).or_default(),
+                            }
+                            .push(at);
                         }
                     }
                 }
@@ -136,6 +168,51 @@ impl MethodIndex {
                     .filter(|(def, _)| !self.seen.contains_key(def))
                     .copied(),
             );
+        }
+        (!out.is_empty()).then_some(out)
+    }
+
+    /// The inherent methods `sym` whose impls may take a receiver of type
+    /// `t`, in [`Self::candidates`] order: for a struct, enum or newtype,
+    /// the impls whose target names it and those whose target names none,
+    /// merged by position; otherwise every one. Cost: the impls of that
+    /// name and head, not every impl of the name.
+    fn inherent_for(&self, sym: Symbol, t: &TyData) -> Option<Vec<(DefId, DefId)>> {
+        let TyData::Adt { def, .. } = *t else {
+            let all = self.candidates(sym, true);
+            crate::work::trait_lookup(all.as_ref().map_or(0, Vec::len) as u64);
+            return all;
+        };
+        let pick = |ix: &Self, out: &mut Vec<(DefId, DefId)>, keep: &dyn Fn(DefId) -> bool| {
+            let Some(all) = ix.inherent.get(&sym) else {
+                return;
+            };
+            let none: &[u32] = &[];
+            let keyed = ix
+                .inherent_by_def
+                .get(&(sym, def))
+                .map_or(none, Vec::as_slice);
+            let open = ix.inherent_open.get(&sym).map_or(none, Vec::as_slice);
+            crate::work::trait_lookup((keyed.len() + open.len()) as u64);
+            let (mut i, mut j) = (0, 0);
+            while i < keyed.len() || j < open.len() {
+                let at = if j == open.len() || (i < keyed.len() && keyed[i] < open[j]) {
+                    i += 1;
+                    keyed[i - 1]
+                } else {
+                    j += 1;
+                    open[j - 1]
+                };
+                let found = all[at as usize];
+                if keep(found.0) {
+                    out.push(found);
+                }
+            }
+        };
+        let mut out = Vec::new();
+        pick(self, &mut out, &|_| true);
+        if let Some(shared) = &self.shared {
+            pick(shared, &mut out, &|def| !self.seen.contains_key(&def));
         }
         (!out.is_empty()).then_some(out)
     }
@@ -4434,7 +4511,8 @@ impl Ck<'_, '_> {
     fn unmet_inherent_bound(&mut self, t: Ty, name: &str) -> Option<String> {
         let pool = self.pool();
         let sym = self.cx.names.syms.intern(name);
-        let cands = self.method_index().candidates(sym, true)?;
+        let head = pool.get(self.infer.shallow(pool, t));
+        let cands = self.method_index().inherent_for(sym, &head)?;
         let mut found = None;
         for (impl_def, method) in cands {
             if self.unseen().hides(impl_def) || !self.method_visible(method) {
@@ -4478,7 +4556,8 @@ impl Ck<'_, '_> {
     ) -> Option<(DefId, DefId, Vec<Ty>)> {
         let pool = self.pool();
         let sym = self.cx.names.syms.intern(name);
-        let cands = self.method_index().candidates(sym, true)?;
+        let head = pool.get(self.infer.shallow(pool, t));
+        let cands = self.method_index().inherent_for(sym, &head)?;
         for (impl_def, method) in cands {
             // A local impl's methods are found only in its extent
             // (`trait.impl.local.lookup`).

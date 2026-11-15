@@ -2188,21 +2188,32 @@ fn inherent_members_of_one_name(n: usize) -> String {
 
 // Resolver: #1929, a module's inherent members of one name are compared
 // only with the earlier ones whose targets share a head, not pairwise.
+// Checker: #1934, a method call on a struct tries only the inherent
+// methods of its name whose impl's target names that struct, or names no
+// struct, not every method of the name in the module.
 #[test]
 fn inherent_members_are_compared_by_target_head() {
     on_test_stack(|| {
-        let mut base = 0;
+        let mut base = (0, 0);
         for n in [2_000, 20_000] {
-            let (out, pairs) = hd_resolve::work::count_member_pairs(|| {
-                compile(&inherent_members_of_one_name(n), &Goal::Analyze)
+            let ((out, lookups), pairs) = hd_resolve::work::count_member_pairs(|| {
+                hd_check::work::count_trait_lookup_work(|| {
+                    compile(&inherent_members_of_one_name(n), &Goal::Analyze)
+                })
             });
             assert!(out.diags.is_empty(), "{n}: {}", out.render());
             if n == 2_000 {
-                base = pairs;
+                base = (pairs, lookups);
             }
             assert!(
-                base > 0 && pairs <= 10 * base * 5 / 4,
-                "inherent member comparisons for 2,000 and {n}: {base}, {pairs}"
+                base.0 > 0 && pairs <= 10 * base.0 * 5 / 4,
+                "inherent member comparisons for 2,000 and {n}: {}, {pairs}",
+                base.0
+            );
+            assert!(
+                base.1 > 0 && lookups <= 10 * base.1 * 5 / 4,
+                "method lookups for 2,000 and {n}: {}, {lookups}",
+                base.1
             );
         }
     });

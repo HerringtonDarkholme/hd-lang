@@ -6591,9 +6591,15 @@ impl Run<'_> {
     ) -> Arc<hd_check::MethodIndex> {
         let shared = lock(&self.method_indexes)
             .entry(folders.to_vec())
-            .or_insert_with(|| Arc::new(hd_check::MethodIndex::interfaces(lookup)))
+            .or_insert_with(|| {
+                Arc::new(hd_check::MethodIndex::interfaces(lookup, self.pool.types()))
+            })
             .clone();
-        Arc::new(hd_check::MethodIndex::with_own(lookup, shared))
+        Arc::new(hd_check::MethodIndex::with_own(
+            lookup,
+            self.pool.types(),
+            shared,
+        ))
     }
 
     /// `Body(m)`: every body of the module, in source order.

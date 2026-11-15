@@ -1,0 +1,46 @@
+# @dump: tir
+# #1934: a method call on a struct, enum or newtype tries the inherent
+# methods whose impl targets it; a reference or an inferred receiver tries
+# every method of the name. Each call names its own impl's `get`.
+struct A:
+    a: i32
+
+struct B:
+    b: i32
+
+struct Box[T]:
+    v: T
+
+enum E:
+    One
+    Two
+
+type N(i32)
+
+impl A:
+    fn get(self) -> i32: self.a
+
+impl B:
+    fn get(self) -> i32: self.b + 1
+
+impl[T] Box[T]:
+    fn get(self) -> T: self.v
+
+impl E:
+    fn get(self) -> i32:
+        match self:
+            E.One => 1
+            E.Two => 2
+
+impl N:
+    fn get(self) -> i32: 7
+
+fn make[T](v: T) -> Box[T]:
+    Box { v: v }
+
+fn total() -> i32:
+    a := A { a: +1 }
+    b := B { b: +2 }
+    r := &b
+    n := N(+5)
+    a.get() + b.get() + r.get() + make(+3).get() + E.Two.get() + n.get()
