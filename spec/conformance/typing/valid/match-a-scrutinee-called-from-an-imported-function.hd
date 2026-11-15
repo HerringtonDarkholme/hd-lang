@@ -1,5 +1,5 @@
 # test: match a scrutinee called from an imported function
-# fixture-package-tree: match-cascade-import-legal/src/main.hd
+# fixture-package-tree: match-a-scrutinee-called-from-an-imported-function/src/main.hd
 use pkg.nowhere.thing
 
 fn run() -> i32:

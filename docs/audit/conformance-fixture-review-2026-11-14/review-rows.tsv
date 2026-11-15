@@ -325,7 +325,7 @@ b056	typing/invalid/bare-variant-pattern-in-match.hd	UNSURE	B2	On carries a payl
 b057	typing/valid/match-a-struct-pattern-binds-its-field-names.hd	FIX	B1	Title says the scrutinee failed, but `missing` is a valid Point parameter and nothing fails. Retitle as the legal form.
 b057	typing/valid/match-an-optional-binding-scrutinee-binds-its-payload.hd	FIX	B1	Title promises an unknown method scrutinee; the code calls no method. Retitle.
 b057	typing/valid/match-an-optional-parameter-scrutinee-binds-its-payload.hd	FIX	B1	Title promises an unknown name scrutinee; `missing` is a declared parameter, so no name is unknown. Retitle.
-b057	typing/valid/match-a-scrutinee-called-from-an-imported-function.hd	FIX	B1	Title promises a failed import, but `use pkg.nowhere.thing` resolves to trees/match-cascade-import-legal/src/nowhere.hd. Retitle.
+b057	typing/valid/match-a-scrutinee-called-from-an-imported-function.hd	FIX	B1	Title promises a failed import, but `use pkg.nowhere.thing` resolves to trees/match-a-scrutinee-called-from-an-imported-function/src/nowhere.hd. Retitle.
 b057	typing/valid/match-a-dotted-variant-call-pattern-binds-its-names.hd	FIX	B1	Title says bare call pattern, but line 4 uses the `.Ok(number)` form and no bare call exists. Retitle.
 b057	typing/valid/match-a-dotted-variant-pattern-with-a-wildcard-payload-matches.hd	FIX	B1	Title says bare variant arm, but the arms are `.On(_)` and `.Off`; no bare variant appears. Retitle.
 b057	typing/valid/match-a-struct-pattern-field-binds-an-alias.hd	FIX	B1	Title says duplicate field, but `User { name: alias }` lists `name` once. Retitle.
