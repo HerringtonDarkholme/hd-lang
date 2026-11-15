@@ -43,6 +43,8 @@ struct Node {
 pub(super) struct Sets {
     nodes: Vec<Node>,
     made: hd_base::HashMap<Node, Set>,
+    /// Whether nodes are hash-consed through `made`; see [`Sets::unconsed`].
+    unconsed: bool,
     /// Each node asked for, made or found, and each node a difference
     /// or a listing visits: the work of everything built on the arena.
     work: std::cell::Cell<usize>,
@@ -59,6 +61,19 @@ fn branch_bit(a: u32, b: u32) -> u32 {
 }
 
 impl Sets {
+    /// An arena that makes each node it is asked for, with no hash per
+    /// node: two sets of one content may be two nodes, so `==` on sets
+    /// means the same node, not the same keys. Every operation stays
+    /// correct, and keeps sharing the subtrees it leaves alone; a caller
+    /// that needs equal contents compares [`Sets::len`] of a set and a
+    /// subset of it, as rule 11's meet does.
+    pub(super) fn unconsed() -> Self {
+        Sets {
+            unconsed: true,
+            ..Sets::default()
+        }
+    }
+
     /// The nodes made so far: the pass's storage.
     #[cfg(test)]
     pub(super) fn made(&self) -> usize {
@@ -80,7 +95,9 @@ impl Sets {
 
     fn push(&mut self, node: Node) -> Set {
         self.tick();
-        if let Some(&s) = self.made.get(&node) {
+        if !self.unconsed
+            && let Some(&s) = self.made.get(&node)
+        {
             return s;
         }
         // ruled out: more than `u32::MAX - 1` nodes; a pass makes at most
@@ -88,7 +105,9 @@ impl Sets {
         let id = u32::try_from(self.nodes.len()).expect("live set nodes");
         assert_ne!(id, u32::MAX, "live set nodes");
         self.nodes.push(node);
-        self.made.insert(node, Set(id));
+        if !self.unconsed {
+            self.made.insert(node, Set(id));
+        }
         Set(id)
     }
 
@@ -146,6 +165,24 @@ impl Sets {
             s = if key & n.bit == 0 { n.zero } else { n.one };
         }
         false
+    }
+
+    /// The set of `keys`, which are sorted and distinct, made in one
+    /// pass: each of its `2k - 1` nodes once, where `k` inserts would
+    /// copy a path of about `log2 k` nodes each. The split follows key
+    /// bits, so the recursion is at most 32 deep.
+    pub(super) fn of_sorted(&mut self, keys: &[u32]) -> Set {
+        match keys {
+            [] => Set::EMPTY,
+            [key] => self.leaf(*key),
+            [first, .., last] => {
+                let bit = branch_bit(*first, *last);
+                let split = keys.partition_point(|k| k & bit == 0);
+                let zero = self.of_sorted(&keys[..split]);
+                let one = self.of_sorted(&keys[split..]);
+                self.branch(high(*first, bit), bit, zero, one)
+            }
+        }
     }
 
     /// `s` with `key`; `s` itself when it holds `key` already.
@@ -418,6 +455,46 @@ mod tests {
         let mut out = Vec::new();
         sets.members(s, &mut out);
         out
+    }
+
+    #[test]
+    fn a_set_of_sorted_keys_is_the_set_their_inserts_make() {
+        let mut sets = Sets::default();
+        for ks in [
+            &[][..],
+            &[7],
+            &[0, 1, 2, 3, 4],
+            &[3, 9, 10, 64, 65, 1000, u32::MAX - 1],
+        ] {
+            let bulk = sets.of_sorted(ks);
+            let one_by_one = ks.iter().fold(Set::EMPTY, |s, &k| sets.insert(s, k));
+            assert_eq!(bulk, one_by_one, "{ks:?}");
+            let mut got = keys(&sets, bulk);
+            got.sort_stable();
+            assert_eq!(got, ks.to_vec());
+        }
+        let mut fresh = Sets::default();
+        let all: Vec<u32> = (100..1100).collect();
+        fresh.of_sorted(&all);
+        assert_eq!(fresh.made(), 2 * all.len() - 1, "each node once");
+        assert_eq!(fresh.work(), fresh.made(), "each asked for once");
+    }
+
+    #[test]
+    fn an_unconsed_arena_builds_the_same_keys_with_no_table() {
+        let mut sets = Sets::unconsed();
+        let a = sets.of_sorted(&[1, 4, 9, 30]);
+        let b = sets.of_sorted(&[1, 4, 9, 30]);
+        assert_ne!(a, b, "two nodes of one content");
+        let c = sets.insert(a, 12);
+        let d = sets.remove(b, 4);
+        let meet = sets.intersection(c, d);
+        let mut got = keys(&sets, meet);
+        got.sort_stable();
+        assert_eq!(got, [1, 9, 30]);
+        let equal = sets.intersection(a, b);
+        assert_eq!(sets.len(equal), 4, "a meet of equals keeps their size");
+        assert!(sets.made.is_empty(), "no node was hashed");
     }
 
     #[test]

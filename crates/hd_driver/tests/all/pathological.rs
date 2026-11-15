@@ -2609,7 +2609,31 @@ fn zero_fact_work_is_linear_in_interpolations() {
             a > 0 && b <= a * 14,
             "zero facts for 500 and 5,000: {a} and {b}"
         );
+        // The scale check's `let-statements` shape: `n` locals written in
+        // one block. The entry set is made in one pass and a block carries
+        // its writes in a dense row, so no write copies a path, and no set
+        // is hashed: linear, where an insert per local and a removal per
+        // write grew 4.68x in hashes per 4x locals.
+        let (a, b) = (build(let_statements(500)), build(let_statements(5_000)));
+        assert!(
+            a > 0 && b <= a * 10 * 5 / 4,
+            "zero facts for 500 and 5,000 `let`s: {a} and {b}"
+        );
     });
+}
+
+/// The scale check's `let-statements` shape: `n` locals of one body, each
+/// set from a running total and then added to it.
+fn let_statements(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    let v{i} = t + 1");
+    }
+    for i in 0..n {
+        let _ = writeln!(s, "    t = t + v{i}");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
 }
 
 /// One body of `n` calls, each lending a part of one local to a callee

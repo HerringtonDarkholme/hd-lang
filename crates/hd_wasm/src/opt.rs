@@ -800,42 +800,92 @@ fn zero_edges(body: &[Ins], label_lists: &[Vec<u32>]) -> Option<Vec<ZeroEdges>> 
     Some(edges)
 }
 
-/// Rule 11's facts at one point: the locals known to hold zero, as a
-/// persistent set ([`live_set`]) that shares what a block leaves alone
-/// with the facts it came from, so a block's facts cost the locals its
-/// instructions write, and a meet the locals where two paths differ.
+/// Rule 11's facts: the locals known to hold zero, as persistent sets
+/// ([`live_set`]) at block entries, so handing a block's facts to a
+/// successor copies a handle and a meet costs the locals where two paths
+/// differ. The sets are not hash-consed ([`Sets::unconsed`]): the only
+/// use of one node per content was the fixed point's change test, and a
+/// meet's size answers it. Inside a block the facts are its entry set and a dense row of
+/// what its instructions wrote since, so a write costs one store, not a
+/// path of `log2 n` hash-consed nodes; [`Zeros::leave`] makes the block's
+/// exit set once, from the locals whose fact changed, and only for a block
+/// with a successor.
 struct Zeros {
     sets: Sets,
+    /// The entry facts of the block being carried.
+    base: Set,
+    /// Per local, what the block's writes made it since `base`: 0 none,
+    /// 1 known zero, 2 not known zero.
+    wrote: Vec<u8>,
+    /// The locals `wrote` marks, to reset and to apply.
+    touched: Vec<u32>,
 }
 
 impl Zeros {
-    fn has(&self, known: Set, local: u32) -> bool {
-        self.sets.contains(known, local)
+    fn new(locals: usize) -> Self {
+        Zeros {
+            sets: Sets::unconsed(),
+            base: Set::EMPTY,
+            wrote: vec![0; locals],
+            touched: Vec::new(),
+        }
+    }
+
+    /// Starts carrying a block whose entry facts are `known`.
+    fn enter(&mut self, known: Set) {
+        for &l in &self.touched {
+            self.wrote[l as usize] = 0;
+        }
+        self.touched.clear();
+        self.base = known;
+    }
+
+    /// The carried block's facts so far, as a set: its entry set with each
+    /// changed local inserted or removed, a path each.
+    fn leave(&mut self) -> Set {
+        let mut known = self.base;
+        for &l in &self.touched {
+            known = if self.wrote[l as usize] == 1 {
+                self.sets.insert(known, l)
+            } else {
+                self.sets.remove(known, l)
+            };
+        }
+        known
+    }
+
+    fn has(&self, local: u32) -> bool {
+        match self.wrote.get(local as usize) {
+            Some(1) => true,
+            Some(2) => false,
+            _ => self.sets.contains(self.base, local),
+        }
     }
 
     /// A pure push of zero bits; every other expression remains unknown.
-    fn pushes(&self, ins: &Ins, known: Set) -> bool {
+    fn pushes(&self, ins: &Ins) -> bool {
         match ins {
-            Ins::Op(I::LocalGet(l)) => self.has(known, *l),
+            Ins::Op(I::LocalGet(l)) => self.has(*l),
             other => pushes_zero_constant(other),
         }
     }
 
-    /// The facts after one original instruction. A store's source is its
-    /// physical predecessor, including at a control-flow target.
-    fn after(&mut self, body: &[Ins], at: usize, known: Set) -> Set {
+    /// Carries the facts over one original instruction. A store's source
+    /// is its physical predecessor, including at a control-flow target.
+    fn after(&mut self, body: &[Ins], at: usize) {
         let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = &body[at] else {
-            return known;
+            return;
         };
         let zero = at.checked_sub(1).is_some_and(|p| {
-            self.pushes(&body[p], known)
-                || matches!(body[p], Ins::Op(I::LocalTee(t)) if self.has(known, t))
+            self.pushes(&body[p]) || matches!(body[p], Ins::Op(I::LocalTee(t)) if self.has(t))
         });
-        if zero {
-            self.sets.insert(known, *l)
-        } else {
-            self.sets.remove(known, *l)
+        let Some(slot) = self.wrote.get_mut(*l as usize) else {
+            return;
+        };
+        if *slot == 0 {
+            self.touched.push(*l);
         }
+        *slot = if zero { 1 } else { 2 };
     }
 }
 
@@ -885,15 +935,14 @@ fn zero_releases(f: &mut Func) -> bool {
         return false;
     }
     let (point_at, starts) = basic_blocks(&edges, f.body.len());
-    let mut zeros = Zeros {
-        sets: Sets::default(),
-    };
-    // Every local but a parameter starts zero.
-    let mut known = Set::EMPTY;
-    for l in f.params.len()..f.params.len() + f.locals.len() {
-        // ruled out: a local index past u32; Wasm counts locals in u32.
-        known = zeros.sets.insert(known, u32::try_from(l).expect("locals"));
-    }
+    let n = f.params.len() + f.locals.len();
+    let mut zeros = Zeros::new(n);
+    // Every local but a parameter starts zero: one set made in one pass.
+    // ruled out: a local index past u32; Wasm counts locals in u32.
+    let all: Vec<u32> = (f.params.len()..n)
+        .map(|l| u32::try_from(l).expect("locals"))
+        .collect();
+    let known = zeros.sets.of_sorted(&all);
     let gone = if forward_only(&edges, &point_at, &starts, f.body.len()) {
         zero_sweep(
             f,
@@ -969,17 +1018,20 @@ fn zero_sweep(
             continue;
         };
         let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
-        let known = decide_block(
+        decide_block(
             f,
             starts[point]..end,
             (zeros, known),
             &mut gone,
             release_width,
         );
+        // The exit set is made on the first successor, if there is one.
+        let mut out = None;
         edges[end - 1].each(end, |to| {
             let Some(&next) = point_at.get(to) else {
                 return;
             };
+            let known = *out.get_or_insert_with(|| zeros.leave());
             let slot = &mut waiting[next];
             *slot = Some(slot.map_or(known, |before| zeros.sets.intersection(before, known)));
         });
@@ -1007,20 +1059,32 @@ fn zero_fixpoint(
     queued[0] = true;
     while let Some(point) = pending.pop_front() {
         queued[point] = false;
-        let Some(mut known) = facts[point] else {
+        let Some(known) = facts[point] else {
             continue;
         };
         let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
+        zeros.enter(known);
         for at in starts[point]..end {
-            known = zeros.after(&f.body, at, known);
+            zeros.after(&f.body, at);
         }
+        let mut out = None;
         edges[end - 1].each(end, |to| {
             let Some(&next) = point_at.get(to) else {
                 return;
             };
             debug_assert_ne!(next, usize::MAX, "a block successor begins a block");
-            let meet = facts[next].map_or(known, |before| zeros.sets.intersection(before, known));
-            if facts[next] != Some(meet) {
+            let known = *out.get_or_insert_with(|| zeros.leave());
+            // A meet keeps a subset of what it meets, so it changed the
+            // facts exactly when it dropped a local: one size comparison,
+            // with no hash-consing to make equal sets one node.
+            let (meet, changed) = match facts[next] {
+                None => (known, true),
+                Some(before) => {
+                    let meet = zeros.sets.intersection(before, known);
+                    (meet, zeros.sets.len(meet) != zeros.sets.len(before))
+                }
+            };
+            if changed {
                 facts[next] = Some(meet);
                 if !queued[next] {
                     pending.push_back(next);
@@ -1041,14 +1105,16 @@ fn zero_fixpoint(
 }
 
 /// Marks in `gone` the releases and stores of `block` that its entry
-/// facts `known` prove redundant, carrying `known` through it.
+/// facts `known` prove redundant, carrying the facts through it
+/// ([`Zeros::leave`] makes its exit set).
 fn decide_block(
     f: &Func,
     block: std::ops::Range<usize>,
-    (zeros, mut known): (&mut Zeros, Set),
+    (zeros, known): (&mut Zeros, Set),
     gone: &mut [bool],
     release_width: &dyn Fn(&Ins) -> Option<usize>,
-) -> Set {
+) {
+    zeros.enter(known);
     for at in block {
         let ins = &f.body[at];
         if let Some(n) = release_width(ins) {
@@ -1057,7 +1123,7 @@ fn decide_block(
                 if matches!(f.body[p], Ins::Anchor(_)) {
                     continue;
                 }
-                if args.len() == n || !zeros.pushes(&f.body[p], known) {
+                if args.len() == n || !zeros.pushes(&f.body[p]) {
                     break;
                 }
                 args.push(p);
@@ -1073,7 +1139,7 @@ fn decide_block(
                 .rev()
                 .find(|&p| !matches!(f.body[p], Ins::Anchor(_)))
             && matches!(f.body[p], Ins::Op(I::LocalGet(_)))
-            && zeros.pushes(&f.body[p], known)
+            && zeros.pushes(&f.body[p])
             && let Some(end) = block_end(&f.body, at)
         {
             // A guard on a local proved zero never runs its arm: a frame
@@ -1081,10 +1147,8 @@ fn decide_block(
             gone[p] = true;
             gone[at..=end].fill(true);
         } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
-            && zeros.has(known, *l)
-            && at
-                .checked_sub(1)
-                .is_some_and(|p| zeros.pushes(&f.body[p], known))
+            && zeros.has(*l)
+            && at.checked_sub(1).is_some_and(|p| zeros.pushes(&f.body[p]))
         {
             gone[at] = true;
             if matches!(ins, Ins::Op(I::LocalSet(_))) {
@@ -1093,9 +1157,8 @@ fn decide_block(
         }
         // Replay original transfers after deciding from the incoming
         // facts; pending removals must not affect later decisions.
-        known = zeros.after(&f.body, at, known);
+        zeros.after(&f.body, at);
     }
-    known
 }
 
 /// The basic blocks of a body whose control edges are `edges`: each
