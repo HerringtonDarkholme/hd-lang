@@ -1246,6 +1246,10 @@ struct Lazy {
 struct MapProbe {
     hash: u32,
     entry: u32,
+    /// The reserved hash-result slot immediately after its lookup call.
+    /// Emission only appends; the nonzero slot stores both patch locations
+    /// in one word, with no separate Option discriminant.
+    lookup: Option<std::num::NonZeroUsize>,
 }
 
 #[derive(Clone)]

@@ -1,0 +1,64 @@
+# Spec 04 Lookup and Order: types.map.semantics, types.map.replace.in-place,
+# types.map.order.deterministic. Lookup agrees across growth, deletion,
+# reinsertion and a retained value copy for every primitive key layout.
+
+fn exercise[K < Eq & Hash](keys: List[K], missing: K) -> bool:
+    let mut values: Map[K, i32] = {}
+    for i in 0..keys.len():
+        values[keys[i]] = i32(i) + +1
+    saved := values
+    for i in 0..keys.len():
+        if values.get(keys[i]).unwrap_or(-1) != i32(i) + +1:
+            return false
+        if i % 2 == 0:
+            if values.remove(keys[i]).unwrap_or(-1) != i32(i) + +1:
+                return false
+    if values.get(missing).is_some():
+        return false
+    for i in 0..keys.len():
+        expected := if i % 2 == 0: -1 else: i32(i) + +1
+        if values.get(keys[i]).unwrap_or(-1) != expected:
+            return false
+        values[keys[i]] = values.get(keys[i]).unwrap_or(+0) + +10
+    for i in 0..keys.len():
+        expected := if i % 2 == 0: +10 else: i32(i) + +11
+        if values.get(keys[i]).unwrap_or(-1) != expected:
+            return false
+        if saved.get(keys[i]).unwrap_or(-1) != i32(i) + +1:
+            return false
+    for key in keys:
+        _ := values.remove(key)
+    if values.get(missing).is_some():
+        return false
+    for key in keys:
+        if values.get(key).is_some():
+            return false
+        values[key] = +42
+        if values.get(key).unwrap_or(-1) != +42:
+            return false
+        _ := values.remove(key)
+    true
+
+tests:
+    it("primitive keys keep lookup semantics around every small-table boundary"):
+        words := [
+            "",
+            "a0z",
+            "a1z",
+            "a2z",
+            "a",
+            "z",
+            "é",
+            "Ж",
+            "x0y",
+            "axz",
+            "a00z",
+            "a-long-key-with-the-same-edges-z",
+        ]
+        for size in [0, 1, 2, 3, 4, 5, 7, 8, 9, 12]:
+            numbers := [for i in 0..size => i32(i) * +7 - +17]
+            wide := [for i in 0..size => i64(i) * 4294967296i64 - 17i64]
+            strings := [for i in 0..size => words[i]]
+            assert(exercise(numbers, +999997))
+            assert(exercise(wide, 999997i64))
+            assert(exercise(strings, "a-missing-key-z"))

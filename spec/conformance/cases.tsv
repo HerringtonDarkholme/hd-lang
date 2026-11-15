@@ -934,6 +934,7 @@ lang/types/literal-types/float-literal-range.hd	type	reject:float-literal-range	
 lang/expressions/primary-expressions/heterogeneous-list.hd	type	reject:no-common-type	lang/05-expressions.md#list-and-map-expressions
 lang/types/map-key-types/invalid-map-key.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.map-key.declared-bound
 lang/types/map-key-types/nominal-map-key.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.map-key.declared-bound
+lang/types/map-key-types/small-map-lookups-preserve-deleted-and-shared-entries.hd	runtime	accept	lang/04-type-system.md#lookup-and-order
 lang/types/map-key-types/tuple-map-key.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.map-key.declared-bound
 lang/types/map-key-types/float-map-key.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.map-key.declared-bound
 lang/types/type-forms/never-bottom-type.hd	type	accept	lang/04-type-system.md#r-types.never

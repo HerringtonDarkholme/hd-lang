@@ -1357,6 +1357,16 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             entry: entry.clone(),
             ops: ops.clone(),
         },
+        Helper::MapLookup {
+            entry: entry.clone(),
+            ops: ops.clone(),
+            probe: false,
+        },
+        Helper::MapLookup {
+            entry: entry.clone(),
+            ops: ops.clone(),
+            probe: true,
+        },
         Helper::MapPut {
             entry: entry.clone(),
             ops,

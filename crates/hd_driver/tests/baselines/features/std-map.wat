@@ -9,6 +9,7 @@
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -183,14 +184,10 @@
     local.get $m
     i32.load $heap
     local.tee $m
+    i32.const 0
     local.get $k.0
     local.get $k.1
-    local.get $m
-    i64.load $heap offset=24
-    call $rt:map_hash
-    local.get $k.0
-    local.get $k.1
-    call $rt:map_find'1
+    call $rt:map_lookup
     local.tee $k.0
     i32.const 0
     i32.ge_s
@@ -239,14 +236,10 @@
     local.get $m
     i32.load $heap
     local.tee $m
+    i32.const 0
     local.get $k.0
     local.get $k.1
-    local.get $m
-    i64.load $heap offset=24
-    call $rt:map_hash
-    local.get $k.0
-    local.get $k.1
-    call $rt:map_find'1
+    call $rt:map_lookup
     local.tee $k.0
     i32.const 0
     i32.ge_s

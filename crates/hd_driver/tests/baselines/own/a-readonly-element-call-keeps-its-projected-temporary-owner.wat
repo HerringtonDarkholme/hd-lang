@@ -5,6 +5,7 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "read" (func $read (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
@@ -35,15 +36,10 @@
     i32.const 59
     call $rt:map_put
     local.tee $t0
-    local.tee $t1
+    i32.const 0
     i32.const 65 ;; &"key"
     i32.const 3
-    local.get $t1
-    i64.load $heap offset=24
-    call $rt:map_hash
-    i32.const 65 ;; &"key"
-    i32.const 3
-    call $rt:map_find
+    call $rt:map_lookup
     local.tee $t1
     i32.const 0
     i32.lt_s

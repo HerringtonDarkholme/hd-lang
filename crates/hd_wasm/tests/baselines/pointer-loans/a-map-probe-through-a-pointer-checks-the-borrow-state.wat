@@ -8,6 +8,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
+  (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
@@ -73,15 +74,10 @@
     end
     local.get $stock
     i32.load $heap
-    local.tee $t1
+    i32.const 0
     i32.const 65 ;; &"apple"
     i32.const 5
-    local.get $t1
-    i64.load $heap offset=24
-    call $rt:map_hash
-    i32.const 65 ;; &"apple"
-    i32.const 5
-    call $rt:map_find
+    call $rt:map_lookup
     local.tee $t1
     i32.const 0
     i32.lt_s

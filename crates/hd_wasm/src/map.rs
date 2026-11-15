@@ -493,6 +493,11 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
 pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let params = [vec![Val::I32, Val::I32], entry.key_vals()].concat();
     let mut f = m.func("rt:map_find", params, vec![Val::I32]);
+    find_body(&mut f, entry, ops, false);
+    f
+}
+
+fn find_body(f: &mut Func, entry: &Entry, ops: &KeyOps, probe: bool) {
     let (cap, gmask, g, at, e) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -501,15 +506,18 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
         f.local(Val::I32),
     );
     let (pattern, ctrl, hits) = (f.local(Val::I64), f.local(Val::I64), f.local(Val::I64));
-    load_u32(&mut f, 0, CAP);
+    load_u32(f, 0, CAP);
     f.set(cap);
     f.get(cap);
     f.op(I::I32Eqz);
     f.op(I::If(BlockType::Empty));
     f.i32(-1);
+    if probe {
+        f.get(1);
+    }
     f.op(I::Return);
     f.op(I::End);
-    groups(&mut f, cap);
+    groups(f, cap);
     f.i32(1);
     f.op(I::I32Sub);
     f.set(gmask);
@@ -557,61 +565,20 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.get(hits);
     f.op(I::I64Eqz);
     f.op(I::BrIf(1));
-    group_slot(&mut f, at, hits);
+    group_slot(f, at, hits);
     f.op(I::I32Load(mem(HEAP, u64::from(INDEX + 8), 2)));
     f.set(e);
-    hash_of(&mut f, 0, cap, e);
+    hash_of(f, 0, cap, e);
     f.get(1);
     f.op(I::I32Eq);
     f.op(I::If(BlockType::Empty));
-    entry_at(&mut f, 0, cap, e, entry.size);
-    let stored = load_entry(&mut f, entry, 0, entry.keys);
-    match ops {
-        KeyOps::I32(_) => {
-            f.get(stored[0]);
-            f.get(2);
-            f.op(I::I32Eq);
-        }
-        KeyOps::I64(_) => {
-            f.get(stored[0]);
-            f.get(2);
-            f.op(I::I64Eq);
-        }
-        KeyOps::Str(..) => {
-            f.get(stored[0]);
-            f.get(stored[1]);
-            f.get(2);
-            f.get(3);
-            f.helper(Helper::StrEq);
-        }
-        KeyOps::Call {
-            eq,
-            own: [_, own_self, own_other],
-            ..
-        } => {
-            // Both keys are lent; an `eq` that owns them takes counts.
-            let kv: Vec<Val> = entry.leaves[..entry.keys].iter().map(|l| l.val).collect();
-            own_arg(&mut f, &kv, own_self.as_ref(), &|f| {
-                for s in &stored[..entry.keys] {
-                    f.get(*s);
-                }
-            });
-            own_arg(&mut f, &kv, own_other.as_ref(), &|f| {
-                for k in 0..entry.keys {
-                    f.get(2 + n32(k));
-                }
-            });
-            for s in &stored[..entry.keys] {
-                f.get(*s);
-            }
-            for k in 0..entry.keys {
-                f.get(2 + n32(k));
-            }
-            f.call(Sym::Inst(*eq));
-        }
-    }
+    entry_at(f, 0, cap, e, entry.size);
+    key_equal(f, entry, ops);
     f.op(I::If(BlockType::Empty));
     f.get(e);
+    if probe {
+        f.get(1);
+    }
     f.op(I::Return);
     f.op(I::End);
     f.op(I::End);
@@ -644,6 +611,9 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.op(I::I32Add);
     f.i32(-1);
     f.op(I::I32Xor);
+    if probe {
+        f.get(1);
+    }
     f.op(I::Return);
     f.op(I::End);
     f.get(g);
@@ -655,7 +625,245 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.op(I::Br(0));
     f.op(I::End);
     f.i32(-1);
+    if probe {
+        f.get(1);
+    }
+}
+
+/// Builtin lookup without insertion state. Inline integer tables inspect
+/// at most eight keys, checking tombstone metadata only on a key match.
+/// Strings use direct lookup only in one physical index group (capacity
+/// four); larger tables use their hash filter. A unique length/edge-byte
+/// candidate needs one full comparison, while ambiguity falls back to hashing.
+///
+/// `probe` requests the original hashed insertion state for a later update:
+/// return the entry and hash, with no speculative comparisons. The dummy
+/// second parameter keeps key parameters aligned with `MapFind`.
+pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
+    let params = [vec![Val::I32, Val::I32], entry.key_vals()].concat();
+    let mut f = m.func(
+        "rt:map_lookup",
+        params,
+        vec![Val::I32; if probe { 2 } else { 1 }],
+    );
+    if !probe && !matches!(ops, KeyOps::Call { .. }) {
+        let cap = f.local(Val::I32);
+        let used = f.local(Val::I32);
+        let at = f.local(Val::I32);
+        let entries = f.local(Val::I32);
+        let e = f.local(Val::I32);
+        let strings = matches!(ops, KeyOps::Str(..));
+        let candidate = f.local(Val::I32);
+        let first = f.local(Val::I32);
+        let last = f.local(Val::I32);
+        load_u32(&mut f, 0, CAP);
+        f.set(cap);
+        f.get(cap);
+        f.i32(if strings { 4 } else { 8 });
+        f.op(I::I32LeU);
+        f.op(I::If(BlockType::Empty));
+        f.get(cap);
+        f.op(I::I32Eqz);
+        f.op(I::If(BlockType::Empty));
+        f.i32(-1);
+        f.op(I::Return);
+        f.op(I::End);
+        load_u32(&mut f, 0, USED);
+        f.set(used);
+        hashes(&mut f, 0, cap);
+        f.set(at);
+        f.get(at);
+        f.get(cap);
+        f.i32(2);
+        f.op(I::I32Shl);
+        f.op(I::I32Add);
+        f.set(entries);
+        if strings {
+            f.i32(-1);
+            f.set(candidate);
+            f.get(3);
+            f.op(I::If(BlockType::Empty));
+            f.get(2);
+            f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+            f.set(first);
+            f.get(2);
+            f.get(3);
+            f.op(I::I32Add);
+            f.i32(1);
+            f.op(I::I32Sub);
+            f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+            f.set(last);
+            f.op(I::End);
+        }
+        f.i32(0);
+        f.set(e);
+        // An ambiguous string quick match exits this block and hashes
+        // normally. Only a unique candidate gets a full byte comparison.
+        f.op(I::Block(BlockType::Empty));
+        f.op(I::Block(BlockType::Empty));
+        f.op(I::Loop(BlockType::Empty));
+        f.get(e);
+        f.get(used);
+        f.op(I::I32GeU);
+        f.op(I::BrIf(1));
+        if strings {
+            f.get(at);
+            f.get(e);
+            f.i32(2);
+            f.op(I::I32Shl);
+            f.op(I::I32Add);
+            f.op(I::I32Load(mem(HEAP, 0, 2)));
+            f.i32(-1);
+            f.op(I::I32Ne);
+            f.op(I::If(BlockType::Empty));
+        }
+        f.get(entries);
+        f.get(e);
+        f.u32(entry.size);
+        f.op(I::I32Mul);
+        f.op(I::I32Add);
+        if strings {
+            let stored = load_entry(&mut f, entry, 0, entry.keys);
+            f.get(stored[1]);
+            f.get(3);
+            f.op(I::I32Eq);
+            f.op(I::If(BlockType::Empty));
+            f.get(3);
+            f.op(I::I32Eqz);
+            f.op(I::If(BlockType::Empty));
+            f.get(e);
+            f.op(I::Return);
+            f.op(I::End);
+            f.get(stored[0]);
+            f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+            f.get(first);
+            f.op(I::I32Eq);
+            f.get(stored[0]);
+            f.get(3);
+            f.op(I::I32Add);
+            f.i32(1);
+            f.op(I::I32Sub);
+            f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+            f.get(last);
+            f.op(I::I32Eq);
+            f.op(I::I32And);
+            f.op(I::If(BlockType::Empty));
+            f.get(candidate);
+            f.i32(0);
+            f.op(I::I32GeS);
+            f.op(I::BrIf(5));
+            f.get(e);
+            f.set(candidate);
+            f.op(I::End);
+            f.op(I::End);
+        } else {
+            key_equal(&mut f, entry, ops);
+            f.op(I::If(BlockType::Empty));
+            // Inline integer bits remain initialized in a tombstone.
+            // Only a matching key needs the liveness metadata read.
+            hash_of(&mut f, 0, cap, e);
+            f.i32(0);
+            f.op(I::I32GeS);
+            f.op(I::If(BlockType::Empty));
+            f.get(e);
+            f.op(I::Return);
+            f.op(I::End);
+            f.op(I::End);
+        }
+        if strings {
+            f.op(I::End);
+        }
+        f.get(e);
+        f.i32(1);
+        f.op(I::I32Add);
+        f.set(e);
+        f.op(I::Br(0));
+        f.op(I::End);
+        f.op(I::End);
+        if strings {
+            f.get(candidate);
+            f.i32(0);
+            f.op(I::I32GeS);
+            f.op(I::If(BlockType::Empty));
+            f.get(entries);
+            f.get(candidate);
+            f.u32(entry.size);
+            f.op(I::I32Mul);
+            f.op(I::I32Add);
+            key_equal(&mut f, entry, ops);
+            f.op(I::If(BlockType::Empty));
+            f.get(candidate);
+            f.op(I::Return);
+            f.op(I::End);
+            f.op(I::End);
+        }
+        f.i32(-1);
+        f.op(I::Return);
+        f.op(I::End);
+        f.op(I::End);
+    }
+    for k in 0..entry.keys {
+        f.get(2 + n32(k));
+    }
+    f.get(0);
+    f.op(I::I64Load(mem(HEAP, SEED, 3)));
+    f.helper(Helper::MapHash {
+        key: entry.key_vals(),
+        ops: ops.clone(),
+    });
+    f.set(1);
+    find_body(&mut f, entry, ops, probe);
     f
+}
+
+/// Consume the stored entry address and push equality with the lookup
+/// key, using the same ABI and ownership convention on both probe paths.
+fn key_equal(f: &mut Func, entry: &Entry, ops: &KeyOps) {
+    let stored = load_entry(f, entry, 0, entry.keys);
+    match ops {
+        KeyOps::I32(_) => {
+            f.get(stored[0]);
+            f.get(2);
+            f.op(I::I32Eq);
+        }
+        KeyOps::I64(_) => {
+            f.get(stored[0]);
+            f.get(2);
+            f.op(I::I64Eq);
+        }
+        KeyOps::Str(..) => {
+            f.get(stored[0]);
+            f.get(stored[1]);
+            f.get(2);
+            f.get(3);
+            f.helper(Helper::StrEq);
+        }
+        KeyOps::Call {
+            eq,
+            own: [_, own_self, own_other],
+            ..
+        } => {
+            // Both keys are lent; an `eq` that owns them takes counts.
+            let kv: Vec<Val> = entry.leaves[..entry.keys].iter().map(|l| l.val).collect();
+            own_arg(f, &kv, own_self.as_ref(), &|f| {
+                for s in &stored[..entry.keys] {
+                    f.get(*s);
+                }
+            });
+            own_arg(f, &kv, own_other.as_ref(), &|f| {
+                for k in 0..entry.keys {
+                    f.get(2 + n32(k));
+                }
+            });
+            for s in &stored[..entry.keys] {
+                f.get(*s);
+            }
+            for k in 0..entry.keys {
+                f.get(2 + n32(k));
+            }
+            f.call(Sym::Inst(*eq));
+        }
+    }
 }
 
 /// Pushes the address, less `INDEX + 8`, of the entry number of the slot

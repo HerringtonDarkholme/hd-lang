@@ -6,6 +6,7 @@
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put'1" (func $rt:map_put'1 (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:map_lookup'1" (func $rt:map_lookup'1 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
@@ -13,6 +14,7 @@
   (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32 i64) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "rt:map_lookup'2" (func $rt:map_lookup'2 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_unique'1" (func $rt:map_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
@@ -105,15 +107,10 @@
     ;; 23 |     println(items["a"])
     local.get $items
     i32.load $heap
-    local.tee $t1
+    i32.const 0
     i32.const 65 ;; &"a"
     i32.const 1
-    local.get $t1
-    i64.load $heap offset=24
-    call $rt:map_hash'1
-    i32.const 65 ;; &"a"
-    i32.const 1
-    call $rt:map_find'1
+    call $rt:map_lookup'1
     local.tee $t1
     i32.const 0
     i32.lt_s
@@ -142,15 +139,10 @@
     ;; 24 |     println(items["b"])
     local.get $items
     i32.load $heap
-    local.tee $t1
+    i32.const 0
     i32.const 66 ;; &"b"
     i32.const 1
-    local.get $t1
-    i64.load $heap offset=24
-    call $rt:map_hash'1
-    i32.const 66 ;; &"b"
-    i32.const 1
-    call $rt:map_find'1
+    call $rt:map_lookup'1
     local.tee $t1
     i32.const 0
     i32.lt_s
@@ -177,15 +169,10 @@
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 25 |     println(saved["a"])
-    local.tee $t1
+    i32.const 0
     i32.const 65 ;; &"a"
     i32.const 1
-    local.get $t1
-    i64.load $heap offset=24
-    call $rt:map_hash'1
-    i32.const 65 ;; &"a"
-    i32.const 1
-    call $rt:map_find'1
+    call $rt:map_lookup'1
     local.tee $t1
     i32.const 0
     i32.lt_s
@@ -226,15 +213,10 @@
     ;; 26 |     println(read(&items["a"]))
     local.get $items
     i32.load $heap
-    local.tee $saved
+    i32.const 0
     i32.const 65 ;; &"a"
     i32.const 1
-    local.get $saved
-    i64.load $heap offset=24
-    call $rt:map_hash'1
-    i32.const 65 ;; &"a"
-    i32.const 1
-    call $rt:map_find'1
+    call $rt:map_lookup'1
     local.tee $saved
     i32.const 0
     i32.lt_s
@@ -328,13 +310,9 @@
     ;; 30 |     println(numbers[1])
     local.get $items
     i32.load $heap
-    local.tee $saved
+    i32.const 0
     i32.const 1
-    local.get $saved
-    i64.load $heap offset=24
-    call $rt:map_hash'2
-    i32.const 1
-    call $rt:map_find'2
+    call $rt:map_lookup'2
     local.tee $saved
     i32.const 0
     i32.lt_s
@@ -363,13 +341,9 @@
     ;; 31 |     println(numbers[2])
     local.get $items
     i32.load $heap
-    local.tee $saved
+    i32.const 0
     i32.const 2
-    local.get $saved
-    i64.load $heap offset=24
-    call $rt:map_hash'2
-    i32.const 2
-    call $rt:map_find'2
+    call $rt:map_lookup'2
     local.tee $saved
     i32.const 0
     i32.lt_s

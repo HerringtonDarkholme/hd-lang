@@ -1011,6 +1011,28 @@ Each operation implements collection value semantics (§15.2;
   group from the 24 above them, so a map of more than 2^26 entries (over
   a gigabyte) starts its probes in the first 2^24 groups only, and they
   grow longer; a smaller map can start in every group.
+- **Small lookups.** Builtin integer, boolean and character keys bypass
+  hashing in tables of capacity at most eight. The lookup scans written
+  entries, comparing the inline key before checking its hash for a
+  tombstone. Removed inline bits remain initialized, so only a matching
+  key needs the metadata read. This is the ordering used by
+  [Go's small integer maps](https://go.dev/src/internal/runtime/maps/runtime_fast32.go).
+  The loop examines at most eight entries, independent of program or map
+  size; it allocates nothing.
+  Strings bypass hashing in one physical index group, capacity four.
+  Length and first/last bytes select a candidate before a full comparison;
+  an empty string needs no byte load. A unique candidate gets one full
+  comparison; ambiguity falls back to the hash filter. The maximum four
+  quick checks are constant work, followed by at most one linear byte
+  comparison or the ordinary hashed probe. Larger string tables retain
+  Swiss filtering. Unlike
+  [Go's string lookup](https://go.dev/src/internal/runtime/maps/runtime_faststr.go),
+  this path also covers short strings: avoiding the Wasm hash call pays
+  for one group, but scanning a second group costs more than its filter.
+  No string-length threshold or key-specific case is used.
+  `map_lookup` fuses fallback hashing and probing in one helper, so a
+  large lookup gains no extra helper call. User-defined hash/equality
+  operations keep their original call sequence and ownership handling.
 - **Literals and puts.** A literal makes a table with room for its
   entries and puts each in source order (`expr.map.order`). A put of an
   equal key replaces the value in the entry's place
@@ -1039,6 +1061,15 @@ Each operation implements collection value semantics (§15.2;
   reusing a missing search position for insertion. A mutable probe makes
   the table the map's own and stores it back. The element reference is
   an address with no count; its holder keeps the table live (§23.20).
+  A subsequent `MapSet` may reuse an earlier `MapGet` under the existing
+  same-block proof. A small read-only miss has no insertion position,
+  so that provider instead computes the original hashed probe when reused.
+  Emission reserves a hash-result slot beside the lookup call. The later
+  set retargets that call and slot in constant time, requesting both entry
+  and hash; unused reservations disappear from read-only code. Emission
+  remains append-only, and defining the function rebuilds its callee edges.
+  This adds no scan or retry to the existing reuse proof. A `MapEntry`
+  update already proves presence and continues to reuse its entry alone.
 - **Iteration.** A counted `for` iterates the snapshot through
   `MapSlots`, `MapSlotNext` and `MapSlotEntry`, which read the entries
   in place.

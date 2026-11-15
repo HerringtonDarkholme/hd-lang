@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: map_lookup
+# expected: a bounded scan of at most eight integer keys checks liveness
+# only after a key match; hashing and Swiss probing follow only for a
+# larger table. The short path performs neither hash nor comparator call.
+fn lookup(values: &Map[i32, i32], key: i32) -> i32?:
+    values.get(key)

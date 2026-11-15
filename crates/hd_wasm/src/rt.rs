@@ -323,6 +323,13 @@ pub enum Helper {
         entry: map::Entry,
         ops: KeyOps,
     },
+    /// `(table, unused, key...) -> entry`: builtin lookup; with `probe`,
+    /// computes the original hashed probe and additionally returns its hash.
+    MapLookup {
+        entry: map::Entry,
+        ops: KeyOps,
+        probe: bool,
+    },
     /// `(map, hash, key, value) -> map`: puts the entry, taking over one
     /// count of the key and of the value; the map's table is its own
     /// already, and moves when full.
@@ -1497,6 +1504,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         H::MapTable { .. } => (2, 1),
         H::MapHash { key, .. } => (key.len() + 1, 1),
         H::MapFind { entry, .. } => (2 + entry.keys, 1),
+        H::MapLookup { entry, probe, .. } => (2 + entry.keys, if *probe { 2 } else { 1 }),
         H::MapPut { entry, .. } => (3 + entry.leaves.len(), 1),
         H::MapSlotNext => (3, 1),
         H::DynSlot {
@@ -1955,6 +1963,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::DropEntries { entry } => map::drop_entries(m, entry),
         Helper::MapHash { key, ops } => map::hash(m, key, ops),
         Helper::MapFind { entry, ops } => map::find(m, entry, ops),
+        Helper::MapLookup { entry, ops, probe } => map::lookup(m, entry, ops, *probe),
         Helper::MapPut { entry, ops } => map::put(m, entry, ops),
         Helper::MapGrow { entry } => map::grow(entry, m),
         Helper::MapUnique { entry } => map::unique(entry, m),

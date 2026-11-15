@@ -17,7 +17,7 @@ use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
-use crate::module::{HEADER, HEAP, Val, mem};
+use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
@@ -393,8 +393,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value place's
-    /// entry (`MapEntry`): the key is hashed, then its entry probed
-    /// for. The passes' `IsUnique` made the table the map's own before a
+    /// entry (`MapEntry`): builtin reads may bypass hashing on small tables;
+    /// insertions and user-defined keys use a hashed probe. The passes'
+    /// `IsUnique` made the table the map's own before a
     /// change, and a put stores the table, moved when it grew, into the
     /// map's place.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
@@ -421,6 +422,20 @@ impl Em<'_, '_, '_> {
                 return self.replace(Dst::Mem(at, 0, &e.leaves[e.keys..]), vt, args[2]);
             }
             let (kl, h, probe) = if let Some(probe) = cached {
+                if let Some(slot) = probe.lookup {
+                    let slot = slot.get();
+                    let call = slot - 1;
+                    // Reuse the existing backward proof once. Request the
+                    // original hashed probe only when an update needs it;
+                    // readonly lookups pay no extra hash or result value.
+                    let symbol = self.f.intern(Sym::Helper(Helper::MapLookup {
+                        entry: e.clone(),
+                        ops: ops.clone(),
+                        probe: true,
+                    }));
+                    self.f.body[call] = Ins::Call(symbol);
+                    self.f.body[slot] = Ins::Op(I::LocalTee(probe.hash));
+                }
                 (self.map_key_locals(args[1], &e)?, probe.hash, probe.entry)
             } else {
                 let (kl, h) = self.map_key(m, args[1], &e, &ops)?;
@@ -433,14 +448,41 @@ impl Em<'_, '_, '_> {
             self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
             return self.put_back(args[0], m);
         }
-        let (kl, h) = self.map_key(m, args[1], &e, &ops)?;
-        let ent = self.map_find(m, h, &kl, &e, &ops);
+        let (h, ent, lookup) = if matches!(ops, KeyOps::Call { .. }) {
+            // User-defined hash/equality operations keep their exact call
+            // sequence, ownership and previously cached probe semantics.
+            let (kl, h) = self.map_key(m, args[1], &e, &ops)?;
+            let ent = self.map_find(m, h, &kl, &e, &ops);
+            (h, ent, None)
+        } else {
+            let kl = self.map_key_locals(args[1], &e)?;
+            self.f.get(m);
+            self.f.i32(0);
+            for l in &kl {
+                self.f.get(*l);
+            }
+            self.f.helper(Helper::MapLookup {
+                entry: e.clone(),
+                ops: ops.clone(),
+                probe: false,
+            });
+            // ruled out: helper appended the lookup call, so its following
+            // slot is nonzero and the call is exactly one instruction back.
+            let lookup = std::num::NonZeroUsize::new(self.f.body.len());
+            self.f.i32(0);
+            let h = self.f.local(Val::I32);
+            self.f.set(h);
+            let ent = self.f.local(Val::I32);
+            self.f.set(ent);
+            (h, ent, lookup)
+        };
         if matches!(op, IntrinsicOp::MapGet | IntrinsicOp::MapEntry) {
             self.map_probes.insert(
                 i,
                 MapProbe {
                     hash: h,
                     entry: ent,
+                    lookup,
                 },
             );
         }

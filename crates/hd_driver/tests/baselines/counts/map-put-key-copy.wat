@@ -5,6 +5,7 @@
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $put (param $items i32) (param $key.0 i32) (param $key.1 i32) (param $value i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -45,20 +46,15 @@
     local.get $t0
     i32.store $heap
   )
-  (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32)
+  (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32)
     ;; 8 |     items[key] += 1
     local.get $items
     i32.load $heap
     local.tee $t0
-    local.tee $t1
+    i32.const 0
     local.get $key.0
     local.get $key.1
-    local.get $t1
-    i64.load $heap offset=24
-    call $rt:map_hash
-    local.get $key.0
-    local.get $key.1
-    call $rt:map_find
+    call $rt:map_lookup
     local.tee $key.0
     i32.const 0
     i32.lt_s
