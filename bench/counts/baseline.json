@@ -153,8 +153,7 @@
       "released": "4612524",
       "uniques": "3600000",
       "total": "12318776",
-      "noOpsAndSkipped": "3937516",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "3937515"
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
