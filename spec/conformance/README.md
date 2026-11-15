@@ -231,8 +231,10 @@ The suite covers both tiers of the specification
    each one. Its header is `path	items	reason`. `items` is a
    comma-separated list of import paths, such as `std.time.s`, and method
    calls, such as `string.trim`. The check allows a listed import.
-7. `spec/check.sh` rejects a crossing row whose case is stdlib tier, or
-   whose fixture no longer imports or calls one of its items.
+7. `spec/check.sh` rejects a crossing row whose case is stdlib tier,
+   whose fixture no longer imports or calls one of its items, or that
+   lists a `std.` item `stdlib-items.tsv` does not: a language-tier item
+   is no crossing.
 8. A `parse`-phase fixture resolves no names, so a name it uses selects no
    item of either tier. Such a fixture may call a method or apply a prefix,
    such as `r"..."`, that is stdlib tier elsewhere. It needs no crossing

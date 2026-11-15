@@ -982,3 +982,55 @@ test("the fixture index rejects a warning expectation and a warning marker", asy
     await rm(spec, { recursive: true, force: true });
   }
 });
+
+// spec/check-spec-tiers.ts: a crossing row's `std.` item must be stdlib
+// tier, a stdlib-items.tsv row or a module or member of one (#2007).
+test("a tier crossing names only stdlib-tier std items", async () => {
+  const spec = await mkdtemp(join(tmpdir(), "spec-tiers-"));
+  try {
+    await mkdir(join(spec, "conformance/lang/x"), { recursive: true });
+    await mkdir(join(spec, "std"), { recursive: true });
+    await writeFile(join(spec, "std/cmp.md"), "# Cmp\n");
+    await writeFile(
+      join(spec, "conformance/lang/x/uses.hd"),
+      "use std.cmp.{max, Ordering}\nuse std.text.StringBuilder\n",
+    );
+    await writeFile(
+      join(spec, "conformance/cases.tsv"),
+      "path\tphase\texpectation\tspecification\nlang/x/uses.hd\ttype\taccept\tlang/09-traits.md\n",
+    );
+    await writeFile(
+      join(spec, "conformance/stdlib-items.tsv"),
+      "item\tspecification\nstd.cmp.max\tstd/cmp.md#min-and-max\n",
+    );
+    const check = async (items: string): Promise<string[]> => {
+      await writeFile(
+        join(spec, "conformance/tier-crossings.tsv"),
+        `path\titems\treason\nlang/x/uses.hd\t${items}\tthe test asks for it\n`,
+      );
+      try {
+        execFileSync(
+          process.execPath,
+          ["--experimental-strip-types", resolve(SPEC_ROOT, "check-spec-tiers.ts"), spec],
+          { stdio: "pipe" },
+        );
+        return [];
+      } catch (error) {
+        return String((error as { stderr: Buffer }).stderr)
+          .split("\n")
+          .filter((line) => line !== "");
+      }
+    };
+    // A listed item, and a module that holds one, cross.
+    assert.deepEqual(await check("std.cmp.max"), []);
+    assert.deepEqual(await check("std.cmp"), []);
+    // A language-tier item crosses nothing, whether or not the fixture
+    // imports it.
+    assert.deepEqual(await check("std.cmp.max, std.cmp.Ordering, std.text.StringBuilder"), [
+      "spec tiers: tier-crossings.tsv: lang/x/uses.hd lists std.cmp.Ordering, which stdlib-items.tsv does not list; a language-tier item is no crossing, so drop it, or list a stdlib-tier item there",
+      "spec tiers: tier-crossings.tsv: lang/x/uses.hd lists std.text.StringBuilder, which stdlib-items.tsv does not list; a language-tier item is no crossing, so drop it, or list a stdlib-tier item there",
+    ]);
+  } finally {
+    await rm(spec, { recursive: true, force: true });
+  }
+});

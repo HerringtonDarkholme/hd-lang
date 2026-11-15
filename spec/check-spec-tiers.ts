@@ -5,7 +5,9 @@
 // of its `use std.` lines imports an item listed in
 // conformance/stdlib-items.tsv, unless conformance/tier-crossings.tsv lists
 // that fixture and item. Each crossing row must still be true: the case is
-// language tier, and the fixture still imports or calls the item it names.
+// language tier, the fixture still imports or calls the item it names, and
+// a `std.` item it names is stdlib tier, overlapping a stdlib-items.tsv row:
+// a language-tier item crosses nothing.
 //
 // Usage: node --experimental-strip-types spec/check-spec-tiers.ts SPEC_DIR
 import { existsSync, readFileSync } from "node:fs";
@@ -124,6 +126,12 @@ for (const [path, itemList] of crossings) {
       : /^\w+\.\w+$/.test(item) && source(path!).includes(`.${item.split(".")[1]}(`);
     if (!present) {
       problems.push(`tier-crossings.tsv: ${path} no longer uses ${item}; update or delete its row`);
+    }
+    if (item.startsWith("std.") && !stdlibItems.some(([listed]) => overlaps(item, listed!))) {
+      problems.push(
+        `tier-crossings.tsv: ${path} lists ${item}, which stdlib-items.tsv does not list; ` +
+          "a language-tier item is no crossing, so drop it, or list a stdlib-tier item there",
+      );
     }
   }
   allowed.set(path!, items);

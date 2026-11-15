@@ -53,6 +53,8 @@ std.task.CleanupEnd	std/task.md#cleanup-end
 std.task.BlockOn	std/task.md#block-on
 std.task.Layer	std/task.md#r-std-task.layer.decl
 std.task.apply	std/task.md#r-std-task.apply.decl
+std.cmp.min	std/cmp.md#min-and-max
+std.cmp.max	std/cmp.md#min-and-max
 std.cmp.clamp	std/cmp.md#clamp
 std.console.eprintln	std/console.md#standard-error
 std.console.ConsoleInput	std/console.md#console-input
@@ -79,6 +81,7 @@ std.json.from_json	std/json.md#encode-and-decode
 std.json.encode	std/json.md#encode-and-decode
 std.json.encode_pretty	std/json.md#encode-and-decode
 std.json.decode	std/json.md#encode-and-decode
+std.serde.rename	std/serde.md#member-names
 std.cli	std/cli.md#declaring-arguments
 std.regex.Regex	std/regex.md#compiling-a-pattern
 std.regex.Match	std/regex.md#searching
