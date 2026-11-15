@@ -1,0 +1,11 @@
+# test: a method parameter may take a type parameter name its impl does not declare
+struct Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn get(self, n: i32) -> i32:
+        n
+
+impl Box[i32]:
+    pub fn other(self, T: i32) -> i32:
+        T

@@ -1,0 +1,16 @@
+# test: a struct called with one argument is a type used as a value
+struct Draft:
+    lines: List[string]
+
+type Order(Draft)
+type Sheet = Draft
+
+struct Box[T]:
+    item: T
+
+type Crate[T](Box[T])
+
+type Mile(i32)
+
+fn use_it() -> void:
+    _ := Draft(1) # diagnostic: type-used-as-value

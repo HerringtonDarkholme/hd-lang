@@ -4,10 +4,10 @@ typing/valid/checker-checker-errors-are-reported-26-legal.hd	A10c	# test: checke
 typing/valid/checker-checker-errors-are-reported-29-legal.hd	A10c	# test: checker checker errors are reported
 typing/valid/checker-checker-errors-are-reported-35-legal.hd	A10c	# test: checker checker errors are reported
 typing/valid/checker-checker-errors-are-reported-42-legal.hd	A10c	# test: checker checker errors are reported
-typing/valid/checker-checker-errors-are-reported-47-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/pattern-a-tuple-pattern-binds-distinct-names.hd	A10c	# test: checker checker errors are reported
 typing/valid/checker-inferred-result-of-a-late-read-reports-once-168-legal.hd	A10c	# test: checker inferred result of a late read reports once
-typing/valid/checker-self-outside-a-trait-or-impl-is-unknown-246-legal.hd	A10c	# test: checker self outside a trait or impl is unknown
-typing/valid/checker-self-outside-a-trait-or-impl-is-unknown-247-legal.hd	A10c	# test: checker self outside a trait or impl is unknown
+typing/valid/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A10c	# test: checker self outside a trait or impl is unknown
+typing/valid/self-type-a-struct-field-names-a-concrete-type.hd	A10c	# test: checker self outside a trait or impl is unknown
 typing/valid/failed-use-failed-group-use-reports-one-error-24-legal.hd	A10c	# test: failed group use reports one error
 typing/valid/failed-use-failed-single-use-reports-one-error-25-legal.hd	A10c	# test: failed single use reports one error
 typing/valid/generic-inference-join-bool-literal-against-integer-still-errors-38-legal.hd	A10c	# test: bool literal against integer still errors

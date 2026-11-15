@@ -1,3 +1,0 @@
-# test: checker self outside a trait or impl is unknown
-fn g(x: string) -> i32:
-    1

@@ -1,0 +1,7 @@
+# test: two method parameters with distinct names are valid
+struct Box:
+    value: i32
+
+impl Box:
+    pub fn add(self, n: i32, m: i32) -> i32:
+        n + m

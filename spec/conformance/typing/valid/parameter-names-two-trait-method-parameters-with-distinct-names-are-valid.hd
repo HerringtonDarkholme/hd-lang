@@ -1,0 +1,3 @@
+# test: two trait method parameters with distinct names are valid
+trait Tr:
+    fn m(self, n: i32, m: i32) -> i32

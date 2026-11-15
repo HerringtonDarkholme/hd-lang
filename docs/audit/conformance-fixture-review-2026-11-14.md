@@ -864,7 +864,7 @@ Ledger: b013 (46): 3 rows. Plausible 2, unverified 1. No high-value finding.
 - Plausible: `typing/invalid/redeclare-core-type.hd` cites `#name-categories`; the
   error rule is `module.prelude.no-shadow`. `typing/valid/part-trait-method-ignored-by-lookup.hd`
   repeats the last assert of `runtime/valid/embedded-trait-method-via-part.hd`.
-- Unverified B5: `typing/valid/stored-fn-call-parenthesized-field-call-is-accepted-4.hd`
+- Unverified B5: `typing/valid/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd`
   (unused `double`).
 
 #### b012 (`lang/03-names-and-scopes.md`)
@@ -1550,7 +1550,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `typing/invalid/rejected-pattern-binds-bare-call-pattern-binds-its-names-171.hd` = `typing/invalid/bare-ok-call-pattern.hd` (b056)
 - `typing/invalid/rejected-pattern-binds-duplicate-field-binds-the-alias-173.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
 - `typing/invalid/rejected-pattern-binds-unknown-variant-field-binds-its-value-174.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
-- `typing/valid/checker-checker-errors-are-reported-42-legal.hd` = `typing/valid/declaration-checks-two-function-parameters-do-not-share-a-name-332.hd`
+- `typing/valid/checker-checker-errors-are-reported-42-legal.hd` = `typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `typing/valid/declaration-checks-a-shorthand-field-counts-as-given-300.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
 - `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)

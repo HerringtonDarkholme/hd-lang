@@ -1,0 +1,3 @@
+# test: Self as a function parameter type is unknown
+fn g(x: Self) -> i32: # diagnostic: unknown-type
+    1

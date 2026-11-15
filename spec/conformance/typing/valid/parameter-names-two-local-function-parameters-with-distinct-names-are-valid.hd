@@ -1,0 +1,5 @@
+# test: two local function parameters with distinct names are valid
+fn work() -> i32:
+    fn inner(a: i32, b: i32) -> i32:
+        a + b
+    inner(1, 2)

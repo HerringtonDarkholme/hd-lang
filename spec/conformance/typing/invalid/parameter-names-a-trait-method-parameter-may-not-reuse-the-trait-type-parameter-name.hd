@@ -1,0 +1,3 @@
+# test: a trait method parameter may not reuse the trait type parameter name
+trait Tr[U]:
+    fn m(self, U: i32) -> i32 # diagnostic: duplicate-binding

@@ -3,12 +3,12 @@ typing/valid/checker-checker-errors-are-reported-26-legal.hd	A10	same title as t
 typing/valid/checker-checker-errors-are-reported-29-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-29.hd: # test: checker checker errors are reported
 typing/valid/checker-checker-errors-are-reported-35-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-35.hd: # test: checker checker errors are reported
 typing/valid/checker-checker-errors-are-reported-42-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-42.hd: # test: checker checker errors are reported
-typing/valid/checker-checker-errors-are-reported-47-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-47.hd: # test: checker checker errors are reported
+typing/valid/pattern-a-tuple-pattern-binds-distinct-names.hd	A10	same title as typing/invalid/pattern-a-tuple-pattern-may-not-bind-a-name-twice.hd: # test: checker checker errors are reported
 typing/valid/checker-duplicate-literal-arms-are-unreachable-250-legal.hd	A10	same title as typing/invalid/checker-duplicate-literal-arms-are-unreachable-250.hd: # test: checker duplicate literal arms are unreachable
 typing/valid/checker-duplicate-literal-arms-are-unreachable-251-legal.hd	A10	same title as typing/invalid/checker-duplicate-literal-arms-are-unreachable-251.hd: # test: checker duplicate literal arms are unreachable
 typing/valid/checker-inferred-result-of-a-late-read-reports-once-168-legal.hd	A10	same title as typing/invalid/checker-inferred-result-of-a-late-read-reports-once-168.hd: # test: checker inferred result of a late read reports once
-typing/valid/checker-self-outside-a-trait-or-impl-is-unknown-246-legal.hd	A10	same title as typing/invalid/checker-self-outside-a-trait-or-impl-is-unknown-246.hd: # test: checker self outside a trait or impl is unknown
-typing/valid/checker-self-outside-a-trait-or-impl-is-unknown-247-legal.hd	A10	same title as typing/invalid/checker-self-outside-a-trait-or-impl-is-unknown-247.hd: # test: checker self outside a trait or impl is unknown
+typing/valid/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A10	same title as typing/invalid/self-type-self-as-a-function-parameter-type-is-unknown.hd: # test: checker self outside a trait or impl is unknown
+typing/valid/self-type-a-struct-field-names-a-concrete-type.hd	A10	same title as typing/invalid/self-type-self-as-a-struct-field-type-is-unknown.hd: # test: checker self outside a trait or impl is unknown
 typing/valid/context-values-a-key-the-context-lacks-is-missing-281-legal.hd	A10	same title as typing/invalid/context-values-a-key-the-context-lacks-is-missing-281.hd: # test: context values a key the context lacks is missing
 typing/valid/context-values-spreads-take-only-contexts-280-legal.hd	A10	same title as typing/invalid/context-values-spreads-take-only-contexts-280.hd: # test: context values spreads take only contexts
 typing/valid/failed-use-failed-group-use-reports-one-error-24-legal.hd	A10	same title as typing/invalid/failed-use-failed-group-use-reports-one-error-24.hd: # test: failed group use reports one error

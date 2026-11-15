@@ -1,0 +1,6 @@
+# test: a value parameter may reuse a type parameter name of another function
+fn keep[T](value: T) -> T:
+    value
+
+fn other(T: i32) -> i32:
+    T

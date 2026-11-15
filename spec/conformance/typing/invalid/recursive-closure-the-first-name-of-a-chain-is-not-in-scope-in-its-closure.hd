@@ -1,0 +1,7 @@
+# test: the first name of a chain is not in scope in its closure
+# Spec lang/03-names-and-scopes.md: names.scope.not-in-initializer.
+
+pub fn main() -> void $ Console:
+    a := b := c := fn(n: i32) -> i32:
+        if n == 0: 0 else: n + a(n - 1) # diagnostic: unknown-name
+    println(a(3) + b(3) + c(3))

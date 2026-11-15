@@ -1,0 +1,3 @@
+# test: Map called bare is a type used as a value
+fn use_it() -> void:
+    let _m: Map[string, i32] = Map() # diagnostic: type-used-as-value

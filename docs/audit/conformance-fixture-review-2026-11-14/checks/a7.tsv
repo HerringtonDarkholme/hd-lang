@@ -121,7 +121,7 @@ typing/valid/declaration-owns-requirement-clause.hd	accept	lang/02-grammar.md#ty
 typing/valid/explicit-empty-row.hd	accept	lang/02-grammar.md#types	-1	
 typing/valid/row-kinded-arguments.hd	accept	lang/02-grammar.md#types	-2	
 runtime/valid/binding-expressions.hd	accept	lang/03-names-and-scopes.md#binding-expressions	-2	
-typing/invalid/checker-restarted-joins-keep-skipped-bindings-178.hd	reject:possibly-uninitialized-binding	lang/03-names-and-scopes.md#binding-expressions	3	
+typing/invalid/binding-expressions-an-and-condition-binding-is-uninitialized-after-an-if-expression.hd	reject:possibly-uninitialized-binding	lang/03-names-and-scopes.md#binding-expressions	3	
 typing/valid/checker-restarted-joins-keep-skipped-bindings-legal-forms.hd	accept	lang/03-names-and-scopes.md#binding-expressions	6	
 typing/valid/checker-skipped-bindings-are-not-initialized-legal-forms.hd	accept	lang/03-names-and-scopes.md#binding-expressions	6	
 typing/valid/local-types.hd	accept	lang/03-names-and-scopes.md#function-and-closure-scopes	-2	
@@ -133,10 +133,10 @@ runtime/valid/embedded-trait-method-via-part.hd	accept	lang/03-names-and-scopes.
 runtime/valid/field-and-trait-method-share-name.hd	accept	lang/03-names-and-scopes.md#member-resolution	-1	
 runtime/valid/shorter-promotion-path-wins.hd	accept	lang/03-names-and-scopes.md#member-resolution	-3	
 runtime/valid/unavailable-trait-method-invisible.hd	accept	lang/03-names-and-scopes.md#member-resolution	-4	
-typing/valid/stored-fn-call-method-sharing-a-field-name-wins-and-the-field-stays-callable-5.hd	accept	lang/03-names-and-scopes.md#member-resolution	-1	
-typing/valid/stored-fn-call-parenthesized-field-call-is-accepted-4.hd	accept	lang/03-names-and-scopes.md#member-resolution	-1	
+typing/valid/stored-fn-call-a-method-sharing-a-field-name-wins-and-the-field-stays-callable.hd	accept	lang/03-names-and-scopes.md#member-resolution	-1	
+typing/valid/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd	accept	lang/03-names-and-scopes.md#member-resolution	-1	
 typing/invalid/overload.hd	reject:duplicate-module-name	lang/03-names-and-scopes.md#name-categories	-2	
-typing/valid/declaration-checks-a-module-name-is-declared-once-316.hd	accept	lang/03-names-and-scopes.md#name-categories	-2	
+typing/valid/declarations-module-level-functions-with-distinct-names-are-valid.hd	accept	lang/03-names-and-scopes.md#name-categories	-2	
 runtime/valid/definite-init-diverging-branch.hd	accept	lang/03-names-and-scopes.md#r-names.definite.diverging	-8	
 runtime/valid/sibling-method-generic-scopes.hd	accept	lang/03-names-and-scopes.md#r-names.generic.params.visible	-18	
 runtime/valid/pub-own-member-hides-promoted-other-module.hd	accept	lang/03-names-and-scopes.md#r-names.hide.depth	-4	
@@ -152,9 +152,9 @@ runtime/valid/local-impl-known-after-declaration.hd	accept	lang/03-names-and-sco
 typing/invalid/local-impl-trait-value-before-declaration.hd	reject:type-mismatch	lang/03-names-and-scopes.md#r-names.member.known-impl	-1	
 typing/invalid/local-supertrait-impl-after-child.hd	reject:missing-supertrait-implementation	lang/03-names-and-scopes.md#r-names.member.known-impl	-1	
 typing/invalid/distinct-traits-not-overloads.hd	reject:ambiguous-method	lang/03-names-and-scopes.md#r-names.method-lookup.ambiguous	-1	
-typing/invalid/recursive-closure-a-three-link-chain-hides-every-chain-name-in-the-closure-01.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
-typing/invalid/recursive-closure-a-three-link-chain-hides-every-chain-name-in-the-closure-02.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
-typing/invalid/recursive-closure-a-three-link-chain-hides-every-chain-name-in-the-closure-03.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
+typing/invalid/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
+typing/invalid/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
+typing/invalid/recursive-closure-the-last-name-of-a-chain-is-not-in-scope-in-its-closure.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
 typing/invalid/recursive-closure-a-two-link-chain-closure-cannot-see-its-own-name.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.scope.not-in-initializer	1	
 runtime/valid/local-shadows-module-namespace.hd	accept	lang/03-names-and-scopes.md#r-names.scope.shadow	-4	
 typing/invalid/tests-block-item-outside.hd	reject:unknown-name	lang/03-names-and-scopes.md#r-names.tests.inside-only	-1	
@@ -162,7 +162,7 @@ runtime/valid/tests-block-impl-provider.hd	accept	lang/03-names-and-scopes.md#r-
 typing/invalid/public-test-item.hd	reject:public-test-item	lang/03-names-and-scopes.md#r-names.tests.no-pub	-1	
 runtime/valid/tests-block-use-shadow.hd	accept	lang/03-names-and-scopes.md#r-names.tests.shadow	-1	
 typing/invalid/tests-block-name-collision.hd	reject:duplicate-module-name	lang/03-names-and-scopes.md#r-names.tests.unique	-2	
-typing/valid/declaration-checks-a-tests-block-declares-each-name-once-318.hd	accept	lang/03-names-and-scopes.md#r-names.tests.unique	-2	
+typing/valid/tests-block-items-with-distinct-names-in-a-tests-block-are-valid.hd	accept	lang/03-names-and-scopes.md#r-names.tests.unique	-2	
 typing/invalid/function-result-type-mismatch.hd	reject:type-mismatch	lang/04-type-system.md#assignability-and-coercion	-1	
 runtime/valid/recursive-value-copies-stay-independent.hd	accept	lang/04-type-system.md#collection-values	-15	
 runtime/valid/generic-data-fields.hd	accept	lang/04-type-system.md#generics	-1	

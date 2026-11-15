@@ -1,0 +1,9 @@
+# test: items with distinct names in a tests block are valid
+tests:
+    fn sample() -> i32:
+        1
+    fn other() -> i32:
+        2
+
+    it("uses the sample"):
+        pass

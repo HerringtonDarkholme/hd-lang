@@ -1,0 +1,7 @@
+# test: an or condition binding is uninitialized in the then branch
+fn f(flag: bool) -> string:
+    if flag || (name := "Ada") != "":
+        return name # diagnostic: possibly-uninitialized-binding
+    "x"
+pub fn main() -> void:
+    pass

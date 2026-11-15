@@ -1,0 +1,4 @@
+# test: a closure parameter named apart from a type parameter is valid
+fn work[T](value: T) -> i32:
+    f := fn(n: i32) -> i32: n
+    f(1)

@@ -1,0 +1,9 @@
+# test: an and condition binding is uninitialized in the else of an if statement
+fn f(flag: bool) -> string:
+    if flag && (name := "Ada") != "":
+        pass
+    else:
+        return name # diagnostic: possibly-uninitialized-binding
+    "x"
+pub fn main() -> void:
+    pass
