@@ -97,7 +97,9 @@ pub trait Instance {
     fn init(&mut self) -> Outcome;
     fn poll(&mut self) -> Poll<Outcome>;
     fn wake(&mut self, handles: &[u32]);
-    fn call_test(&mut self, export: u32) -> Poll<Outcome>;
+    /// Runs test case `case` through the test program's `hd.test(case,
+    /// ctx)` export, which dispatches by number.
+    fn call_test(&mut self, case: u32) -> Poll<Outcome>;
     /// Handles completed since the last call: the reactor's batch.
     fn completed(&mut self) -> Vec<u32>;
 }

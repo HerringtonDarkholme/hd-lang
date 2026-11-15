@@ -596,7 +596,7 @@ impl Instance for WasmtimeInstance {
             self.trapped(&e);
         }
     }
-    fn call_test(&mut self, export: u32) -> Poll<Outcome> {
+    fn call_test(&mut self, case: u32) -> Poll<Outcome> {
         if let Some(outcome) = &self.done {
             return Poll::Ready(outcome.clone());
         }
@@ -608,7 +608,7 @@ impl Instance for WasmtimeInstance {
             Ok(poll) => poll,
             Err(error) => return Poll::Ready(Outcome::Internal(format!("`hd.test`: {error}"))),
         };
-        self.poll = Some(EntryPoll::Test(poll, export.cast_signed()));
+        self.poll = Some(EntryPoll::Test(poll, case.cast_signed()));
         self.step()
     }
     /// Waits for at least one completion. The returned batch is delivered

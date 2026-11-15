@@ -526,7 +526,7 @@ pub trait Instance {
     fn init(&mut self) -> Outcome;                    // runs hd.init
     fn poll(&mut self) -> Poll<Outcome>;              // runs hd.poll
     fn wake(&mut self, handles: &[u32]);
-    fn call_test(&mut self, export: u32) -> Poll<Outcome>;
+    fn call_test(&mut self, case: u32) -> Poll<Outcome>; // runs hd.test(case, ctx)
     fn completed(&mut self) -> Vec<u32>;
 }
 pub trait Provider: Send + Sync {
