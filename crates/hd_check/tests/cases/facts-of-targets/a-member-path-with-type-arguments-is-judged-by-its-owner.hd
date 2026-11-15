@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# `annot.facts-of.target.unresolved` and `annot.facts-of.target.error`:
+# `Box::[i32]::name` is resolved through its owner `Box`, never through a
+# local that shares the member's name.
+use std.annotation.facts_of
+
+struct Box[T]:
+    item: T
+
+impl[T] Box[T]:
+    fn get(self) -> T:
+        self.item
+
+fn read() -> void:
+    get := 1
+    missing := 2
+    _ := facts_of(Box::[i32]::get)
+    _ := facts_of(Box::[i32]::missing)
+    _ := facts_of(nothing::[i32]::x)

@@ -1503,7 +1503,20 @@ impl Ck<'_, '_> {
             self.err(Code::ArgumentCount, n, "`facts_of` takes one argument");
             return Ok((Ref(NONE), Ty::POISON));
         };
-        let segs = self.segments_expr(*arg);
+        // `Box::[i32]::get`: the owner's segments are those of the name
+        // inside its type arguments, so the checks below see `Box`.
+        let segs = match arg.children().next() {
+            Some(base)
+                if arg.kind() == SyntaxKind::PathExpr
+                    && base.kind() == SyntaxKind::TypeArgsExpr =>
+            {
+                let [inner, _] = base.parts();
+                let mut segs = self.segments_expr(inner);
+                segs.push(self.cx.src.text(self.cx.src.last(*arg)).to_owned());
+                segs
+            }
+            _ => self.segments_expr(*arg),
+        };
         let Some(first) = segs.first() else {
             return Ok(self.bad_facts_target(*arg, "this argument is not a name"));
         };
