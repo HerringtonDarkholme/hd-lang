@@ -2525,16 +2525,16 @@ Ledger: b164 (45): 6. b165 (44): 2. b166 (45): 5. b167 (44): 1.
   - `runtime/valid/property-generators-scalars.hd:58` asserts `x == x || x != x`,
     which holds for every `f64`, NaN included. A17 missed it because it
     isn't a literal tautology.
-  - `runtime/valid/channel-full-blocks-sender.hd`: the order loop checks
+  - `std/task/channels/channel-full-blocks-sender.hd`: the order loop checks
     `got(i-1)` against `sent(i+1)`. At `i = 3`, `"sent 4"` never exists
     (`position` returns 1000), so the last comparison always passes and only
     two of three orderings are really checked.
   - Plausible: `runtime/valid/derived-arbitrary-with.hd` (asserts `price >= 0` with an
     example price of 0).
-- **Code under test never runs (B4)**: `runtime/valid/a-module-function-takes-type-arguments-through-its-module.hd`
+- **Code under test never runs (B4)**: `std/task/a-module-function-takes-type-arguments-through-its-module.hd`
   (`echo`, `make`, `say`, `wrap` and `convert!` are never called; it also cites only
   `std/task.md`, with no rule).
-- Plausible C1: `runtime/valid/with-timeout-cleanup-zero.hd` ~ `timeout-cleanup-zero.hd`.
+- Plausible C1: `std/task/timeout/with-timeout-cleanup-zero.hd` ~ `timeout-cleanup-zero.hd`.
   `task-all-list-empty.hd` ~ a test in `task-map-all.hd`. `string-from-bytes-checks-utf8.hd`
   ~ `utf8-valid-text.hd` and `utf8-truncated.hd`. `property-generators-scalars.hd`'s
   assume test ~ `property-assume-discards.hd`.
