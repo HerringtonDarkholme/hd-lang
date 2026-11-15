@@ -1,4 +1,4 @@
-# test: checker written types may omit only defaulted slots
+# test: type argument defaults written types omitting only defaulted slots are valid
 struct Pair[A, B = A]:
     first: A
     second: B

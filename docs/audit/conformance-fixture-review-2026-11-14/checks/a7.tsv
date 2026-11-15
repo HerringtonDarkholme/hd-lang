@@ -309,7 +309,7 @@ typing/invalid/type-argument-defaults-a-default-may-not-name-its-own-parameter.h
 typing/invalid/type-argument-defaults-a-struct-written-without-its-required-argument-is-partial.hd	reject:partial-generic-arguments	lang/04-type-system.md#type-argument-defaults	-1	
 typing/invalid/type-argument-defaults-a-trait-written-without-its-required-argument-is-partial.hd	reject:partial-generic-arguments	lang/04-type-system.md#type-argument-defaults	-1	
 typing/valid/type-argument-defaults-a-default-may-name-an-earlier-parameter.hd	accept	lang/04-type-system.md#type-argument-defaults	-1	
-typing/valid/checker-written-types-may-omit-only-defaulted-slots-legal-forms.hd	accept	lang/04-type-system.md#type-argument-defaults	-4	
+typing/valid/type-argument-defaults-written-types-omitting-only-defaulted-slots-are-valid.hd	accept	lang/04-type-system.md#type-argument-defaults	-4	
 typing/valid/type-default-declarations.hd	accept	lang/04-type-system.md#type-argument-defaults	-1	
 runtime/valid/counted-field-overwrite-preserves-copies.hd	accept	lang/04-type-system.md#value-types	-4	
 typing/invalid/variance-a-function-narrowing-a-trait-value-parameter-is-a-representation-change.hd	reject:variance-representation-change	lang/04-type-system.md#variance	-1	

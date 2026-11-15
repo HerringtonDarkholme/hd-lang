@@ -671,7 +671,7 @@ typing/valid/binding-expressions-condition-bindings-read-where-their-condition-h
 typing/valid/supertraits-a-one-step-supertrait-chain-has-no-cycle.hd	type	accept	lang/09-traits.md#supertraits
 typing/valid/module-initialization-a-function-reads-an-earlier-binding.hd	type	accept	lang/10-modules.md#module-initialization
 typing/valid/module-initialization-a-bounded-generic-call-reads-an-earlier-binding-through-its-impl.hd	type	accept	lang/10-modules.md#module-initialization
-typing/valid/checker-written-types-may-omit-only-defaulted-slots-legal-forms.hd	type	accept	lang/04-type-system.md#type-argument-defaults
+typing/valid/type-argument-defaults-written-types-omitting-only-defaulted-slots-are-valid.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/collection-values-a-map-value-takes-changing-calls-and-replacement.hd	type	accept	lang/04-type-system.md#r-types.coll.map-value
 typing/valid/context-values-a-context-type-is-its-row.hd	type	accept	lang/11-requirements-and-suspension.md#provider-scopes
 typing/valid/context-values-a-context-with-every-key-serves-the-call.hd	type	accept	lang/11-requirements-and-suspension.md#provider-scopes
@@ -879,7 +879,7 @@ typing/valid/related-traits-derived-eq-and-hash-together-are-valid.hd	type	accep
 typing/valid/related-traits-derived-eq-beside-hand-written-display-is-valid.hd	type	accept	lang/09-traits.md#related-traits
 typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd	type	accept	lang/09-traits.md#related-traits
 typing/valid/related-traits-hand-written-eq-and-hash-with-no-derive-are-valid.hd	type	accept	lang/09-traits.md#related-traits
-typing/valid/row-invariant-nested-a-spread-copy-builds-the-wider-list-104-legal-rows.hd	type	accept	lang/04-type-system.md#r-types.variance.function
+typing/valid/row-variance-a-spread-copy-builds-the-wider-list.hd	type	accept	lang/04-type-system.md#r-types.variance.function
 typing/valid/row-param-nested-a-caller-with-the-solved-row-is-clean-127-legal-rows.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	type	accept	lang/09-traits.md#sealed-traits
 typing/valid/sealed-traits-an-inherent-method-may-share-a-sealed-member-name.hd	type	accept	lang/09-traits.md#sealed-traits
