@@ -551,77 +551,77 @@ legal, or make them `warn` cases if the lint is in scope.
 ### Pilot, `lang/14-annotations.md`
 
 **A second error hides behind the marked one (B2)**
-- `typing/invalid/template-outside-trait-module.hd` and
-  `typing/invalid/template-reexported-from-other-package.hd`: the template writes
+- `annotations/typed-derivation/templates/template-outside-trait-module.hd` and
+  `annotations/typed-derivation/templates/template-reexported-from-other-package.hd`: the template writes
   `fn debug(self) -> string`; std `Debug` is
   `debug(&self, out: *mut DebugWriter) -> void`. `hd` stops at
   `misplaced-derivation`, so CI never sees the mismatch.
-- `typing/invalid/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced.hd`:
+- `annotations/typed-derivation/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced.hd`:
   the template body is `"x"` with no walk, describe or build call, so
   `annot.template.body.error` (`marker-template`) also applies.
 
 **Wrong citation (B7)**
-- `typing/valid/facts-of-the-result-of-a-function-declaration-is-its-facts.hd`: an accept case cites
+- `annotations/two-annotate-forms/facts-of-the-result-of-a-function-declaration-is-its-facts.hd`: an accept case cites
   `annot.facts-of.target.error`, an error-only rule.
-- `typing/invalid/facts-of-a-missing-argument-follows-the-call-rules.hd`
+- `annotations/two-annotate-forms/facts-of-a-missing-argument-follows-the-call-rules.hd`
   and `…-an-extra-argument-follows-the-call-rules-31.hd`: they expect
   `argument-count`, but cite `target.error`, whose code is
   `invalid-facts-of-target`.
-- `runtime/valid/tuple-handle-instances.hd`: cites `annot.handle.shared-target`,
+- `annotations/typed-derivation/handles/tuple-handle-instances.hd`: cites `annot.handle.shared-target`,
   but sharing is never observed.
 
 **Title doesn't match the code (B1)**
-- `runtime/valid/values-are-found-by-type-in-source-order.hd`: each fact type
+- `annotations/two-annotate-forms/values-are-found-by-type-in-source-order.hd`: each fact type
   appears once, so source order is never tested.
-- `typing/valid/trait-less-derivation-block.hd`: "replaces decorator metadata",
+- `annotations/typed-derivation/derivation-blocks/trait-less-derivation-block.hd`: "replaces decorator metadata",
   but the replaced member has no decorator.
-- `typing/valid/structure-calls-are-pure.hd`: the title names walk, describe and
+- `annotations/typed-derivation/the-structure-trait/structure-calls-are-pure.hd`: the title names walk, describe and
   build, but only describe is called.
-- `typing/valid/walker-member-through-a-generic-structure-parameter-is-callable.hd`:
+- `annotations/typed-derivation/walkers-describers-and-sources/walker-member-through-a-generic-structure-parameter-is-callable.hd`:
   an accept case titled "errors"; the walker is concrete.
-- `typing/valid/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd`:
+- `annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd`:
   kept its reject twin's title.
 
 **Checks that cannot fail (B3)**
-- `runtime/valid/structure-a-generic-owner-has-one-handle-per-instantiation.hd`:
+- `annotations/typed-derivation/handles/structure-a-generic-owner-has-one-handle-per-instantiation.hd`:
   the printed equalities are true whether handles are shared or per
   instantiation.
 
 **Panic marker on the wrong line (B2)**
-- `runtime/panic/fact-evaluation-reads-itself.hd` and
-  `runtime/panic/fact-evaluation-cycle.hd`: `annot.fact.eval.reentrant` puts the
+- `annotations/typed-derivation/facts/fact-evaluation-reads-itself.hd` and
+  `annotations/typed-derivation/facts/fact-evaluation-cycle.hd`: `annot.fact.eval.reentrant` puts the
   panic at the second read (inside `own_path`), but the marker is on `main`'s read.
 
 **Accept cases in `typing/warnings/`**: covered by A6 above.
 
 **Dead code (B5, minor)**
-- `runtime/valid/different-facts-are-evaluated-independently.hd`: `facts_of`
+- `annotations/two-annotate-forms/different-facts-are-evaluated-independently.hd`: `facts_of`
   import and `no_prefix` unused.
-- `typing/valid/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd`:
+- `annotations/two-annotate-forms/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd`:
   `struct Audit` unused.
-- `typing/invalid/trait-less-block-declares-no-method.hd`: `Note` and `note()`
+- `annotations/typed-derivation/derivation-blocks/trait-less-block-declares-no-method.hd`: `Note` and `note()`
   unused.
 
 ## Plausible (Owner Call)
 
-- `typing/invalid/error-form-other-rule.hd` ~ `typing/invalid/error-argument-number.hd`:
+- `annotations/error-derivation/error-form-other-rule.hd` ~ `annotations/error-derivation/error-argument-number.hd`:
   both are invalid `@error` arguments (an identifier and a number). Merge?
-- `typing/invalid/generic-data-member-call.hd` ~ `typing/invalid/generic-member-call.hd`:
+- `annotations/typed-derivation/walkers-describers-and-sources/generic-data-member-call.hd` ~ `annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd`:
   the only difference is the hook name. One case per hook, or one in total?
-- `typing/valid/typed-derivation.hd` ~ `runtime/valid/typed-derivation-walk.hd`:
+- `annotations/typed-derivation/typed-derivation.hd` ~ `annotations/typed-derivation/walk-describe-and-build/typed-derivation-walk.hd`:
   the same declarations; the runtime one adds asserts.
-- `typing/valid/error-generated-bounds.hd`: the title names the transparent
+- `annotations/error-derivation/error-generated-bounds.hd`: the title names the transparent
   bound, but no generic use needs it.
-- `runtime/valid/member-line-list-expression.hd`: "any list-typed
+- `annotations/typed-derivation/derivation-blocks/member-line-list-expression.hd`: "any list-typed
   expression", but only named globals are tested.
-- `runtime/valid/facts-and-handles-build-once.hd`: tests fact laziness, but
+- `annotations/typed-derivation/handles/facts-and-handles-build-once.hd`: tests fact laziness, but
   cites `handle.constants`.
-- `typing/valid/typed-fact-function.hd`: the title says the parameters are
+- `annotations/two-annotate-forms/typed-fact-function.hd`: the title says the parameters are
   written as bounds, but `wrap[T]` is unbounded.
 
 ## Spec Questions
 
-- `typing/invalid/facts-of-an-unknown-name-is-unknown.hd`:
+- `annotations/two-annotate-forms/facts-of-an-unknown-name-is-unknown.hd`:
   `annot.facts-of.target.error` says any other argument gives
   `invalid-facts-of-target`, but the fixture expects `unknown-name`. The spec
   doesn't say which one wins.

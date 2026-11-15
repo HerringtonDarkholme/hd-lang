@@ -182,7 +182,7 @@ fn once_handles_keep_a_single_facts_owner() -> Result<(), Box<dyn std::error::Er
         "\npub fn main() -> void $ Console:\n    println(inspect_twice())\n",
     );
     let heap_facts = include_str!(
-        "../../../../spec/conformance/runtime/valid/cached-facts-own-each-returned-copy.hd"
+        "../../../../spec/conformance/annotations/typed-derivation/facts/cached-facts-own-each-returned-copy.hd"
     );
     for (name, source, suffix, expected) in [
         (

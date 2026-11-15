@@ -80,11 +80,11 @@ typing/invalid/const-generic-evaluation-division-by-zero.hd	A3	typing/invalid/co
 typing/invalid/const-generic-evaluation-division-by-zero.hd	A3	typing/invalid/const-generic-evaluation-overflow.hd
 typing/invalid/const-generic-evaluation-invalid-shift.hd	A3	typing/invalid/const-generic-evaluation-overflow.hd
 typing/invalid/const-evaluation-takes-no-interpolation.hd	A3	typing/invalid/const-evaluation-takes-no-function-suffix.hd
-typing/invalid/error-markers-transparent-on-a-variant-without-members-is-the-wrong-target.hd	A3	typing/invalid/error-markers-transparent-on-a-variant-with-two-members-is-the-wrong-target.hd
-typing/invalid/error-markers-transparent-on-a-struct-without-fields-is-the-wrong-target.hd	A3	typing/invalid/error-markers-transparent-on-a-struct-with-two-fields-is-the-wrong-target.hd
-typing/invalid/facts-of-a-call-is-not-a-function-declaration.hd	A3	typing/invalid/facts-of-a-parameter-is-not-a-function-declaration.hd
-typing/invalid/facts-of-closure.hd	A3	typing/invalid/facts-of-as-value.hd
-typing/invalid/facts-of-a-missing-argument-follows-the-call-rules.hd	A3	typing/invalid/facts-of-an-extra-argument-follows-the-call-rules.hd
+annotations/error-derivation/error-markers-transparent-on-a-variant-without-members-is-the-wrong-target.hd	A3	annotations/error-derivation/error-markers-transparent-on-a-variant-with-two-members-is-the-wrong-target.hd
+annotations/error-derivation/error-markers-transparent-on-a-struct-without-fields-is-the-wrong-target.hd	A3	annotations/error-derivation/error-markers-transparent-on-a-struct-with-two-fields-is-the-wrong-target.hd
+annotations/two-annotate-forms/facts-of-a-call-is-not-a-function-declaration.hd	A3	annotations/two-annotate-forms/facts-of-a-parameter-is-not-a-function-declaration.hd
+annotations/two-annotate-forms/facts-of-closure.hd	A3	annotations/two-annotate-forms/facts-of-as-value.hd
+annotations/two-annotate-forms/facts-of-a-missing-argument-follows-the-call-rules.hd	A3	annotations/two-annotate-forms/facts-of-an-extra-argument-follows-the-call-rules.hd
 typing/invalid/unknown-std-module.hd	A3	typing/invalid/unknown-std-module-grouped.hd
 typing/invalid/unknown-std-module.hd	A3	typing/invalid/unknown-pkg-module.hd
 typing/invalid/unknown-std-module-grouped.hd	A3	typing/invalid/unknown-pkg-module.hd
@@ -121,13 +121,13 @@ typing/invalid/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is
 typing/invalid/impl-targets-a-bounded-bare-parameter-target-is-one-error.hd	A3	typing/invalid/impl-targets-a-bare-parameter-target-beside-another-parameter-is-one-error.hd
 typing/invalid/impl-targets-a-bounded-bare-parameter-target-is-one-error.hd	A3	typing/invalid/bare-parameter-impl-target.hd
 typing/invalid/impl-targets-a-bare-parameter-target-beside-another-parameter-is-one-error.hd	A3	typing/invalid/bare-parameter-impl-target.hd
-typing/invalid/templates-a-generic-pair-impl-overlaps-the-tuple-template.hd	A3	typing/invalid/tuple-template-overlap.hd
+annotations/typed-derivation/templates/templates-a-generic-pair-impl-overlaps-the-tuple-template.hd	A3	annotations/typed-derivation/templates/tuple-template-overlap.hd
 typing/invalid/newtype-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/newtype-trailing-block-cannot-capture-a-local-reference.hd
 typing/invalid/variant-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/variant-trailing-block-cannot-capture-a-local-reference.hd
 typing/invalid/impl-trait-method-dyn-mut-call.hd	A3	typing/invalid/impl-trait-method-dyn-reference.hd
 typing/invalid/impl-trait-recursive.hd	A3	typing/invalid/impl-trait-nested-recursive-only.hd
 typing/invalid/impl-trait-return-mismatch.hd	A3	typing/invalid/impl-trait-return-void-mismatch.hd
-typing/invalid/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced.hd	A3	typing/invalid/misplaced-derivation-a-member-line-in-a-template-is-misplaced.hd
+annotations/typed-derivation/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced.hd	A3	annotations/typed-derivation/misplaced-derivation-a-member-line-in-a-template-is-misplaced.hd
 typing/invalid/literal-types-a-plus-literal-settled-by-a-method-call-is-i32.hd	A3	typing/invalid/literal-types-a-negated-literal-cannot-become-unsigned.hd
 typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd	A3	typing/invalid/literal-types-an-hour-duration-literal-past-the-range-is-rejected.hd
 typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd	A3	typing/invalid/literal-types-a-second-duration-literal-past-the-range-is-rejected.hd
@@ -1143,7 +1143,7 @@ typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	A3	typing
 typing/valid/declarations-a-public-method-declares-its-result-type.hd	A3	typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd
 names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A3	names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd
 names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	A3	names/function-and-closure-scopes/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd
-typing/valid/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd	A3	typing/valid/misplaced-derivation-a-trait-less-block-may-give-member-and-self-lines.hd
+annotations/typed-derivation/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd	A3	annotations/typed-derivation/misplaced-derivation-a-trait-less-block-may-give-member-and-self-lines.hd
 runtime/panic/integer-add-overflow.hd	A3	runtime/panic/integer-negation-overflow.hd
 runtime/panic/i32-add-overflow-in-function.hd	A3	runtime/panic/i32-min-divided-by-minus-one.hd
 runtime/panic/list-index-out-of-bounds.hd	A3	runtime/panic/list-set-out-of-bounds.hd
@@ -1406,10 +1406,10 @@ typing/invalid/least-common-type-generic-arguments-of-a-trait-value-and-a-struct
 typing/invalid/least-common-type-generic-arguments-of-a-trait-value-and-a-subtrait-value-have-no-common-type.hd	A3	typing/invalid/least-common-type-named-generic-arguments-of-a-trait-value-and-a-struct-have-no-common-type.hd
 grammar/types/mut-function-type.hd	A3	grammar/types/mut-suspend-type.hd
 typing/invalid/function-type-non-tuple-inputs.hd	A3	typing/invalid/function-type-unbounded-inputs.hd
-typing/invalid/structure-outside-template.hd	A3	typing/invalid/an-impl-structure-parameter-is-outside-a-template.hd
-typing/invalid/self-cannot-be-omitted-in-a-member-line.hd	A3	typing/invalid/extending-a-member-line-cannot-take-pass.hd
-typing/invalid/generic-data-member-call.hd	A3	typing/invalid/generic-member-call.hd
-typing/invalid/derivation-block-trait-without-template.hd	A3	typing/invalid/derivation-block-comparison-trait.hd
+annotations/typed-derivation/the-structure-trait/structure-outside-template.hd	A3	annotations/typed-derivation/the-structure-trait/an-impl-structure-parameter-is-outside-a-template.hd
+annotations/typed-derivation/derivation-blocks/self-cannot-be-omitted-in-a-member-line.hd	A3	annotations/typed-derivation/derivation-blocks/extending-a-member-line-cannot-take-pass.hd
+annotations/typed-derivation/walkers-describers-and-sources/generic-data-member-call.hd	A3	annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd
+annotations/typed-derivation/derivation-blocks/derivation-block-trait-without-template.hd	A3	annotations/typed-derivation/derivation-blocks/derivation-block-comparison-trait.hd
 typing/invalid/it-without-body.hd	A3	typing/invalid/it-argument-after-body.hd
 typing/invalid/primitive-suffix-integer-range.hd	A3	typing/invalid/primitive-suffix-negative-range.hd
 lexical/literals/suffix-after-separator.hd	A3	lexical/literals/prefix-separator-without-digits.hd
@@ -1418,13 +1418,13 @@ lexical/literals/radix-literal-quote-suffix.hd	A3	lexical/literals/string-litera
 lexical/literals/reserved-word-suffix.hd	A3	lexical/literals/reserved-word-prefix.hd
 typing/invalid/unary-minus-string.hd	A3	typing/invalid/list-plus-list-names-the-spread-concatenation.hd
 names/use-declarations/unknown-string-prefix.hd	A3	names/use-declarations/duration-unknown-unit.hd
-typing/invalid/trait-less-block-newtype.hd	A3	typing/invalid/a-traitless-derivation-block-on-a-primitive.hd
-typing/invalid/trait-less-block-generic-argument.hd	A3	typing/invalid/trait-less-block-generic-bound.hd
-typing/invalid/inline-always-suspends.hd	A3	typing/invalid/inline-always-requirement.hd
-typing/invalid/literal-suffix-extra-parameter.hd	A3	typing/invalid/literal-suffix-suspending.hd
-typing/invalid/literal-suffix-extra-parameter.hd	A3	typing/invalid/literal-suffix-no-parameter.hd
-typing/invalid/literal-suffix-suspending.hd	A3	typing/invalid/literal-suffix-no-parameter.hd
-typing/invalid/string-prefix-extra-parameter.hd	A3	typing/invalid/string-prefix-suspending.hd
+annotations/typed-derivation/derivation-blocks/trait-less-block-newtype.hd	A3	annotations/typed-derivation/derivation-blocks/a-traitless-derivation-block-on-a-primitive.hd
+annotations/typed-derivation/derivation-blocks/trait-less-block-generic-argument.hd	A3	annotations/typed-derivation/derivation-blocks/trait-less-block-generic-bound.hd
+annotations/two-annotate-forms/inline-always-suspends.hd	A3	annotations/two-annotate-forms/inline-always-requirement.hd
+annotations/two-annotate-forms/literal-suffix-extra-parameter.hd	A3	annotations/two-annotate-forms/literal-suffix-suspending.hd
+annotations/two-annotate-forms/literal-suffix-extra-parameter.hd	A3	annotations/two-annotate-forms/literal-suffix-no-parameter.hd
+annotations/two-annotate-forms/literal-suffix-suspending.hd	A3	annotations/two-annotate-forms/literal-suffix-no-parameter.hd
+annotations/two-annotate-forms/string-prefix-extra-parameter.hd	A3	annotations/two-annotate-forms/string-prefix-suspending.hd
 typing/invalid/alias-cycle.hd	A3	typing/invalid/an-alias-of-itself-is-an-alias-cycle.hd
 typing/invalid/row-parameter-on-data.hd	A3	typing/invalid/row-parameter-on-trait.hd
 typing/invalid/row-parameter-on-data.hd	A3	typing/invalid/row-parameter-on-newtype.hd
@@ -1500,7 +1500,7 @@ grammar/types/fn-bound-rest-before-input.hd	A3	grammar/types/type-argument-rest-
 grammar/types/fn-bound-rest-before-input.hd	A3	grammar/types/function-type-rest-before-parameter.hd
 grammar/types/type-argument-rest-element.hd	A3	grammar/types/function-type-rest-before-parameter.hd
 grammar/expressions/tuple-element-spread.hd	A3	grammar/expressions/tuple-spread-not-last.hd
-typing/invalid/template-outside-trait-module.hd	A3	typing/invalid/template-reexported-from-other-package.hd
+annotations/typed-derivation/templates/template-outside-trait-module.hd	A3	annotations/typed-derivation/templates/template-reexported-from-other-package.hd
 runtime/panic/list-slice-out-of-range.hd	A3	runtime/panic/list-slice-reversed.hd
 typing/invalid/unknown-std-name.hd	A3	typing/invalid/unknown-package-name.hd
 typing/invalid/row-slot-bare-alias-argument.hd	A3	typing/invalid/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd
@@ -1968,14 +1968,14 @@ typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-ba
 typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
 typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
 typing/invalid/a-typed-key-without-an-implementation-is-an-error-signed.hd	A3	typing/invalid/a-typed-key-without-an-implementation-is-an-error-narrow.hd
-runtime/valid/member-line-lists-block-with-no-trait-takes-a-name-a-call-and-a-concatenation.hd	A3	runtime/valid/member-line-lists-derivation-block-takes-a-name-a-call-and-a-concatenation.hd
-typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd
-typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd
-typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	typing/invalid/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
-typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd	A3	typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd
-typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd	A3	typing/invalid/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
-typing/invalid/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd	A3	typing/invalid/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
-typing/invalid/member-line-lists-a-list-of-another-element-type-is-a-type-mismatch.hd	A3	typing/invalid/member-line-lists-a-spread-of-a-value-that-is-not-a-list-is-a-type-mismatch.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-block-with-no-trait-takes-a-name-a-call-and-a-concatenation.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-derivation-block-takes-a-name-a-call-and-a-concatenation.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
+annotations/typed-derivation/derivation-blocks/member-line-lists-a-list-of-another-element-type-is-a-type-mismatch.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-spread-of-a-value-that-is-not-a-list-is-a-type-mismatch.hd
 typing/invalid/http-client-base-url-removed.hd	A3	typing/invalid/http-client-default-header-removed.hd
 runtime/valid/test-prelude-test-module-assertions.hd	A3	runtime/valid/test-prelude-integration-assertions.hd
 typing/invalid/prelude-explicit-hasher.hd	A3	typing/invalid/prelude-explicit-poll.hd
@@ -2154,12 +2154,12 @@ typing/warnings/variant-binding-name-mismatch.hd	A6	directory says otherwise; ex
 typing/warnings/unreachable-after-infinite-loop.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unreachable.infinite-loop
 typing/warnings/variant-binding-names-swapped.hd	A6	directory says otherwise; expectation accept, cites lang/08-data-and-enums.md#matching-enums
 typing/warnings/unused-nested-optional-binding.hd	A6	directory says otherwise; expectation accept, cites lang/04-type-system.md#optional-types
-typing/warnings/derivation-line-drift.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint
-typing/warnings/derivation-line-drift-beside-derive.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint.derive
-typing/warnings/derivation-block-decorator.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint
+annotations/typed-derivation/derivation-blocks/derivation-line-drift.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint
+annotations/typed-derivation/derivation-blocks/derivation-line-drift-beside-derive.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint.derive
+annotations/typed-derivation/facts/derivation-block-decorator.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint
 typing/warnings/let-mut-primitive-unused.hd	A6	directory says otherwise; expectation accept, cites lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
 typing/warnings/let-mut-primitive-annotation-unused.hd	A6	directory says otherwise; expectation accept, cites lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
-typing/warnings/derivation-block-decorator-std.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.fact.unused-block-decorator.any-type
+annotations/typed-derivation/facts/derivation-block-decorator-std.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.fact.unused-block-decorator.any-type
 grammar/statements/same-line-let-list-unused.hd	A6	directory says otherwise; expectation accept, cites lang/02-grammar.md#r-grammar.inline.let-pattern
 typing/warnings/private-main.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint
 typing/warnings/private-main-suspending.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint

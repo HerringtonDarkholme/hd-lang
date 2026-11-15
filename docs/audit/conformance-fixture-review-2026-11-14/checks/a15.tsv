@@ -1,4 +1,4 @@
-typing/invalid/inline-always-with.hd	A15	line 10 calls print in fn at line 7 with no $ row
+annotations/two-annotate-forms/inline-always-with.hd	A15	line 10 calls print in fn at line 7 with no $ row
 typing/invalid/let-else-falls-through.hd	A15	line 8 calls print in fn at line 6 with no $ row
 typing/invalid/omitted-result-cycle-with-written-row-calls-open-row.hd	A15	line 14 calls print in fn at line 12 with no $ row
 typing/invalid/let-pattern-mut-a-field-listed-twice-reports-a-duplicate-through-mut.hd	A15	line 11 calls print in fn at line 9 with no $ row
