@@ -275,6 +275,59 @@ impl Sets {
         self.join(x.prefix, a, y.prefix, b)
     }
 
+    /// The keys `a` and `b` share, made only along the paths where they
+    /// differ: a subtree the two share is kept as it is, so meeting two
+    /// sets that differ in `d` keys costs about `d log2 n`.
+    pub(super) fn intersection(&mut self, a: Set, b: Set) -> Set {
+        if a == b {
+            return a;
+        }
+        if a == Set::EMPTY || b == Set::EMPTY {
+            return Set::EMPTY;
+        }
+        self.tick();
+        let (x, y) = (self.node(a), self.node(b));
+        if x.bit == 0 {
+            return if self.contains(b, x.prefix) {
+                a
+            } else {
+                Set::EMPTY
+            };
+        }
+        if y.bit == 0 {
+            return if self.contains(a, y.prefix) {
+                b
+            } else {
+                Set::EMPTY
+            };
+        }
+        if x.bit == y.bit && x.prefix == y.prefix {
+            let zero = self.intersection(x.zero, y.zero);
+            let one = self.intersection(x.one, y.one);
+            return if zero == Set::EMPTY {
+                one
+            } else if one == Set::EMPTY {
+                zero
+            } else if zero == x.zero && one == x.one {
+                a
+            } else if zero == y.zero && one == y.one {
+                b
+            } else {
+                self.branch(x.prefix, x.bit, zero, one)
+            };
+        }
+        if x.bit > y.bit && high(y.prefix, x.bit) == x.prefix {
+            // `b` lies under one side of `a`.
+            let side = if y.prefix & x.bit == 0 { x.zero } else { x.one };
+            return self.intersection(side, b);
+        }
+        if y.bit > x.bit && high(x.prefix, y.bit) == y.prefix {
+            let side = if x.prefix & y.bit == 0 { y.zero } else { y.one };
+            return self.intersection(a, side);
+        }
+        Set::EMPTY
+    }
+
     /// The keys of `b` that `a` lacks, appended to `out` in any order,
     /// found only along the paths where the two differ: a subtree they
     /// share is skipped, so a `b` made from `a` by adding `d` keys costs
@@ -442,6 +495,44 @@ mod tests {
         out.clear();
         sets.difference(fewer, up, &mut out);
         assert!(out.is_empty() && sets.work() - work <= 2 * 32);
+    }
+
+    #[test]
+    fn an_intersection_keeps_the_shared_keys_and_shares_what_agrees() {
+        let mut sets = Sets::default();
+        let mut base = Set::EMPTY;
+        for k in 0..64u32 {
+            base = sets.insert(base, k);
+        }
+        let a = sets.remove(base, 5);
+        let a = sets.insert(a, 1 << 20);
+        let b = sets.remove(base, 40);
+        let both = sets.intersection(a, b);
+        let want: Vec<u32> = (0..64).filter(|&k| k != 5 && k != 40).collect();
+        assert_eq!(keys(&sets, both), want);
+        assert_eq!(sets.intersection(b, a), both);
+        // With itself, a subset, a stranger, a lone key, or nothing.
+        assert_eq!(sets.intersection(a, a), a);
+        assert_eq!(sets.intersection(base, b), b);
+        let far = sets.insert(Set::EMPTY, 1 << 30);
+        assert_eq!(sets.intersection(base, far), Set::EMPTY);
+        let one = sets.insert(Set::EMPTY, 7);
+        assert_eq!(sets.intersection(base, one), one);
+        assert_eq!(sets.intersection(one, base), one);
+        assert_eq!(sets.intersection(far, one), Set::EMPTY);
+        assert_eq!(sets.intersection(Set::EMPTY, base), Set::EMPTY);
+        // Disjoint halves under one branch, and a set under one side.
+        let mut low = Set::EMPTY;
+        for k in 0..8u32 {
+            low = sets.insert(low, k);
+        }
+        let mut high = Set::EMPTY;
+        for k in 32..40u32 {
+            high = sets.insert(high, k);
+        }
+        assert_eq!(sets.intersection(low, high), Set::EMPTY);
+        assert_eq!(sets.intersection(base, high), high);
+        assert_eq!(sets.intersection(high, base), high);
     }
 
     #[test]

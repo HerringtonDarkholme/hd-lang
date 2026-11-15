@@ -13,6 +13,7 @@ thread_local! {
     static LOOP_SCANS: Cell<Option<u64>> = const { Cell::new(None) };
     static STATIC_LOOKS: Cell<Option<u64>> = const { Cell::new(None) };
     static LIVENESS: Cell<Option<u64>> = const { Cell::new(None) };
+    static ZERO_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -90,6 +91,16 @@ pub fn count_liveness<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn liveness(n: usize) {
     add(&LIVENESS, n);
+}
+
+/// Counts rule 11's zero-fact work on this thread: each node of its
+/// persistent sets asked for, made or found, and each node a meet visits.
+pub fn count_zero_facts<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&ZERO_FACTS, run)
+}
+
+pub(crate) fn zero_facts(n: usize) {
+    add(&ZERO_FACTS, n);
 }
 
 fn count<R>(

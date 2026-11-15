@@ -2570,13 +2570,45 @@ fn liveness_and_coalescing_work_is_linear_in_live_values() {
             ("wide-struct", wide_struct, 800),
             ("else-if", else_if_reads_past_arms, 200),
         ] {
-            let (a, b) = (build(generate(small)), build(generate(small * 10)));
+            // The marker keeps another test's build of the same program,
+            // already in the compiler's cache, from answering for this one.
+            let marked = |n: usize| generate(n) + "\nfn liveness_only() -> i32:\n    1\n";
+            let (a, b) = (build(marked(small)), build(marked(small * 10)));
             assert!(
                 a > 0 && b <= a * 14,
                 "{shape}: liveness work for {small} and {}: {a} and {b}",
                 small * 10
             );
         }
+    });
+}
+
+// Emitter: #1914, rule 11's zero facts were a dense bit row of every
+// local per waiting block, copied at each forward branch, so `n` locals
+// across `n` blocks allocated `n²/64` words. They are persistent sets now,
+// shared between blocks and met by intersection.
+#[test]
+fn zero_fact_work_is_linear_in_interpolations() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |source: String| {
+            let (out, work) = hd_wasm::work::count_zero_facts(|| compile(&source, &goal));
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            work
+        };
+        // An insert copies a path of about `log2 n` nodes, so 10x the
+        // parts grows the work by 10x times the growth of `log2 n` (12.2x
+        // measured), within 14x; the dense rows grew with the square.
+        let (a, b) = (
+            build(interpolated_local(500)),
+            build(interpolated_local(5_000)),
+        );
+        assert!(
+            a > 0 && b <= a * 14,
+            "zero facts for 500 and 5,000: {a} and {b}"
+        );
     });
 }
 
