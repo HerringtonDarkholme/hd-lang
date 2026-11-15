@@ -13,7 +13,7 @@
 //! `no-common-type`, or `no-least-common-type` when the values do have a
 //! common type that these rules cannot reach.
 
-use hd_base::HashMap;
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult};
 use hd_diag::Code;
@@ -920,30 +920,38 @@ impl Ck<'_, '_> {
 
     /// The open variables of a call's formal type that stand directly
     /// behind a reference or pointer, as `T` in `&T`: the only place an
-    /// argument can solve one to a bare `dyn Tr` descriptor. Cost: one walk
-    /// of the formal, only when it has a variable.
+    /// argument can solve one to a bare `dyn Tr` descriptor. The formal is
+    /// resolved (each node once per body, by the table's memo), then a
+    /// work stack walks only the parts that hold both a reference and a
+    /// variable, each distinct part once: a formal with no reference, as
+    /// the `W^i[?int]` a generic nest passes at level `i`, costs one probe,
+    /// not its depth (#1912).
     pub(crate) fn open_referents(&self, formal: Ty) -> Vec<Ty> {
-        fn walk(ck: &Ck<'_, '_>, t: Ty, out: &mut Vec<Ty>) {
-            let pool = ck.pool();
-            if !pool.has_infer(t) {
-                return;
-            }
-            let t = ck.infer.shallow(pool, t);
-            if let TyData::Ref { inner, .. } = pool.get(t) {
-                let inner = ck.infer.shallow(pool, inner);
-                if matches!(pool.get(inner), TyData::Infer(_)) {
-                    out.push(inner);
-                    return;
-                }
-            }
-            let mut children = Vec::new();
-            pool.children(t, &mut children);
-            for child in children {
-                walk(ck, child, out);
-            }
-        }
+        let pool = self.pool();
         let mut out = Vec::new();
-        walk(self, formal, &mut out);
+        let walked = |t: Ty| pool.has_infer(t) && pool.has_ref(t);
+        let formal = self.infer.resolve(pool, formal);
+        if !walked(formal) {
+            return out;
+        }
+        let mut seen: HashSet<Ty> = HashSet::default();
+        let mut stack = vec![formal];
+        let mut children = Vec::new();
+        while let Some(t) = stack.pop() {
+            if !seen.insert(t) {
+                continue;
+            }
+            hd_types::work::type_node();
+            if let TyData::Ref { inner, .. } = pool.get(t)
+                && matches!(pool.get(inner), TyData::Infer(_))
+            {
+                out.push(inner);
+                continue;
+            }
+            children.clear();
+            pool.children(t, &mut children);
+            stack.extend(children.iter().rev().copied().filter(|&c| walked(c)));
+        }
         out
     }
 

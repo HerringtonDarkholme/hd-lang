@@ -2206,13 +2206,31 @@ fn assemble(
 /// never bound twice (a `UniqList`).
 pub fn holds_drop(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     memoized(&DROPS, pool, env, t, &|t, part| {
-        if let TyData::Adt { def, .. } = pool.get(t)
-            && env.has_drop(def)
-        {
-            return true;
-        }
-        value_parts(pool, env, t).into_iter().any(part)
+        drop_one(pool, env, t, part)
     })
+}
+
+/// [`holds_drop`] over `memo`, a map the caller keeps across links and
+/// bodies: each type is answered once per map, so asking it of the
+/// growing types of many bodies costs each new type once (#1912).
+pub fn holds_drop_in(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    memo: &mut hd_base::HashMap<Ty, bool>,
+) -> bool {
+    by_parts(pool, env, t, memo, &|t, part| drop_one(pool, env, t, part))
+}
+
+/// [`holds_drop`] of `t` from its parts' answers, which `part` reads.
+fn drop_one(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, part: &dyn Fn(Ty) -> bool) -> bool {
+    crate::work::member_layouts(1);
+    if let TyData::Adt { def, .. } = pool.get(t)
+        && env.has_drop(def)
+    {
+        return true;
+    }
+    value_parts(pool, env, t).into_iter().any(part)
 }
 
 /// The variants' payload types of an enum or optional type, `None` for

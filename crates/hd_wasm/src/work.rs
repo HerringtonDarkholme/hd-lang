@@ -11,6 +11,7 @@ thread_local! {
     static LOAN_QUERIES: Cell<Option<u64>> = const { Cell::new(None) };
     static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOOP_SCANS: Cell<Option<u64>> = const { Cell::new(None) };
+    static STATIC_LOOKS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -44,8 +45,9 @@ pub fn count_loan_queries<R>(run: impl FnOnce() -> R) -> (R, u64) {
 }
 
 /// Counts the members the layout's struct and tuple member memo lays
-/// out, and its probes, on this thread ([`crate::layout::members`]), and
-/// the inline parts the walk for a release's `Drop` calls enters.
+/// out, and its probes, on this thread ([`crate::layout::members`]), the
+/// inline parts the walk for a release's `Drop` calls enters, and the
+/// types whose `Drop` question is answered from their parts.
 pub fn count_member_layouts<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&MEMBER_LAYOUTS, run)
 }
@@ -65,6 +67,16 @@ pub fn count_loop_scans<R>(run: impl FnOnce() -> R) -> (R, u64) {
 pub(crate) fn loop_scans(n: usize) {
     hd_base::work::add(hd_base::work::Counter::LoopScans, n as u64);
     add(&LOOP_SCANS, n);
+}
+
+/// Counts the instructions the static-value proof reads on this thread:
+/// a function's body once per look at it ([`crate::opt::static_values`]).
+pub fn count_static_looks<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&STATIC_LOOKS, run)
+}
+
+pub(crate) fn static_looks(n: usize) {
+    add(&STATIC_LOOKS, n);
 }
 
 fn count<R>(

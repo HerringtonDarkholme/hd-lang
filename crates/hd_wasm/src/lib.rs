@@ -132,9 +132,16 @@ pub fn function_input_borrows(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) ->
 
 /// Whether ownership must transfer an inline runtime Drop value rather
 /// than lending it to a cold constructor that can only retain references.
+/// `memo` keeps each type's answer for the caller's run
+/// ([`layout::holds_drop_in`]).
 #[must_use]
-pub fn holds_drop_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    layout::holds_drop(pool, env, ty)
+pub fn holds_drop_type(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    ty: Ty,
+    memo: &mut hd_base::HashMap<Ty, bool>,
+) -> bool {
+    layout::holds_drop_in(pool, env, ty, memo)
 }
 
 /// Runs `f` with the layout cache in place (a link's, when `f` runs inside

@@ -1207,14 +1207,22 @@ impl GlobalMemo {
 /// whose answer is the body's alone (they met the depth cut, or read its
 /// module's own impl rows). It also remembers the global entries the body
 /// used, so a repeat takes no lock, and the proof nodes the body has been
-/// charged for (`met`, rule TS-5). Nothing in it names a body-local type
+/// charged for (`met`, rule TS-5). No goal entry names a body-local type
 /// or variable, so a trial's rollback leaves every entry valid (§2.2).
+/// The type-keyed memos below may name them: each keeps a function of a
+/// type's interned content alone, and the body's pool only grows, so a
+/// rollback leaves those valid too.
 #[derive(Default, Debug)]
 pub struct BodyMemo {
     table: HashMap<MemoKey, u32>,
     entries: Vec<MemoEntry>,
     records: Vec<MemoRecord>,
     met: HashSet<MemoKey>,
+    /// The `Copy` row's earlier walks (`sealed::copy_parts`).
+    copies: crate::sealed::CopyMemo,
+    /// The canonical folds of types canonicalized with no variable
+    /// numbered yet ([`canonicalize`]).
+    canon: CanonMemo,
 }
 
 impl BodyMemo {
@@ -1362,26 +1370,25 @@ pub trait Solver: Sync {
 }
 
 /// Canonicalizes a goal's self type and arguments (§2.2 steps 1 and 3):
-/// variables become `Canon(i)` in first-occurrence order.
+/// variables become `Canon(i)` in first-occurrence order. With `shared`,
+/// a body's memo, the fold keeps and reuses each type folded before any
+/// variable was numbered ([`CanonMemo`]).
 #[must_use]
 pub fn canonicalize(
     pool: Types<'_>,
     kind: GoalKind,
     tref: TraitRef,
     mut_: bool,
+    shared: Option<&mut CanonMemo>,
 ) -> (CanonGoal, CanonVars) {
     let mut vars = CanonVars::default();
-    let mut number = |v: InferVar| -> Result<Ty, std::convert::Infallible> {
-        let i = vars.map.iter().position(|w| *w == v).unwrap_or_else(|| {
-            vars.map.push(v);
-            vars.kinds.push(VarKind::General);
-            vars.map.len() - 1
-        });
-        Ok(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))))
+    let mut leaves = Leaves {
+        kind: LeafKind::Number(&mut vars, shared),
+        memo: HashMap::default(),
     };
-    let mut leaves = Leaves::infer(&mut number);
-    let Ok(self_ty) = fold_vars(pool, tref.self_ty, &mut leaves);
+    let Ok::<_, std::convert::Infallible>(self_ty) = fold_vars(pool, tref.self_ty, &mut leaves);
     let Ok(args) = fold_list(pool, tref.args, &mut leaves);
+    drop(leaves);
     let goal = CanonGoal {
         kind,
         mut_,
@@ -1393,6 +1400,23 @@ pub fn canonicalize(
     };
     (goal, vars)
 }
+
+/// The canonical folds of the types a body's goals folded before any
+/// variable was numbered: the folded type and its variables in
+/// first-occurrence order, which are then numbered `0..`. A fold is a
+/// function of the type's interned content, so an entry holds for the
+/// body's whole run. Only a type with at most [`CANON_MEMO_VARS`]
+/// variables is kept, so an entry costs a constant.
+///
+/// Each level of `wrap(wrap(...))` asks a goal on `W^i[?int]`, whose
+/// part `W^(i-1)[?int]` the level below folded first in its own goal; a
+/// goal then folds one new node, not the `i` below it (#1912). Cost: a
+/// hash probe per node folded with no variable numbered (the leftmost
+/// path of the goal's types), and a constant per entry kept.
+pub type CanonMemo = HashMap<Ty, (Ty, Box<[InferVar]>)>;
+
+/// The most variables a [`CanonMemo`] entry keeps.
+const CANON_MEMO_VARS: usize = 8;
 
 /// The leaves a fold replaces, each with its replacement: the inference
 /// variables, or the placeholders (`Canon(i)`, given with their type).
@@ -1407,6 +1431,9 @@ struct Leaves<'f, E> {
 enum LeafKind<'f, E> {
     Infer(&'f mut dyn FnMut(InferVar) -> Result<Ty, E>),
     Canon(&'f mut dyn FnMut(Ty, u8) -> Result<Ty, E>),
+    /// Canonicalizing: each variable becomes `Canon(i)`, `i` its first
+    /// occurrence's place in the map, with the body's shared memo.
+    Number(&'f mut CanonVars, Option<&'f mut CanonMemo>),
 }
 
 impl<'f, E> Leaves<'f, E> {
@@ -1424,10 +1451,21 @@ impl<'f, E> Leaves<'f, E> {
         }
     }
 
+    /// The shared canonical memo, when one is given and no variable is
+    /// numbered yet: a node folded now folds as it would alone.
+    fn fresh(&mut self) -> Option<(&mut CanonVars, &mut CanonMemo)> {
+        match &mut self.kind {
+            LeafKind::Number(vars, Some(shared)) if vars.map.is_empty() => {
+                Some((&mut **vars, &mut **shared))
+            }
+            _ => None,
+        }
+    }
+
     /// Whether `t` holds a leaf this fold replaces.
     fn in_ty(&self, pool: Types<'_>, t: Ty) -> bool {
         match self.kind {
-            LeafKind::Infer(_) => pool.has_infer(t),
+            LeafKind::Infer(_) | LeafKind::Number(..) => pool.has_infer(t),
             LeafKind::Canon(_) => pool.has_canon(t),
         }
     }
@@ -1443,9 +1481,40 @@ fn fold_vars<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
     if let Some(&r) = leaves.memo.get(&t) {
         return Ok(r);
     }
+    let fresh = match leaves.fresh() {
+        Some((vars, shared)) => {
+            if let Some((r, vs)) = shared.get(&t) {
+                vars.map.extend_from_slice(vs);
+                vars.kinds.resize(vars.map.len(), VarKind::General);
+                return Ok(*r);
+            }
+            true
+        }
+        None => false,
+    };
+    let r = fold_node(pool, t, leaves)?;
+    if fresh
+        && let LeafKind::Number(vars, Some(shared)) = &mut leaves.kind
+        && vars.map.len() <= CANON_MEMO_VARS
+    {
+        shared.insert(t, (r, vars.map.as_slice().into()));
+    }
+    Ok(r)
+}
+
+/// [`fold_vars`] of one node no memo answered.
+fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty, E> {
     crate::work::type_node();
     let d = match (pool.get(t), &mut leaves.kind) {
         (TyData::Infer(v), LeafKind::Infer(f)) => return f(v),
+        (TyData::Infer(v), LeafKind::Number(vars, _)) => {
+            let i = vars.map.iter().position(|w| *w == v).unwrap_or_else(|| {
+                vars.map.push(v);
+                vars.kinds.push(VarKind::General);
+                vars.map.len() - 1
+            });
+            return Ok(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))));
+        }
         (TyData::Canon(i), LeafKind::Canon(f)) => return f(t, i),
         (d, _) => d,
     };
@@ -2118,7 +2187,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 m,
             ),
         };
-        let (cg, vars) = canonicalize(pool, kind, tref, mut_);
+        let (cg, vars) = canonicalize(pool, kind, tref, mut_, Some(&mut self.cx.body_memo.canon));
         // More variables than placeholders: asked, never memoized (§7.5).
         let memo = memo && vars.map.len() < usize::from(u8::MAX);
         // §2.2's scopes: a goal with no placeholder is `Global`, or `Env`
@@ -2444,7 +2513,14 @@ impl<'s, 'a> Search<'s, 'a> {
             return Ok(self.supplied_fn(key, cg, tref, self_ty, root));
         }
         // Compiler-supplied impls (§3.9).
-        if let Some(row) = crate::sealed::row(pool, self.cx.decls, tref.trait_, self_ty) {
+        let cx = &mut *self.cx;
+        if let Some(row) = crate::sealed::row(
+            pool,
+            cx.decls,
+            tref.trait_,
+            self_ty,
+            &mut cx.body_memo.copies,
+        ) {
             return self.supplied(key, cg, tref.trait_, row, depth, root);
         }
         if let TyData::Infer(v) = pool.get(self_ty) {
@@ -3208,7 +3284,7 @@ impl Search<'_, '_> {
                 self_ty,
                 args: TyList::EMPTY,
             };
-            let (leaf, _) = canonicalize(pool, GoalKind::Instantiations, tref, false);
+            let (leaf, _) = canonicalize(pool, GoalKind::Instantiations, tref, false, None);
             return done(Answer::Fails(Box::new(FailInfo {
                 leaf,
                 chain: vec![],
@@ -3692,11 +3768,62 @@ mod tests {
             }),
             args: TyList::EMPTY,
         };
-        let (a, _) = canonicalize(p1, GoalKind::Implements, g(p1, v3), false);
-        let (b, vars) = canonicalize(p2, GoalKind::Implements, g(p2, v0), false);
+        let (a, _) = canonicalize(p1, GoalKind::Implements, g(p1, v3), false, None);
+        let (b, vars) = canonicalize(p2, GoalKind::Implements, g(p2, v0), false, None);
         assert!(!a.self_ty.is_local(), "canonical goals are global");
         assert_eq!(a, b);
         assert_eq!(vars.map.len(), 1);
+    }
+
+    // #1912: a body's canonical-fold memo answers a type folded before
+    // any variable was numbered with the fold and the variables in order;
+    // a goal that holds it as its leftmost part reuses it, and every goal
+    // canonicalizes as it does with no memo. A type with more variables
+    // than an entry keeps is folded each time.
+    #[test]
+    fn canonical_fold_memo_reuses_a_leading_part_and_changes_no_goal() {
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let mut table = InferTable::default();
+        let (w, show) = (DefId::from_raw(1), DefId::from_raw(2));
+        let vars: Vec<Ty> = (0..=super::CANON_MEMO_VARS)
+            .map(|_| table.fresh(p, VarKind::General))
+            .collect();
+        let adt = |args: &[Ty]| {
+            p.intern_ty(&TyData::Adt {
+                def: w,
+                args: p.list(args),
+            })
+        };
+        let goal = |self_ty: Ty, args: &[Ty]| TraitRef {
+            trait_: show,
+            self_ty,
+            args: p.list(args),
+        };
+        let inner = adt(&[vars[1], vars[0]]);
+        let outer = adt(&[inner, vars[2], vars[1]]);
+        let wide = adt(&vars);
+        let goals = [
+            goal(inner, &[]),
+            goal(outer, &[]),
+            goal(outer, &[vars[3], inner]),
+            goal(wide, &[]),
+            goal(adt(&[wide, vars[0]]), &[]),
+            goal(Ty::I32, &[inner]),
+        ];
+        let mut memo = super::CanonMemo::default();
+        for g in goals {
+            let plain = canonicalize(p, GoalKind::Implements, g, false, None);
+            let shared = canonicalize(p, GoalKind::Implements, g, false, Some(&mut memo));
+            assert_eq!(plain, shared, "{g:?}");
+        }
+        assert_eq!(memo.get(&inner).map(|(_, vs)| vs.len()), Some(2));
+        assert_eq!(memo.get(&outer).map(|(_, vs)| vs.len()), Some(3));
+        assert!(
+            !memo.contains_key(&wide),
+            "more variables than an entry keeps"
+        );
     }
 
     #[test]
@@ -3748,7 +3875,7 @@ mod tests {
             .expect("holds");
         assert!(matches!(a, super::Answer::Holds { .. }));
         assert!(TableSolver.select(&mut cx, ConcreteTraitRef(tref)).is_ok());
-        let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
+        let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false, None);
         let key = MemoKey {
             goal: cg,
             env: super::EnvKey::EMPTY,
@@ -3908,7 +4035,7 @@ mod tests {
             let answer = TableSolver
                 .solve(&mut cx, &goal, &mut Fuel::new(100))
                 .expect("solves");
-            let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
+            let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false, None);
             (answer, MemoKey::new(p, cg, EnvKey::EMPTY, universe, 0))
         };
         let a = || match ask(&[0, 1, 2]) {
@@ -4056,7 +4183,7 @@ mod tests {
             let answer = TableSolver
                 .solve(&mut cx, &goal, &mut Fuel::new(100))
                 .expect("solves");
-            let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
+            let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false, None);
             (
                 answer,
                 MemoKey::new(p, cg, EnvKey::EMPTY, universe, 0),
@@ -4324,7 +4451,7 @@ mod tests {
         };
         assert_eq!(
             info.leaf,
-            canonicalize(p, GoalKind::Implements, leaf, false).0
+            canonicalize(p, GoalKind::Implements, leaf, false, None).0
         );
         assert_eq!(info.reason, FailReason::NoImpl);
         let at = ImplRef {
@@ -4976,7 +5103,7 @@ mod tests {
         assert_eq!(yes.1, no.1);
         let (universe, _) = ImplUniverses::default().intern(&[]);
         let key = |tref, env| {
-            let (cg, _) = canonicalize(g, GoalKind::Implements, tref, false);
+            let (cg, _) = canonicalize(g, GoalKind::Implements, tref, false, None);
             MemoKey::new(g, cg, env, universe, 0)
         };
         for bounded_first in [true, false] {
@@ -5160,7 +5287,7 @@ mod tests {
         );
         let (universe, _) = ImplUniverses::default().intern(&[]);
         for (s, x) in [(Ty::I32, Ty::BOOL), (Ty::BOOL, Ty::I32)] {
-            let (cg, _) = canonicalize(g, GoalKind::Implements, goal(s, x), false);
+            let (cg, _) = canonicalize(g, GoalKind::Implements, goal(s, x), false, None);
             let key = MemoKey::new(g, cg, EnvKey::EMPTY, universe, 0);
             let e = global.get(&key).expect("memoized");
             assert_eq!((e.kind, e.height), (MemoKind::Overflow, u8::MAX));
@@ -5527,7 +5654,7 @@ mod tests {
         assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::AnyVal));
         let (universe, _) = ImplUniverses::default().intern(&[]);
         let key = |t| {
-            let (cg, _) = canonicalize(p, GoalKind::Implements, on(2, t), false);
+            let (cg, _) = canonicalize(p, GoalKind::Implements, on(2, t), false, None);
             MemoKey::new(p, cg, super::EnvKey::EMPTY, universe, 0)
         };
         for t in [mile, Ty::I32] {

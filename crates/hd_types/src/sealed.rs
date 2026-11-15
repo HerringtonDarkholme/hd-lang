@@ -8,9 +8,9 @@
 //! impl per primitive (`lib/std/num.hd`), with the bodies of `zero`, `one`
 //! and `from_i64`, so the impl tables answer them like any trait.
 
-use hd_base::{DefId, HashSet, InferVar};
+use hd_base::{DefId, HashMap, HashSet, InferVar};
 
-use crate::pool::{ParamRef, Ty, TyData, Types};
+use crate::pool::{ParamRef, Ty, TyData, TyList, Types};
 use crate::solver::{BuiltinImpl, FailReason};
 
 /// The sealed traits the rows answer, by `DefId` (`DefId::NONE` for one
@@ -218,6 +218,7 @@ pub(crate) fn row(
     decls: &dyn Declarations,
     trait_: DefId,
     self_ty: Ty,
+    copies: &mut CopyMemo,
 ) -> Option<Row> {
     let s = *decls.sealed();
     if !s.supplies(trait_) {
@@ -242,7 +243,7 @@ pub(crate) fn row(
             return Some(Row::Fails(FailReason::NoImpl));
         }
         let mut subs = Vec::new();
-        return Some(if copy_parts(pool, decls, self_ty, &mut subs) {
+        return Some(if copy_parts(pool, decls, self_ty, &mut subs, copies) {
             Row::Holds(BuiltinImpl::Copy, subs)
         } else {
             Row::Fails(FailReason::NoImpl)
@@ -352,6 +353,13 @@ pub(crate) fn row(
     })
 }
 
+/// The answers of earlier `Copy` walks, by type id: `None` for a type
+/// that does not copy, else the parameters and variables left for the
+/// environment, in walk order. A type's answer is a function of its
+/// interned content and the run's declarations alone, so an entry stays
+/// valid for as long as the type's pool does (a body's, `BodyMemo`).
+pub(crate) type CopyMemo = HashMap<Ty, Option<TyList>>;
+
 /// Whether `t` may copy (`ref.copy.structure`): no part held by value is
 /// a `&mut`, a type declared `!Copy`, or a type parameter whose bound
 /// fails. The parameters and inference variables it reaches are left in
@@ -366,11 +374,30 @@ pub(crate) fn row(
 /// shared by many fields (`Pair[X, X]`) or tuple slots (`(T, T)` nested
 /// n deep, 2^n leaves) once, so the work is the type's distinct nodes
 /// (#1886). Parts are taken left to right, so `subs` keeps the order a
-/// recursive walk gives. Nothing is allocated for a type that is one part.
-fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<Ty>) -> bool {
+/// recursive walk gives.
+///
+/// Across walks, `memo` keeps each asked type's answer, and on success
+/// every entered node with no parameter or variable as copying with no
+/// part left. A walk stops at a part with an answer and takes its parts
+/// (#1912): a generic call per level of `wrap(wrap(...))` asks `Copy` of
+/// `W^i[?int]`, whose member `W^(i-1)[?int]` the call below asked, so
+/// each level walks one new node, not the `i` below it. Cost: the
+/// distinct nodes no earlier walk answered, plus the answered parts'
+/// variables; a hash probe per node with parts.
+fn copy_parts(
+    pool: Types<'_>,
+    decls: &dyn Declarations,
+    root: Ty,
+    subs: &mut Vec<Ty>,
+    memo: &mut CopyMemo,
+) -> bool {
+    let start = subs.len();
     let mut stack: Vec<Ty> = Vec::new();
     let mut entered: HashSet<Ty> = HashSet::default();
-    let mut next = Some(t);
+    // Entered nodes with parts and no parameter or variable: on success,
+    // each copies with nothing left.
+    let mut closed: Vec<Ty> = Vec::new();
+    let mut next = Some(root);
     while let Some(t) = next.take().or_else(|| stack.pop()) {
         let data = pool.get(t);
         if matches!(
@@ -380,9 +407,25 @@ fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<T
                 | TyData::Param(_)
                 | TyData::Infer(_)
                 | TyData::Adt { .. }
-        ) && !entered.insert(t)
-        {
-            continue;
+        ) {
+            if !entered.insert(t) {
+                continue;
+            }
+            if !matches!(data, TyData::Param(_) | TyData::Infer(_)) {
+                match memo.get(&t) {
+                    Some(None) => return fails(memo, root),
+                    Some(Some(left)) => {
+                        for &s in pool.list_items(*left) {
+                            if entered.insert(s) {
+                                subs.push(s);
+                            }
+                        }
+                        continue;
+                    }
+                    None if !pool.has_param(t) && !pool.has_infer(t) => closed.push(t),
+                    None => {}
+                }
+            }
         }
         crate::work::type_node();
         match data {
@@ -390,7 +433,7 @@ fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<T
                 mutable, counted, ..
             } => {
                 if mutable && !counted {
-                    return false;
+                    return fails(memo, root);
                 }
             }
             TyData::Tuple { elems, rest } => {
@@ -401,7 +444,7 @@ fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<T
             TyData::Param(_) | TyData::Infer(_) => subs.push(t),
             TyData::Adt { def, args } => match decls.copy_decl(def) {
                 CopyDecl::Copies => {}
-                CopyDecl::NotCopy => return false,
+                CopyDecl::NotCopy => return fails(memo, root),
                 CopyDecl::Members(ms) => {
                     let argv = pool.list_items(args);
                     stack.extend(ms.iter().rev().map(|&m| {
@@ -428,7 +471,19 @@ fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<T
             | TyData::Context(_) => {}
         }
     }
+    for t in closed {
+        memo.insert(t, Some(TyList::EMPTY));
+    }
+    memo.insert(root, Some(pool.list(&subs[start..])));
     true
+}
+
+/// [`copy_parts`]'s answer for a type with a part that does not copy:
+/// only the asked type is kept, since the walk stopped before its other
+/// parts were answered.
+fn fails(memo: &mut CopyMemo, root: Ty) -> bool {
+    memo.insert(root, None);
+    false
 }
 
 /// `ref.generic.static.no-local`: a type meets `'static` when it holds no

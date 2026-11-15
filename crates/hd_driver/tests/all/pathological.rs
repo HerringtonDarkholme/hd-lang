@@ -2961,6 +2961,100 @@ fn generic_nest(n: usize) -> String {
     )
 }
 
+/// [`generic_nest`] inside a generic function, on its parameter: each
+/// level's type `W^i[T]` holds the parameter, not a variable.
+fn generic_nest_in_generic(n: usize) -> String {
+    format!(
+        "struct W[T]:\n    v: T\n\nfn wrap[T](x: T) -> W[T]: W {{ v: x }}\n\nfn nest[T](t: T) -> T:\n    w := {}t{}\n    w{}\n\npub fn main() -> void $ Console:\n    t := nest(+0)\n    println(\"$t\")\n",
+        "wrap(".repeat(n),
+        ")".repeat(n),
+        ".v".repeat(n)
+    )
+}
+
+// Checker: #1912, each level of a generic nest asks `Copy` of its
+// argument's type `W^i[X]` (the default bound), and the `Copy` row walked
+// the whole type, the goal's canonical fold folded it, the instantiation
+// cycle check walked it for parameters, and the call's search for
+// variables behind a reference walked it: O(depth^2) type nodes. Now
+// each walk stops at a part an earlier goal or call answered.
+#[test]
+fn generic_nest_checks_walk_each_level_once() {
+    on_test_stack(|| {
+        let shapes: [(&str, Generate); 2] = [
+            ("generic-nest", generic_nest),
+            ("generic-nest-in-generic", generic_nest_in_generic),
+        ];
+        for (name, generate) in shapes {
+            let nodes = |n: usize| {
+                let (out, nodes) =
+                    hd_types::work::count_type_nodes(|| compile(&generate(n), &Goal::Analyze));
+                assert!(!out.diags.has_errors(), "{name} {n}: {}", out.render());
+                nodes
+            };
+            // The first build also checks what the run's memo then keeps.
+            nodes(0);
+            let zero = nodes(0);
+            // The sizes differ from the other generic nest tests', whose
+            // builds the shared store keeps.
+            let (small, large) = (nodes(2) - zero, nodes(20) - zero);
+            assert!(
+                small > 0 && large <= 12 * small,
+                "{name}: type nodes at depth 2 and 20: {small} and {large}"
+            );
+        }
+    });
+}
+
+// Ownership and emitter: #1912, each instance of a generic nest's `wrap`
+// asked whether its types hold a `Drop` value with a memo of the body's
+// own, walking `W^i` to its depth in the instance for level `i`; and the
+// static-value proof went in rounds over every function, one level of
+// the call chain per round. Both cost O(depth^2). Now the run keeps one
+// memo of `Drop` answers, and the proof looks at a function again only
+// when a fact it reads was proved.
+#[test]
+fn generic_nest_builds_walk_each_level_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let shapes: [(&str, Generate); 2] = [
+            ("generic-nest", generic_nest),
+            ("generic-nest-in-generic", generic_nest_in_generic),
+        ];
+        for (name, generate) in shapes {
+            let work = |n: usize| {
+                let ((out, looks), nodes) = hd_wasm::work::count_member_layouts(|| {
+                    hd_wasm::work::count_static_looks(|| compile(&generate(n), &goal))
+                });
+                assert!(!out.diags.has_errors(), "{name} {n}: {}", out.render());
+                (nodes, looks)
+            };
+            // Depth 4 is the base: a program with no `wrap` call reaches
+            // fewer std bodies. Depth 1 warms what the run's caches keep,
+            // so each measured program is built for the first time, at
+            // sizes no other test builds. 31 stays below the instantiation
+            // depth limit of 32, so the levels over the base are 3 and 27.
+            work(1);
+            let base = work(4);
+            let (small, large) = (work(7), work(31));
+            let (nodes, looks) = (
+                (small.0 - base.0, large.0 - base.0),
+                (small.1 - base.1, large.1 - base.1),
+            );
+            assert!(
+                nodes.0 > 0 && nodes.1 <= 11 * nodes.0,
+                "{name}: member layouts and Drop answers at depth 7 and 31 over 4: {nodes:?}"
+            );
+            assert!(
+                looks.0 > 0 && looks.1 <= 11 * looks.0,
+                "{name}: static-value instructions read at depth 7 and 31 over 4: {looks:?}"
+            );
+        }
+    });
+}
+
 // Types: #1912, each level of a generic nest resolved its type
 // `W^i[?int]` again, since only closed resolutions were kept across calls
 // and the literal's variable stays unbound to the body's end: O(depth^2)

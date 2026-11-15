@@ -252,6 +252,21 @@ pub type Arity = Vec<Option<(usize, usize)>>;
 /// with an open-world entry, or called nowhere, has no parameter facts: an
 /// unknown caller may supply any value. The least fixed point deliberately
 /// leaves recursive-only evidence unproved.
+///
+/// Driven by what was proved, not by rounds over the module: every fact
+/// only turns from unproved to proved, and a function's facts read only
+/// its own parameter facts and its callees' result facts. Each call
+/// argument's and each result's producer is found once, as the body is.
+/// A function is looked at whole (its fixed locals, then each unproved
+/// argument and result) first, and again when a parameter of it is
+/// proved or a callee whose result a local write reads proves one. A
+/// parameter is proved when the last call site that had not proved its
+/// argument does (a count per callee and parameter). A callee's proved
+/// result otherwise re-reads only the arguments and results it produces.
+/// So a chain of `n` calls that proves one level per step reads each
+/// function a constant number of times, not `n` rounds of every function
+/// (#1912). Cost: each body once per look, plus one check per argument or
+/// result a proved result produces.
 pub fn static_values(
     funcs: &[Option<Func>],
     open: impl IntoIterator<Item = SymId>,
@@ -289,89 +304,252 @@ pub fn static_values(
                 .map_or_else(Vec::new, |f| constant_joins(&f.body))
         })
         .collect();
+    let mut facts: Vec<Facts> = funcs
+        .iter()
+        .zip(&joins)
+        .map(|(f, joins)| {
+            f.as_ref()
+                .map_or_else(Facts::default, |f| Facts::new(f, arity, joins))
+        })
+        .collect();
+    let mut waiting: Vec<Vec<usize>> = params.iter().map(|p| vec![0; p.len()]).collect();
+    let mut callers: Vec<Vec<usize>> = vec![Vec::new(); funcs.len()];
+    let mut called = vec![false; funcs.len()];
+    for (c, cf) in facts.iter_mut().enumerate() {
+        for site in &mut cf.sites {
+            let g = site.callee;
+            called[g] = true;
+            if callers[g].last() != Some(&c) {
+                callers[g].push(c);
+            }
+            site.args.truncate(params[g].len());
+            for w in &mut waiting[g][..site.args.len()] {
+                *w += 1;
+            }
+        }
+    }
+    // A parameter no call site supplies is proved by every site at once.
+    for g in 0..funcs.len() {
+        if unknown[g] || !called[g] {
+            continue;
+        }
+        for (proved, &w) in params[g].iter_mut().zip(&waiting[g]) {
+            *proved |= w == 0;
+        }
+    }
+    let mut looks = Queue {
+        order: std::collections::VecDeque::new(),
+        queued: vec![false; funcs.len()],
+    };
+    let mut grown: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
+    for c in 0..funcs.len() {
+        looks.push(c);
+    }
     loop {
-        let mut next_params = params.clone();
-        let mut called = vec![false; funcs.len()];
-        let mut possible: Vec<Vec<bool>> = funcs
-            .iter()
-            .map(|f| {
-                f.as_ref()
-                    .map_or_else(Vec::new, |f| vec![true; f.params.len()])
-            })
-            .collect();
-        for (caller_id, caller) in funcs
-            .iter()
-            .enumerate()
-            .filter_map(|(id, f)| Some((id, f.as_ref()?)))
-        {
-            let fixed = fixed_locals(
-                caller,
-                &params[caller_id],
-                &results,
-                arity,
-                &joins[caller_id],
-            );
-            for (at, ins) in caller.body.iter().enumerate() {
-                let Ins::Call(id) = ins else { continue };
-                let Some((n, _)) = arity.get(id.idx()).copied().flatten() else {
-                    continue;
-                };
-                called[id.idx()] = true;
-                for (k, possible) in possible[id.idx()].iter_mut().enumerate().take(n) {
-                    let depth = n - 1 - k;
-                    let is_static = producer(&caller.body, at, depth, arity, &caller.symbols)
-                        .is_some_and(|(p, result)| {
-                            constant_at(&caller.body[p], result, &fixed, &results)
-                        });
-                    *possible &= is_static;
+        // What a look or a check proved: arguments, by callee and
+        // parameter, and the functions a result of which grew.
+        let mut proved: Vec<(usize, usize)> = Vec::new();
+        if let Some(c) = looks.pop() {
+            let Some(f) = &funcs[c] else { continue };
+            crate::work::static_looks(f.body.len());
+            let cf = &mut facts[c];
+            cf.fixed = fixed_locals(f, &params[c], &results, arity, &joins[c]);
+            for site in &mut cf.sites {
+                for (k, arg) in site.args.iter_mut().enumerate() {
+                    if !arg.proved && arg.holds(f, &cf.fixed, &results) {
+                        arg.proved = true;
+                        proved.push((site.callee, k));
+                    }
                 }
             }
+            if prove_ends(f, cf, c, None, &mut results) {
+                grown.push_back(c);
+            }
+        } else if let Some(g) = grown.pop_front() {
+            for &c in &callers[g] {
+                let (Some(f), cf) = (&funcs[c], &mut facts[c]) else {
+                    continue;
+                };
+                if cf.writes_read.contains(&g) {
+                    looks.push(c);
+                    continue;
+                }
+                crate::work::static_looks(1);
+                for &(s, k) in cf.produced_by.get(&g).map_or(&[][..], Vec::as_slice) {
+                    let site = &mut cf.sites[s];
+                    let arg = &mut site.args[k];
+                    if !arg.proved && arg.holds(f, &cf.fixed, &results) {
+                        arg.proved = true;
+                        proved.push((site.callee, k));
+                    }
+                }
+                if prove_ends(f, cf, c, Some(g), &mut results) {
+                    grown.push_back(c);
+                }
+            }
+        } else {
+            break;
         }
-        for id in 0..funcs.len() {
-            if unknown[id] || !called[id] {
+        for (g, k) in proved {
+            waiting[g][k] -= 1;
+            if waiting[g][k] == 0 && !unknown[g] && called[g] && !params[g][k] {
+                params[g][k] = true;
+                looks.push(g);
+            }
+        }
+    }
+    params
+}
+
+/// Proves each unproved result of function `c` whose producer holds, or
+/// only those `from` produces when given; gives whether one was.
+fn prove_ends(
+    f: &Func,
+    cf: &Facts,
+    c: usize,
+    from: Option<usize>,
+    results: &mut [Vec<bool>],
+) -> bool {
+    let ends: Vec<usize> = cf
+        .ends
+        .iter()
+        .enumerate()
+        .filter(|&(k, end)| {
+            !results[c][k]
+                && from.is_none_or(|g| end.from == Some(g))
+                && end.holds(f, &cf.fixed, results)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    for &k in &ends {
+        results[c][k] = true;
+    }
+    !ends.is_empty()
+}
+
+/// One function's facts for [`static_values`]: its direct call sites,
+/// the producers of its results, which callees a local write may read,
+/// and its fixed locals as of its last look.
+#[derive(Default)]
+struct Facts {
+    sites: Vec<Site>,
+    /// The producer of each result at the body's end, when the body is
+    /// one straight run: a branch, loop, `if` or early return may answer a
+    /// different value, so those results stay unproved until this analysis
+    /// carries facts over every control-flow edge.
+    ends: Vec<Produced>,
+    /// The callees whose results a local write may read: those that
+    /// produce a write's value, or every callee when a write may read an
+    /// `if`'s arms. A proved result of one looks at the function whole.
+    writes_read: hd_base::HashSet<usize>,
+    /// Each argument a callee's result produces, as (site, argument).
+    produced_by: hd_base::HashMap<usize, Vec<(usize, usize)>>,
+    fixed: Vec<bool>,
+}
+
+impl Facts {
+    fn new(f: &Func, arity: &Arity, joins: &[Option<usize>]) -> Self {
+        let produced = |at: usize, depth: usize| {
+            let at = producer(&f.body, at, depth, arity, &f.symbols);
+            let from = at.and_then(|(p, _)| match f.body[p] {
+                Ins::Call(id) => Some(id.idx()),
+                _ => None,
+            });
+            Produced {
+                at,
+                from,
+                proved: false,
+            }
+        };
+        let mut facts = Facts::default();
+        for (at, ins) in f.body.iter().enumerate() {
+            if let Ins::Op(I::LocalSet(_) | I::LocalTee(_)) = ins {
+                facts.writes_read.extend(produced(at, 0).from);
                 continue;
             }
-            for k in 0..next_params[id].len() {
-                next_params[id][k] |= possible[id][k];
+            let Ins::Call(id) = ins else { continue };
+            if !joins.is_empty() {
+                facts.writes_read.insert(id.idx());
             }
+            let Some((n, _)) = arity.get(id.idx()).copied().flatten() else {
+                continue;
+            };
+            let s = facts.sites.len();
+            let args: Vec<Produced> = (0..n).map(|k| produced(at, n - 1 - k)).collect();
+            for (k, arg) in args.iter().enumerate() {
+                if let Some(g) = arg.from {
+                    facts.produced_by.entry(g).or_default().push((s, k));
+                }
+            }
+            facts.sites.push(Site {
+                callee: id.idx(),
+                args,
+            });
         }
-        let mut next_results = results.clone();
-        for (id, f) in funcs.iter().enumerate() {
-            let Some(f) = f else { continue };
-            // The producer at the function body's end describes only its
-            // fallthrough path. A branch, loop, `if` or early return may
-            // answer a different value; leave those results unknown until
-            // this analysis carries facts over every control-flow edge.
-            if f.body.iter().any(|ins| {
-                matches!(
-                    ins,
-                    Ins::Op(
-                        I::Loop(_)
-                            | I::If(_)
-                            | I::Else
-                            | I::Br(_)
-                            | I::BrIf(_)
-                            | I::BrTable(..)
-                            | I::Return
-                            | I::Unreachable
-                    )
+        let straight = !f.body.iter().any(|ins| {
+            matches!(
+                ins,
+                Ins::Op(
+                    I::Loop(_)
+                        | I::If(_)
+                        | I::Else
+                        | I::Br(_)
+                        | I::BrIf(_)
+                        | I::BrTable(..)
+                        | I::Return
+                        | I::Unreachable
                 )
-            }) {
-                continue;
-            }
-            let fixed = fixed_locals(f, &next_params[id], &results, arity, &joins[id]);
-            for (k, result_static) in next_results[id].iter_mut().enumerate() {
-                let depth = f.results.len() - 1 - k;
-                let is_static = producer(&f.body, f.body.len(), depth, arity, &f.symbols)
-                    .is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, &results));
-                *result_static |= is_static;
-            }
+            )
+        });
+        if straight {
+            let n = f.results.len();
+            facts.ends = (0..n).map(|k| produced(f.body.len(), n - 1 - k)).collect();
         }
-        if next_params == params && next_results == results {
-            return params;
+        facts
+    }
+}
+
+/// A direct call site of [`static_values`]: the callee, and each
+/// argument the callee has a parameter for.
+struct Site {
+    callee: usize,
+    args: Vec<Produced>,
+}
+
+/// A value [`static_values`] proves: its producer and the result of it,
+/// the callee when a call produces it, and whether it is proved.
+struct Produced {
+    at: Option<(usize, usize)>,
+    from: Option<usize>,
+    proved: bool,
+}
+
+impl Produced {
+    fn holds(&self, f: &Func, fixed: &[bool], results: &[Vec<bool>]) -> bool {
+        self.at
+            .is_some_and(|(p, result)| constant_at(&f.body[p], result, fixed, results))
+    }
+}
+
+/// [`static_values`]'s functions to look at again, each queued at most
+/// once at a time.
+struct Queue {
+    order: std::collections::VecDeque<usize>,
+    queued: Vec<bool>,
+}
+
+impl Queue {
+    fn push(&mut self, id: usize) {
+        if !self.queued[id] {
+            self.queued[id] = true;
+            self.order.push_back(id);
         }
-        params = next_params;
-        results = next_results;
+    }
+
+    fn pop(&mut self) -> Option<usize> {
+        let id = self.order.pop_front()?;
+        self.queued[id] = false;
+        Some(id)
     }
 }
 
@@ -5120,6 +5298,47 @@ mod origin_tests {
 
         let facts = static_values(&[Some(target)], [callee], &arity);
         assert_eq!(facts[0], [false]);
+    }
+
+    // #1912: the proof went in rounds over every function, and a chain of
+    // calls that pass a constant on proved one level per round: O(n^2)
+    // instructions read for a chain of n functions. Now a function is
+    // looked at again only when a fact it reads was proved.
+    #[test]
+    fn static_values_read_a_call_chain_a_constant_number_of_times() {
+        let chain = |n: usize| {
+            let symbols = Symbols::default();
+            let ids: Vec<SymId> = (0..=n)
+                .map(|k| symbols.intern(Sym::Inst(Hash128(100 + k as u128))))
+                .collect();
+            let mut arity = vec![Some((0, 0))];
+            arity.extend((1..=n).map(|_| Some((1, 0))));
+            // `f0` passes a constant to `f1`; each `f_i` passes its own
+            // parameter on to `f_(i+1)`.
+            let mut funcs = vec![Some(tracked(
+                &symbols,
+                0,
+                0,
+                vec![Ins::Op(I::I32Const(1)), Ins::Call(ids[1])],
+            ))];
+            for k in 1..=n {
+                let body = if k < n {
+                    vec![Ins::Op(I::LocalGet(0)), Ins::Call(ids[k + 1])]
+                } else {
+                    vec![]
+                };
+                funcs.push(Some(tracked(&symbols, 1, 0, body)));
+            }
+            let (facts, work) =
+                crate::work::count_static_looks(|| static_values(&funcs, [ids[0]], &arity));
+            assert!(facts[1..].iter().all(|p| p == &[true]), "{n}: {facts:?}");
+            work
+        };
+        let (small, large) = (chain(20), chain(200));
+        assert!(
+            small > 0 && large <= 11 * small,
+            "instructions read for chains of 20 and 200 calls: {small} and {large}"
+        );
     }
 
     fn releases(f: &Func) -> usize {

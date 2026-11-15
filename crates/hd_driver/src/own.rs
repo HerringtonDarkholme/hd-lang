@@ -460,7 +460,7 @@ impl OwnCx for Env<'_> {
     fn holds_drop(&self, ty: Ty) -> Tri {
         if self.is_open(ty) {
             Tri::Maybe
-        } else if hd_wasm::holds_drop_type(&self.run.pool, self, ty) {
+        } else if self.holds_drop_value(ty) {
             Tri::Yes
         } else {
             Tri::No
@@ -1079,6 +1079,15 @@ impl OwnCx for Env<'_> {
 }
 
 impl Env<'_> {
+    /// Whether a value of `t` holds a `std.rt.Drop` value
+    /// ([`hd_wasm::holds_drop_type`]), over the run's memo: the growing
+    /// types of many bodies (`W^i` in the instance for level `i` of a
+    /// generic nest) cost each new type once, not its depth (#1912).
+    pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
+        let mut memo = lock(&self.run.drop_types);
+        hd_wasm::holds_drop_type(&self.run.pool, self, t, &mut memo)
+    }
+
     /// [`OwnCx::copies`] of `t`, as the `Copy` row reads it
     /// (`ref.copy.structure`): `No` when a part held by value is a type
     /// declared `!Copy`, else `Maybe` when one is a type parameter declared
@@ -1492,7 +1501,7 @@ impl Env<'_> {
         self.sig(method).is_some_and(|sig| {
             let all = pool.list(&[&[self_value], items].concat());
             let t = hd_mono::subst(pool, self, method, all, self.low(sig.params[k].1));
-            t != Ty::POISON && !self.is_open(t) && !hd_wasm::holds_drop_type(pool, self, t)
+            t != Ty::POISON && !self.is_open(t) && !self.holds_drop_value(t)
         })
     }
 
@@ -1550,8 +1559,7 @@ impl Env<'_> {
         if !ProgramEnv::suspends(self, def) || self.intrinsic(def).is_some() {
             return false;
         }
-        self.value_parameter(ty) == Pass::Owned
-            && !hd_wasm::holds_drop_type(&self.run.pool, self, ty)
+        self.value_parameter(ty) == Pass::Owned && !self.holds_drop_value(ty)
     }
 
     /// The same selected signature used by direct emission and a trait slot.
@@ -1638,7 +1646,7 @@ impl Env<'_> {
             if !seen.insert(t) {
                 continue;
             }
-            if hd_wasm::holds_drop_type(pool, self, t) {
+            if self.holds_drop_value(t) {
                 return true;
             }
             match pool.get(t) {
@@ -1920,9 +1928,9 @@ impl InlineEnv for Env<'_> {
                         Some(hd_structure::GeneratedBody::Handle(_) | hd_structure::GeneratedBody::Facts)
                     )
             ),
-            hd_tir::Tag::Drop => body.local_in_place(body.data[i][0]).is_some_and(|l| {
-                !hd_wasm::holds_drop_type(&self.run.pool, self, body.local_ty[l.idx()])
-            }),
+            hd_tir::Tag::Drop => body
+                .local_in_place(body.data[i][0])
+                .is_some_and(|l| !self.holds_drop_value(body.local_ty[l.idx()])),
             _ => false,
         }
     }

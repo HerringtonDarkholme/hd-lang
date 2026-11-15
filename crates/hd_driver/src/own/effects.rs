@@ -118,7 +118,7 @@ impl OwnCx for View<'_, '_> {
         let ty = self.ty(ty);
         if self.env.is_open(ty) {
             Tri::Maybe
-        } else if hd_wasm::holds_drop_type(&self.env.run.pool, self.env, ty) {
+        } else if self.env.holds_drop_value(ty) {
             Tri::Yes
         } else {
             Tri::No

@@ -53,10 +53,21 @@ pub struct Edge {
 pub fn call_edges(cx: &BodyCx<'_>, bodies: &[Body]) -> Vec<Edge> {
     let pool = cx.names.pool.types();
     let mut edges = Vec::new();
+    let mut memo = ParamsMemo::default();
     for b in bodies {
-        body_edges(cx, pool, b, &mut edges);
+        body_edges(cx, pool, b, &mut edges, &mut memo);
     }
     edges
+}
+
+/// The parameters of the type arguments [`params_in`] already walked, by
+/// type id, each as a sorted, deduplicated span of `found`. A type's
+/// parameters are a function of its interned content, so one module's
+/// calls share the memo.
+#[derive(Default)]
+struct ParamsMemo {
+    spans: HashMap<Ty, (u32, u32)>,
+    found: Vec<ParamRef>,
 }
 
 /// Reports growing cycles in joined module summaries, once per call span.
@@ -134,7 +145,13 @@ fn bare_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
 }
 
 /// The edges of each call in `b` whose callee is fixed.
-fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
+fn body_edges(
+    cx: &BodyCx<'_>,
+    pool: Types<'_>,
+    b: &Body,
+    out: &mut Vec<Edge>,
+    memo: &mut ParamsMemo,
+) {
     for (i, tag) in b.tags.iter().enumerate() {
         let local = *tag == Tag::Closure && b.is_instantiation(i);
         if !local && !matches!(tag, Tag::Call | Tag::Await) {
@@ -192,10 +209,7 @@ fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
         };
         for (to, arg) in slots {
             let whole = arg;
-            let mut params = Vec::new();
-            params_in(pool, arg, &mut params);
-            params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
-            params.dedup();
+            let params = params_in(pool, arg, memo);
             for p in params {
                 let grows = bare_param(pool, whole) != Some(p);
                 let node = |owner, p: ParamRef| {
@@ -360,12 +374,20 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
     }
 }
 
-/// The type parameters that occur in `t`, outside projections, in no
-/// set order and possibly repeated (the caller sorts and dedups). A work
-/// stack over each distinct node once (by type id): a part shared by many
-/// slots, as in `(T, T)` nested n deep (2^n leaves, n + 1 nodes), is
-/// walked once, so the work is the type's distinct nodes (#1886).
-pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
+/// The type parameters that occur in `t`, outside projections, sorted
+/// and deduplicated. A work stack over each distinct node once (by type
+/// id): a part shared by many slots, as in `(T, T)` nested n deep (2^n
+/// leaves, n + 1 nodes), is walked once (#1886). A part with no parameter
+/// is skipped by its pool flag, and a part an earlier call's argument
+/// was is answered by `memo` (#1912): `wrap(wrap(...x))` passes `W^i[T]`
+/// at level i, whose part `W^(i-1)[T]` the call below passed, so each
+/// call walks one new node. Cost: the new nodes that hold a parameter,
+/// plus the sort of the parameters found.
+fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
+    if let Some(&(from, to)) = memo.spans.get(&t) {
+        return memo.found[from as usize..to as usize].to_vec();
+    }
+    let mut out = Vec::new();
     let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![t];
     let row_params = |r: hd_types::RowId, out: &mut Vec<ParamRef>, stack: &mut Vec<Ty>| {
@@ -377,7 +399,11 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
         stack.extend(row.keys.iter().copied());
     };
     while let Some(t) = stack.pop() {
-        if !seen.insert(t) {
+        if !pool.has_param(t) || !seen.insert(t) {
+            continue;
+        }
+        if let Some(&(from, to)) = memo.spans.get(&t) {
+            out.extend_from_slice(&memo.found[from as usize..to as usize]);
             continue;
         }
         hd_types::work::type_node();
@@ -402,13 +428,13 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
             } => {
                 stack.extend_from_slice(pool.list_items(params));
                 stack.push(result);
-                row_params(row, out, &mut stack);
+                row_params(row, &mut out, &mut stack);
             }
             TyData::TraitValue { args, bindings, .. } => {
                 stack.extend_from_slice(pool.list_items(args));
                 stack.extend(bindings.iter().map(|&(_, b)| b));
             }
-            TyData::Row(r) | TyData::Context(r) => row_params(r, out, &mut stack),
+            TyData::Row(r) | TyData::Context(r) => row_params(r, &mut out, &mut stack),
             TyData::Assoc { .. }
             | TyData::Prim(_)
             | TyData::Never
@@ -418,6 +444,13 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
             | TyData::Canon(_) => {}
         }
     }
+    out.sort_stable_by_key(|p| (p.owner.raw(), p.index));
+    out.dedup();
+    let from = u32::try_from(memo.found.len()).unwrap_or(u32::MAX);
+    memo.found.extend_from_slice(&out);
+    let to = u32::try_from(memo.found.len()).unwrap_or(u32::MAX);
+    memo.spans.insert(t, (from, to));
+    out
 }
 
 /// Each node's strongly connected component (Tarjan's algorithm, without

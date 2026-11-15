@@ -1596,6 +1596,10 @@ struct Run<'a> {
     /// Whether a value of a type may be copied, per run (`own.rs`,
     /// `OwnCx::copies`).
     copy_types: Mutex<HashMap<Ty, hd_tir::own::Tri>>,
+    /// Whether a value of a type holds a `std.rt.Drop` value, per run
+    /// (`Env::holds_drop_value`): each type and its parts answered once,
+    /// however many bodies ask.
+    drop_types: Mutex<HashMap<Ty, bool>>,
     /// How each parameter of a callee passes its argument, by the
     /// callee's item, the parameter and the argument count (`own.rs`).
     own_params: Mutex<HashMap<(DefId, u32, u32), hd_tir::own::Pass>>,
@@ -2636,6 +2640,7 @@ fn build_packages_inner(
         own_place_parts: Mutex::new(HashMap::default()),
         own_place_substs: Mutex::new(HashMap::default()),
         copy_types: Mutex::new(HashMap::default()),
+        drop_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         own_cold: Mutex::new(HashMap::default()),
         own_return_shapes: Mutex::new(HashMap::default()),
@@ -12650,11 +12655,13 @@ impl ProgramEnv for Env<'_> {
                 .take(64)
                 .any(|(k, &ty)| {
                     lends & (1 << k) != 0
-                        && hd_wasm::holds_drop_type(
+                        && self.holds_drop_value(hd_mono::subst(
                             &self.run.pool,
                             self,
-                            hd_mono::subst(&self.run.pool, self, def, args, ty),
-                        )
+                            def,
+                            args,
+                            ty,
+                        ))
                 })
     }
 

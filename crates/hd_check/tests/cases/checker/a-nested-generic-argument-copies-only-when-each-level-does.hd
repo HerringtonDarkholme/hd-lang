@@ -1,0 +1,29 @@
+# @dump: diagnostics
+# #1912: the `Copy` row keeps each type's answer across goals, so a level
+# of a generic nest answers from the level below it. A part that does
+# not copy fails every level above it: a `!Copy` struct, a `&mut`, and a
+# `?Copy` parameter; a nest of copying parts copies at every level.
+struct W[T]:
+    v: T
+
+struct Token:
+    id: i32
+
+impl !Copy for Token
+
+fn wrap[T](x: T) -> W[T]: W { v: x }
+
+fn token() -> i32:
+    w := wrap(wrap(wrap(Token { id: 1 })))
+    w.v.v.v.id
+
+fn borrowed(r: &mut i32) -> void:
+    _ := wrap(wrap(r))
+
+fn param[T < ?Copy](x: T) -> T:
+    w := wrap(wrap(x))
+    w.v.v
+
+fn copies() -> i32:
+    w := wrap(wrap(wrap(1)))
+    w.v.v.v
