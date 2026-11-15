@@ -47,6 +47,26 @@ The directory is informative. A case's phase and expectation come from
 `cli/NAME/` holds the inputs and the `expect.txt` of one CLI case. It holds no
 fixture of the `cases.tsv` suite, and `cases.tsv` has no row for it.
 
+## Formatting Fixtures
+
+Lexical and layout fixtures test their exact source spelling, whitespace,
+line endings, parentheses, and commas. Do not run `hd fmt` over this suite
+with a shell loop or glob. To format the suite, use the repository batch
+formatter, which keeps those inputs intact:
+
+```sh
+cargo run -j 2 -p hd_fmt --example conformance -- --write
+```
+
+Without `--write`, it checks eligible fixtures without changing them.
+It excludes every case whose primary specification is `lang/01-*` or
+`lang/02-*`, plus the paths in `format-exempt.tsv`. Add a path and reason to
+that table when another chapter tests a source form that formatting erases.
+Fixtures that do not parse remain unchanged. Direct `hd fmt FILE` still formats FILE;
+the exemptions belong to this repository workflow, not the language or CLI.
+The BOM and CRLF fixtures also use Git's `-text` attribute so checkouts keep
+their bytes.
+
 ## Self-Containment and Determinism
 
 A fixture may rely only on:

@@ -15,5 +15,5 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     typed := convert!::[i32](+7)
     left := is_ready!(+1)
     right := is_ready!(+0)
-    differs := left != right
+    differs := left!=right
     console.write_sync("$negated $typed $differs ${!left}\n")

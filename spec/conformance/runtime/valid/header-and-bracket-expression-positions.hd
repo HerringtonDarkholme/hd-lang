@@ -20,7 +20,10 @@ pub fn main() -> void $ Console:
         println("positive")
     println(classify(.Some(+12)))
     flag := true
-    picked := [+2, if flag: +1 else: +3]
+    picked := [+2, if flag:
+        +1
+    else:
+        +3]
     println("${picked[0]} ${picked[1]}")
     table := { (if flag: "a" else: "b"): +5 }
     println("a ${table.get("a").unwrap_or(+0)}")

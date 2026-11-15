@@ -3,11 +3,9 @@
 fn greet(name: string) -> string:
     if name == "": "anonymous" else: "hello, " + name
 
-fn one_line() -> void:
-    pass
+fn one_line() -> void: pass
 
-fn test() -> void $ Console:
-    println("hi")
+fn test() -> void $ Console: println("hi")
 
 value := greet("Ada")
 

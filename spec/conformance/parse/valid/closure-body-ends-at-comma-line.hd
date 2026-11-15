@@ -11,11 +11,20 @@ fn apply(f: fn() -> i32) -> i32:
     f()
 
 fn run() -> i32:
-    choice(fn(a): println(a), fn(b): println(b))
-    choice((fn(a): println(a)), fn(b): println(b))
-    apply(
-        fn() -> i32:
-            twice := fn(x: i32) -> i32: x * 2
-            twice(21)
-        ,
+    choice(fn(a):
+        println(a)
+    , fn(b):
+        println(b)
+    )
+    choice(
+        (
+            fn(a):
+                println(a)
+        ),
+        fn(b): println(b),
+    )
+    apply(fn() -> i32:
+        twice := fn(x: i32) -> i32:
+            x * 2
+        twice(21)
     )

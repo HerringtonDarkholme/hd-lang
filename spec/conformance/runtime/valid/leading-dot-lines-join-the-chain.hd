@@ -32,21 +32,23 @@ fn gate(open: bool) -> Result[i32, string]:
     if open: .Ok(1) else: .Err("closed")
 
 pub fn main() -> void $ Console:
-    total := Meter { value: +3 }.add(+4)
+    total := Meter { value: +3 }
+        .add(+4)
 
         # comment and blank lines before a leading-dot line do not end the chain
 
         .double()
         .read()
     println(total)
-    count := mapped([+1, +2, +3], fn(x): x * 2).len()
+    count := mapped([+1, +2, +3], fn(x): x * 2)
+        .len()
     println(count)
-    nested := mapped(
-        [+1],
-        fn(x):
-            doubled := Meter { value: x + 3 }.double().read()
-            doubled
-        ,
+    nested := mapped([+1], fn(x):
+        doubled := Meter { value: x + 3 }
+            .double()
+            .read()
+        doubled
+    ,
     )
         .len()
     println(mapped([+4], fn(x): x + x)[0])

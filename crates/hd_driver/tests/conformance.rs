@@ -71,6 +71,9 @@ use hd_sched::SerialOrder;
 use hd_syntax::parse;
 use hd_testkit::known_failures::{self, Outcome};
 
+#[path = "../../hd_fmt/examples/conformance/policy.rs"]
+mod format_policy;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
     Parse,
@@ -2780,7 +2783,16 @@ fn specification_conformance_passes_except_known_failures() {
 #[test]
 fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
     let store = new_store();
-    for case in cases() {
+    let exemptions = format_policy::exemptions(&suite_root()).expect("format-exempt.tsv");
+    let cases = if std::env::var_os("HD_CONFORMANCE_ONLY").is_some() {
+        filtered(cases()).expect("HD_CONFORMANCE_ONLY is set")
+    } else {
+        cases()
+    };
+    for case in cases {
+        if format_policy::protected(&case.specification, &case.path, &exemptions) {
+            continue;
+        }
         let fixture = fixture(&case)
             .unwrap_or_else(|reason| panic!("{} could not be loaded: {reason}", case.path));
         if !parse(fixture.text.as_bytes()).is_ok() {

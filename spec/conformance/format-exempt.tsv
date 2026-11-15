@@ -1,0 +1,4 @@
+path	reason
+parse/valid/functions-and-closures.hd	Multiline parameter lists and parenthesized closure suites are the subject.
+parse/valid/use-group-trailing-comma.hd	Grouped-use trailing commas are the subject.
+runtime/valid/module-qualified-function-value-parenthesized.hd	Parentheses around a qualified function value are the subject.

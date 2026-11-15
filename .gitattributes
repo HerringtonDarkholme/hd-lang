@@ -38,3 +38,7 @@ spec/conformance/cli/fmt-width/** text eol=lf
 # never converted, so every checkout on every platform has them.
 spec/conformance/cli/check-fix-std-import-crlf/src/*.hd -text
 spec/conformance/cli/check-fix-std-import-crlf/want/* -text
+
+# Byte-sensitive conformance inputs: preserve CRLF and the UTF-8 BOM.
+spec/conformance/runtime/valid/crlf-line-endings.hd -text whitespace=cr-at-eol
+spec/conformance/parse/valid/utf8-bom.hd -text
