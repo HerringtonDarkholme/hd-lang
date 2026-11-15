@@ -3,7 +3,7 @@
 //! kinds (§3.6). Poison unifies with everything (`docs/compiler/data-structures.md` §3.6).
 
 use hd_base::InferVar;
-use hd_base::{HashMap, HashSet};
+use hd_base::{HashMap, HashSet, SliceSort as _};
 
 use crate::pool::{Inputs, Ty, TyData, Types};
 
@@ -69,22 +69,58 @@ fn holds_of(pool: Types<'_>, t: Ty) -> u8 {
 /// `rebind` replaces one. `log` holds each key with the trail length when
 /// it was resolved; stamps never decrease, because a rollback to `s`
 /// first drops every entry stamped above `s`.
+///
+/// `open` keeps the resolutions that still hold variables (#1912), each
+/// with the unbound root variables it holds, when they are at most
+/// [`OPEN_VARS`]: such a result stays valid while each of them is still
+/// an unbound root, since a binding or a union of one changes it, and the
+/// bindings it read are on the trail like a closed one's. `W[W[...[?int]]]`
+/// resolved at each level of a nest is then walked once, not once per
+/// level: an integer literal's variable stays unbound to the body's end.
 #[derive(Default, Debug, Clone)]
 struct Closed {
     map: HashMap<Ty, Ty>,
-    log: Vec<(usize, Ty)>,
+    open: HashMap<Ty, (Ty, Vars)>,
+    /// Each kept key, the trail length it was resolved at, and whether
+    /// it went to `open`.
+    log: Vec<(usize, Ty, bool)>,
 }
 
 impl Closed {
     fn drop_above(&mut self, s: usize) {
-        while let Some(&(stamp, t)) = self.log.last()
+        while let Some(&(stamp, t, open)) = self.log.last()
             && stamp > s
         {
             self.log.pop();
-            self.map.remove(&t);
+            if open {
+                self.open.remove(&t);
+            } else {
+                self.map.remove(&t);
+            }
         }
     }
 }
+
+/// The most unbound variables an [`Closed::open`] entry keeps: a
+/// result with more is walked again, at most this many checks per reuse.
+const OPEN_VARS: usize = 4;
+
+/// The unbound root variables of an open resolution, at most
+/// [`OPEN_VARS`], sorted.
+#[derive(Default, Debug, Clone, Copy)]
+struct Vars {
+    vars: [u32; OPEN_VARS],
+    len: u8,
+}
+
+impl Vars {
+    fn as_slice(&self) -> &[u32] {
+        &self.vars[..usize::from(self.len)]
+    }
+}
+
+/// A resolution's variables past [`OPEN_VARS`] on [`Resolve`]'s stack.
+const MANY: u32 = u32::MAX;
 
 /// The body's inference table: union-find with union by rank and a trail
 /// (`docs/compiler/data-structures.md` §3.19's `parent`, `rank`, `kind` and `binding`
@@ -743,8 +779,13 @@ impl InferTable {
 struct Resolve<'t, 'p> {
     table: &'t InferTable,
     pool: Types<'p>,
-    /// Each type already resolved in this walk, by id.
-    memo: HashMap<Ty, Ty>,
+    /// Each type already resolved in this walk, by id, with its
+    /// variables (`None` past [`OPEN_VARS`]).
+    memo: HashMap<Ty, (Ty, Option<Vars>)>,
+    /// The unbound root variables of the types resolved so far, each
+    /// node's run deduplicated when it is done; [`MANY`] for a run past
+    /// [`OPEN_VARS`].
+    vars: Vec<u32>,
 }
 
 impl<'t, 'p> Resolve<'t, 'p> {
@@ -753,7 +794,40 @@ impl<'t, 'p> Resolve<'t, 'p> {
             table,
             pool,
             memo: HashMap::default(),
+            vars: Vec::new(),
         }
+    }
+
+    fn push(&mut self, vars: Option<Vars>) {
+        match vars {
+            Some(v) => self.vars.extend_from_slice(v.as_slice()),
+            None => self.vars.push(MANY),
+        }
+    }
+
+    /// The variables pushed since `mark`, deduplicated in place: a node's
+    /// set, `None` past [`OPEN_VARS`]. O(the run, log).
+    fn close(&mut self, mark: usize) -> Option<Vars> {
+        let run = &mut self.vars[mark..];
+        run.sort_stable();
+        let mut len = 0;
+        for k in 0..run.len() {
+            if k == 0 || run[k] != run[k - 1] {
+                run[len] = run[k];
+                len += 1;
+            }
+        }
+        self.vars.truncate(mark + len);
+        let run = &self.vars[mark..];
+        if run.last() == Some(&MANY) || run.len() > OPEN_VARS {
+            self.vars.truncate(mark);
+            self.vars.push(MANY);
+            return None;
+        }
+        let mut v = Vars::default();
+        v.vars[..run.len()].copy_from_slice(run);
+        v.len = u8::try_from(run.len()).unwrap_or(u8::MAX);
+        Some(v)
     }
 }
 
@@ -763,19 +837,47 @@ impl crate::TyMap for Resolve<'_, '_> {
         if !self.pool.has_infer(t) {
             return t;
         }
-        if let Some(&r) = self.memo.get(&t) {
+        // `shallow` leaves only an unbound root variable.
+        if let TyData::Infer(v) = self.pool.get(t) {
+            self.vars.push(v.raw());
+            return t;
+        }
+        if let Some(&(r, vars)) = self.memo.get(&t) {
+            self.push(vars);
             return r;
         }
-        if let Some(&r) = self.table.closed.borrow().map.get(&t) {
+        let known = {
+            let c = self.table.closed.borrow();
+            c.map.get(&t).map(|&r| (r, None)).or_else(|| {
+                c.open.get(&t).and_then(|&(r, vars)| {
+                    let table = self.table;
+                    vars.as_slice()
+                        .iter()
+                        .all(|&v| table.root(v) == v && table.binding[v as usize].is_none())
+                        .then_some((r, Some(vars)))
+                })
+            })
+        };
+        if let Some((r, vars)) = known {
+            // A closed result holds no variable.
+            if let Some(vars) = vars {
+                self.push(Some(vars));
+            }
             return r;
         }
-        crate::work::type_node();
+        crate::work::resolve_node();
+        let mark = self.vars.len();
         let r = self.pool.map_children(t, self);
-        self.memo.insert(t, r);
+        let vars = self.close(mark);
+        self.memo.insert(t, (r, vars));
         if !self.pool.has_infer(r) {
             let mut c = self.table.closed.borrow_mut();
             c.map.insert(t, r);
-            c.log.push((self.table.trail.len(), t));
+            c.log.push((self.table.trail.len(), t, false));
+        } else if let Some(vars) = vars {
+            let mut c = self.table.closed.borrow_mut();
+            c.open.insert(t, (r, vars));
+            c.log.push((self.table.trail.len(), t, true));
         }
         r
     }
@@ -1365,5 +1467,49 @@ mod tests {
             // and one occurs visit per distinct node.
             assert!(nodes <= 2 * 45, "two visits per distinct node: {nodes}");
         }
+    }
+
+    /// An open resolution is kept with its unbound variables (#1912): the
+    /// next resolve reuses it while they stay unbound, a binding of one
+    /// walks it again, and a type with more than `OPEN_VARS` of them is
+    /// not kept, nor is a type around it, and a rollback drops what a
+    /// trial kept.
+    #[test]
+    fn open_resolutions_hold_while_their_variables_stay_unbound() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let tuple = |xs: &[Ty]| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(xs),
+                rest: None,
+            })
+        };
+        let (a, b) = (t.fresh(p, VarKind::General), t.fresh(p, VarKind::General));
+        let x = t.fresh(p, VarKind::General);
+        t.unify(p, x, tuple(&[a, a])).expect("bind");
+        let outer = tuple(&[x, Ty::I32]);
+        let walk = |t: &InferTable, ty: Ty| crate::work::count_type_nodes(|| t.resolve(p, ty));
+        // Binding `x` resolved its type, and kept it: only `outer` is new.
+        assert_eq!(walk(&t, outer), (tuple(&[tuple(&[a, a]), Ty::I32]), 1));
+        // Kept: one lookup, no walk.
+        assert_eq!(walk(&t, outer).1, 0);
+        // A trial's binding of `a` makes it stale; the rollback drops the
+        // trial's own resolution and the old one holds again.
+        let s = t.snapshot();
+        t.unify(p, a, Ty::I32).expect("bind");
+        assert_eq!(
+            walk(&t, outer),
+            (tuple(&[tuple(&[Ty::I32, Ty::I32]), Ty::I32]), 2)
+        );
+        t.rollback(s);
+        assert_eq!(walk(&t, outer), (tuple(&[tuple(&[a, a]), Ty::I32]), 0));
+        // Five variables: neither the tuple nor a type around it is kept.
+        let many: Vec<Ty> = (0..5).map(|_| t.fresh(p, VarKind::General)).collect();
+        let y = t.fresh(p, VarKind::General);
+        t.unify(p, y, tuple(&many)).expect("bind");
+        let around = tuple(&[y, b, y]);
+        assert_eq!(walk(&t, around).1, 2);
+        assert_eq!(walk(&t, around).1, 2);
     }
 }

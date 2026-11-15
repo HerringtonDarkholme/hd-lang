@@ -6,6 +6,27 @@ use std::cell::Cell;
 
 thread_local! {
     static TYPE_NODES: Cell<Option<u64>> = const { Cell::new(None) };
+    static RESOLVE_NODES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the type nodes `InferTable::resolve` walks on this thread: the
+/// share of [`count_type_nodes`] that resolving inference variables
+/// takes, one per node not answered by a memo.
+pub fn count_resolve_nodes<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = RESOLVE_NODES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = RESOLVE_NODES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One type node `InferTable::resolve` walked.
+pub(crate) fn resolve_node() {
+    RESOLVE_NODES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+    type_node();
 }
 
 /// Count the type nodes that resolving, folding and walking inference

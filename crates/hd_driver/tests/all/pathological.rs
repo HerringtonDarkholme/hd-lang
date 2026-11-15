@@ -2832,3 +2832,42 @@ fn branch_feeding_logic_values_rewrite_in_one_pass_over_the_body() {
         }
     });
 }
+
+/// A generic struct instantiated `n` deep through a generic function, on
+/// an integer literal: the scale check's `generic-nest`.
+fn generic_nest(n: usize) -> String {
+    format!(
+        "struct W[T]:\n    v: T\n\nfn wrap[T](x: T) -> W[T]: W {{ v: x }}\n\npub fn main() -> void $ Console:\n    let t = +0\n    w := {}t{}\n    t = w{}\n    println(\"$t\")\n",
+        "wrap(".repeat(n),
+        ")".repeat(n),
+        ".v".repeat(n)
+    )
+}
+
+// Types: #1912, each level of a generic nest resolved its type
+// `W^i[?int]` again, since only closed resolutions were kept across calls
+// and the literal's variable stays unbound to the body's end: O(depth^2)
+// nodes. Now an open resolution is kept with its few unbound variables,
+// valid while they stay unbound roots.
+#[test]
+fn open_resolutions_walk_each_node_once_while_their_variables_stay_unbound() {
+    on_test_stack(|| {
+        let nodes = |n: usize| {
+            let (out, nodes) =
+                hd_types::work::count_resolve_nodes(|| compile(&generic_nest(n), &Goal::Analyze));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            nodes
+        };
+        // The first build also checks what the run's memo then keeps.
+        nodes(0);
+        let zero = nodes(0);
+        // 30 stays below the instantiation depth limit of 32.
+        let (small, large) = (nodes(3) - zero, nodes(30) - zero);
+        // About five nodes a level, less a few the zero program also
+        // walks: 10x the depth stays under 13x; the old walk took 47x.
+        assert!(
+            small > 0 && large <= 13 * small,
+            "resolved nodes at depth 3 and 30: {small} and {large}"
+        );
+    });
+}
