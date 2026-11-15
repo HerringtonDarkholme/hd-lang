@@ -1,6 +1,6 @@
-typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10c	# test: bare trait body nested in tuple and option is one error
+traits/dynamic-trait-values/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10c	# test: bare trait body nested in tuple and option is one error
 typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
-typing/valid/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
+traits/method-resolution/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
 data/struct-declarations/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
 data/matching-enums/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10c	# test: checker checker errors are reported
 expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10c	# test: checker checker errors are reported
@@ -11,12 +11,12 @@ names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd	A10c	# t
 modules/use-forms/use-forms-a-group-use-from-a-package-module.hd	A10c	# test: failed group use reports one error
 modules/use-forms/use-forms-a-single-use-of-a-package-module.hd	A10c	# test: failed single use reports one error
 typing/valid/generic-inference-two-integer-literals-join.hd	A10c	# test: bool literal against integer still errors
-typing/valid/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	A10c	# test: a bare parameter target with a delegation is rejected
+traits/trait-implementations/implementation-targets/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	A10c	# test: a bare parameter target with a delegation is rejected
 annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd	A10c	# test: a rejected block reports nothing else
 typing/valid/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd	A10c	# test: float literal past f64 range is rejected
 control-flow/match-expressions/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
 control-flow/match-expressions/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
 control-flow/match-expressions/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
-typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10c	# test: a bound naming no trait adds no second error
+traits/sealed-traits/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10c	# test: a bound naming no trait adds no second error
 functions/generic-functions/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10c	# test: a parameter named nowhere is reported once
 functions/generic-functions/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported

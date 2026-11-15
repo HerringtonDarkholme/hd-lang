@@ -1,6 +1,6 @@
 # test: primitive, string, data, enum, tuple, and list values convert to Any
 # Spec 09 Any: "`Any` is the universal empty trait. Every value type, including an optional
-# type, implements it automatically." runtime/valid/optional-erased-to-any.hd covers optionals.
+# type, implements it automatically." traits/any/optional-erased-to-any.hd covers optionals.
 # Spec 09 Traits: trait.any.universal, trait.any.all.
 struct User:
     name: string

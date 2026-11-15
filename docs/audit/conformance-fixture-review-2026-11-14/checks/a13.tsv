@@ -1,6 +1,6 @@
-typing/valid/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd	A13	every code line is in runtime case runtime/valid/inherent-members-disjoint-targets.hd
-typing/valid/related-traits-derived-eq-and-hash-together-are-valid.hd	A13	every code line is in runtime case expressions/postfix-expressions/indexing/map-put-keeps-its-key-copy.hd
-typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd	A13	every code line is in runtime case std/cmp/derived-ordering/readonly-comparison-parameter-lifetimes.hd
+traits/inherent-implementations/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd	A13	every code line is in runtime case traits/inherent-implementations/inherent-members-disjoint-targets.hd
+traits/trait-implementations/comparison-traits/related-traits-derived-eq-and-hash-together-are-valid.hd	A13	every code line is in runtime case expressions/postfix-expressions/indexing/map-put-keeps-its-key-copy.hd
+traits/trait-implementations/comparison-traits/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd	A13	every code line is in runtime case std/cmp/derived-ordering/readonly-comparison-parameter-lifetimes.hd
 functions/declarations/local-functions.hd	A13	every code line is in runtime case functions/recursion/named-local-functions.hd
 functions/closures/closure-assigns-captured-let.hd	A13	every code line is in runtime case functions/closures/closure-captured-let-shared.hd
 requirements/requirement-rows/requirement-keys/requirement-key-any-trait.hd	A13	every code line is in runtime case requirements/requirement-rows/requirement-keys/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd

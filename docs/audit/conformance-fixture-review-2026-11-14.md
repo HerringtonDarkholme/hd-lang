@@ -82,7 +82,7 @@ which kind of row it rests on.
   `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`, the feature it tests.
   `.gitattributes` has no line for either fixture.
 - **Hand findings, sampled:**
-  - B2 `typing/invalid/derived-hash-field-not-hash.hd`: confirmed. The error
+  - B2 `traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`: confirmed. The error
     names `Eq`, not `Hash`.
   - B4 `runtime/valid/pointer-loan-extra-deep-shared-loans-kept.hd`: **wrong**.
     Its `if n > 1000` never runs on purpose. The write that exists statically
@@ -1896,7 +1896,7 @@ Ledger: b077 (43): 3 rows. Plausible 3 (all UNSURE): `data/struct-declarations/c
 Ledger: b078 (45): 4 rows. Confirmed 2 (A11), plausible 2.
 
 - The A11 class, found independently by the reviewer: `data/shared-enum-constructor-data/shared-enum-data-computed-once.hd`
-  and `runtime/valid/ord-supertrait-dispatch.hd` (private `main`, so nothing runs).
+  and `traits/trait-implementations/comparison-traits/ord-supertrait-dispatch.hd` (private `main`, so nothing runs).
 - Plausible B1: `data/typed-derivation-of-data-and-enums/derive-members-of-data-and-enums.hd` (`_1` is never
   emitted). `data/enum-declarations/variant-constructors-a-generic-variant-value-without-an-expected-type-cannot-be-inferred.hd`
   (`Either.Left` *is* a function value; the real error is an unsolved generic,
@@ -1913,12 +1913,12 @@ hint: **15** (`full/a18.tsv`). When the cited rule is about references (anchors
 ending `.reference-values`, `.reference-fix`, `ref-value`), the missing `&` is
 the point. **The likely wrong-reason ones** (the rule is about something else):
 - `names/member-resolution/local-impl-trait-value-before-declaration.hd` (b015, confirmed)
-- `typing/invalid/concrete-reference-bound-associated-type-mismatch.hd` (b079, confirmed)
-- `typing/invalid/closure-not-inspectable.hd`, `typing/invalid/spelled-function-type-not-inspectable.hd`
+- `traits/dynamic-trait-values/concrete-reference-bound-associated-type-mismatch.hd` (b079, confirmed)
+- `traits/runtime-type-identity/closure-not-inspectable.hd`, `traits/runtime-type-identity/spelled-function-type-not-inspectable.hd`
   (Inspectable rules)
-- `typing/invalid/trait-generic-instantiations-unrelated.hd` (invariance)
-- `typing/invalid/inspectable-child-trait-without-impl.hd` (`trait.erase.child-impl`)
-- `typing/invalid/concrete-value-binding-mismatch.hd`, `typing/invalid/counted-trait-value-from-value.hd`,
+- `traits/trait-declarations/trait-generic-instantiations-unrelated.hd` (invariance)
+- `traits/runtime-type-identity/inspectable-child-trait-without-impl.hd` (`trait.erase.child-impl`)
+- `traits/dynamic-trait-values/concrete-value-binding-mismatch.hd`, `traits/dynamic-trait-values/counted-trait-value-from-value.hd`,
   `requirements/providers-behind-references/provider-ref-value.hd` (need a look)
 Fix pattern: add the `&` so that only the rule under test is broken, then
 check that the expected code still fires.
@@ -1944,72 +1944,72 @@ done
 Ledger: b079 (43): 5. b080 (31): 8. b081 (28): 3.
 
 - **Wrong reason (B2)**: `concrete-reference-bound-associated-type-mismatch.hd` (A18 above).
-  `typing/invalid/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected.hd`
+  `traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected.hd`
   (line 8 also fails with `invalid-delegation`: `by inner` names no field; the
   reviewer saw this in a scratch copy).
-- **Duplicates**: `typing/valid/impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed.hd` ~
+- **Duplicates**: `traits/trait-implementations/implementation-targets/impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed.hd` ~
   `trait-value-as-target-argument.hd` (also in A12). Plausible: `…-ownership-only-in-its-own-module-67.hd`
   ~ `-53` (only `pub` differs). `…-in-the-module-of-the-trait-or-target-is-valid-66.hd` ~ `-65`.
-  `typing/valid/outer-constructor-permits-impl.hd` ~ `trait-argument-owner-impl.hd`.
+  `traits/trait-implementations/implementation-ownership/outer-constructor-permits-impl.hd` ~ `trait-argument-owner-impl.hd`.
 - Plausible B2: `…-nonlocal-64/-69/-71.hd` (the body's `missing_name` may be a second
-  error). Plausible B7: `typing/invalid/erase-readonly-to-mut-inspectable.hd`.
-- Plausible B1: `runtime/valid/embedded-field-satisfies-trait.hd`,
-  `runtime/valid/primitive-display-bound-and-trait-values.hd` ("every primitive" but 4 are tested),
-  `…-tuple-template-bounds-…-17.hd`, `…-62.hd`, `…-71.hd`, `runtime/valid/tuple-impl-target.hd`.
+  error). Plausible B7: `traits/runtime-type-identity/erase-readonly-to-mut-inspectable.hd`.
+- Plausible B1: `traits/embedding-and-trait-satisfaction/embedded-field-satisfies-trait.hd`,
+  `traits/dynamic-trait-values/primitive-display-bound-and-trait-values.hd` ("every primitive" but 4 are tested),
+  `…-tuple-template-bounds-…-17.hd`, `…-62.hd`, `…-71.hd`, `traits/trait-implementations/implementation-targets/tuple-impl-target.hd`.
 
 #### b082 (`lang/09-traits.md`)
 
 Ledger: b082 (41): 3 rows. Plausible 3.
 
 - Plausible, missing-`&` kind (not in A18 because the expected code differs):
-  `typing/invalid/any-bare-none.hd` omits the `&` that the rule's example
+  `traits/any/any-bare-none.hd` omits the `&` that the rule's example
   (`&.None`) has, so it doesn't test reference erasure.
-- Plausible B7: `typing/invalid/a-call-through-a-parameter-whose-bounds-declare-no-such-method.hd`.
+- Plausible B7: `traits/method-resolution/a-call-through-a-parameter-whose-bounds-declare-no-such-method.hd`.
   Plausible B1: `…-an-alias-of-a-non-enum-has-no-variants-35.hd` (no alias is declared).
 
 #### b083 (`lang/09-traits.md`)
 
 Ledger: b083 (38): 2 rows. Plausible 2 (B7; both also in A9's pattern):
-`typing/invalid/a-body-projection-under-an-unknown-bound.hd` (cites a rule whose
+`traits/trait-declarations/a-body-projection-under-an-unknown-bound.hd` (cites a rule whose
 code is `unknown-associated-type`; expects `unknown-trait`) and
-`typing/valid/projection-binding-chain-normalizes-40-deep.hd` (an accept case citing
+`traits/trait-declarations/projection-binding-chain-normalizes-40-deep.hd` (an accept case citing
 the error-only depth rule).
 
 #### b087 (`lang/09-traits.md`, trait value references)
 
 Ledger: b087 (27): 5 rows. Plausible 5.
 
-- Plausible C1: `typing/invalid/readonly-trait-value-mutating-method.hd` ~ `dyn-ref-mut-method-through-shared.hd`.
-- Plausible B1: `runtime/valid/dyn-ref-receiver-forms.hd` (no `mut self` call through
-  `&mut dyn`). `typing/invalid/dyn-ref-mutable-upgrade.hd` (the header says `&dyn` to
+- Plausible C1: `traits/dynamic-trait-values/readonly-trait-value-mutating-method.hd` ~ `dyn-ref-mut-method-through-shared.hd`.
+- Plausible B1: `traits/dynamic-trait-values/dyn-ref-receiver-forms.hd` (no `mut self` call through
+  `&mut dyn`). `traits/dynamic-trait-values/dyn-ref-mutable-upgrade.hd` (the header says `&dyn` to
   `&mut dyn`; the code converts the counted `*dyn` to `*mut dyn`).
-- Plausible B7: `typing/invalid/dyn-ref-value-list-literal.hd` (A18 listed it; the fix
-  is `box(...)`, rule `trait.dyn.ref.counted.new`). `runtime/valid/assign-dyn-child-to-supertrait.hd`
+- Plausible B7: `traits/dynamic-trait-values/dyn-ref-value-list-literal.hd` (A18 listed it; the fix
+  is `box(...)`, rule `trait.dyn.ref.counted.new`). `traits/dynamic-trait-values/assign-dyn-child-to-supertrait.hd`
   (its header comment names the wrong chapter).
 
 #### b084 (`lang/09-traits.md`, trait resolution depth)
 
 Ledger: b084 (45): 5 rows. Covered by A18 1, plausible 2, spec question 2.
 
-- `typing/invalid/trait-generic-instantiations-unrelated.hd`: A18 (missing `&`).
-- **Spec question, how bound depth is counted**: `typing/valid/trait-resolution-depth-limit.hd`
+- `traits/trait-declarations/trait-generic-instantiations-unrelated.hd`: A18 (missing `&`).
+- **Spec question, how bound depth is counted**: `traits/generic-bounds-and-static-dispatch/trait-resolution-depth-limit.hd`
   (titled "exactly 64 nested bounds") is accepted by `hd`, but a literal reading of
-  `trait.bound.depth` counts 66. `typing/invalid/trait-resolution-depth-pending.hd`
+  `trait.bound.depth` counts 66. `traits/generic-bounds-and-static-dispatch/trait-resolution-depth-pending.hd`
   rejects 65 `Wrap` layers, while the limit fixture accepts 65 `Box` layers. The
   spec should state the counting with one worked example, and the boundary
   fixtures should sit at exactly N and N+1 under it.
-- Plausible B1: `typing/valid/bounds-a-bound-two-levels-deep-proves.hd` (the
+- Plausible B1: `traits/generic-bounds-and-static-dispatch/bounds-a-bound-two-levels-deep-proves.hd` (the
   body is `Box[Box[i32]]`, not 32 levels). Plausible B2: `…/trait-resolution-depth-in-instantiation-trial.hd`.
 
 #### b085 (`lang/09-traits.md`, derive)
 
 Ledger: b085 (41): 4 rows. Covered by A18 1, plausible 3.
 
-- `typing/invalid/concrete-value-binding-mismatch.hd`: A18 (fails on the missing `&`).
-- **Wrong reason (B2), plausible-strong**: `typing/invalid/derived-hash-field-not-hash.hd`.
+- `traits/dynamic-trait-values/concrete-value-binding-mismatch.hd`: A18 (fails on the missing `&`).
+- **Wrong reason (B2), plausible-strong**: `traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`.
   The field type `Opaque` lacks `Eq` as well as `Hash`, so the error names `Eq`.
   Fix: give `Opaque` an `Eq` implementation so only `Hash` is missing.
-- Plausible C1: `runtime/valid/derived-newtype.hd` is covered by
+- Plausible C1: `traits/trait-implementations/comparison-traits/derived-newtype.hd` is covered by
   `newtype-derive-eq-hash-and-ordering-follow-the-base-type.hd`. Plausible B7:
   `…/newtype-derive-handwritten-methods-on-newtypes-keep-their-bodies.hd`.
 
@@ -2017,26 +2017,26 @@ Ledger: b085 (41): 4 rows. Covered by A18 1, plausible 3.
 
 Ledger: b086 (46): 4 rows. Plausible 4.
 
-- Plausible B2: `typing/invalid/dyn-conversion-without-impl.hd`. The name says the
+- Plausible B2: `traits/dynamic-trait-values/dyn-conversion-without-impl.hd`. The name says the
   implementation is missing, but the error comes from the bare value (missing `&`;
   in A18, whose anchor `trait.dyn.convert.reference-values` made it look legitimate).
   An impl-less `*Square` would isolate the missing implementation.
-- **Titles out of date after a spec change (B1)**: `typing/valid/generic-method-dynamically-safe.hd`
-  and `typing/valid/nested-dynamically-safe-trait-values.hd` talk about "dynamically
+- **Titles out of date after a spec change (B1)**: `traits/dynamic-trait-values/generic-method-dynamically-safe.hd`
+  and `traits/dynamic-trait-values/nested-dynamically-safe-trait-values.hd` talk about "dynamically
   safe" traits. Today `trait.dyn.except-fn` lets every trait be a `dyn` type. The
   same kind as b011's row-list titles.
-- Plausible B7: `typing/invalid/trait-reference-impl-target.hd` (the rule is `trait.target.trait-value.error`).
+- Plausible B7: `traits/dynamic-trait-values/trait-reference-impl-target.hd` (the rule is `trait.target.trait-value.error`).
 
 #### b088 (`lang/09-traits.md`) and script check A10c
 
 Ledger: b088 (46): 6 rows. Covered by A18 2, confirmed 1, covered by A10c 1, plausible 2.
 
-- A18 (missing `&`): `typing/invalid/inspectable-child-trait-without-impl.hd`,
-  `typing/invalid/generic-erasure-without-bound.hd`. The reviewer independently
+- A18 (missing `&`): `traits/runtime-type-identity/inspectable-child-trait-without-impl.hd`,
+  `traits/runtime-type-identity/generic-erasure-without-bound.hd`. The reviewer independently
   found that both fail for the bare value, not the missing impl or bound.
-- **A check that cannot fail (B3)**: `runtime/valid/erased-error-result.hd`. Its
+- **A check that cannot fail (B3)**: `traits/trait-implementations/error-trait/erased-error-result.hd`. Its
   `.None` arm only does `assert(true)`.
-- Plausible: `typing/invalid/a-method-with-its-own-type-parameter-through-a-dyn-value.hd`
+- Plausible: `traits/dynamic-trait-values/a-method-with-its-own-type-parameter-through-a-dyn-value.hd`
   (an unused `trait Sink`; cites the hint rule).
 
 **A10c** (`a10c_legal_any.py`): A10 matched only names ending in `-legal.hd`.
@@ -2065,21 +2065,21 @@ for l in list(open('cases.tsv'))[1:]:
 
 Ledger: b089 (42): 4 rows. b090 (46): 9 rows.
 
-- **A check that cannot fail (B3)**: `runtime/valid/typeid-same-name-modules.hd:15` and
-  `runtime/valid/erased-error-result.hd:55`, where a `.None => assert(true, …)` arm
+- **A check that cannot fail (B3)**: `traits/runtime-type-identity/typeid-same-name-modules.hd:15` and
+  `traits/trait-implementations/error-trait/erased-error-result.hd:55`, where a `.None => assert(true, …)` arm
   checks nothing. A17 now also matches `assert(true)` inside match arms (25 hits).
-- Covered by A18: `typing/invalid/spelled-function-type-not-inspectable.hd` (fails on
+- Covered by A18: `traits/runtime-type-identity/spelled-function-type-not-inspectable.hd` (fails on
   the missing `box`, not the function type).
 - Plausible C1: `…/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd`
   (also in A13; its title says "unify" though the targets are disjoint).
-  `typing/invalid/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd` and
+  `traits/trait-implementations/overlap/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd` and
   `row-parameter-data-impl-overlap.hd` ~ `a-generic-row-impl-overlaps-a-later-concrete-row-impl.hd`.
-- Plausible B1: `runtime/valid/from-propagation-and-panic.hd` (the panic branch is
-  never reached). `runtime/valid/inspectable-primitives-collections-options.hd`.
-  `typing/invalid/num-sealed-user-number.hd`. Plausible B7: `typing/valid/impl-trait-nested-trait-method.hd`,
-  `typing/valid/impl-trait-trait-method.hd`. Plausible panic/diagnostic line:
-  `typing/invalid/impl-unknown-trait-cross-module.hd` (the error is raised in the tree file).
-- Rejected: `typing/invalid/tests-block-impl-overlap.hd`. Plain `hd check` accepts
+- Plausible B1: `traits/trait-implementations/conversion-trait/from-propagation-and-panic.hd` (the panic branch is
+  never reached). `traits/runtime-type-identity/inspectable-primitives-collections-options.hd`.
+  `traits/sealed-traits/num-sealed-user-number.hd`. Plausible B7: `traits/trait-implementations/implementation-declarations/impl-trait-nested-trait-method.hd`,
+  `traits/trait-implementations/implementation-declarations/impl-trait-trait-method.hd`. Plausible panic/diagnostic line:
+  `traits/trait-implementations/conversion-trait/impl-unknown-trait-cross-module.hd` (the error is raised in the tree file).
+- Rejected: `traits/trait-implementations/overlap/tests-block-impl-overlap.hd`. Plain `hd check` accepts
   it, but the runner always passes `--tests`, and `hd check --tests` reports the
   expected `overlapping-impl`. The brief now tells reviewers to use `--tests`.
 
@@ -2087,13 +2087,13 @@ Ledger: b089 (42): 4 rows. b090 (46): 9 rows.
 
 Ledger: b091 (45): 9 rows. Plausible 6, rejected 2, unverified 1.
 
-- Plausible B2: `typing/invalid/nonlocal-impl.hd` (line 10 reads a non-`pub` field
+- Plausible B2: `traits/trait-implementations/implementation-ownership/nonlocal-impl.hd` (line 10 reads a non-`pub` field
   from another module, a second private-member error).
-- Plausible B1: `runtime/valid/explicit-type-args-associated.hd` and
-  `runtime/valid/explicit-type-args-method.hd` (they type-check unchanged without
-  `::[i32]`, so the explicit argument selects nothing). `runtime/valid/failed-trial-no-leak.hd`
-  (no capture). `runtime/valid/generic-method-candidate-local.hd`. Plausible B7:
-  `typing/invalid/fn-trait-user-impl.hd`.
+- Plausible B1: `traits/method-resolution/explicit-type-args-associated.hd` and
+  `traits/method-resolution/explicit-type-args-method.hd` (they type-check unchanged without
+  `::[i32]`, so the explicit argument selects nothing). `traits/method-resolution/failed-trial-no-leak.hd`
+  (no capture). `traits/method-resolution/generic-method-candidate-local.hd`. Plausible B7:
+  `traits/sealed-traits/fn-trait-user-impl.hd`.
 - Rejected C1: `candidate-closure-selection-reversed.hd` and
   `candidate-scope-isolation-reversed.hd`. The reversed implementation order
   checks that resolution doesn't depend on declaration order, which is a real
@@ -2103,16 +2103,16 @@ Ledger: b091 (45): 9 rows. Plausible 6, rejected 2, unverified 1.
 
 Ledger: b092 (41): 4 rows. Plausible 4.
 
-- Plausible C1: `typing/invalid/downcast-value-type-target.hd` ~ `downcast-target-not-inspectable.hd`
+- Plausible C1: `traits/runtime-type-identity/downcast-value-type-target.hd` ~ `downcast-target-not-inspectable.hd`
   (the same `downcast_ref::[fn() -> i32]` line). `…/downcast-downcast-ref-with-a-type-argument-on-dyn-inspectable.hd`
   (the A13 kind).
 - Plausible B1: `…/downcast-downcast-mut-and-downcast-ref-take-a-type-argument.hd`
-  (no `downcast_mut` on a bounded parameter). `typing/valid/tuple-derived-traits.hd` (never uses `Ord`).
+  (no `downcast_mut` on a bounded parameter). `traits/trait-implementations/implementation-targets/tuple-derived-traits.hd` (never uses `Ord`).
 
 #### b094 (`lang/09-traits.md`, delegation)
 
-Ledger: b094 (28): 1 row. Plausible 1: `typing/valid/trait-delegation.hd` is covered by
-`runtime/valid/trait-delegation-forwards.hd` (the A13 kind). The rest is clean.
+Ledger: b094 (28): 1 row. Plausible 1: `traits/trait-delegation/trait-delegation.hd` is covered by
+`traits/trait-delegation/trait-delegation-forwards.hd` (the A13 kind). The rest is clean.
 
 #### b093 (`lang/09-traits.md`, sealed traits)
 
@@ -2123,25 +2123,25 @@ Ledger: b093 (36): 10 rows. Plausible 7, unverified B5 3.
   `structure-outside-template` or `trait.super.missing`. An implementation that
   reports both, or reports the other one first, fails these cases.
 - Plausible B7: `-169`, `-170` (cite `#sealed-traits` for `unknown-trait`).
-- Plausible C1: `-150` ~ `typing/invalid/inspectable-user-implementation.hd`.
+- Plausible C1: `-150` ~ `traits/sealed-traits/inspectable-user-implementation.hd`.
 
 #### b095 (`lang/09-traits.md`, implementations)
 
 Ledger: b095 (31): 7 rows. Confirmed 4, plausible 3.
 
-- The A11 class: `runtime/valid/generic-inherent-box.hd` and
-  `runtime/valid/trait-default-method-instantiates-params.hd` (private `main`; the
+- The A11 class: `traits/trait-implementations/generic-inherent-box.hd` and
+  `traits/trait-implementations/trait-default-method-instantiates-params.hd` (private `main`; the
   reviewer found them independently).
-- **Wrong reason / two problems (B2)**: `typing/invalid/orphan-impl.hd` is
+- **Wrong reason / two problems (B2)**: `traits/trait-implementations/orphan-impl.hd` is
   `impl Display for i32` with a `to_string(&self)` method. std already has
   `impl Display for i32` (`lib/std/format.hd:478`), so the line also breaks
   `trait.impl.unique`. The method also doesn't match std `Display`'s
   signature. Fix: use a std trait and std type pair that std doesn't
   implement, with the right method.
-- **Duplicate (C1)**: `typing/invalid/trait-impl-missing-method.hd` = `missing-trait-method.hd`
+- **Duplicate (C1)**: `traits/trait-implementations/trait-impl-missing-method.hd` = `missing-trait-method.hd`
   (only `struct User: pass` against a one-field struct). Plausible:
   `trait-method-result-type-mismatch.hd` ~ `trait-method-signature.hd`.
-- Plausible B1: `typing/valid/trait-implementations-an-impl-may-omit-a-method-with-a-default-body.hd`
+- Plausible B1: `traits/trait-implementations/trait-implementations-an-impl-may-omit-a-method-with-a-default-body.hd`
   (an accept case titled "must write every"). `modules/wasm-boundary/closable-handle-closed.hd`
   (a type case claiming disposal).
 

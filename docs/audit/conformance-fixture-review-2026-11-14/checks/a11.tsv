@@ -1,12 +1,12 @@
 grammar/expressions/index-then-call-element.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/result-ok-unit.hd	A11	accept; private main, no tests: nothing runs
-runtime/valid/ord-supertrait-dispatch.hd	A11	accept; private main, no tests: nothing runs
-runtime/valid/generic-inherent-box.hd	A11	accept; private main, no tests: nothing runs
+traits/trait-implementations/comparison-traits/ord-supertrait-dispatch.hd	A11	accept; private main, no tests: nothing runs
+traits/trait-implementations/generic-inherent-box.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/i64-widening-checked.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/u8-checked-add.hd	A11	accept; private main, no tests: nothing runs
 data/shared-enum-constructor-data/shared-enum-data-computed-once.hd	A11	accept; private main, no tests: nothing runs
 requirements/requirement-rows/closure-result-keeps-requirement-row.hd	A11	accept; private main, no tests: nothing runs
-runtime/valid/trait-default-method-instantiates-params.hd	A11	accept; private main, no tests: nothing runs
+traits/trait-implementations/trait-default-method-instantiates-params.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/reference-enum-replace-build.hd	A11	accept; private main, no tests: nothing runs
 std/validate/rule-facts/validation-rules.hd	A11	accept; private main, no tests: nothing runs
 std/validate/rule-facts/validation-rule-order.hd	A11	accept; private main, no tests: nothing runs
