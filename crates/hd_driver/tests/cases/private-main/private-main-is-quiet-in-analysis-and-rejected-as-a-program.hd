@@ -1,0 +1,3 @@
+# @dump: stdout
+fn main() -> void:
+    pass
