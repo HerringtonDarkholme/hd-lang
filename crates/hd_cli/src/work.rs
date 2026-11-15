@@ -161,6 +161,9 @@ impl hd_cache::CacheStore for Store {
     fn wanted(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) -> bool {
         (**self).wanted(kind, key)
     }
+    fn flush_requested(&self) -> bool {
+        (**self).flush_requested()
+    }
 }
 
 impl Drop for Store {

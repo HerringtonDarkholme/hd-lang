@@ -80,9 +80,15 @@ pub trait CacheStore: Sync {
             self.put(*kind, key, bytes);
         }
     }
-    /// Called as an entry is put: whether this store claimed it, so a store
-    /// that defers its writes publishes it at once (#1932).
+    /// Called as an entry is put: whether a store that defers its writes
+    /// publishes now, as other runs wait (#1932).
     fn wanted(&self, _kind: EntryKind, _key: &Hash128) -> bool {
+        false
+    }
+    /// After a miss: whether a store that defers its writes publishes now
+    /// and reads again, because this store is about to wait for another
+    /// run and must not keep entries that run may wait for.
+    fn flush_requested(&self) -> bool {
         false
     }
 }
@@ -221,14 +227,20 @@ impl<S: CacheStore> Drop for DeferredStore<S> {
 
 impl<S: CacheStore> CacheStore for DeferredStore<S> {
     fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-        self.waiting
-            .get(kind, key)
-            .or_else(|| self.inner.get(kind, key))
+        if let Some(bytes) = self.waiting.get(kind, key) {
+            return Some(bytes);
+        }
+        let found = self.inner.get(kind, key);
+        if found.is_none() && self.inner.flush_requested() {
+            self.publish();
+            return self.inner.get(kind, key);
+        }
+        found
     }
-    /// Waits in memory, unless the entry is claimed: then it is published
-    /// now, with every entry put before it, in order, so other runs need
-    /// not wait for this command and find what it keys (an interface's
-    /// read list goes after the interface).
+    /// Waits in memory, unless other runs wait: then it is published now,
+    /// with every entry put before it, in order, so they need not wait for
+    /// this command and find what it keys (an interface's read list goes
+    /// after the interface).
     fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
         self.waiting.put(kind, key, bytes);
         if self.inner.wanted(kind, key) {

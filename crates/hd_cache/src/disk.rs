@@ -730,6 +730,10 @@ impl CacheStore for DiskStore {
         self.packed.put_wanted(kind, key)
     }
 
+    fn flush_requested(&self) -> bool {
+        self.packed.flush_requested()
+    }
+
     fn touch(&self, kind: EntryKind, key: &Hash128) {
         if kind == EntryKind::Clpack {
             self.touch_loose(kind, key);
@@ -1010,7 +1014,10 @@ mod packed {
         rooted: AtomicBool,
         /// The claims this store holds, by key: each a locked claim file and
         /// the thread computing the entry.
-        claims: Mutex<BTreeMap<Key, (File, std::thread::ThreadId)>>,
+        claims: Mutex<BTreeMap<Key, Claim>>,
+        /// `waits`, which a run appends a byte to before it waits for a
+        /// claim, and its length when this store last published.
+        waits: Mutex<Option<(File, u64)>>,
         /// Claims are taken (`DiskStore::with_claims`): only for a caller
         /// that publishes a claimed entry as soon as it puts it.
         pub(super) claiming: bool,
@@ -1029,6 +1036,14 @@ mod packed {
         /// act while one is in progress.
         #[cfg(test)]
         pub(super) on_pause: Option<Arc<dyn Fn(&'static str) + Send + Sync>>,
+    }
+
+    /// A claim this store holds: its locked file, the thread computing the
+    /// entry, and whether the entry is computed, put but not yet published.
+    struct Claim {
+        _lock: File,
+        thread: std::thread::ThreadId,
+        done: bool,
     }
 
     /// The kinds whose misses are claimed (#1932): entries a run computes
@@ -2260,6 +2275,7 @@ mod packed {
                 runs: Mutex::new(None),
                 crowded: AtomicBool::new(false),
                 flush: AtomicBool::new(false),
+                waits: Mutex::new(None),
                 #[cfg(test)]
                 on_pause: None,
             }
@@ -2768,7 +2784,7 @@ mod packed {
             Ok(())
         }
 
-        fn claims(&self) -> MutexGuard<'_, BTreeMap<Key, (File, std::thread::ThreadId)>> {
+        fn claims(&self) -> MutexGuard<'_, BTreeMap<Key, Claim>> {
             self.claims
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -2860,8 +2876,16 @@ mod packed {
             // An unwritable cache computes without a claim.
             let Ok(file) = file else { return None };
             if file.try_lock().is_err() {
+                // Entries this store computed and has not published may be
+                // what the holder waits for: its caller publishes them, and
+                // asks again, before this run waits.
+                if self.claims().values().any(|c| c.done) {
+                    self.flush.store(true, Ordering::Relaxed);
+                    return None;
+                }
                 self.before_waiting();
                 count!(claim_waits, 1);
+                self.signal_wait();
                 // A lock that fails leaves a claim others can still take:
                 // they compute too.
                 let _ = file.lock();
@@ -2884,7 +2908,14 @@ mod packed {
                     return Some(bytes);
                 }
             }
-            self.claims().insert(k, (file, std::thread::current().id()));
+            self.claims().insert(
+                k,
+                Claim {
+                    _lock: file,
+                    thread: std::thread::current().id(),
+                    done: false,
+                },
+            );
             None
         }
 
@@ -2900,7 +2931,7 @@ mod packed {
             let mut claims = self.claims();
             let off_path: Vec<Key> = claims
                 .iter()
-                .filter(|(k, (_, thread))| *thread == me && k.0 != EntryKind::Graph as u16)
+                .filter(|(k, c)| c.thread == me && !c.done && k.0 != EntryKind::Graph as u16)
                 .map(|(k, _)| *k)
                 .collect();
             debug_assert!(
@@ -2918,15 +2949,63 @@ mod packed {
             self.claims().contains_key(&(kind as u16, key.0))
         }
 
-        /// At the put of `key`: whether this store claimed it, so it is to
-        /// be published now and its claim let go. A run that came after
-        /// would otherwise miss an entry already computed. A claim is held
-        /// only while its entry is computed. The first put after the store
-        /// found other runs beside it publishes too, flushing what it put
-        /// while it ran alone.
+        /// At the put of `key`: whether to publish now. A claimed entry is
+        /// marked computed and waits for the caller's batch, unless a run
+        /// waits for a claim (`waits` grew since this store last published)
+        /// or the store asked for a flush: it found other runs beside it
+        /// after running alone, or it is about to wait itself. A run that
+        /// no one waits for pays nothing more than its batch.
         pub(super) fn put_wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
-            self.claims().contains_key(&(kind as u16, key.0))
-                || self.flush.swap(false, Ordering::Relaxed)
+            let any = {
+                let mut claims = self.claims();
+                if let Some(claim) = claims.get_mut(&(kind as u16, key.0)) {
+                    claim.done = true;
+                }
+                !claims.is_empty()
+            };
+            self.flush.swap(false, Ordering::Relaxed) || (any && self.waited())
+        }
+
+        /// Whether this store asked its caller to publish before it waits.
+        pub(super) fn flush_requested(&self) -> bool {
+            self.flush.swap(false, Ordering::Relaxed)
+        }
+
+        /// The `waits` file, opened once; `None` when it cannot be.
+        fn waits(&self) -> MutexGuard<'_, Option<(File, u64)>> {
+            let mut waits = self
+                .waits
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if waits.is_none() {
+                *waits = OpenOptions::new()
+                    .read(true)
+                    .append(true)
+                    .create(true)
+                    .open(self.root.join("waits"))
+                    .ok()
+                    .map(|file| (file, 0));
+            }
+            waits
+        }
+
+        /// Tells holders a run waits: one more byte in `waits`.
+        fn signal_wait(&self) {
+            if let Some((file, _)) = self.waits().as_mut() {
+                let _ = file.write_all(b"w");
+            }
+        }
+
+        /// Whether a run waited since this store last published.
+        fn waited(&self) -> bool {
+            let mut waits = self.waits();
+            let Some((file, seen)) = waits.as_mut() else {
+                return true;
+            };
+            let len = file.metadata().map_or(u64::MAX, |m| m.len());
+            let grew = len != *seen;
+            *seen = len;
+            grew
         }
 
         /// Lets go of the claims on `keys`, once their entries are
