@@ -49,7 +49,7 @@ typing/invalid/match-an-unknown-scrutinee-still-binds-its-struct-pattern-names.h
 typing/invalid/match-a-scrutinee-from-an-unknown-module-reports-once.hd	A9	reject:unknown-module not mentioned in cited lang/06-control-flow.md#match-expressions
 typing/invalid/match-an-unknown-method-scrutinee-reports-once.hd	A9	reject:unknown-method not mentioned in cited lang/06-control-flow.md#match-expressions
 typing/invalid/match-an-unknown-name-scrutinee-reports-once.hd	A9	reject:unknown-name not mentioned in cited lang/06-control-flow.md#match-expressions
-typing/invalid/net-free-helper-missing-provider.hd	A9	reject:missing-requirement not mentioned in cited std/net.md#r-std-net.helper.lookup.decl
+std/net/free-helpers/net-free-helper-missing-provider.hd	A9	reject:missing-requirement not mentioned in cited std/net.md#r-std-net.helper.lookup.decl
 typing/invalid/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.variance.function
 typing/invalid/row-variance-a-list-argument-with-a-wider-row-is-a-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.variance.function
 typing/invalid/row-variance-a-list-binding-with-a-narrower-row-is-a-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.variance.function
