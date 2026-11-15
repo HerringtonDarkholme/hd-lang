@@ -579,8 +579,7 @@ impl Ck<'_, '_> {
     /// `types.lct.no-common`). The meet weakens permissions only at the
     /// top and in tuple elements, and unions rows only at the top, so each
     /// value reaches any type the meet builds and two values that meet
-    /// have a least type: `no-least-common-type` (`types.lct.no-least`)
-    /// has no case here. A variance step that would weaken a permission,
+    /// have a least type. A variance step that would weaken a permission,
     /// as `List[*mut Cell]` to `List[*Cell]`, is `no-common-type`
     /// (`types.lct.no-combine`).
     fn no_common_type(&mut self, var: Ty, got: Ty, n: NodeRef<'_>, what: &str) {

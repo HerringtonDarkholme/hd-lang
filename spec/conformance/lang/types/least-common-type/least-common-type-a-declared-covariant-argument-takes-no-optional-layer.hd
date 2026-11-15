@@ -1,0 +1,9 @@
+# test: a declared covariant parameter carries no conversion into the least common type
+# Spec 04 Least Common Type: types.lct.conversions, types.variance.markers.
+# Only permission weakening and optional injection contribute.
+
+struct Holder[+T]:
+    item: T
+
+fn pick(flag: bool, plain: Holder[i32], found: Holder[i32?]) -> void:
+    _ := if flag: plain else: found # diagnostic: no-common-type

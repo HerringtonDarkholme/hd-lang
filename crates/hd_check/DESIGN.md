@@ -923,8 +923,7 @@ its values are checked in order:
    It never uses `Any`, a trait value or a supertrait.
 5. **Errors.** A value that does not join reports `no-common-type`, at
    that value, once per site. Values that meet always have a least type
-   under these conversions, so the checker has no case for
-   `no-least-common-type`.
+   under these conversions, so a join has no other failure.
 6. **Coerce.** Each value then gets the coercion to the joined type. A
    slot is reserved after each value, and the site fills it once the type
    is final (`Ck::fill_join`): `WrapSome` for a value one optional layer

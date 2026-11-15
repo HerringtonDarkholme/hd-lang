@@ -2303,7 +2303,7 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 
 1. r[types.lct.uses] Each of these uses the least common type defined here.
 2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the conversions that `types.lct.conversions` lists.
-3. r[types.lct.conversions] Permission weakening, declared readonly variance, and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
+3. r[types.lct.conversions] Permission weakening and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
 4. r[types.lct.optional] Optional injection adds one layer, as [`types.assign.optional`](#r-types.assign.optional) states. So an `i32` and an `i32?` join to `i32?`, in a list literal, a value-producing `if` or `match`, and an inferred result type alike.
 5. r[types.lct.optional.one-layer] A `T` and a `T??` have no common type, because injection never adds two layers. Error: `no-common-type`.
 6. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
@@ -2359,7 +2359,6 @@ fn pick(flag: bool) -> void:
 
 1. r[types.lct.fail] If no unique least type exists, inference fails and the user must add an expected type.
 2. r[types.lct.no-common] When the values have no common type, the failure is an error. Error: `no-common-type`.
-3. r[types.lct.no-least] When they have common types but these rules admit no unique least one, the failure is an error. Error: `no-least-common-type`.
 
 ```text
 trait Shown:

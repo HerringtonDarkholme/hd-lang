@@ -6674,6 +6674,10 @@ lang/types/generics/inference-from-several-arguments/generic-inference-never-sol
 lang/types/generics/inference-from-several-arguments/generic-inference-explicit-trait-value-reference-argument.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
 lang/types/least-common-type/least-common-type-weakens-a-reference-inside-a-tuple.hd	type	accept	lang/04-type-system.md#r-types.lct.tuple-elements
 lang/types/least-common-type/least-common-type-tuple-elements-keep-a-real-mismatch.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.tuple-elements
+lang/types/least-common-type/least-common-type-tuples-of-two-arities-have-no-common-type.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.tuple-elements
+lang/types/least-common-type/least-common-type-a-list-element-takes-no-optional-layer.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.conversions
+lang/types/least-common-type/least-common-type-a-declared-covariant-argument-takes-no-optional-layer.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.conversions
+lang/types/least-common-type/least-common-type-a-function-parameter-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
 lang/types/least-common-type/least-common-type-a-covariant-list-element-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
 lang/types/least-common-type/least-common-type-a-list-literal-of-covariant-lists-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
 lang/types/least-common-type/least-common-type-a-covariant-map-value-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine

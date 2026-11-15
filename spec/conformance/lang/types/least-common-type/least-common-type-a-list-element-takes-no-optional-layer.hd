@@ -1,0 +1,6 @@
+# test: optional injection adds a layer only at the top, so a list of values and a list of optionals have no common type
+# Spec 04 Least Common Type: types.lct.conversions, types.lct.optional.
+
+fn pick(flag: bool, plain: List[i32], found: List[i32?]) -> usize:
+    values := if flag: plain else: found # diagnostic: no-common-type
+    values.len()

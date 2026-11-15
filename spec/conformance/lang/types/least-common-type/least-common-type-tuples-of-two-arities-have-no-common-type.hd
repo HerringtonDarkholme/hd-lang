@@ -1,0 +1,9 @@
+# test: tuples of two arities have no common type, even when their shared elements weaken
+# Spec 04 Least Common Type: types.lct.tuple-elements. Only tuples of one
+# arity meet element by element.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, k: i32, cell: &mut Cell, shared: &Cell) -> void:
+    _ := if flag: (k, cell) else: (k, shared, k) # diagnostic: no-common-type
