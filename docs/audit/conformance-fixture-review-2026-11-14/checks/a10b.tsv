@@ -1,7 +1,7 @@
 runtime/valid/tuple-rest-unnamed-shared-enum-parameters-select-as-underscore-members.hd	A10b	same title as reject typing/invalid/tuple-rest-unnamed-shared-enum-parameters-select-as-underscore-members.hd
 runtime/valid/context-values-a-context-argument-fixes-a-generic-key-274.hd	A10b	same title as reject typing/invalid/context-values-a-context-argument-fixes-a-generic-key-275.hd
 typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	A10b	same title as reject typing/invalid/bare-trait-body-nested-in-tuple-and-option-is-one-error-8.hd
-typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10b	same title as reject parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-254.hd
+typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10b	same title as reject parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd
 typing/valid/checker-a-match-must-cover-every-variant-23.hd	A10b	same title as reject typing/invalid/checker-a-match-must-cover-every-variant-24.hd
 typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-96.hd	A10b	same title as reject typing/invalid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-99.hd
 typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-97.hd	A10b	same title as reject typing/invalid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-99.hd

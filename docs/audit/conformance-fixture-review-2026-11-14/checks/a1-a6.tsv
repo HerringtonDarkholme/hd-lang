@@ -18,12 +18,12 @@ typing/invalid/row-parameter-unmarked.hd	A2	same code (comments/directives strip
 parse/valid/module-documentation.hd	A2	same code (comments/directives stripped) as parse/invalid/module-documentation-second-block.hd [reject:doc-comment-without-target] [accept]
 typing/invalid/module-named-pkg.hd	A2	same code (comments/directives stripped) as typing/invalid/root-mod-file.hd [reject:reserved-module-name], typing/invalid/module-path-not-identifier.hd [reject:invalid-module-path] [reject:reserved-module-name]
 runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A2	same code (comments/directives stripped) as typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd [accept] [accept]
-parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-254.hd	A3	parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-255.hd
-parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-254.hd	A3	parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-256.hd
-parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-254.hd	A3	parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-257.hd
-parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-255.hd	A3	parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-256.hd
-parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-255.hd	A3	parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-257.hd
-parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-256.hd	A3	parse/invalid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-257.hd
+parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd
+parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
+parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
+parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
+parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
+parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
 parse/invalid/caret-prefix-expression.hd	A3	parse/invalid/caret-type.hd
 parse/invalid/impl-trait-binding.hd	A3	parse/invalid/impl-trait-closure.hd
 parse/invalid/impl-trait-binding.hd	A3	parse/invalid/impl-trait-field.hd
