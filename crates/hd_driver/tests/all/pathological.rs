@@ -2654,6 +2654,44 @@ fn liveness_and_coalescing_work_is_linear_in_live_values() {
     });
 }
 
+/// #1895: keep every trimmed string alive until the final length sum.
+fn live_string_temporaries(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    s{i} := \"a{i}\".trim()");
+    }
+    s.push_str("    total := ");
+    for i in 0..n {
+        if i != 0 {
+            s.push_str(" + ");
+        }
+        let _ = write!(s, "s{i}.len()");
+    }
+    s.push_str("\n    println(total)\n");
+    s
+}
+
+#[test]
+fn string_temporary_coalescing_work_is_near_linear() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |n| {
+            let (out, work) =
+                hd_wasm::work::count_liveness(|| compile(&live_string_temporaries(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            eprintln!("string temporary liveness/coalescing at {n}: {work}");
+            work
+        };
+        let (a, b, c) = (build(1_000), build(4_000), build(10_000));
+        // Persistent live sets add a logarithmic path per local, rather
+        // than constructing pairwise interference or a dense row per block.
+        assert!(a > 0 && b <= a * 6, "1000/4000: {a}/{b}");
+        assert!(c <= a * 14, "1000/10000: {a}/{c}");
+    });
+}
+
 // Emitter: #1914, rule 11's zero facts were a dense bit row of every
 // local per waiting block, copied at each forward branch, so `n` locals
 // across `n` blocks allocated `n²/64` words. They are persistent sets now,
