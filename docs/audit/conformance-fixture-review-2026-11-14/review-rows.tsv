@@ -466,7 +466,7 @@ b088	typing/invalid/generic-erasure-without-bound.hd	FIX	B2	Erases a value, so h
 b088	runtime/valid/erased-error-result.hd	FIX	B3	The .None arm assert(true) checks nothing. Make that arm a no-op, or assert `error.source()` is `.None` once.
 b088	typing/invalid/a-method-with-its-own-type-parameter-through-a-dyn-value.hd	FIX	B5	trait Sink (lines 13-14) is never used by this case; delete it.
 b088	typing/invalid/a-method-with-its-own-type-parameter-through-a-dyn-value.hd	UNSURE	B7	Cites trait.dyn.type-param.hint, which names no error code; trait.dyn.member.unavailable.error sets dyn-member-unavailable.
-b088	typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	FIX	B1	Title "is one error" is copied from reject twin -8; this accept case has no error. Retitle it.
+b088	typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	FIX	B1	Title "is one error" is copied from reject twin -8; this accept case has no error. Retitle it.
 b089	typing/invalid/impl-unknown-trait-cross-module.hd	UNSURE	B2	Marker sits on line 4 (use), but unknown-trait is raised in trees/unknown-from-impl/src/errors.hd:3; confirm the reported location before accepting.
 b089	runtime/valid/from-propagation-and-panic.hd	FIX	B1	Title promises a from body may panic, but the panic branch (path == "") is never reached; only the success and error paths run.
 b089	typing/valid/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd	MERGE	C1	Title says targets unify, but Box[string] and Box[i32] are disjoint. Same program as runtime/valid/inherent-members-disjoint-targets.hd, which adds the call checks.

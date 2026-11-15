@@ -574,7 +574,7 @@ typing/valid/row-inference-explicit-type-arguments-disambiguate-two-keys.hd	type
 typing/valid/row-inference-a-unique-key-match-solves-the-argument.hd	type	accept	lang/04-type-system.md#r-types.infer.ambiguous.code
 typing/valid/member-metadata-lines-for-direct-members-self-and-variants-are-valid.hd	type	accept	lang/14-annotations.md#member-metadata
 typing/valid/bare-trait-dyn-trait-types-bounds-and-impls-are-valid.hd	type	accept	lang/09-traits.md#r-trait.dyn.reference-keyword
-typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	type	accept	lang/09-traits.md#r-trait.dyn.reference-keyword
+typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	type	accept	lang/09-traits.md#r-trait.dyn.reference-keyword
 typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
 typing/valid/caret-is-xor-own-stays-a-plain-name-and-caret-is-xor.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
 typing/valid/type-argument-defaults-a-bound-takes-the-trait-argument-default.hd	type	accept	lang/04-type-system.md#type-argument-defaults
@@ -881,7 +881,7 @@ typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd
 typing/valid/related-traits-hand-written-eq-and-hash-with-no-derive-are-valid.hd	type	accept	lang/09-traits.md#related-traits
 typing/valid/row-variance-a-spread-copy-builds-the-wider-list.hd	type	accept	lang/04-type-system.md#r-types.variance.function
 typing/valid/row-param-nested-a-caller-with-the-solved-row-is-clean-127-legal-rows.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
-typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	type	accept	lang/09-traits.md#sealed-traits
+typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	type	accept	lang/09-traits.md#sealed-traits
 typing/valid/sealed-traits-an-inherent-method-may-share-a-sealed-member-name.hd	type	accept	lang/09-traits.md#sealed-traits
 typing/valid/sealed-traits-sealed-traits-may-be-named-as-bounds-and-supertraits.hd	type	accept	lang/09-traits.md#sealed-traits
 typing/valid/recursive-types-recursion-through-a-reference-or-a-list-is-accepted.hd	type	accept	lang/08-data-and-enums.md#r-data.recursive.through-reference
@@ -5275,7 +5275,7 @@ runtime/valid/downcast-mut-and-bound-receivers.hd	runtime	accept	lang/09-traits.
 runtime/valid/runtime-type-names-the-recorded-type.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 runtime/valid/a-list-of-inspectable-values-downcasts-by-method.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 typing/invalid/concrete-reference-bound-associated-type-mismatch.hd	type	reject:type-mismatch	lang/09-traits.md#dynamic-trait-values
-typing/valid/the-checker-reads-a-projection-through-a-trait-value-as-its-bound-type.hd	type	accept	lang/09-traits.md#dynamic-trait-values
+typing/valid/trait-values-a-projection-through-a-trait-value-reads-as-its-bound-type.hd	type	accept	lang/09-traits.md#dynamic-trait-values
 typing/invalid/trait-value-projection-return-mismatch.hd	type	reject:type-mismatch	lang/09-traits.md#dynamic-trait-values
 runtime/valid/trait-values-that-bind-differently-get-their-own-vtables.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values
 runtime/valid/a-generic-instantiated-at-a-bound-trait-value-normalizes-its-projection.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values

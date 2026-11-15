@@ -1,6 +1,6 @@
 runtime/valid/tuple-rest-unnamed-shared-enum-parameters-select-as-underscore-members.hd	A10b	same title as reject typing/invalid/tuple-rest-unnamed-shared-enum-parameters-select-as-underscore-members.hd
 runtime/valid/context-values-a-context-argument-fixes-a-generic-key.hd	A10b	same title as reject typing/invalid/context-values-a-context-with-an-extra-key-does-not-match-a-generic-context-parameter.hd
-typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	A10b	same title as reject typing/invalid/bare-trait-a-trait-as-a-tuple-element-type-is-one-error.hd
+typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10b	same title as reject typing/invalid/bare-trait-a-trait-as-a-tuple-element-type-is-one-error.hd
 typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10b	same title as reject parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd
 typing/valid/match-an-enum-match-with-an-arm-per-variant-is-exhaustive.hd	A10b	same title as reject typing/invalid/match-an-optional-enum-match-missing-a-nested-variant-is-nonexhaustive.hd
 typing/valid/propagation-a-try-error-converts-through-a-from-impl.hd	A10b	same title as reject typing/invalid/propagation-an-error-type-without-an-error-impl-does-not-convert-to-a-dyn-error.hd
@@ -55,7 +55,7 @@ typing/valid/literal-types-the-largest-millisecond-duration-literal-is-in-range.
 typing/valid/literal-types-the-largest-second-duration-literal-is-in-range.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
 typing/valid/literal-types-the-largest-minute-duration-literal-is-in-range.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
 typing/valid/literal-types-the-largest-hour-duration-literal-is-in-range.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
-typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	A10b	same title as reject typing/invalid/sealed-traits-an-unknown-bound-adds-no-error-at-an-equality-use.hd
+typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10b	same title as reject typing/invalid/sealed-traits-an-unknown-bound-adds-no-error-at-an-equality-use.hd
 typing/valid/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row.hd	A10b	same title as reject typing/invalid/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch.hd
 typing/valid/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller.hd	A10b	same title as reject typing/invalid/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it.hd
 typing/valid/tuple-rest-a-spread-pattern-covers-every-list.hd	A10b	same title as reject typing/invalid/tuple-rest-a-spread-pattern-covers-every-list-refutable-let.hd
@@ -83,5 +83,5 @@ runtime/valid/initialization-implicit-an-index-read-reads-an-earlier-binding-thr
 runtime/valid/initialization-implicit-an-interpolation-reads-an-earlier-binding-through-display.hd	A10b	same title as reject typing/invalid/initialization-implicit-an-interpolation-reads-a-later-binding-through-display.hd
 runtime/valid/initialization-implicit-a-comparison-reads-an-earlier-binding-through-partial-cmp.hd	A10b	same title as reject typing/invalid/initialization-implicit-a-comparison-reads-a-later-binding-through-partial-cmp.hd
 runtime/valid/initialization-implicit-calling-a-value-reads-an-earlier-binding-through-apply.hd	A10b	same title as reject typing/invalid/initialization-implicit-calling-a-value-reads-a-later-binding-through-apply.hd
-typing/valid/the-checker-reads-a-projection-through-a-trait-value-as-its-bound-type.hd	A10b	same title as reject typing/invalid/trait-value-projection-return-mismatch.hd
+typing/valid/trait-values-a-projection-through-a-trait-value-reads-as-its-bound-type.hd	A10b	same title as reject typing/invalid/trait-value-projection-return-mismatch.hd
 typing/valid/pending-trait-proof-resolves-after-a-later-assignment.hd	A10b	same title as reject typing/invalid/trait-resolution-depth-pending.hd

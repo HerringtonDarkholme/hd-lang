@@ -1,4 +1,4 @@
-typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	A10c	# test: bare trait body nested in tuple and option is one error
+typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10c	# test: bare trait body nested in tuple and option is one error
 typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
 typing/valid/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
 typing/valid/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
@@ -17,6 +17,6 @@ typing/valid/literal-types-a-large-negative-float-literal-within-f64-is-accepted
 typing/valid/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
 typing/valid/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
 typing/valid/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
-typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	A10c	# test: a bound naming no trait adds no second error
+typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10c	# test: a bound naming no trait adds no second error
 typing/valid/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10c	# test: a parameter named nowhere is reported once
 typing/valid/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported

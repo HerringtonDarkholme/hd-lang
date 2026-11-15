@@ -752,7 +752,7 @@ typing/invalid/self-in-a-list-is-unavailable-through-a-key.hd	reject:dyn-member-
 typing/invalid/self-in-a-parameter-is-unavailable-through-a-key.hd	reject:dyn-member-unavailable	lang/09-traits.md#dynamic-trait-values	-7	
 typing/invalid/self-in-a-result-is-unavailable-through-a-key.hd	reject:dyn-member-unavailable	lang/09-traits.md#dynamic-trait-values	-7	
 typing/invalid/trait-value-projection-return-mismatch.hd	reject:type-mismatch	lang/09-traits.md#dynamic-trait-values	-1	
-typing/valid/the-checker-reads-a-projection-through-a-trait-value-as-its-bound-type.hd	accept	lang/09-traits.md#dynamic-trait-values	-3	
+typing/valid/trait-values-a-projection-through-a-trait-value-reads-as-its-bound-type.hd	accept	lang/09-traits.md#dynamic-trait-values	-3	
 runtime/valid/embedded-field-satisfies-trait.hd	accept	lang/09-traits.md#embedding-and-trait-satisfaction	-3	
 typing/invalid/bodyless-impl-via-promotion.hd	reject:missing-trait-method	lang/09-traits.md#embedding-and-trait-satisfaction	-1	
 typing/invalid/error-implementation-local-type.hd	reject:missing-supertrait-implementation	lang/09-traits.md#error-trait	-1	
@@ -833,7 +833,7 @@ typing/invalid/bare-trait-a-trait-as-a-local-function-parameter-type-is-one-erro
 typing/invalid/bare-trait-a-trait-as-a-struct-type-argument-is-one-error.hd	reject:trait-used-as-type	lang/09-traits.md#r-trait.dyn.reference-keyword	-1	
 typing/invalid/bare-trait-a-trait-as-a-tuple-element-type-is-one-error.hd	reject:trait-used-as-type	lang/09-traits.md#r-trait.dyn.reference-keyword	-1	
 typing/valid/bare-trait-dyn-trait-types-bounds-and-impls-are-valid.hd	accept	lang/09-traits.md#r-trait.dyn.reference-keyword	-2	
-typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	accept	lang/09-traits.md#r-trait.dyn.reference-keyword	-2	
+typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	accept	lang/09-traits.md#r-trait.dyn.reference-keyword	-2	
 runtime/valid/supertrait-calls-a-blanket-parent-impl-answers-through-the-child-value.hd	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods	-3	
 runtime/valid/supertrait-calls-a-child-value-widens-where-a-supertrait-value-is-expected.hd	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods	-3	
 runtime/valid/supertrait-calls-a-diamond-reaches-the-shared-parent-through-both-paths.hd	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods	-4	

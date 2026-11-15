@@ -1,4 +1,4 @@
-# test: bare trait body nested in tuple and option is one error
+# test: bare trait dyn trait types in every body position are valid
 trait Factory:
     fn create() -> Self
 
