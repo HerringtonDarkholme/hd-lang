@@ -15,7 +15,7 @@ sloppy-expect	hd_mono	22
 sloppy-expect	hd_opt	15
 sloppy-expect	hd_resolve	12
 sloppy-expect	hd_syntax	5
-sloppy-expect	hd_tir	64
+sloppy-expect	hd_tir	63
 sloppy-expect	hd_types	35
 sloppy-expect	hd_wasm	252
 sloppy-panic	hd_driver	1
