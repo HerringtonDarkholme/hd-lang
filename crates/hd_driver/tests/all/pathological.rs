@@ -2961,6 +2961,34 @@ fn generic_nest(n: usize) -> String {
     )
 }
 
+/// [`generic_nest`] with nine parameters: each level's type
+/// `W^i[?t, ?a, ..., ?h]` holds the level below and the same eight
+/// literal variables, nine variables in all, which stay unbound to the
+/// body's end.
+fn wide_generic_nest(n: usize) -> String {
+    let params = "T, A, B, C, D, E, F, G, H";
+    let fields = "v: T, a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H";
+    let mut s = format!(
+        "struct W[{params}]:\n{}\n\nfn wrap[{params}](v: T, a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H) -> W[{params}]:\n    W {{ v: v, a: a, b: b, c: c, d: d, e: e, f: f, g: g, h: h }}\n\npub fn main() -> void $ Console:\n    let t = +0\n",
+        fields
+            .split(", ")
+            .map(|f| format!("    {f}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    for x in ["a", "b", "c", "d", "e", "f", "g", "h"] {
+        let _ = writeln!(s, "    let {x} = +0");
+    }
+    let _ = writeln!(
+        s,
+        "    w := {}t{}\n    t = w{}\n    println(\"$t $a $b $c $d $e $f $g $h\")",
+        "wrap(".repeat(n),
+        ", a, b, c, d, e, f, g, h)".repeat(n),
+        ".v".repeat(n)
+    );
+    s
+}
+
 /// [`generic_nest`] inside a generic function, on its parameter: each
 /// level's type `W^i[T]` holds the parameter, not a variable.
 fn generic_nest_in_generic(n: usize) -> String {
@@ -2970,6 +2998,35 @@ fn generic_nest_in_generic(n: usize) -> String {
         ")".repeat(n),
         ".v".repeat(n)
     )
+}
+
+// Checker: #1991, the canonical-fold memo kept only types with at most
+// eight inference variables, so each level of a nest whose types carry
+// nine re-folded the whole type below it: O(depth^2) type nodes. Every
+// fold is kept now. The count leaves out `InferTable::resolve`'s share,
+// whose open-resolution memo keeps at most four variables (`OPEN_VARS`)
+// and stays quadratic on this nest.
+#[test]
+fn wide_generic_nest_folds_each_level_once() {
+    on_test_stack(|| {
+        let nodes = |n: usize| {
+            let ((out, resolve), nodes) = hd_types::work::count_type_nodes(|| {
+                hd_types::work::count_resolve_nodes(|| {
+                    compile(&wide_generic_nest(n), &Goal::Analyze)
+                })
+            });
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            nodes - resolve
+        };
+        // The first build also checks what the run's memo then keeps.
+        nodes(0);
+        let zero = nodes(0);
+        let (small, large) = (nodes(3) - zero, nodes(30) - zero);
+        assert!(
+            small > 0 && large <= 11 * small,
+            "type nodes besides resolution at depth 3 and 30: {small} and {large}"
+        );
+    });
 }
 
 // Checker: #1912, each level of a generic nest asks `Copy` of its

@@ -1405,18 +1405,16 @@ pub fn canonicalize(
 /// variable was numbered: the folded type and its variables in
 /// first-occurrence order, which are then numbered `0..`. A fold is a
 /// function of the type's interned content, so an entry holds for the
-/// body's whole run. Only a type with at most [`CANON_MEMO_VARS`]
-/// variables is kept, so an entry costs a constant.
+/// body's whole run. Every such fold is kept, whatever its variables.
 ///
 /// Each level of `wrap(wrap(...))` asks a goal on `W^i[?int]`, whose
 /// part `W^(i-1)[?int]` the level below folded first in its own goal; a
 /// goal then folds one new node, not the `i` below it (#1912). Cost: a
 /// hash probe per node folded with no variable numbered (the leftmost
-/// path of the goal's types), and a constant per entry kept.
+/// path of the goal's types); an entry, and a hit's copy of it, costs
+/// its variables, which the fold that made the entry already walked and
+/// the fold a hit saves would walk again.
 pub type CanonMemo = HashMap<Ty, (Ty, Box<[InferVar]>)>;
-
-/// The most variables a [`CanonMemo`] entry keeps.
-const CANON_MEMO_VARS: usize = 8;
 
 /// The leaves a fold replaces, each with its replacement: the inference
 /// variables, or the placeholders (`Canon(i)`, given with their type).
@@ -1493,10 +1491,7 @@ fn fold_vars<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
         None => false,
     };
     let r = fold_node(pool, t, leaves)?;
-    if fresh
-        && let LeafKind::Number(vars, Some(shared)) = &mut leaves.kind
-        && vars.map.len() <= CANON_MEMO_VARS
-    {
+    if fresh && let LeafKind::Number(vars, Some(shared)) = &mut leaves.kind {
         shared.insert(t, (r, vars.map.as_slice().into()));
     }
     Ok(r)
@@ -3778,8 +3773,8 @@ mod tests {
     // #1912: a body's canonical-fold memo answers a type folded before
     // any variable was numbered with the fold and the variables in order;
     // a goal that holds it as its leftmost part reuses it, and every goal
-    // canonicalizes as it does with no memo. A type with more variables
-    // than an entry keeps is folded each time.
+    // canonicalizes as it does with no memo. #1991: a type with nine
+    // variables is kept too.
     #[test]
     fn canonical_fold_memo_reuses_a_leading_part_and_changes_no_goal() {
         let gp = InternPool::new();
@@ -3787,9 +3782,7 @@ mod tests {
         let p = Types::with_local(&gp, &local);
         let mut table = InferTable::default();
         let (w, show) = (DefId::from_raw(1), DefId::from_raw(2));
-        let vars: Vec<Ty> = (0..=super::CANON_MEMO_VARS)
-            .map(|_| table.fresh(p, VarKind::General))
-            .collect();
+        let vars: Vec<Ty> = (0..9).map(|_| table.fresh(p, VarKind::General)).collect();
         let adt = |args: &[Ty]| {
             p.intern_ty(&TyData::Adt {
                 def: w,
@@ -3820,10 +3813,7 @@ mod tests {
         }
         assert_eq!(memo.get(&inner).map(|(_, vs)| vs.len()), Some(2));
         assert_eq!(memo.get(&outer).map(|(_, vs)| vs.len()), Some(3));
-        assert!(
-            !memo.contains_key(&wide),
-            "more variables than an entry keeps"
-        );
+        assert_eq!(memo.get(&wide).map(|(_, vs)| vs.len()), Some(9));
     }
 
     #[test]
