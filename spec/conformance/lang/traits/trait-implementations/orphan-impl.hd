@@ -1,4 +1,6 @@
+# test: implementing a std trait for a std type is an orphan implementation
 # Spec 09 Traits: trait.own.rule, trait.own.orphan, trait.own.std.
-impl Display for i32: # diagnostic: orphan-impl
-    fn to_string(&self) -> string:
-        "$self"
+# std has no Error implementation for i32, so only the ownership rule is broken.
+use std.error.Error
+
+impl Error for i32 # diagnostic: orphan-impl
