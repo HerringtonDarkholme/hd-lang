@@ -1,3 +1,0 @@
-# @dump: diagnostics
-pub fn main() -> void $ Console:
-    println(42)

@@ -3220,7 +3220,8 @@ and environments are frozen and read through `&`.
 | conformance fixtures (`spec/conformance`) | accept or reject and the code of each diagnostic, through the portable command contract; failures in `KNOWN_FAILURES.tsv` |
 | solver unit tests (`hd_types/src/solver.rs`) | head index, commit and stall, memo publication, heights and cycles, the per-body charge, sealed rows, tuple templates, instantiation schemes |
 | memo invariance (`crates/hd_driver/tests/all/impl_universe.rs`) | two modules asking one open goal with different closures get their own answers, whichever runs first and on any thread count |
-| driver tests (`header_goals.rs`, `sealed_rows.rs`, `trials.rs`, `delegation_run.rs` and others) | header goals, compiler-supplied rows, the instantiation choice, delegation |
+| driver tests (`crates/hd_driver/tests/all/header_goals.rs`, `trials.rs` and others) | header answers across executors and edits, the instantiation choice's TIR |
+| stage cases (`crates/*/tests/cases/<topic>/`: `header-goals`, `sealed-rows`, `trials` and others) | the diagnostics or run output of one source: header goals, compiler-supplied rows, the instantiation choice |
 
 Planned, not built: an impl-set fuzzer against a naive recursive solver;
 a coherence fuzzer that enumerates ground types; a select-soundness check
