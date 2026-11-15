@@ -294,6 +294,14 @@ impl Gen<'_, '_> {
         (self.s.ty(v).is_some() && b.tags[v as usize] == Tag::Read).then_some(v)
     }
 
+    /// Whether value `v` is a read of a whole local, with no projection.
+    fn whole_binding_read(&self, v: u32) -> bool {
+        let b = self.s.b;
+        self.read_of(v)
+            .and_then(|r| b.decode_place(b.data[r as usize][0]))
+            .is_some_and(|p| matches!(p.root, PlaceRoot::Local(_)) && p.proj.is_empty())
+    }
+
     /// What the place `word` of instruction `i` lies in: a loan, or a
     /// reference value it reborrows from (`ref.dep.origin.place`).
     fn lies(&self, i: u32, word: u32) -> Option<Result<Origin, u32>> {
@@ -564,6 +572,15 @@ impl Gen<'_, '_> {
                 Some((PlaceRoot::Value(x), first))
                     if !matches!(first, Some(Proj::Deref | Proj::Elem(_)))
                         && self.read_of(x.0).is_some() =>
+                {
+                    todo.push((x.0, r));
+                }
+                // An element of a list read whole from a binding, as a
+                // `for` loop reads its hidden collection local, is lent
+                // from what the binding is lent from
+                // (`ref.dep.origin.element`).
+                Some((PlaceRoot::Value(x), Some(Proj::Elem(_))))
+                    if self.whole_binding_read(x.0) =>
                 {
                     todo.push((x.0, r));
                 }

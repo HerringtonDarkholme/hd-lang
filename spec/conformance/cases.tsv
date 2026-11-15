@@ -5614,7 +5614,9 @@ typing/invalid/dependent-result-store-caller-place.hd	type	reject:local-referenc
 typing/valid/dependent-result-counted-lend.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
 runtime/valid/dependent-result-counted-lend.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/valid/dependent-result-counted-lend-bindings.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/valid/dependent-result-counted-lend-for.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/dependent-result-counted-lend-local-list.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-counted-lend-for-local-list.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/dependent-result-counted-lend-fresh-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/dependent-result-counted-lend-mut-borrowed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/dependent-result-counted-lend-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
