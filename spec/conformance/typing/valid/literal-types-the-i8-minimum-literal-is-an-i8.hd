@@ -1,0 +1,6 @@
+# test: literal types the i8 minimum literal is an i8
+fn low() -> i8:
+    -128
+
+pub fn main() -> void:
+    pass

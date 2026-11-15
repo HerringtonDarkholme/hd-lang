@@ -1,0 +1,6 @@
+# test: variance an unrelated function result is a type mismatch
+fn count() -> i32:
+    1
+
+fn erase() -> fn() -> string:
+    count # diagnostic: type-mismatch

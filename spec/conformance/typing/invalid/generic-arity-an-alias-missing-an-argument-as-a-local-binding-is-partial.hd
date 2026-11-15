@@ -1,0 +1,13 @@
+# test: generic arity an alias missing an argument as a local binding is partial
+type Both[A, B] = (A, B)
+
+trait Show:
+    fn show(self) -> string
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+fn f() -> i32:
+    let b: Both[i32] = (1, 2) # diagnostic: partial-generic-arguments
+    b._0

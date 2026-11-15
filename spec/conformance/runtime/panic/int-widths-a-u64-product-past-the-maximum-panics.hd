@@ -1,0 +1,6 @@
+# test: int widths a u64 product past the maximum panics
+# Spec lang/04-type-system.md: types.arith.checked.
+
+pub fn main() -> void $ Console:
+    let big: u64 = 4294967296
+    println(big * big) # panic: integer-overflow

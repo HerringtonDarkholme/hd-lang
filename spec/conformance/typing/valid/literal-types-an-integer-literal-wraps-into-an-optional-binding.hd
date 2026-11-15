@@ -1,0 +1,7 @@
+# test: literal types an integer literal wraps into an optional binding
+fn f() -> i32?:
+    let x: i32? = 42
+    x
+
+pub fn main() -> void:
+    pass

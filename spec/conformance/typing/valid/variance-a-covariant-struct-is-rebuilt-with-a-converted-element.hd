@@ -1,0 +1,6 @@
+# test: variance a covariant struct is rebuilt with a converted element
+struct Producer[+T]:
+    value: T
+
+fn widen(value: Producer[i32]) -> Producer[string]:
+    Producer { value: value.value.to_string() }

@@ -1,0 +1,5 @@
+# test: type argument defaults a default may not name its own parameter
+fn f[A = A](v: A) -> A: # diagnostic: binding-not-yet-visible
+    v
+pub fn main() -> void:
+    pass

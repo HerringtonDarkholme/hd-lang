@@ -1,0 +1,6 @@
+# test: literal types the largest millisecond duration literal is in range
+fn delay():
+    _ := 9223372036854775807ms
+
+pub fn main() -> void:
+    pass

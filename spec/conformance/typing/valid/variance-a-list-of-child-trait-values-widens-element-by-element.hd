@@ -1,0 +1,9 @@
+# test: variance a list of child trait values widens element by element
+trait Animal:
+    fn name(self) -> string
+
+trait Dog < Animal:
+    fn bark(self) -> string
+
+fn widen(items: List[*dyn Dog]) -> List[*dyn Animal]:
+    [for item in items => item]

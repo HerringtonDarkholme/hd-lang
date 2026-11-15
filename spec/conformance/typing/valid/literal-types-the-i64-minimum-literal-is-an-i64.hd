@@ -1,0 +1,6 @@
+# test: literal types the i64 minimum literal is an i64
+fn low() -> i64:
+    -9223372036854775808
+
+pub fn main() -> void:
+    pass

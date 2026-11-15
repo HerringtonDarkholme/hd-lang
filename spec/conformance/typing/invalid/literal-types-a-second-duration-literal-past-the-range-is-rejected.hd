@@ -1,0 +1,6 @@
+# test: literal types a second duration literal past the range is rejected
+fn delay():
+    _ := 9223372036854776s # diagnostic: integer-literal-range
+
+pub fn main() -> void:
+    pass

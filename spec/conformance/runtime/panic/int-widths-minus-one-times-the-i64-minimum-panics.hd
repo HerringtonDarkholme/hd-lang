@@ -1,0 +1,7 @@
+# test: int widths minus one times the i64 minimum panics
+# Spec lang/04-type-system.md: types.arith.checked.
+
+pub fn main() -> void $ Console:
+    let low: i64 = -9223372036854775807 - 1
+    let minus: i64 = -1
+    println(minus * low) # panic: integer-overflow

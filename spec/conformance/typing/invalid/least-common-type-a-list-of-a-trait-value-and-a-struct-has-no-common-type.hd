@@ -1,0 +1,21 @@
+# test: least common type a list of a trait value and a struct has no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+struct User:
+    name: string
+
+impl Display for User:
+    fn to_string(&self) -> string:
+        self.name
+
+trait Named:
+    fn name(self) -> string
+
+trait Shown < Named:
+    fn show(self) -> string
+
+trait Tagged < Named:
+    fn tag(self) -> string
+
+fn f(u: User, d: *dyn Display) -> void:
+    _v := [d, u] # diagnostic: no-common-type

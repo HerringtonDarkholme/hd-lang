@@ -1,0 +1,13 @@
+# test: generic arity an alias missing an argument as an impl target is partial
+type Both[A, B] = (A, B)
+
+trait Show:
+    fn show(self) -> string
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+impl Show for Both[i32]: # diagnostic: partial-generic-arguments
+    fn show(self) -> string:
+        ""

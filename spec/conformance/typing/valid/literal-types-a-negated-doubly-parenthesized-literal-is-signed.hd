@@ -1,0 +1,6 @@
+# test: literal types a negated doubly parenthesized literal is signed
+fn f() -> i32:
+    -((5))
+
+pub fn main() -> void:
+    pass

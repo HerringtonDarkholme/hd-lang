@@ -1,0 +1,7 @@
+# test: literal types an integer literal converts to a display value
+fn f() -> string:
+    let x: &dyn Display = &5
+    "$x"
+
+pub fn main() -> void:
+    pass

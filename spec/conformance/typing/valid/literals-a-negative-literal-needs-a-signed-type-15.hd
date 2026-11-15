@@ -1,6 +1,0 @@
-# test: a negative literal needs a signed type
-fn low() -> i8:
-    -128
-
-pub fn main() -> void:
-    pass

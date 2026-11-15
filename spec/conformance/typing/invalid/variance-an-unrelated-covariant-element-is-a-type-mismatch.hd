@@ -1,0 +1,6 @@
+# test: variance an unrelated covariant element is a type mismatch
+struct Producer[+T]:
+    value: T
+
+fn widen(value: Producer[i32]) -> Producer[string]:
+    value # diagnostic: type-mismatch

@@ -1,0 +1,6 @@
+# test: variance a closure narrows a trait value parameter
+fn show(value: &dyn Display) -> void:
+    ()
+
+fn narrow() -> fn(&i32) -> void:
+    fn(value: &i32) -> void: show(value)

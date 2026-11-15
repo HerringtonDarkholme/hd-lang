@@ -1,0 +1,6 @@
+# test: literal types the largest second duration literal is in range
+fn delay():
+    _ := 9223372036854775s
+
+pub fn main() -> void:
+    pass

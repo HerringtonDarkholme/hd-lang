@@ -1,0 +1,22 @@
+# test: least common type sibling trait values convert to an expected parent trait list
+# Spec lang/04-type-system.md: types.lct.sites.
+# expect: accept
+
+struct User:
+    name: string
+
+impl Display for User:
+    fn to_string(&self) -> string:
+        self.name
+
+trait Named:
+    fn name(self) -> string
+
+trait Shown < Named:
+    fn show(self) -> string
+
+trait Tagged < Named:
+    fn tag(self) -> string
+
+fn f(s: *dyn Shown, t: *dyn Tagged) -> List[*dyn Named]:
+    [s, t]

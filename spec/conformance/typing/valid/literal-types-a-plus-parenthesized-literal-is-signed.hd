@@ -1,0 +1,6 @@
+# test: literal types a plus parenthesized literal is signed
+fn f() -> i32:
+    +(5)
+
+pub fn main() -> void:
+    pass

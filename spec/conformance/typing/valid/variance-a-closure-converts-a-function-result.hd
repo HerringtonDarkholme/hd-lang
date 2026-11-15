@@ -1,0 +1,6 @@
+# test: variance a closure converts a function result
+fn count() -> i32:
+    1
+
+fn erase() -> fn() -> string:
+    fn() -> string: count().to_string()

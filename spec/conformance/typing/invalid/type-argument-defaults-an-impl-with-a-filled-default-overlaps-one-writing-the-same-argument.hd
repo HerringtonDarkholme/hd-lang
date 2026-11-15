@@ -1,0 +1,17 @@
+# test: type argument defaults an impl with a filled default overlaps one writing the same argument
+struct Money:
+    cents: i64
+
+impl Same for Money:
+    fn same(self, other: Money) -> bool:
+        true
+
+impl Same[Money] for Money: # diagnostic: overlapping-impl
+    fn same(self, other: Money) -> bool:
+        false
+
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+pub fn main() -> void:
+    pass

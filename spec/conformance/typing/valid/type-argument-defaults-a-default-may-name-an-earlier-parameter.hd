@@ -1,0 +1,5 @@
+# test: type argument defaults a default may name an earlier parameter
+fn f[A = i32, B = A](a: A, b: B) -> A:
+    a
+pub fn main() -> void:
+    pass

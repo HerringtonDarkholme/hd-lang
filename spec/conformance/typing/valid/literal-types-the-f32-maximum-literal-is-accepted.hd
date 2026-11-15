@@ -1,0 +1,4 @@
+# test: literal types the f32 maximum literal is accepted
+pub fn main() -> void:
+    let e: f32 = 3.4028235e38
+    pass

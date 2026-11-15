@@ -1,0 +1,4 @@
+# test: literal types an f32 literal near the maximum is accepted
+pub fn main() -> void:
+    let g: f32 = 1e38
+    pass

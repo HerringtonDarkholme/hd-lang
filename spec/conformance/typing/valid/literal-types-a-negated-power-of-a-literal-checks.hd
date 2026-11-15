@@ -1,0 +1,6 @@
+# test: literal types a negated power of a literal checks
+fn f() -> i32:
+    -2 ** 2
+
+pub fn main() -> void:
+    pass

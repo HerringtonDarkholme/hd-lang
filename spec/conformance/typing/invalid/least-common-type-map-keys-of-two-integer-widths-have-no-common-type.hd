@@ -1,0 +1,5 @@
+# test: least common type map keys of two integer widths have no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(a: i16, b: i64) -> void:
+    _v := { a: 1, b: 2 } # diagnostic: no-common-type

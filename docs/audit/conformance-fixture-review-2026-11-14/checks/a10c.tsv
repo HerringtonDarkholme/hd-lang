@@ -10,10 +10,10 @@ typing/valid/self-type-a-function-outside-an-impl-names-a-concrete-parameter-typ
 typing/valid/self-type-a-struct-field-names-a-concrete-type.hd	A10c	# test: checker self outside a trait or impl is unknown
 typing/valid/use-forms-a-group-use-from-a-package-module.hd	A10c	# test: failed group use reports one error
 typing/valid/use-forms-a-single-use-of-a-package-module.hd	A10c	# test: failed single use reports one error
-typing/valid/generic-inference-join-bool-literal-against-integer-still-errors-38-legal.hd	A10c	# test: bool literal against integer still errors
+typing/valid/generic-inference-two-integer-literals-join.hd	A10c	# test: bool literal against integer still errors
 typing/valid/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	A10c	# test: a bare parameter target with a delegation is rejected
 typing/valid/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd	A10c	# test: a rejected block reports nothing else
-typing/valid/literals-float-literal-past-f64-range-is-rejected-55-legal.hd	A10c	# test: float literal past f64 range is rejected
+typing/valid/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd	A10c	# test: float literal past f64 range is rejected
 typing/valid/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
 typing/valid/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
 typing/valid/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once

@@ -1,0 +1,6 @@
+# test: variance a function widening its result to an optional is a representation change
+fn count() -> i32:
+    1
+
+fn erase() -> fn() -> i32?:
+    count # diagnostic: variance-representation-change

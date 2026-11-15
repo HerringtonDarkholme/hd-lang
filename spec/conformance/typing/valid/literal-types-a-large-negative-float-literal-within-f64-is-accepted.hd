@@ -1,0 +1,4 @@
+# test: literal types a large negative float literal within f64 is accepted
+pub fn main() -> void:
+    let x: f64 = -1e300
+    pass

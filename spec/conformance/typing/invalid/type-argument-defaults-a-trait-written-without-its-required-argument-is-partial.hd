@@ -1,0 +1,14 @@
+# test: type argument defaults a trait written without its required argument is partial
+struct Pair[A, B = A]:
+    first: A
+    second: B
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+trait Repo[T]:
+    fn find(self, id: string) -> T?
+
+fn f(r: &dyn Repo) -> void: # diagnostic: partial-generic-arguments
+    pass
+
+pub fn main() -> void:
+    pass

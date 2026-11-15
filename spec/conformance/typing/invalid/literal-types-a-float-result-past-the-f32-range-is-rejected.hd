@@ -1,0 +1,6 @@
+# test: literal types a float result past the f32 range is rejected
+fn give() -> f32:
+    -1e40 # diagnostic: float-literal-range
+
+pub fn main() -> void:
+    pass

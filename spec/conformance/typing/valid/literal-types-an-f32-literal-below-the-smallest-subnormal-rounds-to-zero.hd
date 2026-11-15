@@ -1,0 +1,4 @@
+# test: literal types an f32 literal below the smallest subnormal rounds to zero
+pub fn main() -> void:
+    let f: f32 = 1e-60
+    pass

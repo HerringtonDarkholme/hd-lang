@@ -1,0 +1,9 @@
+# test: variance child trait widening inside a list is a representation change
+trait Animal:
+    fn name(self) -> string
+
+trait Dog < Animal:
+    fn bark(self) -> string
+
+fn widen(items: List[*dyn Dog]) -> List[*dyn Animal]:
+    items # diagnostic: variance-representation-change

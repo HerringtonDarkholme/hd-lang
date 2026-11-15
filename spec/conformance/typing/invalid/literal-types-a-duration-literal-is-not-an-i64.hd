@@ -1,0 +1,6 @@
+# test: literal types a duration literal is not an i64
+fn delay() -> i64:
+    500ms # diagnostic: type-mismatch
+
+pub fn main() -> void:
+    pass

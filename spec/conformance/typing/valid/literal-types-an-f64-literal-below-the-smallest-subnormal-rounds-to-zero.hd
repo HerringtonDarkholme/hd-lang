@@ -1,0 +1,4 @@
+# test: literal types an f64 literal below the smallest subnormal rounds to zero
+pub fn main() -> void:
+    let c: f64 = 1e-999
+    pass

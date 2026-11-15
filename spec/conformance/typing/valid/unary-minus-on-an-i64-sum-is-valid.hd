@@ -1,0 +1,6 @@
+# test: unary minus on an i64 sum is valid
+fn f(z: i64) -> i64:
+    -(z + 2)
+
+pub fn main() -> void:
+    pass

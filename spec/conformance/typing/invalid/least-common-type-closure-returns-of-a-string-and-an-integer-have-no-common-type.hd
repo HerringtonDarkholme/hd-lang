@@ -1,0 +1,8 @@
+# test: least common type closure returns of a string and an integer have no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(a: i32) -> void:
+    _g := fn(c: bool):
+        if c:
+            return "x"
+        a # diagnostic: no-common-type

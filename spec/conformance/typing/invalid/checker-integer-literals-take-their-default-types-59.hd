@@ -1,7 +1,0 @@
-# test: checker integer literals take their default types: a negated one cannot become unsigned
-pub fn main() -> void:
-    x := 3
-    y := +3
-    z := -1 # diagnostic: type-mismatch
-    let w: usize = z
-    pass

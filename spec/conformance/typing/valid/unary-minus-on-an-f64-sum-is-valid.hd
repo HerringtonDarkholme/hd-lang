@@ -1,0 +1,6 @@
+# test: unary minus on an f64 sum is valid
+fn f() -> f64:
+    -(1.5 + 2.0)
+
+pub fn main() -> void:
+    pass

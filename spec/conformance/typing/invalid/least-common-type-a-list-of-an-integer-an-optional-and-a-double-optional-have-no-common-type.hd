@@ -1,0 +1,5 @@
+# test: least common type a list of an integer an optional and a double optional have no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(a: i32?, x: i32??) -> void:
+    _v := [1, a, x] # diagnostic: no-common-type

@@ -939,7 +939,7 @@ Ledger: b018 (24): 4 rows. Confirmed 3, plausible 1.
   `fn timeout(…) -> void: time.s(seconds)` returns a `Duration` from a `void`
   function. With the `use` added, it is still a `type-mismatch`. Fix:
   `_ := time.s(seconds)`.
-- Plausible B7: `typing/valid/instantiation-depth-a-check-reports-no-depth-error-0.hd`
+- Plausible B7: `typing/valid/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd`
   cites `#generics`; it tests `types.generic.call-cycle.fixed-callee`.
 
 #### b017 (`lang/03`, `lang/04`)
@@ -964,7 +964,7 @@ Ledger: b021 (45): 4 rows. Confirmed 3, covered by A6 1.
 - **Title copied across a generated series (B1)**: the
   `runtime/panic/int-widths-i8-overflow-panics-at-127-plus-1-0{1..4}.hd` series
   all share one title, but `-03` uses `u8` subtraction and `-04` uses `u16`
-  multiplication. `runtime/panic/int-widths-i64-multiply-and-minimum-division-overflow-04.hd`
+  multiplication. `runtime/panic/int-widths-a-u64-product-past-the-maximum-panics.hd`
   multiplies `u64`. These numbered series come from one spec example split
   into cases, and they keep the example's title. Each case should get its
   own title.
@@ -983,7 +983,7 @@ Ledger: b019 (45): 8 rows. Confirmed 4 (+ the A10 class), plausible 3, rejected 
 - **Systemic, script check A10** (`a10_legal_titles.py`, output `full/a10.tsv`):
   **all 40** `*-legal.hd` accept fixtures carry the `# test:` title of their
   reject twin word for word. An example is
-  `typing/valid/literals-float-literal-past-f64-range-is-rejected-55-legal.hd`,
+  `typing/valid/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd`,
   "…is rejected", which is an accept case. The pilot's `…-130-legal.hd` is one
   of them. Fix: give each `-legal` fixture a title that states what is
   accepted.
@@ -991,12 +991,12 @@ Ledger: b019 (45): 8 rows. Confirmed 4 (+ the A10 class), plausible 3, rejected 
   `typing/valid/literals-a-signed-literal-under-power-checks-and-evaluates-{87,88,89}.hd`.
   A `type` case never runs, so "`-2 ** 2` evaluates to -4" is untested. Fix:
   make them `runtime` cases with an `assert_equal`.
-- Plausible: `typing/valid/literals-an-integer-literal-never-takes-a-float-type-52.hd`
+- Plausible: `typing/valid/literal-types-float-literals-multiply-as-floats.hd`
   (uses only float literals). `runtime/valid/map-grow-and-remove.hd` (the header
   names order, replace, reindex and repair rules; the code exercises none).
   `typing/valid/literals-a-negated-bare-literal-is-signed-through-parentheses-{83..86}.hd`
   (no spec rule says this).
-- Rejected: `typing/invalid/checker-integer-literals-take-their-default-types-59.hd`.
+- Rejected: `typing/invalid/literal-types-a-negated-literal-cannot-become-unsigned.hd`.
   The marker is on line 5, which is where `hd` reports; the reviewer
   miscounted.
 
@@ -1100,7 +1100,7 @@ v2.1 with a private cache: 104 s and 10 tool calls (earlier batches took
   are the same programs as `typing/invalid/type-too-long-a-data-type-written-too-long-reports-once-{01,05,06}.hd`.
   The numbered ones add an unused 5-line preamble (`type Both`, `trait Show`,
   `trait Conv`) inherited from the spec example they were split from.
-- Plausible B7: `typing/valid/checker-a-written-type-has-no-extra-arguments-235.hd`
+- Plausible B7: `typing/valid/generics-a-written-type-with-its-exact-arguments-is-valid.hd`
   (an accept case citing the error-only `types.generic.too-long`).
 
 **Script check A12** (`a12_subset.py`, output `full/a12.tsv`): fixture A's
@@ -1155,7 +1155,7 @@ Ledger: b027 (36): 4 rows. Covered by A10 1, plausible 3. 279 s, 11 tool calls.
 
 Ledger: b030 (31): 3 rows. Confirmed 1, plausible 2. 79 s, 8 tool calls.
 
-- **Rejected for the wrong reason (B2)**: `typing/invalid/least-common-type-a-site-reports-once-and-rows-join-only-at-the-top-04.hd`.
+- **Rejected for the wrong reason (B2)**: `typing/invalid/least-common-type-functions-with-different-results-and-rows-have-no-common-type.hd`.
   `[orders, count]` mixes `fn() -> string $ Db` with `fn() -> i32 $ Clock`. The
   results already differ, so `no-common-type` holds whatever the rows do. The
   unused `health() -> string $ Clock` is the sibling that would test the row
@@ -1168,8 +1168,8 @@ Ledger: b030 (31): 3 rows. Confirmed 1, plausible 2. 79 s, 8 tool calls.
 
 Ledger: b026 (45): 2 rows, plausible 2. b029 (22): 4 rows, confirmed 2, plausible 2 (94 s, 8 calls).
 
-- **Wrong citation (B7)**: `typing/valid/ambiguous-row-fit-explicit-arguments-disambiguate-2.hd`
-  and `typing/valid/ambiguous-row-fit-unique-key-matching-stays-clean-1.hd`:
+- **Wrong citation (B7)**: `typing/valid/row-inference-explicit-type-arguments-disambiguate-two-keys.hd`
+  and `typing/valid/row-inference-a-unique-key-match-solves-the-argument.hd`:
   accept cases that cite the error-only `types.infer.ambiguous.code`.
 - **Spec question (B7)**: `typing/valid/least-common-type-weakens-a-covariant-list-element.hd`
   joins `List[*mut Cell]` with `List[*Cell]` by weakening the element type.
@@ -1212,7 +1212,7 @@ Ledger: b024 (43): 7 rows. Confirmed 1, plausible 6.
 
 Ledger: b031 (36): 4 rows. Plausible 4.
 
-- Plausible C1: `typing/valid/literals-duration-literals-have-a-fixed-import-free-type-3.hd`
+- Plausible C1: `typing/valid/literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms.hd`
   ~ `typing/valid/duration-literals.hd` (the same `500ms` literal and rule).
 - Plausible B3: `runtime/valid/an-interpolated-open-literal-writes-at-its-settled-width.hd`
   ("-7 7" is the same for every signed default width).
@@ -1273,7 +1273,7 @@ Ledger: b038 (44): 2 rows. Plausible 1, rejected 1. 108 s.
 
 - Plausible B3: `runtime/valid/fn-reference-variance.hd`. Test 2's
   `create().name == "Ada"` also holds if the reference were copied.
-- Rejected: `…/row-invariant-nested-data-generics-and-tuples-keep-their-row-116.hd`.
+- Rejected: `…/row-variance-an-invariant-struct-argument-keeps-its-row.hd`.
   With an invariant `Holder[T]`, two types that differ only in their row
   match only if the row is erased, so the rejection does show the row is
   kept.
@@ -1304,7 +1304,7 @@ suggests is common for heading-level citations).
   (`_ :=`, cites `#result-types`). `typing/invalid/generic-enum-variant-without-context.hd`
   and `typing/invalid/result-constructor-without-context.hd` (`cannot-infer-type`
   comes from `types.generic.default.unsolved`).
-- Plausible B1: `…/checker-generic-defaults-see-earlier-parameters-of-their-own-kind-123.hd`
+- Plausible B1: `…/type-argument-defaults-a-struct-parameter-may-default-to-a-concrete-type.hd`
   (`Box[T = i32]` has no earlier parameter).
 - Plausible C1: `typing/invalid/bare-err-is-unknown-name.hd` ~ `bare-ok-is-unknown-name.hd`.
 

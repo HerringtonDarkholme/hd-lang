@@ -1,0 +1,4 @@
+# test: literal types the f64 maximum literal is accepted
+pub fn main() -> void:
+    let a: f64 = 1.7976931348623157e308
+    pass

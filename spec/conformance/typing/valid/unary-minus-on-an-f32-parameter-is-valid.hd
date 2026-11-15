@@ -1,0 +1,6 @@
+# test: unary minus on an f32 parameter is valid
+fn f(x: f32) -> f32:
+    -x
+
+pub fn main() -> void:
+    pass

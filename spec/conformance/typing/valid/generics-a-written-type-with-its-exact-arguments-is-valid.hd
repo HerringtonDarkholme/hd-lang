@@ -1,0 +1,5 @@
+# test: generics a written type with its exact arguments is valid
+fn f(names: List[string]) -> i32:
+    0
+pub fn main() -> void:
+    pass

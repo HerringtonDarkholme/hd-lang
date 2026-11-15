@@ -1,0 +1,6 @@
+# test: literal types an integer literal wraps into an optional if branch
+fn f(flag: bool) -> i32?:
+    if flag: 40 else: .None
+
+pub fn main() -> void:
+    pass

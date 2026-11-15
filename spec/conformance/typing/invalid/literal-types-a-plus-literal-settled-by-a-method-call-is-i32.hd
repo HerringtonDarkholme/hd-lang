@@ -1,0 +1,8 @@
+# test: literal types a plus literal settled by a method call is i32
+pub fn main() -> void:
+    x := 3
+    y := +3
+    z := -1
+    a := y.abs()
+    let w: usize = y # diagnostic: type-mismatch
+    pass

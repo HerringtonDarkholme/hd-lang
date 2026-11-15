@@ -1,0 +1,25 @@
+# test: row variance an invariant struct argument keeps its row
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn hold(h: Holder[fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire(h: Holder[fn() -> void $ Db]) -> void:
+    hold(h) # diagnostic: type-mismatch

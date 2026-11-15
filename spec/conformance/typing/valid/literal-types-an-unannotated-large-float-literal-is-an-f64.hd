@@ -1,0 +1,4 @@
+# test: literal types an unannotated large float literal is an f64
+pub fn main() -> void:
+    h := 1e300
+    pass

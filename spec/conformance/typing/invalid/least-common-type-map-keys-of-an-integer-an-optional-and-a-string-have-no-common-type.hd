@@ -1,0 +1,5 @@
+# test: least common type map keys of an integer an optional and a string have no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(a: i32?) -> void:
+    _v := { 1: 0, a: 1, "s": 2 } # diagnostic: no-common-type

@@ -1,0 +1,6 @@
+# test: literal types a float literal wraps into an optional list element
+fn f() -> List[f64?]:
+    [1.5, .None]
+
+pub fn main() -> void:
+    pass

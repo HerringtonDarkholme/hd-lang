@@ -1,0 +1,6 @@
+# test: literal types an hour duration literal past the range is rejected
+fn delay():
+    _ := 2562047788016h # diagnostic: integer-literal-range
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,6 @@
+# test: literal types the largest hour duration literal is in range
+fn delay():
+    _ := 2562047788015h
+
+pub fn main() -> void:
+    pass

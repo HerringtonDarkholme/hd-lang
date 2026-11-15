@@ -1,0 +1,9 @@
+# test: least common type function returns of an integer an optional and a string have no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(c: bool, a: i32?):
+    if c:
+        return 1
+    if c:
+        return a
+    "s" # diagnostic: no-common-type

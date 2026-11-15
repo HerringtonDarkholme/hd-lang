@@ -1,6 +1,0 @@
-# test: a negative literal needs a signed type
-fn low() -> i64:
-    -9223372036854775808
-
-pub fn main() -> void:
-    pass
