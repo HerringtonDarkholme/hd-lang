@@ -1,0 +1,9 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let t: (i32, (string, bool), List[i32]) = (1, ("a", true), [2, 3])
+    println(debug(t))
+    let u: (i32, (string, bool), char) = (1, ("a", true), 'z')
+    println("$u")
+    println(debug((7,)))
+    println("${(7,)}")
+    println((1, (2, 3)).to_string())

@@ -1,0 +1,21 @@
+# @dump: stdout
+# A panic the host raises after a trap, as `stack-exhausted` for
+# recursion that never ends, is wrapped like one the program raises.
+use std.annotation.facts_of
+
+struct Route:
+    path: string
+
+fn deep(n: i32) -> i32:
+    deep(n + 1) + 1
+
+fn route(path: string) -> Route:
+    Route { path: "${deep(+0)}" }
+
+@route("/users")
+fn list_users() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    println("start")
+    _ := facts_of(list_users).find::[Route]()

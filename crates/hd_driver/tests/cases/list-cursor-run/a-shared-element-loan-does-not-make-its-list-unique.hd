@@ -1,0 +1,15 @@
+# @dump: stdout
+fn inspect(value: &i32) -> void:
+    if *value != 10:
+        panic("unexpected value")
+
+fn changed(values: List[i32], index: usize) -> (i32, i32):
+    let mut out = values
+    snapshot := out
+    inspect(&out[index])
+    out[index] += 1
+    (snapshot[index], out[index])
+
+pub fn main() -> void $ Console:
+    let (before, after) = changed([10], 0)
+    println("$before $after")

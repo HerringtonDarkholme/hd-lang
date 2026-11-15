@@ -1,0 +1,47 @@
+# @dump: stdout
+# A member's metadata is a fact expression too: a panic in it, read through
+# the member's handle, names the member.
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Style:
+    prefix: string = ""
+
+fn style(prefix: string) -> Style:
+    Style { prefix: prefix }
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+struct Names:
+    out: string
+
+impl[S] Walker[S] for Names:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        match h.info.facts.find::[Style]():
+            .Some(found) => self.out = self.out + found.prefix
+            .None => self.out = self.out + "-"
+        .Ok(())
+
+trait Label:
+    fn label(self) -> string
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Names { out: "" }
+        _ := Structure::walk(&self, &mut w)
+        w.out
+
+@derive(Label)
+struct Point:
+    @style("x_")
+    x: i64
+    @style(prefix=no_prefix())
+    y: i64
+
+pub fn main() -> void $ Console:
+    println(Point { x: 1, y: 2 }.label())

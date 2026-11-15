@@ -1,0 +1,24 @@
+# @dump: stdout
+struct QuietConsole: pass
+
+impl Console for QuietConsole:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok(())
+
+fn announce() -> i32:
+    console := box(QuietConsole {})
+    $.with(Console=console):
+        println("default")
+    1
+
+fn count(start: i32 = announce()) -> i32: start
+
+fn seven() -> i32: 7
+
+fn level(value: i32 = seven()) -> i32: value
+
+pub fn main() -> void $ Console:
+    println(level())
+    println(count(5))
+    println(announce())
+    println(count())

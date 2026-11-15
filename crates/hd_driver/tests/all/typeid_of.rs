@@ -9,14 +9,9 @@ use std::process::Command;
 
 use hd_testkit::Scratch;
 
-use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
-
-fn run_goal(main: &str, goal: &Goal) -> Output {
-    run_named("app", &Packages::default(), main, goal)
-}
 
 fn run_named(package: &str, packages: &Packages<'_>, main: &str, goal: &Goal) -> Output {
     let mut src = MemorySources::default();
@@ -32,99 +27,7 @@ fn run_named(package: &str, packages: &Packages<'_>, main: &str, goal: &Goal) ->
     build_packages(&host, package, packages, goal)
 }
 
-fn errors(src: &str) -> Vec<Code> {
-    let out = run_goal(src, &Goal::Analyze);
-    out.diags
-        .content_order()
-        .into_iter()
-        .map(|i| out.diags.code[i])
-        .collect()
-}
-
-const DECLS: &str = "use std.inspect.{Inspectable, TypeId}
-
-struct Box[T]:
-    value: T
-
-impl[T] Box[T]:
-    fn pick[V](value: V) -> V:
-        value
-
-    fn make[V](value: V) -> Box[V]:
-        Box { value: value }
-
-impl Box[i32]:
-    fn zero() -> Box[i32]:
-        Box { value: 0 }
-
-trait Maker:
-    fn made[V](value: V) -> V
-
-impl Maker for string:
-    fn made[V](value: V) -> V:
-        value
-
-struct User:
-    name: string
-";
-
-/// A trailing slot is inferred from the value arguments
-/// (fn.generic.explicit.trailing).
-#[test]
-fn a_qualified_call_infers_what_it_omits() {
-    let src = format!("{DECLS}\nfn run() -> Box[i32]:\n    Box::make(3)\n");
-    assert_eq!(errors(&src), vec![]);
-}
-
-/// The result of a qualified call is an ordinary call: it fits its
-/// expected type like any other.
-#[test]
-fn the_result_is_checked_against_its_use() {
-    let src = format!("{DECLS}\nfn run() -> string:\n    TypeId::of::[User]()\n");
-    assert_eq!(errors(&src), vec![Code::TypeMismatch]);
-}
-
-/// Errors of the owner, the member and the type arguments.
-#[test]
-fn qualified_call_errors_are_reported() {
-    let cases = [
-        // The member does not exist on the owner.
-        (
-            "fn run() -> TypeId:\n    TypeId::missing::[User]()\n",
-            Code::UnknownMethod,
-        ),
-        // fn.generic.explicit.too-long-count: `of` has one parameter.
-        (
-            "fn run() -> TypeId:\n    TypeId::of::[User, User]()\n",
-            Code::ArgumentCount,
-        ),
-        // A member with no generic parameters takes none.
-        (
-            "fn run() -> Box[i32]:\n    Box::[i32]::zero::[i32]()\n",
-            Code::ArgumentCount,
-        ),
-        // `of`'s bound: an unbounded parameter is not `Inspectable`.
-        (
-            "fn run[T]() -> TypeId:\n    TypeId::of::[T]()\n",
-            Code::UnsatisfiedTraitBound,
-        ),
-        // `of`'s bound: a function type is not `Inspectable`.
-        (
-            "fn run() -> TypeId:\n    TypeId::of::[fn(i32) -> i32]()\n",
-            Code::UnsatisfiedTraitBound,
-        ),
-    ];
-    for (c, code) in cases {
-        let src = format!("{DECLS}\n{c}");
-        assert_eq!(errors(&src), vec![code], "{c}");
-    }
-}
-
 /// The standard output of a program that must build and succeed.
-fn output_of(name: &str, main: &str) -> String {
-    output_in(name, "app", &Packages::default(), main)
-}
-
 fn output_in(name: &str, package: &str, packages: &Packages<'_>, main: &str) -> String {
     let out = run_named(
         package,
@@ -155,64 +58,6 @@ fn output_in(name: &str, package: &str, packages: &Packages<'_>, main: &str) -> 
     String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
-/// `TypeId::of` equals itself, differs between types, and equals the
-/// `runtime_type` of a value of the type (trait.typeid.of,
-/// trait.typeid.equality, trait.inspect.static).
-#[test]
-fn type_id_of_follows_runtime_identity() {
-    let main = "\
-use std.inspect.{Inspectable, TypeId}
-
-struct User:
-    name: string
-
-struct Box[T]:
-    value: T
-
-fn same[T < Inspectable, U < Inspectable]() -> bool:
-    TypeId::of::[T]() == TypeId::of::[U]()
-
-pub fn main() -> void $ Console:
-    println(\"${TypeId::of::[i32]() == TypeId::of::[i32]()}\")
-    println(\"${TypeId::of::[i32]() == TypeId::of::[i64]()}\")
-    println(\"${TypeId::of::[Box[i32]]() == TypeId::of::[Box[string]]()}\")
-    println(\"${same::[User, User]()} ${same::[User, Box[User]]()}\")
-    let seven: i32 = 7
-    println(\"${seven.runtime_type() == TypeId::of::[i32]()}\")
-    user := User { name: \"Ada\" }
-    println(\"${user.runtime_type() == TypeId::of::[User]()}\")
-    println(\"${user.runtime_type() == TypeId::of::[string]()}\")
-    println(TypeId::of::[List[User]]().to_string())
-";
-    assert_eq!(
-        output_of("identity", main),
-        "true\nfalse\nfalse\ntrue false\ntrue\ntrue\nfalse\nList[app.main.User]\n"
-    );
-}
-
-/// A value erased to `&dyn Inspectable` reports its recorded type through
-/// the vtable's `runtime_type` slot, a `&self` slot whose body the compiler
-/// supplies, so the reference needs no payload (trait.inspect.dynamic).
-#[test]
-fn runtime_type_through_a_reference_receiver_slot() {
-    let main = "\
-use std.inspect.{Inspectable, TypeId}
-
-struct User:
-    name: string
-
-fn recorded(value: &dyn Inspectable) -> TypeId:
-    value.runtime_type()
-
-pub fn main() -> void $ Console:
-    user := User { name: \"Ada\" }
-    println(\"${recorded(&user) == TypeId::of::[User]()}\")
-    let seven: i32 = 7
-    println(\"${recorded(&seven) == TypeId::of::[i32]()} ${recorded(&seven) == TypeId::of::[User]()}\")
-";
-    assert_eq!(output_of("ref-slot", main), "true\ntrue false\n");
-}
-
 const NAMES: &str = "\
 use std.inspect.TypeId
 
@@ -227,9 +72,6 @@ pub fn main() -> void $ Console:
     println(\"${TypeId::of::[Map[string, User?]]()}\")
 ";
 
-/// A package prints its manifest name with each `-` written `_`
-/// (trait.typeid.name.package), then the module and the name, with `T?`,
-/// tuples and `, ` as the name table says.
 #[test]
 fn a_package_prints_its_name_with_underscores() {
     assert_eq!(

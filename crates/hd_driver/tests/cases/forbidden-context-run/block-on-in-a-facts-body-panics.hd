@@ -1,0 +1,27 @@
+# @dump: stdout
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_now() -> i32:
+    let pending: Suspend[i32] = ready()
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
+
+use std.annotation.facts_of
+
+struct Style:
+    prefix: string = ""
+
+fn style() -> Style:
+    _ := wait_now()
+    Style { prefix: "p_" }
+
+@style()
+fn route() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    println(facts_of(route).items.len())

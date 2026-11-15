@@ -1,0 +1,10 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut v: List[i32] = [1, 2, 3]
+    let w = v.view(0, 2)
+    v.push(4)
+    _ := v.pop()
+    v[0] = 9
+    println(w.len())
+    for x in w:
+        println(x)

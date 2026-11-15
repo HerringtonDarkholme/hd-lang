@@ -1,0 +1,26 @@
+# @dump: stdout
+# `TypeId::of` equals itself, differs between types, and equals the
+# `runtime_type` of a value of the type (trait.typeid.of,
+# trait.typeid.equality, trait.inspect.static).
+use std.inspect.{Inspectable, TypeId}
+
+struct User:
+    name: string
+
+struct Box[T]:
+    value: T
+
+fn same[T < Inspectable, U < Inspectable]() -> bool:
+    TypeId::of::[T]() == TypeId::of::[U]()
+
+pub fn main() -> void $ Console:
+    println("${TypeId::of::[i32]() == TypeId::of::[i32]()}")
+    println("${TypeId::of::[i32]() == TypeId::of::[i64]()}")
+    println("${TypeId::of::[Box[i32]]() == TypeId::of::[Box[string]]()}")
+    println("${same::[User, User]()} ${same::[User, Box[User]]()}")
+    let seven: i32 = 7
+    println("${seven.runtime_type() == TypeId::of::[i32]()}")
+    user := User { name: "Ada" }
+    println("${user.runtime_type() == TypeId::of::[User]()}")
+    println("${user.runtime_type() == TypeId::of::[string]()}")
+    println(TypeId::of::[List[User]]().to_string())

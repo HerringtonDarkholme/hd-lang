@@ -1,0 +1,49 @@
+# @dump: stdout
+# The original category is the panic's own: an integer overflow in a fact
+# expression is reported as such, inside `fact-evaluation-failed`.
+use std.annotation.facts_of
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Style:
+    prefix: string = ""
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+trait Label:
+    fn label(self) -> string
+
+struct Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(&self, &mut w)
+        match T::facts().find::[Style]():
+            .Some(found) => found.prefix
+            .None => "none"
+
+fn overflow() -> string:
+    let big: i32 = 2147483647
+    (big + 1).to_string()
+
+fn style(prefix: string) -> Style:
+    Style { prefix: prefix }
+
+@style(prefix=overflow())
+fn route() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    println(facts_of(route).items.len())

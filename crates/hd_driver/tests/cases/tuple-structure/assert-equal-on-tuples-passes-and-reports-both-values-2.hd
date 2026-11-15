@@ -1,0 +1,5 @@
+# @dump: stdout
+use std.testing.assert_equal
+
+pub fn main() -> void:
+    assert_equal((1, "one", (true, 2)), (1, "one", (false, 2)), reason="last differs")

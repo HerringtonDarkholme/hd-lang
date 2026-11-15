@@ -1,0 +1,19 @@
+# @dump: stdout
+# A bound reference to a built-in method captures its receiver when the
+# reference is made, and a bound `push` changes that receiver. A bound
+# reference to a local captures a local reference, so it is passed straight
+# to a `fn(...)` parameter, never stored (`ref.local.escape.capture-stored`).
+fn size_of(f: fn() -> usize) -> usize: f()
+fn push_two(f: fn(i32) -> void) -> void:
+    f(5)
+    f(6)
+
+pub fn main() -> void $ Console:
+    let xs: List[i32] = [1, 2, 3]
+    println(size_of(xs::len))
+    let mut acc: List[i32] = []
+    push_two(acc::push)
+    println(acc.len())
+    println(acc[1])
+    let m: Map[string, i32] = {"a": 1}
+    println(size_of(m::len))

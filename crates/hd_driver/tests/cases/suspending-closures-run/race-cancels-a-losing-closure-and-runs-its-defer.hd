@@ -1,0 +1,20 @@
+# @dump: stdout
+use std.time.{Clock, Duration, sleep}
+use std.task.{join, race}
+use std.ops.defer
+
+fn nap!(ms: i64) -> void $ Clock:
+    sleep!(Duration::milliseconds(ms))
+
+pub fn main!() -> void $ Console + Clock:
+    let mut log: List[string] = []
+    guarded := fn!(n: i32, ms: i64) -> i32 $ Clock:
+        log.push("start $n")
+        defer(fn() -> void: log.push("cleanup $n"))
+        nap!(ms)
+        log.push("done $n")
+        n
+    w := race!(guarded(2, 2), guarded(3, 500))
+    println("race $w")
+    for line in log:
+        println(line)

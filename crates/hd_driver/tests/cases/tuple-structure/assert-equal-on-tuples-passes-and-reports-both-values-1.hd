@@ -1,0 +1,6 @@
+# @dump: stdout
+use std.testing.assert_equal
+
+pub fn main() -> void $ Console:
+    assert_equal((1, "one", (true, 2)), (1, "one", (true, 2)), reason="equal")
+    println("passed")

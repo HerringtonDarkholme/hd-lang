@@ -1,0 +1,46 @@
+# @dump: stdout
+# Facts read while another fact is evaluated report the fact that
+# panicked. After a fact ends, an ordinary panic is reported plainly.
+use std.annotation.facts_of
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Style:
+    prefix: string = ""
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+trait Label:
+    fn label(self) -> string
+
+struct Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(&self, &mut w)
+        match T::facts().find::[Style]():
+            .Some(found) => found.prefix
+            .None => "none"
+
+fn style(prefix: string) -> Style:
+    Style { prefix: prefix }
+
+@style("a_")
+fn route() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    println(facts_of(route).items.len())
+    panic("later")

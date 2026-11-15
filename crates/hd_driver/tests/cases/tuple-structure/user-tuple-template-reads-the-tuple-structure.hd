@@ -1,0 +1,60 @@
+# @dump: stdout
+# A user's tuple template: one path with std's, its instance collected
+# per tuple type, reading the tuple's `Structure` (`annot.tuple.*`):
+# `name()` is `""`, the one variant is named `""` with `of_data` true, and
+# the members are `_0`, `_1`... positional, not embedded.
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Walker, Describer}
+
+trait Shape:
+    fn shape(self) -> string
+    fn members() -> string
+
+struct Lister:
+    pub out: string
+
+impl[S] Walker[S] for Lister:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + "[" + v.info.name + "#" + "${v.info.index}" + " data=" + "${v.info.of_data}" + "]"
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name + "@" + "${h.info.position}" + "=" + "$value"
+        if h.info.positional:
+            self.out = self.out + "p"
+        if h.info.embedded:
+            self.out = self.out + "e"
+        .Ok(())
+
+impl[S] Describer[S] for Lister:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + "<" + v.info.name + ">"
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name
+        .Ok(())
+
+impl[T < Tuple] Shape for T by Structure:
+    fn shape(self) -> string:
+        let mut w = Lister { out: "name=" + T::name() + " " }
+        _ := Structure::walk(&self, &mut w)
+        w.out
+
+    fn members() -> string:
+        let mut d = Lister { out: "" }
+        _ := T::describe(&mut d)
+        d.out
+
+fn members_of[T < Shape]() -> string:
+    T::members()
+
+pub fn main() -> void $ Console:
+    println((1, "a").shape())
+    println((true, 2, 'c').shape())
+    println((1, "a").shape())
+    println(members_of::[(i32, string, bool)]())

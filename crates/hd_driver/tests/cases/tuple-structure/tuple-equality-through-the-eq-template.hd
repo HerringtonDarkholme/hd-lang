@@ -1,0 +1,10 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let a: (i64, string) = (1, "x")
+    let b: (i64, string) = (1, "x")
+    let c: (i64, string) = (1, "y")
+    println(a == b)
+    println(a == c)
+    println(a != c)
+    println(((1, "p"), true) == ((1, "p"), true))
+    println(((1, "p"), true) == ((2, "p"), true))

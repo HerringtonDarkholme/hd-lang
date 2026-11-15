@@ -1,0 +1,14 @@
+# @dump: stdout
+fn bump(value: &mut i32) -> void:
+    *value += 1
+
+fn changed(values: List[i32], index: usize) -> (i32, i32):
+    let mut out = values
+    bump(&mut out[index])
+    snapshot := out
+    out[index] += 1
+    (snapshot[index], out[index])
+
+pub fn main() -> void $ Console:
+    let (before, after) = changed([10], 0)
+    println("$before $after")

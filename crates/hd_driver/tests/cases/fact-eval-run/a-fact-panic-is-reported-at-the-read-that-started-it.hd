@@ -1,0 +1,55 @@
+# @dump: stdout
+# The panic of a fact is `fact-evaluation-failed` at the first read. The
+# report names the facts and the original category, and the output before
+# the read is kept.
+use std.annotation.facts_of
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Style:
+    prefix: string = ""
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+trait Label:
+    fn label(self) -> string
+
+struct Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(&self, &mut w)
+        match T::facts().find::[Style]():
+            .Some(found) => found.prefix
+            .None => "none"
+
+fn style(prefix: string) -> Style:
+    Style { prefix: prefix }
+
+@derive(Label)
+@style("good_")
+struct Good:
+    x: i64
+
+@derive(Label)
+@style(prefix=no_prefix())
+struct Point:
+    x: i64
+
+pub fn main() -> void $ Console:
+    println(Good { x: 1 }.label())
+    println("before")
+    println(Point { x: 1 }.label())
+    println("after")

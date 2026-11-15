@@ -1,0 +1,57 @@
+# @dump: stdout
+# `build` at a tuple (`annot.tuple.build`), through a user tuple
+# template's source: the source names the members by
+# position, last first, so the tuple is built from one value per member
+# whatever order the keys come in. (std's tuple `Default` builds through
+# its own source; the conformance fixture `default-tuple-thirteen-elements`
+# runs it.)
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Source, Members, Key}
+
+trait Fill:
+    fn fill() -> Self
+
+struct Filler[S]:
+    pub at: usize
+
+impl[S] Source[S] for Filler[S]:
+    type Error = never
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        n := members.infos.len()
+        if self.at >= n:
+            return .Ok(.None)
+        info := members.infos[n - 1 - self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Fill](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::fill())
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the filler names every member")
+
+impl Fill for i32:
+    fn fill() -> i32: 7
+
+impl Fill for string:
+    fn fill() -> string: "s"
+
+impl[T < Tuple] Fill for T by Structure:
+    fn fill() -> T:
+        let mut s = Filler::[T] { at: 0 }
+        match T::build(&mut s):
+            .Ok(value) => value
+            .Err(_) => panic("a filler never fails")
+
+fn fill_of[T < Fill]() -> T:
+    T::fill()
+
+pub fn main() -> void $ Console:
+    let t: (i32, string, i32) = fill_of::[(i32, string, i32)]()
+    println(debug(t))
+    let n: (string, (i32, string)) = fill_of::[(string, (i32, string))]()
+    println(debug(n))

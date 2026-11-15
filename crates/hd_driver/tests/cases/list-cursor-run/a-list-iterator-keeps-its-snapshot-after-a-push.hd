@@ -1,0 +1,9 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut v: List[i32] = [1, 2]
+    let mut it = v.iter()
+    println(it.next().unwrap_or(-1))
+    v.push(3)
+    println(it.next().unwrap_or(-1))
+    println(it.next().unwrap_or(-1))
+    println(v.len())

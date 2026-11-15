@@ -1,0 +1,31 @@
+# @dump: diagnostics
+# A trailing slot is inferred from the value arguments
+# (fn.generic.explicit.trailing).
+use std.inspect.{Inspectable, TypeId}
+
+struct Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    fn pick[V](value: V) -> V:
+        value
+
+    fn make[V](value: V) -> Box[V]:
+        Box { value: value }
+
+impl Box[i32]:
+    fn zero() -> Box[i32]:
+        Box { value: 0 }
+
+trait Maker:
+    fn made[V](value: V) -> V
+
+impl Maker for string:
+    fn made[V](value: V) -> V:
+        value
+
+struct User:
+    name: string
+
+fn run() -> Box[i32]:
+    Box::make(3)

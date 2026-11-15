@@ -1,0 +1,16 @@
+# @dump: stdout
+fn bump(value: &mut i32) -> void:
+    *value += 1
+
+fn empty(values: &mut List[i32]) -> void:
+    values.clear()
+
+fn changed(values: List[i32], first: usize, take: bool) -> void:
+    let mut out = values
+    let index = first
+    bump(&mut out[index])
+    index = 1
+    out[index] += 1
+
+pub fn main() -> void:
+    changed([10], 0, false)
