@@ -1,0 +1,22 @@
+# @dump: diagnostics
+# req.key.inspectable.error: every place a key is written is an error at
+# the key, once.
+use std.inspect.Inspectable
+
+trait Storage < Inspectable:
+    fn get(self, key: string) -> string?
+
+trait Cache < Storage:
+    fn evict(mut self) -> void
+
+trait Clock:
+    fn now(self) -> i64
+
+struct MemoryStorage: pass
+
+impl Storage for MemoryStorage:
+    fn get(self, key: string) -> string?:
+        .None
+
+fn schedule(job: fn() -> void $ Storage) -> void:
+    pass

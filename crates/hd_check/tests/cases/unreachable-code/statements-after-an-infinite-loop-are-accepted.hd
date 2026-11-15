@@ -1,0 +1,8 @@
+# @dump: diagnostics
+fn accept(port: i32) -> void:
+    pass
+
+fn serve(port: i32) -> void:
+    while true:
+        accept(port)
+    pass

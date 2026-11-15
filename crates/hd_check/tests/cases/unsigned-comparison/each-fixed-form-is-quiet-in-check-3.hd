@@ -1,0 +1,3 @@
+# @dump: diagnostics
+fn f(a: u32) -> bool:
+    a < 0

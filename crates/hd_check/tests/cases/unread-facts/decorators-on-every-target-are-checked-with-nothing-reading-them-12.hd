@@ -1,0 +1,41 @@
+# @dump: diagnostics
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+trait Probe:
+    fn probe(self) -> string
+
+struct Prober:
+    out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        t := match h.info.facts.find::[Tag]():
+            .Some(found) => found.text
+            .None => "-"
+        self.out = self.out + h.info.name + "=" + t + ";"
+        .Ok(())
+
+impl[T] Probe for T by Structure:
+    fn probe(self) -> string:
+        let mut w = Prober { out: "" }
+        _ := Structure::walk(&self, &mut w)
+        w.out
+
+struct A:
+    x: i64
+
+enum E:
+    @tag()  # here
+    One
+    Two

@@ -1,0 +1,27 @@
+# @dump: diagnostics
+use std.annotation.annotate
+use std.structure.Structure
+
+struct Rename:
+    name: string
+
+fn rename(name: string) -> Rename:
+    Rename { name: name }
+
+struct Label:
+    text: string
+
+fn label(text: string) -> Label:
+    Label { text: text }
+
+@annotate::[F](.Field)
+struct Tag[F]:
+    value: F
+
+fn tag[F](value: F) -> Tag[F]:
+    Tag::[F] { value: value }
+
+struct Account:
+    @tag(1)
+    @rename("one")
+    id: i32

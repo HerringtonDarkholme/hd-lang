@@ -1,0 +1,8 @@
+# @dump: diagnostics
+struct Opaque: pass
+
+fn same[T < Eq](a: T, b: T) -> bool:
+    a == b
+
+pub fn main():
+    same(Opaque {}, Opaque {})

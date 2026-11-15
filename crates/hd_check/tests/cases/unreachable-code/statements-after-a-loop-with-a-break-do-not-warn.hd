@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn f() -> void:
+    while true:
+        break
+    pass

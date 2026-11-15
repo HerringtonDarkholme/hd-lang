@@ -1,0 +1,7 @@
+# @dump: diagnostics
+enum Pair[A, B]:
+    Left(A)
+    Right(B)
+
+fn pr[A, B](p: Pair[A, B]) -> i32:
+    p

@@ -1,0 +1,7 @@
+# @dump: diagnostics
+struct Box[T]:
+    v: T
+
+impl[T] Box[T]:
+    fn get[U](self, u: U) -> T:
+        u

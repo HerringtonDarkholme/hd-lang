@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main():
+    if a and b:
+        pass

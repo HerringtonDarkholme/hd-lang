@@ -1,0 +1,5 @@
+# @dump: diagnostics
+use std.cmp.{NoSuch}
+
+fn main():
+    pass

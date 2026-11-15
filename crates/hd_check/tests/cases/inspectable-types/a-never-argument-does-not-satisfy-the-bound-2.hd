@@ -1,0 +1,40 @@
+# @dump: diagnostics
+# trait.inspectable.not.never: a `never` argument solves the parameter
+# as `never` when nothing else does, so the bound fails there. Another
+# argument that solves it keeps the bound satisfied.
+use std.inspect.{Inspectable, TypeId}
+
+struct Plain:
+    name: string
+
+struct Boxed[T]:
+    value: T
+
+enum Shade:
+    Light
+    Dark
+
+type Meters(i32)
+
+type Callback(fn() -> i32)
+
+struct Holder:
+    run: fn() -> i32
+
+trait Named < Inspectable:
+    fn name(self) -> string
+
+trait Deeper < Named:
+    fn depth(self) -> i32
+
+fn id_of[T < Inspectable]() -> TypeId:
+    TypeId::of::[T]()
+
+fn id_of_value[T < Inspectable](value: T) -> TypeId:
+    TypeId::of::[T]()
+
+fn id_of_pair[T < Inspectable](first: T, second: T) -> TypeId:
+    TypeId::of::[T]()
+
+fn run() -> TypeId:
+    id_of_value::[never](panic("no value"))

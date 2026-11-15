@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn f() -> bool:
+    let t = 10
+    t >= 0

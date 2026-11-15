@@ -1,0 +1,69 @@
+# @dump: diagnostics
+# Valid facts everywhere stay clean, read or not.
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+trait Probe:
+    fn probe(self) -> string
+
+struct Prober:
+    out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        t := match h.info.facts.find::[Tag]():
+            .Some(found) => found.text
+            .None => "-"
+        self.out = self.out + h.info.name + "=" + t + ";"
+        .Ok(())
+
+impl[T] Probe for T by Structure:
+    fn probe(self) -> string:
+        let mut w = Prober { out: "" }
+        _ := Structure::walk(&self, &mut w)
+        w.out
+
+@tag("type")
+struct A:
+    @tag("member")
+    x: i64
+
+impl A by Structure:
+    x = [tag("line")]
+    Self = [tag("self")]
+
+@tag("enum")
+enum E:
+    @tag("variant")
+    One(@tag("payload") n: i64)
+    Two
+
+@tag("newtype")
+type Meters(i64)
+
+@tag("trait")
+trait Handler:
+    @tag("method")
+    fn handle(self, @tag("param") n: i64) -> i64
+
+@tag("impl")
+impl Handler for A:
+    @tag("method")
+    fn handle(self, @tag("param") n: i64) -> i64: n
+
+@tag("fn")
+fn f(@tag("param") n: i64) -> i64:
+    n
+
+impl Probe for E by Structure:
+    One = [tag("one")]

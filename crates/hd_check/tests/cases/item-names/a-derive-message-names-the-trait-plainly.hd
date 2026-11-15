@@ -1,0 +1,6 @@
+# @dump: diagnostics
+struct Opaque: pass
+
+@derive(Eq)
+struct Key:
+    value: Opaque

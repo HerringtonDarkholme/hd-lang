@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Index:
+    type Out
+    fn at(self) -> Self::Out
+    fn me(self) -> i32:
+        self
