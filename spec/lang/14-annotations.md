@@ -351,7 +351,7 @@ fn users_path() -> string:
 1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
 3. r[annot.facts-of.result.compiler-decorators.v2] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, `@cold`, `@auto_closing`, and `@cfg` lines.
-4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
+4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`. An argument to `facts_of` that names nothing is `unknown-name`, because name resolution fails first. `invalid-facts-of-target` covers only an argument that resolves to something other than a module-level function.
 
 ```text
 use std.annotation.facts_of
@@ -361,6 +361,7 @@ fn get_user(id: string) -> string: id
 handler := get_user
 handler_facts := facts_of(handler)  # error: invalid-facts-of-target
 closure_facts := facts_of(fn(id: string) -> string: id)  # error: invalid-facts-of-target
+missing_facts := facts_of(get_usr)  # error: unknown-name
 ```
 
 > **Why.** A function has no `Structure`, so its values need a read of

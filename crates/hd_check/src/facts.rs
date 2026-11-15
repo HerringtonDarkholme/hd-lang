@@ -1514,8 +1514,22 @@ impl Ck<'_, '_> {
                 let init = self.cx.init.borrow();
                 init.globals.contains_key(&sym) || init.earlier.contains_key(&sym)
             };
-            if self.scope_name(first).is_none() && !global {
+            // `annot.facts-of.target.error`: an argument that names
+            // nothing fails name resolution first, so it is
+            // `unknown-name`: a plain name with no declaration or global,
+            // or a module path whose module declares no such name.
+            let named = self.scope_name(first);
+            if named.is_none() && !global {
                 let msg = format!("`{first}` is not defined");
+                self.err(Code::UnknownName, *arg, &msg);
+                return (Ref(NONE), Ty::POISON);
+            }
+            if matches!(named, Some(Named::Module(_))) {
+                let msg = format!(
+                    "`{}` is not defined: its module declares no `{}`",
+                    segs.join("."),
+                    segs[segs.len() - 1]
+                );
                 self.err(Code::UnknownName, *arg, &msg);
                 return (Ref(NONE), Ty::POISON);
             }

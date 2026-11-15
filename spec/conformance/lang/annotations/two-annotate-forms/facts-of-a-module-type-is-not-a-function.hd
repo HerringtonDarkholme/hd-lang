@@ -1,0 +1,9 @@
+# test: a module path that resolves to a type is not a function declaration
+# Spec 14 facts_of: annot.facts-of.target.error.
+# fixture-package-tree: facts-of-module/src/main.hd
+use pkg.routes
+use std.annotation.facts_of
+
+value := facts_of(routes.Route) # diagnostic: invalid-facts-of-target
+pub fn main() -> void:
+    pass

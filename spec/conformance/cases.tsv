@@ -201,6 +201,11 @@ lang/annotations/two-annotate-forms/facts-of-a-missing-argument-follows-the-call
 lang/annotations/two-annotate-forms/facts-of-a-parameter-is-not-a-function-declaration.hd	type	reject:invalid-facts-of-target	lang/14-annotations.md#r-annot.facts-of.target.error
 lang/annotations/two-annotate-forms/facts-of-an-extra-argument-follows-the-call-rules.hd	type	reject:argument-count	lang/14-annotations.md#r-annot.facts-of.target.error
 lang/annotations/two-annotate-forms/facts-of-an-unknown-name-is-unknown.hd	type	reject:unknown-name	lang/14-annotations.md#r-annot.facts-of.target.error
+lang/annotations/two-annotate-forms/facts-of-an-unknown-name-in-a-body-is-unknown.hd	type	reject:unknown-name	lang/14-annotations.md#r-annot.facts-of.target.error
+lang/annotations/two-annotate-forms/facts-of-an-unknown-module-is-unknown.hd	type	reject:unknown-name	lang/14-annotations.md#r-annot.facts-of.target.error
+lang/annotations/two-annotate-forms/facts-of-an-unknown-module-member-is-unknown.hd	type	reject:unknown-name	lang/14-annotations.md#r-annot.facts-of.target.error
+lang/annotations/two-annotate-forms/facts-of-a-module-type-is-not-a-function.hd	type	reject:invalid-facts-of-target	lang/14-annotations.md#r-annot.facts-of.target.error
+lang/annotations/two-annotate-forms/facts-of-a-body-local-binding-is-not-a-declaration.hd	type	reject:invalid-facts-of-target	lang/14-annotations.md#r-annot.facts-of.target.error
 lang/modules/use-forms/use-forms-a-group-use-from-an-unknown-module-reports-one-error.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 lang/modules/use-forms/use-forms-a-single-use-of-an-unknown-module-reports-one-error.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 lang/types/generics/inference-from-several-arguments/generic-inference-an-integer-and-a-bool-literal-do-not-join.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.other-conflict

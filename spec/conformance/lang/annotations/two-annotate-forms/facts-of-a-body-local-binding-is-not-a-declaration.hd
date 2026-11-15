@@ -1,0 +1,12 @@
+# test: a local binding in a function body resolves, so it is not a function declaration
+# Spec 14 facts_of: annot.facts-of.target.error.
+use std.annotation.facts_of
+
+fn get_user(id: string) -> string:
+    id
+
+fn read() -> void:
+    handler := get_user
+    _ := facts_of(handler) # diagnostic: invalid-facts-of-target
+pub fn main() -> void:
+    pass

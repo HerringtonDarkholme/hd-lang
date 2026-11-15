@@ -934,7 +934,7 @@ lang/14-annotations.md	7	complete	lang/control-flow/auto-closing-calls/auto-clos
 lang/14-annotations.md	8	mixed	lang/annotations/two-annotate-forms/auto-closing-result-not-marker.hd
 lang/14-annotations.md	9	mixed	lang/annotations/two-annotate-forms/cfg-pair.hd|lang/annotations/two-annotate-forms/cfg-missing-profile.hd|lang/annotations/two-annotate-forms/cfg-ordinary-beside-configured.hd|lang/annotations/two-annotate-forms/cfg-duplicate-profile.hd|lang/annotations/two-annotate-forms/cfg-signature-mismatch.hd|lang/annotations/two-annotate-forms/cfg-inactive-body-checked.hd
 lang/14-annotations.md	10	complete	lang/annotations/two-annotate-forms/facts-of-read.hd
-lang/14-annotations.md	11	mixed	lang/annotations/two-annotate-forms/facts-of-local-binding.hd|lang/annotations/two-annotate-forms/facts-of-closure.hd
+lang/14-annotations.md	11	mixed	lang/annotations/two-annotate-forms/facts-of-local-binding.hd|lang/annotations/two-annotate-forms/facts-of-closure.hd|lang/annotations/two-annotate-forms/facts-of-an-unknown-name-is-unknown.hd
 lang/14-annotations.md	12	fragment	lang/annotations/two-annotate-forms/annotations.hd
 lang/14-annotations.md	13	complete	lang/annotations/two-annotate-forms/annotations.hd
 lang/14-annotations.md	14	fragment	lang/annotations/two-annotate-forms/annotations.hd

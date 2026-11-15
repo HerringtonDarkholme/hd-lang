@@ -1,0 +1,6 @@
+pub struct Route:
+    path: string
+
+@"label"
+pub fn home() -> void:
+    pass
