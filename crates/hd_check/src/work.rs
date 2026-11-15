@@ -219,8 +219,8 @@ thread_local! {
     static HELD_TYPES: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
-/// Count the types the inline-containment walk enters on this thread
-/// (`crate::value::Containment`), one per entry, not per memo hit. Use the
+/// Count the types the value rule's walks enter on this thread
+/// (`crate::value::InlineDecls`), one per entry, not per memo hit. Use the
 /// driver's serial executor to measure a whole build.
 pub fn count_held_types<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = HELD_TYPES.with(|c| c.replace(Some(0)));
@@ -229,7 +229,7 @@ pub fn count_held_types<R>(run: impl FnOnce() -> R) -> (R, u64) {
     (result, n)
 }
 
-/// One type the inline-containment walk enters.
+/// One type a value rule walk enters.
 pub(crate) fn held_type() {
     hd_base::work::add(hd_base::work::Counter::HeldTypes, 1);
     HELD_TYPES.with(|c| {

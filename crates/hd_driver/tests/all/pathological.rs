@@ -371,10 +371,10 @@ fn an_alias_chain_at_the_type_depth_checks_and_one_more_is_too_large() {
     assert_eq!(alias_chain_work(TYPE_DEPTH + 1).1, ["type-too-large"]);
 }
 
-// Checker: #1828, the inline-containment walk (`recursive-value-type`)
-// keeps the types whose closure it walked to the end across the items of
-// a header pass, so a chain of structs held inline costs its length, not
-// its length per struct.
+// Checker: #1828, the value rule (`recursive-value-type`) decides each
+// declaration once per run (`hd_check::value::InlineDecls`, #2011), so a
+// chain of structs held inline costs its length, not its length per
+// struct.
 /// `struct C0: x: i32`, `struct C1: next: C0`, and so on.
 fn struct_chain(n: u32) -> String {
     let mut s = String::from("struct C0:\n    x: i32\n");
@@ -384,7 +384,7 @@ fn struct_chain(n: u32) -> String {
     s
 }
 
-/// The types the containment walk enters for a chain of `n` structs.
+/// The types the value rule enters for a chain of `n` structs.
 fn struct_chain_work(n: u32) -> u64 {
     let (out, types) =
         hd_check::work::count_held_types(|| compile(&struct_chain(n), &Goal::Analyze));
@@ -408,9 +408,9 @@ fn struct_chain_containment_grows_linearly() {
 
 // Checker: #2008, which declarations hold themselves inline
 // (`hd_check::value::holds_itself`) is decided once per declaration per
-// run, and the deciding walks share the run's finite types: a chain of
-// generic structs, each instance used in its own body, costs its length,
-// not its length per body that asks.
+// run, and every body reads the run's decisions: a chain of generic
+// structs, each instance used in its own body, costs its length, not its
+// length per body that asks.
 /// `struct C0[T]: x: T`, `struct C1[T]: next: C0[T]`, and so on, with
 /// `fn use{i}()` holding a `C{i}[i32]?`.
 fn generic_chain(n: u32) -> String {
@@ -482,6 +482,75 @@ fn bodies_holding_a_growing_instance_cost_one_walk_each() {
     assert!(
         small < 200 && large <= small,
         "most fuel one body spent with 10 and 100 bodies: {small} and {large}",
+    );
+}
+
+// Checker: #2011, the value rule decides each declaration from its
+// written fields (`hd_check::value::InlineDecls`), never from its
+// instances: `k` fields that grow a struct's argument `k` ways give `k^d`
+// distinct instances `d` levels down, and the header walked them to the
+// type depth limit.
+/// `struct G[T]` with `k` fields `f{i}: G[(T, W{i})]`, a struct holding
+/// `G[i32]`, and a body holding one.
+fn growing_fields(k: usize) -> String {
+    let mut s = String::new();
+    for i in 0..k {
+        let _ = writeln!(s, "struct W{i}:\n    x: i32\n");
+    }
+    s.push_str("struct G[T]:\n");
+    for i in 0..k {
+        let _ = writeln!(s, "    f{i}: G[(T, W{i})]");
+    }
+    s.push_str("\nstruct H:\n    g: G[i32]\n\nfn main():\n    let h: H? = .None\n");
+    s
+}
+
+/// The types the value rule enters for `source`, which has one
+/// `recursive-value-type`.
+fn one_recursive_value_work(source: &str) -> u64 {
+    let (out, types) = hd_check::work::count_held_types(|| compile(source, &Goal::Analyze));
+    let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+    assert_eq!(codes, ["recursive-value-type"], "{}", out.render());
+    types
+}
+
+#[test]
+fn growing_fields_cost_their_count_not_their_instances() {
+    one_recursive_value_work(&growing_fields(1));
+    let work: Vec<u64> = (2..=4)
+        .map(|k| one_recursive_value_work(&growing_fields(k)))
+        .collect();
+    // Each field adds its struct `W{i}` and a few types of its own.
+    assert!(
+        work.windows(2).all(|w| w[1] > w[0] && w[1] <= w[0] + 16),
+        "types entered for 2, 3 and 4 growing fields: {work:?}",
+    );
+}
+
+/// A ring of `n` structs, `G{i}[T]` holding `G{i+1}[(T, T)]` and
+/// `G{i+1}[(T, bool)]`, the last holding `G0`'s: one group.
+fn growing_ring(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let next = (i + 1) % n;
+        let _ = writeln!(
+            s,
+            "struct G{i}[T]:\n    x: G{next}[(T, T)]\n    y: G{next}[(T, bool)]\n"
+        );
+    }
+    s
+}
+
+#[test]
+fn a_growing_group_costs_its_size() {
+    one_recursive_value_work(&growing_ring(1));
+    let (small, large) = (
+        one_recursive_value_work(&growing_ring(200)),
+        one_recursive_value_work(&growing_ring(2000)),
+    );
+    assert!(
+        small >= 200 && large <= 10 * small + 100,
+        "types entered for groups of 200 and 2,000 growing structs: {small} and {large}",
     );
 }
 

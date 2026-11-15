@@ -974,6 +974,28 @@ type EnvClauses = (
     Vec<u16>,
 );
 
+/// What a value of one declaration holds inline, as the checker's value
+/// rule decides it (`data.struct.contains`): rustc's `params_in_repr` and
+/// `representability`, decided for each declaration a value can hold, not
+/// for each instance.
+#[derive(Clone, Debug)]
+pub struct InlineDecl {
+    /// Whether a value holds a value of each parameter inline, by index:
+    /// `struct Box[T]: v: T` holds its `T`, `List[T]` does not.
+    pub repr: Box<[bool]>,
+    /// The declarations that hold one another inline, this one among them:
+    /// the strongly connected component of the graph whose edges are the
+    /// declarations a field holds. One slice per component, shared by its
+    /// members; its first member names it.
+    pub group: Arc<[DefId]>,
+    /// Whether a value holds a value of the declaration itself: its group
+    /// has another member, or a field holds the declaration directly.
+    pub cyclic: bool,
+}
+
+/// [`InlineDecl`] by declaration.
+pub type InlineDecls = HashMap<DefId, InlineDecl>;
+
 /// The run's global memo: completed, context-free answers only (rule
 /// TS-4), shared by every body and thread. Entries and records are
 /// append-only, so a published entry never changes and a reader holds it
@@ -1001,12 +1023,11 @@ pub struct GlobalMemo {
     /// past the depth limit, by the impl universe it normalized in: a
     /// later walk in that universe stops at them.
     contained: Mutex<HashSet<(ImplUniverseId, Ty)>>,
-    /// Which struct and enum declarations hold a value of themselves
-    /// inline, the checker's value rule (`data.struct.no-recursion`), and
-    /// the types whose inline closure the deciding walks found finite: a
-    /// function of the declarations alone, so every body and header of
-    /// the run shares one walk per type.
-    holds_itself: Mutex<(HashMap<DefId, bool>, HashSet<Ty>)>,
+    /// What the checker's value rule decided about each declaration a
+    /// value can hold (`data.struct.contains`, [`InlineDecl`]): a function
+    /// of the declarations alone, so every body and header of the run
+    /// shares one decision per declaration.
+    inline_decls: Mutex<InlineDecls>,
     hits: AtomicU64,
     misses: AtomicU64,
 }
@@ -1144,28 +1165,13 @@ impl GlobalMemo {
             .extend(tys.iter().map(|&t| (universe, t)));
     }
 
-    /// Whether declaration `def` holds a value of itself inline, decided
-    /// by `decide` with the run's set of types known to have a finite
-    /// inline closure, which it reads and extends, and kept when `decide`
-    /// says the answer holds in every body. The lock is held while it
-    /// runs, so each declaration is decided once.
-    pub fn holds_itself(
-        &self,
-        def: DefId,
-        decide: impl FnOnce(&mut HashSet<Ty>) -> (bool, bool),
-    ) -> bool {
-        let mut memo = self
-            .holds_itself
+    /// Runs `f` on the run's [`InlineDecls`], with the lock held, so each
+    /// declaration is decided once.
+    pub fn inline_decls<R>(&self, f: impl FnOnce(&mut InlineDecls) -> R) -> R {
+        f(&mut self
+            .inline_decls
             .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        if let Some(&held) = memo.0.get(&def) {
-            return held;
-        }
-        let (held, keep) = decide(&mut memo.1);
-        if keep {
-            memo.0.insert(def, held);
-        }
-        held
+            .unwrap_or_else(PoisonError::into_inner))
     }
 
     /// The strict supertrait keys of requirement key `key`, made by `make`

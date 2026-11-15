@@ -1,0 +1,33 @@
+# @dump: diagnostics
+# Whether an instance holds its argument is decided from the
+# declaration (rustc's `params_in_repr`): a struct holds a parameter it
+# keeps in a field, in an optional, in a tuple or in a struct that holds
+# it, and not one it keeps behind a reference, in a list or in a
+# function value. Only `A`, `B`, `C` and `D` hold themselves.
+struct Box[T]:
+    v: T
+
+struct Outer[T]:
+    inner: Box[(i32, T?)]
+
+struct Ref[T]:
+    p: *T
+
+struct Many[T]:
+    xs: List[T]
+    f: fn(T) -> T
+
+struct A:
+    b: Box[A]
+
+struct B:
+    o: Outer[B]
+
+struct C:
+    r: Ref[C]
+    m: Many[C]
+    b: Box[*C]
+
+struct D:
+    m: Many[D]
+    o: Outer[D]

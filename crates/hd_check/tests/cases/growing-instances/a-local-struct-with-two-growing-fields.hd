@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# A struct declared in a body, with two fields that grow its argument,
+# is one `recursive-value-type` like a module's struct; the body copies
+# an instance of a struct that holds it twice (#2011).
+fn main():
+    struct G[T]:
+        x: G[(T, T)]
+        y: G[(T, bool)]
+    struct H:
+        g: G[i32]
+    let h: H? = .None
+    let w = h
+    let v = h

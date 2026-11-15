@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# A struct whose two fields grow its argument two ways holds `2^k`
+# distinct instances `k` levels down. The value rule decides the
+# declaration from its written fields, so it is one
+# `recursive-value-type` at once, and a struct holding an instance of it
+# is not reported (#2011).
+struct G[T]:
+    x: G[(T, T)]
+    y: G[(T, bool)]
+
+struct H:
+    g: G[i32]
+
+fn main():
+    let g: G[i32]? = .None
+    let h: H? = .None

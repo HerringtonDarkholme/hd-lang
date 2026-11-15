@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# `A` holds `G[i32]`, and `G`, whose two fields also grow, holds `A`:
+# one group, reported once at `A`, whose name sorts first
+# (`data.enum.no-recursion.group`), with a fix-it at each of its fields
+# that holds the group (#2011).
+struct G[T]:
+    x: G[(T, T)]
+    y: G[(T, bool)]
+    a: A
+
+struct A:
+    g: G[i32]
+    n: i32

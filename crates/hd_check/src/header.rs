@@ -153,7 +153,7 @@ fn stage_b_over<'i>(
     let mut out = Vec::new();
     let mut cycles = crate::value::ProjectionCycles::default();
     let mut clean = hd_base::HashSet::default();
-    let mut values = crate::value::Containment::default();
+    let mut values = crate::value::InlinePass::default();
     let mut private = hd_base::HashMap::default();
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
@@ -412,9 +412,10 @@ struct ItemCheck<'c, 'a> {
     /// The closed types whose check reported nothing, kept across the
     /// items of one stage-B pass.
     clean: hd_base::HashSet<Ty>,
-    /// The inline-containment walk, its finite types kept across the
-    /// items of one stage-B pass.
-    values: crate::value::Containment,
+    /// The value rule's decisions under this pass's lookup and its group
+    /// reporters ([`crate::value::InlinePass`]), kept across the items of
+    /// one stage-B pass.
+    values: crate::value::InlinePass,
     /// [`Self::private_in`]'s answers, kept across the items of one
     /// stage-B pass.
     private: hd_base::HashMap<Ty, Option<DefId>>,
@@ -452,7 +453,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             too_complex: false,
             too_deep: false,
             clean: hd_base::HashSet::default(),
-            values: crate::value::Containment::default(),
+            values: crate::value::InlinePass::default(),
             private: hd_base::HashMap::default(),
         }
     }
@@ -1674,20 +1675,33 @@ impl<'a> ItemCheck<'_, 'a> {
             ItemData::Struct(..) => ("struct", "field"),
             _ => ("enum", "payload field"),
         };
-        let (pool, lookup) = (self.pool(), self.cx.lookup);
-        let holding: Vec<usize> = fields
-            .iter()
-            .enumerate()
-            .filter(|(_, f)| {
-                let t = crate::value::unowned(pool, it.def, f.ty);
-                self.values.holds(pool, lookup, t, it.def)
-            })
-            .map(|(i, _)| i)
-            .collect();
+        let (pool, lookup, global) = (self.pool(), self.cx.lookup, self.cx.global);
+        let def = it.def;
+        let Some((holding, group)) = self.values.decided(global, pool, lookup, def, |d| {
+            let me = d.get(def).filter(|me| me.cyclic)?;
+            let head = me.group.first().copied()?;
+            let holding: Vec<usize> = fields
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| d.holds_group(pool, f.ty, head))
+                .map(|(i, _)| i)
+                .collect();
+            Some((holding, me.group.clone()))
+        }) else {
+            return;
+        };
         let Some(&first) = holding.first() else {
             return;
         };
-        if self.cycle_reported_elsewhere(it.def, &fields) || self.embeds_itself(it.def) {
+        let names = &self.cx.names;
+        let key = |d: DefId| {
+            (
+                names.module_of(d),
+                names.display_name(d).to_owned(),
+                d.raw(),
+            )
+        };
+        if self.values.reporter(lookup, &group, key) != Some(def) || self.embeds_itself(def) {
             return;
         }
         let message = format!(
@@ -1729,38 +1743,6 @@ impl<'a> ItemCheck<'_, 'a> {
             }
         }
         false
-    }
-
-    /// Whether a group of declarations that hold one another by value,
-    /// `def` among them, is reported at another of them: the one whose
-    /// module path, then name, sorts first
-    /// (`data.enum.no-recursion.group`). Each other member `Y` holds `def`,
-    /// and `def` holds `Y`, through the declarations as written.
-    fn cycle_reported_elsewhere(&mut self, def: DefId, fields: &[&hd_resolve::Field]) -> bool {
-        let pool = self.pool();
-        let cx = self.cx;
-        let lookup = cx.lookup;
-        let key = |d: DefId| (cx.names.module_of(d), cx.names.display_name(d).to_owned());
-        let mut held = Vec::new();
-        let mut seen = hd_base::HashSet::default();
-        for f in fields {
-            let t = crate::value::unowned(pool, def, f.ty);
-            self.values.held(pool, lookup, t, &mut seen, &mut held);
-        }
-        let mine = key(def);
-        held.into_iter().filter(|&y| y != def).any(|y| {
-            let Some(own) = lookup
-                .item(y)
-                .and_then(|i| crate::value::value_fields(&i.data))
-            else {
-                return false;
-            };
-            key(y) < mine
-                && own.into_iter().any(|f| {
-                    self.values
-                        .holds(pool, lookup, crate::value::unowned(pool, y, f.ty), def)
-                })
-        })
     }
 
     /// A delegation target: the embedded field `by` implements the trait,

@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# `Tree` holds its `T` and itself only through a list, so it is no error,
+# and `U` holds itself through `Tree[U]`. `A` and `B` hold each other, one
+# group reported at `A`; `A` holds its `T` only through `B`'s, so `C`,
+# which holds `A[C]`, holds itself too.
+struct Tree[T]:
+    kids: List[Tree[T]]
+    v: T
+
+struct U:
+    t: Tree[U]
+
+struct A[T]:
+    b: B[T]
+
+struct B[T]:
+    a: A[T]?
+    v: T
+
+struct C:
+    a: A[C]
+
+struct Fine:
+    t: Tree[i32]
+    a: List[A[i32]]

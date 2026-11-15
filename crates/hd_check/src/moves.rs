@@ -355,6 +355,9 @@ fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
 pub(crate) struct CopyQuery {
     relaxed: Vec<Ty>,
     memo: HashMap<Ty, Option<Ty>>,
+    /// The value rule's decisions under this body's lookup alone
+    /// (`crate::value::holds_itself`).
+    inline: crate::value::InlineDecls,
 }
 
 impl Ck<'_, '_> {
@@ -378,6 +381,7 @@ impl Ck<'_, '_> {
         CopyQuery {
             relaxed: self.relaxed_local_params(),
             memo: HashMap::default(),
+            inline: crate::value::InlineDecls::default(),
         }
     }
 
@@ -416,7 +420,11 @@ impl Ck<'_, '_> {
         let mut open = false;
         let mut visited = Vec::new();
         let global = self.cx.global;
-        let CopyQuery { relaxed, memo } = q;
+        let CopyQuery {
+            relaxed,
+            memo,
+            inline,
+        } = q;
         let closed_ty = |u: Ty| !u.is_local() && !pool.has_infer(u) && !pool.has_canon(u);
         let lookup = self.cx.lookup;
         let b = blocker(
@@ -432,7 +440,7 @@ impl Ck<'_, '_> {
                     // (`crate::value::holds_itself`), and it is reported.
                     .or_else(|| {
                         matches!(pool.get(u), TyData::Adt { def, .. }
-                            if crate::value::holds_itself(global, pool, lookup, def))
+                            if crate::value::holds_itself(global, inline, pool, lookup, def))
                         .then_some(None)
                     })
             },

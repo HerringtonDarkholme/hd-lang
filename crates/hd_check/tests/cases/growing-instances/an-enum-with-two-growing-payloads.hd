@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# The enum form of a declaration with growing fields: its payloads grow
+# the argument through a tuple, a union and an optional, and none ends
+# (#2011).
+enum E[T]:
+    Pair(E[(T, T)])
+    Either(E[T | string])
+    Maybe(E[T?])
+
+fn main():
+    let e: E[i32]? = .None
