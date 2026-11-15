@@ -2582,6 +2582,41 @@ fn wide_struct_reads_cost_one_probe_per_field() {
     });
 }
 
+/// One enum with `n` payload variants, each read by a match arm (#1909).
+fn enum_payload_arms(n: usize) -> String {
+    let mut s = String::from("enum Big:\n    Zero\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    V{i}(x: i32)");
+    }
+    s.push_str("\nfn weigh(b: Big) -> i32:\n    match b:\n        .Zero => +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "        .V{i}(x) => x + 1");
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    println(weigh(Big.Zero))\n");
+    s
+}
+
+#[test]
+fn enum_arm_payload_layout_work_is_linear() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |n| {
+            let (out, work) =
+                hd_wasm::work::count_member_layouts(|| compile(&enum_payload_arms(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (build(100), build(1_000));
+        eprintln!("enum payload layout work for 100 and 1,000 arms: {small} and {large}");
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "enum payload layout work for 100 and 1,000 arms: {small} and {large}"
+        );
+    });
+}
+
 /// One string of `n` interpolations of one local, its length read back:
 /// the scale check's `interpolation` shape (#1914).
 fn interpolated_local(n: usize) -> String {

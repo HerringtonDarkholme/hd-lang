@@ -231,7 +231,7 @@ pub fn in_place_parts(
         let Some(fs) = variant.and_then(|v| vs.get(v as usize)) else {
             return false;
         };
-        out.extend(fs);
+        out.extend(fs.iter().copied());
         return true;
     }
     match pool.get(s) {

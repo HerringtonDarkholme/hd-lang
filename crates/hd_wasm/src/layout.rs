@@ -470,6 +470,7 @@ fn by_parts<T: Clone>(
 /// The layouts and walks one link has computed, by stripped type
 /// ([`cached`]); a type's layout is fixed for the whole link.
 type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
+type VariantTypes = std::rc::Rc<Vec<Vec<Ty>>>;
 
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
@@ -481,6 +482,7 @@ thread_local! {
     static INPUT_BORROWED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static INPUT_OWNED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
+    static VARIANTS: Memo<Option<VariantTypes>> = const { std::cell::RefCell::new(None) };
     static MEMBERS: Memo<StageResult<std::rc::Rc<Members>>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -498,6 +500,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         input_borrowed: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         input_owned: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
+        variants: Option<hd_base::HashMap<Ty, Option<VariantTypes>>>,
         members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
     }
     impl Drop for Reset {
@@ -511,6 +514,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
             INPUT_BORROWED.set(self.input_borrowed.take());
             INPUT_OWNED.set(self.input_owned.take());
             FLATS.set(self.flats.take());
+            VARIANTS.set(self.variants.take());
             MEMBERS.set(self.members.take());
         }
     }
@@ -525,6 +529,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         input_borrowed: INPUT_BORROWED.take(),
         input_owned: INPUT_OWNED.take(),
         flats: FLATS.take(),
+        variants: VARIANTS.take(),
         members: MEMBERS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
@@ -536,6 +541,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     INPUT_BORROWED.set(Some(hd_base::HashMap::default()));
     INPUT_OWNED.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
+    VARIANTS.set(Some(hd_base::HashMap::default()));
     MEMBERS.set(Some(hd_base::HashMap::default()));
     walk_plan::cached(|| crate::emit::ref_slots::cached(link))
 }
@@ -1902,12 +1908,12 @@ pub fn flat(
     t: Ty,
 ) -> StageResult<Option<std::rc::Rc<Flat>>> {
     let t = strip(pool, env, t);
-    let Some(vs) = variants(pool, env, t) else {
-        return Ok(None);
-    };
     if let Some(got) = FLATS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t)).cloned()) {
         return got.map(Some);
     }
+    let Some(vs) = variants(pool, env, t) else {
+        return Ok(None);
+    };
     let got = enum_mem(pool, env, &vs).map(std::rc::Rc::new);
     FLATS.with(|m| {
         if let Some(m) = m.borrow_mut().as_mut() {
@@ -2303,14 +2309,31 @@ pub(crate) fn newtype_layers(
 }
 
 /// The variants' payload types of an enum or optional type, `None` for
-/// any other type.
-pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Vec<Vec<Ty>>> {
+/// any other type. Within a link, materialize each stripped type once and
+/// share its payload storage; cache non-enums too. Each warm query is O(1).
+pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<VariantTypes> {
     let t = strip(pool, env, t);
-    match pool.get(t) {
+    cached_variants(t, || match pool.get(t) {
         TyData::Union(members) => Some(union_variants(pool, members)),
         TyData::Adt { def, args } => env.enum_variants(def, args),
         _ => None,
+    })
+}
+
+fn cached_variants(t: Ty, build: impl FnOnce() -> Option<Vec<Vec<Ty>>>) -> Option<VariantTypes> {
+    if let Some(got) = VARIANTS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t)).cloned()) {
+        return got;
     }
+    let got = build().map(|vs| {
+        crate::work::member_layouts(vs.len());
+        std::rc::Rc::new(vs)
+    });
+    VARIANTS.with(|m| {
+        if let Some(m) = m.borrow_mut().as_mut() {
+            m.insert(t, got.clone());
+        }
+    });
+    got
 }
 
 /// The width, signedness and float kind of a primitive type, as
@@ -2409,6 +2432,57 @@ mod tests {
             && INPUT_BORROWED.with(|r| r.borrow().is_none())
             && INPUT_OWNED.with(|r| r.borrow().is_none())
             && FLATS.with(|d| d.borrow().is_none())
+            && VARIANTS.with(|d| d.borrow().is_none())
+    }
+
+    #[test]
+    fn variant_queries_share_payloads_and_cache_negative_results() {
+        cached(|| {
+            let builds = std::cell::Cell::new(0);
+            let query = |ty, value| {
+                cached_variants(ty, || {
+                    builds.set(builds.get() + 1);
+                    value
+                })
+            };
+            let first = query(Ty::STRING, Some(vec![vec![Ty::VOID]]));
+            let second = query(Ty::STRING, Some(vec![vec![Ty::STRING]]));
+            assert!(matches!((&first, &second), (Some(a), Some(b)) if std::rc::Rc::ptr_eq(a, b)));
+            assert!(query(Ty::VOID, None).is_none());
+            assert!(query(Ty::VOID, Some(vec![])).is_none());
+            assert_eq!(builds.get(), 2);
+            assert_eq!(first.as_deref(), Some(&vec![vec![Ty::VOID]]));
+        });
+    }
+
+    #[test]
+    fn nested_variant_cache_restores_outer_state_on_return_and_unwind() {
+        cached(|| {
+            let outer = cached_variants(Ty::STRING, || Some(vec![vec![Ty::VOID]]));
+            for unwind in [false, true] {
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    cached(|| {
+                        let inner = cached_variants(Ty::STRING, || Some(vec![vec![Ty::STRING]]));
+                        assert_eq!(inner.as_deref(), Some(&vec![vec![Ty::STRING]]));
+                        let shared = cached_here(|| cached_variants(Ty::STRING, || None));
+                        assert!(
+                            matches!((&inner, &shared), (Some(a), Some(b)) if std::rc::Rc::ptr_eq(a, b))
+                        );
+                        if unwind {
+                            std::panic::resume_unwind(Box::new("nested variant cache test"));
+                        }
+                    });
+                }));
+                assert_eq!(result.is_err(), unwind);
+                let restored = cached_variants(Ty::STRING, || None);
+                assert!(
+                    matches!((&outer, &restored), (Some(a), Some(b)) if std::rc::Rc::ptr_eq(a, b))
+                );
+            }
+        });
+        let later = cached(|| cached_variants(Ty::STRING, || Some(vec![vec![Ty::STRING]])));
+        assert_eq!(later.as_deref(), Some(&vec![vec![Ty::STRING]]));
+        assert!(caches_are_absent());
     }
 
     #[test]

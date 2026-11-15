@@ -159,10 +159,8 @@ fn holds(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Holds {
                 Kind::Ref { target, .. } => Holds::Ref(target),
                 Kind::Boxed => Holds::Parts(
                     variants(pool, env, t)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .flatten()
-                        .collect(),
+                        .map(|vs| vs.iter().flatten().copied().collect())
+                        .unwrap_or_default(),
                 ),
                 Kind::Value => Holds::Parts(value_parts(pool, env, t)),
             },

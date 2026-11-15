@@ -137,7 +137,7 @@ impl Em<'_, '_, '_> {
         let Some(vs) = variants(self.pool(), self.env(), t) else {
             return false;
         };
-        self.variant_tys.borrow_mut().insert(t, Rc::new(vs));
+        self.variant_tys.borrow_mut().insert(t, vs);
         true
     }
 
