@@ -721,7 +721,7 @@ typing/valid/downcast-downcast-mut-and-downcast-ref-take-a-type-argument.hd	type
 typing/valid/downcast-downcast-ref-with-a-type-argument-on-dyn-inspectable.hd	type	accept	lang/09-traits.md#recovering-a-concrete-type
 typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	type	accept	lang/14-annotations.md#error-types
 typing/valid/error-markers-a-transparent-struct-with-one-from-field-is-valid.hd	type	accept	lang/14-annotations.md#error-types
-typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	type	accept	lang/14-annotations.md#error-types
+typing/valid/error-markers-transparent-on-one-member-beside-other-markers-is-valid.hd	type	accept	lang/14-annotations.md#error-types
 typing/valid/explicit-row-slot-a-key-or-an-empty-row-in-a-row-slot-is-valid.hd	type	accept	lang/07-functions.md#r-fn.generic.explicit.row-dollar
 typing/valid/facts-of-the-result-of-a-function-declaration-is-its-facts.hd	type	accept	lang/14-annotations.md#r-annot.facts-of.target.error
 typing/valid/use-forms-a-group-use-from-a-package-module.hd	type	accept	lang/10-modules.md#use-forms

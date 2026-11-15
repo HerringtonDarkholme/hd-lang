@@ -37,7 +37,7 @@ typing/valid/parameter-names-two-local-function-parameters-with-distinct-names-a
 typing/valid/parameter-names-two-method-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-method-parameters-may-not-share-a-name.hd
 typing/valid/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-trait-method-parameters-may-not-share-a-name.hd
 typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	A10b	same title as reject typing/invalid/error-markers-from-on-a-type-parameter-named-like-an-error-type-is-invalid.hd
-typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	A10b	same title as reject typing/invalid/error-markers-transparent-on-a-variant-without-members-is-the-wrong-target.hd
+typing/valid/error-markers-transparent-on-one-member-beside-other-markers-is-valid.hd	A10b	same title as reject typing/invalid/error-markers-transparent-on-a-variant-without-members-is-the-wrong-target.hd
 typing/valid/impl-modules-a-dyn-inherent-impl-in-the-module-of-its-trait-is-valid.hd	A10b	same title as reject typing/invalid/impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal.hd
 typing/valid/impl-modules-a-trait-argument-from-the-same-module-gives-ownership.hd	A10b	same title as reject typing/invalid/impl-modules-a-trait-argument-from-another-module-gives-no-ownership.hd
 typing/valid/literal-types-an-integer-literal-converts-to-a-display-value.hd	A10b	same title as reject typing/invalid/literal-types-an-integer-literal-converts-to-a-trait-value-at-i32-not-f64.hd

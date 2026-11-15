@@ -1,4 +1,4 @@
-# test: transparent requires exactly one member
+# test: error markers transparent on one member beside other markers is valid
 @error("leaf")
 struct Leaf:
     code: i32

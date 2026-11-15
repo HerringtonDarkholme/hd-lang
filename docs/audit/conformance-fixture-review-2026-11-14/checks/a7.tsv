@@ -1264,7 +1264,7 @@ typing/invalid/error-markers-a-source-field-whose-type-is-not-an-error-is-an-unm
 typing/invalid/error-markers-from-on-a-type-parameter-named-like-an-error-type-is-invalid.hd	reject:invalid-error-marker	lang/14-annotations.md#error-types	-3	
 typing/invalid/error-markers-a-source-marker-with-an-argument-is-invalid.hd	reject:invalid-error-marker	lang/14-annotations.md#error-types	-3	
 typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	accept	lang/14-annotations.md#error-types	-6	
-typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	accept	lang/14-annotations.md#error-types	-6	
+typing/valid/error-markers-transparent-on-one-member-beside-other-markers-is-valid.hd	accept	lang/14-annotations.md#error-types	-6	
 runtime/valid/structure-facts-arrive-in-source-order-per-derivation.hd	accept	lang/14-annotations.md#facts	-4	
 typing/valid/error-generated-bounds.hd	accept	lang/14-annotations.md#generated-error-bounds	-5	
 typing/valid/annotations.hd	accept	lang/14-annotations.md#member-metadata	-3	

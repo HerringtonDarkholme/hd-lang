@@ -644,7 +644,7 @@ typing/valid/derived-ordering.hd	A7b	lost '' gained ','	std/cmp.md#r-std-cmp.der
 typing/valid/error-derivation.hd	A7b	lost '' gained ',,,,,,,'	lang/14-annotations.md#error-derivation
 typing/valid/error-generated-bounds.hd	A7b	lost '' gained ','	lang/14-annotations.md#generated-error-bounds
 typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#error-types
-typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#error-types
+typing/valid/error-markers-transparent-on-one-member-beside-other-markers-is-valid.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#error-types
 typing/valid/error-without-import.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#r-annot.error.no-use
 typing/valid/generic-data-embedding.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#data-embedding
 typing/valid/generic-method-dynamically-safe.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.dyn.member.type-param
