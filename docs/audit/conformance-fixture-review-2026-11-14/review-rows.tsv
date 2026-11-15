@@ -803,10 +803,10 @@ b155	std/hash/fnv-1a-hasher/fnv1a-hasher.hd	UNSURE	B8	The typed-writes test expe
 b155	std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	UNSURE	B8	The oracle hashes usize as 4 bytes; std-hash.bytes.integer says usize uses its own width, so the expected digests vary by target.
 b155	std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd	UNSURE	B8	Literal digests assume usize hashes as 4 bytes; std-hash.bytes.integer says usize uses its own width, so they vary by target.
 b155	std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	UNSURE	C1	Its edge list is the same 13 values, with the same FNV-1a expectation, as the first case list in std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd; only the expected source differs.
-b156	runtime/valid/http-form-map-number.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; no part in the case.
-b156	runtime/valid/http-form-root-list.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case has no Serialize derive or impl.
-b156	runtime/valid/http-form-root-scalar.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case uses no Serialize item.
-b156	typing/invalid/http-body-serialize-removed.hd	UNSURE	B7	Cites body.declaration, which says only private shared state; no rule states that Body is not Serialize.
+b156	std/http/request-builder/http-form-map-number.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; no part in the case.
+b156	std/http/request-builder/http-form-root-list.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case has no Serialize derive or impl.
+b156	std/http/request-builder/http-form-root-scalar.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case uses no Serialize item.
+b156	std/http/read-once-bodies/http-body-serialize-removed.hd	UNSURE	B7	Cites body.declaration, which says only private shared state; no rule states that Body is not Serialize.
 b158	runtime/valid/json-typed-round-trip.hd	FIX	B8	Lines 53 and 108 expect map output in insertion order; map order is unspecified (types.map.order.unspecified).
 b158	runtime/valid/json-model-round-trips.hd	FIX	B8	Sets round trip expects encoding in first-occurrence order (line 253); set iteration order is unspecified (std-collections.set.iter).
 b158	runtime/valid/json-adversarial-inputs.hd	FIX	B8	Line 424 expects Set[i32] encoded as [3,1,2]; set iteration order is unspecified (std-collections.set.iter).

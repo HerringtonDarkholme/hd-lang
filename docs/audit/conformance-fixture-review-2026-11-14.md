@@ -2480,7 +2480,7 @@ Ledger: b156 (45): 4. b157 (45): 0. b158 (45): 6. b159 (44): 4.
   is 32-bit is needed.
 - Plausible B3: `union-serde.hd` (round-trip only). Plausible B7: `initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set/-02.hd`
   (cite `std-iter.from-fn`; the behavior is `module.init.definite`).
-  `typing/invalid/http-body-serialize-removed.hd`. Unverified B5: three `http-form-*`
+  `std/http/read-once-bodies/http-body-serialize-removed.hd`. Unverified B5: three `http-form-*`
   import `Serialize` without using it.
 
 #### b168 to b170 (`std/task`, `std/time`, `std/validate`)

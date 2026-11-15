@@ -65,9 +65,9 @@ typing/invalid/a-body-projection-from-a-concrete-type.hd	A3	typing/invalid/proje
 typing/invalid/projection-from-a-type-without-bounds.hd	A3	typing/invalid/projection-from-a-concrete-type.hd
 typing/invalid/projection-from-a-type-without-bounds.hd	A3	typing/invalid/projection-in-a-body-without-bounds.hd
 typing/invalid/projection-from-a-concrete-type.hd	A3	typing/invalid/projection-in-a-body-without-bounds.hd
-runtime/valid/http-form-map-number.hd	A3	runtime/valid/http-form-root-list.hd
-runtime/valid/http-form-map-number.hd	A3	runtime/valid/http-form-root-scalar.hd
-runtime/valid/http-form-root-list.hd	A3	runtime/valid/http-form-root-scalar.hd
+std/http/request-builder/http-form-map-number.hd	A3	std/http/request-builder/http-form-root-list.hd
+std/http/request-builder/http-form-map-number.hd	A3	std/http/request-builder/http-form-root-scalar.hd
+std/http/request-builder/http-form-root-list.hd	A3	std/http/request-builder/http-form-root-scalar.hd
 typing/valid/impl-trait-trait-method.hd	A3	typing/valid/impl-trait-nested-trait-method.hd
 runtime/valid/a-cancelled-cleanup-scope-releases-a-moved-temporary-once.hd	A3	runtime/valid/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd
 runtime/valid/pointer-loan-expr-ref-ulist-grow.hd	A3	runtime/valid/pointer-loan-expr-mut-ulist-grow.hd
@@ -1976,7 +1976,7 @@ annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-trait-call.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-extending-with-a-value-that-is-not-a-list-is-one-invalid-member-line.hd
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-list-of-another-element-type-is-a-type-mismatch.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-spread-of-a-value-that-is-not-a-list-is-a-type-mismatch.hd
-typing/invalid/http-client-base-url-removed.hd	A3	typing/invalid/http-client-default-header-removed.hd
+std/http/client/http-client-base-url-removed.hd	A3	std/http/client/http-client-default-header-removed.hd
 runtime/valid/test-prelude-test-module-assertions.hd	A3	runtime/valid/test-prelude-integration-assertions.hd
 typing/invalid/prelude-explicit-hasher.hd	A3	typing/invalid/prelude-explicit-poll.hd
 typing/invalid/prelude-explicit-hasher.hd	A3	typing/invalid/prelude-explicit-poll-context.hd
