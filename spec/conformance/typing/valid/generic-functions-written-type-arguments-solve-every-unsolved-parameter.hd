@@ -1,4 +1,4 @@
-# test: a parameter named nowhere is reported once
+# test: generic functions written type arguments solve every unsolved parameter
 fn make[T]() -> T:
     panic("no")
 

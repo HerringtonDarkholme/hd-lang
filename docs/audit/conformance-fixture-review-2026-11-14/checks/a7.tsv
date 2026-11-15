@@ -556,7 +556,7 @@ typing/invalid/parameter-default-order.hd	reject:default-order	lang/07-functions
 typing/invalid/parameter-default-type-mismatch.hd	reject:type-mismatch	lang/07-functions.md#default-values	-1	
 typing/invalid/suspending-parameter-default.hd	reject:suspension-forbidden-context	lang/07-functions.md#default-values	-2	
 typing/valid/a-requirement-free-default-is-clean.hd	accept	lang/07-functions.md#default-values	-1	
-typing/valid/checker-defaults-must-not-be-followed-by-a-required-parameter-legal-forms.hd	accept	lang/07-functions.md#default-values	-6	
+typing/valid/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd	accept	lang/07-functions.md#default-values	-6	
 typing/valid/function-type-constructors.hd	accept	lang/07-functions.md#function-type-constructors	-2	
 runtime/valid/a-generic-caller-forwards-its-arguments.hd	accept	lang/07-functions.md#function-types-and-values	-1	
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	accept	lang/07-functions.md#function-types-and-values	-2	
@@ -609,7 +609,7 @@ typing/invalid/local-fn-default-a-default-naming-a-later-parameter-is-not-yet-vi
 runtime/valid/default-constant-specialization.hd	accept	lang/07-functions.md#r-fn.default.observable-effects	1	
 typing/invalid/local-fn-default-only-defaulted-parameters-are-omitted.hd	reject:argument-count	lang/07-functions.md#r-fn.default.omit	-1	
 typing/invalid/row-slot-bare-explicit-argument.hd	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar	-1	
-typing/valid/explicit-row-slot-dollar-forms-in-row-slot-stay-clean-22-legal-rows.hd	accept	lang/07-functions.md#r-fn.generic.explicit.row-dollar	-1	
+typing/valid/explicit-row-slot-a-key-or-an-empty-row-in-a-row-slot-is-valid.hd	accept	lang/07-functions.md#r-fn.generic.explicit.row-dollar	-1	
 runtime/valid/generic-local-bound-dispatch.hd	accept	lang/07-functions.md#r-fn.local.declare	-3	
 runtime/valid/generic-local-function-value-instantiation.hd	accept	lang/07-functions.md#r-fn.local.declare	-1	
 runtime/valid/generic-local-identity-call.hd	accept	lang/07-functions.md#r-fn.local.declare	-1	

@@ -622,7 +622,7 @@ typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-legal-f
 typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-legal-forms.hd	type	accept	lang/08-data-and-enums.md#matching-enums
 typing/valid/annotations-a-field-annotation-on-a-struct-field-is-valid.hd	type	accept	lang/14-annotations.md#r-annot.target.limit.kind-error
 typing/valid/shared-enum-data-a-variant-may-name-one-of-several-defaulted-parameters.hd	type	accept	lang/08-data-and-enums.md#shared-enum-constructor-data
-typing/valid/checker-defaults-must-not-be-followed-by-a-required-parameter-legal-forms.hd	type	accept	lang/07-functions.md#default-values
+typing/valid/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd	type	accept	lang/07-functions.md#default-values
 typing/valid/derive-default-an-enum-marking-one-variant-default-is-valid.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
 typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
 typing/valid/match-distinct-float-literal-arms-are-reachable.hd	type	accept	lang/06-control-flow.md#match-expressions
@@ -722,7 +722,7 @@ typing/valid/downcast-downcast-ref-with-a-type-argument-on-dyn-inspectable.hd	ty
 typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	type	accept	lang/14-annotations.md#error-types
 typing/valid/error-markers-a-transparent-struct-with-one-from-field-is-valid.hd	type	accept	lang/14-annotations.md#error-types
 typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	type	accept	lang/14-annotations.md#error-types
-typing/valid/explicit-row-slot-dollar-forms-in-row-slot-stay-clean-22-legal-rows.hd	type	accept	lang/07-functions.md#r-fn.generic.explicit.row-dollar
+typing/valid/explicit-row-slot-a-key-or-an-empty-row-in-a-row-slot-is-valid.hd	type	accept	lang/07-functions.md#r-fn.generic.explicit.row-dollar
 typing/valid/facts-of-the-result-of-a-function-declaration-is-its-facts.hd	type	accept	lang/14-annotations.md#r-annot.facts-of.target.error
 typing/valid/use-forms-a-group-use-from-a-package-module.hd	type	accept	lang/10-modules.md#use-forms
 typing/valid/use-forms-a-single-use-of-a-package-module.hd	type	accept	lang/10-modules.md#use-forms
@@ -968,7 +968,7 @@ typing/valid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-ow
 typing/valid/tuple-template-bounds-a-rest-list-of-integers-meets-the-map-key-bound.hd	type	accept	lang/09-traits.md#derived-tuple-implementations
 typing/valid/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members.hd	type	accept	lang/09-traits.md#derived-tuple-implementations
 typing/valid/unit-tuple-role.hd	type	accept	lang/04-type-system.md#r-types.unit.role
-typing/valid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57-legal-type-arguments.hd	type	accept	lang/07-functions.md#generic-functions
+typing/valid/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	type	accept	lang/07-functions.md#generic-functions
 typing/valid/generic-functions-a-type-parameter-solved-by-the-expected-type-is-inferred.hd	type	accept	lang/07-functions.md#generic-functions
 typing/valid/generic-functions-a-type-parameter-with-a-default-takes-it-when-unsolved.hd	type	accept	lang/07-functions.md#generic-functions
 typing/valid/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	type	accept	lang/07-functions.md#generic-functions

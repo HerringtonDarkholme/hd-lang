@@ -1680,7 +1680,7 @@ Ledger: b060 (46): 2. b061 (?): 2. b062 (42): 5. b063 (41): 3. Plausible 12.
   `default-later-parameter-earlier-twin.hd`. `runtime/valid/unit-pattern-void-success.hd` ~
   `match-unit-pattern-ok.hd`. `typing/warnings/match-payload-binding-name-swap.hd` ~
   `variant-binding-name-mismatch.hd` (both A6 as well).
-- Plausible B7: `typing/valid/checker-defaults-must-not-be-followed-by-a-required-parameter-legal-forms.hd`
+- Plausible B7: `typing/valid/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd`
   (cases 115 and 116 are type-parameter defaults).
 
 #### b064 (`lang/07-functions.md`)

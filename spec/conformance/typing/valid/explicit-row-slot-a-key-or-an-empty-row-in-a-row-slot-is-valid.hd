@@ -1,4 +1,4 @@
-# test: dollar forms in row slot stay clean
+# test: explicit row slot a key or an empty row in a row slot is valid
 trait Log
 
 fn provide_log[$ R](callback: fn() -> void $ R + Log) -> void $ R:

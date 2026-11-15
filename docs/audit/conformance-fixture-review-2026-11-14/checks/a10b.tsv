@@ -63,7 +63,7 @@ typing/valid/tuple-template-bounds-a-generic-member-meets-the-bound-through-the-
 typing/valid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members.hd	A10b	same title as reject typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-map-key.hd
 typing/valid/tuple-template-bounds-a-rest-list-of-integers-meets-the-map-key-bound.hd	A10b	same title as reject typing/invalid/tuple-template-bounds-a-rest-list-of-floats-is-no-map-key.hd
 typing/valid/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members.hd	A10b	same title as reject typing/invalid/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show.hd
-typing/valid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57-legal-type-arguments.hd	A10b	same title as reject typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd
+typing/valid/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10b	same title as reject typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd
 runtime/valid/inferred-rows-a-chain-of-private-callers-takes-the-keys-left-unprovided.hd	A10b	same title as reject typing/invalid/inferred-rows-a-public-caller-without-the-key-a-private-chain-leaves-is-missing-it.hd
 runtime/valid/inferred-rows-an-inferred-generic-key-keeps-its-type-arguments.hd	A10b	same title as reject typing/invalid/inferred-rows-a-generic-key-with-another-type-argument-is-missing.hd
 runtime/valid/inferred-rows-mutually-recursive-private-functions-take-the-least-rows.hd	A10b	same title as reject typing/invalid/inferred-rows-a-mutually-recursive-private-function-needs-the-key-its-partner-provides.hd

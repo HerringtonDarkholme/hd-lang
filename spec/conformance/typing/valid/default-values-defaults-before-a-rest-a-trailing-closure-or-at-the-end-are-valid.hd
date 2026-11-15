@@ -1,4 +1,4 @@
-# test: checker defaults must not be followed by a required parameter
+# test: default values defaults before a rest a trailing closure or at the end are valid
 fn case_111(a: i32 = 1, b: i32 = 2) -> i32:
     a + b
 
