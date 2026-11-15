@@ -790,7 +790,7 @@ b153	runtime/valid/pointer-loan-struct-ref-umap-read.hd	UNSURE	B7	Cites std-coll
 b153	std/collections/uniqlist/function-value-copy-inputs-preserve-owners.hd	UNSURE	B7	Cites std/collections.md#uniqlist, but the test checks fn.type.values, fn.capture.copies and ref.copy.structure, and imports std.http.Url; tier of citation unclear.
 b153	std/collections/list-methods/list-view-run.hd	UNSURE	B1	Title promises a window read "with no copy", but the asserts only check values; nothing observes copying.
 b153	std/collections/list-methods/list-span.hd	UNSURE	B1	Title promises reading and iterating "without copying its elements", but the asserts only check values; nothing observes copying.
-b153	runtime/valid/digest-value-copy.hd	FIX	B5	Imports Digest, which the program never names; import only sha256.
+b153	std/digest/digest/digest-value-copy.hd	FIX	B5	Imports Digest, which the program never names; import only sha256.
 b154	runtime/valid/encoding-decode-errors.hd	FIX	B3	Display check only asserts the text is non-empty; assert the exact text "invalid character at position 4" from lib/std/encoding.hd.
 b154	runtime/valid/std-errors-erased.hd	FIX	B5	Imports ParseNumberError, which the program never names; remove it from the use line.
 b154	runtime/valid/encoding-properties.hd	UNSURE	C1	The bad-base64 table repeats encoding-decode-errors.hd cases with the same inputs and expectations, such as "Zm-_", "Zg=a", "Zh==" and "Zm9v\n".
