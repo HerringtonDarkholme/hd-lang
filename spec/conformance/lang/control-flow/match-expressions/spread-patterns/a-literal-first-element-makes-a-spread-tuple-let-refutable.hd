@@ -1,0 +1,4 @@
+# test: let (0, _...) is refutable, since the first element may be any i32
+fn describe(t: (i32, List[i32]...)) -> i32:
+    let (0, _...) = t # diagnostic: refutable-let-pattern
+    0

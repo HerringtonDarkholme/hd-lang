@@ -1,0 +1,8 @@
+# test: a comma after a row inside a type ends the row, so a second key there is a syntax error; + joins keys
+# Spec 02 Requirement Clauses: grammar.type.row.in-type.comma.
+
+trait Clock
+
+trait Logger
+
+fn run(callback: fn() -> void $ Clock, Logger) -> void: pass  # diagnostic: syntax-error

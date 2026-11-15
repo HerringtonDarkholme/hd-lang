@@ -1,0 +1,7 @@
+# test: a trait with a row-parameter method is still a valid dyn type; only that method is unavailable
+
+trait Runner:
+    fn run[$ R](self, job: fn() -> void $ R) -> void $ R
+
+fn valid(runner: &dyn Runner) -> void:
+    pass

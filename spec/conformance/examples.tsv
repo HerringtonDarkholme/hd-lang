@@ -74,7 +74,7 @@ lang/02-grammar.md	24	mixed	lang/grammar/generic-parameters-and-bounds/associate
 lang/02-grammar.md	25	complete	lang/grammar/generic-parameters-and-bounds/type-argument-defaults.hd
 lang/02-grammar.md	26	mixed	lang/grammar/generic-parameters-and-bounds/impl-generic-default.hd
 lang/02-grammar.md	27	mixed	lang/grammar/generic-parameters-and-bounds/row-parameter-bound.hd|lang/grammar/generic-parameters-and-bounds/lifetime-parameter-bound.hd|lang/grammar/generic-parameters-and-bounds/const-generic-parameter-default.hd|lang/grammar/generic-parameters-and-bounds/const-generic-parameter-positions.hd
-lang/02-grammar.md	28	mixed	lang/grammar/types/parenthesized-row.hd|lang/grammar/types/bare-row-list-in-type.hd
+lang/02-grammar.md	28	mixed	lang/grammar/types/parenthesized-row.hd|lang/grammar/types/a-comma-after-a-row-in-a-type-ends-the-row.hd
 lang/02-grammar.md	29	mixed	lang/grammar/types/row-subtraction.hd
 lang/02-grammar.md	30	mixed	lang/grammar/types/row-kind-mismatch.hd
 lang/02-grammar.md	31	complete	-
@@ -851,8 +851,8 @@ lang/11-requirements-and-suspension.md	70	mixed	lang/requirements/cancellation/c
 lang/11-requirements-and-suspension.md	71	complete	lang/requirements/cancellation/abandon-unwind-order.hd
 lang/11-requirements-and-suspension.md	72	complete	-
 lang/11-requirements-and-suspension.md	73	complete	lang/requirements/cancellation/combinator-cancel-fan-out.hd
-lang/11-requirements-and-suspension.md	74	complete	lang/requirements/cancellation/all-tuple-result.hd
-lang/11-requirements-and-suspension.md	75	mixed	lang/requirements/cancellation/all-bang-child.hd|lang/requirements/cancellation/join-forms.hd|lang/requirements/cancellation/all-explicit-type-arguments.hd|lang/requirements/cancellation/join-rejects-its-thirty-second-child.hd
+lang/11-requirements-and-suspension.md	74	complete	lang/requirements/cancellation/join-tuple-result.hd
+lang/11-requirements-and-suspension.md	75	mixed	lang/requirements/cancellation/join-bang-child.hd|lang/requirements/cancellation/join-forms.hd|lang/requirements/cancellation/join-explicit-type-arguments.hd|lang/requirements/cancellation/join-rejects-its-thirty-second-child.hd
 lang/11-requirements-and-suspension.md	76	fragment	lang/requirements/requirements-and-suspension.hd
 lang/11-requirements-and-suspension.md	77	fragment	lang/requirements/requirement-rows/row-extension-entailment.hd
 lang/11-requirements-and-suspension.md	78	complete	lang/requirements/requirement-polymorphism/row-extension-absent-key.hd

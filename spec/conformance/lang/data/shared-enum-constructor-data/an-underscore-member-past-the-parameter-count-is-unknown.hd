@@ -1,0 +1,6 @@
+# test: a one-parameter shared enum has _0 and no _1, so reading _1 is an unknown field
+enum Code(i32):
+    Missing -> Code(404)
+
+fn f(c: Code) -> i32:
+    c._1 # diagnostic: unknown-field

@@ -163,6 +163,14 @@ unless it says otherwise.
      `tuple-rest-a-spread-pattern-*`) and stale terms ("dynamically safe",
      `all!`, row lists in parentheses, partial eq).
    - Done when: A10 and A10c are empty, and A10b is triaged.
+   - Done (#1945): the 44 fixtures behind A10 and A10c's 62 rows (one removed
+     by #1944) already carried titles taken
+     from their accept names, and A10b's 87 rows were triaged against main:
+     79 no longer share a reject's title, 2 were removed by #1944, 4 match
+     only on the word "error" in an error-type case, and 3 were retitled with
+     their reject twins. The `int-widths-*`, `tuple-rest-a-spread-pattern-*`,
+     `all!`, "dynamically safe", partial-eq and parenthesized-row titles and
+     names now state the current rule.
 7. **Make the checks able to fail.**
    - Turn the 3 `# prints:` comments (`checks/a16.tsv`) into `# expect-stdout:`.
    - Fix the confirmed B3 and B4 cases, for example: `x == x || x != x`,

@@ -1,0 +1,70 @@
+# expect-stdout: run body, conn closed, stopper finished, supervise cleanup, outer defer, runner defer
+# expect-stdout: abandoned
+# test: an join! whose child another task cancelled is cancelled instead of panicking, and so is each task that awaits it in turn, up to the dispose! that awaits the chain
+# Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate, req.cancel.await.dispose; Standard Combinators: req.combinator.all-cancelled.
+use std.ops.defer
+use std.ops.AsyncDisposable
+use std.task.join
+use std.time.{Clock, ms, s, sleep}
+
+struct Conn:
+    log: *mut List[string]
+
+impl AsyncDisposable for Conn:
+    fn dispose!(&mut self) -> void:
+        self.log.push("conn closed")
+
+struct Report:
+    log: *mut List[string]
+
+impl AsyncDisposable for Report:
+    fn dispose!(&mut self) -> void:
+        self.log.push("supervise cleanup")
+
+struct Runner['a]:
+    log: *mut List[string]
+    job: Suspend[string, 'a]
+
+impl['a] AsyncDisposable for Runner['a]:
+    fn dispose!(&mut self) -> void:
+        defer(fn() -> void: self.log.push("runner defer"))
+        let mut job = self.job
+        value := job!()
+        self.log.push("runner got ${value}")
+
+fn work!(log: *mut List[string]) -> void $ Clock:
+    using! conn = &mut Conn { log: log }
+    sleep!(s(60))
+    log.push("work never")
+
+fn stop_later!(job: Suspend[void], log: &mut List[string]) -> void $ Clock:
+    sleep!(ms(1))
+    match job.cancel!():
+        .Finished => log.push("stopper finished")
+        .Abandoned => log.push("stopper abandoned")
+
+fn supervise!(job: Suspend[void], log: *mut List[string]) -> string $ Clock:
+    using! report = &mut Report { log: log }
+    _ := join!(job, stop_later(job, log))
+    "supervise never"
+
+fn outer!(job: Suspend[void], log: *mut List[string]) -> string $ Clock:
+    defer(fn() -> void: log.push("outer defer"))
+    supervise!(job, log)
+
+fn run!(log: *mut List[string], job: Suspend[string]) -> void:
+    using! runner = &mut Runner { log: log, job: job }
+    log.push("run body")
+
+fn ended!(job: Suspend[void]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+pub fn main!() -> void $ Console + Clock:
+    log := box::[List[string]]([])
+    let job: Suspend[void] = work(log)
+    let runner: Suspend[void] = run(log, outer(job, log))
+    runner!()
+    println(log.join(", "))
+    println(ended!(runner))

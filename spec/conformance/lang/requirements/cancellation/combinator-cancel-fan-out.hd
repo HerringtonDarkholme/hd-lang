@@ -1,6 +1,6 @@
 # expect-stdout: shutdown
 # expect-stdout: connections draining, acceptor stops accepting, connections drained, serve defer
-# test: a cancelled all! starts every unfinished child's cleanup in argument order before it waits for any, so the connections' dispose that waits for the acceptor's defer does not deadlock, and the parent's own cleanup runs last
+# test: a cancelled join! starts every unfinished child's cleanup in argument order before it waits for any, so the connections' dispose that waits for the acceptor's defer does not deadlock, and the parent's own cleanup runs last
 # Spec lang/11 Standard Combinators: req.combinator.cancel-order, req.combinator.cancel-fold, req.combinator.cancel-parent-last.using-split.
 use std.ops.defer
 use std.ops.AsyncDisposable

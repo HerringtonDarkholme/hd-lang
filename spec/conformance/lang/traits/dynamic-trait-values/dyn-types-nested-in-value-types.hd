@@ -1,0 +1,12 @@
+# test: a dyn type is a valid value type in fields, lists, options and function types
+# Spec 09 Dynamic Safety: trait.dyn.except-fn, trait.dyn.member.type-param.
+
+trait Visitor:
+    fn visit[T < AnyRef](self, value: T) -> void
+
+struct Walk:
+    visitors: List[*dyn Visitor]
+
+fn plan(choose: fn(*dyn Visitor?) -> List[*dyn Visitor]) -> void:
+    let current: *dyn Visitor? = .None
+    _ := choose(current)

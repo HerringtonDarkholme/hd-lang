@@ -1,0 +1,32 @@
+# test: a trait with a method type parameter, whatever its bound, is still a valid dyn type and requirement key
+# Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.member.row-parameter.
+# Spec 04 Dynamic Safety: types.trait.safe.method-type-param; Spec 11: req.key.any-trait-members.reference-values.
+
+trait Convert:
+    fn convert[T](self, value: T) -> string
+
+trait Labeler:
+    fn label[T < Display](self, value: T) -> string
+
+trait Scalar < AnyVal
+
+trait Registry:
+    fn lookup[T < Scalar](self, name: string) -> T?
+
+trait Show:
+    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32
+    fn show_back[T](self, pair: (T, fn() -> void $ Console)) -> i32
+
+trait Codec:
+    fn round_trip[T](self, value: T) -> T
+
+fn values(
+    convert: &dyn Convert,
+    labeler: &dyn Labeler,
+    registry: &dyn Registry,
+    show: &dyn Show,
+) -> void:
+    pass
+
+fn sync() -> void $ Codec:
+    pass

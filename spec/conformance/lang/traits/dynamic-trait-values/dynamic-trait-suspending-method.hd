@@ -1,4 +1,4 @@
-# test: a dynamically safe trait may declare a suspending method
+# test: a suspending trait method is available through a dyn value
 
 trait Loader:
     fn load!(self) -> i32

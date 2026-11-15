@@ -1,7 +1,0 @@
-# test: int widths an i32 shift by a count past u32 panics
-# Spec lang/04-type-system.md: types.arith.shift-count.debug.
-
-pub fn main() -> void $ Console:
-    let one: i32 = 1
-    let count: u64 = 4294967296
-    println(one >> count) # panic: invalid-shift

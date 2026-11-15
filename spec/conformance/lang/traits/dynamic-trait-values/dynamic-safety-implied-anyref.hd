@@ -1,9 +1,0 @@
-# test: a method type parameter bounded by Error, whose argument may be an enum, keeps the trait dynamically safe
-# Spec 09 Dynamic Safety: trait.dyn.member.type-param; Spec 04 Dynamic Safety: types.trait.safe.method-type-param.
-use std.error.Error
-
-trait Registry:
-    fn lookup[T < Error](self, name: string) -> T?
-
-fn valid(registry: &dyn Registry) -> void:
-    pass

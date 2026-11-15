@@ -1,4 +1,4 @@
-# test: a pending trait proof obeys the same depth limit after its type is known
+# test: a pending trait proof resolves once a later assignment fixes its type, 49 layers deep, within the depth limit
 # Rule: trait.bound.depth.limit.
 
 trait Marker

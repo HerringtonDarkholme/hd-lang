@@ -1,0 +1,12 @@
+# test: a trait with a method type parameter bounded through two supertraits is still a valid dyn type
+# Spec 09 Dynamic Safety: trait.dyn.member.type-param; Bounds: trait.bound.supertraits.
+
+trait Record < Entity
+
+trait Entity < AnyRef
+
+trait Registry:
+    fn lookup[T < Record](self, name: string) -> T?
+
+fn valid(registry: &dyn Registry) -> void:
+    pass

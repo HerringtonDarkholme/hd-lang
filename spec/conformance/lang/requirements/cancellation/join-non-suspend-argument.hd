@@ -1,0 +1,8 @@
+# test: every argument of join! must be a Suspend
+use std.task.join
+
+fn ready!() -> i32:
+    1
+
+fn mixed!() -> (i32, i32):
+    join!(ready(), 2) # diagnostic: type-mismatch

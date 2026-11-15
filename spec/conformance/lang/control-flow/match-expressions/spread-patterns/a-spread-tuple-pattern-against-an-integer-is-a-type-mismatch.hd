@@ -1,0 +1,4 @@
+# test: a spread tuple pattern against an i32, which is no tuple, is a type mismatch
+fn other(n: i32) -> i32:
+    let (first, _rest...) = n # diagnostic: type-mismatch
+    first

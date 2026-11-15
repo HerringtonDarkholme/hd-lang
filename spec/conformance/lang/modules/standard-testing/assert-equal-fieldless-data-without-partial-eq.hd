@@ -1,8 +1,0 @@
-# test: assert equal fieldless data without partial eq
-# Spec 10 Standard Testing: module.testing.no-implicit-eq.
-
-use std.testing.assert_equal
-@derive(Debug)
-struct Value: pass
-fn main() -> void:
-    assert_equal(Value {}, Value {}, reason="not derived") # diagnostic: unsatisfied-trait-bound

@@ -1,4 +1,4 @@
-# test: a spread pattern covers every list
+# test: a spread arm after a literal arm covers every tuple, so the match is exhaustive
 fn describe(t: (i32, List[i32]...)) -> i32:
     match t:
         (0, _...) => 0
