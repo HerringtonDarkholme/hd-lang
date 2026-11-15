@@ -1,4 +1,5 @@
 # test: wrapping_mul keeps the low bits of the exact product at the minimum and maximum of every width
+# fixture-target: wasm32
 # Spec std/num Wrapping Arithmetic: std-num.wrapping.mul, std-num.wrapping.result, std-num.wrapping.no-panic (issue #476).
 fn hash_step(state: u32, byte: u8) -> u32:
     (state ^ u32(byte)).wrapping_mul(16777619)

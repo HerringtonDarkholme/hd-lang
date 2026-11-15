@@ -1,4 +1,5 @@
-# test: an unsuffixed integer power past the i32 maximum panics
+# test: an unsuffixed integer power falls back to usize, so 2 ** 32 overflows the 32-bit usize of Wasm32
+# fixture-target: wasm32
 # Spec lang/05-expressions.md: expr.power.checked.
 
 pub fn main() -> void $ Console:

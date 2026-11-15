@@ -1,4 +1,5 @@
 # test: wrapping arithmetic and bounds keep every integer width canonical in generic calls
+# fixture-target: wasm32
 # Spec std/num: std-num.methods.every-width, std-num.wrapping.result, std-num.checked.add, std-num.checked.sub (issue #604).
 use std.num.Integer
 use std.testing.assert

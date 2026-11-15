@@ -1,4 +1,5 @@
 # test: parse_u32, parse_u64, and parse_usize read an optional plus and digits, and reject a minus as an invalid digit
+# fixture-target: wasm32
 # Spec std/num Integer Parsing: std-num.parse.trait-impls, std-num.parse.unsigned-type-grammar, std-num.parse.unsigned.minus, std-num.parse.usize-type-range.
 use std.num.{ParseNumberError}
 fn describe[T < Display](result: Result[T, ParseNumberError]) -> string:

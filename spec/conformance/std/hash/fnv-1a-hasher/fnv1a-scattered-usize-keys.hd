@@ -1,4 +1,5 @@
 # test: usize hashes through Fnv1a preserve four little-endian bytes through the concrete hash chain
+# fixture-target: wasm32
 # Spec std Hash: std-hash.bytes.integer, std-hash.fnv1a.algorithm, std-hash.fnv1a.fixed.
 # Literal digests were calculated independently with arbitrary-precision FNV-1a,
 # reducing modulo 2^64 after each byte, rather than by this compiler.

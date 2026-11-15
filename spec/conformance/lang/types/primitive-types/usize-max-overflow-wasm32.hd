@@ -1,4 +1,5 @@
 # test: on the Wasm32 target a usize holds 4294967295, and one more is an integer-overflow panic in a debug build
+# fixture-target: wasm32
 # This case applies to the Wasm32 target only, where usize has 32 bits; another target has another maximum.
 # Spec 04 The usize Type: types.usize.width, types.usize.behavior; Integer Arithmetic: types.arith.checked.
 

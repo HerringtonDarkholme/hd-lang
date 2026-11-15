@@ -1,4 +1,5 @@
 # test: Fnv1a is 64-bit FNV-1a with its published digests, for any split of the bytes into writes
+# fixture-target: wasm32
 # Spec std Hash, FNV-1a Hasher: std-hash.fnv1a.declarations, std-hash.fnv1a.algorithm,
 # std-hash.fnv1a.new-value, std-hash.fnv1a.write, std-hash.fnv1a.finish,
 # std-hash.fnv1a.typed-writes, std-hash.fnv1a.fixed, std-hash.fnv1a.vectors.

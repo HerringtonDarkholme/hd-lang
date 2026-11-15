@@ -176,6 +176,7 @@ names the call site ([`fn.caller.frames`](../lang/07-functions.md#r-fn.caller.fr
 | `# fixture-package-role: ROLE`              | header      | Selects the synthetic multi-package environment. See [Package Roles](#package-roles). |
 | `# fixture-test-layout: LAYOUT`             | header      | Places the fixture as a test module or an integration test module. See [Test Layouts](#test-layouts). |
 | `# fixture-package-tree: TREE/PATH`         | header      | Places the fixture in a package of several files. See [Package Trees](#package-trees). |
+| `# fixture-target: TARGET`                  | header      | Runs the case only on target `TARGET`, which is `wasm32`. See [Fixture Targets](#fixture-targets). |
 | `# expect-stdout: TEXT`                     | header      | One line of the entry point's exact standard output, in order. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
 | `# expect-empty-stdout: true`               | header      | Running the fixture as a single file exits 0 and writes nothing to standard output. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
 
@@ -593,6 +594,21 @@ initializing that module and the modules it uses, as
 [Runtime Execution](#runtime-execution) describes. Its test cases include
 the [doc tests](../lang/10-modules.md#doc-tests) of the primary file, and
 `check FILE` covers them as `hd check --tests` does.
+
+### Fixture Targets
+
+A case whose result depends on the target names the one target it holds
+on with `# fixture-target: TARGET`. Such a case tests the width of `usize`
+([`types.usize.width`](../lang/04-type-system.md#r-types.usize.width)), a
+value that fits one width only, or how much memory a program can take. The
+only `TARGET` is `wasm32`, the target the specification defines.
+
+The runner knows the target of the implementation under test. It runs a
+case with this header when that target is `TARGET`. On any other target it
+skips the case, as it skips a case a selection manifest leaves out: the
+case is not run and not reported. Any other `TARGET` is an error of the
+fixture. `spec/check.sh` rejects it, and the runner stops with an error
+instead of running or skipping the case.
 
 ### Standard Output
 

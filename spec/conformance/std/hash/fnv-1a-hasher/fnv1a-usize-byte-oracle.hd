@@ -1,4 +1,5 @@
 # test: usize hashing through Fnv1a matches an independent four-byte FNV-1a oracle at boundaries and scattered keys
+# fixture-target: wasm32
 # Spec std Hash: std-hash.bytes.integer, std-hash.fnv1a.algorithm, std-hash.fnv1a.typed-writes.
 use std.hash.Fnv1a
 use std.testing.assert_equal

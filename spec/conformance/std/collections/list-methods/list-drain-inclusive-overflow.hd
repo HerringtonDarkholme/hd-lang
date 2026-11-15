@@ -1,4 +1,5 @@
 # test: list-drain-inclusive-overflow rejects invalid bounds
+# fixture-target: wasm32
 
 pub fn main() -> void:
     let mut items = [+1, 2]

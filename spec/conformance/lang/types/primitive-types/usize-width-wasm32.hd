@@ -1,4 +1,5 @@
 # test: on Wasm32 a usize has the range of a 32-bit unsigned integer, so a cast to it wraps at 32 bits
+# fixture-target: wasm32
 # Spec 04 The usize Type: types.usize.width, types.usize.behavior, types.usize.convert; Numeric Casts: types.cast.wrap.
 
 fn shown(size: usize) -> string:

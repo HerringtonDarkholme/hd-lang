@@ -1,4 +1,5 @@
 # test: uniq list reserve overflow
+# fixture-target: wasm32
 use std.collections.UniqList
 
 pub fn main() -> void:

@@ -1,4 +1,5 @@
 # test: typed Hasher defaults and overrides preserve their byte streams and existing hash values
+# fixture-target: wasm32
 # Spec std Hash, Bytes Written and Hasher methods: trait.hash.typed-methods,
 # trait.hash.typed-bytes, trait.hash.string-bytes, trait.hash.override-equivalent,
 # std-hash.default.typed-writes, std-hash.bytes.exact.

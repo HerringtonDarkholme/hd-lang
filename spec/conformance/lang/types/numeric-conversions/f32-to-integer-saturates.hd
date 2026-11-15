@@ -1,4 +1,5 @@
 # test: f32 to integer saturates
+# fixture-target: wasm32
 # Rules: types.cast.saturate, types.cast.int-float, types.cast.f64-f32.
 # expect-empty-stdout: true
 fn zero32() -> f32:

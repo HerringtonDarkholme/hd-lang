@@ -206,6 +206,41 @@ fn cases() -> Vec<Case> {
     out
 }
 
+/// The target of every program this harness runs: each engine runs the
+/// wasm32 module `hd` builds (spec/conformance/README.md, Fixture Targets).
+const HARNESS_TARGET: &str = "wasm32";
+
+/// The targets a `# fixture-target:` header may name: those the
+/// specification defines (`types.usize.width` names Wasm32).
+const FIXTURE_TARGETS: &[&str] = &["wasm32"];
+
+/// Whether the case of fixture `text` runs on `target`: a fixture without
+/// a `# fixture-target:` header runs on every target, one with it only on
+/// the target it names. A target the specification does not define is a
+/// harness error, never a skip.
+fn runs_on(text: &str, target: &str) -> Result<bool, String> {
+    match directive(text, "fixture-target") {
+        None => Ok(true),
+        Some(named) if FIXTURE_TARGETS.contains(&named) => Ok(named == target),
+        Some(named) => Err(format!("unknown fixture target `{named}`")),
+    }
+}
+
+/// The cases of `cases` that run on `target`, in order. The others are
+/// skipped: not run and not reported, as a selection leaves a case out.
+/// Cost: one read of each case's fixture, before any case builds.
+fn on_target(cases: Vec<Case>, target: &str) -> Result<Vec<Case>, String> {
+    let mut kept = Vec::with_capacity(cases.len());
+    for case in cases {
+        let text = std::fs::read_to_string(suite_root().join(&case.path))
+            .map_err(|error| format!("{}: {error}", case.path))?;
+        if runs_on(&text, target).map_err(|error| format!("{}: {error}", case.path))? {
+            kept.push(case);
+        }
+    }
+    Ok(kept)
+}
+
 fn directive<'a>(text: &'a str, name: &str) -> Option<&'a str> {
     let prefix = format!("# {name}: ");
     text.lines().find_map(|line| line.strip_prefix(&prefix))
@@ -2450,6 +2485,47 @@ fn suite_case(path: &str, serial: usize) -> Case {
     }
 }
 
+/// A `# fixture-target: wasm32` case runs on wasm32, the harness's own
+/// target, and is skipped on any other; an unmarked case runs on both.
+#[test]
+fn a_fixture_target_case_runs_only_on_its_target() {
+    let marked = suite_case("lang/types/primitive-types/usize-width-wasm32.hd", 0);
+    let plain = suite_case("lang/types/primitive-types/usize-len-underflow.hd", 1);
+    let paths = |cases: Vec<Case>| cases.into_iter().map(|case| case.path).collect::<Vec<_>>();
+    let both = vec![marked.clone(), plain.clone()];
+    assert_eq!(
+        paths(on_target(both.clone(), HARNESS_TARGET).expect("known targets")),
+        [marked.path.clone(), plain.path.clone()]
+    );
+    assert_eq!(
+        paths(on_target(both, "wasm64").expect("known targets")),
+        [plain.path]
+    );
+}
+
+/// A target the specification does not define is an error of the fixture,
+/// whatever the harness's target.
+#[test]
+fn an_unknown_fixture_target_is_a_harness_error() {
+    let text = "# fixture-target: wasm64\npub fn main() -> void:\n    pass\n";
+    for target in [HARNESS_TARGET, "wasm64"] {
+        assert_eq!(
+            runs_on(text, target),
+            Err("unknown fixture target `wasm64`".to_owned())
+        );
+    }
+    assert_eq!(
+        runs_on("pub fn main() -> void:\n    pass\n", "wasm64"),
+        Ok(true)
+    );
+    let missing = suite_case("lang/no-such-fixture.hd", 0);
+    assert!(
+        on_target(vec![missing], HARNESS_TARGET)
+            .expect_err("a missing fixture")
+            .starts_with("lang/no-such-fixture.hd: ")
+    );
+}
+
 #[test]
 fn a_package_tree_fixture_takes_its_place_in_the_tree() {
     // README "Package Trees": the primary file takes the package path of
@@ -2718,7 +2794,8 @@ fn specification_conformance_passes_except_known_failures() {
     let mode = engine_mode();
     let all = cases();
     let only = filtered(all.clone());
-    let mut cases = only.clone().unwrap_or(all);
+    let mut cases = on_target(only.clone().unwrap_or(all), HARNESS_TARGET)
+        .unwrap_or_else(|error| panic!("conformance harness error: {error}"));
     let selected_tier = selection_env("HD_CONFORMANCE_TIER");
     if let Some(name) = &selected_tier {
         assert!(

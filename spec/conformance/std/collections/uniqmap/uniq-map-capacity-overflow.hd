@@ -1,4 +1,5 @@
 # test: uniq map capacity overflow
+# fixture-target: wasm32
 use std.collections.UniqMap
 
 pub fn main() -> void:

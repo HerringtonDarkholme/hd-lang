@@ -1,4 +1,5 @@
 # test: checked methods return None where the operator would panic, and wrapping methods keep the low bits
+# fixture-target: wasm32
 # Spec std/num Checked Arithmetic and Wrapping Arithmetic: std-num.checked.add, std-num.checked.div.cases, std-num.wrapping.result (task #218).
 fn total(prices: List[i64]) -> i64?:
     let sum: i64 = 0

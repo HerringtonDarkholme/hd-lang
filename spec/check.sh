@@ -30,7 +30,7 @@ if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --in
 fi
 
 if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
-    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|fixture-package-tree|expect-stdout|expect-empty-stdout): ' |
+    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|fixture-package-tree|fixture-target|expect-stdout|expect-empty-stdout): ' |
     grep -v -E ':# expect-stdout:$'; then
     fail "fixture uses a header directive not defined in conformance/README.md"
 fi
@@ -59,6 +59,12 @@ grep -R -l -E '^# fixture-package-tree: ' "$spec_dir/conformance" --include='*.h
     [ ! -e "$trees/$value" ] ||
         fail "fixture ${file#"$spec_dir/conformance/"} takes $value, which the tree already holds"
 done
+
+# Fixture Targets (conformance/README.md): wasm32 is the only target.
+if grep -R -n -E '^# fixture-target: ' "$spec_dir/conformance" --include='*.hd' |
+    grep -v -E ':# fixture-target: wasm32$'; then
+    fail "fixture names a target other than wasm32"
+fi
 
 if grep -R -n -E '^# expect: ' "$spec_dir/conformance" --include='*.hd' |
     grep -v -E ':# expect: (parse|accept|test)[[:space:]]*$'; then

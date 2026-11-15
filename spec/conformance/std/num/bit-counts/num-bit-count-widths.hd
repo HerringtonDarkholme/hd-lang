@@ -1,4 +1,5 @@
 # test: generic bit counts ignore sign extension and preserve the declared width at zero and boundaries
+# fixture-target: wasm32
 # Spec std/num Bit Counts: std-num.bits.count-ones-u32, std-num.bits.leading-zeros-u32, std-num.bits.signed, std-num.bits.trailing-zeros-u32, std-num.bits.trailing-zero-width (issue #760).
 use std.num.Integer
 use std.testing.assert_equal

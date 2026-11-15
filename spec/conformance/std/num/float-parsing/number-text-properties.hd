@@ -1,4 +1,5 @@
 # test: number text follows independent digit models and preserves numeric values
+# fixture-target: wasm32
 # Spec lang/04-type-system types.display.int, types.display.float; std/num
 # std-num.parse.grammar, std-num.parse.unsigned-type-grammar, std-num.parse.out-of-range,
 # std-num.radix.round-trip, std-num.radix.parse.errors, std-num.parse.float64-round-trip,
