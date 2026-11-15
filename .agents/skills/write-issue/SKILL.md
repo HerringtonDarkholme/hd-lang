@@ -43,6 +43,9 @@ to say. Aim for 6 to 15 lines.
    the measured work or time at two sizes (n and 4n or 10n), and keep n
    small enough to run in seconds. A later fix reproduces with exactly
    this program at exactly these sizes.
+   The done check is counted work at two sizes or a same-machine A/B
+   of build time, never a share of profile samples: a share moves when
+   other passes change, and with machine load.
 3. **Where.** The likely crate and file (`crates/hd_check/src/pat.rs`), or
    the doc section that holds the design. A pointer, not a plan.
 4. **Do.** Only when the fix has a choice the owner already made, or a
