@@ -360,85 +360,63 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
     }
 }
 
-/// The type parameters that occur in `t`, outside projections.
+/// The type parameters that occur in `t`, outside projections, in no
+/// set order and possibly repeated (the caller sorts and dedups). A work
+/// stack over each distinct node once (by type id): a part shared by many
+/// slots, as in `(T, T)` nested n deep (2^n leaves, n + 1 nodes), is
+/// walked once, so the work is the type's distinct nodes (#1886).
 pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
-    match pool.get(t) {
-        TyData::Param(p) => out.push(p),
-        TyData::Adt { args, .. } => {
-            for &a in pool.list_items(args) {
-                params_in(pool, a, out);
-            }
+    let mut seen: HashSet<Ty> = HashSet::default();
+    let mut stack = vec![t];
+    let row_params = |r: hd_types::RowId, out: &mut Vec<ParamRef>, stack: &mut Vec<Ty>| {
+        let row = pool.row_data(r);
+        out.extend(row.params.iter().map(|p| ParamRef {
+            owner: p.owner,
+            index: p.index,
+        }));
+        stack.extend(row.keys.iter().copied());
+    };
+    while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
         }
-        TyData::Opaque { args, bound, .. } => {
-            for &a in pool.list_items(args) {
-                params_in(pool, a, out);
+        hd_types::work::type_node();
+        match pool.get(t) {
+            TyData::Param(p) => out.push(p),
+            TyData::Adt { args, .. } => stack.extend_from_slice(pool.list_items(args)),
+            TyData::Opaque { args, bound, .. } => {
+                stack.extend_from_slice(pool.list_items(args));
+                stack.push(bound);
             }
-            params_in(pool, bound, out);
+            TyData::Tuple { elems, rest } => {
+                stack.extend_from_slice(pool.list_items(elems));
+                stack.extend(rest);
+            }
+            TyData::Union(members) => stack.extend_from_slice(pool.list_items(members)),
+            TyData::Ref { inner, .. } => stack.push(inner),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                stack.extend_from_slice(pool.list_items(params));
+                stack.push(result);
+                row_params(row, out, &mut stack);
+            }
+            TyData::TraitValue { args, bindings, .. } => {
+                stack.extend_from_slice(pool.list_items(args));
+                stack.extend(bindings.iter().map(|&(_, b)| b));
+            }
+            TyData::Row(r) | TyData::Context(r) => row_params(r, out, &mut stack),
+            TyData::Assoc { .. }
+            | TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
         }
-        TyData::Tuple { elems, rest } => {
-            for &a in pool.list_items(elems) {
-                params_in(pool, a, out);
-            }
-            if let Some(r) = rest {
-                params_in(pool, r, out);
-            }
-        }
-        TyData::Union(members) => {
-            for &member in pool.list_items(members) {
-                params_in(pool, member, out);
-            }
-        }
-        TyData::Ref { inner: i, .. } => {
-            params_in(pool, i, out);
-        }
-        TyData::Fn {
-            params,
-            result,
-            row,
-            ..
-        } => {
-            for &a in pool.list_items(params) {
-                params_in(pool, a, out);
-            }
-            params_in(pool, result, out);
-            let row = pool.row_data(row);
-            for p in row.params {
-                out.push(ParamRef {
-                    owner: p.owner,
-                    index: p.index,
-                });
-            }
-            for k in row.keys {
-                params_in(pool, k, out);
-            }
-        }
-        TyData::TraitValue { args, bindings, .. } => {
-            for &a in pool.list_items(args) {
-                params_in(pool, a, out);
-            }
-            for (_, b) in bindings {
-                params_in(pool, b, out);
-            }
-        }
-        TyData::Row(r) | TyData::Context(r) => {
-            let row = pool.row_data(r);
-            for p in row.params {
-                out.push(ParamRef {
-                    owner: p.owner,
-                    index: p.index,
-                });
-            }
-            for k in row.keys {
-                params_in(pool, k, out);
-            }
-        }
-        TyData::Assoc { .. }
-        | TyData::Prim(_)
-        | TyData::Never
-        | TyData::Poison
-        | TyData::Const(_)
-        | TyData::Infer(_)
-        | TyData::Canon(_) => {}
     }
 }
 

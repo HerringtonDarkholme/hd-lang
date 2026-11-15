@@ -6009,14 +6009,34 @@ impl Ck<'_, '_> {
 }
 
 impl Ck<'_, '_> {
-    /// Normalizes every projection inside a type.
+    /// Normalizes every projection inside a type: each distinct node that
+    /// holds a projection once (memoized by type id for the call), and a
+    /// node with none is returned as it is, so the work is the type's
+    /// distinct nodes with a projection, not its expansion as a tree.
     pub(crate) fn normalize_deep(&mut self, t: Ty) -> StageResult<Ty> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let list = |me: &mut Self, l: TyList| -> StageResult<TyList> {
+        if !pool.has_assoc(t) {
+            return Ok(t);
+        }
+        let mut memo = HashMap::default();
+        self.normalize_deep_in(t, &mut memo)
+    }
+
+    fn normalize_deep_in(&mut self, t: Ty, memo: &mut HashMap<Ty, Ty>) -> StageResult<Ty> {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        if !pool.has_assoc(t) {
+            return Ok(t);
+        }
+        if let Some(&done) = memo.get(&t) {
+            return Ok(done);
+        }
+        hd_types::work::type_node();
+        let list = |me: &mut Self, l: TyList, memo: &mut HashMap<Ty, Ty>| -> StageResult<TyList> {
             let mut v = Vec::new();
             for x in pool.list_items(l).iter().copied() {
-                v.push(me.normalize_deep(x)?);
+                v.push(me.normalize_deep_in(x, memo)?);
             }
             Ok(pool.list(&v))
         };
@@ -6027,22 +6047,24 @@ impl Ck<'_, '_> {
                 self_ty,
                 args,
             } => {
-                let s = self.normalize_deep(self_ty)?;
-                let a = list(self, args)?;
+                let s = self.normalize_deep_in(self_ty, memo)?;
+                let a = list(self, args, memo)?;
                 let x = pool.intern_ty(&TyData::Assoc {
                     assoc,
                     trait_,
                     self_ty: s,
                     args: a,
                 });
-                return self.normalize(x);
+                let out = self.normalize(x)?;
+                memo.insert(t, out);
+                return Ok(out);
             }
             TyData::Adt { def, args } => TyData::Adt {
                 def,
-                args: list(self, args)?,
+                args: list(self, args, memo)?,
             },
             TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(self, elems)?,
+                elems: list(self, elems, memo)?,
                 rest,
             },
             TyData::Ref {
@@ -6050,7 +6072,7 @@ impl Ck<'_, '_> {
                 mutable,
                 counted,
             } => TyData::Ref {
-                inner: self.normalize_deep(inner)?,
+                inner: self.normalize_deep_in(inner, memo)?,
                 mutable,
                 counted,
             },
@@ -6062,8 +6084,8 @@ impl Ck<'_, '_> {
                 inputs,
                 deps,
             } => TyData::Fn {
-                params: list(self, params)?,
-                result: self.normalize_deep(result)?,
+                params: list(self, params, memo)?,
+                result: self.normalize_deep_in(result, memo)?,
                 row,
                 suspends,
                 inputs,
@@ -6071,7 +6093,9 @@ impl Ck<'_, '_> {
             },
             _ => return Ok(t),
         };
-        Ok(pool.intern_ty(&d))
+        let out = pool.intern_ty(&d);
+        memo.insert(t, out);
+        Ok(out)
     }
 }
 

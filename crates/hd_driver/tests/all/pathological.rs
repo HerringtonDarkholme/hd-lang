@@ -1980,6 +1980,87 @@ fn type_walks_visit_each_distinct_node_once() {
     });
 }
 
+/// A doubled tuple `n` levels deep passed on: through a generic call
+/// (`id(x{n})`), or through an alias chain `type A{i} = (A{i-1}, A{i-1})`.
+/// Or a pair of `Two[...Two[S::Item]]` (`n` deep), each node holding a
+/// projection, both halves one type, passed on from a parameter.
+fn passed_doubled(shape: &str, n: usize) -> String {
+    let mut s = String::new();
+    match shape {
+        "generic" => s.push_str("fn id[T](v: T) -> T: v\n"),
+        "alias" => {
+            s.push_str("type A0 = string\n");
+            for i in 1..=n {
+                let _ = writeln!(s, "type A{i} = (A{}, A{})", i - 1, i - 1);
+            }
+            let _ = writeln!(s, "fn id(v: A{n}) -> A{n}: v");
+        }
+        _ => {
+            s.push_str(
+                "trait Source:\n    type Item\n\nstruct P: pass\n\n\
+                 impl Source for P:\n    type Item = string\n\n\
+                 struct Two[T]:\n    a: T\n    b: T\n\n",
+            );
+            let (mut w, mut v) = (String::from("S::Item"), String::from("string"));
+            for _ in 0..n {
+                w = format!("Two[{w}]");
+                v = format!("Two[{v}]");
+            }
+            let _ = writeln!(s, "fn id[S < Source](s: S, v: ({w}, {w})) -> ({w}, {w}): v");
+            let _ = writeln!(
+                s,
+                "fn pass_on(v: ({v}, {v})) -> void:\n    _ := id(P {{}}, v)"
+            );
+            return s;
+        }
+    }
+    s.push_str("pub fn main() -> void:\n    x0 := \"a\"\n");
+    for i in 1..=n {
+        let _ = writeln!(s, "    x{i} := (x{}, x{})", i - 1, i - 1);
+    }
+    let _ = writeln!(s, "    _ := id(x{n})");
+    s
+}
+
+// Checker: #1886, passing a shared type on walks each distinct node once.
+// The occurs check behind a generic call's binding is the worklist of
+// #1891 (5cde4114c). This commit makes the rest walk each distinct node
+// once, by type id: `Ck::normalize_deep` returns a type with no
+// projection as it is and memoizes the rest; `Types::subst`, the copy
+// row's `copy_parts` and the instantiation-cycle check's `params_in` keep
+// the nodes they did. Before, each followed the type as a tree: 2^n nodes
+// for n levels (the generic call at 60 levels over 60 s).
+#[test]
+fn passing_a_doubled_type_on_walks_each_node_once() {
+    on_test_stack(|| {
+        for shape in ["generic", "alias"] {
+            let mut base = 0;
+            for n in [20, 200] {
+                let (out, nodes) = hd_types::work::count_type_nodes(|| {
+                    compile(&passed_doubled(shape, n), &Goal::Analyze)
+                });
+                assert!(out.diags.is_empty(), "{shape} {n}: {}", out.render());
+                if n == 20 {
+                    base = nodes;
+                }
+                // The alias chain holds no variable and no projection, so
+                // no counted walk enters it: `normalize_deep` returns it at
+                // its gate, where it once rebuilt 2^n nodes.
+                assert!(
+                    (base > 0 || shape == "alias") && nodes <= 10 * base * 5 / 4,
+                    "type nodes walked for 20 and {n} levels ({shape}): {base}, {nodes}"
+                );
+            }
+        }
+        // A projection in every node: `normalize_deep` takes the shared half
+        // from its memo, and `subst` overflows its array into the map. Not
+        // counted at 10n: the `Copy` goals over the `Two` chain cost its
+        // depth squared (Known in the commit), apart from these walks.
+        let out = compile(&passed_doubled("projection", 10), &Goal::Analyze);
+        assert!(out.diags.is_empty(), "projection: {}", out.render());
+    });
+}
+
 /// `n` enums, each with a `Serialize` derivation block of its own.
 fn enum_views(n: usize) -> String {
     let mut s = String::from(

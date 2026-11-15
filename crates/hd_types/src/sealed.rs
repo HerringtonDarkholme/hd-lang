@@ -360,17 +360,32 @@ pub(crate) fn row(
 ///
 /// A work stack, not recursion: a declaration's members nest as deep as
 /// the program's types do, and a fixed depth cap answered "copies" past
-/// it (#1777). Each nominal instance is entered once (`entered`), which
-/// also ends a cycle through a declaration (`Node { next: Node? }`) and
-/// walks a type argument shared by many fields (`Pair[X, X]`) once.
-/// Parts are taken left to right, so `subs` keeps the order a recursive
-/// walk gives. Nothing is allocated for a type that is one part.
+/// it (#1777). Each distinct node with parts, and each parameter or
+/// variable, is entered once (`entered`, by type id): that ends a cycle
+/// through a declaration (`Node { next: Node? }`), and walks a part
+/// shared by many fields (`Pair[X, X]`) or tuple slots (`(T, T)` nested
+/// n deep, 2^n leaves) once, so the work is the type's distinct nodes
+/// (#1886). Parts are taken left to right, so `subs` keeps the order a
+/// recursive walk gives. Nothing is allocated for a type that is one part.
 fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<Ty>) -> bool {
     let mut stack: Vec<Ty> = Vec::new();
     let mut entered: HashSet<Ty> = HashSet::default();
     let mut next = Some(t);
     while let Some(t) = next.take().or_else(|| stack.pop()) {
-        match pool.get(t) {
+        let data = pool.get(t);
+        if matches!(
+            data,
+            TyData::Tuple { .. }
+                | TyData::Union(_)
+                | TyData::Param(_)
+                | TyData::Infer(_)
+                | TyData::Adt { .. }
+        ) && !entered.insert(t)
+        {
+            continue;
+        }
+        crate::work::type_node();
+        match data {
             TyData::Ref {
                 mutable, counted, ..
             } => {
@@ -383,18 +398,11 @@ fn copy_parts(pool: Types<'_>, decls: &dyn Declarations, t: Ty, subs: &mut Vec<T
                 stack.extend(pool.list_items(elems).iter().rev());
             }
             TyData::Union(ms) => stack.extend(pool.list_items(ms).iter().rev()),
-            TyData::Param(_) | TyData::Infer(_) => {
-                if !subs.contains(&t) {
-                    subs.push(t);
-                }
-            }
+            TyData::Param(_) | TyData::Infer(_) => subs.push(t),
             TyData::Adt { def, args } => match decls.copy_decl(def) {
                 CopyDecl::Copies => {}
                 CopyDecl::NotCopy => return false,
                 CopyDecl::Members(ms) => {
-                    if !entered.insert(t) {
-                        continue;
-                    }
                     let argv = pool.list_items(args);
                     stack.extend(ms.iter().rev().map(|&m| {
                         pool.subst(m, &|p: ParamRef| {

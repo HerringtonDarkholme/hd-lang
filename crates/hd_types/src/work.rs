@@ -31,7 +31,9 @@ pub(crate) fn resolve_node() {
 
 /// Count the type nodes that resolving, folding and walking inference
 /// variables visit on this thread (`InferTable::resolve`, the occurs
-/// check, the solver's folds): one per node walked, not per memo hit.
+/// check, the solver's folds), substituting parameters (`Types::subst`),
+/// the `Copy` row's parts, and the checker's `normalize_deep` and
+/// instantiation-cycle walks: one per node walked, not per memo hit.
 /// Use the driver's serial executor to measure a whole build.
 pub fn count_type_nodes<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = TYPE_NODES.with(|c| c.replace(Some(0)));
@@ -40,8 +42,8 @@ pub fn count_type_nodes<R>(run: impl FnOnce() -> R) -> (R, u64) {
     (result, n)
 }
 
-/// One type node walked.
-pub(crate) fn type_node() {
+/// One type node walked; public so the checker's own walks count.
+pub fn type_node() {
     hd_base::work::add(hd_base::work::Counter::TypeNodes, 1);
     TYPE_NODES.with(|c| {
         if let Some(n) = c.get() {

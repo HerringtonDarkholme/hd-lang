@@ -2234,22 +2234,44 @@ impl<'a> Types<'a> {
 
     /// Replaces declared parameters: `f` maps a parameter to its argument,
     /// or `None` to keep it.
+    ///
+    /// Each distinct node is substituted once per call (memoized by type
+    /// id, as `f` is a function of the parameter alone), so the work is the
+    /// type's distinct nodes with a parameter, not its expansion as a tree:
+    /// `(T, T)` nested n deep is n + 1 nodes, not 2^n leaves (#1886).
     pub fn subst(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
         if !self.has_param(t) {
             return t;
         }
-        let l = |x: TyList| {
-            self.list(
-                &self
-                    .list_items(x)
-                    .iter()
-                    .copied()
-                    .map(|e| self.subst(e, f))
-                    .collect::<Vec<_>>(),
-            )
+        self.subst_in(t, f, &mut SubstMemo::new())
+    }
+
+    fn subst_in(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>, memo: &mut SubstMemo) -> Ty {
+        if !self.has_param(t) {
+            return t;
+        }
+        if let TyData::Param(p) = self.get(t) {
+            return f(p).unwrap_or(t);
+        }
+        if let Some(done) = memo.get(t) {
+            return done;
+        }
+        crate::work::type_node();
+        let out = self.subst_node(t, f, memo);
+        memo.insert(t, out);
+        out
+    }
+
+    fn subst_node(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>, memo: &mut SubstMemo) -> Ty {
+        let l = |x: TyList, memo: &mut SubstMemo| {
+            let items: Vec<Ty> = self
+                .list_items(x)
+                .iter()
+                .map(|&e| self.subst_in(e, f, memo))
+                .collect();
+            self.list(&items)
         };
         let d = match self.get(t) {
-            TyData::Param(p) => return f(p).unwrap_or(t),
             TyData::Opaque {
                 owner,
                 site,
@@ -2260,21 +2282,24 @@ impl<'a> Types<'a> {
                 owner,
                 site,
                 borrows,
-                args: l(args),
-                bound: self.subst(bound, f),
+                args: l(args, memo),
+                bound: self.subst_in(bound, f, memo),
             },
-            TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: l(args, memo),
+            },
             TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: l(elems),
-                rest: rest.map(|r| self.subst(r, f)),
+                elems: l(elems, memo),
+                rest: rest.map(|r| self.subst_in(r, f, memo)),
             },
-            TyData::Union(members) => TyData::Union(l(members)),
+            TyData::Union(members) => TyData::Union(l(members, memo)),
             TyData::Ref {
                 inner,
                 mutable,
                 counted,
             } => TyData::Ref {
-                inner: self.subst(inner, f),
+                inner: self.subst_in(inner, f, memo),
                 mutable,
                 counted,
             },
@@ -2286,11 +2311,11 @@ impl<'a> Types<'a> {
                 inputs,
                 deps,
             } => {
-                let (ps, r) = (l(params), self.subst(result, f));
+                let (ps, r) = (l(params, memo), self.subst_in(result, f, memo));
                 TyData::Fn {
                     params: ps,
                     result: r,
-                    row: self.subst_row(row, f),
+                    row: self.subst_row_in(row, f, memo),
                     suspends,
                     inputs,
                     deps: self.instance_deps(
@@ -2299,18 +2324,18 @@ impl<'a> Types<'a> {
                     ),
                 }
             }
-            TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
-            TyData::Context(r) => TyData::Context(self.subst_row(r, f)),
+            TyData::Row(r) => TyData::Row(self.subst_row_in(r, f, memo)),
+            TyData::Context(r) => TyData::Context(self.subst_row_in(r, f, memo)),
             TyData::TraitValue {
                 def,
                 args,
                 bindings,
             } => TyData::TraitValue {
                 def,
-                args: l(args),
+                args: l(args, memo),
                 bindings: bindings
                     .into_iter()
-                    .map(|(d, b)| (d, self.subst(b, f)))
+                    .map(|(d, b)| (d, self.subst_in(b, f, memo)))
                     .collect(),
             },
             TyData::Assoc {
@@ -2321,8 +2346,8 @@ impl<'a> Types<'a> {
             } => TyData::Assoc {
                 assoc,
                 trait_,
-                self_ty: self.subst(self_ty, f),
-                args: l(args),
+                self_ty: self.subst_in(self_ty, f, memo),
+                args: l(args, memo),
             },
             other => other,
         };
@@ -2336,9 +2361,21 @@ impl<'a> Types<'a> {
         if self.row_meta(r) & meta::HAS_PARAM == 0 {
             return r;
         }
+        self.subst_row_in(r, f, &mut SubstMemo::new())
+    }
+
+    fn subst_row_in(
+        self,
+        r: RowId,
+        f: &dyn Fn(ParamRef) -> Option<Ty>,
+        memo: &mut SubstMemo,
+    ) -> RowId {
+        if self.row_meta(r) & meta::HAS_PARAM == 0 {
+            return r;
+        }
         let d = self.row_data(r);
         let mut out = RowData {
-            keys: d.keys.iter().map(|k| self.subst(*k, f)).collect(),
+            keys: d.keys.iter().map(|k| self.subst_in(*k, f, memo)).collect(),
             params: Vec::new(),
         };
         for p in d.params {
@@ -2351,6 +2388,48 @@ impl<'a> Types<'a> {
             }
         }
         self.row(&out)
+    }
+}
+
+/// One `subst` call's results by type id: the first few in a fixed array,
+/// scanned (a substitution through a small type allocates nothing), then
+/// a hash map once they overflow it.
+struct SubstMemo {
+    small: [(Ty, Ty); 8],
+    len: usize,
+    big: HashMap<Ty, Ty>,
+}
+
+impl SubstMemo {
+    fn new() -> Self {
+        Self {
+            small: [(Ty(0), Ty(0)); 8],
+            len: 0,
+            big: HashMap::default(),
+        }
+    }
+
+    fn get(&self, t: Ty) -> Option<Ty> {
+        if self.big.is_empty() {
+            self.small[..self.len]
+                .iter()
+                .find(|&&(k, _)| k == t)
+                .map(|&(_, v)| v)
+        } else {
+            self.big.get(&t).copied()
+        }
+    }
+
+    fn insert(&mut self, t: Ty, out: Ty) {
+        if self.len < self.small.len() {
+            self.small[self.len] = (t, out);
+            self.len += 1;
+        } else {
+            if self.big.is_empty() {
+                self.big.extend(self.small.iter().copied());
+            }
+            self.big.insert(t, out);
+        }
     }
 }
 
