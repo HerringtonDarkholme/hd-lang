@@ -23,7 +23,6 @@ lang/grammar/expressions/grammar-disambiguation.hd	parse	accept	lang/02-grammar.
 lang/functions/functions-and-closures.hd	parse	accept	lang/07-functions.md
 lang/modules/use-forms/uses.hd	parse	accept	lang/10-modules.md#use-forms
 lang/data/data-embedding/data-embedding.hd	parse	accept	lang/08-data-and-enums.md#data-embedding
-lang/data/struct-declarations/mutable-field-modifier.hd	parse	reject:mutable-field-modifier	lang/08-data-and-enums.md#fields
 lang/data/data-embedding/mutable-embedded-field.hd	parse	reject:mutable-field-modifier	lang/08-data-and-enums.md#data-embedding
 lang/grammar/declarations/pub-embedded-field.hd	parse	reject:syntax-error	lang/02-grammar.md#data-types
 lang/grammar/declarations/data-declaration.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.data.struct-only
@@ -309,10 +308,7 @@ lang/types/generics/generic-arguments/own-type-arity-too-many-struct-parameter.h
 lang/types/generics/generic-arguments/own-type-arity-too-many-struct-result.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
 lang/requirements/suspendt-protocol/poll-context-a-literal-naming-the-private-field-is-one-private-member-error.hd	type	reject:private-member	lang/11-requirements-and-suspension.md#poll-context
 lang/control-flow/match-expressions/match-an-arm-after-a-catch-all-is-unreachable.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
-lang/control-flow/match-expressions/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd	type	reject:bare-variant-pattern	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/match-a-variant-name-without-a-dot-is-a-bare-variant-pattern.hd	type	reject:bare-variant-pattern	lang/06-control-flow.md#match-expressions
-lang/control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#match-expressions
-lang/control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd	type	reject:unknown-field	lang/06-control-flow.md#match-expressions
 lang/traits/trait-implementations/comparison-traits/related-traits-derived-hash-beside-hand-written-eq-is-one-error.hd	type	reject:mixed-derived-law	lang/09-traits.md#related-traits
 lang/types/variance/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
 lang/types/variance/row-variance-a-list-argument-with-a-wider-row-is-a-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
@@ -704,7 +700,6 @@ lang/data/data-embedding/data-embedding-an-embedded-field-names-a-struct.hd	type
 lang/data/data-embedding/data-embedding-an-embedding-chain-may-be-three-deep.hd	type	accept	lang/08-data-and-enums.md#data-embedding
 lang/traits/inherent-implementations/inherent-impls-members-with-distinct-names-are-valid.hd	type	accept	lang/09-traits.md#inherent-implementations
 lang/data/struct-declarations/fields-a-literal-giving-its-only-field-may-be-read-at-once.hd	type	accept	lang/08-data-and-enums.md#fields
-lang/data/construction-and-access/field-shorthand-shorthand-fields-from-parameters-give-every-field.hd	type	accept	lang/08-data-and-enums.md#field-shorthand
 lang/data/struct-declarations/fields-a-struct-with-distinct-field-names-is-valid.hd	type	accept	lang/08-data-and-enums.md#r-data.field.unique
 lang/traits/inherent-implementations/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd	type	accept	lang/09-traits.md#r-trait.inherent.unique-unifying
 lang/data/data-embedding/data-embedding-a-chain-through-a-generic-struct-may-be-three-deep.hd	type	accept	lang/08-data-and-enums.md#data-embedding
@@ -773,7 +768,6 @@ lang/lexical/processing-model/mid-file-bom.hd	parse	reject:unexpected-bom	lang/0
 lang/lexical/operators-and-delimiters/semicolon.hd	parse	reject:reserved-semicolon	lang/01-lexical-structure.md#operators-and-delimiters
 lang/lexical/whitespace-and-indentation/tab-indentation.hd	parse	reject:tab-whitespace	lang/01-lexical-structure.md#whitespace-and-indentation
 lang/grammar/expressions/positional-after-named.hd	parse	reject:argument-order	lang/02-grammar.md#calls-and-arguments
-lang/functions/parameters/nonfinal-spread.hd	type	reject:nonfinal-positional-spread	lang/07-functions.md#varargs
 lang/functions/declarations/missing-return-value.hd	type	reject:missing-return-value	lang/07-functions.md#declarations
 lang/types/assignability-and-coercion/bindings.hd	type	accept	lang/04-type-system.md#assignability-and-coercion
 lang/expressions/comprehensions/collections.hd	type	accept	lang/05-expressions.md#comprehensions
@@ -909,7 +903,6 @@ lang/references/writing-through-a-reference/readonly-mut-field-reassignment.hd	t
 lang/names/lexical-scopes/names-and-scopes.hd	type	accept	lang/03-names-and-scopes.md#lexical-scopes
 lang/names/module-scope/module-bindings.hd	type	accept	lang/03-names-and-scopes.md#module-scope
 lang/modules/prelude/prelude-surface.hd	type	accept	lang/10-modules.md#prelude
-lang/names/module-scope/forward-module-binding.hd	type	reject:binding-not-yet-visible	lang/03-names-and-scopes.md#module-scope
 lang/types/numeric-conversions/newtypes-and-widening.hd	type	accept	lang/04-type-system.md#numeric-conversions
 lang/types/numeric-conversions/numeric-types.hd	type	accept	lang/04-type-system.md#numeric-conversions
 lang/types/result-types/option-result.hd	type	accept	lang/04-type-system.md#result-types
@@ -1020,7 +1013,6 @@ lang/types/nominal-and-structural-types/one-element-tuple-needs-comma.hd	type	re
 lang/types/nominal-and-structural-types/empty-tuple-type.hd	type	accept	lang/04-type-system.md#r-types.tuple.empty
 lang/types/nominal-and-structural-types/tuple-rest-element-form.hd	type	accept	lang/04-type-system.md#r-types.tuple.rest.form
 lang/types/nominal-and-structural-types/tuple-rest-element-value.hd	runtime	accept	lang/04-type-system.md#r-types.tuple.rest.value
-lang/types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.tuple.rest.same
 lang/types/map-key-types/generic-map-key.hd	type	accept	lang/04-type-system.md#map-key-types
 lang/requirements/suspending-functions/mutable-suspension.hd	type	accept	lang/11-requirements-and-suspension.md#suspending-functions
 lang/requirements/decomposed-model/runtimes-bind-different-providers.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.model.runtimes
@@ -1310,7 +1302,6 @@ lang/requirements/provider-scopes/provider-spread-of-non-context.hd	type	reject:
 lang/requirements/provider-scopes/context-result-type-mismatch.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#provider-scopes
 lang/requirements/provider-scopes/context-spread-normalization.hd	type	accept	lang/11-requirements-and-suspension.md#provider-scopes
 lang/requirements/provider-scopes/context-values-install-providers.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-scopes
-lang/requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd	type	reject:generic-requirement-key-collision	lang/11-requirements-and-suspension.md#requirement-polymorphism
 lang/requirements/requirement-polymorphism/generic-provider-keys-consistent-substitution.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 lang/requirements/requirement-polymorphism/generic-provider-keys-distinct.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 lang/requirements/requirement-polymorphism/generic-provider-keys-occurs-check.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
@@ -1571,7 +1562,6 @@ lang/grammar/declarations/explicit-generic-arguments-with-placeholder.hd	parse	a
 lang/grammar/declarations/explicit-generic-data-arguments.hd	parse	accept	lang/02-grammar.md#data-types
 lang/lexical/whitespace-and-indentation/dedent-to-unused-column.hd	parse	reject:invalid-dedent	lang/01-lexical-structure.md#whitespace-and-indentation
 lang/lexical/whitespace-and-indentation/tab-in-function-body.hd	parse	reject:tab-whitespace	lang/01-lexical-structure.md#whitespace-and-indentation
-lang/lexical/literals/double-numeric-separator.hd	parse	reject:invalid-token	lang/01-lexical-structure.md#literals
 lang/lexical/literals/binary-literal-bad-digit.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#literals
 lang/lexical/literals/identifier-interpolation.hd	parse	accept	lang/01-lexical-structure.md#literals
 lang/lexical/literals/stray-dollar-in-string.hd	parse	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
@@ -1872,7 +1862,7 @@ lang/control-flow/match-expressions/match-float-arm-repeated-in-a-later-column.h
 lang/control-flow/match-expressions/match-string-and-float-arms-differ-in-a-later-column.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/exhaustiveness/match-too-complex.hd	type	reject:match-too-complex	lang/06-control-flow.md#r-flow.match.limit.error
 lang/expressions/postfix-expressions/propagation/propagation-operand-not-optional.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#propagation
-lang/expressions/postfix-expressions/propagation/propagation-without-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#propagation
+lang/expressions/postfix-expressions/propagation/propagation-without-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 lang/functions/closures/closure-parameter-without-type.hd	type	reject:closure-parameter-needs-annotation	lang/07-functions.md#closures
 lang/functions/closures/closure-returns-without-common-type.hd	type	reject:no-common-type	lang/07-functions.md#closures
 lang/traits/trait-declarations/missing-supertrait-implementation.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#trait-declarations
@@ -2697,7 +2687,6 @@ lang/modules/module-initialization/init-group-a-bound-call-reaches-the-impls-of-
 lang/modules/module-initialization/init-group-cycle.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.cycle.stuck
 lang/lexical/literals/string-prefix-plain-dollar-digit.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
 lang/functions/function-types-and-values/literal-suffix-default-parameter.hd	runtime	accept	lang/07-functions.md#r-fn.type.no-names
-lang/requirements/requirement-rows/row-subsumption/row-union-private-result.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.union.sites
 lang/expressions/unary-and-binary-operators/operator-traits/operator-string-add.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.string-generic
 lang/expressions/expression-categories/compound-assign-index.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.index-place
 lang/expressions/expression-categories/compound-assign-index-no-read.hd	type	reject:not-writable	lang/05-expressions.md#r-expr.assign.compound.index-place
@@ -3228,7 +3217,6 @@ lang/requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	type
 lang/requirements/requirement-rows/row-parameters/row-parameter-as-type.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.as-type
 lang/requirements/requirement-rows/row-parameters/row-parameter-owners-run.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.marked.owners
 lang/requirements/requirement-rows/row-parameters/row-parameter-name-in-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.marked.use
-lang/requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.no-inference
 lang/requirements/requirement-rows/row-parameters/row-parameter-one-kind.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.one-kind
 lang/requirements/requirement-rows/row-parameters/row-parameter-data-owners.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.data-owner
 lang/traits/trait-implementations/overlap/row-parameter-data-impl-overlap.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
@@ -4492,12 +4480,10 @@ lang/grammar/declarations/grammar-mutable-field-modifier.hd	parse	reject:mutable
 lang/names/module-scope/indirect-top-level-forward-read.hd	type	reject:top-level-read-before-initialization	lang/03-names-and-scopes.md#r-names.init.whole-module
 lang/functions/declarations/inferred-results-an-error-in-an-inferred-body-is-reported-once.hd	type	reject:unknown-name	lang/07-functions.md#r-fn.decl.result-inferred
 lang/types/generics/generic-arguments/placeholder-in-ordinary-type.hd	parse	reject:syntax-error	lang/04-type-system.md#r-types.generic.placeholder.not-type
-lang/expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 lang/functions/function-types-and-values/function-type-constructors/function-type-mutable-permission.hd	parse	reject:syntax-error	lang/07-functions.md#r-fn.type.no-mut
 lang/traits/trait-implementations/implementation-targets/impl-target-row-extension.hd	type	reject:invalid-impl-target	lang/09-traits.md#r-trait.target.row-argument.extension
 lang/traits/dynamic-trait-values/dyn-unknown-associated-binding.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.dyn.binding.names
 lang/expressions/pipe-expressions/pipe-leading-dot-expression-rule.hd	parse	reject:syntax-error	lang/05-expressions.md#r-expr.pipe.lines
-lang/requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd	type	reject:unknown-associated-type	lang/11-requirements-and-suspension.md#r-req.key.binding.names
 lang/annotations/error-derivation/error-form-other-rule.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.other
 lang/grammar/annotations/decorator-lines-on-every-target.hd	parse	accept	lang/02-grammar.md#r-grammar.annot.item-targets
 lang/grammar/use-declarations/use-declaration-forms.hd	parse	accept	lang/02-grammar.md#r-grammar.use.self-root
@@ -6005,7 +5991,6 @@ lang/references/dependent-results/writes-while-borrowed/dependent-result-write-s
 lang/references/dependent-results/writes-while-borrowed/dependent-result-reassign-source-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
 lang/references/dependent-results/writes-while-borrowed/dependent-result-write-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 lang/references/dependent-results/writes-while-borrowed/dependent-result-copy-out.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
-lang/references/dependent-results/writes-while-borrowed/dependent-result-borrow-field-instead.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 lang/references/dependent-results/writes-while-borrowed/shared-self-mut-result-path-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
 lang/references/dependent-results/writes-while-borrowed/shared-self-mut-result-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
 lang/references/dependent-results/writes-while-borrowed/shared-self-mut-result-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
@@ -6203,7 +6188,6 @@ std/collections/uniqmap/uniq-map-reference-conflicts-with-insert.hd	type	reject:
 std/collections/uniqmap/uniq-map-insert-moves-value.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-map.insert
 std/collections/uniqlist/uniq-list-push-while-item-reference-live.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-list.get-ref
 lang/types/generics/generic-arguments/placeholder-local-annotations.hd	type	accept	lang/04-type-system.md#r-types.generic.placeholder.local
-lang/types/generics/generic-arguments/placeholder-in-a-declaration.hd	parse	reject:syntax-error	lang/04-type-system.md#r-types.generic.placeholder.not-type
 lang/types/generics/generic-arguments/placeholder-local-unsolved.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.placeholder.local
 std/iter/what-collect-builds/collect-without-a-target.hd	type	reject:cannot-infer-type	std/iter.md#r-std-iter.collect.no-default
 std/collections/uniqlist/uniq-list-use-after-consuming-loop.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.into-iter

@@ -1,5 +1,5 @@
 # test: row aliases a caller missing a key of a nested alias is missing it
-# fixture-package-tree: row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it/src/main.hd
+# fixture-package-tree: row-aliases-nested-keys/src/main.hd
 use pkg.keys.{Db, Cache, Log, Web, WithLog}
 
 fn serve() -> void $ Web + Db:

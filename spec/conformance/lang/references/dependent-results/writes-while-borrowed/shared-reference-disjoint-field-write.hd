@@ -1,5 +1,5 @@
 # test: a write to another field of the place a live shared reference points into is valid
-# Spec 13 Writes While Borrowed: ref.excl.place.
+# Spec 13 Writes While Borrowed: ref.excl.place, ref.excl.call.
 struct User:
     name: string
     age: i32

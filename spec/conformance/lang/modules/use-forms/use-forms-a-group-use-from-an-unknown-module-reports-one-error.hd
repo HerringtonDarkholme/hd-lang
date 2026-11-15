@@ -1,5 +1,5 @@
 # test: use forms a group use from an unknown module reports one error
-# fixture-package-tree: use-forms-a-group-use-from-an-unknown-module-reports-one-error/src/main.hd
+# fixture-package-tree: use-forms-unknown-module/src/main.hd
 use pkg.nowhere.{f, T} # diagnostic: unknown-module
 
 fn run(x: T) -> void:

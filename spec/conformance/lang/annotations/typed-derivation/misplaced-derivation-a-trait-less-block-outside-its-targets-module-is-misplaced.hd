@@ -1,5 +1,5 @@
 # test: a trait less block outside its targets module is misplaced
-# fixture-package-tree: misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced/src/main.hd
+# fixture-package-tree: misplaced-derivation-point/src/main.hd
 use pkg.lib.shapes.Point
 use std.structure.Structure
 

@@ -118,7 +118,7 @@ lang/03-names-and-scopes.md	5	complete	-
 lang/03-names-and-scopes.md	6	complete	-
 lang/03-names-and-scopes.md	7	fragment	lang/names/lexical-scopes/names-and-scopes.hd
 lang/03-names-and-scopes.md	8	error-fragment	lang/names/module-scope/sibling-module-function-not-imported.hd|lang/names/module-scope/sibling-module-private-function-bare.hd
-lang/03-names-and-scopes.md	9	mixed	lang/names/module-scope/forward-module-binding.hd
+lang/03-names-and-scopes.md	9	mixed	lang/names/module-scope/exec-binding-read-before-declared.hd
 lang/03-names-and-scopes.md	10	complete	-
 lang/03-names-and-scopes.md	11	complete	-
 lang/03-names-and-scopes.md	12	error-fragment	lang/names/module-scope/tests-block-item-outside.hd|lang/names/module-scope/public-test-item.hd|lang/names/module-scope/tests-block-use-leak.hd
@@ -517,7 +517,7 @@ lang/08-data-and-enums.md	2	complete	-
 lang/08-data-and-enums.md	3	mixed	lang/data/data-embedding/struct-embedded-field.hd|lang/data/struct-declarations/struct-contains-itself.hd
 lang/08-data-and-enums.md	4	fragment	lang/types/value-types/struct-copy-is-independent.hd
 lang/08-data-and-enums.md	5	complete	lang/data/construction-and-access/data-types.hd
-lang/08-data-and-enums.md	6	mixed	lang/data/struct-declarations/mutable-field-modifier.hd|lang/data/data-embedding/mutable-embedded-field.hd
+lang/08-data-and-enums.md	6	mixed	lang/grammar/declarations/grammar-mutable-field-modifier.hd|lang/data/data-embedding/mutable-embedded-field.hd
 lang/08-data-and-enums.md	7	complete	-
 lang/08-data-and-enums.md	8	mixed	lang/data/struct-declarations/private-type-embedded-in-public-data.hd
 lang/08-data-and-enums.md	9	complete	lang/data/struct-declarations/fieldless-data-argument.hd

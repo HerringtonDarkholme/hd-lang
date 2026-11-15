@@ -1,5 +1,5 @@
 # test: row aliases a nested alias flattens into the keys of its caller
-# fixture-package-tree: row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller/src/main.hd
+# fixture-package-tree: row-aliases-nested-keys/src/main.hd
 use pkg.keys.{Db, Cache, Log, Web, WithLog}
 
 fn serve() -> void $ Web + Db:

@@ -1,5 +1,5 @@
 # test: an inherent impl outside the module of its type is nonlocal
-# fixture-package-tree: impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal/src/beta.hd
+# fixture-package-tree: impl-modules-greeter-person-money/src/beta.hd
 use pkg.alpha.Person
 
 impl Person: # diagnostic: nonlocal-impl

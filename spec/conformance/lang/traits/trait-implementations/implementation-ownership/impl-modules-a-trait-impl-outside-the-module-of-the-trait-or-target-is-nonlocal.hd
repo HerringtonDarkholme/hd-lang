@@ -1,5 +1,5 @@
 # test: a trait impl outside the module of the trait or target is nonlocal
-# fixture-package-tree: impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-nonlocal/src/beta.hd
+# fixture-package-tree: impl-modules-greeter-person-money/src/beta.hd
 use pkg.alpha.{Greeter, Person}
 
 impl Greeter for Person: # diagnostic: nonlocal-impl

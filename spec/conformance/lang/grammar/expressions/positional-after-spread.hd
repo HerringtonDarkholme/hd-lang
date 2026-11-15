@@ -1,4 +1,5 @@
 # test: positional after spread
+# Spec 05 Calls: expr.call.spread.position.
 
 fn sum(a: i32, b: i32) -> i32:
     a + b

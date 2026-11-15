@@ -1,4 +1,5 @@
 # test: no conversion removes a rest element, so a rest tuple does not convert to a tuple without one
+# Spec 04 Type System: types.tuple.rest.assign, types.tuple.rest.same.
 
 fn plain(values: (i32, List[i32]...)) -> (i32, List[i32]):
     values # diagnostic: type-mismatch

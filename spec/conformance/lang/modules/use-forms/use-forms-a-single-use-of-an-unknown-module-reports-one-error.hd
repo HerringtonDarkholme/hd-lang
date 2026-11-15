@@ -1,5 +1,5 @@
 # test: use forms a single use of an unknown module reports one error
-# fixture-package-tree: use-forms-a-single-use-of-an-unknown-module-reports-one-error/src/main.hd
+# fixture-package-tree: use-forms-unknown-module/src/main.hd
 use pkg.nowhere.m # diagnostic: unknown-module
 
 pub fn main() -> void:

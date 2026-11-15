@@ -1,3 +1,4 @@
 # test: a generic parameter written without $ and used in a row is an error
+# Spec 11 Row Parameters: req.row.param.unmarked, req.row.param.no-inference.
 fn run[R](job: fn() -> void $ R) -> void $ R: # diagnostic: generic-kind-mismatch
     job()

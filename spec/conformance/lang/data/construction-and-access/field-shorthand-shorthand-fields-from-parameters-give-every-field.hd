@@ -1,7 +1,0 @@
-# test: field shorthand shorthand fields from parameters give every field
-struct Point:
-    x: i32
-    y: i32
-
-fn fixed(x: i32, y: i32) -> Point:
-    Point { x, y }

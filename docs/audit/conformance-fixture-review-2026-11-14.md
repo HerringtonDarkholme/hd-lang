@@ -546,6 +546,63 @@ for `warn` cases. They cite lint rules that a type-check case cannot observe.
 Fix: move them to `typing/valid/` and cite the rule that makes the code
 legal, or make them `warn` cases if the lint is in scope.
 
+### Duplicate removal log (#1944)
+
+Rerun on main b15c352d8 (topic folders, renamed cases), applied after the
+three-tier move (38412d064): A1 7 tree pairs, A2
+13 groups, A14 17 groups (8 of them the A2 pairs, 9 new). Each pair was
+diffed with comments and directives stripped, then compared by phase,
+expectation, directives and cited rule. A pair whose code differs only by
+names counts as a duplicate. A pair that differs by phase, expectation or a
+directive does not. When the deleted copy cited a rule the kept one did
+not, the kept fixture now cites it, so `spec coverage` cites the same 6,396
+rules before and after.
+
+**A1, done (7 pairs).** Each pair now shares one tree under `lang/trees/`:
+`dyn-inherent-nonlocal`, `impl-modules-greeter-person-money`,
+`misplaced-derivation-point`, `row-aliases-nested-keys`, `row-aliases-context`,
+`tuple-template-show` and `use-forms-unknown-module`.
+
+**A2 and A14, deleted (16).** Kept copy first:
+
+| Kept | Deleted | Check | Carried |
+|---|---|---|---|
+| `lang/grammar/declarations/grammar-mutable-field-modifier.hd` | `lang/data/struct-declarations/mutable-field-modifier.hd` | A2 | `data.field.no-mut-modifier`; `examples.tsv` 08 block 6 |
+| `lang/grammar/expressions/positional-after-spread.hd` | `lang/functions/parameters/nonfinal-spread.hd` | A2 | cites `expr.call.spread.position` |
+| `lang/names/module-scope/exec-binding-read-before-declared.hd` | `lang/names/module-scope/forward-module-binding.hd` | A2 | `examples.tsv` 03 block 9 |
+| `lang/types/nominal-and-structural-types/tuple-rest-assign.hd` | `…/tuple-rest-differs-from-plain.hd` | A2 | `types.tuple.rest.same` |
+| `lang/requirements/provider-scopes/generic-requirement-key-collision.hd` | `lang/requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd` | A2 | |
+| `…/row-subsumption/row-union-omitted-result.hd` | `…/row-union-private-result.hd` | A2 | |
+| `…/requirement-keys/requirement-key-unknown-binding.hd` | `…/requirement-key-unknown-binding-rule.hd` | A2 | |
+| `…/row-parameters/row-parameter-unmarked.hd` | `…/row-parameter-kind-not-inferred.hd` | A2 | `req.row.param.no-inference` |
+| `lang/control-flow/match-expressions/bare-ok-call-pattern.hd` | `…/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` | A14 | |
+| `lang/control-flow/match-expressions/duplicate-data-pattern-field.hd` | `…/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` | A14 | |
+| `lang/control-flow/match-expressions/variant-pattern-unknown-field.hd` | `…/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` | A14 | |
+| `lang/data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` | `…/field-shorthand-shorthand-fields-from-parameters-give-every-field.hd` | A14 | title fixed |
+| `lang/lexical/literals/repeated-numeric-separator.hd` | `lang/lexical/literals/double-numeric-separator.hd` | A14 | |
+| `lang/expressions/postfix-expressions/propagation/propagation-without-target.hd` | `…/propagation-nearest-function-target.hd` | A14 | row cites `expr.try.target.nearest-function` |
+| `lang/types/generics/generic-arguments/placeholder-in-ordinary-type.hd` | `…/placeholder-in-a-declaration.hd` | A14 | |
+| `lang/references/dependent-results/writes-while-borrowed/shared-reference-disjoint-field-write.hd` | `…/dependent-result-borrow-field-instead.hd` | A14 | `ref.excl.call` |
+
+**A2 and A14, rejected (6 groups).** Not duplicates:
+
+- `competing-suspension-drivers` / `reentrant-suspension-poll`: the expected
+  panic differs, and the runtime scenario selects it.
+- `root-file-super` / `root-file-lib-super`: the tree path differs (`main.hd`
+  against `lib.hd`).
+- `module-named-pkg` / `root-mod-file` / `module-path-not-identifier`: the
+  tree path differs, and so do two expected codes.
+- `module-documentation` / `module-documentation-second-block`: the doc
+  comments differ, and so does the expectation.
+- `a-copied-box-keeps-a-dependent-reference-independent-of-its-list` (type) /
+  `a-pointer-loan-keeps-its-independent-owner-owned-copy` (runtime): the phase
+  and `expect-stdout` differ. An implementation that selects only type cases
+  still needs the type case.
+- `call-positional-and-named-arguments-for-distinct-parameters-are-valid` /
+  `parameter-names-two-function-parameters-with-distinct-names-are-valid`
+  (A14 only): A14 drops a `main` that only prints, and here that `main`'s
+  `f(1, b=2)` is the call under test.
+
 ## Confirmed Findings
 
 ### Pilot, `lang/14-annotations.md`

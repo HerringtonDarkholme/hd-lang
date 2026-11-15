@@ -1,5 +1,5 @@
 # test: tuple template bounds a user tuple template rejects a member its walker cannot show
-# fixture-package-tree: tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show/src/main.hd
+# fixture-package-tree: tuple-template-show/src/main.hd
 use pkg.show.{Show}
 
 fn needs[T < Show](t: T) -> string:

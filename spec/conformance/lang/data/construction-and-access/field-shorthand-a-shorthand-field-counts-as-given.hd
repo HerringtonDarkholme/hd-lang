@@ -1,4 +1,4 @@
-# test: declaration checks a shorthand field counts as given
+# test: a shorthand field counts as a given field
 struct Coordinate:
     lat: i32
     lon: i32
