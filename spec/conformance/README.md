@@ -10,8 +10,9 @@ outside `spec/` to run the suite.
 
 ## Terms
 
-- **Fixture:** one UTF-8 `.hd` file under `spec/conformance/`, outside
-  `packages/` and `trees/`, the single primary input of one case.
+- **Fixture:** one UTF-8 `.hd` file under `spec/conformance/lang/` or
+  `spec/conformance/std/`, outside the tier's `packages/` and `trees/`, the
+  single primary input of one case.
 - **Case:** one row of `cases.tsv`. It names a fixture, a phase, and an
   expectation.
 - **CLI case:** one row of `cli-cases.tsv`. It names a directory under `cli/`
@@ -26,17 +27,26 @@ outside `spec/` to run the suite.
 
 ## Layout
 
-Fixtures live in topic folders, as the stage tests under `crates/` do. A
-folder is one topic of the specification: a chapter, such as `traits/` or
-`std/json/`, then a section or rule family inside it, such as
-`traits/bounds/`. The topic comes from what the case tests and the rule its
+`spec/conformance/` holds three tier folders, as the specification does:
+`lang/` for the language, `std/` for the standard library and `cli/` for
+the command line, beside the manifests and this README.
+
+Inside `lang/` and `std/`, fixtures live in topic folders, as the stage
+tests under `crates/` do. A folder is one topic of the specification: a
+chapter, such as `lang/traits/` or `std/json/`, then a section or rule
+family inside it, such as `lang/traits/bounds/`. The topic comes from what the case tests and the rule its
 row cites. Accept, reject, warning and panic cases of one topic sit
 together.
 
 A folder that grows past what a reader can scan splits by sub-topic.
 
 The directory carries no phase or expectation. A case's phase and
-expectation come from its `cases.tsv` row alone.
+expectation come from its `cases.tsv` row alone. The tier is the first
+folder of a case's path.
+
+Each of `lang/` and `std/` also holds the package sources of its own
+cases: `trees/` for [package trees](#package-trees) and `packages/` for the
+[multi-package environment](#package-roles).
 
 `cli/NAME/` holds the inputs and the `expect.txt` of one CLI case. It holds no
 fixture of the `cases.tsv` suite, and `cases.tsv` has no row for it.
@@ -478,9 +488,10 @@ with `cancellation-cleanup`.
 `# fixture-package-role: root-application` select the synthetic
 multi-package environment. The primary file is compiled as the root module
 of a package in the named role. That package depends on every package under
-[`packages/`](packages), each in the library role:
+its tier's `packages/` ([`lang/packages/`](lang/packages) or
+[`std/packages/`](std/packages)), each in the library role:
 
-- Each directory `packages/NAME/` is the source root of one package, used as
+- Each directory `TIER/packages/NAME/` is the source root of one package, used as
   `dep.NAME` ([Use Roots](../lang/10-modules.md#use-roots)). Its `lib.hd` is the
   package's root module.
 - A directory containing `package-root.txt` instead names a packaged library
@@ -489,9 +500,9 @@ of a package in the named role. That package depends on every package under
   tests, tasks and JavaScript providers are not fixture inputs. The adapter
   receives that package directory, including its manifest. This form lets an
   SDK fixture import the shipped library rather than a copy.
-- [`dep.models`](packages/models/lib.hd) declares `data User` with one
+- [`dep.models`](lang/packages/models/lib.hd) declares `data User` with one
   public `name: string` field.
-- [`dep.members`](packages/members/lib.hd) declares the public traits
+- [`dep.members`](lang/packages/members/lib.hd) declares the public traits
   `Tagged` (method `tag`) and `Stamped` (method `mark`), the public data
   types `Inner` and `Outer`, and the public function `make_outer`. `Outer`
   embeds `Inner` (embedded fields are always public), has private fields
@@ -504,8 +515,8 @@ of a package in the named role. That package depends on every package under
   members with a public field `id` and a public inherent method `label`,
   and the public function `make_draft`.
 
-- [`dep.markers`](packages/markers/lib.hd) has an empty root module; its
-  [`marks`](packages/markers/marks.hd) module publicly re-exports
+- [`dep.markers`](lang/packages/markers/lib.hd) has an empty root module; its
+  [`marks`](lang/packages/markers/marks.hd) module publicly re-exports
   `std.ops.num_suffix` and `std.ops.str_prefix`, so marker identity can be
   checked through a qualified dependency name.
 
@@ -515,7 +526,7 @@ directives, and are never judged on their own.
 The runner gives `check` and `test` the package role as a
 [runner option](#runner-options). It also gives one dependency for each
 package directory, in ascending order of `NAME`, where `DIR` is the absolute
-path of `packages/NAME`.
+path of `TIER/packages/NAME`.
 
 ### Test Layouts
 
@@ -540,7 +551,8 @@ package, as Package Roles does for the multi-package environment
 of several files (Dependency Cycles DC11), as Package Roles does for the
 multi-package environment:
 
-- `TREE` names a directory [`trees/TREE/`](trees), which is the root of one
+- `TREE` names a directory `TIER/trees/TREE/` of the fixture's own tier
+  ([`lang/trees/`](lang/trees) or [`std/trees/`](std/trees)), which is the root of one
   package: its files are `src/...` and `tests/...` paths, as
   [Path-Inferred Modules](../lang/10-modules.md#path-inferred-modules) and
   [Test Modules](../lang/10-modules.md#test-modules) place them.
@@ -553,7 +565,7 @@ multi-package environment:
 - A fixture with this header names no package role and no test layout.
 
 The runner gives `check` and `test` the package tree as a
-[runner option](#runner-options): `DIR`, the absolute path of `trees/TREE`,
+[runner option](#runner-options): `DIR`, the absolute path of `TIER/trees/TREE`,
 and `PATH`.
 
 A tree case differs from the Judging a Case table in two points:
@@ -649,7 +661,7 @@ them.
 | profile `NAME` | `check`, `test` | `# fixture-runtime-profile:` |
 | scenario `NAME` | `test` | `# fixture-runtime-scenario:` |
 | pending function `NAME` | `test` | `# fixture-runtime-pending-function:` |
-| package role `ROLE`, and dependencies `NAME` with `DIR` | `check`, `test` | `# fixture-package-role:`, and the directories of [`packages/`](packages) |
+| package role `ROLE`, and dependencies `NAME` with `DIR` | `check`, `test` | `# fixture-package-role:`, and the directories of the tier's `packages/` |
 | test layout `LAYOUT` | `check`, `test` | `# fixture-test-layout:` |
 | package tree `DIR` with package path `PATH` | `check`, `test` | `# fixture-package-tree:` |
 

@@ -233,11 +233,17 @@ fn load_tree(root: &Path, dir: &Path, sources: &mut MemorySources) {
     }
 }
 
-/// The packages of the multi-package environment: each directory
-/// `packages/NAME/`, in ascending order of NAME, as a package whose source
-/// root holds the directory's files.
-fn role_packages() -> Vec<(String, MemorySources)> {
-    let dir = suite_root().join("packages");
+/// The tier folder of a case: the first folder of its path, `lang` or
+/// `std`. Each tier folder keeps its own `trees/` and `packages/`.
+fn folder_tier(case: &Case) -> &str {
+    case.path.split('/').next().unwrap_or_default()
+}
+
+/// The packages of the multi-package environment of `tier`: each
+/// directory `TIER/packages/NAME/`, in ascending order of NAME, as a
+/// package whose source root holds the directory's files.
+fn role_packages(tier: &str) -> Vec<(String, MemorySources)> {
+    let dir = suite_root().join(tier).join("packages");
     let mut names: Vec<PathBuf> = std::fs::read_dir(&dir)
         .expect("packages directory")
         .flatten()
@@ -295,9 +301,9 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
     let mut deps = Vec::new();
     let primary = if let Some(role) = directive(&text, "fixture-package-role") {
         // The primary file is the root module of a package in the role,
-        // which depends on every package under `packages/`, each a
-        // library whose `lib.hd` is its root module.
-        deps = role_packages();
+        // which depends on every package under its tier's `packages/`,
+        // each a library whose `lib.hd` is its root module.
+        deps = role_packages(folder_tier(case));
         match role {
             "library" => "src/lib.hd".to_owned(),
             "root-application" => "src/main.hd".to_owned(),
@@ -307,7 +313,10 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         let Some((name, path)) = value.split_once('/') else {
             return Err("Discover".to_owned());
         };
-        let tree_root = suite_root().join("trees").join(name);
+        let tree_root = suite_root()
+            .join(folder_tier(case))
+            .join("trees")
+            .join(name);
         load_tree(&tree_root, &tree_root, &mut sources);
         tree = true;
         path.to_owned()

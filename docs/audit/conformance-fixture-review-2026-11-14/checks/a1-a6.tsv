@@ -1,10 +1,10 @@
-trees/dyn-inherent-nonlocal	A1	identical to trees/impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal
-trees/use-forms-a-group-use-from-an-unknown-module-reports-one-error	A1	identical to trees/use-forms-a-single-use-of-an-unknown-module-reports-one-error
-trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced	A1	identical to trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced
-trees/impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-nonlocal	A1	identical to trees/impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal
-trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row	A1	identical to trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch
-trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members	A1	identical to trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show
-trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller	A1	identical to trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it
+lang/trees/dyn-inherent-nonlocal	A1	identical to lang/trees/impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal
+lang/trees/use-forms-a-group-use-from-an-unknown-module-reports-one-error	A1	identical to lang/trees/use-forms-a-single-use-of-an-unknown-module-reports-one-error
+lang/trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced	A1	identical to lang/trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced
+lang/trees/impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-nonlocal	A1	identical to lang/trees/impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal
+lang/trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row	A1	identical to lang/trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch
+lang/trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members	A1	identical to lang/trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show
+lang/trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller	A1	identical to lang/trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it
 lang/data/struct-declarations/mutable-field-modifier.hd	A2	same code (comments/directives stripped) as lang/grammar/declarations/grammar-mutable-field-modifier.hd [reject:mutable-field-modifier] [reject:mutable-field-modifier]
 lang/functions/parameters/nonfinal-spread.hd	A2	same code (comments/directives stripped) as lang/grammar/expressions/positional-after-spread.hd [reject:nonfinal-positional-spread] [reject:nonfinal-positional-spread]
 lang/names/module-scope/forward-module-binding.hd	A2	same code (comments/directives stripped) as lang/names/module-scope/exec-binding-read-before-declared.hd [reject:binding-not-yet-visible] [reject:binding-not-yet-visible]

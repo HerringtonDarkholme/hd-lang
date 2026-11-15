@@ -500,13 +500,13 @@ for p in sorted(paths):
 
 Each pair should become one tree used by both fixtures.
 
-- `trees/use-forms-a-group-use-from-an-unknown-module-reports-one-error` = `trees/use-forms-a-single-use-of-an-unknown-module-reports-one-error`
-- `trees/impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-nonlocal` = `trees/impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal`
-- `trees/dyn-inherent-nonlocal` = `trees/impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal`
-- `trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced` = `trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced`
-- `trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller` = `trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it`
-- `trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row` = `trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch`
-- `trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members` = `trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show`
+- `lang/trees/use-forms-a-group-use-from-an-unknown-module-reports-one-error` = `lang/trees/use-forms-a-single-use-of-an-unknown-module-reports-one-error`
+- `lang/trees/impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-nonlocal` = `lang/trees/impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal`
+- `lang/trees/dyn-inherent-nonlocal` = `lang/trees/impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal`
+- `lang/trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced` = `lang/trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced`
+- `lang/trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller` = `lang/trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it`
+- `lang/trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row` = `lang/trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch`
+- `lang/trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members` = `lang/trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show`
 
 ### A2. Identical code once comments and directives are stripped (13 groups)
 

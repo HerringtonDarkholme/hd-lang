@@ -35,24 +35,28 @@ if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
     fail "fixture uses a header directive not defined in conformance/README.md"
 fi
 
-# Package sources (conformance/packages and conformance/trees) are inputs of
-# the package-role and package-tree environments, not cases: no index row and
-# no directives. The conformance harness checks that they parse
+# Package sources (packages/ and trees/ under the lang and std tiers) are
+# inputs of the package-role and package-tree environments, not cases: no
+# index row and no directives. The conformance harness checks that they parse
 # (crates/hd_driver/tests/conformance/examples.rs).
-for packages_dir in "$spec_dir/conformance/packages" "$spec_dir/conformance/trees"; do
+for packages_dir in "$spec_dir/conformance/lang/packages" "$spec_dir/conformance/lang/trees" \
+    "$spec_dir/conformance/std/packages" "$spec_dir/conformance/std/trees"; do
     if [ -d "$packages_dir" ] &&
         grep -R -n -E '^# [a-z][a-z-]*:|# (diagnostic|warning|panic): ' "$packages_dir" --include='*.hd'; then
         fail "package sources under ${packages_dir#"$spec_dir/"} must not carry fixture directives"
     fi
 done
 
-# A package tree header names an existing tree and a path the tree leaves free.
+# A package tree header names an existing tree of the fixture's tier and a
+# path the tree leaves free.
 grep -R -l -E '^# fixture-package-tree: ' "$spec_dir/conformance" --include='*.hd' | sort | while IFS= read -r file; do
     value=$(sed -n 's/^# fixture-package-tree: //p' "$file")
     tree=${value%%/*}
-    [ -d "$spec_dir/conformance/trees/$tree" ] ||
+    case_path=${file#"$spec_dir/conformance/"}
+    trees="$spec_dir/conformance/${case_path%%/*}/trees"
+    [ -d "$trees/$tree" ] ||
         fail "fixture ${file#"$spec_dir/conformance/"} names a missing package tree $tree"
-    [ ! -e "$spec_dir/conformance/trees/$value" ] ||
+    [ ! -e "$trees/$value" ] ||
         fail "fixture ${file#"$spec_dir/conformance/"} takes $value, which the tree already holds"
 done
 
