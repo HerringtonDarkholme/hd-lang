@@ -876,7 +876,7 @@ describe("scale", () => {
       large: quadratic,
     });
     assert.equal(bad.status, "fail");
-    assert.match(bad.note!, /^hashes 10000 → 160000 \(16.00x, limit 4.50x\)$/);
+    assert.match(bad.note!, /^hashes 10000 → 160000 \(16.00x, limit 5.00x\)$/);
   });
 
   it("gives allocated bytes one doubling, and scales limits with the program's bytes", () => {

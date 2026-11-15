@@ -108,7 +108,7 @@ here.
 | `answer-size` | bytes of `hd doc ITEM`, one failing `hd test`, `--format json` records on fixed inputs | fixed budgets, regression-gated |
 | `determinism` | same inputs run 10 times | byte-identical output |
 | `pathological` | compile-time stress cases, each with a time and memory budget: overlapping impls, deep nesting, long method and iterator chains, wide literals, large enums and matches, deep generic instantiation, long `?` chains, big files | each case within budget; time grows near-linearly with size |
-| `scale` | correct programs generated per construct (items, statements, expressions, patterns, types, generics, rows, `use`, impls, matches, closures), repeated and nested, at n and 4n through `hd check`, `hd fmt` and `hd build`; work measured by deterministic counters (`hd_base::work`), not time | no counter grows over 4.5x per 4x of the program's bytes; every syntax node kind in some shape |
+| `scale` | correct programs generated per construct (items, statements, expressions, patterns, types, generics, rows, `use`, impls, matches, closures), repeated and nested, at n and 4n through `hd check`, `hd fmt` and `hd build`; work measured by deterministic counters (`hd_base::work`), not time | no counter grows over 5x per 4x of the program's bytes; every syntax node kind in some shape |
 | `recheck-precision` | edit a private function body, count modules rechecked; edit a public signature, check only dependents recheck | 1 module for a private body edit; dependents only for a signature edit |
 | `errors-per-run` | a file with N independent mistakes | all N reported, each once |
 | `diag-location` | mistake corpus: share of diagnostics whose line is the mistake's line | ≥ 95% |

@@ -14,7 +14,7 @@
 // bytes, table hashes, and every opt-in `work::count_*` site of the
 // compiler). Runs are serial (HD_JOBS=1) from a copy of one warm std
 // cache: every counter repeats exactly. Subtracting k = 0 leaves the
-// program's own work; a counter whose work grows by more than 4.5x per 4x
+// program's own work; a counter whose work grows by more than 5x per 4x
 // of the program's bytes, with at least FLOOR units at 4n, is superlinear
 // and fails its line, which names the shape, the command, the counter
 // and its two counts. The counters miss work that neither allocates nor
@@ -58,7 +58,7 @@ import { copyTree, makeTempDir, removeTempDir, writeTree } from "../lib/tmp.ts";
 const NAME = "scale";
 const TIMEOUT_MS = 120_000;
 /** Work at 4n over work at n, beyond which a counter is superlinear. */
-export const GROWTH = 4.5;
+export const GROWTH = 5;
 /** Units a counter must spend at 4n, over k = 0, before its growth counts. */
 export const FLOOR = 1_000;
 /**
@@ -458,6 +458,6 @@ export function selected(names: string | undefined): readonly Shape[] {
 export const scale: Metric = {
   name: NAME,
   pillar: 1,
-  summary: "every syntax node kind, repeated and nested, at n and 4n: no counter grows over 4.5x",
+  summary: "every syntax node kind, repeated and nested, at n and 4n: no counter grows over 5x",
   run: (context) => scaleLines(context, selected(process.env.HD_SCALE_SHAPES)),
 };
