@@ -1337,6 +1337,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         keys: 1,
         key_walk: None,
         val_walk: None,
+        drops: None,
         colls: vec![],
         cyclic: false,
     };

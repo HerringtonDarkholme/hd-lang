@@ -1,0 +1,30 @@
+# @dump: wat
+# @build: std
+# @helpers: map_put drop_entries
+# A map's release glue runs each live entry's key and value `Drop`
+# (`module.rt.drop.glue`) before its counts, even when neither holds a
+# counted reference, and a put runs the replaced value's hooks and, when
+# the key is there already, the hooks of the key it was given, in a frame
+# of its own (`rt:drop_value`).
+use std.rt.Drop
+
+let drops: usize = 0
+
+struct Ticket:
+    id: usize
+
+impl Drop for Ticket:
+    fn drop(&mut self) -> void:
+        drops = drops + 1
+
+@derive(Eq, Hash)
+struct Badge:
+    id: usize
+
+impl Drop for Badge:
+    fn drop(&mut self) -> void:
+        drops = drops + 1
+
+fn replace(badges: &mut Map[Badge, Ticket], id: usize) -> void:
+    badges[Badge { id: id }] = Ticket { id: id }
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

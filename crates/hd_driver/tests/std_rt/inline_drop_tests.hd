@@ -330,6 +330,69 @@ fn flag_field(id: usize) -> usize:
     value := identity(FlagHolder { flag: Flag(id), label: Label("label-${id}"), id: id })
     value.id
 
+# A map releases each live entry's key and value (module.rt.drop.glue),
+# as a list releases its elements: when the map goes, when a put replaces
+# a value or finds its key there already, and when an entry is removed.
+let ticket_drops: usize = 0
+let badge_drops: usize = 0
+
+struct Ticket:
+    id: usize
+
+impl Drop for Ticket:
+    fn drop(&mut self) -> void:
+        ticket_drops = ticket_drops + 1
+
+type Stamp(Ticket)
+
+@derive(Eq, Hash)
+struct Badge:
+    id: usize
+
+impl Drop for Badge:
+    fn drop(&mut self) -> void:
+        badge_drops = badge_drops + 1
+
+struct Desk:
+    tickets: Map[usize, Ticket]
+    id: usize
+
+fn ticket_map(id: usize) -> usize:
+    tickets := identity({ id: Ticket { id: id }, id + 1: Ticket { id: id } })
+    tickets.len()
+
+fn ticket_list(id: usize) -> usize:
+    tickets := identity([Ticket { id: id }])
+    tickets.len()
+
+fn stamp_map(id: usize) -> usize:
+    stamps := identity({ id: Stamp(Ticket { id: id }) })
+    flags := identity({ id: Flag(id) })
+    stamps.len() + flags.len()
+
+fn replaced_ticket(id: usize) -> usize:
+    let mut tickets: Map[usize, Ticket] = { id: Ticket { id: id } }
+    tickets[id] = Ticket { id: id + 1 }
+    identity(tickets).len()
+
+fn removed_ticket(id: usize) -> usize:
+    let mut tickets: Map[usize, Ticket] = { id: Ticket { id: id }, id + 1: Ticket { id: id } }
+    _ := tickets.remove(id)
+    identity(tickets).len()
+
+fn popped_ticket(id: usize) -> usize:
+    let mut tickets = [Ticket { id: id }, Ticket { id: id }]
+    _ := tickets.pop()
+    identity(tickets).len()
+
+fn built_badges(id: usize) -> usize:
+    badges := { Badge { id: id }: id }
+    badge_drops * 100 + identity(badges).len()
+
+fn desk(id: usize) -> usize:
+    value := identity(Desk { tickets: { id: Ticket { id: id } }, id: id })
+    value.id
+
 trait Relay:
     fn relay!(&self, value: Token) -> Token
 
@@ -407,6 +470,38 @@ tests:
         assert_equal(flag_drops, before + 2)
         assert_equal(flag_field(2), 2)
         assert_equal(flag_drops, before + 4)
+
+    it("a map runs each value's Drop once, as a list runs each element's"):
+        before := ticket_drops
+        assert_equal(ticket_list(1), 1)
+        assert_equal(ticket_drops, before + 1)
+        assert_equal(ticket_map(1), 2)
+        assert_equal(ticket_drops, before + 3)
+        assert_equal(desk(4), 4)
+        assert_equal(ticket_drops, before + 4)
+
+    it("a map of newtypes runs their Drop and their bases' once each"):
+        before := ticket_drops
+        flags := flag_drops
+        assert_equal(stamp_map(1), 2)
+        assert_equal(ticket_drops, before + 1)
+        assert_equal(flag_drops, flags + 1)
+
+    it("a map's release runs each key's Drop once"):
+        built := built_badges(1) / 100
+        assert_equal(badge_drops, built + 1)
+
+    it("a put releases the value it replaces"):
+        before := ticket_drops
+        assert_equal(replaced_ticket(1), 1)
+        assert_equal(ticket_drops, before + 2)
+
+    it("a removed entry drops its value once, as a popped element does"):
+        before := ticket_drops
+        assert_equal(popped_ticket(1), 1)
+        assert_equal(ticket_drops, before + 2)
+        assert_equal(removed_ticket(1), 1)
+        assert_equal(ticket_drops, before + 4)
 
     it("a zero-sized value still has Drop ownership"):
         before := empty_drops

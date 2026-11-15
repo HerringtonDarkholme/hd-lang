@@ -59,7 +59,18 @@ impl Em<'_, '_, '_> {
             self.pool().list_items(args)[0],
             self.pool().list_items(args)[1],
         );
-        Ok((kt, vt, Entry::of(self.input, t, kt, vt)?))
+        // A key's or value's own `Drop` calls, when it is an inline value
+        // that holds one: a boxed part runs its hooks in its cell's glue.
+        let drops = |t: Ty| {
+            if matches!(self.kind(t), crate::layout::Kind::Value)
+                && crate::layout::holds_drop(self.pool(), self.env(), t)
+            {
+                self.drop_calls(t)
+            } else {
+                Vec::new()
+            }
+        };
+        Ok((kt, vt, Entry::of(self.input, t, (kt, vt), &drops)?))
     }
 
     /// How instruction `i`'s map hashes and compares keys whose values
@@ -526,16 +537,29 @@ impl Em<'_, '_, '_> {
         self.ctl.push(Ctl::Plain);
         let (at, vl) = read(self, e.keys, n);
         let hit = [Src::Locals(vl.clone())];
-        match self.operation_count(i, Tag::Retain, Part::Operand(0)) {
+        let copy = self.operation_count(i, Tag::Retain, Part::Operand(0));
+        // `remove` takes the value out of the entry it removes: where the
+        // result would copy it and the table then release its own, the
+        // result takes the table's instead, so a `Drop` hook runs once,
+        // when the result goes (`module.rt.drop.glue`), not for the copy.
+        let moves = op == IntrinsicOp::MapRemove
+            && copy.is_some()
+            && self
+                .operation_count(i, Tag::Release, Part::Operand(0))
+                .is_some();
+        match copy {
+            _ if moves => self.variant(i, 1, &hit, true)?,
             Some(copy) => self.because(copy, |em| em.new_variant(i, 1, &hit))?,
             None => self.new_variant(i, 1, &hit)?,
         }
         if op == IntrinsicOp::MapRemove {
             // The entry stays in place, marked removed: probes pass it and
             // iteration skips it, so the survivors keep their order. The
-            // table's counts of it go: the value's after the result took
-            // its own, and the key's.
-            self.release_map_part(i, Part::Operand(0), &vl, vt)?;
+            // table's counts of it go: the value's to the result, and the
+            // key's.
+            if !moves {
+                self.release_map_part(i, Part::Operand(0), &vl, vt)?;
+            }
             let kl: Vec<u32> = e.leaves[..e.keys]
                 .iter()
                 .map(|l| {

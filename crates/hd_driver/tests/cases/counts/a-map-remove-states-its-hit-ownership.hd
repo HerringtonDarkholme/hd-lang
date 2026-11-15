@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: a remove hit copies its result and ends the table's key/value counts; scalar parts need none, and constant keys still clean up the stored key.
+# A remove hit moves the value out of the entry it removes to its result, with no copy and release, and ends the table's key count; scalar parts need none, and constant keys still clean up the stored key.
 fn remove_value[V](values: &mut Map[string, V], key: string) -> V?:
     values.remove(key)
 

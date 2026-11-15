@@ -706,6 +706,19 @@ pub struct DropCall {
     pub guards: Vec<(Leaf, Is)>,
 }
 
+impl DropCall {
+    /// The call for the same value `by` bytes further into its record:
+    /// its offset and its guards' cells move together.
+    #[must_use]
+    pub fn shifted(mut self, by: u32) -> Self {
+        self.offset += by;
+        for (cell, _) in &mut self.guards {
+            cell.offset += by;
+        }
+        self
+    }
+}
+
 /// A reserved word of a list buffer and of a map table (§23.7), at the
 /// same payload offset of both, which stays 0. It held the owner word of a
 /// pinned collection until element references stopped counting their
@@ -3308,7 +3321,7 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
 /// Calls each `std.rt.Drop` implementation of `drops` on the value at
 /// `base`. A trace runs them in every pass, so their releases visit what
 /// the value holds (`module.rt.drop.trace`).
-fn call_drops(f: &mut Func, base: u32, drops: &[DropCall]) {
+pub(crate) fn call_drops(f: &mut Func, base: u32, drops: &[DropCall]) {
     for drop in drops {
         for &(cell, is) in &drop.guards {
             f.get(base);

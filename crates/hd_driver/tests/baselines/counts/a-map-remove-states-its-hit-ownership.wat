@@ -2,13 +2,10 @@
 (module
   (import "fixture" "rt:map_unique'1" (func $rt:map_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:map_lookup'1" (func $rt:map_lookup'1 (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:map_seed" (func $rt:map_seed (result i64)))
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "rt:map_lookup'2" (func $rt:map_lookup'2 (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:map_unique'3" (func $rt:map_unique'3 (param i32) (result i32)))
   (import "fixture" "rt:map_lookup'3" (func $rt:map_lookup'3 (param i32 i32 i32) (result i32)))
@@ -45,26 +42,13 @@
       i32.add
       local.tee $key.0
       i32.load $heap offset=8
-      local.tee $key.1
-      call $rt:coll_copy
       local.set $t1
-      local.get $key.1
-      if
-        local.get $key.1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $key.1
-          call $rt:release_ref'1
-        end
-      end
       local.get $key.0
       i32.load $heap
-      local.tee $key.1
+      local.tee $key.0
       if
-        local.get $key.1
-        call $rt:release_ref'2
+        local.get $key.0
+        call $rt:release_ref
       end
       local.get $t0
       local.get $t0
@@ -97,7 +81,7 @@
     end
     local.get $t1
   )
-  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 20 |     _ := values.remove(key)
     local.get $values
     i32.load $heap
@@ -129,31 +113,16 @@
       i32.add
       local.tee $key.0
       i32.load $heap offset=8
-      local.tee $key.1
       local.get $key.0
       i32.load $heap offset=12
       local.set $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $key.1
-      local.get $t1
-      local.set $t3
-      local.set $t1
-      local.get $key.1
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'2
-      end
+      local.set $t2
       local.get $key.0
       i32.load $heap
-      local.tee $t2
+      local.tee $key.0
       if
-        local.get $t2
-        call $rt:release_ref'2
+        local.get $key.0
+        call $rt:release_ref
       end
       local.get $t0
       local.get $t0
@@ -184,8 +153,8 @@
         i64.store $heap offset=24
       end
     end
+    local.get $t2
     local.get $t1
-    local.get $t3
     call $rt:release
   )
   (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
@@ -267,7 +236,7 @@
     local.get $key.1
     call $"remove_value[string]"
   )
-  (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 5 |     values.remove(key)
     local.get $values
     i32.load $heap
@@ -299,31 +268,16 @@
       i32.add
       local.tee $key.0
       i32.load $heap offset=8
-      local.tee $key.1
       local.get $key.0
       i32.load $heap offset=12
       local.set $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $key.1
-      local.get $t1
-      local.set $t3
-      local.set $t1
-      local.get $key.1
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'2
-      end
+      local.set $t2
       local.get $key.0
       i32.load $heap
-      local.tee $t2
+      local.tee $key.0
       if
-        local.get $t2
-        call $rt:release_ref'2
+        local.get $key.0
+        call $rt:release_ref
       end
       local.get $t0
       local.get $t0
@@ -354,10 +308,10 @@
         i64.store $heap offset=24
       end
     end
+    local.get $t2
     local.get $t1
-    local.get $t3
   )
-  (func $constant_key (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $constant_key (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 17 |     values.remove("fixed")
     local.get $values
     i32.load $heap
@@ -389,26 +343,13 @@
       i32.add
       local.tee $t1
       i32.load $heap offset=8
-      local.tee $t2
-      call $rt:coll_copy
-      local.set $t3
-      local.get $t2
-      if
-        local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t2
-          call $rt:release_ref'1
-        end
-      end
+      local.set $t2
       local.get $t1
       i32.load $heap
-      local.tee $t2
+      local.tee $t1
       if
-        local.get $t2
-        call $rt:release_ref'2
+        local.get $t1
+        call $rt:release_ref
       end
       local.get $t0
       local.get $t0
@@ -439,6 +380,6 @@
         i64.store $heap offset=24
       end
     end
-    local.get $t3
+    local.get $t2
   )
 )

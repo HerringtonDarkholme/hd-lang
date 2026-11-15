@@ -19,7 +19,7 @@ use hd_types::Ty;
 use crate::Input;
 use crate::layout::{Leaf, Pass, Walk};
 use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
-use crate::rt::{Helper, LIST_OWN, own_arg, retain_call, walk_code};
+use crate::rt::{DropCall, Helper, LIST_OWN, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), a reserved word that stays 0 at the same
@@ -69,8 +69,9 @@ pub enum KeyOps {
 
 /// A map's entry as the glue sees it: a `(K, V)` record of `size` bytes
 /// whose first `keys` leaves are the key's; the counted references of
-/// the key and of the value among the leaves; and the value's
-/// collections, which a copy of the entry copies.
+/// the key and of the value among the leaves; the value's collections,
+/// which a copy of the entry copies; and the `std.rt.Drop` calls a
+/// release of the entry runs.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Entry {
     pub size: u32,
@@ -82,6 +83,18 @@ pub struct Entry {
     /// Whether the map's header and tables take part in cycle collection
     /// (`crate::cycle`).
     pub cyclic: bool,
+    /// The `std.rt.Drop` calls of a release of one entry, or `None` when
+    /// it has none, the common case: boxed, so a map helper stays small.
+    pub drops: Option<Box<EntryDrops>>,
+}
+
+/// The `std.rt.Drop` calls of a release of one map entry, at entry
+/// offsets, in field order (`module.rt.drop.glue`): the key's first `key`
+/// of them, then the value's.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct EntryDrops {
+    pub calls: Vec<DropCall>,
+    pub key: usize,
 }
 
 impl Entry {
@@ -97,6 +110,26 @@ impl Entry {
         self.vals(self.keys, self.leaves.len())
     }
 
+    /// Whether releasing an entry runs code: counts or `Drop` hooks.
+    pub(crate) fn has_glue(&self) -> bool {
+        self.walk().is_some() || self.drops.is_some()
+    }
+
+    /// Every `Drop` call of an entry, at entry offsets.
+    fn drop_calls(&self) -> &[DropCall] {
+        self.drops.as_ref().map_or(&[], |d| &d.calls)
+    }
+
+    /// The key's `Drop` calls, at entry offsets.
+    fn key_drop_calls(&self) -> &[DropCall] {
+        self.drops.as_ref().map_or(&[], |d| &d.calls[..d.key])
+    }
+
+    /// The value's `Drop` calls, at entry offsets.
+    fn val_drop_calls(&self) -> &[DropCall] {
+        self.drops.as_ref().map_or(&[], |d| &d.calls[d.key..])
+    }
+
     /// The walk of the whole entry.
     pub(crate) fn walk(&self) -> Option<Walk> {
         match (&self.key_walk, &self.val_walk) {
@@ -109,12 +142,22 @@ impl Entry {
 
 impl Entry {
     /// The entry of a `Map[kt, vt]` of type `t`, for a map operation or a
-    /// boundary map's codec.
-    pub(crate) fn of(input: &Input<'_>, t: Ty, kt: Ty, vt: Ty) -> StageResult<Self> {
+    /// boundary map's codec. `drops` gives the `Drop` calls of a release of
+    /// a key or a value at its own offsets ([`crate::rt::DropCall`]); a
+    /// boundary value holds none, since only std implements `Drop` and no
+    /// std `Copy` type that does crosses a boundary.
+    pub(crate) fn of(
+        input: &Input<'_>,
+        t: Ty,
+        (kt, vt): (Ty, Ty),
+        drops: &dyn Fn(Ty) -> Vec<DropCall>,
+    ) -> StageResult<Self> {
         let (pool, env, counts) = (input.pool, input.env, true);
         let (m, parts) = crate::layout::payload_mem(pool, env, &[kt, vt])?;
         let keys = parts[0].count;
         let shift = n32(keys);
+        let key_drops = drops(kt);
+        let val_drops = drops(vt);
         let counted = |t: Ty| {
             counts
                 .then(|| crate::layout::count_walk(pool, env, t))
@@ -131,6 +174,14 @@ impl Entry {
                 .map(|k| k + shift)
                 .collect(),
             cyclic: counts && crate::cycle::object(pool, env, t),
+            drops: (!key_drops.is_empty() || !val_drops.is_empty()).then(|| {
+                Box::new(EntryDrops {
+                    key: key_drops.len(),
+                    calls: (key_drops.into_iter().map(|d| d.shifted(parts[0].offset)))
+                        .chain(val_drops.into_iter().map(|d| d.shifted(parts[1].offset)))
+                        .collect(),
+                })
+            }),
         })
     }
 }
@@ -280,10 +331,10 @@ fn table_bytes(f: &mut Func, cap: u32, size: u32) {
 }
 
 /// Pushes a table's descriptor: its release glue's table slot plus one,
-/// or 0 when an entry holds nothing counted, with the collector's bit when
-/// the map takes part in cycle collection.
+/// or 0 when an entry holds nothing counted and runs no `Drop` hook, with
+/// the collector's bit when the map takes part in cycle collection.
 fn descriptor(f: &mut Func, entry: &Entry) {
-    let glue = entry.walk().map(|_| {
+    let glue = entry.has_glue().then(|| {
         Sym::Helper(Helper::DropEntries {
             entry: entry.clone(),
         })
@@ -420,24 +471,30 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
     f
 }
 
-/// [`Helper::DropEntries`]: one count less on each live entry's counted
-/// references.
+/// [`Helper::DropEntries`]: each live entry's `Drop` hooks, the key's and
+/// then the value's (`module.rt.drop.glue`), then one count less on its
+/// counted references. One pass over the written entries.
 pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
     let mut f = m.func("rt:drop_entries", vec![Val::I32], vec![]);
-    let (cap, e) = (f.local(Val::I32), f.local(Val::I32));
-    let walk = entry.walk().unwrap();
+    let (cap, e, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let walk = entry.walk();
     load_u32(&mut f, 0, CAP);
     f.set(cap);
     let n = entry.leaves.len();
     each_live(&mut f, 0, cap, e, &|f| {
         entry_at(f, 0, cap, e, entry.size);
-        let ls = load_entry(f, entry, 0, n);
-        walk_code(
-            f,
-            &walk,
-            &|f, k| f.get(ls[k as usize]),
-            &crate::rt::release_call,
-        );
+        f.set(at);
+        crate::rt::call_drops(f, at, entry.drop_calls());
+        if let Some(walk) = &walk {
+            f.get(at);
+            let ls = load_entry(f, entry, 0, n);
+            walk_code(
+                f,
+                walk,
+                &|f, k| f.get(ls[k as usize]),
+                &crate::rt::release_call,
+            );
+        }
     });
     f
 }
@@ -1003,6 +1060,8 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     f.op(I::If(BlockType::Empty));
     entry_at(&mut f, t, cap, e, entry.size);
     f.set(at);
+    // The replaced value is released: its `Drop` hooks, then its counts.
+    crate::rt::call_drops(&mut f, at, entry.val_drop_calls());
     if let Some(w) = &entry.val_walk {
         f.get(at);
         let old = load_entry(&mut f, entry, nk, n);
@@ -1018,7 +1077,28 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
         f.get(arg(k));
         f.op(store_op(entry.leaves[k], 0));
     }
-    if let Some(w) = &entry.key_walk {
+    // The table keeps its key, so the one put in is released: with `Drop`
+    // hooks through a frame of its own, as an inline value is
+    // (`Em::drop_inline`), else its counts.
+    let key = &entry.leaves[..nk];
+    if !entry.key_drop_calls().is_empty() {
+        for k in 0..nk {
+            f.get(arg(k));
+        }
+        f.helper(Helper::DropValue {
+            size: key
+                .iter()
+                .map(|l| l.offset + u32::from(l.bytes))
+                .max()
+                .unwrap_or(0),
+            leaves: key.to_vec(),
+            walk: entry
+                .key_walk
+                .clone()
+                .unwrap_or_else(|| Walk::sequence(Vec::new())),
+            drops: entry.key_drop_calls().to_vec(),
+        });
+    } else if let Some(w) = &entry.key_walk {
         walk_code(
             &mut f,
             w,
@@ -1388,6 +1468,7 @@ mod seed_tests {
             keys: 0,
             key_walk: None,
             val_walk: None,
+            drops: None,
             colls: vec![],
             cyclic: false,
         };
