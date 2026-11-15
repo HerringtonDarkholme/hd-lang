@@ -653,7 +653,7 @@ typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-bindin
 typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd	type	accept	lang/10-modules.md#module-initialization
 typing/valid/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd	type	accept	lang/14-annotations.md#member-metadata
 typing/valid/module-initialization-pattern-bindings-are-read-after-their-lets.hd	type	accept	lang/10-modules.md#module-initialization
-typing/valid/checker-power-operands-follow-the-exponent-rules-legal-forms.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators
+typing/valid/power-integer-bases-with-unsigned-exponents-and-same-type-float-powers-are-valid.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	type	accept	lang/10-modules.md#prelude
 typing/valid/prelude-a-function-named-identity-shadows-no-prelude-name.hd	type	accept	lang/10-modules.md#prelude
 typing/valid/prelude-a-parameter-named-name-shadows-no-prelude-name.hd	type	accept	lang/10-modules.md#prelude
@@ -782,7 +782,7 @@ typing/valid/generic-inference-an-optional-and-a-string-literal-join.hd	type	acc
 typing/valid/generic-inference-a-single-inferred-argument-solves-its-parameter.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
 typing/valid/walker-member-on-a-concrete-walker-is-callable.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
 typing/valid/walker-member-through-a-generic-structure-parameter-is-callable.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
-typing/valid/identity-operands-reference-operands-of-one-type-compare-85-legal-references.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators
+typing/valid/identity-operands-reference-operands-of-one-type-compare.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	type	accept	lang/09-traits.md#implementation-targets
 typing/valid/impl-targets-a-constructor-target-over-a-parameter-is-valid.hd	type	accept	lang/09-traits.md#implementation-targets
 typing/valid/impl-ownership-a-dependency-trait-for-a-local-type-is-valid.hd	type	accept	lang/09-traits.md#implementation-ownership

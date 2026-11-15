@@ -1,4 +1,4 @@
-# test: checker power operands follow the exponent rules
+# test: power integer bases with unsigned exponents and same type float powers are valid
 fn case_65(b: i32, e: u32) -> i32:
     b ** e
 

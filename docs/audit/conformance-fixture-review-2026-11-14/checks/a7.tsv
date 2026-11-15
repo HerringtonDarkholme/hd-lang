@@ -485,9 +485,9 @@ typing/invalid/power-mixed-numeric-types.hd	reject:type-mismatch	lang/05-express
 typing/invalid/primitive-identity.hd	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators	0	final-newline-changed
 typing/invalid/signed-integer-exponent.hd	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators	-1	
 typing/invalid/tuple-identity.hd	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators	0	final-newline-changed
-typing/valid/checker-power-operands-follow-the-exponent-rules-legal-forms.hd	accept	lang/05-expressions.md#unary-and-binary-operators	-13	
+typing/valid/power-integer-bases-with-unsigned-exponents-and-same-type-float-powers-are-valid.hd	accept	lang/05-expressions.md#unary-and-binary-operators	-13	
 typing/valid/composite-ordering.hd	accept	lang/05-expressions.md#unary-and-binary-operators	5	
-typing/valid/identity-operands-reference-operands-of-one-type-compare-85-legal-references.hd	accept	lang/05-expressions.md#unary-and-binary-operators	-1	
+typing/valid/identity-operands-reference-operands-of-one-type-compare.hd	accept	lang/05-expressions.md#unary-and-binary-operators	-1	
 typing/valid/control-flow.hd	accept	lang/06-control-flow.md	5	
 runtime/valid/using-dispose-order.hd	accept	lang/06-control-flow.md#binding-and-registration	-1	
 runtime/valid/using-race-loser-disposes.hd	accept	lang/06-control-flow.md#binding-and-registration	-2	
