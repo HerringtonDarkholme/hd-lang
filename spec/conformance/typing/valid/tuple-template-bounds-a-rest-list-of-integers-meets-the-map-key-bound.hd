@@ -1,0 +1,3 @@
+# test: tuple template bounds a rest list of integers meets the map key bound
+fn f(m: Map[(i32, List[i32]...), i32]) -> usize:
+    m.len()

@@ -1,0 +1,13 @@
+# test: bare trait a trait as a struct type argument is one error
+trait Factory:
+    fn create() -> Self
+
+struct Box[T]:
+    value: T
+
+fn id[T](x: T) -> T:
+    x
+
+pub fn main() -> void:
+    let a: Box[Factory] = panic("x") # diagnostic: trait-used-as-type
+    _ := a

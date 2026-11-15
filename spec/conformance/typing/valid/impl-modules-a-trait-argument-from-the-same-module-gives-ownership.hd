@@ -1,0 +1,10 @@
+# test: impl modules a trait argument from the same module gives ownership
+use std.ops.Add
+
+pub struct Money:
+    pub cents: i64
+
+impl Add[Money] for i32:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        rhs

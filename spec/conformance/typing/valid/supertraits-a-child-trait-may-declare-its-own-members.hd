@@ -1,0 +1,9 @@
+# test: supertraits a child trait may declare its own members
+trait Greeter:
+    fn greet(self) -> string
+
+trait Polite < Greeter:
+    fn thank(self) -> string
+
+trait Loud < Polite:
+    fn shout(self) -> string

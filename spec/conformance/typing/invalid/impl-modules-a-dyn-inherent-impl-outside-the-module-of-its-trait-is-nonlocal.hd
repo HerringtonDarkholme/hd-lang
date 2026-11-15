@@ -1,0 +1,7 @@
+# test: impl modules a dyn inherent impl outside the module of its trait is nonlocal
+# fixture-package-tree: impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal/src/beta.hd
+use pkg.alpha.Shape
+
+impl dyn Shape: # diagnostic: nonlocal-impl
+    fn double(self) -> f64:
+        missing_name

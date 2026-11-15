@@ -1,0 +1,13 @@
+# test: related traits hand written eq and hash with no derive are valid
+use std.hash.Hasher
+
+struct Key:
+    name: string
+
+impl Eq for Key:
+    fn eq(&self, other: &Key) -> bool:
+        self.name == other.name
+
+impl Hash for Key:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        pass

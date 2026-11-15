@@ -1,0 +1,13 @@
+# test: downcast downcast ref with a type argument on dyn inspectable
+use std.inspect.Inspectable
+
+struct User:
+    name: string
+
+fn name_of(value: *dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
+        .Some(user) => user.name
+        .None => "x"
+
+pub fn main() -> void:
+    pass

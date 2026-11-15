@@ -1,0 +1,11 @@
+# test: bounds a local type whose default copies an unmet argument reports one bound error
+struct Plain:
+    x: i32
+
+struct Tagged[T < Hash, H < Hash = T]:
+    tag: T
+    hash: H
+
+fn use_it() -> i32:
+    let tagged: Tagged[Plain] = panic("unreachable") # diagnostic: unsatisfied-trait-bound
+    tagged.tag.x

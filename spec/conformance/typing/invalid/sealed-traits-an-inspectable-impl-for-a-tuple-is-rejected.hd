@@ -1,0 +1,4 @@
+# test: sealed traits an inspectable impl for a tuple is rejected
+use std.inspect.Inspectable
+
+impl Inspectable for (i32, string) # diagnostic: sealed-trait-implementation

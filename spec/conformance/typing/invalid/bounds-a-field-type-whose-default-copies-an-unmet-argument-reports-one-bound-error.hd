@@ -1,0 +1,10 @@
+# test: bounds a field type whose default copies an unmet argument reports one bound error
+struct Plain:
+    x: i32
+
+struct Tagged[T < Hash, H < Hash = T]:
+    tag: T
+    hash: H
+
+struct Holder:
+    inner: Tagged[Plain] # diagnostic: unsatisfied-trait-bound

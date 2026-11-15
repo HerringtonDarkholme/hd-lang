@@ -1,0 +1,4 @@
+# test: tuple template bounds a derived hash over an integer tuple field is valid
+@derive(Eq, Hash)
+struct Keyed:
+    pair: (i32, i64)

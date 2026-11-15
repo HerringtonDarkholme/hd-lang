@@ -1,0 +1,10 @@
+# test: impl modules a trait argument from another module gives no ownership
+# fixture-package-tree: impl-modules-a-trait-argument-from-another-module-gives-no-ownership/src/beta.hd
+use std.ops.Add
+
+use pkg.alpha.Money
+
+impl Add[Money] for i32: # diagnostic: nonlocal-impl
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        rhs

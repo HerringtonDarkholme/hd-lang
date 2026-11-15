@@ -501,12 +501,12 @@ for p in sorted(paths):
 Each pair should become one tree used by both fixtures.
 
 - `trees/use-forms-a-group-use-from-an-unknown-module-reports-one-error` = `trees/use-forms-a-single-use-of-an-unknown-module-reports-one-error`
-- `trees/migrate-64-impl-placement` = `trees/migrate-69-impl-placement`
-- `trees/dyn-inherent-nonlocal` = `trees/migrate-71-impl-placement`
+- `trees/impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-nonlocal` = `trees/impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal`
+- `trees/dyn-inherent-nonlocal` = `trees/impl-modules-a-dyn-inherent-impl-outside-the-module-of-its-trait-is-nonlocal`
 - `trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced` = `trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced`
 - `trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller` = `trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it`
 - `trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row` = `trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch`
-- `trees/migrate-698-28` = `trees/migrate-698-29`
+- `trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members` = `trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show`
 
 ### A2. Identical code once comments and directives are stripped (13 groups)
 
@@ -1944,10 +1944,10 @@ done
 Ledger: b079 (43): 5. b080 (31): 8. b081 (28): 3.
 
 - **Wrong reason (B2)**: `concrete-reference-bound-associated-type-mismatch.hd` (A18 above).
-  `typing/invalid/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected-47.hd`
+  `typing/invalid/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected.hd`
   (line 8 also fails with `invalid-delegation`: `by inner` names no field; the
   reviewer saw this in a scratch copy).
-- **Duplicates**: `typing/valid/checker-implementation-heads-are-well-formed-197.hd` ~
+- **Duplicates**: `typing/valid/impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed.hd` ~
   `trait-value-as-target-argument.hd` (also in A12). Plausible: `…-ownership-only-in-its-own-module-67.hd`
   ~ `-53` (only `pub` differs). `…-in-the-module-of-the-trait-or-target-is-valid-66.hd` ~ `-65`.
   `typing/valid/outer-constructor-permits-impl.hd` ~ `trait-argument-owner-impl.hd`.
@@ -1998,7 +1998,7 @@ Ledger: b084 (45): 5 rows. Covered by A18 1, plausible 2, spec question 2.
   rejects 65 `Wrap` layers, while the limit fixture accepts 65 `Box` layers. The
   spec should state the counting with one worked example, and the boundary
   fixtures should sit at exactly N and N+1 under it.
-- Plausible B1: `typing/valid/trait-resolution-depth-shallow-bounds-prove-32.hd` (the
+- Plausible B1: `typing/valid/bounds-a-bound-two-levels-deep-proves.hd` (the
   body is `Box[Box[i32]]`, not 32 levels). Plausible B2: `…/trait-resolution-depth-in-instantiation-trial.hd`.
 
 #### b085 (`lang/09-traits.md`, derive)
@@ -2070,7 +2070,7 @@ Ledger: b089 (42): 4 rows. b090 (46): 9 rows.
   checks nothing. A17 now also matches `assert(true)` inside match arms (25 hits).
 - Covered by A18: `typing/invalid/spelled-function-type-not-inspectable.hd` (fails on
   the missing `box`, not the function type).
-- Plausible C1: `…/declaration-checks-inherent-members-with-unifying-targets-are-unique-312.hd`
+- Plausible C1: `…/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd`
   (also in A13; its title says "unify" though the targets are disjoint).
   `typing/invalid/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd` and
   `row-parameter-data-impl-overlap.hd` ~ `a-generic-row-impl-overlaps-a-later-concrete-row-impl.hd`.
@@ -2104,9 +2104,9 @@ Ledger: b091 (45): 9 rows. Plausible 6, rejected 2, unverified 1.
 Ledger: b092 (41): 4 rows. Plausible 4.
 
 - Plausible C1: `typing/invalid/downcast-value-type-target.hd` ~ `downcast-target-not-inspectable.hd`
-  (the same `downcast_ref::[fn() -> i32]` line). `…/downcast-check-downcast-with-type-arguments-on-dyn-inspectable-371.hd`
+  (the same `downcast_ref::[fn() -> i32]` line). `…/downcast-downcast-ref-with-a-type-argument-on-dyn-inspectable.hd`
   (the A13 kind).
-- Plausible B1: `…/downcast-check-downcast-mut-with-type-arguments-on-a-bounded-parameter-373.hd`
+- Plausible B1: `…/downcast-downcast-mut-and-downcast-ref-take-a-type-argument.hd`
   (no `downcast_mut` on a bounded parameter). `typing/valid/tuple-derived-traits.hd` (never uses `Ord`).
 
 #### b094 (`lang/09-traits.md`, delegation)
@@ -2141,7 +2141,7 @@ Ledger: b095 (31): 7 rows. Confirmed 4, plausible 3.
 - **Duplicate (C1)**: `typing/invalid/trait-impl-missing-method.hd` = `missing-trait-method.hd`
   (only `struct User: pass` against a one-field struct). Plausible:
   `trait-method-result-type-mismatch.hd` ~ `trait-method-signature.hd`.
-- Plausible B1: `typing/valid/checker-an-impl-must-write-every-required-trait-method-21.hd`
+- Plausible B1: `typing/valid/trait-implementations-an-impl-may-omit-a-method-with-a-default-body.hd`
   (an accept case titled "must write every"). `typing/valid/closable-handle-closed.hd`
   (a type case claiming disposal).
 

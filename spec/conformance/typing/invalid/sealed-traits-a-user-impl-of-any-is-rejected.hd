@@ -1,0 +1,6 @@
+# test: sealed traits a user impl of any is rejected
+use std.core.Any
+
+struct Handle: pass
+
+impl Any for Handle # diagnostic: sealed-trait-implementation

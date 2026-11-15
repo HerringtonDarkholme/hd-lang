@@ -1,0 +1,4 @@
+# test: related traits derived eq and hash together are valid
+@derive(Eq, Hash)
+struct Key:
+    name: string

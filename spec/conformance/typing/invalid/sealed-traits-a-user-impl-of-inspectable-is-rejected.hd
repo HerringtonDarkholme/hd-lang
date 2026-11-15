@@ -1,0 +1,8 @@
+# test: sealed traits a user impl of inspectable is rejected
+use std.inspect.{Inspectable, TypeId}
+
+struct Handle: pass
+
+impl Inspectable for Handle: # diagnostic: sealed-trait-implementation
+    fn runtime_type(&self) -> TypeId:
+        TypeId::of::[string]()

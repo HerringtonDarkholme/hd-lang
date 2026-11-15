@@ -1,0 +1,3 @@
+# test: tuple template bounds a map key field with a float tuple member is an unmet bound
+struct Holder:
+    pub m: Map[(i32, f64), i32] # diagnostic: unsatisfied-trait-bound

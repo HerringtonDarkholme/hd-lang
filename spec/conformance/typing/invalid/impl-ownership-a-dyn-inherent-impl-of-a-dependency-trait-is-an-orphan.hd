@@ -1,0 +1,7 @@
+# test: impl ownership a dyn inherent impl of a dependency trait is an orphan
+# fixture-package-role: library
+use dep.members.Tagged
+
+impl dyn Tagged: # diagnostic: orphan-impl
+    fn double(self) -> string:
+        self.tag() + self.tag()

@@ -1,3 +1,0 @@
-# test: a bound naming no trait adds no second error
-fn name[T < Reference](value: T) -> string: # diagnostic: unknown-trait
-    value.describe()

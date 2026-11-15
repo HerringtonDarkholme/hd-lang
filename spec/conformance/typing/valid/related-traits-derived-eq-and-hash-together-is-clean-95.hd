@@ -1,4 +1,0 @@
-# test: derived eq and hash together is clean
-@derive(Eq, Hash)
-struct Key:
-    name: string

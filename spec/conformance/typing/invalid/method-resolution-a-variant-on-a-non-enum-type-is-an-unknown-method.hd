@@ -1,0 +1,3 @@
+# test: method resolution a variant on a non enum type is an unknown method
+pub fn main() -> void:
+    x := i32.Some(3) # diagnostic: unknown-method

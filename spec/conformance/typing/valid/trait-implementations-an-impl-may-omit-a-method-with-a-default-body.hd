@@ -1,0 +1,11 @@
+# test: trait implementations an impl may omit a method with a default body
+trait Named:
+    fn name(self) -> string:
+        "named"
+
+struct User: pass
+
+impl Named for User
+
+pub fn main() -> void $ Console:
+    println(1)

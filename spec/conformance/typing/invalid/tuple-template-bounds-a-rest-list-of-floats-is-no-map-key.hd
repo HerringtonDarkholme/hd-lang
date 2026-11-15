@@ -1,0 +1,3 @@
+# test: tuple template bounds a rest list of floats is no map key
+fn f(m: Map[(i32, List[f64]...), i32]) -> usize: # diagnostic: unsatisfied-trait-bound
+    m.len()

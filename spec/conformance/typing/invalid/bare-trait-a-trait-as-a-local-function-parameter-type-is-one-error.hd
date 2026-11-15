@@ -1,0 +1,14 @@
+# test: bare trait a trait as a local function parameter type is one error
+trait Factory:
+    fn create() -> Self
+
+struct Box[T]:
+    value: T
+
+fn id[T](x: T) -> T:
+    x
+
+pub fn main() -> void:
+    fn local(p: Factory) -> void: # diagnostic: trait-used-as-type
+        pass
+    local(panic("x"))

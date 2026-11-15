@@ -1,0 +1,10 @@
+# test: bounds a parameter type whose default copies an unmet argument reports one bound error
+struct Plain:
+    x: i32
+
+struct Tagged[T < Hash, H < Hash = T]:
+    tag: T
+    hash: H
+
+fn use_it(tagged: Tagged[Plain]) -> i32: # diagnostic: unsatisfied-trait-bound
+    0

@@ -1,0 +1,6 @@
+# test: tuple template bounds a user tuple template shows nested integer members
+# fixture-package-tree: tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members/src/main.hd
+use pkg.show.{Show}
+
+fn both(pair: (i64, (i64, i64))) -> string:
+    pair.show()

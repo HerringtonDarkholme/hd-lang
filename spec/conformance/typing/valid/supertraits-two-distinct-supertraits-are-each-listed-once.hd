@@ -1,0 +1,6 @@
+# test: supertraits two distinct supertraits are each listed once
+trait Parent
+
+trait Other
+
+trait Twice < Parent & Other

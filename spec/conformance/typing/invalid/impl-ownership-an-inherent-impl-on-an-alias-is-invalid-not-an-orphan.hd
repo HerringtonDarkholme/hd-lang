@@ -1,0 +1,9 @@
+# test: impl ownership an inherent impl on an alias is invalid not an orphan
+# fixture-package-role: library
+use dep.models.User
+
+type Alias = User
+
+impl Alias: # diagnostic: invalid-impl-target
+    fn size(self) -> i32:
+        1

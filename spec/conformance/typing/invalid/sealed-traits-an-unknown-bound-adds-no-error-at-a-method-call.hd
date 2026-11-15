@@ -1,0 +1,3 @@
+# test: sealed traits an unknown bound adds no error at a method call
+fn name[T < Reference](value: T) -> string: # diagnostic: unknown-trait
+    value.describe()

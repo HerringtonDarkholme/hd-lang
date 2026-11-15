@@ -1,0 +1,15 @@
+# test: impl targets a struct target may delegate to its embedded field
+trait Describe:
+    fn describe(self) -> string
+
+struct Inner:
+    n: i32
+
+impl Describe for Inner:
+    fn describe(self) -> string:
+        "inner"
+
+struct Outer:
+    Inner
+
+impl Describe for Outer by Inner

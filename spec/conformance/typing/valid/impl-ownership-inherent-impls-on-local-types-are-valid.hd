@@ -1,0 +1,14 @@
+# test: impl ownership inherent impls on local types are valid
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(self) -> i32:
+        self.value + 1
+
+impl[T] Box[T]:
+    fn get(self) -> T:
+        self.value
+
+struct Box[T]:
+    value: T

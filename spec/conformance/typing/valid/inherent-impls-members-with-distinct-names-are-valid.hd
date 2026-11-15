@@ -1,0 +1,8 @@
+# test: inherent impls members with distinct names are valid
+struct User: pass
+
+impl User:
+    fn name(self) -> string:
+        "first"
+    fn title(self) -> string:
+        "second"

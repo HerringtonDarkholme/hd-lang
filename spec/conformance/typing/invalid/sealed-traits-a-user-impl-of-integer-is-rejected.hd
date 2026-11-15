@@ -1,0 +1,6 @@
+# test: sealed traits a user impl of integer is rejected
+use std.num.Integer
+
+struct Handle: pass
+
+impl Integer for Handle # diagnostic: sealed-trait-implementation

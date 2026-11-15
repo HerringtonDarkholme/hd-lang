@@ -1,0 +1,19 @@
+# test: bare trait dyn trait types bounds and impls are valid
+trait Greet:
+    fn greet(self) -> string
+
+struct P:
+    n: i32
+
+impl Greet for P:
+    fn greet(self) -> string:
+        "hi"
+
+fn use_it[T < Greet](x: T) -> string:
+    x.greet()
+
+pub fn main() -> void $ Console:
+    let x: *dyn Greet = box(P { n: 1 })
+    let y: List[*dyn Greet] = [x]
+    println(use_it(P { n: 2 }))
+    _ := y

@@ -1,0 +1,10 @@
+# test: impl modules trait impls in the module of the target are valid
+# fixture-package-tree: impl-modules-trait-impls-in-the-module-of-the-target-are-valid/src/alpha.hd
+pub trait Greeter:
+    fn greet(self) -> string
+
+pub struct Person:
+    pub name: string
+
+pub struct Money:
+    pub cents: i64

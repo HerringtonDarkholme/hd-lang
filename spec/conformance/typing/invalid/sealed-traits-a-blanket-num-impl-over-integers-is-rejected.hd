@@ -1,0 +1,4 @@
+# test: sealed traits a blanket num impl over integers is rejected
+use std.num.{Integer, Num}
+
+impl[N < Integer] Num for N # diagnostic: sealed-trait-implementation

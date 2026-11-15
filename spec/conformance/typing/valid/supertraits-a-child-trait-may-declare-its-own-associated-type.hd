@@ -1,0 +1,6 @@
+# test: supertraits a child trait may declare its own associated type
+trait Feed:
+    type Item
+
+trait PriceFeed < Feed:
+    type Price

@@ -1,0 +1,6 @@
+# test: sealed traits a user impl of float is rejected
+use std.num.Float
+
+struct Handle: pass
+
+impl Float for Handle # diagnostic: sealed-trait-implementation

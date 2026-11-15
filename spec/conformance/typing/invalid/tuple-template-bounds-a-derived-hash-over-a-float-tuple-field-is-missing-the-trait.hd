@@ -1,0 +1,4 @@
+# test: tuple template bounds a derived hash over a float tuple field is missing the trait
+@derive(Eq, Hash)
+struct Keyed:
+    pair: (i32, f64) # diagnostic: derive-field-missing-trait

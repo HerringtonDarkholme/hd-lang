@@ -1,0 +1,2 @@
+# test: tuple template bounds a nested tuple with a float member is no map key
+let m: Map[(i32, (string, f64)), string] = {} # diagnostic: unsatisfied-trait-bound

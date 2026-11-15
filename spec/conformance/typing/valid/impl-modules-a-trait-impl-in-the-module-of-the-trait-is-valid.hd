@@ -1,0 +1,4 @@
+# test: impl modules a trait impl in the module of the trait is valid
+# fixture-package-tree: impl-modules-a-trait-impl-in-the-module-of-the-trait-is-valid/src/gamma.hd
+pub trait Named:
+    fn name(self) -> string

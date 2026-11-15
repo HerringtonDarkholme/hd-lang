@@ -1,0 +1,4 @@
+# test: tuple template bounds an unbounded generic member is no map key
+fn keyed[T](t: T) -> usize:
+    let m: Map[(T, i32), string] = {} # diagnostic: unsatisfied-trait-bound
+    m.len()

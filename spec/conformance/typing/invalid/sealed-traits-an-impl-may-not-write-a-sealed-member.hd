@@ -1,0 +1,15 @@
+# test: sealed traits an impl may not write a sealed member
+use std.inspect.{Inspectable, TypeId}
+
+trait Plugin < Inspectable:
+    fn name(self) -> string
+
+struct Exporter:
+    format: string
+
+impl Plugin for Exporter:
+    fn name(self) -> string:
+        self.format
+
+    fn runtime_type(&self) -> TypeId: # diagnostic: sealed-trait-implementation
+        TypeId::of::[string]()

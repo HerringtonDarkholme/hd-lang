@@ -1,0 +1,4 @@
+# test: related traits derived eq partial ord and ord together are valid
+@derive(Eq, PartialOrd, Ord)
+struct Key:
+    name: string

@@ -1,0 +1,4 @@
+# test: sealed traits a float impl for a builtin integer is rejected
+use std.num.Float
+
+impl Float for i32 # diagnostic: sealed-trait-implementation

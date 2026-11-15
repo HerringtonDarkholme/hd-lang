@@ -1,4 +1,0 @@
-# test: derived eq alone is clean
-@derive(Eq)
-struct Key:
-    name: string

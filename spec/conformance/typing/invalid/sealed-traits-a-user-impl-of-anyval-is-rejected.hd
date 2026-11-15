@@ -1,0 +1,6 @@
+# test: sealed traits a user impl of anyval is rejected
+use std.core.AnyVal
+
+struct Handle: pass
+
+impl AnyVal for Handle # diagnostic: sealed-trait-implementation

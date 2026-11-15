@@ -1,0 +1,6 @@
+# test: sealed traits a user impl of tuple is rejected
+use std.function.Tuple
+
+struct Handle: pass
+
+impl Tuple for Handle # diagnostic: sealed-trait-implementation
