@@ -1,3 +1,4 @@
+# test: an impl method whose result type differs from the trait method is rejected
 # Spec 09 Traits: trait.impl.signature.
 trait Named:
     fn name(self) -> string

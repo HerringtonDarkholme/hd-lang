@@ -1,3 +1,0 @@
-fn label(value: bool) -> string:
-    match value: # diagnostic: nonexhaustive-match
-        true => "yes"

@@ -1,5 +1,6 @@
+# test: a dependent result from a captured list element keeps its cell loan, so the closure that replaces the element panics
 # #1383: eliminating a literal closure must preserve its shared-root loan.
-# ref.excl.alias.shared-variable; ref.dep.call; fn.capture.cell.
+# ref.excl.alias.shared-variable; ref.excl.alias.conflict; ref.dep.call; fn.capture.cell.
 struct P:
     name: string
 

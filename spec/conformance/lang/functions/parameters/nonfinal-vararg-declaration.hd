@@ -1,2 +1,3 @@
+# test: a vararg followed by another parameter is not final
 fn scaled(values...: List[i32], factor: i32) -> i32: # diagnostic: nonfinal-vararg
     factor

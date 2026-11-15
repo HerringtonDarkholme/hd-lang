@@ -1,5 +1,5 @@
 # test: a list passed by value is the callee's own copy, so a change through a &mut reference sharing the caller's list is not seen by the callee
-# Spec 04 Collection Values: types.coll.value.
+# Spec 04 Collection Values: types.coll.value, types.coll.shared.
 # expect: test
 fn len_after(items: List[i32], change: fn() -> void) -> usize:
     change()

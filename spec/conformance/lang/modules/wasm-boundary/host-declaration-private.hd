@@ -1,4 +1,0 @@
-# module.host.package.target
-@host # diagnostic: decorator-target-kind
-trait Server:
-    fn read(&self) -> string

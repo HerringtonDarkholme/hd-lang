@@ -1,8 +1,0 @@
-# test: traits / diagnostics / missing method
-# Spec 09 Traits: trait.impl.required.
-
-trait Named:
-    fn name(self) -> string
-struct User:
-    value: i32
-impl Named for User # diagnostic: missing-trait-method

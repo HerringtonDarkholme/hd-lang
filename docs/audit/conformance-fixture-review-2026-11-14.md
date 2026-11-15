@@ -155,6 +155,7 @@ unless it says otherwise.
    - Update `cases.tsv` and `examples.tsv` together.
    - Done when: `scripts/a14_renamed.py` and `parta_all.py` (A1, A2) list only the
      legitimate directive-only variants.
+   - Done (#1944): see the [duplicate removal log](#duplicate-removal-log-1944).
 6. **Fix the titles.**
    - Retitle the 62 accept twins in `checks/a10.tsv` and `checks/a10c.tsv`.
      Triage the 87 in `checks/a10b.tsv`.
@@ -602,6 +603,131 @@ rules before and after.
   `parameter-names-two-function-parameters-with-distinct-names-are-valid`
   (A14 only): A14 drops a `main` that only prints, and here that `main`'s
   `f(1, b=2)` is the call under test.
+
+**C1, deleted (31 rows, plus 1 pair lane C named).** Kept copy first. The
+kept fixture now cites any rule the deleted copy cited, and takes its title
+when it had none. Where `examples.tsv` lists one copy, that copy is kept,
+since the inventory checks it shares the example's names. Rows 21 to 23
+keep the `own-type-arity` copies: their body returns the bad parameter, so
+they also check that the error is reported once.
+
+| Row | Kept | Deleted |
+|---|---|---|
+| 4 | `tab-in-function-body` | `tab-indentation` |
+| 5 | `positional-after-named` | `positional-after-named-argument` |
+| 8 | `chained-comparison` | `comparison-chaining-with-names` |
+| 18 | `value-argument-legacy-alias` | `value-argument-reference-change` |
+| 21 | `own-type-arity-too-many-struct-parameter` | `generic-arity-a-struct-parameter-with-too-many-arguments-reports-once` |
+| 22 | `own-type-arity-too-many-enum-parameter` | `generic-arity-an-enum-parameter-with-too-many-arguments-reports-once` |
+| 23 | `own-type-arity-too-many-newtype-parameter` | `generic-arity-a-newtype-parameter-with-too-many-arguments-reports-once` |
+| 26 | `duration-literals` | `literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms` |
+| 28 | `option-invariant` | `optional-payload-weakening` |
+| 42 | `bare-variant-pattern-in-match` | `match-a-variant-name-without-a-dot-is-a-bare-variant-pattern` |
+| 43 | `bool-match-missing-false` | `nonexhaustive-bool-match` |
+| 45 | `named-variant-bindings` | `match-named-variant-pattern-fields-bind-their-values` |
+| 48 | `generic-function-value-argument-unsolved` | `generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred` |
+| 55 | `a-tuple-vararg-given-fewer-values-than-its-arity` | `tuple-vararg-arity` |
+| 56 | `nonfinal-vararg-declaration` | `nonfinal-vararg-then-parameter` |
+| 57 | `three-embedded-fields` | `data-embedding-a-struct-may-embed-three-structs` |
+| 58 | `embedding-depth-three` | `data-embedding-an-embedding-chain-may-be-three-deep` |
+| 66 | `trait-value-as-target-argument` | `impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed` |
+| 68 | `dyn-ref-mut-method-through-shared` | `readonly-trait-value-mutating-method` |
+| 71 | `a-generic-row-impl-overlaps-a-later-concrete-row-impl` | `row-parameter-data-impl-overlap` |
+| 74 | `downcast-target-not-inspectable` | `downcast-value-type-target` |
+| 76 | `inspectable-user-implementation` | `sealed-traits-a-user-impl-of-inspectable-is-rejected` |
+| 78 | `missing-trait-method` | `trait-impl-missing-method` |
+| 79 | `trait-method-signature` | `trait-method-result-type-mismatch` |
+| 80 | `host-on-a-private-trait` | `host-declaration-private` |
+| 85 | `provider-ref-shared-for-mutable` | `provider-share-shared-for-mutable` |
+| 92 | `bang-call-in-plain-function` | `bang-call-outside-suspension` |
+| 93 | `bang-call-in-defer` | `defer-suspends` |
+| 99 | `mut-argument-then-closure-pushes-through-an-alias-panics` | `mut-parameter-then-closure-pushes-through-an-alias-panics` |
+| 100 | `list-element-place-push-panics` | `element-binding-box-alias-push-panics` |
+| 102 | `nonescaping-closure-keeps-captured-root-loan` | `dependent-result-captured-list-parent-replacement-panics` |
+| lane C | `identity-operands-an-integer-against-a-struct-is-one-error` | `identity-operands-an-integer-against-another-struct-is-one-error` |
+
+**C1, already settled by A2 or A14 (10 rows):** 1 (A14), 20 (A14), 29 (A2), 41 (A14), 44 (A14), 81 (A2 (rejected)), 84 (A2), 86 (A2), 89 (A2), 97 (A2 (rejected)).
+
+**C1, rejected (77 rows).** Row number in `review-rows.tsv` C1 order, the
+flagged fixture, and why it stays:
+
+- 2 `semicolon-after-binding`: the literal before `;` differs (integer against string), a different token before the reserved semicolon.
+- 3 `stray-dollar-in-string`: the `$` sits after text here and first in the string there, a different lexer state.
+- 6 `brace-escape`: `\{` is a distinct escape from `\x`, the brace beside interpolation.
+- 7 `raw-identifiers-name-fields-members-labels-parameters-and-bindings`: phase differs (type against runtime), so a type-only selection still needs it.
+- 9 `a-colon-in-parentheses-after-a-long-operand-gives-the-schematic-hint`: different code; the hint text differs, which only a `cli/` case can check (owner item 14).
+- 10 `a-colon-in-parentheses-before-a-comma-gives-the-schematic-hint`: different code; the hint text differs, which only a `cli/` case can check (owner item 14).
+- 11 `a-colon-in-parentheses-before-no-type-gives-the-schematic-hint`: different code; the hint text differs, which only a `cli/` case can check (owner item 14).
+- 12 `expression-type-arguments`: phase differs (type against runtime), so a type-only selection still needs it.
+- 13 `single-and-grouped-use`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 14 `part-trait-method-ignored-by-lookup`: phase differs (type against runtime), so a type-only selection still needs it.
+- 15 `private-own-field-beside-promoted`: each copy is the fixture of a different spec example (03 block 49, 08 block 25), and the twin adds the `pub` field case.
+- 16 `duration-unknown-unit`: a different suffix (`ns` against `px`).
+- 17 `sibling-module-private-function-bare`: the called function is private here and public there.
+- 19 `loop-list-cache-physical-cow`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 24 `lct-optional-injection`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 25 `least-common-type-generic-arguments-of-a-trait-value-and-a-struct-have-no-common-type`: operand order is swapped; the join is checked from each side.
+- 27 `literal-first-use-fallback`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 30 `let-readonly-fresh-literal`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 31 `bare-err-is-unknown-name`: a different variant (`Err` against `Ok`).
+- 32 `a-store-and-a-compound-store-check`: generic against plain `Cell`.
+- 33 `positional-spread-duplicates-vararg`: the spread comes before the value here and after it there.
+- 34 `float-remainder`: phase differs (type against runtime), so a type-only selection still needs it.
+- 35 `index-trait-literal-key-default`: phase differs (type against runtime), so a type-only selection still needs it.
+- 36 `index-trait-tuple-key`: phase differs (type against runtime), so a type-only selection still needs it.
+- 37 `power-a-u8-square-past-the-maximum-panics`: different operands (`16 ** 2` against `2 ** 8`), different overflow paths.
+- 38 `deferred-propagation-survives-a-recursive-row-retry`: phase differs (type against runtime), so a type-only selection still needs it.
+- 39 `a-deferred-propagation-payload-keeps-ordinary-coercions`: phase differs (type against runtime), so a type-only selection still needs it.
+- 40 `signed-exponent`: a parameter base against a literal base, which types differently.
+- 46 `match-payload-binding-name-swap`: a shorthand `.Pick` pattern against a qualified `Choice.Pair` pattern.
+- 47 `parameter-default-later-parameter`: this copy is the spec example's fixture; the twin adds an accepting function.
+- 49 `generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred`: a local `_ :=` binding against a top-level binding.
+- 50 `generic-suspending-associated-function-qualified-call`: called from a test against from `main!`.
+- 51 `generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred`: a discarded binding against a result position.
+- 52 `a-closure-changing-a-captured-collection-shares-it-with-its-scope`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 53 `suspending-closures-a-closure-that-only-creates-another-still-captures-for-it`: a suspending `make!` against a plain `make`.
+- 54 `omitted-result-cycle-one-annotated`: phase differs (type against runtime), so a type-only selection still needs it.
+- 59 `enum-payload-mut-shallow`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 60 `data-embedding-a-struct-may-embed-a-struct-without-a-cycle`: the twin's own field repeats the embedded field's name; this is the plain case of that pair.
+- 61 `reference-cycles-are-ordinary-data`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 62 `struct-embedded-field`: this struct also embeds a valid struct beside the enum.
+- 63 `impl-modules-a-trait-argument-from-the-same-module-gives-ownership`: visibility differs (`pub` struct and field).
+- 64 `outer-constructor-permits-impl`: the method body differs; the twin iterates the result.
+- 65 `impl-modules-a-trait-impl-in-the-module-of-the-trait-is-valid`: different trees and code.
+- 67 `derived-newtype`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 69 `inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify`: phase differs (type against runtime), so a type-only selection still needs it.
+- 70 `a-concrete-row-impl-overlaps-a-later-generic-row-impl`: the impl order is swapped, so the marker moves to the other impl.
+- 72 `candidate-closure-selection-reversed`: the impl order is swapped on purpose (the log's own Rejected C1).
+- 73 `candidate-scope-isolation-reversed`: the impl order is swapped on purpose.
+- 75 `downcast-downcast-ref-with-a-type-argument-on-dyn-inspectable`: phase differs (type against runtime), so a type-only selection still needs it.
+- 77 `trait-delegation`: phase differs (type against runtime), so a type-only selection still needs it.
+- 82 `cancellation-cleanup-order`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 83 `nested-provider-restoration`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 87 `a-local-row-fixit-skips-an-enclosing-const-parameter`: an extra const parameter; only the fix-it target differs (owner item 14).
+- 88 `a-local-row-fixit-uses-the-active-declaration`: an extra sibling function; only the fix-it target differs (owner item 14).
+- 90 `row-forced-overlap-nearest`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 91 `call-missing-requirement`: the key trait is declared after its use here.
+- 94 `second-suspension-drive`: the panic marker sits in a helper here, at the call there.
+- 95 `pointer-loan-extra-deep-shared-loans`: different depth and an extra write.
+- 96 `move-while-borrowed-nested-100-levels`: a different depth (100 against 33 levels).
+- 98 `element-reference-binding`: phase differs (type against runtime), so a type-only selection still needs it.
+- 101 `a-pointer-loan-rejects-an-aliased-root-write-closure-write`: the panic marker sits on the call here, on the closure there.
+- 103 `a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 104 `reference-tuple-element-comparator`: phase differs (type against runtime), so a type-only selection still needs it.
+- 105 `reference-tuple-element-place`: phase differs (type against runtime), so a type-only selection still needs it.
+- 106 `reference-enum-replace-build`: no `Console` requirement and no output, a different entry form.
+- 107 `readonly-mutation`: each copy is the fixture of a different spec example (04 block 54 and 07 block 9, 13 block 48).
+- 108 `pointer-loan-stmt-mut-umap-elem-panics`: no twin named; only the key literal differs per the row.
+- 109 `pointer-loan-stmt-ref-umap-elem-panics`: no twin named; only the key literal differs per the row.
+- 110 `encoding-properties`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 111 `fnv1a-usize-byte-oracle`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 112 `derive-default-a-field-with-a-declared-default-needs-no-default-impl`: phase differs (type against runtime), so a type-only selection still needs it.
+- 113 `rng-int-generic`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 114 `serde-tagging-lookalike-not-static`: a function named like the tagging variant, a different lookup.
+- 115 `task-all-list-empty`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 116 `with-timeout-cleanup-zero`: a different error type, output and rule.
+- 117 `property-generators-scalars`: the code differs beyond names; whether the twin subsumes it is an A12 question.
+- 118 `string-from-bytes-checks-utf8`: the code differs beyond names; whether the twin subsumes it is an A12 question.
 
 ## Confirmed Findings
 

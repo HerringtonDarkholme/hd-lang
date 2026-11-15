@@ -1,4 +1,4 @@
-# Spec 11 Installing: req.mut.install-writable-counted; Spec 11 Keys Of Reference Receiver Traits: req.ref.install-counted. A `*Tally` does not install a provider for a trait with a `&mut self` method.
+# Spec 11 Installing: req.mut.install-writable-counted; Spec 11 Keys Of Reference Receiver Traits: req.ref.install-counted; Spec 11 References To Other Providers: req.ref.share.counted-values. A `*Tally` does not install a provider for a trait with a `&mut self` method.
 trait Counter:
     fn bump(&mut self) -> void
 

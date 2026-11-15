@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.decl.mut-receiver.
 # Spec 09 Trait Value References: trait.dyn.ref.member.mut. A `&mut self` method called through a read-only `&dyn` reference; the fix-it declares the parameter `&mut dyn`.
 trait Counter:
     fn bump(&mut self) -> void

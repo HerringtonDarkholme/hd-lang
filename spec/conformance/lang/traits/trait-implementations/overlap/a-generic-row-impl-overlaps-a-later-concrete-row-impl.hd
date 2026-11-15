@@ -1,5 +1,5 @@
 # test: an implementation on a row parameter overlaps a later one on a concrete data row
-# Spec 09 Overlap: trait.overlap.unify; Spec 11: req.row.param.data-substitute.
+# Spec 09 Overlap: trait.overlap.definition, trait.overlap.unify, trait.overlap.error; Spec 11: req.row.param.data-substitute.
 
 struct OnExit[$ R]:
     run: fn() -> void $ R

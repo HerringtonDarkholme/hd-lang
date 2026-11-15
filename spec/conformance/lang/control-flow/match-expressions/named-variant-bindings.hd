@@ -1,3 +1,4 @@
+# test: named variant pattern fields bind their values
 enum Choice:
     Pair(then_value: i32, else_value: i32)
 

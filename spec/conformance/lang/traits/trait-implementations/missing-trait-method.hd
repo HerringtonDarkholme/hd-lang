@@ -1,3 +1,4 @@
+# test: an impl that leaves out a required method is rejected
 # Spec 09 Traits: trait.impl.required.
 trait Named:
     fn name(self) -> string
