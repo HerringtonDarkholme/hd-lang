@@ -1,0 +1,4 @@
+# The fix-it marks `T`, not the const parameter `N` before it (req.row.param.unmarked).
+fn outer[N<const usize, T]() -> void:
+    fn run[$ R = $ T]() -> void $ R:
+        pass

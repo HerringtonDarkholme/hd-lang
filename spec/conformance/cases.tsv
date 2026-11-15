@@ -6523,9 +6523,7 @@ lang/types/generics/type-argument-defaults/local-generic-parameters-after-a-defa
 lang/types/generics/type-argument-defaults/a-local-row-function-value-placeholder-keeps-its-default.hd	type	reject:missing-requirement	lang/04-type-system.md#r-types.generic.default.fill
 lang/requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-local-parameter.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
 lang/requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
-lang/requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
 lang/requirements/requirement-rows/row-parameters/a-local-row-annotation-rejects-an-unmarked-parameter.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
-lang/requirements/requirement-rows/row-parameters/a-local-row-fixit-uses-the-active-declaration.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
 lang/expressions/postfix-expressions/calls/a-generic-function-value-spread-needs-a-known-operand.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
 lang/expressions/postfix-expressions/calls/a-function-value-with-unknown-inputs-needs-a-known-spread.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
 lang/expressions/postfix-expressions/calls/a-known-spread-solves-a-function-values-inputs.hd	type	accept	lang/05-expressions.md#r-expr.call.spread.inputs
@@ -6814,9 +6812,6 @@ lang/names/function-and-closure-scopes/a-local-impl-names-an-enclosing-row-param
 lang/expressions/postfix-expressions/member-access/a-field-assignment-on-a-value-with-no-fields-is-unknown.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.member.field-read
 lang/traits/trait-declarations/a-result-projection-waits-for-its-self-type.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.projection
 lang/grammar/expressions/a-colon-in-parentheses-before-a-bracketed-type-suggests-its-call.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
-lang/grammar/expressions/a-colon-in-parentheses-before-no-type-gives-the-schematic-hint.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
-lang/grammar/expressions/a-colon-in-parentheses-before-a-comma-gives-the-schematic-hint.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
-lang/grammar/expressions/a-colon-in-parentheses-after-a-long-operand-gives-the-schematic-hint.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
 lang/names/member-resolution/a-field-write-on-a-binding-an-error-left-unknown-is-one-error.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.field-lookup.unknown
 lang/control-flow/match-expressions/payload-patterns/a-float-pattern-with-a-signed-exponent-matches-its-value.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 lang/grammar/patterns/a-data-pattern-field-needs-a-comma-before-the-next.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.data-field.nested

@@ -1,0 +1,8 @@
+# The panic report says that `balance` fell back to `usize` (flow.panic.report.fallback).
+
+fn settle():
+    let balance = 100
+    balance = balance - 150
+    balance
+
+result := settle()

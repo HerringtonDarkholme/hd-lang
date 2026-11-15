@@ -1,0 +1,28 @@
+# Texts the conformance runner does not judge: cast hints, fix-it targets and a panic report note.
+run: hd check --format json cast-bracketed-type.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'List[i32](x)'","line":5,"column":12,"fixes":[],"file":"cast-bracketed-type.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json cast-long-operand.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":46,"fixes":[],"file":"cast-long-operand.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json cast-before-comma.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":12,"fixes":[],"file":"cast-before-comma.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json cast-no-type.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":12,"fixes":[],"file":"cast-no-type.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json row-fix-skips-const.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"generic-kind-mismatch","message":"`T` is a type parameter, not a row parameter: declare it as `$T`","line":3,"column":20,"fixes":[{"message":"mark the parameter as a row parameter","edits":[{"file":"row-fix-skips-const.hd","start":112,"end":112,"text":"$"}]}],"file":"row-fix-skips-const.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json row-fix-active-declaration.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"generic-kind-mismatch","message":"`T` is a type parameter, not a row parameter: declare it as `$T`","line":5,"column":25,"fixes":[{"message":"mark the parameter as a row parameter","edits":[{"file":"row-fix-active-declaration.hd","start":181,"end":181,"text":"$"}]}],"file":"row-fix-active-declaration.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json reference-equality-compound.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"reference-equality","message":"`==` between two references is ambiguous: write `a is b` to compare the places they refer to, or `*a == *b` to compare the values","line":10,"column":9,"fixes":[{"message":"compare the places with `is`","edits":[{"file":"reference-equality-compound.hd","start":239,"end":241,"text":"is"}]},{"message":"compare the values with `*`","edits":[{"file":"reference-equality-compound.hd","start":230,"end":230,"text":"*("},{"file":"reference-equality-compound.hd","start":238,"end":238,"text":")"},{"file":"reference-equality-compound.hd","start":242,"end":242,"text":"*"}]}],"file":"reference-equality-compound.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd fallback-underflow.hd
+exit: 3
+stderr: panic: integer-overflow: integer overflow
+stderr:     fallback-underflow.hd:5 fallback-underflow.settle
+stderr:     fallback-underflow.hd:8 fallback-underflow.init
+stderr:     note: `balance` fell back to `usize` (no signed literal); write a signed literal such as `+1`, or annotate its type as in `let balance: i32 = ...`

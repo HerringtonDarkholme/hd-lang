@@ -1,0 +1,6 @@
+# The fix-it marks the `T` of `after`, not the `T` of the sibling `before` (req.row.param.unmarked).
+fn outer() -> void:
+    fn before[T](value: T) -> T:
+        value
+    fn after[T, $ R = $ T]() -> void $ R:
+        pass

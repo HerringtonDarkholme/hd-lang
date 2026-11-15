@@ -16,6 +16,7 @@ spec/conformance/cli/unknown-name-suggestions/** text eol=lf
 spec/conformance/cli/check-fix-std-import/** text eol=lf
 spec/conformance/cli/check-fix-legacy-syntax/** text eol=lf
 spec/conformance/cli/check-fix-reassigned-bindings/** text eol=lf
+spec/conformance/cli/hint-and-fix-texts/** text eol=lf
 spec/conformance/cli/lint-fix-private-main/src/*.hd text eol=lf
 spec/conformance/cli/lint-fix-private-main-bang/src/*.hd text eol=lf
 spec/conformance/cli/lint-fix-private-main-clash/src/*.hd text eol=lf
