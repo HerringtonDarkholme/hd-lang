@@ -1,0 +1,23 @@
+# test: a pending trait proof that needs a bound of depth 64 is accepted after its type is known
+# Spec 09 Traits: trait.bound.depth, trait.bound.depth.limit; 63 nested Wrap layers need a bound of depth 64.
+
+trait Marker
+
+struct Wrap[T < ?Copy]:
+    value: T
+
+impl Marker for i32
+impl[T < ?Copy & Marker] Marker for Wrap[T]
+
+type Quad[T < ?Copy] = Wrap[Wrap[Wrap[Wrap[T]]]]
+type Sixteen[T < ?Copy] = Quad[Quad[Quad[Quad[T]]]]
+
+fn unknown[T < ?Copy]() -> T:
+    panic("unused")
+fn need[T < ?Copy & Marker](value: T) -> void:
+    pass
+
+fn check(value: Sixteen[Sixteen[Sixteen[Quad[Quad[Quad[Wrap[Wrap[Wrap[i32]]]]]]]]]) -> void:
+    let item = unknown()
+    need(item)
+    item = value

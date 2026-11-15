@@ -1,5 +1,5 @@
-# test: a bound proof deeper than 64 nested bounds is an error
-# Spec 09 Traits: trait.bound.depth.
+# test: 64 nested Box layers need a bound of depth 65, which is an error
+# Spec 09 Traits: trait.bound.depth, trait.bound.depth.limit.
 
 trait Marker
 

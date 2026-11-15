@@ -1,0 +1,144 @@
+# test: 63 nested Wrap layers need a bound of depth 64, which is accepted
+# Spec 09 Traits: trait.bound.depth, trait.bound.depth.limit; `Wrap` relaxes `Copy`, which adds no depth.
+
+trait Marker
+
+struct Wrap[T < ?Copy]:
+    value: T
+
+impl Marker for i32
+impl[T < ?Copy & Marker] Marker for Wrap[T]
+
+fn need[T < ?Copy & Marker](value: T) -> void:
+    pass
+
+fn deep(
+    value: Wrap[
+        Wrap[
+            Wrap[
+                Wrap[
+                    Wrap[
+                        Wrap[
+                            Wrap[
+                                Wrap[
+                                    Wrap[
+                                        Wrap[
+                                            Wrap[
+                                                Wrap[
+                                                    Wrap[
+                                                        Wrap[
+                                                            Wrap[
+                                                                Wrap[
+                                                                    Wrap[
+                                                                        Wrap[
+                                                                            Wrap[
+                                                                                Wrap[
+                                                                                    Wrap[
+                                                                                        Wrap[
+                                                                                            Wrap[
+                                                                                                Wrap[
+                                                                                                    Wrap[
+                                                                                                        Wrap[
+                                                                                                            Wrap[
+                                                                                                                Wrap[
+                                                                                                                    Wrap[
+                                                                                                                        Wrap[
+                                                                                                                            Wrap[
+                                                                                                                                Wrap[
+                                                                                                                                    Wrap[
+                                                                                                                                        Wrap[
+                                                                                                                                            Wrap[
+                                                                                                                                                Wrap[
+                                                                                                                                                    Wrap[
+                                                                                                                                                        Wrap[
+                                                                                                                                                            Wrap[
+                                                                                                                                                                Wrap[
+                                                                                                                                                                    Wrap[
+                                                                                                                                                                        Wrap[
+                                                                                                                                                                            Wrap[
+                                                                                                                                                                                Wrap[
+                                                                                                                                                                                    Wrap[
+                                                                                                                                                                                        Wrap[
+                                                                                                                                                                                            Wrap[
+                                                                                                                                                                                                Wrap[
+                                                                                                                                                                                                    Wrap[
+                                                                                                                                                                                                        Wrap[
+                                                                                                                                                                                                            Wrap[
+                                                                                                                                                                                                                Wrap[
+                                                                                                                                                                                                                    Wrap[
+                                                                                                                                                                                                                        Wrap[
+                                                                                                                                                                                                                            Wrap[
+                                                                                                                                                                                                                                Wrap[
+                                                                                                                                                                                                                                    Wrap[
+                                                                                                                                                                                                                                        Wrap[
+                                                                                                                                                                                                                                            Wrap[
+                                                                                                                                                                                                                                                Wrap[
+                                                                                                                                                                                                                                                    Wrap[
+                                                                                                                                                                                                                                                        Wrap[
+                                                                                                                                                                                                                                                            Wrap[
+                                                                                                                                                                                                                                                                i32,
+                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                ],
+                                                                                                                                                                                                            ],
+                                                                                                                                                                                                        ],
+                                                                                                                                                                                                    ],
+                                                                                                                                                                                                ],
+                                                                                                                                                                                            ],
+                                                                                                                                                                                        ],
+                                                                                                                                                                                    ],
+                                                                                                                                                                                ],
+                                                                                                                                                                            ],
+                                                                                                                                                                        ],
+                                                                                                                                                                    ],
+                                                                                                                                                                ],
+                                                                                                                                                            ],
+                                                                                                                                                        ],
+                                                                                                                                                    ],
+                                                                                                                                                ],
+                                                                                                                                            ],
+                                                                                                                                        ],
+                                                                                                                                    ],
+                                                                                                                                ],
+                                                                                                                            ],
+                                                                                                                        ],
+                                                                                                                    ],
+                                                                                                                ],
+                                                                                                            ],
+                                                                                                        ],
+                                                                                                    ],
+                                                                                                ],
+                                                                                            ],
+                                                                                        ],
+                                                                                    ],
+                                                                                ],
+                                                                            ],
+                                                                        ],
+                                                                    ],
+                                                                ],
+                                                            ],
+                                                        ],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
+) -> void:
+    need(value)

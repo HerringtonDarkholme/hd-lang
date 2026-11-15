@@ -1586,6 +1586,30 @@ fn audit[T < Display & Named](value: T) -> string:
 10. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
 11. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics.
 
+Counting one proof bound by bound:
+
+```text
+trait Marker
+
+struct Box[T]:
+    value: T
+
+impl Marker for i32
+
+impl[T < Marker] Marker for Box[T]
+
+fn need[T < Marker](value: T) -> void:
+    pass
+
+fn deep(value: Box[Box[i32]]) -> void:
+    need(value)  # three bounds deep
+```
+
+The call `need(value)` requires `Box[Box[i32]] < Marker` directly, so that bound has depth 1.
+The implementation for `Box[T]` proves it from its own bound `Box[i32] < Marker`, which has depth 2.
+The same implementation proves that from `i32 < Marker`, which has depth 3, and `impl Marker for i32` has no bound.
+So 63 `Box` layers around `i32` need a bound of depth 64 and are accepted, and 64 layers need depth 65, an error.
+
 ```text
 trait Parent:
     fn parent(self) -> i32

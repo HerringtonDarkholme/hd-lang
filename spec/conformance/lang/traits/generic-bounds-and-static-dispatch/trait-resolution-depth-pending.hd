@@ -1,5 +1,5 @@
 # test: a pending trait proof obeys the same depth limit after its type is known
-# Rule: trait.bound.depth.limit.
+# Spec 09 Traits: trait.bound.depth, trait.bound.depth.limit; 64 nested Wrap layers need a bound of depth 65.
 
 trait Marker
 
@@ -17,7 +17,7 @@ fn unknown[T < ?Copy]() -> T:
 fn need[T < ?Copy & Marker](value: T) -> void:
     pass
 
-fn check(value: Wrap[Sixteen[Sixteen[Sixteen[Sixteen[i32]]]]]) -> void:
+fn check(value: Sixteen[Sixteen[Sixteen[Sixteen[i32]]]]) -> void:
     let item = unknown()
     need(item) # diagnostic: trait-resolution-depth
     item = value

@@ -916,7 +916,7 @@ lang/traits/generic-bounds-and-static-dispatch/unknown-associated-type.hd	type	r
 lang/traits/generic-bounds-and-static-dispatch/supertrait-associated-binding.hd	type	accept	lang/09-traits.md#binding-names
 lang/traits/generic-bounds-and-static-dispatch/duplicate-associated-binding.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#associated-type-bindings
 lang/traits/generic-bounds-and-static-dispatch/an-associated-type-binding-fixes-a-projection-and-drives-inference.hd	runtime	accept	lang/09-traits.md#associated-type-bindings
-lang/traits/generic-bounds-and-static-dispatch/bounds-a-bound-two-levels-deep-proves.hd	type	accept	lang/09-traits.md#r-trait.bound.depth.limit
+lang/traits/generic-bounds-and-static-dispatch/bounds-a-bound-two-levels-deep-proves.hd	type	accept	lang/09-traits.md#r-trait.bound.depth
 lang/traits/traits.hd	type	accept	lang/09-traits.md
 lang/control-flow/break-continue-and-loop-else/break-value-without-else.hd	type	reject:break-value-context	lang/06-control-flow.md#break-continue-and-loop-else
 lang/control-flow/return/top-level-return.hd	type	reject:return-outside-function	lang/06-control-flow.md#return
@@ -2149,6 +2149,8 @@ lang/types/least-common-type/least-common-type-a-list-of-a-trait-value-and-a-sub
 lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
 lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-signature.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
 lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-limit.hd	type	accept	lang/09-traits.md#r-trait.bound.depth.limit
+lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-wrap.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
+lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-wrap-limit.hd	type	accept	lang/09-traits.md#r-trait.bound.depth.limit
 lang/traits/trait-declarations/projection-binding-chain-normalizes-40-deep.hd	type	accept	lang/09-traits.md#r-trait.assoc.projection.depth
 lang/traits/trait-declarations/projection-binding-chain-past-depth-limit.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.depth
 lang/traits/trait-declarations/projection-binding-cycle.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.cycle
@@ -6459,6 +6461,7 @@ lang/expressions/primary-expressions/a-tuple-rest-with-an-untyped-empty-list-nee
 lang/control-flow/match-expressions/payload-patterns/optional-some-pattern-names-an-unknown-payload-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
 lang/control-flow/match-expressions/payload-patterns/union-pattern-names-an-unknown-payload-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
 lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-pending.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
+lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-pending-limit.hd	type	accept	lang/09-traits.md#r-trait.bound.depth.limit
 lang/traits/generic-bounds-and-static-dispatch/pending-trait-proof-resolves-after-a-later-assignment.hd	type	accept	lang/09-traits.md#r-trait.bound.depth.limit
 lang/control-flow/match-expressions/payload-patterns/optional-none-pattern-names-an-unknown-payload-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
 lang/requirements/requirement-rows/omitted-requirement-clauses/a-recursive-local-function-infers-its-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle
