@@ -15,7 +15,7 @@ struct Hooks:
     on_tick: fn() -> i32 $ Clock + Logger
     handlers: Map[string, fn() -> i32 $ Clock + Logger]
     pair: (fn() -> i32 $ Clock + Logger, fn() -> i32 $ Clock)
-    idle: fn() -> void $ ()
+    idle: fn() -> void $()
 
 fn single() -> i32 $ Clock:
     1
@@ -26,7 +26,7 @@ fn several(id: i32) -> i32 $ Clock + Logger + Store:
 fn grouped() -> i32 $ Clock + Logger:
     2
 
-fn empty() -> i32 $ ():
+fn empty() -> i32 $():
     3
 
 fn wrap() -> (fn() -> i32 $ Clock + Logger) $ Clock:
@@ -38,7 +38,7 @@ fn provide[$ R](callback: fn() -> i32 $ R + Logger) -> i32 $ R:
 fn contexts(
     both: $.Context[$ Clock + Logger],
     one: $.Context[$ Clock],
-    none: $.Context[$ ()],
+    none: $.Context[$()],
 ) -> void:
     pass
 

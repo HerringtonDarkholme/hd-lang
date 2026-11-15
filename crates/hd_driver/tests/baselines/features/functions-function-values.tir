@@ -77,7 +77,7 @@ fn variant_value(s: string) -> Event:
 >   %5 = Call app/main/map_one[string, Event] (%0, %4) : Event
 >   %6 = Block %5 : Event
 
-fn spelled() -> Fn[(string,), usize, $ ()]:
+fn spelled() -> Fn[(string,), usize, $()]:
     width
 > app/main/spelled
 >   %0 = ItemRef #0 [..] : fn(string) -> usize

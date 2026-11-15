@@ -31,5 +31,5 @@ fn generic_value(s: string) -> string:
 fn variant_value(s: string) -> Event:
     map_one(s, Event.Named)
 
-fn spelled() -> Fn[(string,), usize, $ ()]:
+fn spelled() -> Fn[(string,), usize, $()]:
     width

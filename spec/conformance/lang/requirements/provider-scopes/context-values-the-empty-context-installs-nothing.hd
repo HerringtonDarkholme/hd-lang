@@ -23,7 +23,7 @@ fn current() -> string $ Tag:
 fn both() -> string $ Tag + Log:
     $.use(Tag).name() + "," + $.use(Log).tag()
 
-fn none() -> $.Context[$ ()]:
+fn none() -> $.Context[$()]:
     $.context()
 
 pub fn main() -> void $ Console:

@@ -27,7 +27,7 @@ impl[$ R] Describe for Fn[(), string, $ R]:
     fn describe(self) -> string:
         "job"
 
-fn named() -> string $ WithTag[$ ()]:
+fn named() -> string $ WithTag[$()]:
     $.use(Tag).name()
 
 fn describe_named() -> string:

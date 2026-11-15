@@ -28,7 +28,7 @@ fn invoke[A < ?Copy, B < ?Copy](callback: fn(A) -> B, value: A) -> B:
     callback(value)
 
 @inline(.Never)
-fn invoke_spread[Args < ?Copy & Tuple, O < ?Copy](callback: Fn[Args, O, $ ()], value: Args) -> O:
+fn invoke_spread[Args < ?Copy & Tuple, O < ?Copy](callback: Fn[Args, O, $()], value: Args) -> O:
     callback(value...)
 
 fn own_append(mut values: UniqList[usize], extra: usize) -> UniqList[usize]:

@@ -11,8 +11,8 @@ type Task[$ R] = fn() -> void $ R
 fn say() -> void $ Console:
     println("value")
 
-fn pure() -> i32 $ ():
-    fn make[$ R = $ Console]() -> (fn() -> i32 $ R) $ ():
+fn pure() -> i32 $():
+    fn make[$ R = $ Console]() -> (fn() -> i32 $ R) $():
         fn() -> i32: +5
     let task: fn() -> i32 = make()
     task()

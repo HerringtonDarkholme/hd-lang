@@ -1436,7 +1436,8 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
                 || next == T::LParen && previous != T::KwFn)
     {
         Gap::Space
-    } else if no_space_after(previous, next) || no_space_before(next) {
+    } else if no_space_after(previous, next) || no_space_before(next) || empty_row(tokens, boundary)
+    {
         Gap::None
     } else if word(previous) && word(next)
         || previous == T::Dollar
@@ -1448,6 +1449,16 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
     } else {
         Gap::None
     }
+}
+
+/// The `$` of the empty row `$()` before its `(`: the row is written as
+/// one word (`grammar.type.row.empty`), while a nonempty row keeps its
+/// space, as in `$ Db`. Only the empty row puts `(` after `$`
+/// (`grammar.type.row.no-parentheses`).
+fn empty_row(tokens: &TokenBuf, boundary: usize) -> bool {
+    tokens.kind[boundary - 1] == T::Dollar
+        && tokens.kind[boundary] == T::LParen
+        && tokens.kind.get(boundary + 1) == Some(&T::RParen)
 }
 
 /// The `]` of an impl's parameter list before a parenthesized self type,

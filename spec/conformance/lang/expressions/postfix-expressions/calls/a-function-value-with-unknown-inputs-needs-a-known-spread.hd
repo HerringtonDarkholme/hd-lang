@@ -6,5 +6,5 @@ fn make[T < ?Copy]() -> T:
     panic("unused")
 
 fn call() -> i32:
-    let f: Fn[_, i32, $ ()] = make()
+    let f: Fn[_, i32, $()] = make()
     f(make()...) # diagnostic: cannot-infer-type

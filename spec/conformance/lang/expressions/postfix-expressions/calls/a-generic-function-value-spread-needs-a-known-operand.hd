@@ -5,5 +5,5 @@ use std.function.{Fn, Tuple}
 fn make[T < ?Copy]() -> T:
     panic("unused")
 
-fn call[Args < Tuple](f: Fn[Args, i32, $ ()]) -> i32:
+fn call[Args < Tuple](f: Fn[Args, i32, $()]) -> i32:
     f(make()...) # diagnostic: cannot-infer-type

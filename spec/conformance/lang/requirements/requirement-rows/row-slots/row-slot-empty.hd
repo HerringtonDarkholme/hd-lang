@@ -5,7 +5,7 @@ use std.function.Fn
 
 type Job[$ R] = fn() -> string $ R
 
-fn run_pure(job: Job[$ ()], other: Fn[(), string, $ ()]) -> string:
+fn run_pure(job: Job[$()], other: Fn[(), string, $()]) -> string:
     job() + other()
 
 tests:

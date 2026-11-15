@@ -23,7 +23,7 @@ impl[$ R] Runnable[$ R] for Quiet:
 fn call(r: &dyn Runnable[$ Console]) -> i32 $ Console:
     r.run()
 
-fn plain(r: &dyn Runnable[$ ()]) -> i32:
+fn plain(r: &dyn Runnable[$()]) -> i32:
     r.run()
 
 pub fn main() -> void $ Console:

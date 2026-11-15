@@ -20,7 +20,7 @@ fn spread(ctx: $.Context[$ Tag]) -> $.Context[$ Tag]:
 fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
     $.context(ctx..., Tag=Named { label: label })
 
-fn empty() -> $.Context[$ ()]:
+fn empty() -> $.Context[$()]:
     $.context()
 
 fn before_spread(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:

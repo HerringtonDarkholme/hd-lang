@@ -1091,10 +1091,10 @@ fn network!(socket: Socket) -> void:
 ### Disposal Protocols
 
 ```text
-pub trait Disposable[$ R = $ ()]:
+pub trait Disposable[$ R = $()]:
     fn dispose(&mut self) -> void $ R
 
-pub trait AsyncDisposable[$ R = $ ()]:
+pub trait AsyncDisposable[$ R = $()]:
     fn dispose!(&mut self) -> void $ R
 ```
 

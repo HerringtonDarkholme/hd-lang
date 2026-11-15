@@ -12,6 +12,6 @@ struct Holder[$R]:
 struct Grid[N < const i32]: pass
 
 fn run[M < const u8]() -> void:
-    let a: Box[$ ()]? = .None
+    let a: Box[$()]? = .None
     let b: Holder[i32]? = .None
     let c: Grid[M]? = .None

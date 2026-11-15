@@ -7,6 +7,6 @@ fn apply[
     F0 < Fn() -> i32,
     F1 < Fn(i32) -> string,
     F2 < Fn(i32, string) -> bool $ Log,
-    F3 < Fn[(i32,), i32, $ ()],
+    F3 < Fn[(i32,), i32, $()],
 ](empty: F0, one: F1, two: F2, tuple: F3) -> void:
     pass

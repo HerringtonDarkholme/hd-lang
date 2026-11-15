@@ -23,7 +23,7 @@ fn nested[$ R](callback: fn() -> string $ R) -> string $ R:
         first + ":" + invoke(callback)
 
 pub fn main() -> void $ Console:
-    let empty: $.Context[$ ()] = $.context()
+    let empty: $.Context[$()] = $.context()
     base := $.context(Label=box(Named { value: "outer" }))
     over := $.context(base..., Label=box(Named { value: "chosen" }), empty...)
     $.with(over...):

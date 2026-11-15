@@ -11,4 +11,4 @@ fn with_key() -> void $ Log:
     provide_log::[$ Log](quiet)
 
 fn with_empty_row() -> void $ Log:
-    provide_log::[$ ()](quiet)
+    provide_log::[$()](quiet)

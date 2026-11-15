@@ -3,7 +3,7 @@
 # Spec 07: fn.opaque.nested, fn.type.ctor.decl.contextual, fn.type.ctor.sugar; Spec 04: types.opaque.representation.
 use std.function.Fn
 
-fn make() -> Fn[(), impl Display, $ ()]:
+fn make() -> Fn[(), impl Display, $()]:
     fn value() -> i32:
         +7
     value

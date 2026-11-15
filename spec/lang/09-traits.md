@@ -2251,7 +2251,7 @@ impl Inspectable for User:  # error: sealed-trait-implementation
 
 impl AnyRef for Handle  # error: sealed-trait-implementation
 
-impl Fn[(i32,), i32, $ ()] for Handle:  # error: sealed-trait-implementation
+impl Fn[(i32,), i32, $()] for Handle:  # error: sealed-trait-implementation
     fn call(&self, args: (i32,)) -> i32: args._0
 ```
 

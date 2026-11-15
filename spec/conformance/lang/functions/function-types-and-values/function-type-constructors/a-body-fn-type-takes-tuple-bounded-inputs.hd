@@ -4,4 +4,4 @@
 use std.function.{Fn, Tuple}
 
 fn make[Args < Tuple]() -> void:
-    let xs: List[Fn[Args, i32, $ ()]] = []
+    let xs: List[Fn[Args, i32, $()]] = []

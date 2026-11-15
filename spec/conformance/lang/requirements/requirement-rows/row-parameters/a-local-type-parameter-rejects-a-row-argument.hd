@@ -3,4 +3,4 @@
 fn invalid() -> void:
     fn run[T]() -> void:
         pass
-    run::[$ ()]() # diagnostic: generic-kind-mismatch
+    run::[$()]() # diagnostic: generic-kind-mismatch

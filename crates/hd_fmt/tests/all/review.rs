@@ -294,3 +294,26 @@ fn a_counted_reference_operand_of_a_reference_type_keeps_its_spacing() {
     let glued = source.replace("&mut *T", "&mut*T");
     assert_eq!(formatted(&glued), source);
 }
+
+#[test]
+fn the_empty_row_is_written_without_a_space_in_every_position() {
+    // grammar.type.row.empty: `$()` is one spelling, while a nonempty row
+    // keeps its space (`$ Db`). Each position: a row alias, a row default,
+    // a function type's row, a header row, `$.Context[...]`, a row slot of
+    // a type argument and of a bound, and a closure header.
+    let row = |empty: &str| {
+        format!(
+            "type NoRow = {empty}\n\
+             trait Hook[$ R = {empty}]:\n    fn run(&self) -> void $ R\n\
+             fn invoke(callback: fn() -> void {empty}) -> void {empty}:\n    \
+             let ctx: $.Context[{empty}] = $.context()\n    \
+             let keyed: $.Context[$ Db] = $.context()\n    \
+             let slot: Box[{empty}]? = .None\n    \
+             callback()\n\
+             fn bound[F < Fn[(i32,), i32, {empty}]](f: F) -> void:\n    \
+             run := fn() -> void {empty}: pass\n"
+        )
+    };
+    assert_eq!(formatted(&row("$ ()")), row("$()"));
+    assert_eq!(formatted(&row("$()")), row("$()"));
+}

@@ -413,7 +413,7 @@ fn suspending() -> SuspendFn[(i32,), string, $ Database]:
 fn invoke[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
     f(value)
 
-fn invoke_tuple[F < Fn[(i32,), i32, $ ()]](f: F, value: i32) -> i32:
+fn invoke_tuple[F < Fn[(i32,), i32, $()]](f: F, value: i32) -> i32:
     f.call((value,))
 ```
 

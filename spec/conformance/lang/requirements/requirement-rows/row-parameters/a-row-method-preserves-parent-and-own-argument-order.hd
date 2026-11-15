@@ -26,4 +26,4 @@ fn run[T, N < const i32, $ R](h: Holder[T, N, $ R]) -> T $ R + Console:
 
 pub fn main() -> void $ Console:
     println(run(Holder::[string, 2, $ Console] { job: tick, kept: "kept" }))
-    println(run(Holder::[string, 2, $ ()] { job: quiet, kept: "quiet" }))
+    println(run(Holder::[string, 2, $()] { job: quiet, kept: "quiet" }))

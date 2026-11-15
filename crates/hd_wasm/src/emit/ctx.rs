@@ -35,7 +35,7 @@ pub(crate) fn key_id(input: &crate::Input<'_>, k: Ty) -> i64 {
 /// Whether trait method `m`'s vtable slot takes a context: whether its
 /// row lists a key, names one of its trait's row parameters, or it has
 /// row parameters of its own. Every trait value of the trait shares the
-/// shape, so `dyn Runnable[$ ()]`'s slot takes one too, empty, and a
+/// shape, so `dyn Runnable[$()]`'s slot takes one too, empty, and a
 /// row-polymorphic body compiled once calls `dyn Runnable[$ R]` alike
 /// (`trait.dyn.generic-trait`). A dynamic call cannot know the
 /// implementation's row, which may list fewer keys, so the slot looks

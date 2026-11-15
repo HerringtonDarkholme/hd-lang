@@ -102,7 +102,7 @@ fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   storage sub 0: $3 cell
 >   summary kept [$1] borrows [$0] writes
 
-fn empty() -> $.Context[$ ()]:
+fn empty() -> $.Context[$()]:
     $.context()
 > app/main/empty
 >   %0 = ContextNew [] : $.Context[$()]

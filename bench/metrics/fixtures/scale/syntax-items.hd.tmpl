@@ -125,7 +125,7 @@ fn run{{i}}(x: i32) -> i32:
         _ => +0
     let mut z = 0
     using res = box(Res{{i}} { n: y })
-    let ctx: $.Context[$ ()] = $.context()
+    let ctx: $.Context[$()] = $.context()
     $.with(Tag{{i}}=box(Named{{i}} { n: y })):
         z = usize(read{{i}}())
     let spread = more{{i}}((y, xs...))

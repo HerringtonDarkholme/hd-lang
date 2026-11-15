@@ -656,7 +656,7 @@ fn read_empty(callback: fn(EmptyResource) -> usize, value: EmptyResource) -> usi
 >     uses $1: entry -> %3 consume last
 >   %0 = Release %8 Exit local $0 #2 : ()
 >   %1 = Retain %8 Entry local $1 #0 : ()
-fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $ ()], value: Args) -> usize:
+fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $()], value: Args) -> usize:
     callback(value...)
 >   %2 = Read borrow [$0] : Fn[Args, usize, $()]
 >   %3 = Read move [$1] : Args

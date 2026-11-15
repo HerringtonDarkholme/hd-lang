@@ -21,7 +21,7 @@ type Services = $ Clock + Logger
 
 type OnlyClock = $ Clock
 
-type Silent = $ ()
+type Silent = $()
 
 fn cells(grid: Grid) -> usize:
     grid[0].len() + grid[1].len() + 8

@@ -9,10 +9,10 @@ fn total(head: i32, tail...: List[i32]) -> i32:
         sum = sum + x
     sum
 
-fn apply[F < Fn[(i32, List[i32]...), i32, $ ()]](f: F) -> i32:
+fn apply[F < Fn[(i32, List[i32]...), i32, $()]](f: F) -> i32:
     f(1, 2, 3)
 
-fn apply_mut[F < FnMut[(i32, List[i32]...), i32, $ ()]](mut f: F) -> i32:
+fn apply_mut[F < FnMut[(i32, List[i32]...), i32, $()]](mut f: F) -> i32:
     f(1, 2, 3)
 
 pub fn main() -> void $ Console:

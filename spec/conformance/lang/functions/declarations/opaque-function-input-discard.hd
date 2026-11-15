@@ -3,7 +3,7 @@
 # Spec 07: fn.opaque.nested, fn.type.ctor.decl.contextual; Spec 04: types.opaque.representation.
 use std.function.Fn
 
-fn make() -> Fn[(impl Display,), string, $ ()]:
+fn make() -> Fn[(impl Display,), string, $()]:
     fn(value: i64) -> string: "$value"
 
 pub fn main() -> void $ Console:

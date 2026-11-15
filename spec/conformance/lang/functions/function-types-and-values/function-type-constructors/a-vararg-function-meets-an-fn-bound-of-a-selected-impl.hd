@@ -15,7 +15,7 @@ trait Runner:
 struct Wrap[F]:
     f: F
 
-impl[F < Fn[(i32, List[i32]...), i32, $ ()]] Runner for Wrap[F]:
+impl[F < Fn[(i32, List[i32]...), i32, $()]] Runner for Wrap[F]:
     fn run(self) -> i32:
         (self.f)(1, 2, 3)
 

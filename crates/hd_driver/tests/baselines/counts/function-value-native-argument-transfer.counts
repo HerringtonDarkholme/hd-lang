@@ -153,7 +153,7 @@ fn read_empty(callback: fn(EmptyResource) -> usize, value: EmptyResource) -> usi
 >   release fn(std.rt_tests.stage_case.EmptyResource) -> usize (last use)
 
 @inline(.Never)
-fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $ ()], value: Args) -> usize:
+fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $()], value: Args) -> usize:
     callback(value...)
 > std/rt_tests.stage_case/read_spread
 >   release counted reference (last use)

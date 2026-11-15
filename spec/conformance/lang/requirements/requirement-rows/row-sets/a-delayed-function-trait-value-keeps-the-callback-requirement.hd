@@ -9,5 +9,5 @@ fn logged(value: i32) -> i32 $ Console:
     println("called")
     value + 1
 
-fn invalid() -> i32 $ ():
+fn invalid() -> i32 $():
     invoke(Fn::call, logged, +15) # diagnostic: missing-requirement

@@ -1929,7 +1929,7 @@ whose row changes and `$.Context` values on the linear backend
   names a row parameter of its trait, or that has row parameters, takes
   one context last: the caller cannot know the implementation's row,
   which may list fewer keys. Every trait value of the trait shares that
-  shape, so `dyn Disposable[$ ()]` passes 0 and a row-polymorphic body
+  shape, so `dyn Disposable[$()]` passes 0 and a row-polymorphic body
   passes its context on for `dyn Runnable[$ R]`. The slot looks up the
   implementation's own keys and passes the context on when the target
   has row parameters; a host handle's slot ignores it. A method with row parameters of its own has

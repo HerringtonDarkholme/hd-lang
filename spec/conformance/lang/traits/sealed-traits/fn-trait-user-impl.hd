@@ -3,6 +3,6 @@ use std.function.Fn
 
 struct Callable: pass
 
-impl Fn[(i32,), i32, $ ()] for Callable: # diagnostic: sealed-trait-implementation
+impl Fn[(i32,), i32, $()] for Callable: # diagnostic: sealed-trait-implementation
     fn call(&self, args: (i32,)) -> i32:
         args._0
