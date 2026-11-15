@@ -645,7 +645,7 @@ b145	runtime/valid/a-generic-type-derives-under-its-parameter-bound.hd	FIX	B5	`S
 b145	typing/invalid/readonly-mutation.hd	MERGE	C1	Duplicates typing/invalid/reference-write-through-shared-field.hd: field assignment through a shared reference, same rule and error. Only names differ.
 b146	runtime/valid/cmp-min-max.hd	FIX	B3	The tie check reads .value of two equal Reverse{value: 1}, so returning either argument passes. Use distinguishable values as cmp-min-max-distinguishable-tie.hd does.
 b146	runtime/valid/collection-structs-snapshot-iteration.hd	FIX	B8	drop_later expects seen == [1, 2] from set iteration order, which is unspecified. Compare the seen items as a sorted list or a set.
-b146	typing/invalid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-01.hd	UNSURE	B7	Cites std-cmp.min-max.result, but the top-level-read-before-initialization error comes from names.init.whole-module (lang/03). Cite that rule as well.
+b146	typing/invalid/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-before-it-is-set.hd	UNSURE	B7	Cites std-cmp.min-max.result, but the top-level-read-before-initialization error comes from names.init.whole-module (lang/03). Cite that rule as well.
 b147	runtime/panic/list-drain-inclusive-overflow.hd	FIX	B8	The end 4294967295 is out of bounds on 64-bit usize, and overflows on 32-bit. Use the usize maximum for a width-independent overflow case.
 b147	runtime/valid/slicing-a-range-value-is-a-slice-key.hd	UNSURE	B1	File name claims a Range is a slice key, and the code only reads r.start and r.end. Rename it or index with the range.
 b147	runtime/valid/map-drain.hd	FIX	B8	Asserts drain yields [("a", 1), ("c", 3)] in insertion order, but map order is unspecified (types.map.order.unspecified). Compare as a sorted list or set.
@@ -811,8 +811,8 @@ b158	runtime/valid/json-typed-round-trip.hd	FIX	B8	Lines 53 and 108 expect map o
 b158	runtime/valid/json-model-round-trips.hd	FIX	B8	Sets round trip expects encoding in first-occurrence order (line 253); set iteration order is unspecified (std-collections.set.iter).
 b158	runtime/valid/json-adversarial-inputs.hd	FIX	B8	Line 424 expects Set[i32] encoded as [3,1,2]; set iteration order is unspecified (std-collections.set.iter).
 b158	runtime/valid/union-serde.hd	FIX	B3	Only asserts a round trip; the positional single-payload wire form named in the title is never checked.
-b158	typing/invalid/initialization-implicit-a-for-loop-reaches-iter-01.hd	FIX	B7	Cites std-iter.from-fn, but the top-level-read-before-initialization error is governed by module.init.definite in lang/10-modules.md.
-b158	runtime/valid/initialization-implicit-a-for-loop-reaches-iter-02.hd	UNSURE	B7	Cites std-iter.from-fn; the accepted ordering is governed by module.init.definite (lang/10-modules.md), so the citation may be off.
+b158	typing/invalid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	FIX	B7	Cites std-iter.from-fn, but the top-level-read-before-initialization error is governed by module.init.definite in lang/10-modules.md.
+b158	runtime/valid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	UNSURE	B7	Cites std-iter.from-fn; the accepted ordering is governed by module.init.definite (lang/10-modules.md), so the citation may be off.
 b159	runtime/valid/num-intrinsic-boundaries.hd	FIX	B8	The usize block uses 4294967295 as its maximum; usize is the target pointer width (types.usize.width), so 64-bit targets fail.
 b159	runtime/valid/num-bit-count-widths.hd	FIX	B8	The usize block passes 4294967295 with width 32; usize is the target pointer width (types.usize.width).
 b159	runtime/valid/num-bit-counts.hd	FIX	B8	Line asserting 1.leading_zeros() == 31 assumes a 32-bit fallback usize; it is 63 on 64-bit (types.usize.width).
@@ -821,8 +821,8 @@ b160	runtime/valid/number-text-properties.hd	FIX	B8	Expects usize 4294967296 to 
 b160	runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	FIX	B8	old_usize bounds at 4294967295 (line 145) disagree with the new usize reader on edge text 4294967296 on 64-bit targets; depends on target width.
 b160	runtime/valid/num-parse-unsigned.hd	FIX	B8	Line 77-80 expects usize 4294967296 out of range, true only on Wasm32; native 64-bit usize parses it. Pin the width or drop the usize row.
 b160	runtime/valid/num-wrapping-mul.hd	FIX	B8	usize top.wrapping_mul(top) (line 86) expects 1, the 32-bit result; on 64-bit it is 18446744065119617025. Target-dependent.
-b160	typing/valid/checker-derived-default-enums-mark-one-variant-182.hd	FIX	B1	Has no @derive(Default) and no @default, so it exercises nothing its title and spec cite; merge into -181 or delete.
-b160	typing/valid/derive-members-a-declared-default-exempts-its-member-from-default-363.hd	MERGE	C1	Same Secret/declared-default shape as runtime/valid/derived-default-declared-no-bound.hd, same rule; keep one, the runtime one runs it.
+b160	typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd	FIX	B1	Has no @derive(Default) and no @default, so it exercises nothing its title and spec cite; merge into -181 or delete.
+b160	typing/valid/derive-default-a-field-with-a-declared-default-needs-no-default-impl.hd	MERGE	C1	Same Secret/declared-default shape as runtime/valid/derived-default-declared-no-bound.hd, same rule; keep one, the runtime one runs it.
 b162	runtime/valid/rng-int-generic.hd	MERGE	C1	Lines 48-53 repeat rng-int-range.hd lines 7-12 exactly (Rng::new(7), 0..10, same draws); same rule, same expectation, keep one.
 b163	typing/invalid/serde-map-key-payload-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the payload rule. Use a MapKeyPayload member type, e.g. string.
 b163	typing/invalid/serde-map-key-struct-member-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the struct-member rule. Use a MapKeyPayload member type, e.g. string.

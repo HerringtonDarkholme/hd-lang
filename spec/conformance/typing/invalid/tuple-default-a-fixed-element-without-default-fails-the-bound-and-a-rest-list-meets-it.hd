@@ -1,4 +1,4 @@
-# test: a rest element meets the bound by its items or its list
+# test: a fixed element without Default fails the bound and a rest list meets it
 use std.ops.Default
 
 struct Secret:

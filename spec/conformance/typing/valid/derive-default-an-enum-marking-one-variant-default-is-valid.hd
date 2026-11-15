@@ -1,4 +1,4 @@
-# test: checker derived default enums mark one variant
+# test: an enum deriving Default and marking one variant default is valid
 use std.ops.{Default, default}
 @derive(Default)
 enum Mode:

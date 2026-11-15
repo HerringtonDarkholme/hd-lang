@@ -100,9 +100,9 @@ typing/invalid/tuple-template-bounds-a-rest-element-meets-the-bound-by-its-items
 typing/invalid/tuple-template-bounds-a-user-tuple-template-asks-its-walkers-bound-29.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/09-traits.md#derived-tuple-implementations
 typing/invalid/tuple-template-bounds-an-unhashable-data-member-is-no-map-key-16.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/09-traits.md#derived-tuple-implementations
 typing/invalid/type-name-forms-a-key-that-reaches-no-trait-is-unknown-01.hd	A9	reject:unknown-trait not mentioned in cited lang/11-requirements-and-suspension.md#r-req.key.traits
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-01.hd	A9	reject:type-used-as-value not mentioned in cited std/collections.md#r-std-collections.set.decl
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-02.hd	A9	reject:type-used-as-value not mentioned in cited std/collections.md#r-std-collections.set.decl
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-03.hd	A9	reject:type-used-as-value not mentioned in cited std/collections.md#r-std-collections.set.decl
+typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A9	reject:type-used-as-value not mentioned in cited std/collections.md#r-std-collections.set.decl
+typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A9	reject:type-used-as-value not mentioned in cited std/collections.md#r-std-collections.set.decl
+typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd	A9	reject:type-used-as-value not mentioned in cited std/collections.md#r-std-collections.set.decl
 typing/invalid/unsolved-scrutinee-an-unsolved-let-else-scrutinee-reports-once-49.hd	A9	reject:cannot-infer-type not mentioned in cited lang/06-control-flow.md#match-expressions
 typing/invalid/unsolved-scrutinee-an-unsolved-match-scrutinee-reports-once-47.hd	A9	reject:cannot-infer-type not mentioned in cited lang/06-control-flow.md#match-expressions
 typing/invalid/unsolved-scrutinee-nested-names-bind-without-a-second-error-48.hd	A9	reject:cannot-infer-type not mentioned in cited lang/06-control-flow.md#match-expressions
@@ -183,10 +183,10 @@ runtime/panic/assert-equal-without-reason.hd	A9	panic:assertion-failed not menti
 typing/invalid/init-read-through-generic-bound.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/init-read-through-trait-value.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/initialization-implicit-a-derived-impl-reaches-its-fields-impls-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
-typing/invalid/initialization-implicit-a-for-loop-reaches-iter-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
+typing/invalid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
 typing/invalid/initialization-implicit-a-missing-impl-adds-no-initialization-error.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-question-mark-reaches-from-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
-typing/invalid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/cmp.md#r-std-cmp.min-max.result
+typing/invalid/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-before-it-is-set.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/cmp.md#r-std-cmp.min-max.result
 typing/invalid/initialization-implicit-a-trait-value-reaches-every-impl-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-unary-operator-reaches-neg-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-arithmetic-operator-reaches-add-01.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit

@@ -419,7 +419,7 @@ typing/invalid/tuple-template-bounds-a-generic-member-meets-the-bound-through-th
 typing/invalid/tuple-template-bounds-a-generic-member-meets-the-bound-through-the-environment-22.hd	A3	typing/invalid/tuple-template-bounds-a-rest-element-meets-the-bound-by-its-items-or-its-list-26.hd
 typing/invalid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members-19.hd	A3	typing/invalid/tuple-template-bounds-a-rest-element-meets-the-bound-by-its-items-or-its-list-26.hd
 typing/invalid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members-19.hd	A3	typing/invalid/tuple-template-bounds-an-unhashable-data-member-is-no-map-key-16.hd
-typing/invalid/tuple-template-bounds-a-rest-element-meets-the-bound-by-its-items-or-its-list-27.hd	A3	typing/invalid/default-tuple-element-without-default.hd
+typing/invalid/tuple-default-a-fixed-element-without-default-fails-the-bound-and-a-rest-list-meets-it.hd	A3	typing/invalid/default-tuple-element-without-default.hd
 typing/invalid/type-arity-written-an-argument-and-the-default-filled-from-it-report-one-bound-error-01.hd	A3	typing/invalid/type-arity-written-an-argument-and-the-default-filled-from-it-report-one-bound-error-02.hd
 typing/invalid/type-name-forms-a-call-of-a-data-type-that-unwraps-nothing-is-a-type-used-as-a-value-01.hd	A3	typing/invalid/type-name-forms-a-call-of-a-data-type-that-unwraps-nothing-is-a-type-used-as-a-value-02.hd
 typing/invalid/type-name-forms-a-call-of-a-data-type-that-unwraps-nothing-is-a-type-used-as-a-value-01.hd	A3	typing/invalid/type-name-forms-a-call-of-a-data-type-that-unwraps-nothing-is-a-type-used-as-a-value-03.hd
@@ -453,9 +453,9 @@ typing/invalid/requirement-key-unknown-trait.hd	A3	typing/invalid/function-type-
 typing/invalid/a-body-row-key-of-a-primitive.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
 typing/invalid/requirement-key-unknown-generic-trait.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
 typing/invalid/local-annotation-row-unknown-trait.hd	A3	typing/invalid/provider-scope-unknown-trait.hd
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-01.hd	A3	typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-02.hd
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-01.hd	A3	typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-03.hd
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-02.hd	A3	typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-03.hd
+typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
+typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
+typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
 typing/invalid/sibling-module-type-not-imported.hd	A3	typing/invalid/sibling-module-alias-not-imported.hd
 typing/invalid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57.hd	A3	typing/invalid/unsolved-call-parameter-an-unsolved-function-value-argument-is-reported-once-60.hd
 typing/invalid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57.hd	A3	typing/invalid/unsolved-call-parameter-an-unsolved-method-parameter-is-reported-once-59.hd
@@ -719,7 +719,7 @@ typing/invalid/const-evaluation-unary-plus-takes-an-integer.hd	A3	typing/invalid
 typing/invalid/const-evaluation-complements-no-boolean.hd	A3	typing/invalid/const-evaluation-compares-operands-of-one-type.hd
 typing/invalid/const-evaluation-complements-no-boolean.hd	A3	typing/invalid/const-evaluation-not-takes-a-boolean.hd
 typing/invalid/const-evaluation-compares-operands-of-one-type.hd	A3	typing/invalid/const-evaluation-not-takes-a-boolean.hd
-typing/valid/checker-derived-default-enums-mark-one-variant-181.hd	A3	typing/valid/checker-derived-default-enums-mark-one-variant-182.hd
+typing/valid/derive-default-an-enum-marking-one-variant-default-is-valid.hd	A3	typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd
 typing/valid/checker-function-values-do-not-bypass-initialization-order-156.hd	A3	typing/valid/checker-function-values-do-not-bypass-initialization-order-158.hd
 typing/valid/checker-function-values-do-not-bypass-initialization-order-156.hd	A3	typing/valid/checker-function-values-do-not-bypass-initialization-order-160.hd
 typing/valid/checker-function-values-do-not-bypass-initialization-order-156.hd	A3	typing/valid/checker-function-values-do-not-bypass-initialization-order-162.hd

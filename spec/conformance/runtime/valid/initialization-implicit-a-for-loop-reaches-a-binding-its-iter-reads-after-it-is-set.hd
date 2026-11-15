@@ -1,5 +1,6 @@
-# test: a for loop reaches iter
+# test: a for loop reaches a binding its iter reads after it is set
 # Spec std/iter.md: std-iter.from-fn.fn-mut-noncopy.
+# expect-stdout: 5
 
 struct Tag:
     n: i32
@@ -13,7 +14,6 @@ fn count() -> i32:
         break
     t
 
-first := count() # diagnostic: top-level-read-before-initialization
 later := +5
 
 use std.iter.{FromFn, from_fn}
@@ -21,6 +21,8 @@ impl Iterable[i32] for Src:
     type IntoIter = FromFn[i32]
     fn iter(self) -> FromFn[i32]:
         from_fn(fn() -> i32?: .Some(later))
+
+first := count()
 
 pub fn main() -> void $ Console:
     println(first)

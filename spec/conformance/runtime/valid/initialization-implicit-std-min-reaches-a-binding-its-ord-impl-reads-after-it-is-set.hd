@@ -1,4 +1,4 @@
-# test: a std function bound reaches the impls it is given
+# test: std min reaches a binding its Ord impl reads after it is set
 # Spec std/cmp.md: std-cmp.min-max.result.
 # expect-stdout: 1
 

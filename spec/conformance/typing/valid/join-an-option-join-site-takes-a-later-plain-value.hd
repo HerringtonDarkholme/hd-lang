@@ -1,4 +1,4 @@
-# test: checker a closed join site takes a later value as any type does
+# test: an option join site takes a later plain value
 fn first(xs: List[i32]) -> Option[i32]:
     xs.get(0)
 

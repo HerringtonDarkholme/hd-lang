@@ -1346,8 +1346,8 @@ typing/valid/derived-equality.hd	accept	std/cmp.md#r-std-cmp.derive.eq.template	
 runtime/valid/derived-ordering-run.hd	accept	std/cmp.md#r-std-cmp.derive.ord.data	-33	
 typing/valid/derived-ordering.hd	accept	std/cmp.md#r-std-cmp.derive.ord.template	-4	
 runtime/valid/id-keys-by-identity.hd	accept	std/cmp.md#r-std-cmp.id.eq	-2	
-runtime/valid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-02.hd	accept	std/cmp.md#r-std-cmp.min-max.result	-3	
-typing/invalid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-01.hd	reject:top-level-read-before-initialization	std/cmp.md#r-std-cmp.min-max.result	-3	
+runtime/valid/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-after-it-is-set.hd	accept	std/cmp.md#r-std-cmp.min-max.result	-3	
+typing/invalid/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-before-it-is-set.hd	reject:top-level-read-before-initialization	std/cmp.md#r-std-cmp.min-max.result	-3	
 runtime/valid/deque-heap-properties.hd	accept	std/collections.md#deque	-59	
 runtime/valid/list-access-building.hd	accept	std/collections.md#list-access-and-building	-7	
 runtime/valid/list-partition-search.hd	accept	std/collections.md#list-helpers	-2	
@@ -1585,7 +1585,7 @@ runtime/valid/task-records-value-copy.hd	accept	std/task.md#r-std-task.backoff.d
 runtime/valid/block-on-abandoned.hd	accept	std/task.md#r-std-task.block-on.abandoned	-7	
 runtime/valid/task-layer-tuple-order.hd	accept	std/task.md#r-std-task.layer.tuple.order	-16	
 runtime/valid/task-layer-user-polymorphic.hd	accept	std/task.md#r-std-task.layer.wrap	-18	
-runtime/valid/task-map-all-2000.hd	accept	std/task.md#r-std-task.map-all.like-all	-1	
+runtime/valid/task-map-all-keeps-input-order-and-cancels-every-pending-call-at-scale.hd	accept	std/task.md#r-std-task.map-all.like-all	-1	
 runtime/valid/task-map-all.hd	accept	std/task.md#r-std-task.map-all.limit	-4	
 runtime/valid/task-policy-builders.hd	accept	std/task.md#r-std-task.policy.builders.configuration	-32	
 runtime/valid/task-fallback.hd	accept	std/task.md#r-std-task.policy.fallback.backup	-58	

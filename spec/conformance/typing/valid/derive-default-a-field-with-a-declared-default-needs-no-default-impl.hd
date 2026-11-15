@@ -1,4 +1,4 @@
-# test: derive members a declared default exempts its member from default
+# test: a field with a declared default needs no Default impl
 use std.ops.Default
 
 struct Secret:

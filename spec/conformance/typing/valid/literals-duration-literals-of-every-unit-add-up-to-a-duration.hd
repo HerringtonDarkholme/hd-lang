@@ -1,4 +1,4 @@
-# test: duration literals have a fixed import free type
+# test: duration literals of every unit add up to a Duration
 use std.time.Duration
 fn delay() -> Duration:
     1h + 30min + 1_500ms + 30s

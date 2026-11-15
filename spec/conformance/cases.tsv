@@ -418,7 +418,7 @@ typing/invalid/tuple-template-bounds-a-function-member-is-no-map-key-15.hd	type	
 typing/invalid/tuple-template-bounds-a-generic-member-meets-the-bound-through-the-environment-22.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#derived-tuple-implementations
 typing/invalid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members-19.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#derived-tuple-implementations
 typing/invalid/tuple-template-bounds-a-rest-element-meets-the-bound-by-its-items-or-its-list-26.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#derived-tuple-implementations
-typing/invalid/tuple-template-bounds-a-rest-element-meets-the-bound-by-its-items-or-its-list-27.hd	type	reject:unsatisfied-trait-bound	std/ops.md#r-std-ops.default.std.missing-element
+typing/invalid/tuple-default-a-fixed-element-without-default-fails-the-bound-and-a-rest-list-meets-it.hd	type	reject:unsatisfied-trait-bound	std/ops.md#r-std-ops.default.std.missing-element
 typing/invalid/tuple-template-bounds-a-user-tuple-template-asks-its-walkers-bound-29.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#derived-tuple-implementations
 typing/invalid/tuple-template-bounds-an-unhashable-data-member-is-no-map-key-16.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#derived-tuple-implementations
 typing/invalid/type-arity-written-a-default-alone-missing-its-bound-reports-once.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.generic.default.bound
@@ -445,9 +445,9 @@ typing/invalid/type-name-forms-a-key-that-reaches-no-trait-is-unknown-01.hd	type
 typing/invalid/type-name-forms-a-map-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-01.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
 typing/invalid/type-name-forms-a-map-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-02.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
 typing/invalid/type-name-forms-a-map-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-03.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-01.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-02.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
-typing/invalid/type-name-forms-a-set-called-with-an-inferred-or-written-type-is-a-type-used-as-a-value-03.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
+typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
+typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
+typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
 typing/invalid/type-name-forms-a-type-name-that-reaches-nothing-in-a-local-annotation-is-unknown-01.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.module.other-module.type
 typing/invalid/type-too-long-a-data-type-written-too-long-reports-once-01.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
 typing/invalid/type-too-long-a-data-type-written-too-long-reports-once-02.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
@@ -579,8 +579,8 @@ typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-lega
 typing/valid/caret-is-xor-own-stays-a-plain-name-and-caret-is-xor.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
 typing/valid/checker-a-bound-takes-the-trait-argument-default-60.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/checker-a-bound-takes-the-trait-argument-default-61.hd	type	accept	lang/04-type-system.md#type-argument-defaults
-typing/valid/checker-a-closed-join-site-takes-a-later-value-as-any-type-does-16.hd	type	accept	std/option.md#r-std-option.unwrap-or
-typing/valid/checker-a-defer-suite-cannot-propagate-with-a-query-205.hd	type	accept	std/ops.md#r-std-ops.defer.cleanup
+typing/valid/join-an-option-join-site-takes-a-later-plain-value.hd	type	accept	std/option.md#r-std-option.unwrap-or
+typing/valid/defer-a-closure-nested-in-deferred-cleanup-may-propagate-within-itself.hd	type	accept	std/ops.md#r-std-ops.defer.cleanup
 typing/valid/checker-a-defer-suite-cannot-propagate-with-a-query-206.hd	type	accept	lang/05-expressions.md#propagation
 typing/valid/checker-a-filled-default-and-the-written-argument-overlap-64-legal.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/checker-a-match-must-cover-every-variant-23.hd	type	accept	lang/06-control-flow.md#match-expressions
@@ -623,8 +623,8 @@ typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-legal-f
 typing/valid/checker-decorator-target-kind-is-checked-54.hd	type	accept	lang/14-annotations.md#r-annot.target.limit.kind-error
 typing/valid/checker-defaults-must-not-be-followed-by-a-required-parameter-117.hd	type	accept	lang/08-data-and-enums.md#shared-enum-constructor-data
 typing/valid/checker-defaults-must-not-be-followed-by-a-required-parameter-legal-forms.hd	type	accept	lang/07-functions.md#default-values
-typing/valid/checker-derived-default-enums-mark-one-variant-181.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
-typing/valid/checker-derived-default-enums-mark-one-variant-182.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
+typing/valid/derive-default-an-enum-marking-one-variant-default-is-valid.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
+typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
 typing/valid/checker-duplicate-literal-arms-are-unreachable-250-legal.hd	type	accept	lang/06-control-flow.md#match-expressions
 typing/valid/checker-duplicate-literal-arms-are-unreachable-251-legal.hd	type	accept	lang/06-control-flow.md#match-expressions
 typing/valid/checker-foreign-loop-hint-does-not-reject-a-defined-loop-15.hd	type	accept	lang/07-functions.md#r-fn.trailing.position
@@ -714,7 +714,7 @@ typing/valid/declaration-checks-two-local-function-parameters-do-not-share-a-nam
 typing/valid/declaration-checks-two-method-parameters-do-not-share-a-name-334.hd	type	accept	lang/03-names-and-scopes.md#function-and-closure-scopes
 typing/valid/declaration-checks-two-trait-method-parameters-do-not-share-a-name-336.hd	type	accept	lang/03-names-and-scopes.md#function-and-closure-scopes
 typing/valid/declaration-checks-variant-names-are-unique-302.hd	type	accept	lang/08-data-and-enums.md#r-data.enum.unique
-typing/valid/derive-members-a-declared-default-exempts-its-member-from-default-363.hd	type	accept	std/ops.md#derived-default
+typing/valid/derive-default-a-field-with-a-declared-default-needs-no-default-impl.hd	type	accept	std/ops.md#derived-default
 typing/valid/derive-members-derived-comparison-over-generic-and-hand-written-members-is-clean-369.hd	type	accept	lang/14-annotations.md#typed-derivation
 typing/valid/derive-members-generic-target-meets-the-bound-through-its-derived-bound-364.hd	type	accept	lang/14-annotations.md#typed-derivation
 typing/valid/downcast-check-downcast-mut-with-type-arguments-on-a-bounded-parameter-373.hd	type	accept	lang/09-traits.md#recovering-a-concrete-type
@@ -829,7 +829,7 @@ typing/valid/literals-an-integer-literal-never-takes-a-float-type-52.hd	type	acc
 typing/valid/literals-an-open-literal-wraps-into-an-optional-43.hd	type	accept	lang/04-type-system.md#literal-types
 typing/valid/literals-an-open-literal-wraps-into-an-optional-44.hd	type	accept	lang/04-type-system.md#literal-types
 typing/valid/literals-an-open-literal-wraps-into-an-optional-45.hd	type	accept	lang/04-type-system.md#literal-types
-typing/valid/literals-duration-literals-have-a-fixed-import-free-type-2.hd	type	accept	std/time.md#duration
+typing/valid/literals-duration-literals-of-every-unit-add-up-to-a-duration.hd	type	accept	std/time.md#duration
 typing/valid/literals-duration-literals-have-a-fixed-import-free-type-3.hd	type	accept	lang/04-type-system.md#r-types.literal.duration.fixed
 typing/valid/literals-duration-literals-have-a-fixed-import-free-type-4.hd	type	accept	lang/04-type-system.md#r-types.literal.duration.fixed
 typing/valid/literals-duration-literals-have-a-fixed-import-free-type-5.hd	type	accept	lang/04-type-system.md#r-types.literal.duration.fixed
@@ -1241,10 +1241,10 @@ runtime/valid/tuple-rebuild.hd	runtime	accept	lang/05-expressions.md#expression-
 typing/invalid/init-read-through-generic-bound.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
 typing/invalid/init-read-through-trait-value.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
 typing/invalid/initialization-implicit-a-derived-impl-reaches-its-fields-impls-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
-typing/invalid/initialization-implicit-a-for-loop-reaches-iter-01.hd	type	reject:top-level-read-before-initialization	std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
+typing/invalid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	type	reject:top-level-read-before-initialization	std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
 typing/invalid/initialization-implicit-a-missing-impl-adds-no-initialization-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-question-mark-reaches-from-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
-typing/invalid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-01.hd	type	reject:top-level-read-before-initialization	std/cmp.md#r-std-cmp.min-max.result
+typing/invalid/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-before-it-is-set.hd	type	reject:top-level-read-before-initialization	std/cmp.md#r-std-cmp.min-max.result
 typing/invalid/initialization-implicit-a-trait-value-reaches-every-impl-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-using-disposal-reaches-its-impls-dispose-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-unary-operator-reaches-neg-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
@@ -4251,9 +4251,9 @@ runtime/valid/sibling-method-generic-scopes.hd	runtime	accept	lang/03-names-and-
 runtime/valid/sibling-module-enum-and-trait.hd	runtime	accept	lang/10-modules.md#r-module.vis.variants
 runtime/valid/init-ready-groups-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.ready-order
 runtime/valid/initialization-implicit-a-derived-impl-reaches-its-fields-impls-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
-runtime/valid/initialization-implicit-a-for-loop-reaches-iter-02.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
+runtime/valid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
 runtime/valid/initialization-implicit-a-question-mark-reaches-from-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
-runtime/valid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-02.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.result
+runtime/valid/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-after-it-is-set.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.result
 runtime/valid/initialization-implicit-a-trait-value-reaches-every-impl-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/initialization-implicit-a-unary-operator-reaches-neg-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/initialization-implicit-an-arithmetic-operator-reaches-add-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
@@ -5480,7 +5480,7 @@ runtime/valid/debug-string-runs.hd	runtime	accept	std/format.md#r-std-format.deb
 typing/invalid/function-value-named-argument.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.type.positional.named
 typing/invalid/derivation-block-hash.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.block.template
 typing/invalid/task-all-list-private.hd	type	reject:private-import	std/task.md#r-std-task.map-all.private-engine
-runtime/valid/task-map-all-2000.hd	runtime	accept	std/task.md#r-std-task.map-all.like-all
+runtime/valid/task-map-all-keeps-input-order-and-cancels-every-pending-call-at-scale.hd	runtime	accept	std/task.md#r-std-task.map-all.like-all
 runtime/valid/channel-producer-consumer.hd	runtime	accept	std/task.md#r-std-task.channel.recv
 runtime/valid/channel-close-drain.hd	runtime	accept	std/task.md#r-std-task.channel.close
 runtime/valid/channel-full-blocks-sender.hd	runtime	accept	std/task.md#r-std-task.channel.send

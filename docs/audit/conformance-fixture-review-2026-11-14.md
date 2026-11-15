@@ -2478,7 +2478,7 @@ Ledger: b156 (45): 4. b157 (45): 0. b158 (45): 6. b159 (44): 4.
   32-bit `usize`. Together with b032–b037, b147 and b155, the target-width class is now
   about 15 fixtures. A `# fixture-target:` directive or a rule that hd's `usize`
   is 32-bit is needed.
-- Plausible B3: `union-serde.hd` (round-trip only). Plausible B7: `initialization-implicit-a-for-loop-reaches-iter-01/-02.hd`
+- Plausible B3: `union-serde.hd` (round-trip only). Plausible B7: `initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set/-02.hd`
   (cite `std-iter.from-fn`; the behavior is `module.init.definite`).
   `typing/invalid/http-body-serialize-removed.hd`. Unverified B5: three `http-form-*`
   import `Serialize` without using it.
