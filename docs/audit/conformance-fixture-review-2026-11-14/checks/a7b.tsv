@@ -473,10 +473,10 @@ requirements/requirement-rows/requirement-row-union-and-order.hd	A7b	lost '' gai
 runtime/valid/result-and-then.hd	A7b	lost '' gained ',,,'	std/result.md#r-std-result.and-then
 runtime/valid/result-enum-spellings.hd	A7b	lost '' gained ',,'	lang/04-type-system.md#result-types
 runtime/valid/result-map.hd	A7b	lost '' gained ',,,'	std/result.md#r-std-result.map
-runtime/valid/rng-from-random.hd	A7b	lost '' gained ','	std/random.md#rng
-runtime/valid/rng-int-range.hd	A7b	lost '' gained ','	std/random.md#integer-ranges
-runtime/valid/rng-seeded-sequence.hd	A7b	lost '' gained ','	std/random.md#rng-generator
-runtime/valid/rng-shuffle-choose-sample.hd	A7b	lost '' gained ',,'	std/random.md#lists
+std/random/rng/rng-from-random.hd	A7b	lost '' gained ','	std/random.md#rng
+std/random/rng/rng-int-range.hd	A7b	lost '' gained ','	std/random.md#integer-ranges
+std/random/rng/rng-seeded-sequence.hd	A7b	lost '' gained ','	std/random.md#rng-generator
+std/random/rng/rng-shuffle-choose-sample.hd	A7b	lost '' gained ',,'	std/random.md#lists
 requirements/provider-scopes/row-forced-overlap-nearest.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
 requirements/requirement-polymorphism/row-polymorphic-union-forwarding.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#requirement-polymorphism
 requirements/requirement-rows/row-slots/row-slot-empty.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.row.slot.empty

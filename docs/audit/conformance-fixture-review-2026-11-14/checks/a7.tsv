@@ -1538,10 +1538,10 @@ std/process/process-errors/process-exited-data.hd	accept	std/process.md#r-std-pr
 std/process/exit-data/process-exit-data-eq.hd	accept	std/process.md#r-std-process.output.eq-program	-12	
 std/process/checking-output/process-output-ok.hd	accept	std/process.md#r-std-process.output.ok	-54	
 std/process/scripted-process/process-scripted-received.hd	accept	std/process.md#r-std-process.scripted.received-ref	-5	
-runtime/valid/rng-int-range.hd	accept	std/random.md#integer-ranges	-4	
-runtime/valid/rng-shuffle-choose-sample.hd	accept	std/random.md#lists	-8	
-runtime/valid/rng-from-random.hd	accept	std/random.md#rng	-4	
-runtime/valid/rng-seeded-sequence.hd	accept	std/random.md#rng-generator	-4	
+std/random/rng/rng-int-range.hd	accept	std/random.md#integer-ranges	-4	
+std/random/rng/rng-shuffle-choose-sample.hd	accept	std/random.md#lists	-8	
+std/random/rng/rng-from-random.hd	accept	std/random.md#rng	-4	
+std/random/rng/rng-seeded-sequence.hd	accept	std/random.md#rng-generator	-4	
 runtime/valid/regex-find-all.hd	accept	std/regex.md#all-matches	-8	
 runtime/valid/regex-anchors-groups.hd	accept	std/regex.md#anchors-groups-and-alternation	-1	
 runtime/valid/regex-captures.hd	accept	std/regex.md#captures	-44	
