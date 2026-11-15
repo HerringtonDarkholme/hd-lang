@@ -1,3 +1,5 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
 # req.suspend.cold: an owned list survives direct, stored and function-value calls.
 use std.function.{SuspendFn, Tuple}
 use std.ops.Disposable

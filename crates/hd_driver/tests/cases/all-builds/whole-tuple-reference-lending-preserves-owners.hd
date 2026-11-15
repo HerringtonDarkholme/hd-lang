@@ -1,14 +1,18 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
 # Private control for the existing accepted whole-tuple kind conversion.
 use std.annotation.cold
 use std.testing.assert_equal
 
 @cold
+fn read(value: (&i32, &i32)) -> i32:
+    *value._0 + *value._1
+
+@cold
 fn consume(first: *i32, second: *i32) -> void:
-    let source: (*i32, *i32, List[string]...) = (first, second, ["left", "right"]...)
-    let converted: (&i32, &i32, List[string]...) = source
-    assert_equal(*converted._0 + *converted._1, 18)
-    assert_equal(converted._2, ["left", "right"])
-    assert_equal(source._2, ["left", "right"])
+    source := (first, second)
+    let converted: (&i32, &i32) = source
+    assert_equal(read(converted), 18)
 
 @cold
 fn outcome(read_after: bool) -> void:

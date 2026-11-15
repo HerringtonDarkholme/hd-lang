@@ -1,3 +1,4 @@
+# @dump: diagnostics
 # Private control: whole-tuple conversion preserves the independent fallback position.
 struct Packet:
     owner: *i32

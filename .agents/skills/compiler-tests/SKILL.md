@@ -56,7 +56,11 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 - **Header comments** at the top:
   - `# @dump: VIEW...` names the views to generate;
   - `# @build: wasmtime release` picks the engine target and profile
-    (defaults `v8`, `dev`);
+    (defaults `v8`, `dev`); `|` lists several builds
+    (`# @build: dev | checked | release | release checked`), and each
+    view then shows every build's output under a `== @build: ...`
+    header. A dev-profile test compiler always verifies the ownership
+    passes' output, as `Packages::verify_own` asks;
   - add `std` to `@build` to compile the case as a std test module that
     may import internal runtime code;
   - `# @helpers: enc std/hash/hash_integer` prints the named runtime
@@ -122,8 +126,8 @@ are the point. Never snapshot a whole module.
   diff (`-` baseline, `+` actual); a missing baseline gives a blessing hint.
 - Bless: `HD_BLESS=1 cargo test -p <crate> --test stages` overwrites the
   baselines and deletes those whose case or dump is gone (a plain run
-  fails on them), leaving source cases untouched. A separate case file selects
-  a different build, so one baseline has one build. **Read the baseline
+  fails on them), leaving source cases untouched. A case that lists
+  several builds shows them all in each baseline, one header per build. **Read the baseline
   diff before committing**: it is the review of what the compiler now emits. A blessed regression is a bug
   you just recorded as correct.
 - To explore a snippet through every stage, temporarily add a case under

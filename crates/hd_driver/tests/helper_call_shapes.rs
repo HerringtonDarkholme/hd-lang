@@ -5,7 +5,7 @@ fn tuple_reference_fixture_has_no_fallthrough_branches() -> Result<(), String> {
     let case = hd_testkit::stages::parse(include_str!(
         "cases/counts/function-variance-borrows-a-tuple-input.hd"
     ))?;
-    let wat = hd_testkit::stages::view("wat", case.build, &case.program)
+    let wat = hd_testkit::stages::view("wat", case.builds[0].1, &case.program)
         .ok_or_else(|| "WAT view is available".to_owned())?;
     let (_, definition) = wat
         .split_once("  (func $main_like ")

@@ -1,3 +1,4 @@
+# @dump: diagnostics
 # Private control: whole-tuple conversion cannot erase a counted-field origin.
 struct Packet:
     owner: *i32

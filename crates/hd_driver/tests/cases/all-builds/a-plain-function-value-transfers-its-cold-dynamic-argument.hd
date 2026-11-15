@@ -1,3 +1,5 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
 # #1376: a plain function-value adapter must own the List transferred to
 # a dynamic cold constructor before the caller releases its input.
 use std.task.block_on

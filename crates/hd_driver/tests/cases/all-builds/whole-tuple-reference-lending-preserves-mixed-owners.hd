@@ -1,3 +1,5 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
 # Private control for the existing accepted whole-tuple kind conversion.
 use std.annotation.cold
 use std.testing.assert_equal

@@ -1,3 +1,5 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
 # fn.type.declared-variance and types.variance.no-insertion.
 use std.annotation.cold
 use std.testing.assert_equal

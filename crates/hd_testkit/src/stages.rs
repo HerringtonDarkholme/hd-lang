@@ -20,12 +20,14 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Component, Path, PathBuf};
 
-/// One plain source case, with header-selected views and build.
+/// One plain source case, with header-selected views and builds.
 #[derive(Clone, Debug)]
 pub struct Case {
     pub program: Program,
     pub dumps: Vec<String>,
-    pub build: Build,
+    /// The builds each view shows, as `@build` writes them, `|` between
+    /// two (`# @build: dev | release checked`); one `dev` build by default.
+    pub builds: Vec<(String, Build)>,
 }
 
 /// A program's main module and optional additional virtual modules.
@@ -146,7 +148,7 @@ impl Program {
 /// duplicate modules, unsafe module paths, or missing dump directives.
 pub fn parse(text: &str) -> Result<Case, String> {
     let mut dumps = Vec::new();
-    let mut build = Build::default();
+    let mut builds = Vec::new();
     let mut profile = None;
     let mut repl = None;
     let mut fuel = None;
@@ -214,8 +216,17 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     }
                 }
                 "build" => {
-                    build =
-                        Build::parse(value).ok_or_else(|| format!("unknown build `{value}`"))?;
+                    if !builds.is_empty() {
+                        return Err("a second `@build` line; write `|` between builds".to_owned());
+                    }
+                    for spec in value.split('|').map(str::trim) {
+                        let build =
+                            Build::parse(spec).ok_or_else(|| format!("unknown build `{spec}`"))?;
+                        if builds.iter().any(|(_, b)| *b == build) {
+                            return Err(format!("duplicate build `{spec}`"));
+                        }
+                        builds.push((spec.to_owned(), build));
+                    }
                 }
                 "profile" => {
                     let module = hd_project::module_path("app", "main.hd");
@@ -347,10 +358,13 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .to_owned(),
         );
     }
+    if builds.is_empty() {
+        builds.push(("dev".to_owned(), Build::default()));
+    }
     Ok(Case {
         program,
         dumps,
-        build,
+        builds,
     })
 }
 
@@ -660,15 +674,20 @@ pub fn tir(p: &Program) -> String {
 }
 
 /// The packages of a `diagnostics`, `spans`, `fixed`, `stdout` or `tests`
-/// build of `p` as `build`: the case's `@fuel`, `@profile` and `@entry`, and `@build`'s level (`release` runs the
-/// optimized pipeline, and a program gets the release profile), engine
-/// target and checked runtime.
+/// build of `p` as `build`: the case's `@fuel`, `@profile` and `@entry`,
+/// and `@build`'s level (`release` runs the optimized pipeline, and a
+/// program gets the release profile), engine target and checked runtime.
+/// Every build verifies the ownership passes' output
+/// (`Packages::verify_own`), as a debug-built compiler always does, so a
+/// test run of a release-built harness (CI's) checks the same. It costs
+/// only the case package's whole-result reuse, which a case never repeats.
 fn packages(p: &Program, build: Build) -> hd_driver::Packages<'static> {
     let mut packages = hd_driver::Packages {
         body_fuel: p.fuel,
         profile: p.profile.clone(),
         entries: p.entries.clone(),
         checked: build.checked,
+        verify_own: true,
         target: build.target,
         ..hd_driver::Packages::default()
     };
@@ -1124,7 +1143,20 @@ fn run_case(
     };
     let relative = path.strip_prefix(dir).expect("case under root");
     for dump in &case.dumps {
-        let Some(output) = views(dump, case.build, &case.program) else {
+        // One build shows its view alone; several each show theirs under
+        // a header that names the build.
+        let mut output = Some(String::new());
+        for (spec, build) in &case.builds {
+            let (Some(out), Some(shown)) = (&mut output, views(dump, *build, &case.program)) else {
+                output = None;
+                break;
+            };
+            if case.builds.len() > 1 {
+                let _ = writeln!(out, "== @build: {spec}");
+            }
+            out.push_str(&shown);
+        }
+        let Some(output) = output else {
             failures.push(format!("{}: unknown dump `{dump}`", path.display()));
             continue;
         };
@@ -1170,10 +1202,27 @@ mod tests {
     fn headers_select_dumps_builds_and_modules() {
         let case = parse("# @dump: tir wat\n# @build: wasmtime release\n# @file: main.hd\nfn one() -> i32: +1\n# @file: other.hd\npub fn two() -> i32: +2\n").expect("case");
         assert_eq!(case.dumps, ["tir", "wat"]);
-        assert_eq!(case.build, Build::parse("wasmtime release").unwrap());
+        assert_eq!(
+            case.builds,
+            [(
+                "wasmtime release".to_owned(),
+                Build::parse("wasmtime release").unwrap()
+            )]
+        );
         assert!(case.program.text.contains("fn one"));
         assert!(!case.program.text.contains("fn two"));
         assert_eq!(case.program.files[0].0, "other.hd");
+        let case = parse("# @dump: stdout\n# @build: dev | release checked\n").expect("case");
+        assert_eq!(
+            case.builds,
+            [
+                ("dev".to_owned(), Build::default()),
+                (
+                    "release checked".to_owned(),
+                    Build::parse("release,checked").unwrap()
+                )
+            ]
+        );
         for bad in [
             "# @dump: typo\n",
             "# @dump: tir tir\n",
@@ -1184,6 +1233,9 @@ mod tests {
             "# @dunp: tir\n",
             "# @dump: tir\nx := 1\n# @dump: wat\n",
             "# @dump: tir\nx := 1\n# @build: release\n",
+            "# @dump: tir\n# @build: dev | fast\n",
+            "# @dump: tir\n# @build: dev | v8 dev\n",
+            "# @dump: tir\n# @build: dev\n# @build: release\n",
             "# @dump: tests\nx := 1\n# @filter: name\n",
             "# @dump: tests diagnostics\n# @filter: name\n",
         ] {
@@ -1266,10 +1318,11 @@ mod tests {
     #[test]
     fn virtual_modules_reach_every_compiler_view_without_leaking_their_spans() {
         let case = parse("# @dump: tir own wat counts layout\n# @file: main.hd\nuse pkg.other.answer\n\nfn result() -> i32: answer()\n\n# @file: other.hd\npub fn answer() -> i32: +42\n").unwrap();
-        let built = super::inspection::build(&case.program, case.build);
+        let (_, dev) = case.builds[0];
+        let built = super::inspection::build(&case.program, dev);
         assert!(!built.diags.has_errors(), "{}", built.render());
         for view in ["tir", "own", "wat", "counts", "layout"] {
-            let out = super::view(view, case.build, &case.program).unwrap();
+            let out = super::view(view, dev, &case.program).unwrap();
             assert!(out.contains("fn result()"), "{view}: {out}");
             assert!(!out.contains("pub fn answer()"), "{view}: {out}");
         }
