@@ -78,6 +78,13 @@ function blockingStack(module: WebAssembly.Module | undefined): StackSwitching |
     : null;
 }
 
+// The numbers a test program's dispatching entries take: `hd.test.init`'s
+// module and `hd.test`'s case.
+export interface TestEntry {
+  readonly module: number;
+  readonly case: number;
+}
+
 interface HostInstance {
   readonly exports: DynamicRecord;
 }
@@ -1540,14 +1547,44 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     return { status, trapped, ended, frames, panic, cancelled: cancelled && !trapped };
   };
 
+  // The entries `run` calls: `start`, the init (nothing when `init` is
+  // null: a retained test instance, whose modules have run), and a view of
+  // the exports whose `poll` takes the context alone. A test program's
+  // entries dispatch by number (#1902): `test` binds `init` to its module's
+  // and `poll` to its case's, so an instance exports two functions however
+  // many cases it has. JSPI wraps the Wasm export itself, then the number
+  // is bound. A view inherits the other exports rather than copying them.
+  const entries = (
+    ex: DynamicRecord,
+    init: string | null,
+    poll: string,
+    test: TestEntry | undefined,
+  ): { start: ProviderFunction; view: DynamicRecord } => {
+    const entry = (name: string, at: number | undefined): ProviderFunction => {
+      const call: ProviderFunction = stack ? stack.promising(ex[name]) : ex[name];
+      return at === undefined ? call : (...rest: Dynamic[]) => call(at, ...rest);
+    };
+    return {
+      start: init === null ? () => undefined : entry(init, test?.module),
+      view:
+        stack || test !== undefined
+          ? Object.create(ex, { [poll]: { value: entry(poll, test?.case) } })
+          : ex,
+    };
+  };
+
   // Keep the common no-suspension path apart from the full async driver:
   // a fresh Node process can compile this small wrapper without compiling
   // cancellation, waits, traps and wake delivery that it never reaches.
   const run = (
     instance: WebAssembly.Instance,
-    init: string,
+    init: string | null,
     poll: string,
-    { driver = null, cancel = null }: { driver?: Dynamic; cancel?: Dynamic } = {},
+    {
+      driver = null,
+      cancel = null,
+      test,
+    }: { driver?: Dynamic; cancel?: Dynamic; test?: TestEntry } = {},
   ): Promise<RunResult> => {
     if (st.drivingMode === "sync") {
       return Promise.reject(new HostContract("the host already has a synchronous driver"));
@@ -1558,41 +1595,44 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     } catch (error) {
       return Promise.reject(error);
     }
-    const ex: DynamicRecord = instance.exports;
+    const { start, view } = entries(instance.exports, init, poll, test);
     if (stack) {
       return (async () => {
         let status = 0;
         let firstError: unknown = null;
-        // A view that inherits the exports, not a copy of one entry per
-        // test case (#1902); the instance's own are read-only.
-        const exports: DynamicRecord = Object.create(ex, {
-          [poll]: { value: stack.promising(ex[poll]) },
-        });
         try {
-          await stack.promising(ex[init])();
+          await start();
           driver?.poll();
-          status = await exports[poll](0);
+          status = await view[poll](0);
         } catch (error) {
           firstError = error;
         }
-        return continueRun({ instance, ex: exports, poll, status, driver, cancel, firstError });
+        return continueRun({ instance, ex: view, poll, status, driver, cancel, firstError });
       })();
     }
     let status: number;
     try {
-      ex[init]();
+      start();
       driver?.poll();
-      status = ex[poll](0);
+      status = view[poll](0);
     } catch (error) {
-      return continueRun({ instance, ex, poll, status: 0, driver, cancel, firstError: error });
+      return continueRun({
+        instance,
+        ex: view,
+        poll,
+        status: 0,
+        driver,
+        cancel,
+        firstError: error,
+      });
     }
     if (status === -1 || status === CANCELLED_END || status === CANCELLED_END - 1) {
-      return continueRun({ instance, ex, poll, status, driver, cancel });
+      return continueRun({ instance, ex: view, poll, status, driver, cancel });
     }
     try {
       flush();
       if (overran()) {
-        return continueRun({ instance, ex, poll, status, driver, cancel });
+        return continueRun({ instance, ex: view, poll, status, driver, cancel });
       }
       const result = {
         status,

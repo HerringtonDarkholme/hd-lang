@@ -547,8 +547,10 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   above the root. The driver reaches `std.rt.entry` and the allocator's
   folder for every program, whatever the program uses; emitted code calls
   the runtime by name.
-- **Test programs.** Tests export `hd.init.N` and `hd.test.N`; each
-  case uses its own entry poll and the suspension protocol (§23.21).
+- **Test programs.** Tests export `hd.test.init(N)`, module `N`'s
+  inits, and `hd.test(N, ctx)`, case `N`'s entry poll with the suspension
+  protocol (§23.21). Each dispatches by a `br_table`, so an instance's
+  exports, which every instantiate builds, are constant in the case count.
 - **The hd tests.** `crates/hd_driver/tests/std_rt/` holds std's own hd
   tests of its runtime modules. The conformance runner adds each file to
   std's sources and runs its cases on the linear backend, on the engines

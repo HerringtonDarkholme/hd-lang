@@ -3,10 +3,12 @@
 //! warm (no module checked), and the serial and pool executors build the
 //! same program. `--filter` is the stage case `test-plan/filter-selects-by-name`.
 
+use hd_base::SliceSort;
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
+use std::fmt::Write;
 
 const MATH: &str = "\
 use std.testing.{assert, assert_equal}
@@ -172,4 +174,71 @@ fn an_ignore_edit_relinks() {
     let warm = build(&host, "app", &goal);
     assert_eq!(warm.counters.miss("link"), 1);
     assert_eq!(warm.tests[1].run, Some((1, 0)));
+}
+
+/// The exported functions and the defined functions of a test program
+/// with `k` cases in one module and one in another (#1902's generator).
+fn entry_counts(k: usize) -> (Vec<String>, u32) {
+    let mut main = String::from(
+        "use std.testing.assert_equal\n\nfn edit_me(x: i32) -> i32: x * 3 + 1\n\ntests:\n",
+    );
+    for i in 0..k {
+        writeln!(
+            main,
+            "    it(\"case {i}\"):\n        assert_equal(edit_me(+{i}), +{i} * 3 + 1)"
+        )
+        .unwrap();
+    }
+    let mut src = MemorySources::default();
+    src.insert("main.hd", &main);
+    src.insert("text.hd", TEXT);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: SERIAL,
+    };
+    let goal = Goal::Tests {
+        module: None,
+        filter: None,
+    };
+    let out = build(&host, "app", &goal);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    assert_eq!(out.tests.len(), k + 1);
+    assert_eq!(out.tests[k].run, Some((u32::try_from(k).unwrap(), 1)));
+    let wasm = out.wasm.expect("a test program");
+    wasmparser::validate(&wasm).expect("a valid module");
+    let mut exports = Vec::new();
+    let mut functions = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+        match payload.expect("payload") {
+            wasmparser::Payload::ExportSection(r) => {
+                for e in r {
+                    let e = e.expect("export");
+                    if e.kind == wasmparser::ExternalKind::Func {
+                        exports.push(e.name.to_owned());
+                    }
+                }
+            }
+            wasmparser::Payload::FunctionSection(r) => functions = r.count(),
+            _ => {}
+        }
+    }
+    exports.sort_stable();
+    (exports, functions)
+}
+
+/// An engine that builds each instance's exports, and its functions, per
+/// instantiate does constant export work per case: a test program
+/// exports two entries however many cases it has, which dispatch by
+/// number, and each case adds one function, its body (#1902).
+#[test]
+fn a_test_program_exports_two_entries_and_a_function_per_case() {
+    let (small, at_small) = entry_counts(2_000);
+    let (large, at_large) = entry_counts(8_000);
+    assert_eq!(small, ["hd.test", "hd.test.init"]);
+    assert_eq!(large, small);
+    assert_eq!(at_large - at_small, 6_000);
 }

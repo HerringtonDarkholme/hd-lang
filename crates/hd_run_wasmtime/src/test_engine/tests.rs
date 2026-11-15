@@ -48,6 +48,9 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
     types
         .ty()
         .function([ValType::I32], [ValType::I32, ValType::I32]);
+    types
+        .ty()
+        .function([ValType::I32, ValType::I32], [ValType::I32]);
     let mut imports = ImportSection::new();
     imports.import("hd:rt", "stderr", EntityType::Function(2));
     let count = match body {
@@ -75,7 +78,14 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
         _ => 1,
     };
     let mut functions = FunctionSection::new();
-    functions.function(0).function(5).function(5);
+    // init, poll, the selected case, and the test program's two
+    // dispatchers, `hd.test.init(module)` and `hd.test(case, ctx)`.
+    functions
+        .function(0)
+        .function(5)
+        .function(5)
+        .function(2)
+        .function(7);
     let mut globals = GlobalSection::new();
     globals.global(
         GlobalType {
@@ -95,17 +105,12 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
     });
     let mut exports = ExportSection::new();
     exports.export("hd.x", ExportKind::Memory, 0);
-    exports.export(
-        if standard { "hd.init" } else { "hd.init.2" },
-        ExportKind::Func,
-        count,
-    );
-    exports.export(
-        if standard { "hd.poll" } else { "hd.test.3" },
-        ExportKind::Func,
-        count + 1,
-    );
-    exports.export("hd.test.9", ExportKind::Func, count + 2);
+    if standard {
+        exports.export("hd.init", ExportKind::Func, count);
+        exports.export("hd.poll", ExportKind::Func, count + 1);
+    }
+    exports.export("hd.test.init", ExportKind::Func, count + 3);
+    exports.export("hd.test", ExportKind::Func, count + 4);
     let mut init = Function::new([]);
     init.instruction(&I::I32Const(48))
         .instruction(&I::GlobalSet(0))
@@ -176,8 +181,49 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
     .instruction(&I::End);
     let mut selected = Function::new([]);
     selected.instruction(&I::I32Const(7)).instruction(&I::End);
+    // Module 2 runs init; any other traps.
+    let mut test_init = Function::new([]);
+    test_init
+        .instruction(&I::LocalGet(0))
+        .instruction(&I::I32Const(2))
+        .instruction(&I::I32Ne)
+        .instruction(&I::If(BlockType::Empty))
+        .instruction(&I::Unreachable)
+        .instruction(&I::End)
+        .instruction(&I::Call(count))
+        .instruction(&I::End);
+    // Case 3 is the body's poll and case 9 the selected one; any other
+    // traps.
+    let mut test = Function::new([]);
+    test.instruction(&I::Block(BlockType::Empty))
+        .instruction(&I::Block(BlockType::Empty))
+        .instruction(&I::Block(BlockType::Empty))
+        .instruction(&I::LocalGet(0))
+        .instruction(&I::I32Const(3))
+        .instruction(&I::I32Eq)
+        .instruction(&I::BrIf(0))
+        .instruction(&I::LocalGet(0))
+        .instruction(&I::I32Const(9))
+        .instruction(&I::I32Eq)
+        .instruction(&I::BrIf(1))
+        .instruction(&I::Br(2))
+        .instruction(&I::End)
+        .instruction(&I::LocalGet(1))
+        .instruction(&I::Call(count + 1))
+        .instruction(&I::Return)
+        .instruction(&I::End)
+        .instruction(&I::LocalGet(1))
+        .instruction(&I::Call(count + 2))
+        .instruction(&I::Return)
+        .instruction(&I::End)
+        .instruction(&I::Unreachable)
+        .instruction(&I::End);
     let mut code = CodeSection::new();
-    code.function(&init).function(&poll).function(&selected);
+    code.function(&init)
+        .function(&poll)
+        .function(&selected)
+        .function(&test_init)
+        .function(&test);
     let mut data = DataSection::new();
     data.active(0, &ConstExpr::i32_const(0), *b"?");
     #[cfg(unix)]
@@ -662,27 +708,35 @@ fn identical_bytes_share_one_compilation_per_engine() {
 }
 
 #[test]
-fn ordinary_instance_call_test_selects_the_named_export_after_init() {
+fn ordinary_instance_call_test_selects_the_case_by_number_after_init() {
     let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
     let module = engine
         .load(&wasm(Body::Counter, true), &MemoryStore::default())
         .unwrap();
-    let mut instance = engine
-        .instantiate_with(
-            &module,
-            &setup(),
-            HostIo {
-                out: Box::new(io::sink()),
-                err: Box::new(io::sink()),
-                input: None,
-            },
-        )
-        .unwrap();
-    assert_eq!(instance.init(), Outcome::Exit(0));
-    assert!(matches!(
-        instance.call_test(99),
-        std::task::Poll::Ready(Outcome::Internal(_))
-    ));
+    let start = || {
+        let mut instance = engine
+            .instantiate_with(
+                &module,
+                &setup(),
+                HostIo {
+                    out: Box::new(io::sink()),
+                    err: Box::new(io::sink()),
+                    input: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(instance.init(), Outcome::Exit(0));
+        instance
+    };
+    // `hd.test` has no arm for case 99: its default traps, a panic's
+    // status 3.
+    let mut stray = start();
+    assert_eq!(
+        stray.call_test(99),
+        std::task::Poll::Ready(Outcome::Exit(3))
+    );
+    assert!(stray.last_trapped);
+    let mut instance = start();
     assert_eq!(
         instance.call_test(9),
         std::task::Poll::Ready(Outcome::Exit(7))

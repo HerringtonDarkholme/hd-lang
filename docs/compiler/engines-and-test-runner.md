@@ -178,10 +178,13 @@ The design record in #182 is closed; no implementation ticket is open.
 1. `hd check --tests`, then the test plan: **one unit-test program per
    package**, holding every module's `tests:` cases and doc tests, and one
    program per integration test file (`hd_driver::test_programs`).
-   - **Init per module.** The unit-test program exports `hd.init.j` per
-     module with tests, which runs exactly the init groups module `j`
-     reaches, and `hd.test.i` per case (`hd_wasm` emission). A case's
-     instance calls its own module's init export, so every case runs in a
+   - **Init per module.** The unit-test program exports `hd.test.init(j)`,
+     which runs exactly the init groups module `j` reaches, and
+     `hd.test(i, ctx)`, which polls case `i` (`hd_wasm` emission). Each
+     dispatches by a `br_table`, so an instance holds two test exports
+     however many cases and modules it has: an engine that builds an
+     exports object per instantiate does constant work there. A case's
+     instance calls its own module's init, so every case runs in a
      fresh instance after its module's initialization
      ([`module.testing.instance`](../../spec/lang/10-modules.md#r-module.testing.instance)).
    - **Why one program.** Each program collects, links and compiles its
@@ -230,7 +233,7 @@ work queue: (program, case) in content order
 workers (--jobs): pull a case, then
     store = new store (pooling slot, limits)
     inst  = instance_pre.instantiate(store)
-    inst.init(case.module)              ;; hd.init.j: the groups its module reaches
+    inst.init(case.module)              ;; hd.test.init(j): the groups its module reaches
     outcome = drive(inst.call_test(case))
     drop(store)                         ;; slot returned
 results: printed by the release cursor in content order

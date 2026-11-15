@@ -164,7 +164,7 @@ The output follows `hd_host_abi` (crates/hd_run_wasmtime/DESIGN.md §17):
 each trait is its own `hd:<Trait>` import module, with `.start` and
 `.finish` pairs for methods that may wait; arguments cross the `hd.x`
 exchange buffer; the exports are `hd.init`, `hd.poll` and `hd.wake`, plus
-`hd.test.i` and `hd.init.j` for tests.
+`hd.test(i, ctx)` and `hd.test.init(j)` for tests.
 
 The JS host is split, not forked:
 

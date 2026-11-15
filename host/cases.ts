@@ -240,7 +240,7 @@ class Runner {
       },
       env,
     );
-    return { host, env, io, instance: null, repeated: null };
+    return { host, env, io, instance: null };
   }
 
   prepareLive(context: Dynamic, dir: string | null, runner: Dynamic, updates: Dynamic): Dynamic {
@@ -267,21 +267,12 @@ class Runner {
     const fresh = live.instance === null;
     if (fresh) {
       live.instance = await WebAssembly.instantiate(this.module, live.host.imports);
-      live.repeated = null;
-    } else if (live.repeated === null) {
-      // The entry driver always calls an init export. A retained instance
-      // has already initialized its modules, so give that driver a no-op.
-      // The view inherits the instance's exports rather than copying them,
-      // one per test case (#1902), and is made only for a retained one.
-      live.repeated = {
-        exports: Object.create(live.instance.exports, { "case.init": { value: () => {} } }),
-      };
     }
-    return live.host.run(
-      fresh ? live.instance : live.repeated,
-      fresh ? `hd.init.${context.init}` : "case.init",
-      `hd.test.${context.test}`,
-    );
+    // One export each runs a module's inits and a case, by number (#1902).
+    // A retained instance has already initialized its modules.
+    return live.host.run(live.instance, fresh ? "hd.test.init" : null, "hd.test", {
+      test: { module: context.init, case: context.test },
+    });
   }
 
   // Successful property bodies retain their instance and import object.

@@ -426,10 +426,11 @@ impl CaseRun {
     }
 }
 
-/// One case as the test host runs it: its `hd.test.i` and `hd.init.j`
-/// exports, its own temporary directory (`cli.test.env.temp-dir`), which
-/// the host makes on the case's first `temp_dir` call, the base seed of a
-/// property test case (`cli.test.seed`), and the case's grant.
+/// One case as the test host runs it: the numbers `i` and `j` it passes
+/// to the exports `hd.test(i, ctx)` and `hd.test.init(j)`, its own
+/// temporary directory (`cli.test.env.temp-dir`), which the host makes on
+/// the case's first `temp_dir` call, the base seed of a property test case
+/// (`cli.test.seed`), and the case's grant.
 pub struct HostCase {
     pub test: u32,
     pub init: u32,

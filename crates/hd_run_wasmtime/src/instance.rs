@@ -26,9 +26,9 @@ pub struct WasmtimeInstance {
     engine: Arc<wasmtime::Engine>,
     pub(crate) report: Option<crate::checked_report::Report>,
     count_pairs: crate::checked_report::PairTotals,
-    init: Option<TypedFunc<(), ()>>,
+    init: Option<EntryInit>,
     instance: Option<wasmtime::Instance>,
-    poll: Option<TypedFunc<i32, i32>>,
+    poll: Option<EntryPoll>,
     wake: Option<TypedFunc<i32, ()>>,
     /// `hd.cancel`, when the module links it: a stop request that arrives
     /// while the input waits on the host cancels its root suspension
@@ -110,6 +110,27 @@ impl WasmtimeInstance {
         Ok(this)
     }
 
+    /// A test program's case `case` of instance `instance`: `init` runs
+    /// `hd.test.init(module)` and `poll` runs `hd.test(case, ctx)`, the
+    /// two exports that dispatch by number (#1902).
+    pub(crate) fn from_test(
+        mut store: Store<Host>,
+        engine: Arc<wasmtime::Engine>,
+        instance: wasmtime::Instance,
+        module: u32,
+        case: u32,
+    ) -> Result<Self, StartError> {
+        let init = required::<i32, ()>(&mut store, instance, "hd.test.init")?;
+        let poll = required::<(i32, i32), i32>(&mut store, instance, "hd.test")?;
+        let mut this = Self::stopped(store, engine);
+        this.attach(
+            instance,
+            EntryInit::Test(init, module.cast_signed()),
+            EntryPoll::Test(poll, case.cast_signed()),
+        )?;
+        Ok(this)
+    }
+
     /// Makes `instance`, in this store, the one that `init`, `poll` and
     /// `wake` drive, through its exports `init_name`, `poll_name` and
     /// `hd.wake`; the run it starts has not ended. A session enters each
@@ -120,21 +141,21 @@ impl WasmtimeInstance {
         init_name: &str,
         poll_name: &str,
     ) -> Result<(), StartError> {
+        let init = required::<(), ()>(&mut self.store, instance, init_name)?;
+        let poll = required::<i32, i32>(&mut self.store, instance, poll_name)?;
+        self.attach(instance, EntryInit::Root(init), EntryPoll::Root(poll))
+    }
+
+    fn attach(
+        &mut self,
+        instance: wasmtime::Instance,
+        init: EntryInit,
+        poll: EntryPoll,
+    ) -> Result<(), StartError> {
         let store = &mut self.store;
         store.data_mut().memory = instance.get_memory(&mut *store, "hd.x");
         // No facts body runs yet, whatever an earlier input left.
         store.data_mut().facts.clear();
-        let export = |store: &mut Store<Host>, name: &str| {
-            instance
-                .get_func(&mut *store, name)
-                .ok_or_else(|| StartError::Engine(format!("the module has no export `{name}`")))
-        };
-        let init = export(store, init_name)?
-            .typed::<(), ()>(&*store)
-            .map_err(|e| StartError::Engine(format!("`{init_name}`: {e}")))?;
-        let poll = export(store, poll_name)?
-            .typed::<i32, i32>(&*store)
-            .map_err(|e| StartError::Engine(format!("`{poll_name}`: {e}")))?;
         let wake = match instance.get_func(&mut *store, "hd.wake") {
             Some(f) => Some(
                 f.typed::<i32, ()>(&*store)
@@ -160,6 +181,52 @@ impl WasmtimeInstance {
         self.halt = None;
         Ok(())
     }
+}
+
+/// An entry's init: a root's `hd.init`, or a test program's
+/// `hd.test.init` with its module's number.
+enum EntryInit {
+    Root(TypedFunc<(), ()>),
+    Test(TypedFunc<i32, ()>, i32),
+}
+
+impl EntryInit {
+    fn call(&self, store: &mut Store<Host>) -> Result<(), wasmtime::Error> {
+        match self {
+            Self::Root(f) => f.call(store, ()),
+            Self::Test(f, module) => f.call(store, *module),
+        }
+    }
+}
+
+/// An entry's poll: a root's `hd.poll`, or a test program's `hd.test`
+/// with its case's number.
+enum EntryPoll {
+    Root(TypedFunc<i32, i32>),
+    Test(TypedFunc<(i32, i32), i32>, i32),
+}
+
+impl EntryPoll {
+    fn call(&self, store: &mut Store<Host>, ctx: i32) -> Result<i32, wasmtime::Error> {
+        match self {
+            Self::Root(f) => f.call(store, ctx),
+            Self::Test(f, case) => f.call(store, (*case, ctx)),
+        }
+    }
+}
+
+/// The export `name`, typed: an entry the driver needs.
+fn required<Params, Results>(
+    store: &mut Store<Host>,
+    instance: wasmtime::Instance,
+    name: &str,
+) -> Result<TypedFunc<Params, Results>, StartError>
+where
+    Params: wasmtime::WasmParams,
+    Results: wasmtime::WasmResults,
+{
+    optional_typed(store, instance, name)?
+        .ok_or_else(|| StartError::Engine(format!("the module has no export `{name}`")))
 }
 
 /// An optional export, when the module links it: only a suspending entry
@@ -493,7 +560,7 @@ impl Instance for WasmtimeInstance {
             .init
             .as_ref()
             .expect("a live instance has hd.init")
-            .call(&mut self.store, ())
+            .call(&mut self.store)
         {
             Ok(()) => match self.store.data().check_deadline() {
                 Ok(()) => Outcome::Exit(0),
@@ -533,15 +600,15 @@ impl Instance for WasmtimeInstance {
         if let Some(outcome) = &self.done {
             return Poll::Ready(outcome.clone());
         }
-        let name = format!("hd.test.{export}");
         let Some(instance) = self.instance else {
             return Poll::Ready(Outcome::Internal("the instance has no live exports".into()));
         };
-        let poll = match instance.get_typed_func::<i32, i32>(&mut self.store, &name) {
+        // One dispatcher serves every case; a number past them traps.
+        let poll = match instance.get_typed_func::<(i32, i32), i32>(&mut self.store, "hd.test") {
             Ok(poll) => poll,
-            Err(error) => return Poll::Ready(Outcome::Internal(format!("`{name}`: {error}"))),
+            Err(error) => return Poll::Ready(Outcome::Internal(format!("`hd.test`: {error}"))),
         };
-        self.poll = Some(poll);
+        self.poll = Some(EntryPoll::Test(poll, export.cast_signed()));
         self.step()
     }
     /// Waits for at least one completion. The returned batch is delivered

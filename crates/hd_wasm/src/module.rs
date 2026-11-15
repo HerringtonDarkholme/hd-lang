@@ -1714,7 +1714,8 @@ impl Module {
     /// nothing ([`crate::opt::does_nothing`]) once [`crate::opt::constants`]
     /// took their constant stores, std's and the program's own alike: the
     /// `hd.init` exports, a script's later inits ([`Helper::EntryPoll`]'s
-    /// `then`) and checked mode's `reinit` ([`Helper::CheckedPoll`]). The
+    /// `then`), and a test program's inits ([`Helper::TestInit`]) and
+    /// checked mode's `reinit` after each case ([`Helper::TestPoll`]). The
     /// final reach then drops those inits. The other inits keep their
     /// order. The cost is one look at each init an entry helper names, a
     /// set lookup once it is known quiet, and only a helper that names a
@@ -1723,23 +1724,25 @@ impl Module {
         let mut helpers: Vec<(SymId, Helper, Vec<Hash128>)> = Vec::new();
         for &(_, export) in &self.exports {
             let mut id = export;
-            // `hd.poll` and `hd.test.N` wrap their `EntryPoll`, a helper of
-            // its own.
+            // `hd.poll` wraps its `EntryPoll`, a helper of its own.
             loop {
                 let Sym::Helper(h) = Sym::clone(&self.symbols.get(id)) else {
                     break;
                 };
                 let inits: Option<Vec<Hash128>> = match &h {
                     Helper::EntryInit { inits } => Some(inits.iter().map(|k| k.0).collect()),
+                    Helper::TestInit { inits } => {
+                        Some(inits.iter().flatten().map(|k| k.0).collect())
+                    }
                     // A suspending root's poll calls no later init.
                     Helper::EntryPoll {
                         then, bang: None, ..
                     } => Some(then.iter().map(|k| k.0).collect()),
-                    Helper::CheckedPoll { reinit, .. } => Some(reinit.clone()),
+                    Helper::TestPoll { reinit, .. } => Some(reinit.clone()),
                     _ => None,
                 };
                 let inner = match &h {
-                    Helper::CollectPoll { poll } | Helper::CheckedPoll { poll, .. } => {
+                    Helper::CollectPoll { poll } | Helper::CheckedPoll { poll } => {
                         Some((**poll).clone())
                     }
                     _ => None,

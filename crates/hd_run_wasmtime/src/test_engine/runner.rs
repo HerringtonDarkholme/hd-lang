@@ -74,12 +74,12 @@ impl NativeBodyRunner {
             }
             Err(error) => return Err(format!("{error:#}")),
         };
-        let mut instance = WasmtimeInstance::from_instance(
+        let mut instance = WasmtimeInstance::from_test(
             store,
             Arc::clone(&self.prepared.engine.engine),
             instance,
-            &format!("hd.init.{}", self.case.init),
-            &format!("hd.test.{}", self.case.test),
+            self.case.init,
+            self.case.test,
         )
         .map_err(|error| format!("{error:?}"))?;
         instance.report.clone_from(&self.prepared.report);

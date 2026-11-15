@@ -4,7 +4,7 @@
 //! built once on its first request.
 
 use crate::op::Op as Instruction;
-use hd_base::{DefId, Hash128, StageResult};
+use hd_base::{DefId, Hash128, HashSet, StageResult};
 use hd_types::{Ty, TyList};
 use wasm_encoder::BlockType;
 
@@ -116,18 +116,35 @@ pub enum Helper {
     /// `(ctx) -> status`: checked mode's entry poll (§23.24), `poll`'s
     /// answer. Once that is not Pending, it frees the wake table, releases
     /// every top-level binding ([`Helper::Teardown`]) and audits that no
-    /// block is left. A test case's instance serves the next case, so its
-    /// end then runs `reinit`, every module's init again, which gives the
-    /// next case the bindings a fresh instance has.
+    /// block is left.
     CheckedPoll {
         poll: Box<Helper>,
-        reinit: Vec<Hash128>,
     },
     /// `(ctx) -> status`: `poll`'s answer, after a cycle collection
     /// (§23.28): the entry is idle when the answer is Pending, and done
     /// otherwise. Checked mode collects in [`Helper::CheckedPoll`] instead.
     CollectPoll {
         poll: Box<Helper>,
+    },
+    /// `hd.test(case, ctx) -> status`: a test program's one case entry.
+    /// One `br_table` (Binaryen's and LLVM's switch lowering: a block per
+    /// arm) picks `polls[case]`, an [`Helper::EntryPoll`] written in its
+    /// arm, or called when it suspends; then [`Helper::CheckedPoll`]'s
+    /// end, or [`Helper::CollectPoll`]'s. A checked case's instance may
+    /// serve the next body (a property's), so that end then runs
+    /// `reinit`, every module's init again, which gives it the bindings a
+    /// fresh instance has. A case number past the arms traps. An instance's exports and functions, which
+    /// V8 builds per instantiate, then grow by one function per case: its
+    /// body (#1902).
+    TestPoll {
+        polls: Vec<Helper>,
+        reinit: Vec<Hash128>,
+    },
+    /// `hd.test.init(module)`: the test program's init entry, the inits
+    /// `inits[module]` as [`Helper::EntryInit`] runs them, in arms as
+    /// [`Helper::TestPoll`] has.
+    TestInit {
+        inits: Vec<Vec<(Hash128, bool)>>,
     },
     /// `hd.reset()`: after a REPL input that trapped
     /// ([`crate::Entry::Inputs`]), clears what the trap left set: the
@@ -828,26 +845,35 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         } => {
             // The module under test is not an entry module
             // (`module.init.tests.no-entry`), so every init is forbidden.
-            for (j, ks) in inits.iter().enumerate() {
-                let inits = ks.iter().map(|k| (*k, true)).collect();
-                m.export(
-                    format!("hd.init.{j}"),
-                    Sym::Helper(Helper::EntryInit { inits }),
-                );
-            }
+            // One export each dispatches by number, `hd.test.init(j)` and
+            // `hd.test(i, ctx)`: an instance's exports, which every
+            // instantiate builds, stay constant in the case and module
+            // counts (#1902).
+            let groups = inits
+                .iter()
+                .map(|ks| ks.iter().map(|k| (*k, true)).collect())
+                .collect();
+            m.export(
+                "hd.test.init",
+                Sym::Helper(Helper::TestInit { inits: groups }),
+            );
             let mut bang = false;
-            let mut reinit: Vec<Hash128> = Vec::new();
-            for k in inits.iter().flatten() {
-                if !reinit.contains(k) && !runtime_inits.contains(k) {
-                    reinit.push(*k);
-                }
-            }
-            for (i, (def, key, report)) in cases.iter().enumerate() {
-                let poll = poll(input, m, *def, *key, *report, Vec::new())?;
-                let poll = checked(m, poll, reinit.clone());
+            // Each init once, in first-reach order; a set keeps the pass
+            // linear in the inits the groups name.
+            let runtime: HashSet<Hash128> = runtime_inits.iter().copied().collect();
+            let mut seen: HashSet<Hash128> = HashSet::default();
+            let reinit: Vec<Hash128> = inits
+                .iter()
+                .flatten()
+                .copied()
+                .filter(|k| !runtime.contains(k) && seen.insert(*k))
+                .collect();
+            let mut polls = Vec::with_capacity(cases.len());
+            for (def, key, report) in cases {
+                polls.push(poll(input, m, *def, *key, *report, Vec::new())?);
                 bang |= m.frames.contains_key(key);
-                m.export(format!("hd.test.{i}"), poll);
             }
+            m.export("hd.test", Sym::Helper(Helper::TestPoll { polls, reinit }));
             if bang {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
@@ -871,7 +897,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
                     }),
                 );
                 let poll = poll(input, m, i.init, i.key, None, i.after.clone())?;
-                m.export(format!("hd.poll.{n}"), collecting(poll));
+                m.export(format!("hd.poll.{n}"), Sym::Helper(collecting(poll)));
                 bang |= m.frames.contains_key(&i.key);
             }
             m.export("hd.reset", Sym::Helper(Helper::EntryReset));
@@ -897,9 +923,9 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     let poll = if matches!(input.entry, Entry::Scenario { .. }) {
         collecting(poll)
     } else {
-        checked(m, poll, Vec::new())
+        checked(m, poll)
     };
-    m.export("hd.poll", poll);
+    m.export("hd.poll", Sym::Helper(poll));
     // Checked mode's count totals, for measuring elision (§23.24).
     if let Some(c) = m.runtime.checked {
         m.export("hd.retained", Sym::Inst(c.retained));
@@ -938,7 +964,7 @@ fn poll(
     key: Hash128,
     report: Option<Hash128>,
     then: Vec<(Hash128, bool)>,
-) -> StageResult<Sym> {
+) -> StageResult<Helper> {
     let mut providers = Vec::new();
     for k in input.env.row_keys(main, TyList::EMPTY) {
         let by_ref = input.host_refs.iter().find(|(t, _)| *t == k).map(|r| r.1);
@@ -948,48 +974,179 @@ fn poll(
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
     let rvals = crate::layout::vals(input.pool, input.env, ret)?;
     let bang = m.frames.contains_key(&key).then(|| rvals.clone());
-    Ok(Sym::Helper(Helper::EntryPoll {
+    Ok(Helper::EntryPoll {
         main: key,
         providers,
         results: u32::try_from(rvals.len()).expect("results"),
         report,
         then,
         bang,
-    }))
+    })
 }
 
 /// In checked mode, `poll` behind the audit at its end
-/// ([`Helper::CheckedPoll`]), then the inits `reinit`; with the runtime,
-/// `poll` behind a cycle collection ([`Helper::CollectPoll`]); else `poll`
-/// itself.
-fn checked(m: &Module, poll: Sym, reinit: Vec<Hash128>) -> Sym {
-    match poll {
-        Sym::Helper(h) if m.runtime.checked.is_some() => Sym::Helper(Helper::CheckedPoll {
-            poll: Box::new(h),
-            reinit,
-        }),
-        other => collecting(other),
+/// ([`Helper::CheckedPoll`]); else `poll` behind a cycle collection
+/// ([`Helper::CollectPoll`]).
+fn checked(m: &Module, poll: Helper) -> Helper {
+    if m.runtime.checked.is_some() {
+        Helper::CheckedPoll {
+            poll: Box::new(poll),
+        }
+    } else {
+        collecting(poll)
     }
 }
 
-/// `poll` behind a cycle collection ([`Helper::CollectPoll`]) when the
-/// program links the runtime.
-fn collecting(poll: Sym) -> Sym {
-    match poll {
-        Sym::Helper(h) => Sym::Helper(Helper::CollectPoll { poll: Box::new(h) }),
-        other => other,
+/// `poll` behind a cycle collection ([`Helper::CollectPoll`]).
+fn collecting(poll: Helper) -> Helper {
+    Helper::CollectPoll {
+        poll: Box::new(poll),
+    }
+}
+
+/// Opens the blocks of a dispatch on parameter 0 over `n` arms and
+/// branches: `n + 1` nested blocks, the default's outermost and arm 0's
+/// innermost, and one `br_table` into them. Arm `i`'s code follows the
+/// `i`th [`Instruction::End`] after; [`dispatch_end`] closes the default.
+/// Constant work per call, and code linear in the arms.
+/// Answers the arm count, the default's label.
+fn dispatch(f: &mut Func, arms: usize) -> u32 {
+    let labels: Vec<u32> = (0u32..).take(arms).collect();
+    let n = labels.last().map_or(0, |last| last + 1);
+    for _ in 0..=n {
+        f.op(Instruction::Block(BlockType::Empty));
+    }
+    f.get(0);
+    f.br_table(labels, n);
+    n
+}
+
+/// The default arm of a [`dispatch`]: a number past the arms traps.
+fn dispatch_end(f: &mut Func) {
+    f.op(Instruction::End);
+    f.op(Instruction::Unreachable);
+}
+
+/// [`Helper::TestInit`].
+fn test_init(m: &Module, groups: &[Vec<(Hash128, bool)>]) -> Func {
+    let mut f = m.func("rt:test_init", vec![Val::I32], vec![]);
+    dispatch(&mut f, groups.len());
+    for inits in groups {
+        f.op(Instruction::End);
+        entry_init(&mut f, m, inits);
+        f.op(Instruction::Return);
+    }
+    dispatch_end(&mut f);
+    f
+}
+
+/// [`Helper::TestPoll`]: the dispatch in a block whose end takes the
+/// case's status, then a checked poll's end, or a collecting poll's.
+fn test_poll(m: &Module, polls: &[Helper], reinit: &[Hash128]) -> Func {
+    let mut f = m.func("rt:test_poll", vec![Val::I32, Val::I32], vec![Val::I32]);
+    let status = f.local(Val::I32);
+    f.op(Instruction::Block(BlockType::Empty));
+    let n = dispatch(&mut f, polls.len());
+    for (i, poll) in (0..n).zip(polls) {
+        f.op(Instruction::End);
+        match poll {
+            Helper::EntryPoll {
+                main,
+                providers,
+                results,
+                report,
+                then,
+                bang: None,
+            } => entry_poll(&mut f, m, *main, providers, *results, *report, then),
+            // A suspending root's poll keeps its frame state machine
+            // (`task::root_poll`) in a function of its own.
+            suspending => {
+                f.get(1);
+                f.helper(suspending.clone());
+            }
+        }
+        f.set(status);
+        // Out past the arms still open, the default's block and into
+        // the end: `n - i` labels out.
+        f.op(Instruction::Br(n - i));
+    }
+    dispatch_end(&mut f);
+    f.op(Instruction::End);
+    if m.runtime.checked.is_some() {
+        checked_end(&mut f, m, status, reinit);
+    } else if !m.acyclic {
+        f.helper(Helper::Collect);
+    }
+    f.get(status);
+    f
+}
+
+/// [`Helper::EntryInit`]'s code: the inits not known quiet, in order.
+fn entry_init(f: &mut Func, m: &Module, inits: &[(Hash128, bool)]) {
+    for (k, forbid) in inits.iter().filter(|(k, _)| !m.quiet_inits.contains(k)) {
+        // A program that links no collector needs no collector state.
+        if !(m.acyclic && m.cycle_insts.contains(k)) {
+            call_init(f, *k, *forbid);
+        }
+    }
+}
+
+/// [`Helper::EntryPoll`]'s code for a root that does not suspend, leaving
+/// its status: `main` with its host providers, its result to `report` or
+/// dropped, then `then`.
+fn entry_poll(
+    f: &mut Func,
+    m: &Module,
+    main: Hash128,
+    providers: &[(usize, Option<Hash128>)],
+    results: u32,
+    report: Option<Hash128>,
+    then: &[(Hash128, bool)],
+) {
+    host_providers(f, providers);
+    f.call(Sym::Inst(main));
+    if let Some(k) = report {
+        f.call(Sym::Inst(k));
+    } else {
+        for _ in 0..results {
+            f.op(Instruction::Drop);
+        }
+        // A script's later inits: its own bodies, which share the
+        // first's providers and result, and the others, as forbidden
+        // contexts.
+        for (k, forbid) in then.iter().filter(|(k, _)| !m.quiet_inits.contains(k)) {
+            if !forbid {
+                host_providers(f, providers);
+            }
+            call_init(f, *k, *forbid);
+            if !forbid {
+                for _ in 0..results {
+                    f.op(Instruction::Drop);
+                }
+            }
+        }
+        f.i32(0);
     }
 }
 
 /// [`Helper::CheckedPoll`].
-fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
+fn checked_poll(poll: &Helper, m: &Module) -> Func {
     let mut f = m.func("rt:checked_poll", vec![Val::I32], vec![Val::I32]);
-    let r = m.runtime;
-    let c = r.checked.unwrap();
     let status = f.local(Val::I32);
     f.get(0);
     f.helper(poll.clone());
     f.set(status);
+    checked_end(&mut f, m, status, &[]);
+    f.get(status);
+    f
+}
+
+/// [`Helper::CheckedPoll`]'s end, after the poll's answer is in local
+/// `status`: once the root is not Pending, the teardown, the audit and
+/// `reinit` ([`Helper::TestPoll`]'s); else a collection.
+fn checked_end(f: &mut Func, m: &Module, status: u32, reinit: &[Hash128]) {
+    let r = m.runtime;
+    let c = r.checked.unwrap();
     f.get(status);
     f.i32(-1);
     f.op(Instruction::I32Ne);
@@ -1034,15 +1191,13 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     f.i32(0);
     f.call(Sym::Inst(c.audit));
     for k in reinit.iter().filter(|k| !m.quiet_inits.contains(k)) {
-        call_init(&mut f, *k, true);
+        call_init(f, *k, true);
     }
     f.op(Instruction::Else);
     if !m.acyclic {
         f.helper(Helper::Collect);
     }
     f.op(Instruction::End);
-    f.get(status);
-    f
 }
 
 /// [`Helper::Teardown`]: each binding [`Module::stored`] names releases
@@ -1493,7 +1648,8 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::PendingCancel
         | H::WaitSignal
         | H::RetainAny
-        | H::RaceDrop { .. } => (1, 0),
+        | H::RaceDrop { .. }
+        | H::TestInit { .. } => (1, 0),
         H::PanicStr
         | H::CopyElems { .. }
         | H::CancelLeave
@@ -1511,7 +1667,8 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::ListExtend { .. }
         | H::StrToBytes { .. }
         | H::LebPut
-        | H::WakerLive => (2, 1),
+        | H::WakerLive
+        | H::TestPoll { .. } => (2, 1),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
@@ -1696,17 +1853,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::EntryInit { inits } => {
             let mut f = m.func("rt:entry_init", vec![], vec![]);
-            let inits: Vec<(Hash128, bool)> = inits
-                .iter()
-                .filter(|(k, _)| !m.quiet_inits.contains(k))
-                .copied()
-                .collect();
-            for (k, forbid) in &inits {
-                // A program that links no collector needs no collector state.
-                if !(m.acyclic && m.cycle_insts.contains(k)) {
-                    call_init(&mut f, *k, *forbid);
-                }
-            }
+            entry_init(&mut f, m, inits);
             f
         }
         Helper::EntryPoll {
@@ -1728,33 +1875,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             // Parameter 0 is the driver's `PollContext`; a plain entry
             // ignores it.
             let mut f = m.func("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
-            host_providers(&mut f, providers);
-            f.call(Sym::Inst(*main));
-            if let Some(k) = report {
-                f.call(Sym::Inst(*k));
-            } else {
-                for _ in 0..*results {
-                    f.op(Instruction::Drop);
-                }
-                // A script's later inits: its own bodies, which share the
-                // first's providers and result, and the others, as
-                // forbidden contexts.
-                for (k, forbid) in then.iter().filter(|(k, _)| !m.quiet_inits.contains(k)) {
-                    if !forbid {
-                        host_providers(&mut f, providers);
-                    }
-                    call_init(&mut f, *k, *forbid);
-                    if !forbid {
-                        for _ in 0..*results {
-                            f.op(Instruction::Drop);
-                        }
-                    }
-                }
-                f.i32(0);
-            }
+            entry_poll(&mut f, m, *main, providers, *results, *report, then);
             f
         }
-        Helper::CheckedPoll { poll, reinit } => checked_poll(poll, reinit, m),
+        Helper::CheckedPoll { poll } => checked_poll(poll, m),
+        Helper::TestPoll { polls, reinit } => test_poll(m, polls, reinit),
+        Helper::TestInit { inits } => test_init(m, inits),
         Helper::CollectPoll { poll } => {
             let mut f = m.func("rt:collect_poll", vec![Val::I32], vec![Val::I32]);
             f.get(0);

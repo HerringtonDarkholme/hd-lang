@@ -283,10 +283,10 @@ pub enum Entry {
         after: Vec<(Hash128, bool)>,
         report: Option<Hash128>,
     },
-    /// A test program (`crates/hd_wasm/DESIGN.md` §15.4): `hd.init.N`
-    /// runs module `N`'s `inits[N]`, each a forbidden context, and
-    /// `hd.test.N` runs `cases[N]`, an item, its instance key and the
-    /// report of its result, as `hd.poll` runs `main`.
+    /// A test program (`crates/hd_wasm/DESIGN.md` §15.4):
+    /// `hd.test.init(N)` runs module `N`'s `inits[N]`, each a forbidden
+    /// context, and `hd.test(N, ctx)` runs `cases[N]`, an item, its
+    /// instance key and the report of its result, as `hd.poll` runs `main`.
     Tests {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
         inits: Vec<Vec<Hash128>>,

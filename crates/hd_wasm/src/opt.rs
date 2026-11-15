@@ -125,6 +125,9 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
     for (id, _) in funcs.iter().enumerate().filter(|(_, f)| f.is_some()) {
         match &*symbols.get(SymId(u32::try_from(id).expect("symbols"))) {
             Sym::Helper(Helper::EntryInit { inits: ks }) => inits.extend(ks.iter().map(|k| k.0)),
+            Sym::Helper(Helper::TestInit { inits: ks }) => {
+                inits.extend(ks.iter().flatten().map(|k| k.0));
+            }
             Sym::Helper(Helper::EntryPoll { then, .. }) => inits.extend(then.iter().map(|k| k.0)),
             _ => {}
         }

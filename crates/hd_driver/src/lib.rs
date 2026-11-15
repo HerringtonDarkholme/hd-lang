@@ -363,7 +363,8 @@ pub struct TestCase {
     pub expect_panic: Option<String>,
     /// Why the case cannot run yet.
     pub unsupported: Option<String>,
-    /// For a case that runs: its `hd.test.i` and `hd.init.j` exports.
+    /// For a case that runs: its numbers for `hd.test(i, ctx)` and
+    /// `hd.test.init(j)`.
     pub run: Option<(u32, u32)>,
 }
 
@@ -10438,7 +10439,8 @@ impl Run<'_> {
     }
 
     /// The test plan as `Output::tests` lists it: running cases get their
-    /// `hd.test.i` and `hd.init.j` exports, in the order `collect` roots them.
+    /// numbers for `hd.test(i, ctx)` and `hd.test.init(j)`, in the order
+    /// `collect` roots them.
     fn test_cases(&self) -> Vec<TestCase> {
         let mut modules: Vec<usize> = Vec::new();
         let mut next = 0u32;

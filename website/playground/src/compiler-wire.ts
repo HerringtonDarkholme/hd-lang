@@ -78,7 +78,7 @@ export interface WireTest {
   readonly unsupported: string | null;
   /** A property case's base seed, as `hd test` gives it. */
   readonly seed: number | null;
-  /** Its `hd.test.i` and `hd.init.j` export numbers; null when it cannot run. */
+  /** Its numbers for `hd.test(i, ctx)` and `hd.test.init(j)`; null when it cannot run. */
   readonly run: readonly [number, number] | null;
 }
 

@@ -311,8 +311,8 @@ impl Reader<'_> {
 /// program, and `size`, its byte count) and its cases (`program`, the index
 /// of the case's program; `seed`, a property case's base seed
 /// (`cli.test.seed`), else null; `run`, `[test, init]`, the case's
-/// `hd.test.i` and `hd.init.j` export numbers, or null for a case that
-/// cannot run).
+/// numbers for `hd.test(i, ctx)` and `hd.test.init(j)`, or null for a
+/// case that cannot run).
 #[must_use]
 pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
     let mut s = String::from("{\"diagnostics\":");
