@@ -37,6 +37,12 @@ to say. Aim for 6 to 15 lines.
    matters.
 2. **Today.** The smallest input and what happens now: exact command or
    program, actual output or code. Name the commit you probed at.
+   For a cost item, the program goes in a code block that runs as
+   written: the hd source, or a short generator script that writes it for
+   a given n, never a prose description of the shape. Give the command and
+   the measured work or time at two sizes (n and 4n or 10n), and keep n
+   small enough to run in seconds. A later fix reproduces with exactly
+   this program at exactly these sizes.
 3. **Where.** The likely crate and file (`crates/hd_check/src/pat.rs`), or
    the doc section that holds the design. A pointer, not a plan.
 4. **Do.** Only when the fix has a choice the owner already made, or a
