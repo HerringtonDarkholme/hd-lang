@@ -830,7 +830,7 @@ b163	std/serde/data-model/serde-writer-first-error.hd	FIX	B8	Expects key:pen bef
 b163	std/serde/data-model/serde-std-reads.hd	FIX	B8	Asserts ["west","east"] from iterating a map. Spec promises only a deterministic order (types.map.order.deterministic). Compare as a set or sort the keys.
 b163	std/serde/derived-implementations/serde-tagging-lookalike-not-static.hd	UNSURE	C1	Same rule and error as std/serde/derived-implementations/serde-tagging-not-static.hd; only the function name differs. Keep only if name shadowing is a separate resolver path.
 b164	std/serde/standard-implementations/serde-reference-round-trip.hd	FIX	B1	Title says 'a tree through &Node?', but the code uses '*Cell?' and cites the counted-reference (*T) rule. Retitle to match.
-b164	runtime/valid/server-sdk-release-order.hd	UNSURE	B7	Cited dispatch.ack says the response is published only after finish, but the assertion needs respond! before finish. Check which hook publishes.
+b164	std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd	UNSURE	B7	Cited dispatch.ack says the response is published only after finish, but the assertion needs respond! before finish. Check which hook publishes.
 b164	runtime/valid/a-module-function-takes-type-arguments-through-its-module.hd	FIX	B4	Identity's generic methods echo, make, say, wrap and convert! are never called; only task.race! runs.
 b164	runtime/valid/a-module-function-takes-type-arguments-through-its-module.hd	FIX	B7	Spec column cites only std/task.md with no rule; the tested rules are fn.generic.call-list (lang/07) and req.combinator.race-signature.
 b164	runtime/valid/channel-full-blocks-sender.hd	FIX	B3	Loop compares got(i-1) with sent(i+1) instead of sent(i); for i=3, 'sent 4' never exists, so that check always passes.

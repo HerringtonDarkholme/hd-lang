@@ -2541,7 +2541,7 @@ Ledger: b164 (45): 6. b165 (44): 2. b166 (45): 5. b167 (44): 1.
 - Plausible B7: `typing/invalid/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd`
   and `runtime/valid/a-bound-call-at-a-trait-value-dispatches-through-its-vtable.hd` cite
   `std/text.md#more-string-methods` for trait-value rules (probably the tier rule
-  again, as in b148). `runtime/valid/server-sdk-release-order.hd`.
+  again, as in b148). `std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd`.
 - Plausible B1: `std/serde/standard-implementations/serde-reference-round-trip.hd` (`&Node?` against `*Cell?`).
   `runtime/valid/property-assume-discards.hd` (nothing counts the cases).
 

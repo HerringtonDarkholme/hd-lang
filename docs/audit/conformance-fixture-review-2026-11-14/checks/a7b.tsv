@@ -498,9 +498,9 @@ std/serde/data-model/serde-std-reads.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,'	st
 std/serde/data-model/serde-std-writes.hd	A7b	lost '' gained '(),,,'	std/serde.md#r-std-serde.model.one-value
 std/serde/data-model/serde-variant-member-facts.hd	A7b	lost '' gained ',,,,'	std/serde.md#r-std-serde.model.variant-args.local-ref
 std/serde/data-model/serde-writer-first-error.hd	A7b	lost '' gained ',,,,,,'	std/serde.md#r-std-serde.model.errors
-runtime/valid/server-sdk-console.hd	A7b	lost '' gained ',,,,,,'	std/server-sdk.md#r-std-server-sdk.lease-console
-runtime/valid/server-sdk-release-order.hd	A7b	lost '' gained ',,,,,'	std/server-sdk.md#r-std-server-sdk.dispatch.ack
-runtime/valid/server-sdk-workers.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/server-sdk.md#r-std-server-sdk.lease-cleanup-budget
+std/server-sdk/request-cleanup/server-sdk-console.hd	A7b	lost '' gained ',,,,,,'	std/server-sdk.md#r-std-server-sdk.lease-console
+std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd	A7b	lost '' gained ',,,,,'	std/server-sdk.md#r-std-server-sdk.dispatch.ack
+std/server-sdk/request-cleanup/server-sdk-workers.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/server-sdk.md#r-std-server-sdk.lease-cleanup-budget
 std/collections/set/set-collect.hd	A7b	lost '' gained ','	std/collections.md#r-std-collections.set.collect
 std/collections/set/set-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/collections.md#set
 std/digest/streaming/sha256-handle-shared.hd	A7b	lost '' gained ','	std/digest.md#r-std-digest.sha256.new-ref

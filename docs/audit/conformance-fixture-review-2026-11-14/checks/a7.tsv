@@ -1576,9 +1576,9 @@ std/serde/data-model/serde-std-reads.hd	accept	std/serde.md#r-std-serde.read.sca
 std/serde/map-keys/serde-skip-serialize-only-no-default.hd	accept	std/serde.md#r-std-serde.skip.no-bound	-4	
 std/serde/standard-implementations/serde-set-tuple.hd	accept	std/serde.md#r-std-serde.std.tuple	-12	
 std/serde/map-keys/serde-skip.hd	accept	std/serde.md#skipped-members	-39	
-runtime/valid/server-sdk-release-order.hd	accept	std/server-sdk.md#r-std-server-sdk.dispatch.ack	-19	
-runtime/valid/server-sdk-workers.hd	accept	std/server-sdk.md#r-std-server-sdk.lease-cleanup-budget	-138	
-runtime/valid/server-sdk-console.hd	accept	std/server-sdk.md#r-std-server-sdk.lease-console	-26	
+std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd	accept	std/server-sdk.md#r-std-server-sdk.dispatch.ack	-19	
+std/server-sdk/request-cleanup/server-sdk-workers.hd	accept	std/server-sdk.md#r-std-server-sdk.lease-cleanup-budget	-138	
+std/server-sdk/request-cleanup/server-sdk-console.hd	accept	std/server-sdk.md#r-std-server-sdk.lease-console	-26	
 runtime/valid/a-module-function-takes-type-arguments-through-its-module.hd	accept	std/task.md	-2	
 runtime/valid/task-layer-output-change.hd	accept	std/task.md#r-std-task.apply.decl	-6	
 runtime/valid/task-records-value-copy.hd	accept	std/task.md#r-std-task.backoff.decl.defaults	-2	
