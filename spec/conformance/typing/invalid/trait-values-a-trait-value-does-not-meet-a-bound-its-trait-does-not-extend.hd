@@ -1,4 +1,4 @@
-# test: the checker accepts trait values for own and supertrait bounds
+# test: trait values a trait value does not meet a bound its trait does not extend
 # Rules: std-text.more.upper; Spec 09 Trait Values As Bounds: trait.dyn.bound.reference, trait.dyn.bound.reference-dispatch.
 trait Channel < Display:
     fn send(self, message: string) -> string
@@ -46,10 +46,5 @@ fn targets[C < Channel](channels: List[C]) -> List[string]:
     channels.map(fn(channel: &C) -> string: channel.to_string())
 
 pub fn main() -> void:
-    let channel: &dyn Channel = &Email { address: "ops@example.com" }
-    _ := notify(channel, "disk full")
-    _ := label(channel)
     let shown: &dyn Display = &Pager { number: 7 }
-    _ := label(shown)
-    let all: List[*dyn Channel] = [box(Email { address: "a@example.com" }), box(Pager { number: 1 })]
-    _ := broadcast(all, "up")
+    _ := notify(shown, "disk full") # diagnostic: unsatisfied-trait-bound

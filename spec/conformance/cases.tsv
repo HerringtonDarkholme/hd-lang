@@ -5280,8 +5280,8 @@ typing/invalid/trait-value-projection-return-mismatch.hd	type	reject:type-mismat
 runtime/valid/trait-values-that-bind-differently-get-their-own-vtables.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values
 runtime/valid/a-generic-instantiated-at-a-bound-trait-value-normalizes-its-projection.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values
 runtime/valid/a-mut-trait-value-with-a-binding-dispatches-its-mut-slot.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values
-typing/valid/the-checker-accepts-trait-values-for-own-and-supertrait-bounds.hd	type	accept	std/text.md#more-string-methods
-typing/invalid/the-checker-rejects-a-trait-value-for-a-bound-its-trait-does-not-extend.hd	type	reject:unsatisfied-trait-bound	std/text.md#more-string-methods
+typing/valid/trait-values-a-trait-value-meets-its-own-and-supertrait-bounds.hd	type	accept	std/text.md#more-string-methods
+typing/invalid/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd	type	reject:unsatisfied-trait-bound	std/text.md#more-string-methods
 runtime/valid/a-bound-call-at-a-trait-value-dispatches-through-its-vtable.hd	runtime	accept	std/text.md#more-string-methods
 runtime/valid/a-supertrait-bound-at-a-trait-value-reads-the-parent-vtable.hd	runtime	accept	std/text.md#more-string-methods
 runtime/valid/a-generic-over-a-list-of-trait-values-dispatches-per-element.hd	runtime	accept	std/text.md#more-string-methods

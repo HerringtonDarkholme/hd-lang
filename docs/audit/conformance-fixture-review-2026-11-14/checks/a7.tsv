@@ -1631,8 +1631,8 @@ runtime/valid/a-bound-call-at-a-trait-value-dispatches-through-its-vtable.hd	acc
 runtime/valid/a-generic-over-a-list-of-trait-values-dispatches-per-element.hd	accept	std/text.md#more-string-methods	-5	
 runtime/valid/a-member-reference-at-a-trait-value-calls-the-vtable-slot.hd	accept	std/text.md#more-string-methods	-5	
 runtime/valid/a-supertrait-bound-at-a-trait-value-reads-the-parent-vtable.hd	accept	std/text.md#more-string-methods	-5	
-typing/invalid/the-checker-rejects-a-trait-value-for-a-bound-its-trait-does-not-extend.hd	reject:unsatisfied-trait-bound	std/text.md#more-string-methods	-5	
-typing/valid/the-checker-accepts-trait-values-for-own-and-supertrait-bounds.hd	accept	std/text.md#more-string-methods	-5	
+typing/invalid/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd	reject:unsatisfied-trait-bound	std/text.md#more-string-methods	-5	
+typing/valid/trait-values-a-trait-value-meets-its-own-and-supertrait-bounds.hd	accept	std/text.md#more-string-methods	-5	
 runtime/valid/text-prefix-helpers.hd	accept	std/text.md#prefix-helpers	-8	
 runtime/valid/string-builder-interpolation-order.hd	accept	std/text.md#r-std-text.builder.push-local	-5	
 runtime/valid/char-unicode-letters.hd	accept	std/text.md#r-std-text.char.alphabetic	-12	
