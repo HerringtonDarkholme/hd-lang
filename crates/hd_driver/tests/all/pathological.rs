@@ -2178,7 +2178,8 @@ fn type_walks_visit_each_distinct_node_once() {
 /// A doubled tuple `n` levels deep passed on: through a generic call
 /// (`id(x{n})`), or through an alias chain `type A{i} = (A{i-1}, A{i-1})`.
 /// Or a pair of `Two[...Two[S::Item]]` (`n` deep), each node holding a
-/// projection, both halves one type, passed on from a parameter.
+/// projection, both halves one type, passed on from a parameter; or the
+/// same pair over a type parameter `T` (`param`).
 fn passed_doubled(shape: &str, n: usize) -> String {
     let mut s = String::new();
     match shape {
@@ -2196,16 +2197,25 @@ fn passed_doubled(shape: &str, n: usize) -> String {
                  impl Source for P:\n    type Item = string\n\n\
                  struct Two[T]:\n    a: T\n    b: T\n\n",
             );
-            let (mut w, mut v) = (String::from("S::Item"), String::from("string"));
+            // `param`: the chain holds a parameter itself, not only in a
+            // projection, so each level leaves it for the environment.
+            let param = shape == "param";
+            let bottom = if param { "T" } else { "S::Item" };
+            let (mut w, mut v) = (String::from(bottom), String::from("string"));
             for _ in 0..n {
                 w = format!("Two[{w}]");
                 v = format!("Two[{v}]");
             }
-            let _ = writeln!(s, "fn id[S < Source](s: S, v: ({w}, {w})) -> ({w}, {w}): v");
-            let _ = writeln!(
-                s,
-                "fn pass_on(v: ({v}, {v})) -> void:\n    _ := id(P {{}}, v)"
-            );
+            if param {
+                let _ = writeln!(s, "fn id[T](v: ({w}, {w})) -> ({w}, {w}): v");
+                let _ = writeln!(s, "fn pass_on(v: ({v}, {v})) -> void:\n    _ := id(v)");
+            } else {
+                let _ = writeln!(s, "fn id[S < Source](s: S, v: ({w}, {w})) -> ({w}, {w}): v");
+                let _ = writeln!(
+                    s,
+                    "fn pass_on(v: ({v}, {v})) -> void:\n    _ := id(P {{}}, v)"
+                );
+            }
             return s;
         }
     }
@@ -2247,12 +2257,36 @@ fn passing_a_doubled_type_on_walks_each_node_once() {
                 );
             }
         }
-        // A projection in every node: `normalize_deep` takes the shared half
-        // from its memo, and `subst` overflows its array into the map. Not
-        // counted at 10n: the `Copy` goals over the `Two` chain cost its
-        // depth squared (Known in the commit), apart from these walks.
-        let out = compile(&passed_doubled("projection", 10), &Goal::Analyze);
-        assert!(out.diags.is_empty(), "projection: {}", out.render());
+    });
+}
+
+// Types: #1985, the `Copy` row is asked at each level of a `Two` chain from
+// the top down. Each walk keeps every node's answer it knows (nothing
+// left, or the one list its parts leave), so the levels below hit the
+// memo. A projection in every node also makes `normalize_deep` take the
+// shared half from its memo and `subst` overflow its array into the map.
+#[test]
+fn copy_goals_down_a_generic_chain_walk_each_level_once() {
+    on_test_stack(|| {
+        // The first build of a process also checks what the std needs;
+        // count only the chains.
+        let _ = compile(&passed_doubled("projection", 2), &Goal::Analyze);
+        for shape in ["projection", "param"] {
+            let mut base = 0;
+            for n in [10, 100] {
+                let (out, nodes) = hd_types::work::count_type_nodes(|| {
+                    compile(&passed_doubled(shape, n), &Goal::Analyze)
+                });
+                assert!(out.diags.is_empty(), "{shape} {n}: {}", out.render());
+                if n == 10 {
+                    base = nodes;
+                }
+                assert!(
+                    base > 0 && nodes <= 10 * base * 5 / 4,
+                    "type nodes walked for 10 and {n} levels ({shape}): {base}, {nodes}"
+                );
+            }
+        }
     });
 }
 

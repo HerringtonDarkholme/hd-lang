@@ -1,0 +1,45 @@
+# @dump: diagnostics
+# `Copy` asked at each level of a generic chain, top level first, in one
+# body (#1985): a level whose parts all leave one parameter keeps it, one
+# whose parts leave different ones is not kept, and a parameter that is
+# not `Copy` still fails at every level.
+struct Two[T < ?Copy]:
+    a: T
+    b: T
+
+struct Pair[A < ?Copy, B < ?Copy]:
+    a: A
+    b: B
+
+struct Node[T < ?Copy]:
+    v: T
+    next: Node[T]?
+
+fn need[T](v: T) -> void:
+    pass
+
+# The levels leave different parameters: `A` and `B` (`B` not `Copy`).
+fn mixed[A, B < ?Copy](w3: Two[Two[Pair[A, B]]], w2: Two[Pair[A, B]], w1: Pair[A, B], w0: A) -> void:
+    need(w3)
+    need(w2)
+    need(w1)
+    need(w0)
+
+# Every level leaves the one parameter `T`, which copies.
+fn chain[T](w3: Two[Two[Two[T]]], w2: Two[Two[T]], w1: Two[T]) -> void:
+    need(w3)
+    need(w2)
+    need(w1)
+
+# Every level leaves `T`, which does not copy.
+fn chain_not[T < ?Copy](w2: Two[Two[T]], w1: Two[T]) -> void:
+    need(w2)
+    need(w1)
+
+# A declaration that holds itself is reported, and copies.
+fn cycle[T < ?Copy](n2: Two[Node[T]], n1: Node[T]) -> void:
+    need(n2)
+    need(n1)
+
+pub fn main() -> void:
+    pass

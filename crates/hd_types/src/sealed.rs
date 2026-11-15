@@ -8,7 +8,7 @@
 //! impl per primitive (`lib/std/num.hd`), with the bodies of `zero`, `one`
 //! and `from_i64`, so the impl tables answer them like any trait.
 
-use hd_base::{DefId, HashMap, HashSet, InferVar};
+use hd_base::{DefId, HashMap, InferVar};
 
 use crate::pool::{ParamRef, Ty, TyData, TyList, Types};
 use crate::solver::{BuiltinImpl, FailReason};
@@ -374,7 +374,7 @@ pub(crate) type CopyMemo = HashMap<Ty, Option<TyList>>;
 /// A work stack, not recursion: a declaration's members nest as deep as
 /// the program's types do, and a fixed depth cap answered "copies" past
 /// it (#1777). Each distinct node with parts, and each parameter or
-/// variable, is entered once (`entered`, by type id): that ends a cycle
+/// variable, is entered once (`marks`, by type id): that ends a cycle
 /// through a declaration (`Node { next: Node? }`), and walks a part
 /// shared by many fields (`Pair[X, X]`) or tuple slots (`(T, T)` nested
 /// n deep, 2^n leaves) once, so the work is the type's distinct nodes
@@ -382,13 +382,21 @@ pub(crate) type CopyMemo = HashMap<Ty, Option<TyList>>;
 /// recursive walk gives.
 ///
 /// Across walks, `memo` keeps each asked type's answer, and on success
-/// every entered node with no parameter or variable as copying with no
-/// part left. A walk stops at a part with an answer and takes its parts
-/// (#1912): a generic call per level of `wrap(wrap(...))` asks `Copy` of
-/// `W^i[?int]`, whose member `W^(i-1)[?int]` the call below asked, so
-/// each level walks one new node, not the `i` below it. Cost: the
-/// distinct nodes no earlier walk answered, plus the answered parts'
-/// variables; a hash probe per node with parts.
+/// every entered node whose answer the walk knows. A walk stops at a part
+/// with an answer and takes its parts (#1912): a generic call per level
+/// of `wrap(wrap(...))` asks `Copy` of `W^i[?int]`, whose member
+/// `W^(i-1)[?int]` the call below asked, so each level walks one new
+/// node, not the `i` below it. The walk keeps its open path, so a node's
+/// answer is known when its last part is done: nothing left, or the one
+/// list of parameters and variables every part that leaves something
+/// leaves (an interned list, compared by id). A node whose parts leave
+/// different lists, or that reaches a node still open (a cycle), is not
+/// kept, which bounds the work per node by its parts. So a chain asked
+/// from the top down (`Two[Two[S::Item]]`, or `Two[Two[T]]`) answers each
+/// level below from the first walk (#1985). Cost: the distinct nodes no
+/// earlier walk answered, plus the answered parts' variables; a hash
+/// probe per node with parts, and one interned list per parameter or
+/// variable.
 fn copy_parts(
     pool: Types<'_>,
     decls: &dyn Declarations,
@@ -396,41 +404,130 @@ fn copy_parts(
     subs: &mut Vec<Ty>,
     memo: &mut CopyMemo,
 ) -> bool {
+    /// What a node leaves for the environment, as far as the walk knows.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Left {
+        Nothing,
+        List(TyList),
+        Unknown,
+    }
+    impl Left {
+        fn and(self, other: Left) -> Left {
+            match (self, other) {
+                (Left::Nothing, x) | (x, Left::Nothing) => x,
+                (Left::List(a), Left::List(b)) if a == b => self,
+                _ => Left::Unknown,
+            }
+        }
+    }
+    /// A walked node: still on the open path, or done.
+    #[derive(Clone, Copy)]
+    enum Mark {
+        Open,
+        Done(Left),
+    }
+    /// Enter a node, or close it, the innermost open one, once its
+    /// parts are done.
+    enum Step {
+        Enter(Ty),
+        Close(Ty),
+    }
+    /// The open node that holds the part just met takes what it leaves.
+    fn take(open: &mut [(Ty, Left)], left: Left) {
+        if let Some(top) = open.last_mut() {
+            top.1 = top.1.and(left);
+        }
+    }
+    /// A parameter or variable met for the first time is left.
+    fn leave(pool: Types<'_>, marks: &mut HashMap<Ty, Mark>, subs: &mut Vec<Ty>, t: Ty) -> Left {
+        match marks.get(&t) {
+            Some(Mark::Done(left)) => *left,
+            Some(Mark::Open) => Left::Unknown,
+            None => {
+                let left = Left::List(pool.list(&[t]));
+                marks.insert(t, Mark::Done(left));
+                subs.push(t);
+                left
+            }
+        }
+    }
     let start = subs.len();
-    let mut stack: Vec<Ty> = Vec::new();
-    let mut entered: HashSet<Ty> = HashSet::default();
+    let mut stack: Vec<Step> = vec![Step::Enter(root)];
+    let mut marks: HashMap<Ty, Mark> = HashMap::default();
+    // The open path, each node with what its parts so far leave.
+    let mut open: Vec<(Ty, Left)> = Vec::new();
     // Entered nodes with parts and no parameter or variable: on success,
-    // each copies with nothing left.
+    // each copies with nothing left, a cycle through them included.
     let mut closed: Vec<Ty> = Vec::new();
-    let mut next = Some(root);
-    while let Some(t) = next.take().or_else(|| stack.pop()) {
-        let data = pool.get(t);
-        if matches!(
-            data,
-            TyData::Tuple { .. }
-                | TyData::Union(_)
-                | TyData::Param(_)
-                | TyData::Infer(_)
-                | TyData::Adt { .. }
-        ) {
-            if !entered.insert(t) {
+    while let Some(step) = stack.pop() {
+        let t = match step {
+            Step::Enter(t) => t,
+            Step::Close(t) => {
+                let left = open.pop().map_or(Left::Unknown, |(_, left)| left);
+                marks.insert(t, Mark::Done(left));
+                take(&mut open, left);
                 continue;
             }
-            if !matches!(data, TyData::Param(_) | TyData::Infer(_)) {
+        };
+        let data = pool.get(t);
+        match data {
+            TyData::Param(_) | TyData::Infer(_) => {
+                if !marks.contains_key(&t) {
+                    crate::work::type_node();
+                }
+                let left = leave(pool, &mut marks, subs, t);
+                take(&mut open, left);
+                continue;
+            }
+            TyData::Tuple { .. } | TyData::Union(_) | TyData::Adt { .. } => {
+                if let Some(&mark) = marks.get(&t) {
+                    let left = match mark {
+                        // A cycle back to a node being walked. The checker
+                        // answers a declaration that holds itself as
+                        // copying (`R: next: R?`, `G[T]: next: G[T]?` tried),
+                        // so no checked program has reached this; another
+                        // `Declarations` may, and the node is not kept.
+                        Mark::Open => Left::Unknown,
+                        Mark::Done(left) => left,
+                    };
+                    take(&mut open, left);
+                    continue;
+                }
                 match memo.get(&t) {
                     Some(None) => return fails(memo, root),
-                    Some(Some(left)) => {
-                        for &s in pool.list_items(*left) {
-                            if entered.insert(s) {
-                                subs.push(s);
-                            }
+                    Some(Some(list)) => {
+                        let list = *list;
+                        for &s in pool.list_items(list) {
+                            leave(pool, &mut marks, subs, s);
                         }
+                        let left = if pool.list_items(list).is_empty() {
+                            Left::Nothing
+                        } else {
+                            Left::List(list)
+                        };
+                        marks.insert(t, Mark::Done(left));
+                        take(&mut open, left);
                         continue;
                     }
                     None if !pool.has_param(t) && !pool.has_infer(t) => closed.push(t),
                     None => {}
                 }
+                marks.insert(t, Mark::Open);
+                open.push((t, Left::Nothing));
+                stack.push(Step::Close(t));
             }
+            TyData::Ref { .. }
+            | TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Fn { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Opaque { .. }
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
         crate::work::type_node();
         match data {
@@ -442,28 +539,31 @@ fn copy_parts(
                 }
             }
             TyData::Tuple { elems, rest } => {
-                stack.extend(rest);
-                stack.extend(pool.list_items(elems).iter().rev());
+                stack.extend(rest.map(Step::Enter));
+                stack.extend(pool.list_items(elems).iter().rev().map(|&e| Step::Enter(e)));
             }
-            TyData::Union(ms) => stack.extend(pool.list_items(ms).iter().rev()),
-            TyData::Param(_) | TyData::Infer(_) => subs.push(t),
+            TyData::Union(ms) => {
+                stack.extend(pool.list_items(ms).iter().rev().map(|&m| Step::Enter(m)));
+            }
             TyData::Adt { def, args } => match decls.copy_decl(def) {
                 CopyDecl::Copies => {}
                 CopyDecl::NotCopy => return fails(memo, root),
                 CopyDecl::Members(ms) => {
                     let argv = pool.list_items(args);
                     stack.extend(ms.iter().rev().map(|&m| {
-                        pool.subst(m, &|p: ParamRef| {
+                        Step::Enter(pool.subst(m, &|p: ParamRef| {
                             (p.owner == def)
                                 .then(|| argv.get(usize::from(p.index)).copied())
                                 .flatten()
-                        })
+                        }))
                     }));
                 }
             },
             // A projection and an opaque type copy, as today; the rest
             // hold nothing by value that could block a copy.
-            TyData::Prim(_)
+            TyData::Param(_)
+            | TyData::Infer(_)
+            | TyData::Prim(_)
             | TyData::Never
             | TyData::Poison
             | TyData::Fn { .. }
@@ -478,6 +578,20 @@ fn copy_parts(
     }
     for t in closed {
         memo.insert(t, Some(TyList::EMPTY));
+    }
+    for (&t, &mark) in &marks {
+        if matches!(pool.get(t), TyData::Param(_) | TyData::Infer(_)) {
+            continue;
+        }
+        match mark {
+            Mark::Done(Left::Nothing) => {
+                memo.insert(t, Some(TyList::EMPTY));
+            }
+            Mark::Done(Left::List(list)) => {
+                memo.insert(t, Some(list));
+            }
+            Mark::Done(Left::Unknown) | Mark::Open => {}
+        }
     }
     memo.insert(root, Some(pool.list(&subs[start..])));
     true
