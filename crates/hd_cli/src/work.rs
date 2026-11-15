@@ -158,6 +158,9 @@ impl hd_cache::CacheStore for Store {
     fn put_many(&self, entries: &[(hd_cache::EntryKind, hd_base::Hash128, std::sync::Arc<[u8]>)]) {
         hd_base::work::uncounted(|| (**self).put_many(entries));
     }
+    fn wanted(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) -> bool {
+        (**self).wanted(kind, key)
+    }
 }
 
 impl Drop for Store {

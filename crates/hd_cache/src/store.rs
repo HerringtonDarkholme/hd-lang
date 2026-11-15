@@ -80,6 +80,11 @@ pub trait CacheStore: Sync {
             self.put(*kind, key, bytes);
         }
     }
+    /// Called as an entry is put: whether this store claimed it, so a store
+    /// that defers its writes publishes it at once (#1932).
+    fn wanted(&self, _kind: EntryKind, _key: &Hash128) -> bool {
+        false
+    }
 }
 
 type Entries = Mutex<HashMap<(EntryKind, Hash128), Arc<[u8]>>>;
@@ -220,8 +225,15 @@ impl<S: CacheStore> CacheStore for DeferredStore<S> {
             .get(kind, key)
             .or_else(|| self.inner.get(kind, key))
     }
+    /// Waits in memory, unless the entry is claimed: then it is published
+    /// now, with every entry put before it, in order, so other runs need
+    /// not wait for this command and find what it keys (an interface's
+    /// read list goes after the interface).
     fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
         self.waiting.put(kind, key, bytes);
+        if self.inner.wanted(kind, key) {
+            self.publish();
+        }
     }
     fn touch(&self, kind: EntryKind, key: &Hash128) {
         if self.waiting.get(kind, key).is_none() {

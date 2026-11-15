@@ -340,15 +340,17 @@ pub(crate) fn cache_cap() -> Result<u64, String> {
 /// The store of the compiled entries under their cap. Dropping it records
 /// what it wrote; a cache over its cap or of unknown size is collected by
 /// a detached `hd cache gc`, so the command never waits for a walk
-/// (`cli.cache.obj.evict`, #1932). A command that compiles rejects an
-/// invalid cap before it gets here.
+/// (`cli.cache.obj.evict`, #1932). Beside other runs it claims what it
+/// misses, which the command's `DeferredStore` publishes as it puts it. A
+/// command that compiles rejects an invalid cap before it gets here.
 pub(crate) fn disk_store() -> work::Store {
-    work::Store::new(open_disk_store())
+    work::Store::new(open_disk_store().with_claims())
 }
 
 /// The disk store itself, for a consumer that takes a `DiskStore` by value:
-/// the wasmtime engine's code cache. The scale check runs only `check` and
-/// `build`, which go through [`disk_store`], so none of its work is counted.
+/// the wasmtime engine's code cache, which claims nothing. The scale check
+/// runs only `check` and `build`, which go through [`disk_store`], so none
+/// of its work is counted.
 pub(crate) fn open_disk_store() -> DiskStore {
     DiskStore::new(cache_dir())
         .with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))

@@ -54,6 +54,8 @@ mod cost {
         pub writer_locks: u64,
         /// Times one was taken only after waiting for another holder.
         pub lock_waits: u64,
+        /// Misses that waited for another run's claim.
+        pub claim_waits: u64,
     }
 
     thread_local! {
@@ -186,6 +188,16 @@ impl DiskStore {
     #[must_use]
     pub fn with_cap(mut self, cap: u64) -> Self {
         self.cap = cap;
+        self
+    }
+
+    /// The same store, claiming the entries it misses beside other runs
+    /// (#1932). The caller publishes a claimed entry as soon as it puts it,
+    /// as `DeferredStore` does through [`CacheStore::wanted`]; a caller
+    /// that keeps puts back, such as an `OverlayStore`, must not claim.
+    #[must_use]
+    pub fn with_claims(mut self) -> Self {
+        self.packed.claiming = true;
         self
     }
 
@@ -523,6 +535,8 @@ impl Drop for DiskStore {
     /// A command's settlement: O(entries written and marked), no walk
     /// (#1932). A total over the cap or unknown asks for a collection.
     fn drop(&mut self) {
+        // Runs waiting for this one's claims compute what it left.
+        self.packed.release_all();
         if self.packed.was_used() && (!self.kinds().is_empty() || self.root.join(STATS).is_file()) {
             self.used.store(true, Ordering::Relaxed);
         }
@@ -680,7 +694,7 @@ impl CacheStore for DiskStore {
         if kind == EntryKind::Clpack {
             self.read(kind, key, |_, _| true)
         } else {
-            self.packed.get(kind, key)
+            self.packed.get_or_claim(kind, key)
         }
     }
 
@@ -705,7 +719,15 @@ impl CacheStore for DiskStore {
             }
         } else if let Err(error) = self.packed.publish(entries) {
             self.warn(&error);
+        } else {
+            // Runs waiting for these entries read them now.
+            self.packed
+                .release(entries.iter().map(|(kind, key, _)| (*kind as u16, key.0)));
         }
+    }
+
+    fn wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
+        self.packed.put_wanted(kind, key)
     }
 
     fn touch(&self, kind: EntryKind, key: &Hash128) {
@@ -986,6 +1008,20 @@ mod packed {
         used: AtomicU64,
         /// The namespace directory was found or made.
         rooted: AtomicBool,
+        /// The claims this store holds, by key: each a locked claim file and
+        /// the thread computing the entry.
+        claims: Mutex<BTreeMap<Key, (File, std::thread::ThreadId)>>,
+        /// Claims are taken (`DiskStore::with_claims`): only for a caller
+        /// that publishes a claimed entry as soon as it puts it.
+        pub(super) claiming: bool,
+        /// The namespace directory, which every store that misses holds a
+        /// shared lock on for its life, so a store can tell whether it runs
+        /// alone.
+        runs: Mutex<Option<File>>,
+        /// Another store ran beside this one once: it claims every miss.
+        crowded: AtomicBool,
+        /// The store became crowded since its caller last published.
+        flush: AtomicBool,
         /// The home shards of the packs this process published, a bit
         /// each: its settlement merges small packs there.
         published: AtomicU32,
@@ -995,6 +1031,19 @@ mod packed {
         pub(super) on_pause: Option<Arc<dyn Fn(&'static str) + Send + Sync>>,
     }
 
+    /// The kinds whose misses are claimed (#1932): entries a run computes
+    /// right after it misses them, once everything they depend on is in
+    /// memory, and publishes when it puts them. `depfiles` stays out: a run
+    /// writes its aggregate entries as it ends, and claiming one would make
+    /// other programs' runs wait for that whole command.
+    const CLAIMED: [EntryKind; 5] = [
+        EntryKind::Parse,
+        EntryKind::Iface,
+        EntryKind::Check,
+        EntryKind::CheckTest,
+        EntryKind::Graph,
+    ];
+
     /// What a collection's walk found.
     #[derive(Default)]
     struct Inventory {
@@ -1002,6 +1051,8 @@ mod packed {
         packs: BTreeMap<u128, u64>,
         /// Lease files, live or crashed.
         pending: Vec<PathBuf>,
+        /// Claim files, held or left by a finished or crashed run.
+        claims: Vec<PathBuf>,
         /// `.new` lease files an interval old: a crash between creating
         /// and locking one left them.
         abandoned: Vec<PathBuf>,
@@ -2204,6 +2255,11 @@ mod packed {
                 used: AtomicU64::new(0),
                 published: AtomicU32::new(0),
                 rooted: AtomicBool::new(false),
+                claims: Mutex::new(BTreeMap::new()),
+                claiming: false,
+                runs: Mutex::new(None),
+                crowded: AtomicBool::new(false),
+                flush: AtomicBool::new(false),
                 #[cfg(test)]
                 on_pause: None,
             }
@@ -2712,6 +2768,181 @@ mod packed {
             Ok(())
         }
 
+        fn claims(&self) -> MutexGuard<'_, BTreeMap<Key, (File, std::thread::ThreadId)>> {
+            self.claims
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        }
+
+        /// Takes this store's shared lock on the namespace directory, once:
+        /// the directory itself carries it, so no file is created.
+        fn join(&self) -> MutexGuard<'_, Option<File>> {
+            let mut runs = self
+                .runs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if runs.is_none() {
+                *runs = self
+                    .ensure_root()
+                    .and_then(|()| File::open(&self.root))
+                    .and_then(|file| file.lock_shared().map(|()| file))
+                    .ok();
+            }
+            runs
+        }
+
+        /// Whether another store runs beside this one, so its misses are
+        /// claimed. A store alone claims nothing: no run can wait for it,
+        /// and a claim costs a file. The first check takes a shared lock on
+        /// the namespace directory for the store's life; each check tries
+        /// to take it exclusively, which fails while another store holds
+        /// it, and takes it shared again. Once crowded, a store stays so.
+        /// Cost: two lock calls per miss while alone, none after.
+        fn crowded(&self) -> bool {
+            if self.crowded.load(Ordering::Relaxed) {
+                return true;
+            }
+            let runs = self.join();
+            // A cache that cannot be locked claims nothing.
+            let Some(file) = runs.as_ref() else {
+                return false;
+            };
+            let alone = file.try_lock().is_ok();
+            // A failed or granted upgrade may drop the shared lock: take it
+            // again either way.
+            let _ = file.lock_shared();
+            if !alone {
+                self.crowded.store(true, Ordering::Relaxed);
+                // What this store put while alone waits in its caller's
+                // memory: the next put publishes it all.
+                self.flush.store(true, Ordering::Relaxed);
+            }
+            !alone
+        }
+
+        /// Reads `key`; a miss of a [`CLAIMED`] kind, beside another run,
+        /// claims it (#1932). The store locks `claims/<kind><key>`: if the
+        /// lock is free, the miss stands, and the store computes the entry,
+        /// publishes it as soon as it puts it, and lets go. If another run
+        /// holds it, this one waits for the lock, blocked with no CPU,
+        /// reads the index again and hits. When the holder died (the
+        /// system releases its lock) or published nothing, it still misses
+        /// and computes under the claim it now holds. A run holding a claim
+        /// waits only for keys the claimed entry depends on, which are in
+        /// memory before its key is formed, so waits follow the entries'
+        /// dependency DAG and form no cycle (DESIGN.md §5.4, "Each entry
+        /// computed once"). Cost: one claim file opened and locked per miss
+        /// beside other runs; nothing alone.
+        pub(super) fn get_or_claim(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+            // Join the runs at the first read, long before the first miss,
+            // so runs that start together see each other at once.
+            drop(self.join());
+            if let Some(bytes) = self.get(kind, key) {
+                return Some(bytes);
+            }
+            if !self.claiming || !CLAIMED.contains(&kind) || !self.crowded() {
+                return None;
+            }
+            let k = (kind as u16, key.0);
+            // A key this store already holds: it is computing it.
+            if self.claims().contains_key(&k) {
+                return None;
+            }
+            let dir = self.root.join("claims");
+            let file = std::fs::create_dir_all(&dir).and_then(|()| {
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(dir.join(format!("{:04x}{:032x}", k.0, k.1)))
+            });
+            // An unwritable cache computes without a claim.
+            let Ok(file) = file else { return None };
+            if file.try_lock().is_err() {
+                self.before_waiting();
+                count!(claim_waits, 1);
+                // A lock that fails leaves a claim others can still take:
+                // they compute too.
+                let _ = file.lock();
+                if let Some(state) = self.state().as_mut() {
+                    state.views.clear();
+                    state.pages.clear();
+                }
+                if let Some(bytes) = self.get(kind, key) {
+                    return Some(bytes);
+                }
+            } else {
+                // The snapshot may predate another run's publication of
+                // this entry, which let the claim go: read its shard again.
+                if let Some(state) = self.state().as_mut() {
+                    let shard = shard_of(key.0);
+                    state.views.remove(&shard);
+                    state.pages.retain(|(s, _), _| *s != shard);
+                }
+                if let Some(bytes) = self.get(kind, key) {
+                    return Some(bytes);
+                }
+            }
+            self.claims().insert(k, (file, std::thread::current().id()));
+            None
+        }
+
+        /// Before this thread waits for a claim: the only claim it may hold
+        /// is a package `graph`, an ancestor of the coherence rows it reads
+        /// (DESIGN.md §5.4, "Why claims cannot deadlock"). Any other claim of
+        /// this thread belongs to a computation it suspended; a debug build
+        /// stops there, and a release build lets the claim go, so that no
+        /// wait can close a cycle; another run may then compute that entry
+        /// too.
+        fn before_waiting(&self) {
+            let me = std::thread::current().id();
+            let mut claims = self.claims();
+            let off_path: Vec<Key> = claims
+                .iter()
+                .filter(|(k, (_, thread))| *thread == me && k.0 != EntryKind::Graph as u16)
+                .map(|(k, _)| *k)
+                .collect();
+            debug_assert!(
+                off_path.is_empty(),
+                "waiting for a claim while holding {off_path:x?}, which are not its ancestors"
+            );
+            for k in off_path {
+                claims.remove(&k);
+            }
+        }
+
+        /// Whether this store holds `key`'s claim.
+        #[cfg(test)]
+        fn held(&self, kind: EntryKind, key: &Hash128) -> bool {
+            self.claims().contains_key(&(kind as u16, key.0))
+        }
+
+        /// At the put of `key`: whether this store claimed it, so it is to
+        /// be published now and its claim let go. A run that came after
+        /// would otherwise miss an entry already computed. A claim is held
+        /// only while its entry is computed. The first put after the store
+        /// found other runs beside it publishes too, flushing what it put
+        /// while it ran alone.
+        pub(super) fn put_wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
+            self.claims().contains_key(&(kind as u16, key.0))
+                || self.flush.swap(false, Ordering::Relaxed)
+        }
+
+        /// Lets go of the claims on `keys`, once their entries are
+        /// published.
+        pub(super) fn release(&self, keys: impl Iterator<Item = Key>) {
+            let mut claims = self.claims();
+            for key in keys {
+                claims.remove(&key);
+            }
+        }
+
+        /// Lets go of every claim, as the store drops.
+        pub(super) fn release_all(&self) {
+            self.claims().clear();
+        }
+
         fn pack_id(name: &str) -> Option<u128> {
             name.strip_suffix(".pack").and_then(parse_key).map(|k| k.0)
         }
@@ -2754,6 +2985,18 @@ mod packed {
                     // Only a crash between creating and locking a lease
                     // leaves one; a live writer renames it at once.
                     inv.abandoned.push(e.path());
+                }
+            }
+            let claims = self.root.join("claims");
+            if is_real_dir(&claims) {
+                count!(dirs_listed, 1);
+                // cost: O(claim files), in a collection only.
+                for e in std::fs::read_dir(claims)? {
+                    count!(entries_listed, 1);
+                    let e = e?;
+                    if e.file_type()?.is_file() {
+                        inv.claims.push(e.path());
+                    }
                 }
             }
             for shard in 0..SHARDS {
@@ -3489,6 +3732,14 @@ mod packed {
             }
             for path in &inv.abandoned {
                 let _ = std::fs::remove_file(path);
+            }
+            // A claim whose lock is free has no run computing its entry. A
+            // run that opened it just before reads the index again after
+            // its lock, so at worst it computes once more.
+            for path in &inv.claims {
+                if File::open(path).is_ok_and(|file| file.try_lock().is_ok()) {
+                    let _ = std::fs::remove_file(path);
+                }
             }
             Ok(doomed)
         }
@@ -4917,6 +5168,158 @@ mod packed {
                 reader.get(EntryKind::Check, &Hash128(1)).as_deref(),
                 Some(b"new".as_slice())
             );
+        }
+
+        /// A run alone claims nothing (#1932): no claim file, no wait.
+        #[test]
+        fn a_lone_run_claims_nothing() {
+            let root = scratch("claim-lone");
+            let store = DiskStore::new(root.clone()).with_claims();
+            cost::take();
+            for key in 0..8 {
+                assert!(store.get(EntryKind::Check, &Hash128(key)).is_none());
+            }
+            assert_eq!(cost::take().claim_waits, 0);
+            assert!(!root.join(NAMESPACE).join("claims").exists());
+        }
+
+        /// Runs that miss one key together compute it once (#1932): each
+        /// joins the runs first; one claims the key, computes it slowly and
+        /// puts it, which publishes it at once; the others wait for the
+        /// claim and read it while the holder's command still runs.
+        #[test]
+        fn runs_missing_one_key_compute_it_once_and_read_it_before_the_holder_ends() {
+            let root = scratch("claim-once");
+            let computed = std::sync::atomic::AtomicUsize::new(0);
+            let read = std::sync::atomic::AtomicUsize::new(0);
+            let start = std::sync::Barrier::new(8);
+            let waits: u64 = std::thread::scope(|scope| {
+                let runs: Vec<_> = (0..8)
+                    .map(|_| {
+                        let (root, start, computed, read) = (&root, &start, &computed, &read);
+                        // cost: one test thread, one command.
+                        scope.spawn(move || {
+                            let disk = DiskStore::new(root.clone()).with_claims();
+                            drop(disk.packed.join());
+                            let store = crate::DeferredStore::new(disk);
+                            start.wait();
+                            cost::take();
+                            if let Some(bytes) = store.get(EntryKind::Check, &Hash128(7)) {
+                                assert_eq!(&bytes[..], b"computed");
+                                read.fetch_add(1, Ordering::Relaxed);
+                            } else {
+                                computed.fetch_add(1, Ordering::Relaxed);
+                                std::thread::sleep(Duration::from_millis(100));
+                                store.put(EntryKind::Check, &Hash128(7), b"computed");
+                                // The holder's command runs on until every
+                                // other run has read the entry.
+                                let mut polls = 0;
+                                while read.load(Ordering::Relaxed) < 7 && polls < 2000 {
+                                    std::thread::sleep(Duration::from_millis(5));
+                                    polls += 1;
+                                }
+                            }
+                            drop(store);
+                            cost::take().claim_waits
+                        })
+                    })
+                    .collect();
+                runs.into_iter().map(|r| r.join().unwrap()).sum()
+            });
+            assert_eq!(computed.load(Ordering::Relaxed), 1);
+            assert_eq!(read.load(Ordering::Relaxed), 7);
+            assert!(waits <= 7, "{waits}");
+            assert_eq!(DiskStore::new(root.clone()).index_entries().len(), 1);
+            let claims = root.join(NAMESPACE).join("claims");
+            // cost: a test listing one small directory.
+            assert_eq!(std::fs::read_dir(&claims).unwrap().count(), 1);
+            Store::new(&root).collect(u64::MAX).unwrap();
+            // cost: a test listing one small directory.
+            assert_eq!(std::fs::read_dir(&claims).unwrap().count(), 0);
+        }
+
+        /// A holder killed before it publishes releases the run waiting for
+        /// it: the system drops its lock, and the waiter computes.
+        #[test]
+        fn a_killed_holder_releases_its_waiter() {
+            let root = scratch("claim-killed");
+            let marker = root.join("claimed");
+            // The waiter joins the runs first, so the holder is not alone.
+            let waiting = DiskStore::new(root.clone()).with_claims();
+            drop(waiting.packed.join());
+            // cost: one test subprocess.
+            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args([
+                    "--exact",
+                    "disk::packed::tests::claim_holder_fixture",
+                    "--ignored",
+                    "--skip",
+                ])
+                .arg(format!("cache-fixture:{}", root.display()))
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+            // cost: the same one subprocess.
+            let mut child = command.spawn().unwrap();
+            let mut polls = 0;
+            while !marker.exists() && polls < 2000 {
+                std::thread::sleep(Duration::from_millis(5));
+                polls += 1;
+            }
+            assert!(marker.exists(), "holder fixture started");
+            let (tx, rx) = std::sync::mpsc::channel();
+            // cost: one test thread, one miss.
+            let waiter = std::thread::spawn(move || {
+                cost::take();
+                let got = waiting.get(EntryKind::Check, &Hash128(9));
+                tx.send((got.is_none(), cost::take().claim_waits)).unwrap();
+            });
+            std::thread::sleep(Duration::from_millis(100));
+            let _ = child.kill();
+            child.wait().unwrap();
+            let (computes, waits) = rx.recv_timeout(Duration::from_secs(20)).unwrap();
+            waiter.join().unwrap();
+            assert!(computes, "the waiter computes the entry itself");
+            assert_eq!(waits, 1);
+        }
+
+        #[test]
+        #[ignore = "subprocess fixture invoked by a_killed_holder_releases_its_waiter"]
+        fn claim_holder_fixture() {
+            let root = std::env::args()
+                .find_map(|a| a.strip_prefix("cache-fixture:").map(PathBuf::from))
+                .unwrap();
+            let mut store = Store::new(&root);
+            store.claiming = true;
+            assert!(store.get_or_claim(EntryKind::Check, &Hash128(9)).is_none());
+            assert!(store.held(EntryKind::Check, &Hash128(9)));
+            std::fs::write(root.join("claimed"), []).unwrap();
+            std::thread::sleep(Duration::from_mins(1));
+        }
+
+        /// A store does not wait for its own claim, and a kind written as a
+        /// command ends is never claimed.
+        #[test]
+        fn a_store_never_waits_for_its_own_claim_and_depfiles_are_never_claimed() {
+            let root = scratch("claim-own");
+            let (mut a, b) = (Store::new(&root), Store::new(&root));
+            a.claiming = true;
+            drop(b.join());
+            cost::take();
+            assert!(a.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
+            assert!(a.held(EntryKind::Check, &Hash128(1)));
+            assert!(a.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
+            assert!(a.get_or_claim(EntryKind::Depfiles, &Hash128(2)).is_none());
+            assert!(!a.held(EntryKind::Depfiles, &Hash128(2)));
+            assert_eq!(cost::take().claim_waits, 0);
+            a.release(std::iter::once((EntryKind::Check as u16, 1)));
+            assert!(!a.held(EntryKind::Check, &Hash128(1)));
+            // A cache whose claims cannot be made computes without one.
+            let claims = root.join(NAMESPACE).join("claims");
+            std::fs::remove_dir_all(&claims).unwrap();
+            std::fs::write(&claims, b"not a directory").unwrap();
+            assert!(a.get_or_claim(EntryKind::Check, &Hash128(3)).is_none());
+            assert!(!a.held(EntryKind::Check, &Hash128(3)));
         }
 
         #[test]

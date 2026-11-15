@@ -403,6 +403,60 @@ obj/
   once per vanished pack, as git rescans its packs when one disappears.
   A pack, once renamed into place, is removed only by GC under the lock,
   also when the commit that follows fails.
+- **Each entry computed once (#1932).** A store claims only when its
+  caller publishes a claimed entry as soon as it puts it
+  (`DiskStore::with_claims`, which the CLI's store sets; `DeferredStore`
+  does so through `CacheStore::wanted`). Every store takes a shared lock
+  on the `pack-v2` directory at its first read. A store that can take that
+  lock exclusively for a moment runs alone, and claims nothing: no run can
+  wait for it, and a claim costs a file. Beside other runs, a miss of
+  `parse`, `iface`, `check`, `check-test` or `graph` locks
+  `claims/<kind><key>`.
+  - If the lock is free, the store reads the key's shard again: its
+    snapshot may predate another run's publication. If the entry is still
+    missing, the run computes it. At its put, `DeferredStore` publishes it
+    with everything put before it, in order (an interface before its read
+    list), and the claim goes. A claim is held only while its entry is
+    computed.
+  - If another run holds it, this run waits for the lock, blocked with no
+    CPU, reads the index again and hits. If the holder died (the system
+    releases its lock) or published nothing, it computes under the claim
+    it now holds.
+  - A store that finds other runs beside it after running alone publishes
+    what it put while alone at its next put.
+  - Runs of different programs wait only for keys both miss, such as
+    std's: keys are content hashes.
+  - `depfiles` is not claimed. A run writes its aggregate entries (the std
+    skims, its source records, package results) as it ends, so a claim on
+    one would make other programs wait for that whole command. Runs that
+    start together each compute those.
+- **Why claims cannot deadlock.** A claim is held from a miss to the put of
+  the same entry. Every place `hd_driver` misses a claimed kind, and what
+  it reads while it holds the claim (`crates/hd_driver/src/lib.rs`):
+  - `parses` (`parse`): it parses one module's text and reads no entry.
+  - `folder_iface` (`iface`, the reads record then the interface): it
+    returns blocked until every folder of its closure has an interface in
+    memory. It resolves against those, reading no other entry.
+  - `header_check` (`graph`, a folder's findings): blocked until its own
+    and its closure's interfaces and template sources are in memory; then
+    it reads no entry.
+  - `module_prep_now` (`check`): `check_key` needs every dependency in
+    memory. Its `parse` and `lint` reads come before the `check` miss, and
+    the check reads no entry.
+  - `graph_hit` (`graph`, the package's entry): after every interface and
+    check. The Coherence part it starts reads the package's coherence rows
+    (`graph`), from which the entry is built: a dependency edge. Reading
+    those rows takes no other entry, and the InitOrder parts read summaries
+    in memory.
+
+  So a holder waits for no claim, except a package graph holder for its
+  coherence rows, whose holder waits for nothing. Every wait follows a
+  dependency edge, and no wait forms a cycle; no order of process IDs is
+  needed. A store never waits for a claim it holds itself, and a store's
+  threads never wait for each other. Before a thread waits, a debug build
+  checks that the only claim it holds is a package `graph`; a release build
+  lets any other claim of that thread go, so a computation the driver
+  suspended after its miss cannot close a cycle.
 - **Cost per run.** A run that reads `k` keys reads at most `k` shard
   logs (a 112-byte header and at most about 4 KiB of records each) and at
   most `k` pages; one that writes `j` entries or marks `j` hits appends one

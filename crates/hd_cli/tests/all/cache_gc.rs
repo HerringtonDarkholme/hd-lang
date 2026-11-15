@@ -440,3 +440,109 @@ fn eviction_running_beside_a_check_never_breaks_it() {
         assert_eq!((r.code, &r.out), (warm.code, &warm.out), "{}", r.err);
     }
 }
+
+/// One `hd check` of `file` over the cache `cache`, its work counted by
+/// `HD_WORK` on one thread (`HD_JOBS=1`, as counted runs need).
+fn counted_check(dir: &Path, cache: &Path, file: &str, n: usize) -> Command {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    c.env("HD_CACHE", cache)
+        .env_remove("HD_CACHE_MAX_SIZE")
+        .env("HD_JOBS", "1")
+        .env("HD_WORK", dir.join(format!("work-{n}.json")))
+        .current_dir(dir)
+        .args(["check", file])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    c
+}
+
+/// Counter `name` of run `n`'s work report.
+fn counter(dir: &Path, n: usize, name: &str) -> u64 {
+    let text = std::fs::read_to_string(dir.join(format!("work-{n}.json"))).expect("work report");
+    let at = text.find(&format!("\"{name}\":")).expect("counter") + name.len() + 3;
+    text[at..]
+        .split([',', '}'])
+        .next()
+        .and_then(|n| n.parse().ok())
+        .expect("count")
+}
+
+/// Runs `files` together over one empty cache, each `hd check`ing its
+/// file, and returns each run's `item_body_checks` and `header_types`.
+fn together(dir: &Path, cache: &Path, files: &[String]) -> Vec<(u64, u64)> {
+    // cost: one process per file, run together.
+    let runs: Vec<_> = files
+        .iter()
+        .enumerate()
+        .map(|(i, f)| counted_check(dir, cache, f, i).spawn().expect("spawn hd"))
+        .collect();
+    // Every run must exit: one that does not within the harness timeout
+    // is a deadlock, and the test fails rather than hang.
+    let deadline = std::time::Instant::now() + Duration::from_mins(1);
+    for mut run in runs {
+        let status = loop {
+            if let Some(status) = run.try_wait().expect("wait hd") {
+                break status;
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = run.kill();
+                panic!("an `hd check` run did not exit: a deadlock");
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert!(status.success());
+    }
+    (0..files.len())
+        .map(|i| {
+            (
+                counter(dir, i, "item_body_checks"),
+                counter(dir, i, "header_types"),
+            )
+        })
+        .collect()
+}
+
+/// Each entry is computed once (#1932): N `hd check` processes of one
+/// file start together on one empty cache. One checks the file and its
+/// std; the others wait for those entries and check nothing, by count.
+#[test]
+fn processes_checking_one_program_together_compute_each_entry_once() {
+    for n in [4, 16] {
+        let dir = scratch(&format!("compute-once-{n}"));
+        std::fs::write(dir.join("a.hd"), "fn f() -> i32:\n    1\n").expect("write");
+        let alone = together(&dir, &dir.join("alone"), &["a.hd".to_owned()]);
+        let runs = together(&dir, &dir.join("cache"), &vec!["a.hd".to_owned(); n]);
+        let sum = |pick: fn(&(u64, u64)) -> u64| runs.iter().map(pick).sum::<u64>();
+        assert_eq!(sum(|r| r.0), alone[0].0, "N = {n}: {runs:?}");
+        assert_eq!(sum(|r| r.1), alone[0].1, "N = {n}: {runs:?}");
+    }
+}
+
+/// Runs of different programs wait for each other only on what they all
+/// need (#1932): four programs that share only std check together over
+/// one empty cache. Each checks its own file; std is checked once, as when
+/// they run one after another.
+#[test]
+fn processes_checking_different_programs_together_check_std_once() {
+    let dir = scratch("compute-once-programs");
+    let files: Vec<String> = (0..4)
+        .map(|i| {
+            let file = format!("p{i}.hd");
+            std::fs::write(dir.join(&file), format!("fn f{i}() -> i32:\n    {i}\n"))
+                .expect("write");
+            file
+        })
+        .collect();
+    let mut apart = Vec::new();
+    for file in &files {
+        apart.extend(together(
+            &dir,
+            &dir.join("apart"),
+            std::slice::from_ref(file),
+        ));
+    }
+    let runs = together(&dir, &dir.join("together"), &files);
+    assert!(runs.iter().all(|r| r.0 == 1), "{runs:?}");
+    let types = |runs: &[(u64, u64)]| runs.iter().map(|r| r.1).sum::<u64>();
+    assert_eq!(types(&runs), types(&apart), "{runs:?} {apart:?}");
+}
