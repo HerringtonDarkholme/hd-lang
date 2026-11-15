@@ -2184,7 +2184,7 @@ runtime/valid/result-ok-unit.hd	A4	runtime accept with no assert, stdout check, 
 runtime/valid/prelude-hash-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/prelude-eq-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/prelude-partial-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/prelude-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
+std/cmp/tuple-comparison/prelude-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/primitive-integer-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/primitive-float-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/primitive-char-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario

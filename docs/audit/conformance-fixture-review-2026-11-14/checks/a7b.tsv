@@ -115,8 +115,8 @@ runtime/valid/derived-arbitrary-with.hd	A7b	lost '' gained ',,'	std/testing.md#r
 runtime/valid/derived-debug-newtype.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.derive.newtype.templated
 runtime/valid/derived-default-enum.hd	A7b	lost '' gained ','	std/ops.md#r-std-ops.default.derive.enum
 runtime/valid/derived-eq-every-member.hd	A7b	lost '' gained ',,,,,'	lang/09-traits.md#r-trait.derive.cmp-every-member
-runtime/valid/derived-equality-members.hd	A7b	lost '' gained '(),,'	std/cmp.md#r-std-cmp.derive.eq.compare-fields
-runtime/valid/derived-ordering-run.hd	A7b	lost '' gained ',,,,,,,,,'	std/cmp.md#r-std-cmp.derive.ord.data
+std/cmp/derived-equality/derived-equality-members.hd	A7b	lost '' gained '(),,'	std/cmp.md#r-std-cmp.derive.eq.compare-fields
+std/cmp/derived-ordering/derived-ordering-run.hd	A7b	lost '' gained ',,,,,,,,,'	std/cmp.md#r-std-cmp.derive.ord.data
 runtime/valid/digest-hmac.hd	A7b	lost '' gained '((())),,,,,,,,,,,,,,'	std/digest.md#r-std-digest.hmac.vectors
 runtime/valid/digest-sha256-long.hd	A7b	lost '' gained ','	std/digest.md#r-std-digest.sha256.fips
 runtime/valid/digest-sha256-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,'	std/digest.md#r-std-digest.sha256.update-ref
@@ -249,7 +249,7 @@ runtime/valid/http-typed-request-bodies.hd	A7b	lost '' gained ',,,,,,,,,,,,,,'	s
 runtime/valid/http-url-parts.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/http.md#parsed-urls
 runtime/valid/i32-minimum-through-generic-optional.hd	A7b	lost '' gained ','	lang/04-type-system.md#optional-types
 runtime/valid/i64-u64-precision-through-generics.hd	A7b	lost '' gained ','	lang/04-type-system.md#generics
-runtime/valid/id-keys-by-identity.hd	A7b	lost '' gained ','	std/cmp.md#r-std-cmp.id.eq
+std/cmp/identity-keys/id-keys-by-identity.hd	A7b	lost '' gained ','	std/cmp.md#r-std-cmp.id.eq
 runtime/valid/impl-distinct-target-arguments.hd	A7b	lost '' gained ','	lang/09-traits.md#overlap
 runtime/valid/impl-method-generics-renamed.hd	A7b	lost '' gained ','	lang/09-traits.md#implementation-declarations
 runtime/valid/impl-trait-associated-and-nested.hd	A7b	lost '' gained ','	lang/04-type-system.md#opaque-result-types
@@ -639,8 +639,8 @@ typing/valid/data-types.hd	A7b	lost ',,' gained ''	lang/08-data-and-enums.md#con
 typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#construction-and-access
 annotations/two-annotate-forms/decorator-target-kinds.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.target.limit
 annotations/two-annotate-forms/decorator-targets.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#r-annot.decorator.targets
-typing/valid/derived-equality.hd	A7b	lost '' gained ',,'	std/cmp.md#r-std-cmp.derive.eq.template
-typing/valid/derived-ordering.hd	A7b	lost '' gained ','	std/cmp.md#r-std-cmp.derive.ord.template
+std/cmp/derived-equality/derived-equality.hd	A7b	lost '' gained ',,'	std/cmp.md#r-std-cmp.derive.eq.template
+std/cmp/derived-ordering/derived-ordering.hd	A7b	lost '' gained ','	std/cmp.md#r-std-cmp.derive.ord.template
 annotations/error-derivation/error-derivation.hd	A7b	lost '' gained ',,,,,,,'	lang/14-annotations.md#error-derivation
 annotations/error-derivation/error-generated-bounds.hd	A7b	lost '' gained ','	lang/14-annotations.md#generated-error-bounds
 annotations/error-derivation/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#error-types

@@ -2416,7 +2416,7 @@ Ledger: b144 (45): 0. b145 (45): 2. b146 (45): 3. b147 (45): 4.
   (set order), `runtime/valid/map-drain.hd`, `runtime/valid/map-extend.hd` (map order).
 - **Target width (B8)**: `runtime/valid/list-drain-inclusive-overflow.hd` (end 4294967295
   overflows only with a 32-bit `usize`; the target owner question).
-- **A check that cannot fail (B3)**: `runtime/valid/cmp-min-max.hd` (the tie check
+- **A check that cannot fail (B3)**: `std/cmp/min-and-max/cmp-min-max.hd` (the tie check
   uses values that can't be told apart, so `min` or `max` picking either passes).
 - Plausible C1: `readonly-mutation.hd` ~ `reference-write-through-shared-field.hd`.
   Plausible: `initialization-…-01.hd` (B7), `slicing-a-range-value-is-a-slice-key.hd` (B1).
