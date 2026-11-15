@@ -14,15 +14,15 @@ enum Bin:
     Open
 
 fn take(slot: Slot) -> i32:
-    let .Held(item, qty = amount) = slot else:
+    let .Held(item, qty=amount) = slot else:
         return -1
     item + amount
 
 fn inner(bin: Bin) -> i32:
     match bin:
-        .Full(.Held(item, qty = 0), label = l) => item + l
-        .Full(.Held(item, qty = q), l) => item + q + l + 100
-        .Full(.Free, label = l) => l
+        .Full(.Held(item, qty=0), label=l) => item + l
+        .Full(.Held(item, qty=q), l) => item + q + l + 100
+        .Full(.Free, label=l) => l
         .Open => 0
 
 pub fn main() -> void $ Console:

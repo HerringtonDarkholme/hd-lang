@@ -7,6 +7,6 @@ enum Choice:
 
 fn pick(choice: Choice) -> i32:
     match choice:
-        Choice.One(value = v) => v
-        Choice.Pair(missing = a, right = b) => a + b # diagnostic: unknown-field
-        Choice.Pair(left = a, right = b) => a - b
+        Choice.One(value=v) => v
+        Choice.Pair(missing=a, right=b) => a + b # diagnostic: unknown-field
+        Choice.Pair(left=a, right=b) => a - b

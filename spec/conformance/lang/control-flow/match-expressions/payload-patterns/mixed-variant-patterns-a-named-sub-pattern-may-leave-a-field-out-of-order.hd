@@ -5,7 +5,7 @@ enum Shape:
 
 fn volume(shape: Shape) -> i32:
     match shape:
-        .Box(w, depth = d, height = h) => w * h * d
+        .Box(w, depth=d, height=h) => w * h * d
 
 pub fn main() -> void $ Console:
     println(volume(.Box(2, 3, 4)))

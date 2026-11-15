@@ -23,6 +23,6 @@ fn g(e: E, log: &mut List[E]) -> E $ Pick:
     if !(.A == e) || e == .A:
         return .B(x=+3)
     match e:
-        .W(inner = .A) => .A
-        .B(x = _) => f(x=.A)
+        .W(inner=.A) => .A
+        .B(x=_) => f(x=.A)
         _ => [.A][0]

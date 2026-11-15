@@ -121,3 +121,9 @@ run: hd fmt --check inputs/lifetimes.input
 stdout-json: []
 run: hd fmt inputs/lifetimes.input
 same-text: inputs/lifetimes.input want/lifetimes.hd
+run: hd fmt --check inputs/named-patterns.input
+exit: 1
+run: hd fmt inputs/named-patterns.input
+same-text: inputs/named-patterns.input want/named-patterns.hd
+run: hd fmt --check inputs/named-patterns.input
+stdout-json: []

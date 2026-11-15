@@ -273,7 +273,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
             | S::AssociatedTypeBinding => {
                 self.mark_assignment(node);
             }
-            S::NamedArgument | S::ContextEntry => self.mark_named_argument(node),
+            // `cli.fmt.spacing.equal`: a named field of a pattern is spelled
+            // as a value-level named argument, `left=l`.
+            S::NamedArgument | S::ContextEntry | S::NamedPattern => self.mark_named_argument(node),
             S::UsingStmt => self.mark_using(node),
             S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl => {
                 self.mark_type_spacing(node);

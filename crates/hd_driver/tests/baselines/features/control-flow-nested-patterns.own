@@ -59,7 +59,7 @@ fn read_nested(s: Shape) -> usize:
 >   %14 = Block %13 : usize
 >   %35 = Read borrow [%28] : string
 >   %36 = Store [$2] %35 : ()
-        .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
+        .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
 >   %15 = Read borrow [$3] : string
 >   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
 >   %17 = Break L1 %16 : never
@@ -106,7 +106,7 @@ fn owner(s: Shape) -> string:
 >   %10 = Block - : never
 >   %19 = Block - : never
 >   %20 = SwitchTag %1 [#0 %10 %19] : never
-        .Line(start = _, end = User { name }) => name
+        .Line(start=_, end=User { name }) => name
 >   %4 = Read copy [$2] : string
 >   %5 = Block %4 : string
 >   %11 = Read borrow [%1 as #1 .1] : User

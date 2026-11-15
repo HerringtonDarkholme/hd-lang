@@ -45,7 +45,7 @@ fn read_nested(s: Shape) -> usize:
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Block %6 : usize
 >   %21 = Store [$2] %15 : ()
-        .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
+        .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
 >   %8 = Ref local [$3] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = Ref local [$4] : &string
@@ -81,7 +81,7 @@ fn owner(s: Shape) -> string:
 >   %9 = Block - : never
 >   %18 = Block - : never
 >   %19 = SwitchTag %0 [#0 %9 %18] : never
-        .Line(start = _, end = User { name }) => name
+        .Line(start=_, end=User { name }) => name
 >   %3 = Read [$2] : string
 >   %4 = Block %3 : string
 >   %10 = Read [%0 as #1 .1] : User

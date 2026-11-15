@@ -3,5 +3,5 @@
 
 fn present(value: i32?) -> i32:
     match value:
-        .Some(value = found) => found # diagnostic: unknown-field
+        .Some(value=found) => found # diagnostic: unknown-field
         .None => +0

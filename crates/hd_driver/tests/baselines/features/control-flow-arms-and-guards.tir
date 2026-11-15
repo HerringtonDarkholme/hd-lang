@@ -33,7 +33,7 @@ fn pick(t: Tag) -> string:
 >   %25 = Block - : never
 >   %40 = Block - : never
 >   %41 = SwitchTag %0 [#0 %25 %40] : never
-        .Pair(right = r, left = l) if l.len() > r.len() => l
+        .Pair(right=r, left=l) if l.len() > r.len() => l
 >   %7 = Ref local [$2] : &string
 >   %8 = Call std/text/impl string.len[] (%7) : usize
 >   %9 = Ref local [$3] : &string
@@ -49,7 +49,7 @@ fn pick(t: Tag) -> string:
 >   %36 = Block - : never
 >   %38 = Block - : never
 >   %39 = SwitchTag %0 [#1 %36 %38] : never
-        .Pair(left = _, right = r) => r
+        .Pair(left=_, right=r) => r
 >   %15 = Read [$4] : string
 >   %16 = Block %15 : string
 >   %32 = Store [$4] %27 : ()

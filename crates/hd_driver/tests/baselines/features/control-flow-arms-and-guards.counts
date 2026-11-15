@@ -14,9 +14,9 @@ fn pick(t: Tag) -> string:
         .Named(n) if n.len() > 3 => n
 > app/main/pick
 >   retain string (stored)
-        .Pair(right = r, left = l) if l.len() > r.len() => l
+        .Pair(right=r, left=l) if l.len() > r.len() => l
 >   retain string (stored)
-        .Pair(left = _, right = r) => r
+        .Pair(left=_, right=r) => r
 >   retain string (stored)
         _ => "short"
 

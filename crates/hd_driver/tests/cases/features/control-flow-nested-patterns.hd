@@ -15,9 +15,9 @@ fn read_nested(s: Shape) -> usize:
     match s:
         .Dot(User { name, age: 0 }) => name.len()
         .Dot(User { name: n }) => n.len() + 1
-        .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
+        .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
 
 fn owner(s: Shape) -> string:
     match s:
         .Dot(User { name }) => name
-        .Line(start = _, end = User { name }) => name
+        .Line(start=_, end=User { name }) => name

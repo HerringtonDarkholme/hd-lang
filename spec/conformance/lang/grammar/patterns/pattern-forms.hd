@@ -47,7 +47,7 @@ fn only_x(p: Point) -> i32:
 fn name(s: Shape) -> string:
     match s:
         Shape.Circle(r) => "circle $r"
-        Shape.Rect(w, h = height) => "rect ${w}x${height}"
+        Shape.Rect(w, h=height) => "rect ${w}x${height}"
         .Empty => "empty"
 
 fn kind(c: char) -> string:

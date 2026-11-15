@@ -11,7 +11,7 @@
         if
           br 1
         else
-    ;; 23 |         .Line(start = _, end = User { name }) => name
+    ;; 23 |         .Line(start=_, end=User { name }) => name
           local.get $s.0
           if
             br 3
@@ -35,7 +35,7 @@
     ;; 21 |     match s:
       return
     end
-    ;; 23 |         .Line(start = _, end = User { name }) => name
+    ;; 23 |         .Line(start=_, end=User { name }) => name
     local.get $s.3
     local.tee $s.5
     if
@@ -59,7 +59,7 @@
             br_if 2
             br 1
           else
-    ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
+    ;; 18 |         .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
             local.get $s.0
             br_if 3
             unreachable
@@ -80,7 +80,7 @@
     ;; 15 |     match s:
       return
     end
-    ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
+    ;; 18 |         .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
     local.get $s.1
     local.get $s.4
     i32.add

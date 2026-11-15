@@ -42,7 +42,7 @@ fn pick(t: Tag) -> string:
 >   %35 = Block - : never
 >   %52 = Block - : never
 >   %53 = SwitchTag %1 [#0 %35 %52] : never
-        .Pair(right = r, left = l) if l.len() > r.len() => l
+        .Pair(right=r, left=l) if l.len() > r.len() => l
 >   %11 = Read borrow [$2] : string
 >   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
 >   %13 = Break L1 %12 : never
@@ -65,7 +65,7 @@ fn pick(t: Tag) -> string:
 >   %48 = Block - : never
 >   %50 = Block - : never
 >   %51 = SwitchTag %1 [#1 %48 %50] : never
-        .Pair(left = _, right = r) => r
+        .Pair(left=_, right=r) => r
 >   %25 = Read copy [$4] : string
 >   %26 = Block %25 : string
 >   %43 = Read borrow [%37] : string

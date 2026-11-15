@@ -20,7 +20,7 @@
               br_if 4
               br 1
             else
-    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
+    ;; 14 |         .Pair(right=r, left=l) if l.len() > r.len() => l
               local.get $t.0
               if
                 local.get $t.1
@@ -48,7 +48,7 @@
     ;; 12 |     match t:
           return
         end
-    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
+    ;; 14 |         .Pair(right=r, left=l) if l.len() > r.len() => l
         local.get $t.0
         local.tee $t0
         if
@@ -60,7 +60,7 @@
     ;; 12 |     match t:
         return
       end
-    ;; 15 |         .Pair(left = _, right = r) => r
+    ;; 15 |         .Pair(left=_, right=r) => r
       local.get $t.2
       local.tee $t0
       if

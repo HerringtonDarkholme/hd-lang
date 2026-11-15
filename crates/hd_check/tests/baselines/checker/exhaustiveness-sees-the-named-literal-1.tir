@@ -6,5 +6,5 @@ enum Shape:
 
 fn f(shape: Shape) -> i32:
     match shape:
-        .Rect(w, height = true) => w
-> error: main.hd:167..216: nonexhaustive-match: no arm matches Rect
+        .Rect(w, height=true) => w
+> error: main.hd:167..214: nonexhaustive-match: no arm matches Rect

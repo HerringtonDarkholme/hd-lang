@@ -1449,7 +1449,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 20. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma, unless that element ends in a suite.
 21. r[cli.fmt.width.flat-comma] A trailing comma that is not required by the syntax is absent when its group stays flat.
 22. r[cli.fmt.spacing] Formatting normalizes spacing around keywords, assignments, binary operators, commas, colons, and nonempty flat record braces.
-23. r[cli.fmt.spacing.equal] Value-level named arguments and provider bindings have no spaces around `=`, while type-level bindings and every other `=` have one space on each side.
+23. r[cli.fmt.spacing.equal] Value-level named arguments, named fields in patterns, such as `.Sub(left=l, right=r)`, and provider bindings have no spaces around `=`, while type-level bindings and every other `=` have one space on each side.
 24. r[cli.fmt.suite.vertical] Function bodies and statement suites stay on lines below their headers.
 25. r[cli.fmt.suite.value] Match arms, closures, and value-position `if` expressions stay inline only when their complete canonical form fits.
 26. r[cli.fmt.suite.if-value] A tail `if` with `else` is a value unless its function declares `-> void`; an omitted result type counts as a value.

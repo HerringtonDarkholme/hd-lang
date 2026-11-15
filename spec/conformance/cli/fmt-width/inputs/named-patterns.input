@@ -1,0 +1,39 @@
+enum Expr:
+    Num(value: i32)
+    Sub(left: i32, right: i32)
+
+enum Wrap:
+    W(value: i32)
+
+struct Boxed:
+    inner: Expr
+
+fn arms(e: Expr) -> i32:
+    match e:
+        .Num(value = v) => v
+        Expr.Sub(left= l, right =r) => l - r
+
+fn literal(e: Expr) -> i32:
+    match e:
+        .Sub(left = 1, right = r) => r
+        _ => 0
+
+fn nested(e: Expr?, b: Boxed) -> i32:
+    match e:
+        .Some(.Sub(left = l, right = r)) => l - r
+        _ =>
+            match b:
+                Boxed { inner: .Num(value = v) } => v
+                _ => 0
+
+fn lets(e: Expr, w: Wrap) -> i32:
+    let .W(value = x) = w
+    let .Num(value = v) = e else:
+        return x
+    v + x
+
+fn loops(items: List[Wrap]) -> i32:
+    let mut total = 0
+    for .W(value = v) in items:
+        total += v
+    total + [for .W(value = v) in items => v].sum()

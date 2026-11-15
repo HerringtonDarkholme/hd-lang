@@ -5,4 +5,4 @@ enum Shape:
 
 fn f(shape: Shape) -> i32:
     match shape:
-        .Rect(w, height = true) => w
+        .Rect(w, height=true) => w

@@ -12,10 +12,10 @@ enum Shape:
 
 fn describe(shape: Shape) -> i32:
     match shape:
-        .Rect(w, height = 0) => w
-        .Rect(w, height = h) => w * h
-        .Point(x, y = 0, z = z) => x + z
-        .Point(x, y, z = 9) => x + y + 1000
+        .Rect(w, height=0) => w
+        .Rect(w, height=h) => w * h
+        .Point(x, y=0, z=z) => x + z
+        .Point(x, y, z=9) => x + y + 1000
         .Point(_, _, _) => -1
         .Empty => 0
 
