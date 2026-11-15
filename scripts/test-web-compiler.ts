@@ -33,7 +33,7 @@ import { createWatPrinter } from "../website/playground/src/wat-printer.ts";
 import { createNodeSession } from "../host/node-session.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const FIXTURE = join(root, "spec", "conformance", "modules", "prelude", "println-console-stdout.hd");
+const FIXTURE = join(root, "spec", "conformance", "lang", "modules", "prelude", "println-console-stdout.hd");
 
 // #852 removes the printer from ordinary compilation. The compiler's gzip
 // cap is the owner's 2.5 MB ceiling (2026-11-09, at 2,001,095, over the

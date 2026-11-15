@@ -2363,9 +2363,9 @@ store.
   slower on V8 (nbody 1,300 to 1,410, sieve 540 to 650), so it was
   dropped. Removing the bounds check for `0..n` over the length needs a
   proof that `n` is the list's length and the list cannot shrink.
-- **Checked by** `types/collection-values/list-element-places.hd`, which writes a
+- **Checked by** `lang/types/collection-values/list-element-places.hd`, which writes a
   string field and a nested struct field of an element, and
-  `types/collection-values/list-reads-see-every-change.hd`. The second reads lists
+  `lang/types/collection-values/list-reads-see-every-change.hd`. The second reads lists
   after pushes, element writes, calls that change the list through a
   reference, and copies.
 

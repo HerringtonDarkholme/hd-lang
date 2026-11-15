@@ -188,7 +188,7 @@ and dynamic pair count. Repeated test snapshots contribute deltas. For example:
 ```sh
 mkdir -p target/count-audit
 HD_CACHE=target/count-audit/cache HD_COUNT_AUDIT_REPORT=target/count-audit/cases.jsonl \
-HD_CONFORMANCE_ONLY=references/matching-through-a-reference/projected-view-binding-keeps-owner.hd \
+HD_CONFORMANCE_ONLY=lang/references/matching-through-a-reference/projected-view-binding-keeps-owner.hd \
 HD_CONFORMANCE_CHECKED=1 cargo test -q -p hd_driver --features checked-report \
   --test conformance specification_conformance_passes_except_known_failures -- --exact
 HD_CACHE=target/count-audit/cache cargo run -q -p hd_driver --features checked-report \

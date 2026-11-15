@@ -11,7 +11,7 @@ use hd_sched::SerialOrder;
 #[test]
 fn warm_interface_and_check_hits_do_not_lose_or_cache_derivation_findings() {
     let source = include_str!(
-        "../../../../spec/conformance/annotations/typed-derivation/facts/derivation-block-decorator.hd"
+        "../../../../spec/conformance/lang/annotations/typed-derivation/facts/derivation-block-decorator.hd"
     );
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
@@ -55,7 +55,7 @@ fn warm_interface_and_check_hits_do_not_lose_or_cache_derivation_findings() {
 #[test]
 fn selected_file_closure_collects_root_modules_but_not_dependencies_or_unreached_files() {
     let annotated = include_str!(
-        "../../../../spec/conformance/annotations/typed-derivation/facts/derivation-block-decorator-std.hd"
+        "../../../../spec/conformance/lang/annotations/typed-derivation/facts/derivation-block-decorator-std.hd"
     );
     let annotated = format!("{annotated}\npub fn value() -> i32:\n    +1\n");
     let mut sources = MemorySources::default();
@@ -151,7 +151,7 @@ fn invalid_derivation_decorators_keep_the_same_error_prerequisites() {
 #[test]
 fn cached_folder_facts_include_sibling_derive_identities() {
     let original = include_str!(
-        "../../../../spec/conformance/annotations/typed-derivation/derivation-blocks/derivation-line-drift-beside-derive.hd"
+        "../../../../spec/conformance/lang/annotations/typed-derivation/derivation-blocks/derivation-line-drift-beside-derive.hd"
     );
     let mut sources = MemorySources::default();
     sources.insert("src/lib.hd", original);
@@ -200,7 +200,7 @@ fn cached_folder_facts_include_sibling_derive_identities() {
 #[test]
 fn registered_module_and_derivation_findings_share_warm_checks() {
     let annotated = include_str!(
-        "../../../../spec/conformance/annotations/typed-derivation/facts/derivation-block-decorator.hd"
+        "../../../../spec/conformance/lang/annotations/typed-derivation/facts/derivation-block-decorator.hd"
     );
     let source = format!("{annotated}\npub fn main() -> void: pass\n");
     let mut sources = MemorySources::default();

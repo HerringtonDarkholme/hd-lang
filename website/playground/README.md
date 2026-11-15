@@ -88,7 +88,7 @@ selects one. The playground steps are in [`e2e.ts`](e2e.ts). The browser needs W
   restored from `localStorage`.
 
 - **Examples** bundles programs from [`../../examples`](../../examples),
-  one conformance case ([`println-console-stdout.hd`](../../spec/conformance/modules/prelude/println-console-stdout.hd)), and
+  one conformance case ([`println-console-stdout.hd`](../../spec/conformance/lang/modules/prelude/println-console-stdout.hd)), and
   [`examples/`](examples) as text, so the menu shows the files the test suites
   run. [`examples/top-level.hd`](examples/top-level.hd) has no `main` and
   runs as a script. The playground's own examples show recent language

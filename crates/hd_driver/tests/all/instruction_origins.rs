@@ -190,7 +190,7 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
     let cases = [
         (
             include_str!(
-                "../../../../spec/conformance/data/struct-declarations/wide-value-field-reads.hd"
+                "../../../../spec/conformance/lang/data/struct-declarations/wide-value-field-reads.hd"
             ),
             false,
         ),
@@ -200,13 +200,13 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
         ),
         (
             include_str!(
-                "../../../../spec/conformance/functions/closures/nested-closure-captures.hd"
+                "../../../../spec/conformance/lang/functions/closures/nested-closure-captures.hd"
             ),
             false,
         ),
         (
             include_str!(
-                "../../../../spec/conformance/requirements/suspending-functions/suspending-closure-captures.hd"
+                "../../../../spec/conformance/lang/requirements/suspending-functions/suspending-closure-captures.hd"
             ),
             false,
         ),

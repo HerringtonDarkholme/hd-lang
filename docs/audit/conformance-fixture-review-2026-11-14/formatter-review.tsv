@@ -1,136 +1,136 @@
-grammar/statements/binding-list.hd	HARMLESS	
-grammar/generic-parameters-and-bounds/bound-and-lists.hd	HARMLESS	
-lexical/physical-and-logical-lines/bracketed-for-multi-name-binding.hd	HARMLESS	
-lexical/physical-and-logical-lines/bracketed-suite-header-line.hd	WEAKENED	Header on the bracket line erased for the if and closure cases; the for header moved to its own line.
-lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd	WEAKENED	Multi-line if suite closed by a paren on its last line joined; the match case remains.
-lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd	WEAKENED	Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
-lexical/operators-and-delimiters/compound-assignment-tokens.hd	WEAKENED	Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
-grammar/types/counted-reference-types.hd	HARMLESS	
-data/data-embedding/data-embedding.hd	HARMLESS	
-grammar/declaration-defaults-and-bindings.hd	HARMLESS	
-grammar/annotations/decorator-lines-on-every-target.hd	HARMLESS	
-grammar/declarations/derivation-member-lines.hd	HARMLESS	
-lexical/comments/documentation-comments.hd	HARMLESS	
-grammar/expressions/embedded-copy-syntax.hd	WEAKENED	Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
-lexical/operators-and-delimiters/every-operator-and-delimiter-token.hd	HARMLESS	
-lexical/literals/expression-interpolation.hd	HARMLESS	
-grammar/expressions/expressions.hd	HARMLESS	
-functions/functions-and-closures.hd	WEAKENED	Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
-grammar/expressions/grammar-disambiguation.hd	HARMLESS	
-lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd	ERASED	Closure body in the if header is now same-line, so no nested suite inside the header remains.
-grammar/declarations/impl-trait-nested-return.hd	HARMLESS	
-grammar/declarations/impl-trait-optional-return.hd	HARMLESS	
-grammar/declarations/inherent-and-trait-impls.hd	HARMLESS	
-grammar/inline-conditions-and-headers.hd	WEAKENED	The negative-literal line after else joined to one line; the match arm and headers remain.
-lexical/whitespace-and-indentation/layout.hd	WEAKENED	Same-line fn bodies one_line and test became indented; same-line if remains.
-lexical/physical-and-logical-lines/leading-dot-continuation.hd	WEAKENED	Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
-grammar/statements/let-else-same-line.hd	WEAKENED	Same-line let-else body became an indented body; the indented form remains.
-grammar/statements/let-list-without-mut.hd	HARMLESS	
-grammar/statements/let-mut-names.hd	HARMLESS	
-grammar/expressions/list-item-binding-expression.hd	HARMLESS	
-grammar/expressions/literal-field-comparison-value.hd	HARMLESS	
-lexical/keywords-and-reserved-words/logical-operator-words-are-identifiers.hd	HARMLESS	
-grammar/requirements-and-provider-contexts/multi-provider-use.hd	HARMLESS	
-grammar/declarations/mut-parameters.hd	HARMLESS	
-grammar/types/mutable-list-parameter-index-assignment.hd	HARMLESS	
-lexical/physical-and-logical-lines/nested-layout.hd	WEAKENED	Line break after the opening paren before the closure joined; the nesting remains.
-lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd	ERASED	Nested suite inside run( joined to one line; the deeper-body form is gone.
-lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd	ERASED	Else on its own line after a same-line if joined onto the if line.
-lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd	ERASED	Bracketed expression collapsed to one line; no line starts with a dot or operator.
-grammar/declarations/parameter-defaults.hd	HARMLESS	
-lexical/physical-and-logical-lines/paren-line-new-statement.hd	HARMLESS	
-grammar/declarations/reference-receivers.hd	HARMLESS	
-grammar/types/requirement-row-lists.hd	HARMLESS	
-grammar/expressions/reserved-receiver-names.hd	HARMLESS	
-grammar/statements/same-line-for-list.hd	ERASED	Same-line for suites and same-line bodies became indented; no same-line for remains.
-lexical/physical-and-logical-lines/same-line-loop-else.hd	ERASED	Same-line for and while suites with else became indented blocks; no same-line loop else remains.
-grammar/statements/same-line-suite-let-list.hd	ERASED	Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
-grammar/use-declarations/single-and-grouped-use.hd	HARMLESS	
-grammar/patterns/spread-pattern-syntax.hd	HARMLESS	
-lexical/literals/suffixed-literals.hd	HARMLESS	
-grammar/test-blocks/test-block.hd	HARMLESS	
-grammar/expressions/trailing-block-under-if.hd	HARMLESS	
-lexical/comments/trailing-doc-comments-are-commentary.hd	HARMLESS	
-grammar/expressions/tuple-element-binding-expression.hd	HARMLESS	
-grammar/types/tuple-rest-syntax.hd	HARMLESS	
-grammar/expressions/tuples-and-groups.hd	HARMLESS	
-grammar/types/type-forms-and-row-owners.hd	HARMLESS	
-grammar/use-declarations/use-declaration-forms.hd	WEAKENED	Trailing comma in the grouped use with an alias removed; the title names that form.
-modules/use-forms/use-group-trailing-comma.hd	ERASED	All three grouped-use trailing commas removed.
-lexical/processing-model/utf8-bom.hd	ERASED	Leading BOM bytes stripped.
-grammar/declarations/vararg-and-spread.hd	HARMLESS	
-grammar/statements/a-top-level-chain-declares-every-name-once.hd	HARMLESS	
-grammar/statements/assignment-and-break-forms.hd	HARMLESS	
-grammar/expressions/bang-call-and-prefix-not.hd	WEAKENED	Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
-lexical/literals/boolean-literals-and-absence.hd	HARMLESS	
-grammar/expressions/call-and-closure-forms.hd	HARMLESS	
-lexical/literals/character-literals.hd	HARMLESS	
-lexical/physical-and-logical-lines/closure-body-name-before-comma.hd	HARMLESS	
-lexical/physical-and-logical-lines/colons-in-brackets-and-trailing-blocks.hd	HARMLESS	
-grammar/expressions/comparisons-beside-brackets.hd	HARMLESS	
-lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd	ERASED	Same-line if body became indented, so the .Variant line no longer follows a same-line if.
-lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd	ERASED	Every list whose lines open with a bracket or bang collapsed to one line.
-lexical/physical-and-logical-lines/crlf-line-endings.hd	ERASED	Current file has zero CR bytes; the CRLF line endings the title requires are gone.
-lexical/literals/escape-sequences.hd	HARMLESS	
-lexical/literals/float-literal-forms.hd	HARMLESS	
-grammar/generic-parameters-and-bounds/generic-parameter-forms.hd	HARMLESS	
-grammar/statements/header-and-bracket-expression-positions.hd	WEAKENED	Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
-lexical/identifiers/identifier-spellings.hd	HARMLESS	
-lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd	WEAKENED	Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
-lexical/whitespace-and-indentation/indentation-levels.hd	WEAKENED	Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
-grammar/expressions/index-then-call-element.hd	HARMLESS	
-lexical/literals/integer-literal-forms.hd	HARMLESS	
-lexical/literals/interpolation-forms.hd	HARMLESS	
+lang/grammar/statements/binding-list.hd	HARMLESS	
+lang/grammar/generic-parameters-and-bounds/bound-and-lists.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/bracketed-for-multi-name-binding.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/bracketed-suite-header-line.hd	WEAKENED	Header on the bracket line erased for the if and closure cases; the for header moved to its own line.
+lang/lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd	WEAKENED	Multi-line if suite closed by a paren on its last line joined; the match case remains.
+lang/lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd	WEAKENED	Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
+lang/lexical/operators-and-delimiters/compound-assignment-tokens.hd	WEAKENED	Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
+lang/grammar/types/counted-reference-types.hd	HARMLESS	
+lang/data/data-embedding/data-embedding.hd	HARMLESS	
+lang/grammar/declaration-defaults-and-bindings.hd	HARMLESS	
+lang/grammar/annotations/decorator-lines-on-every-target.hd	HARMLESS	
+lang/grammar/declarations/derivation-member-lines.hd	HARMLESS	
+lang/lexical/comments/documentation-comments.hd	HARMLESS	
+lang/grammar/expressions/embedded-copy-syntax.hd	WEAKENED	Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
+lang/lexical/operators-and-delimiters/every-operator-and-delimiter-token.hd	HARMLESS	
+lang/lexical/literals/expression-interpolation.hd	HARMLESS	
+lang/grammar/expressions/expressions.hd	HARMLESS	
+lang/functions/functions-and-closures.hd	WEAKENED	Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
+lang/grammar/expressions/grammar-disambiguation.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd	ERASED	Closure body in the if header is now same-line, so no nested suite inside the header remains.
+lang/grammar/declarations/impl-trait-nested-return.hd	HARMLESS	
+lang/grammar/declarations/impl-trait-optional-return.hd	HARMLESS	
+lang/grammar/declarations/inherent-and-trait-impls.hd	HARMLESS	
+lang/grammar/inline-conditions-and-headers.hd	WEAKENED	The negative-literal line after else joined to one line; the match arm and headers remain.
+lang/lexical/whitespace-and-indentation/layout.hd	WEAKENED	Same-line fn bodies one_line and test became indented; same-line if remains.
+lang/lexical/physical-and-logical-lines/leading-dot-continuation.hd	WEAKENED	Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
+lang/grammar/statements/let-else-same-line.hd	WEAKENED	Same-line let-else body became an indented body; the indented form remains.
+lang/grammar/statements/let-list-without-mut.hd	HARMLESS	
+lang/grammar/statements/let-mut-names.hd	HARMLESS	
+lang/grammar/expressions/list-item-binding-expression.hd	HARMLESS	
+lang/grammar/expressions/literal-field-comparison-value.hd	HARMLESS	
+lang/lexical/keywords-and-reserved-words/logical-operator-words-are-identifiers.hd	HARMLESS	
+lang/grammar/requirements-and-provider-contexts/multi-provider-use.hd	HARMLESS	
+lang/grammar/declarations/mut-parameters.hd	HARMLESS	
+lang/grammar/types/mutable-list-parameter-index-assignment.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/nested-layout.hd	WEAKENED	Line break after the opening paren before the closure joined; the nesting remains.
+lang/lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd	ERASED	Nested suite inside run( joined to one line; the deeper-body form is gone.
+lang/lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd	ERASED	Else on its own line after a same-line if joined onto the if line.
+lang/lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd	ERASED	Bracketed expression collapsed to one line; no line starts with a dot or operator.
+lang/grammar/declarations/parameter-defaults.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/paren-line-new-statement.hd	HARMLESS	
+lang/grammar/declarations/reference-receivers.hd	HARMLESS	
+lang/grammar/types/requirement-row-lists.hd	HARMLESS	
+lang/grammar/expressions/reserved-receiver-names.hd	HARMLESS	
+lang/grammar/statements/same-line-for-list.hd	ERASED	Same-line for suites and same-line bodies became indented; no same-line for remains.
+lang/lexical/physical-and-logical-lines/same-line-loop-else.hd	ERASED	Same-line for and while suites with else became indented blocks; no same-line loop else remains.
+lang/grammar/statements/same-line-suite-let-list.hd	ERASED	Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
+lang/grammar/use-declarations/single-and-grouped-use.hd	HARMLESS	
+lang/grammar/patterns/spread-pattern-syntax.hd	HARMLESS	
+lang/lexical/literals/suffixed-literals.hd	HARMLESS	
+lang/grammar/test-blocks/test-block.hd	HARMLESS	
+lang/grammar/expressions/trailing-block-under-if.hd	HARMLESS	
+lang/lexical/comments/trailing-doc-comments-are-commentary.hd	HARMLESS	
+lang/grammar/expressions/tuple-element-binding-expression.hd	HARMLESS	
+lang/grammar/types/tuple-rest-syntax.hd	HARMLESS	
+lang/grammar/expressions/tuples-and-groups.hd	HARMLESS	
+lang/grammar/types/type-forms-and-row-owners.hd	HARMLESS	
+lang/grammar/use-declarations/use-declaration-forms.hd	WEAKENED	Trailing comma in the grouped use with an alias removed; the title names that form.
+lang/modules/use-forms/use-group-trailing-comma.hd	ERASED	All three grouped-use trailing commas removed.
+lang/lexical/processing-model/utf8-bom.hd	ERASED	Leading BOM bytes stripped.
+lang/grammar/declarations/vararg-and-spread.hd	HARMLESS	
+lang/grammar/statements/a-top-level-chain-declares-every-name-once.hd	HARMLESS	
+lang/grammar/statements/assignment-and-break-forms.hd	HARMLESS	
+lang/grammar/expressions/bang-call-and-prefix-not.hd	WEAKENED	Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
+lang/lexical/literals/boolean-literals-and-absence.hd	HARMLESS	
+lang/grammar/expressions/call-and-closure-forms.hd	HARMLESS	
+lang/lexical/literals/character-literals.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/closure-body-name-before-comma.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/colons-in-brackets-and-trailing-blocks.hd	HARMLESS	
+lang/grammar/expressions/comparisons-beside-brackets.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd	ERASED	Same-line if body became indented, so the .Variant line no longer follows a same-line if.
+lang/lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd	ERASED	Every list whose lines open with a bracket or bang collapsed to one line.
+lang/lexical/physical-and-logical-lines/crlf-line-endings.hd	ERASED	Current file has zero CR bytes; the CRLF line endings the title requires are gone.
+lang/lexical/literals/escape-sequences.hd	HARMLESS	
+lang/lexical/literals/float-literal-forms.hd	HARMLESS	
+lang/grammar/generic-parameters-and-bounds/generic-parameter-forms.hd	HARMLESS	
+lang/grammar/statements/header-and-bracket-expression-positions.hd	WEAKENED	Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
+lang/lexical/identifiers/identifier-spellings.hd	HARMLESS	
+lang/lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd	WEAKENED	Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
+lang/lexical/whitespace-and-indentation/indentation-levels.hd	WEAKENED	Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
+lang/grammar/expressions/index-then-call-element.hd	HARMLESS	
+lang/lexical/literals/integer-literal-forms.hd	HARMLESS	
+lang/lexical/literals/interpolation-forms.hd	HARMLESS	
 std/json/parsing/json-number-grammar.hd	HARMLESS	
-lexical/physical-and-logical-lines/leading-dot-chain.hd	WEAKENED	Most leading-dot method-chain lines joined; one .double() after a comment line remains.
-lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd	ERASED	Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
-lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd	WEAKENED	Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.
-lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd	ERASED	The := chain with a leading .size line is now one line; no such chain remains.
-lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd	WEAKENED	Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
-grammar/statements/let-after-same-line-if-keeps-else.hd	ERASED	Same-line if ... let ... else forms became indented; no same-line if with let remains.
-lexical/literals/literal-suffix-calls.hd	HARMLESS	
-grammar/source-files-and-suites/local-declarations-in-block-suites.hd	HARMLESS	
-grammar/source-files-and-suites/long-else-if-chain.hd	HARMLESS	
-modules/module-initialization/module-initialization-before-main.hd	HARMLESS	
-expressions/primary-expressions/module-qualified-function-value-parenthesized.hd	ERASED	Parenthesized (time.s) became time.s; the parenthesized function value is gone.
-lexical/literals/multiline-string-literals.hd	HARMLESS	
-lexical/whitespace-and-indentation/no-final-line-ending.hd	ERASED	A final line ending was added; the file no longer ends without one.
-lexical/operators-and-delimiters/operators-longest-match.hd	ERASED	Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
-lexical/operators-and-delimiters/operators-without-spaces.hd	WEAKENED	Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
-grammar/patterns/pattern-forms.hd	HARMLESS	
-grammar/expressions/pipe-placeholder-steps.hd	HARMLESS	
-grammar/expressions/precedence-and-associativity.hd	HARMLESS	
-lexical/literals/prefixed-string-template.hd	HARMLESS	
-lexical/identifiers/raw-identifier-a-reserved-word-labels-a-named-argument.hd	HARMLESS	
-lexical/identifiers/raw-identifier-a-reserved-word-names-a-method.hd	HARMLESS	
-lexical/identifiers/raw-identifier-backticks-around-an-ordinary-name-change-nothing.hd	HARMLESS	
-lexical/identifiers/raw-identifiers-as-names.hd	HARMLESS	
-grammar/statements/same-line-suite-body-forms.hd	ERASED	Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
-lexical/physical-and-logical-lines/same-line-suite-boundaries.hd	WEAKENED	Same-line for and while suites, including one before else, became indented blocks.
-grammar/expressions/spread-forms-and-positions.hd	HARMLESS	
-lexical/literals/string-and-char-literal-contents.hd	HARMLESS	
-lexical/literals/string-interpolation-built-ins.hd	HARMLESS	
-lexical/comments/strings-and-comments-hide-keywords-and-operators.hd	HARMLESS	
-grammar/statements/suite-statement-right-sides.hd	WEAKENED	Right-side if and closure suites joined to one line; right-side match suites remain.
-grammar/test-blocks/tests-block-items.hd	HARMLESS	
-grammar/expressions/trailing-block-right-sides.hd	HARMLESS	
-grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd	WEAKENED	Most trailing commas removed; those in an interpolated call and a closure header remain.
-grammar/declarations/trait-and-impl-declaration-forms.hd	HARMLESS	
-grammar/expressions/type-arguments-in-expressions.hd	HARMLESS	
-grammar/declarations/type-declaration-forms.hd	HARMLESS	
-grammar/types/type-expression-forms.hd	HARMLESS	
-lexical/identifiers/unicode-function-names.hd	HARMLESS	
-grammar/statements/grammar-assignment-nonplace.hd	ERASED	Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
-grammar/types/row-kind-mismatch.hd	HARMLESS	
-grammar/expressions/trailing-block-ineligible.hd	HARMLESS	
-lexical/literals/unary-plus-i32-literal-range.hd	HARMLESS	
-expressions/unary-and-binary-operators/composite-ordering.hd	HARMLESS	
-data/construction-and-access/data-types.hd	HARMLESS	
-data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd	HARMLESS	
-grammar/types/declaration-owns-requirement-clause.hd	HARMLESS	
-grammar/types/explicit-empty-row.hd	HARMLESS	
-grammar/expressions/expression-type-arguments.hd	HARMLESS	
-data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd	HARMLESS	
-grammar/statements/let-else.hd	HARMLESS	
-grammar/types/row-kinded-arguments.hd	HARMLESS	
-grammar/statements/same-line-let-list-unused.hd	ERASED	The only same-line suite binding was indented, so the same-line case the title names is gone.
+lang/lexical/physical-and-logical-lines/leading-dot-chain.hd	WEAKENED	Most leading-dot method-chain lines joined; one .double() after a comment line remains.
+lang/lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd	ERASED	Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
+lang/lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd	WEAKENED	Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.
+lang/lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd	ERASED	The := chain with a leading .size line is now one line; no such chain remains.
+lang/lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd	WEAKENED	Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
+lang/grammar/statements/let-after-same-line-if-keeps-else.hd	ERASED	Same-line if ... let ... else forms became indented; no same-line if with let remains.
+lang/lexical/literals/literal-suffix-calls.hd	HARMLESS	
+lang/grammar/source-files-and-suites/local-declarations-in-block-suites.hd	HARMLESS	
+lang/grammar/source-files-and-suites/long-else-if-chain.hd	HARMLESS	
+lang/modules/module-initialization/module-initialization-before-main.hd	HARMLESS	
+lang/expressions/primary-expressions/module-qualified-function-value-parenthesized.hd	ERASED	Parenthesized (time.s) became time.s; the parenthesized function value is gone.
+lang/lexical/literals/multiline-string-literals.hd	HARMLESS	
+lang/lexical/whitespace-and-indentation/no-final-line-ending.hd	ERASED	A final line ending was added; the file no longer ends without one.
+lang/lexical/operators-and-delimiters/operators-longest-match.hd	ERASED	Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
+lang/lexical/operators-and-delimiters/operators-without-spaces.hd	WEAKENED	Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
+lang/grammar/patterns/pattern-forms.hd	HARMLESS	
+lang/grammar/expressions/pipe-placeholder-steps.hd	HARMLESS	
+lang/grammar/expressions/precedence-and-associativity.hd	HARMLESS	
+lang/lexical/literals/prefixed-string-template.hd	HARMLESS	
+lang/lexical/identifiers/raw-identifier-a-reserved-word-labels-a-named-argument.hd	HARMLESS	
+lang/lexical/identifiers/raw-identifier-a-reserved-word-names-a-method.hd	HARMLESS	
+lang/lexical/identifiers/raw-identifier-backticks-around-an-ordinary-name-change-nothing.hd	HARMLESS	
+lang/lexical/identifiers/raw-identifiers-as-names.hd	HARMLESS	
+lang/grammar/statements/same-line-suite-body-forms.hd	ERASED	Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
+lang/lexical/physical-and-logical-lines/same-line-suite-boundaries.hd	WEAKENED	Same-line for and while suites, including one before else, became indented blocks.
+lang/grammar/expressions/spread-forms-and-positions.hd	HARMLESS	
+lang/lexical/literals/string-and-char-literal-contents.hd	HARMLESS	
+lang/lexical/literals/string-interpolation-built-ins.hd	HARMLESS	
+lang/lexical/comments/strings-and-comments-hide-keywords-and-operators.hd	HARMLESS	
+lang/grammar/statements/suite-statement-right-sides.hd	WEAKENED	Right-side if and closure suites joined to one line; right-side match suites remain.
+lang/grammar/test-blocks/tests-block-items.hd	HARMLESS	
+lang/grammar/expressions/trailing-block-right-sides.hd	HARMLESS	
+lang/grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd	WEAKENED	Most trailing commas removed; those in an interpolated call and a closure header remain.
+lang/grammar/declarations/trait-and-impl-declaration-forms.hd	HARMLESS	
+lang/grammar/expressions/type-arguments-in-expressions.hd	HARMLESS	
+lang/grammar/declarations/type-declaration-forms.hd	HARMLESS	
+lang/grammar/types/type-expression-forms.hd	HARMLESS	
+lang/lexical/identifiers/unicode-function-names.hd	HARMLESS	
+lang/grammar/statements/grammar-assignment-nonplace.hd	ERASED	Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
+lang/grammar/types/row-kind-mismatch.hd	HARMLESS	
+lang/grammar/expressions/trailing-block-ineligible.hd	HARMLESS	
+lang/lexical/literals/unary-plus-i32-literal-range.hd	HARMLESS	
+lang/expressions/unary-and-binary-operators/composite-ordering.hd	HARMLESS	
+lang/data/construction-and-access/data-types.hd	HARMLESS	
+lang/data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd	HARMLESS	
+lang/grammar/types/declaration-owns-requirement-clause.hd	HARMLESS	
+lang/grammar/types/explicit-empty-row.hd	HARMLESS	
+lang/grammar/expressions/expression-type-arguments.hd	HARMLESS	
+lang/data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd	HARMLESS	
+lang/grammar/statements/let-else.hd	HARMLESS	
+lang/grammar/types/row-kinded-arguments.hd	HARMLESS	
+lang/grammar/statements/same-line-let-list-unused.hd	ERASED	The only same-line suite binding was indented, so the same-line case the title names is gone.

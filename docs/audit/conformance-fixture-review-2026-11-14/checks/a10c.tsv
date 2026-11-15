@@ -1,22 +1,22 @@
-traits/dynamic-trait-values/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10c	# test: bare trait body nested in tuple and option is one error
-references/operator-tokens/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
-traits/method-resolution/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
-data/struct-declarations/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
-data/matching-enums/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10c	# test: checker checker errors are reported
-expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10c	# test: checker checker errors are reported
-names/local-bindings/pattern-a-tuple-pattern-binds-distinct-names.hd	A10c	# test: checker checker errors are reported
-modules/module-initialization/module-initialization-a-call-with-an-inferred-result-reads-an-earlier-binding.hd	A10c	# test: checker inferred result of a late read reports once
-names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A10c	# test: checker self outside a trait or impl is unknown
-names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd	A10c	# test: checker self outside a trait or impl is unknown
-modules/use-forms/use-forms-a-group-use-from-a-package-module.hd	A10c	# test: failed group use reports one error
-modules/use-forms/use-forms-a-single-use-of-a-package-module.hd	A10c	# test: failed single use reports one error
-types/generics/inference-from-several-arguments/generic-inference-two-integer-literals-join.hd	A10c	# test: bool literal against integer still errors
-traits/trait-implementations/implementation-targets/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	A10c	# test: a bare parameter target with a delegation is rejected
-annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd	A10c	# test: a rejected block reports nothing else
-types/literal-types/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd	A10c	# test: float literal past f64 range is rejected
-control-flow/match-expressions/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
-control-flow/match-expressions/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
-control-flow/match-expressions/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
-traits/sealed-traits/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10c	# test: a bound naming no trait adds no second error
-functions/generic-functions/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10c	# test: a parameter named nowhere is reported once
-functions/generic-functions/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported
+lang/traits/dynamic-trait-values/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10c	# test: bare trait body nested in tuple and option is one error
+lang/references/operator-tokens/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
+lang/traits/method-resolution/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
+lang/data/struct-declarations/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
+lang/data/matching-enums/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10c	# test: checker checker errors are reported
+lang/expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10c	# test: checker checker errors are reported
+lang/names/local-bindings/pattern-a-tuple-pattern-binds-distinct-names.hd	A10c	# test: checker checker errors are reported
+lang/modules/module-initialization/module-initialization-a-call-with-an-inferred-result-reads-an-earlier-binding.hd	A10c	# test: checker inferred result of a late read reports once
+lang/names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A10c	# test: checker self outside a trait or impl is unknown
+lang/names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd	A10c	# test: checker self outside a trait or impl is unknown
+lang/modules/use-forms/use-forms-a-group-use-from-a-package-module.hd	A10c	# test: failed group use reports one error
+lang/modules/use-forms/use-forms-a-single-use-of-a-package-module.hd	A10c	# test: failed single use reports one error
+lang/types/generics/inference-from-several-arguments/generic-inference-two-integer-literals-join.hd	A10c	# test: bool literal against integer still errors
+lang/traits/trait-implementations/implementation-targets/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	A10c	# test: a bare parameter target with a delegation is rejected
+lang/annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd	A10c	# test: a rejected block reports nothing else
+lang/types/literal-types/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd	A10c	# test: float literal past f64 range is rejected
+lang/control-flow/match-expressions/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
+lang/control-flow/match-expressions/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
+lang/control-flow/match-expressions/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
+lang/traits/sealed-traits/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10c	# test: a bound naming no trait adds no second error
+lang/functions/generic-functions/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10c	# test: a parameter named nowhere is reported once
+lang/functions/generic-functions/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported

@@ -74,17 +74,17 @@ which kind of row it rests on.
   unchanged. A12 (13 against 12), A13 (12 against 11) and A9 (1,281 against
   1,269) grew by fixtures added since.
 - **P0 item 1: confirmed.** `crates/hd_driver/tests/conformance.rs:1812`
-  returns `Verdict::Pass` on `missing-entry-point`. `types/result-types/result-ok-unit.hd`
+  returns `Verdict::Pass` on `missing-entry-point`. `lang/types/result-types/result-ok-unit.hd`
   has a private `main` and no tests, so its body never runs.
-- **P0 item 2: confirmed.** `lexical/physical-and-logical-lines/crlf-line-endings.hd` had 18 CRLF
+- **P0 item 2: confirmed.** `lang/lexical/physical-and-logical-lines/crlf-line-endings.hd` had 18 CRLF
   line endings when 8f8f62c46 added it and 0 after edea876ae. The format commit
   folded the nested suite inside the header of
-  `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`, the feature it tests.
+  `lang/lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`, the feature it tests.
   `.gitattributes` has no line for either fixture.
 - **Hand findings, sampled:**
-  - B2 `traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`: confirmed. The error
+  - B2 `lang/traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`: confirmed. The error
     names `Eq`, not `Hash`.
-  - B4 `references/pointer-loans/adversarial/pointer-loan-extra-deep-shared-loans-kept.hd`: **wrong**.
+  - B4 `lang/references/pointer-loans/adversarial/pointer-loan-extra-deep-shared-loans-kept.hd`: **wrong**.
     Its `if n > 1000` never runs on purpose. The write that exists statically
     is what keeps the loans, so its verdict line says "loan needed" against the
     plain twin's "elided".
@@ -124,8 +124,8 @@ unless it says otherwise.
    - Restore the 21 ERASED fixtures (`formatter-review.tsv`) from `edea876ae^`,
      and `crlf-line-endings.hd` from `8f8f62c46`. Hand-check the 23 WEAKENED
      ones and restore only the lost forms.
-   - Add `spec/conformance/lexical/physical-and-logical-lines/crlf-line-endings.hd -text` and the same
-     for `lexical/processing-model/utf8-bom.hd` to `.gitattributes`.
+   - Add `spec/conformance/lang/lexical/physical-and-logical-lines/crlf-line-endings.hd -text` and the same
+     for `lang/lexical/processing-model/utf8-bom.hd` to `.gitattributes`.
    - Exclude layout and lexical fixtures (at least those citing `lang/01` and
      `lang/02`) from `hd fmt` runs over `spec/conformance`, or mark them
      format-exempt.
@@ -516,15 +516,15 @@ cite two different rules for one program. The fix is to keep one fixture
 and either cite the primary rule or write a second program that isolates the
 other rule.
 
-- `data/struct-declarations/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
-- `functions/parameters/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
-- `names/module-scope/forward-module-binding.hd` = `names/module-scope/exec-binding-read-before-declared.hd`
-- `types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `types/nominal-and-structural-types/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
-- `requirements/provider-scopes/generic-requirement-key-collision.hd` = `requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd`
-- `requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `requirements/requirement-rows/row-subsumption/row-union-private-result.hd` (`req.row.union.sites`)
-- `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd` = `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd` (same rule, too)
-- `requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd` (`req.row.param.unmarked`) = `requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd` (`req.row.param.no-inference`)
-- `references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd` is the `references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd` program without its `expect-stdout`. The runtime case covers it.
+- `lang/data/struct-declarations/mutable-field-modifier.hd` (cites 08 `#fields`) = `lang/grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
+- `lang/functions/parameters/nonfinal-spread.hd` (07 `#varargs`) = `lang/grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
+- `lang/names/module-scope/forward-module-binding.hd` = `lang/names/module-scope/exec-binding-read-before-declared.hd`
+- `lang/types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `lang/types/nominal-and-structural-types/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
+- `lang/requirements/provider-scopes/generic-requirement-key-collision.hd` = `lang/requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd`
+- `lang/requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `lang/requirements/requirement-rows/row-subsumption/row-union-private-result.hd` (`req.row.union.sites`)
+- `lang/requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd` = `lang/requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd` (same rule, too)
+- `lang/requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd` (`req.row.param.unmarked`) = `lang/requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd` (`req.row.param.no-inference`)
+- `lang/references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd` is the `lang/references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd` program without its `expect-stdout`. The runtime case covers it.
 
 **REJECTED (legitimate, 4 groups)**: they differ only by a directive or a
 doc comment, and that difference is the point of the case.
@@ -551,77 +551,77 @@ legal, or make them `warn` cases if the lint is in scope.
 ### Pilot, `lang/14-annotations.md`
 
 **A second error hides behind the marked one (B2)**
-- `annotations/typed-derivation/templates/template-outside-trait-module.hd` and
-  `annotations/typed-derivation/templates/template-reexported-from-other-package.hd`: the template writes
+- `lang/annotations/typed-derivation/templates/template-outside-trait-module.hd` and
+  `lang/annotations/typed-derivation/templates/template-reexported-from-other-package.hd`: the template writes
   `fn debug(self) -> string`; std `Debug` is
   `debug(&self, out: *mut DebugWriter) -> void`. `hd` stops at
   `misplaced-derivation`, so CI never sees the mismatch.
-- `annotations/typed-derivation/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced.hd`:
+- `lang/annotations/typed-derivation/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced.hd`:
   the template body is `"x"` with no walk, describe or build call, so
   `annot.template.body.error` (`marker-template`) also applies.
 
 **Wrong citation (B7)**
-- `annotations/two-annotate-forms/facts-of-the-result-of-a-function-declaration-is-its-facts.hd`: an accept case cites
+- `lang/annotations/two-annotate-forms/facts-of-the-result-of-a-function-declaration-is-its-facts.hd`: an accept case cites
   `annot.facts-of.target.error`, an error-only rule.
-- `annotations/two-annotate-forms/facts-of-a-missing-argument-follows-the-call-rules.hd`
+- `lang/annotations/two-annotate-forms/facts-of-a-missing-argument-follows-the-call-rules.hd`
   and `…-an-extra-argument-follows-the-call-rules-31.hd`: they expect
   `argument-count`, but cite `target.error`, whose code is
   `invalid-facts-of-target`.
-- `annotations/typed-derivation/handles/tuple-handle-instances.hd`: cites `annot.handle.shared-target`,
+- `lang/annotations/typed-derivation/handles/tuple-handle-instances.hd`: cites `annot.handle.shared-target`,
   but sharing is never observed.
 
 **Title doesn't match the code (B1)**
-- `annotations/two-annotate-forms/values-are-found-by-type-in-source-order.hd`: each fact type
+- `lang/annotations/two-annotate-forms/values-are-found-by-type-in-source-order.hd`: each fact type
   appears once, so source order is never tested.
-- `annotations/typed-derivation/derivation-blocks/trait-less-derivation-block.hd`: "replaces decorator metadata",
+- `lang/annotations/typed-derivation/derivation-blocks/trait-less-derivation-block.hd`: "replaces decorator metadata",
   but the replaced member has no decorator.
-- `annotations/typed-derivation/the-structure-trait/structure-calls-are-pure.hd`: the title names walk, describe and
+- `lang/annotations/typed-derivation/the-structure-trait/structure-calls-are-pure.hd`: the title names walk, describe and
   build, but only describe is called.
-- `annotations/typed-derivation/walkers-describers-and-sources/walker-member-through-a-generic-structure-parameter-is-callable.hd`:
+- `lang/annotations/typed-derivation/walkers-describers-and-sources/walker-member-through-a-generic-structure-parameter-is-callable.hd`:
   an accept case titled "errors"; the walker is concrete.
-- `annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd`:
+- `lang/annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd`:
   kept its reject twin's title.
 
 **Checks that cannot fail (B3)**
-- `annotations/typed-derivation/handles/structure-a-generic-owner-has-one-handle-per-instantiation.hd`:
+- `lang/annotations/typed-derivation/handles/structure-a-generic-owner-has-one-handle-per-instantiation.hd`:
   the printed equalities are true whether handles are shared or per
   instantiation.
 
 **Panic marker on the wrong line (B2)**
-- `annotations/typed-derivation/facts/fact-evaluation-reads-itself.hd` and
-  `annotations/typed-derivation/facts/fact-evaluation-cycle.hd`: `annot.fact.eval.reentrant` puts the
+- `lang/annotations/typed-derivation/facts/fact-evaluation-reads-itself.hd` and
+  `lang/annotations/typed-derivation/facts/fact-evaluation-cycle.hd`: `annot.fact.eval.reentrant` puts the
   panic at the second read (inside `own_path`), but the marker is on `main`'s read.
 
 **Accept cases in `typing/warnings/`**: covered by A6 above.
 
 **Dead code (B5, minor)**
-- `annotations/two-annotate-forms/different-facts-are-evaluated-independently.hd`: `facts_of`
+- `lang/annotations/two-annotate-forms/different-facts-are-evaluated-independently.hd`: `facts_of`
   import and `no_prefix` unused.
-- `annotations/two-annotate-forms/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd`:
+- `lang/annotations/two-annotate-forms/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd`:
   `struct Audit` unused.
-- `annotations/typed-derivation/derivation-blocks/trait-less-block-declares-no-method.hd`: `Note` and `note()`
+- `lang/annotations/typed-derivation/derivation-blocks/trait-less-block-declares-no-method.hd`: `Note` and `note()`
   unused.
 
 ## Plausible (Owner Call)
 
-- `annotations/error-derivation/error-form-other-rule.hd` ~ `annotations/error-derivation/error-argument-number.hd`:
+- `lang/annotations/error-derivation/error-form-other-rule.hd` ~ `lang/annotations/error-derivation/error-argument-number.hd`:
   both are invalid `@error` arguments (an identifier and a number). Merge?
-- `annotations/typed-derivation/walkers-describers-and-sources/generic-data-member-call.hd` ~ `annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd`:
+- `lang/annotations/typed-derivation/walkers-describers-and-sources/generic-data-member-call.hd` ~ `lang/annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd`:
   the only difference is the hook name. One case per hook, or one in total?
-- `annotations/typed-derivation/typed-derivation.hd` ~ `annotations/typed-derivation/walk-describe-and-build/typed-derivation-walk.hd`:
+- `lang/annotations/typed-derivation/typed-derivation.hd` ~ `lang/annotations/typed-derivation/walk-describe-and-build/typed-derivation-walk.hd`:
   the same declarations; the runtime one adds asserts.
-- `annotations/error-derivation/error-generated-bounds.hd`: the title names the transparent
+- `lang/annotations/error-derivation/error-generated-bounds.hd`: the title names the transparent
   bound, but no generic use needs it.
-- `annotations/typed-derivation/derivation-blocks/member-line-list-expression.hd`: "any list-typed
+- `lang/annotations/typed-derivation/derivation-blocks/member-line-list-expression.hd`: "any list-typed
   expression", but only named globals are tested.
-- `annotations/typed-derivation/handles/facts-and-handles-build-once.hd`: tests fact laziness, but
+- `lang/annotations/typed-derivation/handles/facts-and-handles-build-once.hd`: tests fact laziness, but
   cites `handle.constants`.
-- `annotations/two-annotate-forms/typed-fact-function.hd`: the title says the parameters are
+- `lang/annotations/two-annotate-forms/typed-fact-function.hd`: the title says the parameters are
   written as bounds, but `wrap[T]` is unbounded.
 
 ## Spec Questions
 
-- `annotations/two-annotate-forms/facts-of-an-unknown-name-is-unknown.hd`:
+- `lang/annotations/two-annotate-forms/facts-of-an-unknown-name-is-unknown.hd`:
   `annot.facts-of.target.error` says any other argument gives
   `invalid-facts-of-target`, but the fixture expects `unknown-name`. The spec
   doesn't say which one wins.
@@ -653,18 +653,18 @@ Commit `edea876ae` ("Apply the canonical hd format", 2026-10-27) reformatted
 byte-exact", but it did reformat valid lexical and layout fixtures. The
 following fixtures have lost the feature their title names, and their
 pre-format version (`git show edea876ae^:PATH`) still has it:
-- `lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: the multi-line
+- `lang/lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: the multi-line
   bracket lists were joined onto one line.
-- `lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: no leading-dot line is left.
-- `lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: the same-line `if`
+- `lang/lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: no leading-dot line is left.
+- `lang/lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: the same-line `if`
   became a block.
-- `lexical/whitespace-and-indentation/no-final-line-ending.hd`: the formatter added the final newline
+- `lang/lexical/whitespace-and-indentation/no-final-line-ending.hd`: the formatter added the final newline
   the fixture must lack (`lex.indent.eof-newline`).
-- `lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`,
-  `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`,
-  `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`,
-  `lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`,
-  `lexical/physical-and-logical-lines/colons-in-brackets-and-trailing-blocks.hd`: their continuation
+- `lang/lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`,
+  `lang/lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`,
+  `lang/lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`,
+  `lang/lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`,
+  `lang/lexical/physical-and-logical-lines/colons-in-brackets-and-trailing-blocks.hd`: their continuation
   and suite layouts were flattened.
 Fix: restore each from `edea876ae^`, and exclude layout-sensitive fixtures
 from the formatter (the ones that cite `lex.*` rules, at least). **Script check
@@ -674,28 +674,28 @@ them citing chapters 01 or 02. Those 122 need a targeted review against their
 pre-format version (planned as extra batches at the end).
 
 **Title doesn't match the code (B1), not the formatter**
-- `lexical/processing-model/bom-inside-comment.hd`: the title says a U+FEFF "in a comment or
+- `lang/lexical/processing-model/bom-inside-comment.hd`: the title says a U+FEFF "in a comment or
   a string literal" is content. Both BOMs are in comments, and that was true
   before the format commit too.
-- `lexical/operators-and-delimiters/every-operator-and-delimiter-token.hd`: `$` and `::` never appear.
-- `lexical/literals/reserved-word-interpolation.hd`: the title says a `$` before a
+- `lang/lexical/operators-and-delimiters/every-operator-and-delimiter-token.hd`: `$` and `::` never appear.
+- `lang/lexical/literals/reserved-word-interpolation.hd`: the title says a `$` before a
   reserved word is a bare `$`, but the case expects `syntax-error`
   (`lex.interp.reserved-dollar`).
 
 **Wrong citation (B7)**
-- `lexical/literals/semicolon-after-binding.hd`: cites `#literals`; the rule is
+- `lang/lexical/literals/semicolon-after-binding.hd`: cites `#literals`; the rule is
   `lex.punct.semicolon-reserved` under Operators And Delimiters.
-- `lexical/processing-model/mid-file-bom.hd`: cites `#processing-model`; the rule is
+- `lang/lexical/processing-model/mid-file-bom.hd`: cites `#processing-model`; the rule is
   `lex.encoding.stray-bom` under Source Encoding.
-- `lexical/literals/unary-plus-i32-literal-range.hd`: cites 01 `#integer-literals`;
+- `lang/lexical/literals/unary-plus-i32-literal-range.hd`: cites 01 `#integer-literals`;
   the `integer-literal-range` rule is `types.literal.int-range` in chapter 04.
 
 **Duplicates (C1)**
-- `lexical/literals/repeated-numeric-separator.hd` = `lexical/literals/double-numeric-separator.hd`
+- `lang/lexical/literals/repeated-numeric-separator.hd` = `lang/lexical/literals/double-numeric-separator.hd`
   (both are `1__0`, the same rule).
-- `lexical/literals/semicolon-after-binding.hd` ~ `lexical/operators-and-delimiters/semicolon.hd` (only
+- `lang/lexical/literals/semicolon-after-binding.hd` ~ `lang/lexical/operators-and-delimiters/semicolon.hd` (only
   the literal before the `;` differs).
-- `lexical/literals/stray-dollar-in-string.hd` ~ `lexical/literals/stray-dollar.hd` (both put
+- `lang/lexical/literals/stray-dollar-in-string.hd` ~ `lang/lexical/literals/stray-dollar.hd` (both put
   a `$` before the closing quote).
 
 **Rejected**: three `parse/valid` B6 flags (`closure-body-ends-at-comma-line`,
@@ -720,15 +720,15 @@ on it before they count.
 
 Ledger: b005 (44): 8 rows. Confirmed 3, plausible 2, rejected 3.
 
-- **Formatter (systemic, see above)**: `lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`.
+- **Formatter (systemic, see above)**: `lang/lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`.
   The `else:` on the next physical line was joined onto the `if` line, so
   `lex.suite-end.else-next-line` is untested.
-- **Duplicates (C1)**: `lexical/whitespace-and-indentation/tab-indentation.hd` = `lexical/whitespace-and-indentation/tab-in-function-body.hd`
-  (a tab before a body line); `grammar/expressions/positional-after-named.hd` =
-  `grammar/expressions/positional-after-named-argument.hd` (`resize(width=640, 480)`).
-- Plausible: `grammar/control-flow-expressions/while-else.hd` (the title says the loop produces a
-  value; none is used). `lexical/identifiers/raw-identifiers-name-fields-members-labels-parameters-and-bindings.hd` ~
-  `lexical/identifiers/raw-identifiers-are-ordinary-names-at-run-time.hd`.
+- **Duplicates (C1)**: `lang/lexical/whitespace-and-indentation/tab-indentation.hd` = `lang/lexical/whitespace-and-indentation/tab-in-function-body.hd`
+  (a tab before a body line); `lang/grammar/expressions/positional-after-named.hd` =
+  `lang/grammar/expressions/positional-after-named-argument.hd` (`resize(width=640, 480)`).
+- Plausible: `lang/grammar/control-flow-expressions/while-else.hd` (the title says the loop produces a
+  value; none is used). `lang/lexical/identifiers/raw-identifiers-name-fields-members-labels-parameters-and-bindings.hd` ~
+  `lang/lexical/identifiers/raw-identifiers-are-ordinary-names-at-run-time.hd`.
 - Rejected: two B7 flags claimed `#control-flow-expressions` is missing; the
   heading "Control-Flow Expressions" exists. One C1 flag: `brace-escape`
   (`\{`) and `invalid-escape` (`\x`) are different escapes.
@@ -741,17 +741,17 @@ so B7 flags of the "anchor does not exist" kind are always wrong.
 
 Ledger: b006 (45): 8 rows. Confirmed 7, plausible 1.
 
-- **Formatter**: `grammar/expressions/embedded-copy-syntax.hd`. Its same-line suite
+- **Formatter**: `lang/grammar/expressions/embedded-copy-syntax.hd`. Its same-line suite
   `if post.id == "p": post.Timestamps = stamps` was split over two lines.
 - **Wrong citation (B7)**: each cites a section that does not hold the rule.
-  - `grammar/declarations/trailing-callback-statement.hd` cites `#declarations`; the rule is `grammar.call.trailing-block` (Trailing Blocks).
-  - `grammar/declarations/copy-update-spread.hd` cites `#data-types`; the rule is `grammar.primary.update-spread`.
-  - `grammar/declarations/copy-update-spread-not-first.hd` cites `#data-types`; the rule is `grammar.primary.prefix-elsewhere`.
-  - `grammar/declarations/explicit-generic-data-arguments.hd` cites `#data-types`; the rule is `grammar.expr.type-arguments.type-name`.
-  - `grammar/declarations/explicit-generic-arguments-with-placeholder.hd` cites `#declarations`; the rule is `grammar.primary.function-type-argument`.
-- **Duplicate (C1)**: `grammar/expressions/comparison-chaining-with-names.hd` =
-  `grammar/expressions/chained-comparison.hd` (`0 < x < 10`; only the names differ).
-- Plausible: `grammar/expressions/reserved-receiver-names.hd` (no reserved word appears).
+  - `lang/grammar/declarations/trailing-callback-statement.hd` cites `#declarations`; the rule is `grammar.call.trailing-block` (Trailing Blocks).
+  - `lang/grammar/declarations/copy-update-spread.hd` cites `#data-types`; the rule is `grammar.primary.update-spread`.
+  - `lang/grammar/declarations/copy-update-spread-not-first.hd` cites `#data-types`; the rule is `grammar.primary.prefix-elsewhere`.
+  - `lang/grammar/declarations/explicit-generic-data-arguments.hd` cites `#data-types`; the rule is `grammar.expr.type-arguments.type-name`.
+  - `lang/grammar/declarations/explicit-generic-arguments-with-placeholder.hd` cites `#declarations`; the rule is `grammar.primary.function-type-argument`.
+- **Duplicate (C1)**: `lang/grammar/expressions/comparison-chaining-with-names.hd` =
+  `lang/grammar/expressions/chained-comparison.hd` (`0 < x < 10`; only the names differ).
+- Plausible: `lang/grammar/expressions/reserved-receiver-names.hd` (no reserved word appears).
 
 **Script check A9** (`a9_cited_code.py`, output `full/a9.tsv`): a reject,
 warn or panic case whose expected code does not appear in the text it cites.
@@ -765,10 +765,10 @@ Ledger: b007 (44): 6 rows. Confirmed 2, plausible 4. Reviewed on the stale
 binary, but no row rests on `hd check`.
 
 - **Code under test never runs (B4)**:
-  - `grammar/statements/header-and-bracket-expression-positions.hd`: the guard
+  - `lang/grammar/statements/header-and-bracket-expression-positions.hd`: the guard
     closure on line 14 is never evaluated, since `classify(.Some(+12))` takes
     the first arm.
-  - `grammar/control-flow-expressions/nested-control-flow-as-expressions.hd`: the middle `else if`
+  - `lang/grammar/control-flow-expressions/nested-control-flow-as-expressions.hd`: the middle `else if`
     branch (line 38) is never taken.
 - Plausible, **fixtures that differ only in hint text**:
   `parse/invalid/a-colon-in-parentheses-{after-a-long-operand,before-a-comma,before-no-type}-gives-the-schematic-hint.hd`
@@ -776,39 +776,39 @@ binary, but no row rests on `hd check`.
   rule. The runner never judges message text, so as conformance cases they
   add nothing. They are used only in `cases.tsv`. To keep the hint coverage,
   move them to `cli/` cases, which compare text.
-- Plausible: `grammar/expressions/expression-type-arguments.hd` is a strict subset of
-  `grammar/expressions/type-arguments-in-expressions.hd`.
+- Plausible: `lang/grammar/expressions/expression-type-arguments.hd` is a strict subset of
+  `lang/grammar/expressions/type-arguments-in-expressions.hd`.
 
 #### b008 (`lang/02-grammar.md`)
 
 Ledger: b008 (44): 9 rows. Confirmed 4, plausible 2, spec question 2, covered by A6 1.
 
-- **Formatter**: `grammar/statements/same-line-for-list.hd`,
-  `grammar/statements/same-line-suite-body-forms.hd` (their same-line suites were
-  split), and `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd` (its trailing commas
+- **Formatter**: `lang/grammar/statements/same-line-for-list.hd`,
+  `lang/grammar/statements/same-line-suite-body-forms.hd` (their same-line suites were
+  split), and `lang/grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd` (its trailing commas
   in declarations and patterns were removed).
-- **Wrong citation (B7)**: `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd` cites
+- **Wrong citation (B7)**: `lang/grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd` cites
   `grammar.generic.default.type-row`; the fixture has no type default.
-- **Spec question, limits**: `grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd`
-  (170 prefix `*`) and `grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd` (169 `**`)
+- **Spec question, limits**: `lang/grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd`
+  (170 prefix `*`) and `lang/grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd` (169 `**`)
   expect `nesting-too-deep`. But `grammar.limit.nesting` covers only brackets,
   suites, closures and interpolations. `grammar.limit.chain` covers binary and
   postfix operators, with a limit of 10,001 in `hd`. Read literally, the spec
   sets no limit on prefix `*` and must accept 169 `**`. Either the spec's
   limits should cover prefix operators and right-nested chains, or these
   fixtures test `hd`'s recursion limit, not the language.
-- Plausible: `grammar/generic-parameters-and-bounds/trait-value-bindings.hd` (the title says a named type
-  takes bindings, which the rule forbids). `grammar/generic-parameters-and-bounds/a-parameter-bound-by-two-instantiations-of-one-trait-meets-each.hd`
+- Plausible: `lang/grammar/generic-parameters-and-bounds/trait-value-bindings.hd` (the title says a named type
+  takes bindings, which the rule forbids). `lang/grammar/generic-parameters-and-bounds/a-parameter-bound-by-two-instantiations-of-one-trait-meets-each.hd`
   (only one instantiation is required).
-- `grammar/statements/same-line-let-list-unused.hd`: an accept case in
+- `lang/grammar/statements/same-line-let-list-unused.hd`: an accept case in
   `warnings/`, already in A6.
 
 #### b009 (`lang/02-grammar.md`)
 
 Ledger: b009 (43): 6 rows. Confirmed 2, plausible 4.
 
-- **Formatter**: `grammar/statements/let-else-same-line.hd` and
-  `grammar/statements/let-after-same-line-if-keeps-else.hd`. Their same-line
+- **Formatter**: `lang/grammar/statements/let-else-same-line.hd` and
+  `lang/grammar/statements/let-after-same-line-if-keeps-else.hd`. Their same-line
   `let … else:` and `if` suites were split, so `grammar.stmt.let-else.same-line`
   and `.not-inline` are untested.
 - Plausible, B7: `typing/invalid/a-chain-may-not-redeclare-a-name-{1,2}.hd`
@@ -822,35 +822,35 @@ Ledger: b009 (43): 6 rows. Confirmed 2, plausible 4.
 
 Ledger: b010 (43): 4 rows. Confirmed 1, plausible 1, rejected 2.
 
-- **A second error behind the marked one (B2)**: `grammar/test-blocks/tests-as-identifier.hd`.
+- **A second error behind the marked one (B2)**: `lang/grammar/test-blocks/tests-as-identifier.hd`.
   Line 5 `tests := 3` is the marked `syntax-error`, but line 6 `tests` uses the
   reserved word again. A parser that recovers reports line 6 too, and fails
   the "no other located error" rule. Fix: make line 6 `0`.
-- Plausible: `grammar/types/optional-function-type-after-requirement-row.hd`.
+- Plausible: `lang/grammar/types/optional-function-type-after-requirement-row.hd`.
   Its helper trait method `fn line(self)` has no result type. `hd check`
   reports `missing-result-type`, but the case is `parse` phase, so this
   matters only if the missing result type is a parse error.
-- Rejected: `grammar/statements/binding-list.hd` (B7 wanted several citations; the
-  index allows one). `grammar/types/counted-reference-types.hd` (B6 type error in
+- Rejected: `lang/grammar/statements/binding-list.hd` (B7 wanted several citations; the
+  index allows one). `lang/grammar/types/counted-reference-types.hd` (B6 type error in
   a parse-only case).
 
 #### b011 (`lang/02-grammar.md`)
 
 Ledger: b011 (50): 15 rows. Confirmed 2, plausible 6, rejected 7.
 
-- **Title out of date after a spec change (B1)**: `grammar/types/requirement-row-lists.hd`
+- **Title out of date after a spec change (B1)**: `lang/grammar/types/requirement-row-lists.hd`
   ("rows are comma lists … parenthesized inside types") and
-  `grammar/types/bare-row-list-in-type.hd` ("several keys inside a type must be
+  `lang/grammar/types/bare-row-list-in-type.hd` ("several keys inside a type must be
   parenthesized"). Today `+` joins keys, and `grammar.type.row.no-parentheses`
   forbids parentheses around a row. The code follows the new rule; the titles
   describe the old one.
-- Plausible: `grammar/use-declarations/use-declaration-forms.hd` (the title promises a group
+- Plausible: `lang/grammar/use-declarations/use-declaration-forms.hd` (the title promises a group
   with a trailing comma, but none has one; the format commit touched it).
-  `grammar/use-declarations/single-and-grouped-use.hd` ~ `use-declaration-forms.hd` (merge?).
-  `grammar/statements/same-line-let-comma.hd` (the title blames a multi-name `let`,
+  `lang/grammar/use-declarations/single-and-grouped-use.hd` ~ `use-declaration-forms.hd` (merge?).
+  `lang/grammar/statements/same-line-let-comma.hd` (the title blames a multi-name `let`,
   but a single same-line `let` is also rejected there).
-  `grammar/types/explicit-empty-row.hd` (the title says "normalization", which
-  is never tested). `grammar/types/mutable-list-parameter-index-assignment.hd` and
+  `lang/grammar/types/explicit-empty-row.hd` (the title says "normalization", which
+  is never tested). `lang/grammar/types/mutable-list-parameter-index-assignment.hd` and
   `…/mutable-parameter-field-assignment.hd` (cite `#types`; the rule is
   `grammar.stmt.assign-place`).
 - Rejected: 7 B2 and B6 flags for check-only errors inside parse-phase cases.
@@ -861,10 +861,10 @@ Ledger: b011 (50): 15 rows. Confirmed 2, plausible 6, rejected 7.
 
 Ledger: b013 (46): 3 rows. Plausible 2, unverified 1. No high-value finding.
 
-- Plausible: `names/name-categories/redeclare-core-type.hd` cites `#name-categories`; the
-  error rule is `module.prelude.no-shadow`. `names/member-resolution/part-trait-method-ignored-by-lookup.hd`
-  repeats the last assert of `names/member-resolution/embedded-trait-method-via-part.hd`.
-- Unverified B5: `names/member-resolution/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd`
+- Plausible: `lang/names/name-categories/redeclare-core-type.hd` cites `#name-categories`; the
+  error rule is `module.prelude.no-shadow`. `lang/names/member-resolution/part-trait-method-ignored-by-lookup.hd`
+  repeats the last assert of `lang/names/member-resolution/embedded-trait-method-via-part.hd`.
+- Unverified B5: `lang/names/member-resolution/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd`
   (unused `double`).
 
 #### b012 (`lang/03-names-and-scopes.md`)
@@ -874,7 +874,7 @@ Ledger: b012 (38): 9 rows. Confirmed 9.
 - **Wrong citation (B7), 8 fixtures**: the `declaration-checks-…-type-parameter-{323..330}.hd`
   set (4 reject, 4 accept) cites `#function-and-closure-scopes`. The rule
   they test, `names.type-param.no-redeclare`, is under `### Type Parameters`.
-- **Title doesn't match the code (B1)**: `names/control-flow-binding-scopes/branch-scopes-shadow.hd`.
+- **Title doesn't match the code (B1)**: `lang/names/control-flow-binding-scopes/branch-scopes-shadow.hd`.
   There is no outer `value`, so nothing is shadowed. The branches only declare
   independent locals.
 
@@ -882,13 +882,13 @@ Ledger: b012 (38): 9 rows. Confirmed 9.
 
 Ledger: b015 (44): 2 rows. Confirmed 1, unverified 1.
 
-- **Rejected for the wrong reason (B2)**: `names/member-resolution/local-impl-trait-value-before-declaration.hd`.
+- **Rejected for the wrong reason (B2)**: `lang/names/member-resolution/local-impl-trait-value-before-declaration.hd`.
   Line 11 `let labeled: &dyn Labeled = invoice` fails because the `&` is missing
   ("a value never becomes a trait value reference by itself"), not because the
   local `impl` comes later. A compiler that ignored `names.member.known-impl`
   would still pass. Fix: write `&invoice`, so that only the impl's position
   is wrong.
-- Unverified: `names/member-resolution/local-impl-known-after-declaration.hd` (`hd check`
+- Unverified: `lang/names/member-resolution/local-impl-known-after-declaration.hd` (`hd check`
   did not finish under machine load).
 
 **Kind to watch: rejected for the wrong reason.** A reject case whose marked
@@ -900,24 +900,24 @@ not implemented. This is the most valuable B2 kind.
 Ledger: b014 (45): 4 rows. Plausible 4. Little was checked with `hd`
 because of machine load.
 
-- Plausible merges: `names/member-resolution/private-own-field-beside-promoted.hd` ~ half
-  of `names/member-resolution/private-own-field-needs-another-name.hd`.
-  `names/use-declarations/duration-unknown-unit.hd` ~ `names/use-declarations/unknown-literal-suffix.hd`
+- Plausible merges: `lang/names/member-resolution/private-own-field-beside-promoted.hd` ~ half
+  of `lang/names/member-resolution/private-own-field-needs-another-name.hd`.
+  `lang/names/use-declarations/duration-unknown-unit.hd` ~ `lang/names/use-declarations/unknown-literal-suffix.hd`
   (a duration unit is arguably its own form, so they are likely both needed).
-- Plausible B7: `names/local-bindings/let-else-scope.hd` cites `names.let-else.not-in-else`
+- Plausible B7: `lang/names/local-bindings/let-else-scope.hd` cites `names.let-else.not-in-else`
   but never reads the name in `else`.
-- Plausible B2: `names/module-scope/use-names-exec-binding.hd` (tree case). Line 8
+- Plausible B2: `lang/names/module-scope/use-names-exec-binding.hd` (tree case). Line 8
   also reads a name the failed import leaves unbound.
 
 #### b016 (`lang/03-names-and-scopes.md`)
 
 Ledger: b016 (45): 2 rows. Plausible 2.
 
-- Plausible B7: `names/module-scope/a-function-name-in-a-local-annotation-is-an-unknown-type.hd`
+- Plausible B7: `lang/names/module-scope/a-function-name-in-a-local-annotation-is-an-unknown-type.hd`
   cites `names.module.other-module.type`, but `helper` is in the same module.
   `names.category.syntax` fits better.
-- Plausible C1: `names/module-scope/sibling-module-private-function-bare.hd` ~
-  `names/module-scope/sibling-module-function-not-imported.hd` (they differ only in
+- Plausible C1: `lang/names/module-scope/sibling-module-private-function-bare.hd` ~
+  `lang/names/module-scope/sibling-module-function-not-imported.hd` (they differ only in
   `pub`, which the cited rule does not mention).
 - Tooling note: some `hd check` runs printed their result and then did not
   exit within 60 seconds under heavy machine load. One file that hung did not
@@ -928,27 +928,27 @@ Ledger: b016 (45): 2 rows. Plausible 2.
 
 Ledger: b018 (24): 4 rows. Confirmed 3, plausible 1.
 
-- **Panic marker on the caller's line (B2, minor)**: `types/numeric-conversions/i32-remainder-by-zero.hd`
-  and `types/numeric-conversions/i64-remainder-by-zero.hd` mark `_ := remainder(1, 0)` (line 7),
+- **Panic marker on the caller's line (B2, minor)**: `lang/types/numeric-conversions/i32-remainder-by-zero.hd`
+  and `lang/types/numeric-conversions/i64-remainder-by-zero.hd` mark `_ := remainder(1, 0)` (line 7),
   but `a % b` (line 5) raises the panic. The runner does not judge panic
   lines, and the README says the marker names the line that raises the panic.
   This pattern (the marker on the top-level call) is probably widespread.
   **Owner question:** should a panic marker sit on the raising line or on the
   entry call? Then fix all of them at once.
-- **A latent second error (B2, minor)**: `names/use-declarations/module-qualified-without-use.hd`.
+- **A latent second error (B2, minor)**: `lang/names/use-declarations/module-qualified-without-use.hd`.
   `fn timeout(…) -> void: time.s(seconds)` returns a `Duration` from a `void`
   function. With the `use` added, it is still a `type-mismatch`. Fix:
   `_ := time.s(seconds)`.
-- Plausible B7: `types/generics/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd`
+- Plausible B7: `lang/types/generics/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd`
   cites `#generics`; it tests `types.generic.call-cycle.fixed-callee`.
 
 #### b017 (`lang/03`, `lang/04`)
 
 Ledger: b017 (44): 4 rows. Plausible 2, rejected 2.
 
-- Plausible B7: `names/name-categories/a-struct-called-with-an-unknown-argument.hd` cites
+- Plausible B7: `lang/names/name-categories/a-struct-called-with-an-unknown-argument.hd` cites
   `names.type-as-value` (whose code is `type-used-as-value`) but expects
-  `unknown-name`. `names/name-categories/duplicate-method-generic-sibling.hd` cites
+  `unknown-name`. `lang/names/name-categories/duplicate-method-generic-sibling.hd` cites
   `names.type-param.no-redeclare`; a repeat inside one list is `names.type-param.unique`.
 - Rejected: `tests-block-use-leak.hd`. The `use` repeats a test-prelude name,
   but line 5 is non-test code, so a leak of either the `use` or the test
@@ -964,11 +964,11 @@ Ledger: b021 (45): 4 rows. Confirmed 3, covered by A6 1.
 - **Title copied across a generated series (B1)**: the
   `runtime/panic/int-widths-i8-overflow-panics-at-127-plus-1-0{1..4}.hd` series
   all share one title, but `-03` uses `u8` subtraction and `-04` uses `u16`
-  multiplication. `types/numeric-conversions/int-widths-a-u64-product-past-the-maximum-panics.hd`
+  multiplication. `lang/types/numeric-conversions/int-widths-a-u64-product-past-the-maximum-panics.hd`
   multiplies `u64`. These numbered series come from one spec example split
   into cases, and they keep the example's title. Each case should get its
   own title.
-- `types/optional-types/unused-nested-optional-binding.hd`: an accept case under
+- `lang/types/optional-types/unused-nested-optional-binding.hd`: an accept case under
   `warnings/`, already in A6.
 
 **Brief v2.1 (from b025 on):** reviewers read all of a batch's fixtures in
@@ -983,7 +983,7 @@ Ledger: b019 (45): 8 rows. Confirmed 4 (+ the A10 class), plausible 3, rejected 
 - **Systemic, script check A10** (`a10_legal_titles.py`, output `full/a10.tsv`):
   **all 40** `*-legal.hd` accept fixtures carry the `# test:` title of their
   reject twin word for word. An example is
-  `types/literal-types/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd`,
+  `lang/types/literal-types/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd`,
   "…is rejected", which is an accept case. The pilot's `…-130-legal.hd` is one
   of them. Fix: give each `-legal` fixture a title that states what is
   accepted.
@@ -991,12 +991,12 @@ Ledger: b019 (45): 8 rows. Confirmed 4 (+ the A10 class), plausible 3, rejected 
   `typing/valid/literals-a-signed-literal-under-power-checks-and-evaluates-{87,88,89}.hd`.
   A `type` case never runs, so "`-2 ** 2` evaluates to -4" is untested. Fix:
   make them `runtime` cases with an `assert_equal`.
-- Plausible: `types/literal-types/literal-types-float-literals-multiply-as-floats.hd`
-  (uses only float literals). `types/map-key-types/map-grow-and-remove.hd` (the header
+- Plausible: `lang/types/literal-types/literal-types-float-literals-multiply-as-floats.hd`
+  (uses only float literals). `lang/types/map-key-types/map-grow-and-remove.hd` (the header
   names order, replace, reindex and repair rules; the code exercises none).
   `typing/valid/literals-a-negated-bare-literal-is-signed-through-parentheses-{83..86}.hd`
   (no spec rule says this).
-- Rejected: `types/literal-types/literal-types-a-negated-literal-cannot-become-unsigned.hd`.
+- Rejected: `lang/types/literal-types/literal-types-a-negated-literal-cannot-become-unsigned.hd`.
   The marker is on line 5, which is where `hd` reports; the reviewer
   miscounted.
 
@@ -1047,22 +1047,22 @@ for l in list(open('cases.tsv'))[1:]:
 
 Ledger: b020 (34): 6 rows. Confirmed 3, plausible 3.
 
-- `types/numeric-conversions/u8-checked-add.hd`, `types/numeric-conversions/i64-widening-checked.hd`: the A11 class above.
-- `types/numeric-conversions/u8-add-overflow.hd`: the panic marker is on the caller's line
+- `lang/types/numeric-conversions/u8-checked-add.hd`, `lang/types/numeric-conversions/i64-widening-checked.hd`: the A11 class above.
+- `lang/types/numeric-conversions/u8-add-overflow.hd`: the panic marker is on the caller's line
   (the owner question in b018).
-- Plausible: `types/numeric-conversions/f32-to-integer-saturates.hd` and `…/f64-…`. Their
+- Plausible: `lang/types/numeric-conversions/f32-to-integer-saturates.hd` and `…/f64-…`. Their
   `usize` column expects 32-bit maxima, which looks target-dependent.
-  `types/opaque-result-types/impl-trait-value-copy.hd`: the expected copy-on-bind is not
+  `lang/types/opaque-result-types/impl-trait-value-copy.hd`: the expected copy-on-bind is not
   stated in the cited section.
 
 #### b023 (`lang/04-type-system.md`)
 
 Ledger: b023 (45): 7 rows. Confirmed 2, plausible 4, unverified 1.
 
-- **Duplicate (C1)**: `types/collection-values/value-argument-reference-change.hd` ~
-  `types/collection-values/value-argument-legacy-alias.hd`. The same program, with a
+- **Duplicate (C1)**: `lang/types/collection-values/value-argument-reference-change.hd` ~
+  `lang/types/collection-values/value-argument-legacy-alias.hd`. The same program, with a
   renamed helper and reworded titles.
-- **Checks that cannot fail (B3)**: `types/generics/bound-order/generic-forward-bound-explicit-first-slot.hd`.
+- **Checks that cannot fail (B3)**: `lang/types/generics/bound-order/generic-forward-bound-explicit-first-slot.hd`.
   The default `= string` equals the bound, so the test passes even if bound
   inference breaks (not hand-checked; plausible).
 - Plausible: `value-argument-legacy-alias.hd` (`view_len_after` is never called;
@@ -1076,18 +1076,18 @@ Ledger: b023 (45): 7 rows. Confirmed 2, plausible 4, unverified 1.
 
 Ledger: b022 (46): 9 rows. Confirmed 2, plausible 5, covered by A6 2.
 
-- **Wrong citation (B7)**: `types/numeric-conversions/a-cast-with-no-argument-is-an-argument-count-error.hd`
+- **Wrong citation (B7)**: `lang/types/numeric-conversions/a-cast-with-no-argument-is-an-argument-count-error.hd`
   and `…-two-arguments-…` cite `types.cast.syntax`, which has no error. The
   `argument-count` rule is the next one, `types.cast.argument`.
-- Plausible: `types/value-types/a-tuple-spread-of-a-diverging-value-is-never.hd`
+- Plausible: `lang/types/value-types/a-tuple-spread-of-a-diverging-value-is-never.hd`
   (no rule says a tuple spread of `never` is `never`; `types.never.not-structural`
   points the other way, which may be a spec question).
-  `types/value-types/let-pattern-mut-a-plain-field-in-the-same-pattern-stays-readonly.hd`
+  `lang/types/value-types/let-pattern-mut-a-plain-field-in-the-same-pattern-stays-readonly.hd`
   (no `mut` field in the pattern). `typing/valid/collection-value-fix-…-267.hd`
-  (title). `types/collection-values/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd`
-  (the key isn't computed by a call). `types/collection-values/indexed-replacement-list-and-map.hd`
+  (title). `lang/types/collection-values/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd`
+  (the key isn't computed by a call). `lang/types/collection-values/indexed-replacement-list-and-map.hd`
   (cites the list-only rule).
-- `types/value-types/let-mut-primitive-unused.hd`, `…-annotation-unused.hd`: accept
+- `lang/types/value-types/let-mut-primitive-unused.hd`, `…-annotation-unused.hd`: accept
   cases under `warnings/`, already in A6.
 
 #### b028 (`lang/04-type-system.md`)
@@ -1100,7 +1100,7 @@ v2.1 with a private cache: 104 s and 10 tool calls (earlier batches took
   are the same programs as `typing/invalid/type-too-long-a-data-type-written-too-long-reports-once-{01,05,06}.hd`.
   The numbered ones add an unused 5-line preamble (`type Both`, `trait Show`,
   `trait Conv`) inherited from the spec example they were split from.
-- Plausible B7: `types/generics/generic-arguments/generics-a-written-type-with-its-exact-arguments-is-valid.hd`
+- Plausible B7: `lang/types/generics/generic-arguments/generics-a-written-type-with-its-exact-arguments-is-valid.hd`
   (an accept case citing the error-only `types.generic.too-long`).
 
 **Script check A12** (`a12_subset.py`, output `full/a12.tsv`): fixture A's
@@ -1155,7 +1155,7 @@ Ledger: b027 (36): 4 rows. Covered by A10 1, plausible 3. 279 s, 11 tool calls.
 
 Ledger: b030 (31): 3 rows. Confirmed 1, plausible 2. 79 s, 8 tool calls.
 
-- **Rejected for the wrong reason (B2)**: `types/least-common-type/least-common-type-functions-with-different-results-and-rows-have-no-common-type.hd`.
+- **Rejected for the wrong reason (B2)**: `lang/types/least-common-type/least-common-type-functions-with-different-results-and-rows-have-no-common-type.hd`.
   `[orders, count]` mixes `fn() -> string $ Db` with `fn() -> i32 $ Clock`. The
   results already differ, so `no-common-type` holds whatever the rows do. The
   unused `health() -> string $ Clock` is the sibling that would test the row
@@ -1168,17 +1168,17 @@ Ledger: b030 (31): 3 rows. Confirmed 1, plausible 2. 79 s, 8 tool calls.
 
 Ledger: b026 (45): 2 rows, plausible 2. b029 (22): 4 rows, confirmed 2, plausible 2 (94 s, 8 calls).
 
-- **Wrong citation (B7)**: `types/type-inference-boundaries/row-inference-explicit-type-arguments-disambiguate-two-keys.hd`
-  and `types/type-inference-boundaries/row-inference-a-unique-key-match-solves-the-argument.hd`:
+- **Wrong citation (B7)**: `lang/types/type-inference-boundaries/row-inference-explicit-type-arguments-disambiguate-two-keys.hd`
+  and `lang/types/type-inference-boundaries/row-inference-a-unique-key-match-solves-the-argument.hd`:
   accept cases that cite the error-only `types.infer.ambiguous.code`.
-- **Spec question (B7)**: `types/least-common-type/least-common-type-weakens-a-covariant-list-element.hd`
+- **Spec question (B7)**: `lang/types/least-common-type/least-common-type-weakens-a-covariant-list-element.hd`
   joins `List[*mut Cell]` with `List[*Cell]` by weakening the element type.
   `types.lct.no-combine` seems to forbid combining conversions that way.
   Either the spec or the fixture is wrong.
-- Plausible: `types/least-common-type/lct-optional-injection.hd` adds no site beyond the
+- Plausible: `lang/types/least-common-type/lct-optional-injection.hd` adds no site beyond the
   two `optional-join-*` fixtures (C1).
-  `types/generics/type-argument-defaults/type-name-forms-a-default-method-names-its-traits-own-parameter.hd`
-  (cites `default.written`). `types/generics/generic-arguments/generic-join-fresh-list-elements.hd`
+  `lang/types/generics/type-argument-defaults/type-name-forms-a-default-method-names-its-traits-own-parameter.hd`
+  (cites `default.written`). `lang/types/generics/generic-arguments/generic-join-fresh-list-elements.hd`
   (the title says the list literal solves `T` at the call, but it is bound
   to a variable first).
 
@@ -1186,24 +1186,24 @@ Ledger: b026 (45): 2 rows, plausible 2. b029 (22): 4 rows, confirmed 2, plausibl
 
 Ledger: b025 (34): 1 row, plausible 1.
 
-- Plausible B7: `types/generics/const-generic-parameters/a-const-parameter-as-a-body-type.hd` cites
+- Plausible B7: `lang/types/generics/const-generic-parameters/a-const-parameter-as-a-body-type.hd` cites
   `types.generic.const.type-position`; the error comes from `types.generic.const.parameter`.
 
 #### b024 (`lang/04-type-system.md`, const generics)
 
 Ledger: b024 (43): 7 rows. Confirmed 1, plausible 6.
 
-- **A check that cannot fail (B3)**: `types/generics/const-generic-arguments/const-argument-or-of-named-constants-is-its-value.hd`.
+- **A check that cannot fail (B3)**: `lang/types/generics/const-generic-arguments/const-argument-or-of-named-constants-is-its-value.hd`.
   It expects `Fixed[LOW | MID]` (`1 | 4 = 5`) not to match `Fixed[6]`. Any
   wrong evaluation other than 6 also passes, including `+` (also 5). A reject
   case can only show a value is *not* 6. Fix: an accept case with overlapping
   bits, `Fixed[1 | 3]` matching `Fixed[3]` (not `Fixed[4]`).
-- Plausible B1: `types/generics/const-generic-arguments/union-type-arguments-preserve-named-const-pipes.hd`
-  (no union sits in a type slot). `types/generics/const-generic-parameters/const-generic-symbolic-arithmetic.hd`
+- Plausible B1: `lang/types/generics/const-generic-arguments/union-type-arguments-preserve-named-const-pipes.hd`
+  (no union sits in a type slot). `lang/types/generics/const-generic-parameters/const-generic-symbolic-arithmetic.hd`
   (the "a parameter alone is accepted" clause is never used).
-  `types/generics/const-generic-arguments/const-generic-i16-bitwise-not-plus-and-comparison.hd`
+  `lang/types/generics/const-generic-arguments/const-generic-i16-bitwise-not-plus-and-comparison.hd`
   ("wraps", but `~0` is `-1`).
-- Plausible B7: `types/generics/const-generic-arguments/a-row-in-a-const-slot.hd`,
+- Plausible B7: `lang/types/generics/const-generic-arguments/a-row-in-a-const-slot.hd`,
   `a-row-parameter-in-a-const-slot.hd`, `a-const-expression-in-a-body-row-slot.hd`
   (the cited `argument.kind` rule names only type and trait names in const
   slots, not rows; a spec gap?).
@@ -1212,13 +1212,13 @@ Ledger: b024 (43): 7 rows. Confirmed 1, plausible 6.
 
 Ledger: b031 (36): 4 rows. Plausible 4.
 
-- Plausible C1: `types/literal-types/literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms.hd`
-  ~ `types/literal-types/duration-literals.hd` (the same `500ms` literal and rule).
-- Plausible B3: `types/literal-types/an-interpolated-open-literal-writes-at-its-settled-width.hd`
+- Plausible C1: `lang/types/literal-types/literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms.hd`
+  ~ `lang/types/literal-types/duration-literals.hd` (the same `500ms` literal and rule).
+- Plausible B3: `lang/types/literal-types/an-interpolated-open-literal-writes-at-its-settled-width.hd`
   ("-7 7" is the same for every signed default width).
-- Plausible B4: `types/literal-types/literal-one-fit-bound.hd` (the `let n: i64`
+- Plausible B4: `lang/types/literal-types/literal-one-fit-bound.hd` (the `let n: i64`
   annotation may fix `T` before the one-fit path runs).
-- Plausible B1: `types/generics/generic-parameters-at-the-limit.hd` (the title
+- Plausible B1: `lang/types/generics/generic-parameters-at-the-limit.hd` (the title
   claims lifetimes plus other parameters in one declaration; the method has
   only lifetimes).
 
@@ -1227,8 +1227,8 @@ Ledger: b031 (36): 4 rows. Plausible 4.
 Ledger: b033 (49): 3 rows. Plausible 3 (all one kind).
 
 - **Plausible, accept cases that would pass under the default anyway (B3)**:
-  `types/literal-types/literal-first-use-closure.hd`, `types/literal-types/literal-first-use-top-level.hd`,
-  `types/literal-types/literal-var-for-range-index.hd`. The literal's default type
+  `lang/types/literal-types/literal-first-use-closure.hd`, `lang/types/literal-types/literal-first-use-top-level.hd`,
+  `lang/types/literal-types/literal-var-for-range-index.hd`. The literal's default type
   (`usize` for an unsigned `0`) equals the type the "first use" is meant to
   fix. So the case accepts even if the first-use rule is ignored. Fix: use a
   literal whose default differs from the type the use fixes (a signed `+0`
@@ -1244,10 +1244,10 @@ kind, plausible ~20, spec question 1.
   later annotation fixes the type instead of the use the title names.
   `typing/valid/literal-first-use-{generic-wait,method,while-len,generic-join}.hd`,
   `typing/valid/literal-var-{method-fallback,range-bound,flow-types}.hd`,
-  `types/literal-types/literal-one-fit-receiver.hd` (plus b033's three). Fix all of them
+  `lang/types/literal-types/literal-one-fit-receiver.hd` (plus b033's three). Fix all of them
   together: pick literals whose default differs from the type the rule
   should infer, and remove the annotations that fix the type early.
-- **Spec question, target-dependent fixtures**: `types/numeric-conversions/usize-width-u32.hd`
+- **Spec question, target-dependent fixtures**: `lang/types/numeric-conversions/usize-width-u32.hd`
   expects `usize(u32::MAX) + 1` to overflow, which holds only on a 32-bit
   target. `types.num.usize-width` ties `usize` to the target. No fixture
   directive names a target, so a 64-bit implementation fails this case. b020's
@@ -1256,22 +1256,22 @@ kind, plausible ~20, spec question 1.
   target-specific cases out of the suite?
 - Plausible B7: 7 `runtime/panic/never-*.hd` cite `types.never.assignable` (a
   typing rule) but test evaluation order (`expr.order.applies`).
-  `types/opaque-result-types/impl-trait-borrow-two-sources-local.hd` and
-  `types/opaque-result-types/impl-trait-borrow-box.hd` (the code comes from
-  `types.opaque.borrows.body`). `types/literal-types/literal-var-method-missing.hd`,
-  `types/literal-types/literal-trait-value-no-one-fit.hd`,
-  `types/literal-types/literal-erased-fallback.hd`.
-- Plausible C1: `types/literal-types/literal-first-use-fallback.hd` ~ `sign-fallback-unsigned.hd`.
-  `types/optional-types/option-invariant.hd` ~ `types/optional-types/optional-payload-weakening.hd`.
-- Plausible B1: `types/value-types/readonly-edge-mut-self-call.hd` (the title says an
-  `&` field; the field is `*Child`). `types/optional-types/optional-closure-arguments.hd`
+  `lang/types/opaque-result-types/impl-trait-borrow-two-sources-local.hd` and
+  `lang/types/opaque-result-types/impl-trait-borrow-box.hd` (the code comes from
+  `types.opaque.borrows.body`). `lang/types/literal-types/literal-var-method-missing.hd`,
+  `lang/types/literal-types/literal-trait-value-no-one-fit.hd`,
+  `lang/types/literal-types/literal-erased-fallback.hd`.
+- Plausible C1: `lang/types/literal-types/literal-first-use-fallback.hd` ~ `sign-fallback-unsigned.hd`.
+  `lang/types/optional-types/option-invariant.hd` ~ `lang/types/optional-types/optional-payload-weakening.hd`.
+- Plausible B1: `lang/types/value-types/readonly-edge-mut-self-call.hd` (the title says an
+  `&` field; the field is `*Child`). `lang/types/optional-types/optional-closure-arguments.hd`
   (passes a named function, not a closure).
 
 #### b038 (`lang/04-type-system.md`)
 
 Ledger: b038 (44): 2 rows. Plausible 1, rejected 1. 108 s.
 
-- Plausible B3: `types/variance/reference-variance-keeps-function-calls-and-values-intact.hd`. Test 2's
+- Plausible B3: `lang/types/variance/reference-variance-keeps-function-calls-and-values-intact.hd`. Test 2's
   `create().name == "Ada"` also holds if the reference were copied.
 - Rejected: `…/row-variance-an-invariant-struct-argument-keeps-its-row.hd`.
   With an invariant `Holder[T]`, two types that differ only in their row
@@ -1283,64 +1283,64 @@ Ledger: b038 (44): 2 rows. Plausible 1, rejected 1. 108 s.
 Ledger: b037 (50): 4 rows. Plausible 2, spec question 2 (the target class).
 
 - **Target-dependent fixtures (owner question from b032–b035)**:
-  `types/primitive-types/usize-width-wasm32.hd` and `types/primitive-types/usize-max-overflow-wasm32.hd`
+  `lang/types/primitive-types/usize-width-wasm32.hd` and `lang/types/primitive-types/usize-max-overflow-wasm32.hd`
   also assume a 32-bit `usize`. A grep for "wasm32" or "32-bit" in the
-  fixtures finds 6 files: these two, `types/numeric-conversions/usize-width-u32.hd`,
-  `types/numeric-conversions/sized-integer-arithmetic.hd`, `std/num/integer-parsing/num-parse-unsigned.hd`
+  fixtures finds 6 files: these two, `lang/types/numeric-conversions/usize-width-u32.hd`,
+  `lang/types/numeric-conversions/sized-integer-arithmetic.hd`, `std/num/integer-parsing/num-parse-unsigned.hd`
   and `std/hash/default-hasher/hasher-write-methods.hd`. The README names no target, and
   no directive selects one.
-- Plausible B3: `types/union-construction-and-matching/union-members-name-self-and-hold-a-reference.hd`
+- Plausible B3: `lang/types/union-construction-and-matching/union-members-name-self-and-hold-a-reference.hd`
   (`first()` never reads `x`, so the `&i32` payload is unused).
-- Plausible C1: `types/value-types/let-readonly-fresh-literal.hd` ~
-  `types/value-types/struct-field-write-plain-let.hd`.
+- Plausible C1: `lang/types/value-types/let-readonly-fresh-literal.hd` ~
+  `lang/types/value-types/struct-field-write-plain-let.hd`.
 
 #### b039 (`lang/04-type-system.md`)
 
 Ledger: b039 (40): 6 rows. Plausible 6 (four are B7, which A9 already
 suggests is common for heading-level citations).
 
-- Plausible B7: `types/primitive-types/string-concatenation-and-numeric-selectors.hd`
-  (`_0` selectors, cites `#strings`). `types/result-types/explicit-discard-and-void-result.hd`
-  (`_ :=`, cites `#result-types`). `types/type-inference-boundaries/generic-enum-variant-without-context.hd`
-  and `types/type-inference-boundaries/result-constructor-without-context.hd` (`cannot-infer-type`
+- Plausible B7: `lang/types/primitive-types/string-concatenation-and-numeric-selectors.hd`
+  (`_0` selectors, cites `#strings`). `lang/types/result-types/explicit-discard-and-void-result.hd`
+  (`_ :=`, cites `#result-types`). `lang/types/type-inference-boundaries/generic-enum-variant-without-context.hd`
+  and `lang/types/type-inference-boundaries/result-constructor-without-context.hd` (`cannot-infer-type`
   comes from `types.generic.default.unsolved`).
 - Plausible B1: `…/type-argument-defaults-a-struct-parameter-may-default-to-a-concrete-type.hd`
   (`Box[T = i32]` has no earlier parameter).
-- Plausible C1: `types/result-types/bare-err-is-unknown-name.hd` ~ `bare-ok-is-unknown-name.hd`.
+- Plausible C1: `lang/types/result-types/bare-err-is-unknown-name.hd` ~ `bare-ok-is-unknown-name.hd`.
 
 #### b036 (`lang/04-type-system.md`)
 
 Ledger: b036 (44): 7 rows. Covered by A2 1, plausible 6.
 
-- `types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd` = `tuple-rest-assign.hd`: already in A2.
-- Plausible B1: `types/trait-values-and-any/anyref-accepts-references.hd` (no `*mut T` value).
-  `types/primitive-types/mut-self-primitive-arithmetic.hd` (`self + 1` gives 42 for any
+- `lang/types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd` = `tuple-rest-assign.hd`: already in A2.
+- Plausible B1: `lang/types/trait-values-and-any/anyref-accepts-references.hd` (no `*mut T` value).
+  `lang/types/primitive-types/mut-self-primitive-arithmetic.hd` (`self + 1` gives 42 for any
   integer `self`, so it shows nothing about `Self`).
-  `types/primitive-types/string-scalar-boundaries.hd` (offset 2, inside a scalar, is
-  never checked). `types/primitive-types/string-slice-at-continuation-byte.hd` (the title
+  `lang/types/primitive-types/string-scalar-boundaries.hd` (offset 2, inside a scalar, is
+  never checked). `lang/types/primitive-types/string-slice-at-continuation-byte.hd` (the title
   says `text[index]`; the code calls `slice`).
-- Plausible B7: `types/union-construction-and-matching/a-union-pattern-naming-a-variant-reports-once-per-match.hd`,
-  `types/nominal-and-structural-types/impl-head-binds-only-in-a-tuple-rest.hd`.
+- Plausible B7: `lang/types/union-construction-and-matching/a-union-pattern-naming-a-variant-reports-once-per-match.hd`,
+  `lang/types/nominal-and-structural-types/impl-head-binds-only-in-a-tuple-rest.hd`.
 
 #### b040 (`lang/04`, `lang/05`)
 
 Ledger: b040 (44): 4 rows. Covered by A10 1, plausible 2, spec question 1.
 
-- **Spec question**: `expressions/postfix-expressions/calls/a-compound-store-reads-through-apply-compound.hd`
+- **Spec question**: `lang/expressions/postfix-expressions/calls/a-compound-store-reads-through-apply-compound.hd`
   expects `type-mismatch` for `sink() += 1`, and `hd` agrees. But the cited
   `#callable-values` section never states that code for a compound store; A9
   flags it too. The spec should say what a compound store through `Apply`
   reports.
 - `…-72-legal.hd`: the A10 class (the identity return touches nothing the
   title names).
-- Plausible: `expressions/postfix-expressions/calls/only-apply-and-update-make-a-value-callable-store.hd`
-  (B7). `expressions/postfix-expressions/calls/a-store-and-a-compound-store-check.hd` ~ `expressions/postfix-expressions/calls/callable-values.hd` (C1).
+- Plausible: `lang/expressions/postfix-expressions/calls/only-apply-and-update-make-a-value-callable-store.hd`
+  (B7). `lang/expressions/postfix-expressions/calls/a-store-and-a-compound-store-check.hd` ~ `lang/expressions/postfix-expressions/calls/callable-values.hd` (C1).
 
 #### b042 (`lang/05-expressions.md`)
 
 Ledger: b042 (40): 1 row. Plausible 1. A clean batch.
 
-- Plausible B7: `expressions/primary-expressions/write-line-suspending-call-argument.hd` cites
+- Plausible B7: `lang/expressions/primary-expressions/write-line-suspending-call-argument.hd` cites
   `#literals`; the suspending call inside the interpolation is `req.suspend.bang`.
 
 #### b041, b043 (`lang/05-expressions.md`)
@@ -1348,13 +1348,13 @@ Ledger: b042 (40): 1 row. Plausible 1. A clean batch.
 Ledger: b041 (28): 3 rows. b043 (45): 4 rows. Confirmed 3 (title class), plausible 4.
 
 - **An accept case titled as a rejection (B1)**: `typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-{96,97}.hd`
-  and `expressions/postfix-expressions/propagation/propagation-an-ordinary-function-may-propagate-with-a-query.hd`.
+  and `lang/expressions/postfix-expressions/propagation/propagation-an-ordinary-function-may-propagate-with-a-query.hd`.
   The same kind as A10, without the `-legal` suffix. See A10b below.
-- Plausible: `expressions/expression-categories/compound-assign-index-once.hd` (the title promises
-  two things it never exercises). `expressions/unary-and-binary-operators/exponentiation/power-and-remainder-edges.hd`
+- Plausible: `lang/expressions/expression-categories/compound-assign-index-once.hd` (the title promises
+  two things it never exercises). `lang/expressions/unary-and-binary-operators/exponentiation/power-and-remainder-edges.hd`
   (exact float asserts where `expr.power.float.within-ulp` allows 1 ULP; a
-  portability risk). `expressions/evaluation-order/short-circuit-and-conditional-evaluation.hd`
-  (cites `!` rules but never uses `!`). `expressions/postfix-expressions/indexing/counted-index-guards-keep-out-of-range-panics.hd`
+  portability risk). `lang/expressions/evaluation-order/short-circuit-and-conditional-evaluation.hd`
+  (cites `!` rules but never uses `!`). `lang/expressions/postfix-expressions/indexing/counted-index-guards-keep-out-of-range-panics.hd`
   (the marker is on the caller's line; the b018 owner question).
 A10b: accept fixtures whose title equals a reject fixture's title:       87. Script inline in the log section above (a10b).
 
@@ -1362,39 +1362,39 @@ A10b: accept fixtures whose title equals a reject fixture's title:       87. Scr
 
 Ledger: b044 (36): 6 rows. Covered by A10 1, plausible 4, unverified 1.
 
-- `expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd`: the A10 class,
+- `lang/expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd`: the A10 class,
   and it also cites the error-only `expr.call.duplicate`.
-- Plausible: `expressions/postfix-expressions/calls/callable-values-run.hd` ("a child reads a copy" is
-  untested). `expressions/postfix-expressions/calls/vararg-by-name-and-positional.hd` (B7).
-  `expressions/postfix-expressions/calls/positional-spread-duplicates-vararg.hd` ~
+- Plausible: `lang/expressions/postfix-expressions/calls/callable-values-run.hd` ("a child reads a copy" is
+  untested). `lang/expressions/postfix-expressions/calls/vararg-by-name-and-positional.hd` (B7).
+  `lang/expressions/postfix-expressions/calls/positional-spread-duplicates-vararg.hd` ~
   `separate-values-then-a-spread-duplicate-a-vararg.hd` (C1).
 
 #### b045 (`lang/05-expressions.md`)
 
 Ledger: b045 (45): 3 rows. Plausible 3.
 
-- Plausible B1: `expressions/unary-and-binary-operators/equality/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd`
+- Plausible B1: `lang/expressions/unary-and-binary-operators/equality/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd`
   writes `*a == b`, which dereferences first, so a reference compared with a
   value is never tested.
-- Plausible B7: `expressions/postfix-expressions/indexing/list-index-underflow.hd` (the panic is
+- Plausible B7: `lang/expressions/postfix-expressions/indexing/list-index-underflow.hd` (the panic is
   `integer-overflow` from `i - 1`, yet it cites `expr.index.list.unsigned`).
-- Plausible C1: `expressions/unary-and-binary-operators/floating-point-arithmetic/float-remainder.hd` is covered by `expressions/unary-and-binary-operators/floating-point-arithmetic/float-remainder-run.hd`.
+- Plausible C1: `lang/expressions/unary-and-binary-operators/floating-point-arithmetic/float-remainder.hd` is covered by `lang/expressions/unary-and-binary-operators/floating-point-arithmetic/float-remainder-run.hd`.
 
 #### b046 (`lang/05-expressions.md`, indexing)
 
 Ledger: b046 (46): 4 rows. Plausible 4 (the panic-marker owner question 1, C1 2, B3 1).
 
-- `expressions/postfix-expressions/indexing/index-trait-map-missing.hd`: the panic marker is on the caller's
+- `lang/expressions/postfix-expressions/indexing/index-trait-map-missing.hd`: the panic marker is on the caller's
   line (the b018 owner question).
-- Plausible C1: `expressions/postfix-expressions/indexing/index-trait-literal-key-default.hd` and
-  `expressions/postfix-expressions/indexing/index-trait-tuple-key.hd` are covered by runtime cases with
+- Plausible C1: `lang/expressions/postfix-expressions/indexing/index-trait-literal-key-default.hd` and
+  `lang/expressions/postfix-expressions/indexing/index-trait-tuple-key.hd` are covered by runtime cases with
   the same program plus value checks. See A13.
-- Plausible B3: `expressions/postfix-expressions/indexing/index-builtin-receivers-direct.hd`.
+- Plausible B3: `lang/expressions/postfix-expressions/indexing/index-builtin-receivers-direct.hd`.
 
 **Script check A13** (`a13_type_in_runtime.py`, output `full/a13.tsv`): a
 `type` accept case whose code lines all appear in one `runtime` accept case,
 which type-checks the same program and also runs it. 11 leads, for example
-`functions/declarations/local-functions.hd` in `functions/recursion/named-local-functions.hd`.
+`lang/functions/declarations/local-functions.hd` in `lang/functions/recursion/named-local-functions.hd`.
 Leads only: an extra line can change the meaning.
 
 ```python
@@ -1430,20 +1430,20 @@ with whitespace and comments removed. 660 fixtures changed. Most of them
 only *gained* trailing commas, which is harmless. **21 lost tokens**
 (`full/a7b-lost.tsv`), and for these the formatter rewrote the very form
 under test:
-- `lexical/processing-model/utf8-bom.hd`: **its leading U+FEFF was stripped**, the one thing it tests.
-- `modules/use-forms/use-group-trailing-comma.hd`, `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
-  (17 commas), `grammar/use-declarations/use-declaration-forms.hd`, `grammar/use-declarations/single-and-grouped-use.hd`,
-  `grammar/test-blocks/test-block.hd`, `grammar/patterns/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
-  `data/data-embedding/data-embedding.hd`, `functions/functions-and-closures.hd`,
-  `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
-  `std/json/parsing/json-number-grammar.hd`, `modules/module-initialization/module-initialization-before-main.hd`,
-  `expressions/unary-and-binary-operators/composite-ordering.hd`, `data/construction-and-access/data-types.hd`,
-  `data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd`,
-  `data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd`: trailing commas removed.
-- `expressions/primary-expressions/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
+- `lang/lexical/processing-model/utf8-bom.hd`: **its leading U+FEFF was stripped**, the one thing it tests.
+- `lang/modules/use-forms/use-group-trailing-comma.hd`, `lang/grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
+  (17 commas), `lang/grammar/use-declarations/use-declaration-forms.hd`, `lang/grammar/use-declarations/single-and-grouped-use.hd`,
+  `lang/grammar/test-blocks/test-block.hd`, `lang/grammar/patterns/spread-pattern-syntax.hd`, `lang/lexical/whitespace-and-indentation/layout.hd`,
+  `lang/data/data-embedding/data-embedding.hd`, `lang/functions/functions-and-closures.hd`,
+  `lang/grammar/expressions/literal-field-comparison-value.hd`, `lang/lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
+  `std/json/parsing/json-number-grammar.hd`, `lang/modules/module-initialization/module-initialization-before-main.hd`,
+  `lang/expressions/unary-and-binary-operators/composite-ordering.hd`, `lang/data/construction-and-access/data-types.hd`,
+  `lang/data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd`,
+  `lang/data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd`: trailing commas removed.
+- `lang/expressions/primary-expressions/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
   became `time.s`, so it is now a duplicate of `module-qualified-function-value.hd`),
-  `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`, and
-  **`grammar/statements/grammar-assignment-nonplace.hd`**, a reject case: parentheses removed.
+  `lang/lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`, and
+  **`lang/grammar/statements/grammar-assignment-nonplace.hd`**, a reject case: parentheses removed.
 
 Fix: restore all 21 from `edea876ae^` together with the A7 layout cases.
 Then exclude fixtures from the formatter, or have the formatter keep
@@ -1481,26 +1481,26 @@ Ledger: b047 (44): 2. b048 (40): 1. b049 (45): 8. b050 (43): 9. b051 (37): 3.
 b052 (38): 5. b053 (49): 8. Highlights below; the rest are plausible B1/B7
 rows in the TSVs.
 
-- **Formatter**: `expressions/primary-expressions/module-qualified-function-value-parenthesized.hd` (A7b).
-- **A check that cannot fail (B3)**: `expressions/unary-and-binary-operators/identity-ignores-permissions.hd`.
+- **Formatter**: `lang/expressions/primary-expressions/module-qualified-function-value-parenthesized.hd` (A7b).
+- **A check that cannot fail (B3)**: `lang/expressions/unary-and-binary-operators/identity-ignores-permissions.hd`.
   It only asserts `!same(...)`, so an `is` that is always false passes. It
   needs a positive case.
-- **Rejected for the wrong reason (B2), plausible**: `expressions/unary-and-binary-operators/identity-operands-a-literal-operand-has-no-identity.hd`
+- **Rejected for the wrong reason (B2), plausible**: `lang/expressions/unary-and-binary-operators/identity-operands-a-literal-operand-has-no-identity.hd`
   (the error names `a: User`, a value, not the literal; use `a: &User`).
 - **Title doesn't match the code (B1), plausible**: `…-an-unbounded-type-parameter-has-no-identity-115.hd`
   (`T < Named` is bounded). `…-a-trait-value-needs-the-other-type-to-convert-122.hd`
-  (no trait value). `expressions/unary-and-binary-operators/logical-operators.hd`. `expressions/expression-categories/tuple-element-push.hd`
+  (no trait value). `lang/expressions/unary-and-binary-operators/logical-operators.hd`. `lang/expressions/expression-categories/tuple-element-push.hd`
   (a type case claiming a runtime effect). `typing/invalid/tuple-rest-…-not-assignable.hd`
   (only enum `_0` is assigned).
 - **A panic that cannot fire (B1), plausible**: `runtime/panic/power-…-panics-04.hd`.
   Base `2` defaults to `usize`, so `2 ** 32` does not overflow on a 64-bit
   `usize`. This is another target-dependent case.
-- **Warnings not checked**: `expressions/unary-and-binary-operators/ordering/unsigned-comparison-countdown.hd` and
+- **Warnings not checked**: `lang/expressions/unary-and-binary-operators/ordering/unsigned-comparison-countdown.hd` and
   `-explicit.hd` are accept cases (A6). The spec example says they warn
   `unsigned-comparison-always`, and `hd check` gives 0 warnings, so the lint
   may be unimplemented.
 - **Exact float asserts against a 1-ULP rule (B7), plausible**:
-  `expressions/unary-and-binary-operators/floating-power.hd`, `expressions/unary-and-binary-operators/exponentiation/power-float-powers-follow-ieee-pow.hd`
+  `lang/expressions/unary-and-binary-operators/floating-power.hd`, `lang/expressions/unary-and-binary-operators/exponentiation/power-float-powers-follow-ieee-pow.hd`
   (b041's `power-and-remainder-edges.hd` too). `expr.power.float.within-ulp`
   allows 1 ULP, so exact `==` on non-special inputs ties the fixtures to one
   libm.
@@ -1512,30 +1512,30 @@ rows in the TSVs.
 
 Ledger: b055 (24): 2 rows. Confirmed 1, plausible 1.
 
-- **Depends on map order (portability)**: `control-flow/for-loops/map-loop-reference-control-flow.hd`
+- **Depends on map order (portability)**: `lang/control-flow/for-loops/map-loop-reference-control-flow.hd`
   asserts that a `for` loop over a map runs in the order a, b, c.
   `types.map.order.unspecified` promises only determinism, and the README
   bans depending on map order. **Brief v2.2 (from b060 on) adds B8,
   "portable"**: no dependence on map or set order, `usize` width, or exact
   floats the spec allows to vary.
-- Plausible: `control-flow/for-loops/user-iterable-for-loop.hd` (lines 27 and 28 are the same assert).
+- Plausible: `lang/control-flow/for-loops/user-iterable-for-loop.hd` (lines 27 and 28 are the same assert).
 
 #### b054 (`lang/05`, `lang/06`)
 
 Ledger: b054 (45): 6 rows. Covered by A6 2, plausible 4.
 
-- `control-flow/blocks-and-completion/unused-local-binding.hd`: an accept case under `warnings/` (A6),
+- `lang/control-flow/blocks-and-completion/unused-local-binding.hd`: an accept case under `warnings/` (A6),
   and it cites `#blocks-and-completion` rather than `flow.unused.lint`. **About the
   A6 class:** several reviewers report that `hd check` emits none of these
   lints, which run under `hd lint`. So these 21 accept cases may be meant to
   show "check stays silent", but in a directory that promises a warning, and
   citing the lint rule. The owner should decide whether they move to
   `typing/valid/` or become `cli/` lint cases.
-- Plausible C1: `expressions/unary-and-binary-operators/signed-exponent.hd` ~ `signed-integer-exponent.hd`.
-- Plausible B1: `expressions/unary-and-binary-operators/operators-arithmetic-and-bitwise-operators-apply-to-standard-integer-types.hd`
-  (no impl targets). `expressions/unary-and-binary-operators/identity-operands-an-integer-against-another-struct-is-one-error.hd`
+- Plausible C1: `lang/expressions/unary-and-binary-operators/signed-exponent.hd` ~ `signed-integer-exponent.hd`.
+- Plausible B1: `lang/expressions/unary-and-binary-operators/operators-arithmetic-and-bitwise-operators-apply-to-standard-integer-types.hd`
+  (no impl targets). `lang/expressions/unary-and-binary-operators/identity-operands-an-integer-against-another-struct-is-one-error.hd`
   (both operands are values; b053 found the same in `-103` and `-104`, so this
-  series probably shares one bug). `control-flow/control-flow.hd` (a type case
+  series probably shares one bug). `lang/control-flow/control-flow.hd` (a type case
   claiming laziness).
 
 #### Script check A14: copies that differ only by renaming
@@ -1547,14 +1547,14 @@ dropping a `pub fn main` that only prints. Directives (`# fixture-*`,
 `# expect-stdout`) are kept, so tree-path and scenario variants stay
 distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 6 new ones are all confirmed by `diff`:
-- `control-flow/match-expressions/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `control-flow/match-expressions/bare-ok-call-pattern.hd` (b056)
-- `control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `control-flow/match-expressions/duplicate-data-pattern-field.hd`
-- `control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `control-flow/match-expressions/variant-pattern-unknown-field.hd` (b057)
-- `expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
-- `data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
-- `expressions/postfix-expressions/propagation/propagation-without-target.hd` = `expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd`
-- `types/generics/generic-arguments/placeholder-in-ordinary-type.hd` = `types/generics/generic-arguments/placeholder-in-a-declaration.hd` (b027)
-- `references/dependent-results/writes-while-borrowed/shared-reference-disjoint-field-write.hd` = `references/dependent-results/writes-while-borrowed/dependent-result-borrow-field-instead.hd`
+- `lang/control-flow/match-expressions/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `lang/control-flow/match-expressions/bare-ok-call-pattern.hd` (b056)
+- `lang/control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `lang/control-flow/match-expressions/duplicate-data-pattern-field.hd`
+- `lang/control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `lang/control-flow/match-expressions/variant-pattern-unknown-field.hd` (b057)
+- `lang/expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `lang/names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
+- `lang/data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
+- `lang/expressions/postfix-expressions/propagation/propagation-without-target.hd` = `lang/expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd`
+- `lang/types/generics/generic-arguments/placeholder-in-ordinary-type.hd` = `lang/types/generics/generic-arguments/placeholder-in-a-declaration.hd` (b027)
+- `lang/references/dependent-results/writes-while-borrowed/shared-reference-disjoint-field-write.hd` = `lang/references/dependent-results/writes-while-borrowed/dependent-result-borrow-field-instead.hd`
 
 A pattern: the numbered `rejected-pattern-binds-*`, `checker-*` and
 `declaration-checks-*` series were split from spec examples, and several
@@ -1605,32 +1605,32 @@ for (ph, e, _), ps in g.items():
 
 Ledger: b056 (45): 7 rows. b057 (46): 14 rows (10 are the A10 class). b058 (42): 2 rows.
 
-- **Code under test never runs (B4)**: `control-flow/match-expressions/literal-patterns.hd`;
+- **Code under test never runs (B4)**: `lang/control-flow/match-expressions/literal-patterns.hd`;
   `integer(-1)` is never called, so the `-1 => 10` arm never runs.
-- **Duplicates**: 171, 173 and 174 above (A14). Also `control-flow/match-expressions/bool-match-missing-false.hd`
+- **Duplicates**: 171, 173 and 174 above (A14). Also `lang/control-flow/match-expressions/bool-match-missing-false.hd`
   ~ `nonexhaustive-bool-match.hd` (C1, plausible).
-- Plausible B7: `control-flow/match-expressions/owned-match-payloads-across-suspension.hd` (cites a
-  guard rule; it has no guard). `control-flow/match-expressions/negative-float-arms-split-by-value.hd`
-  (cites the error-only `flow.match.unreachable`). `control-flow/for-loops/for-over-mut-iterator.hd`.
-  `control-flow/for-loops/iterator-single-pass.hd`.
-- Plausible B2: `control-flow/match-expressions/bare-variant-pattern-in-match.hd` (the payload-arity
+- Plausible B7: `lang/control-flow/match-expressions/owned-match-payloads-across-suspension.hd` (cites a
+  guard rule; it has no guard). `lang/control-flow/match-expressions/negative-float-arms-split-by-value.hd`
+  (cites the error-only `flow.match.unreachable`). `lang/control-flow/for-loops/for-over-mut-iterator.hd`.
+  `lang/control-flow/for-loops/iterator-single-pass.hd`.
+- Plausible B2: `lang/control-flow/match-expressions/bare-variant-pattern-in-match.hd` (the payload-arity
   rule may also apply to the marked line).
   `…/match-an-unsolved-scrutinee-binds-nested-names-without-a-second-error.hd`.
-- `control-flow/match-expressions/variant-binding-name-mismatch.hd`: A6.
+- `lang/control-flow/match-expressions/variant-binding-name-mismatch.hd`: A6.
 
 #### b059 (`lang/06-control-flow.md`)
 
 Ledger: b059 (45): 6 rows. Confirmed 4, plausible 2.
 
-- **A second error behind the marked one (B2)**: `control-flow/let-patterns/let-else-falls-through.hd`.
+- **A second error behind the marked one (B2)**: `lang/control-flow/let-patterns/let-else-falls-through.hd`.
   `falls_through` has no `$ Console` row but calls `println` (std
   `println[T < Display](value: T) -> void $ Console`), which is a second
   error. **Script check A15** (below) lists 9 reject cases with this shape.
   Some are deliberate (the "pure callback" and "omitted-result row" cases test
   the missing row), so each needs a look.
-- **Depends on map order (B8)**: `control-flow/for-loops/for-map-snapshot-insert.hd`
-  (`seen == ["a","b"]`), `control-flow/for-loops/for-map-snapshot-rebuild.hd`
-  (`["a","b","c","d"]`), `control-flow/for-loops/iterator-shape-versus-value-changes.hd`.
+- **Depends on map order (B8)**: `lang/control-flow/for-loops/for-map-snapshot-insert.hd`
+  (`seen == ["a","b"]`), `lang/control-flow/for-loops/for-map-snapshot-rebuild.hd`
+  (`["a","b","c","d"]`), `lang/control-flow/for-loops/iterator-shape-versus-value-changes.hd`.
 - Plausible B1: `…/a-list-parameter-loop-…-shrinks-the-source.hd` (3 of 4 subtests
   use index ranges). `…/branch-joins-keep-their-values-and-cleanups.hd` (no
   release is observed).
@@ -1662,25 +1662,25 @@ for l in list(open('cases.tsv'))[1:]:
 Ledger: b060 (46): 2. b061 (?): 2. b062 (42): 5. b063 (41): 3. Plausible 12.
 
 - **Claims about message text the runner never judges** (plausible; the
-  same kind as b007's hint fixtures): `control-flow/runtime-panics/sign-fallback-balance-underflow.hd`
+  same kind as b007's hint fixtures): `lang/control-flow/runtime-panics/sign-fallback-balance-underflow.hd`
   cites `flow.panic.report.fallback`, but the runner checks only the panic
   category (README "Judging a Case").
 - **Titles from a split series that don't fit the case (B1)**: three
   `typing/invalid/tuple-rest-a-spread-pattern-*` fixtures. "Needs a rest
   element", but the pattern has one; "covers every list", but the case shows
   non-exhaustiveness. The same kind as b021's `int-widths-*`.
-- **Type case claiming runtime behavior (B1)**: `control-flow/using-bindings/using-transfer.hd`
+- **Type case claiming runtime behavior (B1)**: `lang/control-flow/using-bindings/using-transfer.hd`
   (LIFO release order). Also b050's `tuple-element-push.hd`, b054's
   `control-flow.hd`, and b019's `checks-and-evaluates-87..89`. A recurring kind.
-- **A check that cannot fail (B3)**: `functions/closures/a-suspending-reference-copies-its-cell-and-not-a-fresh-capture.hd`
+- **A check that cannot fail (B3)**: `lang/functions/closures/a-suspending-reference-copies-its-cell-and-not-a-fresh-capture.hd`
   (`copied()` returns 0 whether the value is copied or shared).
-  `functions/parameters/defaults-reference-earlier-parameters.hd` (the "function values
+  `lang/functions/parameters/defaults-reference-earlier-parameters.hd` (the "function values
   do not inherit defaults" part never tries a one-argument call).
-- Plausible C1: `functions/parameters/parameter-default-later-parameter.hd` ~
-  `default-later-parameter-earlier-twin.hd`. `control-flow/match-expressions/unit-pattern/unit-pattern-void-success.hd` ~
-  `match-unit-pattern-ok.hd`. `control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd` ~
+- Plausible C1: `lang/functions/parameters/parameter-default-later-parameter.hd` ~
+  `default-later-parameter-earlier-twin.hd`. `lang/control-flow/match-expressions/unit-pattern/unit-pattern-void-success.hd` ~
+  `match-unit-pattern-ok.hd`. `lang/control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd` ~
   `variant-binding-name-mismatch.hd` (both A6 as well).
-- Plausible B7: `functions/parameters/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd`
+- Plausible B7: `lang/functions/parameters/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd`
   (cases 115 and 116 are type-parameter defaults).
 
 #### b064 (`lang/07-functions.md`)
@@ -1690,38 +1690,38 @@ Ledger: b064 (46): 8 rows. Plausible 8 (C1 4, B7 2, B1 2).
 - Plausible C1, **numbered series repeating named fixtures again**: `…-function-value-argument-is-reported-once-60.hd`
   ~ `generic-function-value-argument-unsolved.hd`. `…-placeholder-is-reported-once-58.hd`
   ~ `cannot-infer-type.hd` (both `make::[_]()`). `…-named-nowhere-is-reported-once-57.hd`
-  ~ `unresolved-generic-return-placeholder.hd`. `functions/generic-functions/generic-suspending-associated-function-qualified-call.hd`
+  ~ `unresolved-generic-return-placeholder.hd`. `lang/functions/generic-functions/generic-suspending-associated-function-qualified-call.hd`
   ~ line 33 of `an-associated-function-takes-type-arguments-through-its-type.hd`.
 - `typing/valid/…-57-legal-type-arguments.hd`: an accept case titled "is reported
   once". It is the A10 kind under a different suffix (`-legal-type-arguments`),
   so A10 misses it.
-- Plausible B7: `functions/function-types-and-values/generic-function-value-instantiation.hd`,
-  `functions/function-types-and-values/a-mutated-copy-keeps-its-callers-value.hd` (both cite
+- Plausible B7: `lang/functions/function-types-and-values/generic-function-value-instantiation.hd`,
+  `lang/functions/function-types-and-values/a-mutated-copy-keeps-its-callers-value.hd` (both cite
   `#function-types-and-values`; the rules are under other headings).
-- Plausible B1: `functions/function-types-and-values/function-field-returns-mutable-data.hd`.
+- Plausible B1: `lang/functions/function-types-and-values/function-field-returns-mutable-data.hd`.
 
 #### b068 (`lang/07-functions.md`)
 
 Ledger: b068 (41): 2 rows. Plausible 2.
 
-- Plausible B1: `functions/parameters/call-keeps-argument-usable.hd` passes `&mut items`, so
+- Plausible B1: `lang/functions/parameters/call-keeps-argument-usable.hd` passes `&mut items`, so
   passing by value is never tested.
-- Plausible B3: `functions/parameters/unowned-parameter-cleanup-survives-every-return.hd`
+- Plausible B3: `lang/functions/parameters/unowned-parameter-cleanup-survives-every-return.hd`
   (the output matches even if the cleanup is skipped).
 
 #### b067 (`lang/07-functions.md`)
 
 Ledger: b067 (45): 6 rows. Plausible 6.
 
-- Plausible B3: `functions/methods-and-receivers/temporary-method-receivers.hd` asserts only the
+- Plausible B3: `lang/functions/methods-and-receivers/temporary-method-receivers.hd` asserts only the
   first character, which a dropped cursor change would still return.
-  `functions/declarations/generic-local-function-constructs-an-unused-struct.hd` (the
+  `lang/functions/declarations/generic-local-function-constructs-an-unused-struct.hd` (the
   built struct is never observed).
-- Plausible B7: `functions/generic-functions/a-trait-with-type-arguments-is-not-callable.hd`
+- Plausible B7: `lang/functions/generic-functions/a-trait-with-type-arguments-is-not-callable.hd`
   (the code comes from `expr.call.apply.not-callable`).
-  `functions/generic-functions/a-function-value-takes-no-type-arguments.hd`
+  `lang/functions/generic-functions/a-function-value-takes-no-type-arguments.hd`
   (`fn.generic.explicit.too-long-count`).
-- Plausible B1: `functions/generic-functions/row-slot-bare-explicit-argument.hd` (the argument
+- Plausible B1: `lang/functions/generic-functions/row-slot-bare-explicit-argument.hd` (the argument
   is a type, not a key). `…-stay-clean-22-legal-rows.hd` (two forms; the spec's
   `$ AppRow` form is missing).
 
@@ -1729,9 +1729,9 @@ Ledger: b067 (45): 6 rows. Plausible 6.
 
 Ledger: b066 (44): 3 rows. Plausible 2, rejected 1.
 
-- Plausible C1: `functions/declarations/omitted-result-cycle-one-annotated.hd` is covered by
-  `functions/declarations/inferred-results-recursion-through-an-annotated-function-is-valid.hd`
-  (the A13 kind). Plausible B7: `functions/parameters/mono-default-boolean-and-scalar-decisions.hd`.
+- Plausible C1: `lang/functions/declarations/omitted-result-cycle-one-annotated.hd` is covered by
+  `lang/functions/declarations/inferred-results-recursion-through-an-annotated-function-is-valid.hd`
+  (the A13 kind). Plausible B7: `lang/functions/parameters/mono-default-boolean-and-scalar-decisions.hd`.
 - Rejected C1: `…/suspending-closures-a-closure-that-only-creates-another-still-captures-for-it.hd`
   vs `nested-mutable-captures.hd`. `make!` (suspending) against `make` is the point
   of the case.
@@ -1740,21 +1740,21 @@ Ledger: b066 (44): 3 rows. Plausible 2, rejected 1.
 
 Ledger: b065 (44): 6 rows. Confirmed 2, plausible 4.
 
-- **Formatter**: `functions/declarations/same-line-function-body.hd`. The same-line
+- **Formatter**: `lang/functions/declarations/same-line-function-body.hd`. The same-line
   body was moved to the next line (it is in A7), so `fn.body.same-line` is untested.
 - **Expected output never checked (B3)**, **script check A16** (below): the
   expected output sits in a trailing `# prints: …` comment, which is not a
   directive, so the runner never compares it.
-  `functions/closures/known-closure-consumers-preserve-captures.hd` and
-  `functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd` (both are also in A4:
-  no assert and no `expect-stdout`). `control-flow/for-loops/zero-iteration-callback-preserves-dependent-read.hd`
+  `lang/functions/closures/known-closure-consumers-preserve-captures.hd` and
+  `lang/functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd` (both are also in A4:
+  no assert and no `expect-stdout`). `lang/control-flow/for-loops/zero-iteration-callback-preserves-dependent-read.hd`
   (has `expect-stdout` too; check that it covers this line). Fix: turn each
   into an `# expect-stdout:` header.
-- Plausible: `functions/call-site-locations/track-caller-temporary-arguments.hd` (B3: string
-  lengths don't show freeing). `functions/declarations/void-final-method-named-debug-is-not-prelude-debug.hd`
-  (B1). `functions/closures/function-parameter-stored-in-a-local-through-a-reference.hd`
+- Plausible: `lang/functions/call-site-locations/track-caller-temporary-arguments.hd` (B3: string
+  lengths don't show freeing). `lang/functions/declarations/void-final-method-named-debug-is-not-prelude-debug.hd`
+  (B1). `lang/functions/closures/function-parameter-stored-in-a-local-through-a-reference.hd`
   (B7: an accept case citing the error-only `fn.capture.local-store`).
-  `functions/closures/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd`
+  `lang/functions/closures/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd`
   ~ `capture-variable-cell.hd` (C1).
 
 ```python
@@ -1778,49 +1778,49 @@ for l in list(open('cases.tsv'))[1:]:
 
 Ledger: b069 (46): 5 rows. Plausible 5.
 
-- Plausible B2, **two problems on the marked line**: `functions/function-types-and-values/method-references/bound-reference-readonly-receiver.hd`.
+- Plausible B2, **two problems on the marked line**: `lang/functions/function-types-and-values/method-references/bound-reference-readonly-receiver.hd`.
   When the marked `not-writable` problem is fixed (a `mut counter`), `hd`
   reports `local-reference-escapes` on the same return line. An
   implementation that checks escapes first gives a different code on the
   marked line and fails. Fix: take `counter: &Counter`, so only the
   readonly write is wrong (the reviewer tried this in a scratch copy).
-- Plausible B7: `functions/function-types-and-values/method-references/a-returned-bound-reference-to-a-local-escapes.hd`,
-  `functions/function-types-and-values/method-references/bound-reference-to-an-interior-place-is-local.hd` (cite
+- Plausible B7: `lang/functions/function-types-and-values/method-references/a-returned-bound-reference-to-a-local-escapes.hd`,
+  `lang/functions/function-types-and-values/method-references/bound-reference-to-an-interior-place-is-local.hd` (cite
   `fn.ref.bound.address`, which has no error).
-- Plausible B1: `functions/trailing-callback-blocks/trailing-bound-takes-the-bound-row.hd` and
-  `functions/function-types-and-values/function-type-constructors/bound-closure-takes-the-bound-row.hd` (the bodies use no row key,
+- Plausible B1: `lang/functions/trailing-callback-blocks/trailing-bound-takes-the-bound-row.hd` and
+  `lang/functions/function-types-and-values/function-type-constructors/bound-closure-takes-the-bound-row.hd` (the bodies use no row key,
   so acceptance doesn't show the row is adopted; the runtime twin covers it).
 
 #### b070, b071 (`lang/07-functions.md`)
 
 Ledger: b070 (44): 2 rows. b071 (46): 0 rows.
 
-- **Expected output never checked (A16)**: `functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd`
+- **Expected output never checked (A16)**: `lang/functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd`
   (also found by script).
-- Plausible B4: `functions/function-types-and-values/passing-function-values/inlined-function-result-variance.hd` (no `@inline`,
+- Plausible B4: `lang/functions/function-types-and-values/passing-function-values/inlined-function-result-variance.hd` (no `@inline`,
   so inlining is the optimizer's choice and the title's claim is not forced).
 
 #### b072 (`lang/07-functions.md`)
 
 Ledger: b072 (41): 5 rows. Plausible 5.
 
-- Plausible C1: `functions/parameters/a-tuple-vararg-given-fewer-values-than-its-arity.hd` ~ `tuple-vararg-arity.hd`.
-- Plausible B7: `functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-type-result-param-type-parameter-tuple.hd`
+- Plausible C1: `lang/functions/parameters/a-tuple-vararg-given-fewer-values-than-its-arity.hd` ~ `tuple-vararg-arity.hd`.
+- Plausible B7: `lang/functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-type-result-param-type-parameter-tuple.hd`
   (the cited rule's code is `type-mismatch`; the case expects `local-reference-escapes`).
-  `functions/function-types-and-values/literal-suffix-default-parameter.hd`.
-- Plausible B1: `functions/parameters/tuple-bound-vararg-call.hd`, `functions/function-types-and-values/passing-function-values/function-result-representation-change.hd`.
+  `lang/functions/function-types-and-values/literal-suffix-default-parameter.hd`.
+- Plausible B1: `lang/functions/parameters/tuple-bound-vararg-call.hd`, `lang/functions/function-types-and-values/passing-function-values/function-result-representation-change.hd`.
 
 #### b073 (`lang/07`, `lang/08`)
 
 Ledger: b073 (38): 5 rows. Plausible 4, rejected 1.
 
-- Plausible B3: `data/construction-and-access/copy-update-evaluation-order.hd` (both bang calls are
+- Plausible B3: `lang/data/construction-and-access/copy-update-evaluation-order.hd` (both bang calls are
   pure, so the output can't show the order).
-- Plausible B1: `functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-nested.hd`
+- Plausible B1: `lang/functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-nested.hd`
   (rejected by `List` invariance, not by the weakening rule; the wrong-reason kind).
 - Already known: `nonfinal-spread.hd` (A2 duplicate; also a B7 lead).
   `nonfinal-vararg-declaration.hd` ~ `nonfinal-vararg-then-parameter.hd` (C1).
-- Rejected B2: `data/construction-and-access/data-literal-unknown-field.hd` (`Point { y: 1 }` also
+- Rejected B2: `lang/data/construction-and-access/data-literal-unknown-field.hd` (`Point { y: 1 }` also
   omits `x`). An unknown field suppresses the missing-field error by design;
   see `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`.
 
@@ -1828,11 +1828,11 @@ Ledger: b073 (38): 5 rows. Plausible 4, rejected 1.
 
 Ledger: b076 (46): 3 rows. Confirmed 1, plausible 2.
 
-- **A check that cannot fail (B3)**: `data/representation-and-garbage-collection/count-tests-skip-no-object-in-a-garbage-cycle.hd`
+- **A check that cannot fail (B3)**: `lang/data/representation-and-garbage-collection/count-tests-skip-no-object-in-a-garbage-cycle.hd`
   asserts `total >= 0` on an unsigned count, which is always true.
-- Plausible B3: `data/shared-enum-constructor-data/shared-enum-generic-one-copy.hd` (the "item" label
+- Plausible B3: `lang/data/shared-enum-constructor-data/shared-enum-generic-one-copy.hd` (the "item" label
   holds however many copies are made; it needs a side-effect counter).
-- Plausible C1: `data/representation-and-garbage-collection/reference-cycles-are-ordinary-data.hd` ~ the first test of
+- Plausible C1: `lang/data/representation-and-garbage-collection/reference-cycles-are-ordinary-data.hd` ~ the first test of
   `dropped-cycles-are-reclaimed.hd`.
 
 **Script check A17** (`a17_tautologies.py`, output `full/a17.tsv`): `assert(true)`,
@@ -1876,29 +1876,29 @@ Ledger: b074 (43): 6 rows. b075 (30): 8 rows. Plausible ~12.
   `…-does-not-embed-itself-352.hd` (an accept case citing an error-only rule).
 - Plausible C1: `…-a-type-embeds-at-most-three-fields-346.hd` ~ `three-embedded-fields.hd`.
   `…-an-embedding-chain-is-at-most-three-deep-348.hd` ~ `embedding-depth-three.hd`.
-  `data/enum-declarations/enum-payload-mut-shallow.hd` ~ `enum-value-fixed-at-construction` test 2.
-- Plausible B3: `data/typed-derivation-of-data-and-enums/struct-derive-eq-debug.hd` (line 19 writes the value
-  already held). Plausible B1: `data/matching-enums/enum-niche-partial-moves.hd`.
-- Plausible B2: `data/enum-declarations/variant-duplicate-argument.hd`,
-  `data/enum-declarations/variant-unknown-payload-field.hd` (the required `second` is never
+  `lang/data/enum-declarations/enum-payload-mut-shallow.hd` ~ `enum-value-fixed-at-construction` test 2.
+- Plausible B3: `lang/data/typed-derivation-of-data-and-enums/struct-derive-eq-debug.hd` (line 19 writes the value
+  already held). Plausible B1: `lang/data/matching-enums/enum-niche-partial-moves.hd`.
+- Plausible B2: `lang/data/enum-declarations/variant-duplicate-argument.hd`,
+  `lang/data/enum-declarations/variant-unknown-payload-field.hd` (the required `second` is never
   given; it may be suppressed by design, as for data literals).
-- Plausible B7: `data/data-embedding/promoted-mut-method-on-readonly-receiver.hd` (the rule
+- Plausible B7: `lang/data/data-embedding/promoted-mut-method-on-readonly-receiver.hd` (the rule
   is `fn.method.auto-address.place-writable` in chapter 07).
 
 #### b077 (`lang/08-data-and-enums.md`)
 
-Ledger: b077 (43): 3 rows. Plausible 3 (all UNSURE): `data/struct-declarations/copy-update-private-field-other-module.hd`
-(B2), `data/construction-and-access/a-generic-struct-update-keeps-its-inherited-counts.hd` (B1),
-`data/data-embedding/struct-embedded-field.hd` ~ `embedded-non-data.hd` (C1).
+Ledger: b077 (43): 3 rows. Plausible 3 (all UNSURE): `lang/data/struct-declarations/copy-update-private-field-other-module.hd`
+(B2), `lang/data/construction-and-access/a-generic-struct-update-keeps-its-inherited-counts.hd` (B1),
+`lang/data/data-embedding/struct-embedded-field.hd` ~ `embedded-non-data.hd` (C1).
 
 #### b078 (`lang/08`, `lang/09`)
 
 Ledger: b078 (45): 4 rows. Confirmed 2 (A11), plausible 2.
 
-- The A11 class, found independently by the reviewer: `data/shared-enum-constructor-data/shared-enum-data-computed-once.hd`
-  and `traits/trait-implementations/comparison-traits/ord-supertrait-dispatch.hd` (private `main`, so nothing runs).
-- Plausible B1: `data/typed-derivation-of-data-and-enums/derive-members-of-data-and-enums.hd` (`_1` is never
-  emitted). `data/enum-declarations/variant-constructors-a-generic-variant-value-without-an-expected-type-cannot-be-inferred.hd`
+- The A11 class, found independently by the reviewer: `lang/data/shared-enum-constructor-data/shared-enum-data-computed-once.hd`
+  and `lang/traits/trait-implementations/comparison-traits/ord-supertrait-dispatch.hd` (private `main`, so nothing runs).
+- Plausible B1: `lang/data/typed-derivation-of-data-and-enums/derive-members-of-data-and-enums.hd` (`_1` is never
+  emitted). `lang/data/enum-declarations/variant-constructors-a-generic-variant-value-without-an-expected-type-cannot-be-inferred.hd`
   (`Either.Left` *is* a function value; the real error is an unsolved generic,
   so this is the wrong-reason kind).
 
@@ -1912,14 +1912,14 @@ names. `a18_missing_amp.sh` runs `hd check` (private cache, about 25 s) on all
 hint: **15** (`full/a18.tsv`). When the cited rule is about references (anchors
 ending `.reference-values`, `.reference-fix`, `ref-value`), the missing `&` is
 the point. **The likely wrong-reason ones** (the rule is about something else):
-- `names/member-resolution/local-impl-trait-value-before-declaration.hd` (b015, confirmed)
-- `traits/dynamic-trait-values/concrete-reference-bound-associated-type-mismatch.hd` (b079, confirmed)
-- `traits/runtime-type-identity/closure-not-inspectable.hd`, `traits/runtime-type-identity/spelled-function-type-not-inspectable.hd`
+- `lang/names/member-resolution/local-impl-trait-value-before-declaration.hd` (b015, confirmed)
+- `lang/traits/dynamic-trait-values/concrete-reference-bound-associated-type-mismatch.hd` (b079, confirmed)
+- `lang/traits/runtime-type-identity/closure-not-inspectable.hd`, `lang/traits/runtime-type-identity/spelled-function-type-not-inspectable.hd`
   (Inspectable rules)
-- `traits/trait-declarations/trait-generic-instantiations-unrelated.hd` (invariance)
-- `traits/runtime-type-identity/inspectable-child-trait-without-impl.hd` (`trait.erase.child-impl`)
-- `traits/dynamic-trait-values/concrete-value-binding-mismatch.hd`, `traits/dynamic-trait-values/counted-trait-value-from-value.hd`,
-  `requirements/providers-behind-references/provider-ref-value.hd` (need a look)
+- `lang/traits/trait-declarations/trait-generic-instantiations-unrelated.hd` (invariance)
+- `lang/traits/runtime-type-identity/inspectable-child-trait-without-impl.hd` (`trait.erase.child-impl`)
+- `lang/traits/dynamic-trait-values/concrete-value-binding-mismatch.hd`, `lang/traits/dynamic-trait-values/counted-trait-value-from-value.hd`,
+  `lang/requirements/providers-behind-references/provider-ref-value.hd` (need a look)
 Fix pattern: add the `&` so that only the rule under test is broken, then
 check that the expected code still fires.
 
@@ -1944,72 +1944,72 @@ done
 Ledger: b079 (43): 5. b080 (31): 8. b081 (28): 3.
 
 - **Wrong reason (B2)**: `concrete-reference-bound-associated-type-mismatch.hd` (A18 above).
-  `traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected.hd`
+  `lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected.hd`
   (line 8 also fails with `invalid-delegation`: `by inner` names no field; the
   reviewer saw this in a scratch copy).
-- **Duplicates**: `traits/trait-implementations/implementation-targets/impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed.hd` ~
+- **Duplicates**: `lang/traits/trait-implementations/implementation-targets/impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed.hd` ~
   `trait-value-as-target-argument.hd` (also in A12). Plausible: `…-ownership-only-in-its-own-module-67.hd`
   ~ `-53` (only `pub` differs). `…-in-the-module-of-the-trait-or-target-is-valid-66.hd` ~ `-65`.
-  `traits/trait-implementations/implementation-ownership/outer-constructor-permits-impl.hd` ~ `trait-argument-owner-impl.hd`.
+  `lang/traits/trait-implementations/implementation-ownership/outer-constructor-permits-impl.hd` ~ `trait-argument-owner-impl.hd`.
 - Plausible B2: `…-nonlocal-64/-69/-71.hd` (the body's `missing_name` may be a second
-  error). Plausible B7: `traits/runtime-type-identity/erase-readonly-to-mut-inspectable.hd`.
-- Plausible B1: `traits/embedding-and-trait-satisfaction/embedded-field-satisfies-trait.hd`,
-  `traits/dynamic-trait-values/primitive-display-bound-and-trait-values.hd` ("every primitive" but 4 are tested),
-  `…-tuple-template-bounds-…-17.hd`, `…-62.hd`, `…-71.hd`, `traits/trait-implementations/implementation-targets/tuple-impl-target.hd`.
+  error). Plausible B7: `lang/traits/runtime-type-identity/erase-readonly-to-mut-inspectable.hd`.
+- Plausible B1: `lang/traits/embedding-and-trait-satisfaction/embedded-field-satisfies-trait.hd`,
+  `lang/traits/dynamic-trait-values/primitive-display-bound-and-trait-values.hd` ("every primitive" but 4 are tested),
+  `…-tuple-template-bounds-…-17.hd`, `…-62.hd`, `…-71.hd`, `lang/traits/trait-implementations/implementation-targets/tuple-impl-target.hd`.
 
 #### b082 (`lang/09-traits.md`)
 
 Ledger: b082 (41): 3 rows. Plausible 3.
 
 - Plausible, missing-`&` kind (not in A18 because the expected code differs):
-  `traits/any/any-bare-none.hd` omits the `&` that the rule's example
+  `lang/traits/any/any-bare-none.hd` omits the `&` that the rule's example
   (`&.None`) has, so it doesn't test reference erasure.
-- Plausible B7: `traits/method-resolution/a-call-through-a-parameter-whose-bounds-declare-no-such-method.hd`.
+- Plausible B7: `lang/traits/method-resolution/a-call-through-a-parameter-whose-bounds-declare-no-such-method.hd`.
   Plausible B1: `…-an-alias-of-a-non-enum-has-no-variants-35.hd` (no alias is declared).
 
 #### b083 (`lang/09-traits.md`)
 
 Ledger: b083 (38): 2 rows. Plausible 2 (B7; both also in A9's pattern):
-`traits/trait-declarations/a-body-projection-under-an-unknown-bound.hd` (cites a rule whose
+`lang/traits/trait-declarations/a-body-projection-under-an-unknown-bound.hd` (cites a rule whose
 code is `unknown-associated-type`; expects `unknown-trait`) and
-`traits/trait-declarations/projection-binding-chain-normalizes-40-deep.hd` (an accept case citing
+`lang/traits/trait-declarations/projection-binding-chain-normalizes-40-deep.hd` (an accept case citing
 the error-only depth rule).
 
 #### b087 (`lang/09-traits.md`, trait value references)
 
 Ledger: b087 (27): 5 rows. Plausible 5.
 
-- Plausible C1: `traits/dynamic-trait-values/readonly-trait-value-mutating-method.hd` ~ `dyn-ref-mut-method-through-shared.hd`.
-- Plausible B1: `traits/dynamic-trait-values/dyn-ref-receiver-forms.hd` (no `mut self` call through
-  `&mut dyn`). `traits/dynamic-trait-values/dyn-ref-mutable-upgrade.hd` (the header says `&dyn` to
+- Plausible C1: `lang/traits/dynamic-trait-values/readonly-trait-value-mutating-method.hd` ~ `dyn-ref-mut-method-through-shared.hd`.
+- Plausible B1: `lang/traits/dynamic-trait-values/dyn-ref-receiver-forms.hd` (no `mut self` call through
+  `&mut dyn`). `lang/traits/dynamic-trait-values/dyn-ref-mutable-upgrade.hd` (the header says `&dyn` to
   `&mut dyn`; the code converts the counted `*dyn` to `*mut dyn`).
-- Plausible B7: `traits/dynamic-trait-values/dyn-ref-value-list-literal.hd` (A18 listed it; the fix
-  is `box(...)`, rule `trait.dyn.ref.counted.new`). `traits/dynamic-trait-values/assign-dyn-child-to-supertrait.hd`
+- Plausible B7: `lang/traits/dynamic-trait-values/dyn-ref-value-list-literal.hd` (A18 listed it; the fix
+  is `box(...)`, rule `trait.dyn.ref.counted.new`). `lang/traits/dynamic-trait-values/assign-dyn-child-to-supertrait.hd`
   (its header comment names the wrong chapter).
 
 #### b084 (`lang/09-traits.md`, trait resolution depth)
 
 Ledger: b084 (45): 5 rows. Covered by A18 1, plausible 2, spec question 2.
 
-- `traits/trait-declarations/trait-generic-instantiations-unrelated.hd`: A18 (missing `&`).
-- **Spec question, how bound depth is counted**: `traits/generic-bounds-and-static-dispatch/trait-resolution-depth-limit.hd`
+- `lang/traits/trait-declarations/trait-generic-instantiations-unrelated.hd`: A18 (missing `&`).
+- **Spec question, how bound depth is counted**: `lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-limit.hd`
   (titled "exactly 64 nested bounds") is accepted by `hd`, but a literal reading of
-  `trait.bound.depth` counts 66. `traits/generic-bounds-and-static-dispatch/trait-resolution-depth-pending.hd`
+  `trait.bound.depth` counts 66. `lang/traits/generic-bounds-and-static-dispatch/trait-resolution-depth-pending.hd`
   rejects 65 `Wrap` layers, while the limit fixture accepts 65 `Box` layers. The
   spec should state the counting with one worked example, and the boundary
   fixtures should sit at exactly N and N+1 under it.
-- Plausible B1: `traits/generic-bounds-and-static-dispatch/bounds-a-bound-two-levels-deep-proves.hd` (the
+- Plausible B1: `lang/traits/generic-bounds-and-static-dispatch/bounds-a-bound-two-levels-deep-proves.hd` (the
   body is `Box[Box[i32]]`, not 32 levels). Plausible B2: `…/trait-resolution-depth-in-instantiation-trial.hd`.
 
 #### b085 (`lang/09-traits.md`, derive)
 
 Ledger: b085 (41): 4 rows. Covered by A18 1, plausible 3.
 
-- `traits/dynamic-trait-values/concrete-value-binding-mismatch.hd`: A18 (fails on the missing `&`).
-- **Wrong reason (B2), plausible-strong**: `traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`.
+- `lang/traits/dynamic-trait-values/concrete-value-binding-mismatch.hd`: A18 (fails on the missing `&`).
+- **Wrong reason (B2), plausible-strong**: `lang/traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`.
   The field type `Opaque` lacks `Eq` as well as `Hash`, so the error names `Eq`.
   Fix: give `Opaque` an `Eq` implementation so only `Hash` is missing.
-- Plausible C1: `traits/trait-implementations/comparison-traits/derived-newtype.hd` is covered by
+- Plausible C1: `lang/traits/trait-implementations/comparison-traits/derived-newtype.hd` is covered by
   `newtype-derive-eq-hash-and-ordering-follow-the-base-type.hd`. Plausible B7:
   `…/newtype-derive-handwritten-methods-on-newtypes-keep-their-bodies.hd`.
 
@@ -2017,26 +2017,26 @@ Ledger: b085 (41): 4 rows. Covered by A18 1, plausible 3.
 
 Ledger: b086 (46): 4 rows. Plausible 4.
 
-- Plausible B2: `traits/dynamic-trait-values/dyn-conversion-without-impl.hd`. The name says the
+- Plausible B2: `lang/traits/dynamic-trait-values/dyn-conversion-without-impl.hd`. The name says the
   implementation is missing, but the error comes from the bare value (missing `&`;
   in A18, whose anchor `trait.dyn.convert.reference-values` made it look legitimate).
   An impl-less `*Square` would isolate the missing implementation.
-- **Titles out of date after a spec change (B1)**: `traits/dynamic-trait-values/generic-method-dynamically-safe.hd`
-  and `traits/dynamic-trait-values/nested-dynamically-safe-trait-values.hd` talk about "dynamically
+- **Titles out of date after a spec change (B1)**: `lang/traits/dynamic-trait-values/generic-method-dynamically-safe.hd`
+  and `lang/traits/dynamic-trait-values/nested-dynamically-safe-trait-values.hd` talk about "dynamically
   safe" traits. Today `trait.dyn.except-fn` lets every trait be a `dyn` type. The
   same kind as b011's row-list titles.
-- Plausible B7: `traits/dynamic-trait-values/trait-reference-impl-target.hd` (the rule is `trait.target.trait-value.error`).
+- Plausible B7: `lang/traits/dynamic-trait-values/trait-reference-impl-target.hd` (the rule is `trait.target.trait-value.error`).
 
 #### b088 (`lang/09-traits.md`) and script check A10c
 
 Ledger: b088 (46): 6 rows. Covered by A18 2, confirmed 1, covered by A10c 1, plausible 2.
 
-- A18 (missing `&`): `traits/runtime-type-identity/inspectable-child-trait-without-impl.hd`,
-  `traits/runtime-type-identity/generic-erasure-without-bound.hd`. The reviewer independently
+- A18 (missing `&`): `lang/traits/runtime-type-identity/inspectable-child-trait-without-impl.hd`,
+  `lang/traits/runtime-type-identity/generic-erasure-without-bound.hd`. The reviewer independently
   found that both fail for the bare value, not the missing impl or bound.
-- **A check that cannot fail (B3)**: `traits/trait-implementations/error-trait/erased-error-result.hd`. Its
+- **A check that cannot fail (B3)**: `lang/traits/trait-implementations/error-trait/erased-error-result.hd`. Its
   `.None` arm only does `assert(true)`.
-- Plausible: `traits/dynamic-trait-values/a-method-with-its-own-type-parameter-through-a-dyn-value.hd`
+- Plausible: `lang/traits/dynamic-trait-values/a-method-with-its-own-type-parameter-through-a-dyn-value.hd`
   (an unused `trait Sink`; cites the hint rule).
 
 **A10c** (`a10c_legal_any.py`): A10 matched only names ending in `-legal.hd`.
@@ -2065,21 +2065,21 @@ for l in list(open('cases.tsv'))[1:]:
 
 Ledger: b089 (42): 4 rows. b090 (46): 9 rows.
 
-- **A check that cannot fail (B3)**: `traits/runtime-type-identity/typeid-same-name-modules.hd:15` and
-  `traits/trait-implementations/error-trait/erased-error-result.hd:55`, where a `.None => assert(true, …)` arm
+- **A check that cannot fail (B3)**: `lang/traits/runtime-type-identity/typeid-same-name-modules.hd:15` and
+  `lang/traits/trait-implementations/error-trait/erased-error-result.hd:55`, where a `.None => assert(true, …)` arm
   checks nothing. A17 now also matches `assert(true)` inside match arms (25 hits).
-- Covered by A18: `traits/runtime-type-identity/spelled-function-type-not-inspectable.hd` (fails on
+- Covered by A18: `lang/traits/runtime-type-identity/spelled-function-type-not-inspectable.hd` (fails on
   the missing `box`, not the function type).
 - Plausible C1: `…/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd`
   (also in A13; its title says "unify" though the targets are disjoint).
-  `traits/trait-implementations/overlap/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd` and
+  `lang/traits/trait-implementations/overlap/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd` and
   `row-parameter-data-impl-overlap.hd` ~ `a-generic-row-impl-overlaps-a-later-concrete-row-impl.hd`.
-- Plausible B1: `traits/trait-implementations/conversion-trait/from-propagation-and-panic.hd` (the panic branch is
-  never reached). `traits/runtime-type-identity/inspectable-primitives-collections-options.hd`.
-  `traits/sealed-traits/num-sealed-user-number.hd`. Plausible B7: `traits/trait-implementations/implementation-declarations/impl-trait-nested-trait-method.hd`,
-  `traits/trait-implementations/implementation-declarations/impl-trait-trait-method.hd`. Plausible panic/diagnostic line:
-  `traits/trait-implementations/conversion-trait/impl-unknown-trait-cross-module.hd` (the error is raised in the tree file).
-- Rejected: `traits/trait-implementations/overlap/tests-block-impl-overlap.hd`. Plain `hd check` accepts
+- Plausible B1: `lang/traits/trait-implementations/conversion-trait/from-propagation-and-panic.hd` (the panic branch is
+  never reached). `lang/traits/runtime-type-identity/inspectable-primitives-collections-options.hd`.
+  `lang/traits/sealed-traits/num-sealed-user-number.hd`. Plausible B7: `lang/traits/trait-implementations/implementation-declarations/impl-trait-nested-trait-method.hd`,
+  `lang/traits/trait-implementations/implementation-declarations/impl-trait-trait-method.hd`. Plausible panic/diagnostic line:
+  `lang/traits/trait-implementations/conversion-trait/impl-unknown-trait-cross-module.hd` (the error is raised in the tree file).
+- Rejected: `lang/traits/trait-implementations/overlap/tests-block-impl-overlap.hd`. Plain `hd check` accepts
   it, but the runner always passes `--tests`, and `hd check --tests` reports the
   expected `overlapping-impl`. The brief now tells reviewers to use `--tests`.
 
@@ -2087,13 +2087,13 @@ Ledger: b089 (42): 4 rows. b090 (46): 9 rows.
 
 Ledger: b091 (45): 9 rows. Plausible 6, rejected 2, unverified 1.
 
-- Plausible B2: `traits/trait-implementations/implementation-ownership/nonlocal-impl.hd` (line 10 reads a non-`pub` field
+- Plausible B2: `lang/traits/trait-implementations/implementation-ownership/nonlocal-impl.hd` (line 10 reads a non-`pub` field
   from another module, a second private-member error).
-- Plausible B1: `traits/method-resolution/explicit-type-args-associated.hd` and
-  `traits/method-resolution/explicit-type-args-method.hd` (they type-check unchanged without
-  `::[i32]`, so the explicit argument selects nothing). `traits/method-resolution/failed-trial-no-leak.hd`
-  (no capture). `traits/method-resolution/generic-method-candidate-local.hd`. Plausible B7:
-  `traits/sealed-traits/fn-trait-user-impl.hd`.
+- Plausible B1: `lang/traits/method-resolution/explicit-type-args-associated.hd` and
+  `lang/traits/method-resolution/explicit-type-args-method.hd` (they type-check unchanged without
+  `::[i32]`, so the explicit argument selects nothing). `lang/traits/method-resolution/failed-trial-no-leak.hd`
+  (no capture). `lang/traits/method-resolution/generic-method-candidate-local.hd`. Plausible B7:
+  `lang/traits/sealed-traits/fn-trait-user-impl.hd`.
 - Rejected C1: `candidate-closure-selection-reversed.hd` and
   `candidate-scope-isolation-reversed.hd`. The reversed implementation order
   checks that resolution doesn't depend on declaration order, which is a real
@@ -2103,16 +2103,16 @@ Ledger: b091 (45): 9 rows. Plausible 6, rejected 2, unverified 1.
 
 Ledger: b092 (41): 4 rows. Plausible 4.
 
-- Plausible C1: `traits/runtime-type-identity/downcast-value-type-target.hd` ~ `downcast-target-not-inspectable.hd`
+- Plausible C1: `lang/traits/runtime-type-identity/downcast-value-type-target.hd` ~ `downcast-target-not-inspectable.hd`
   (the same `downcast_ref::[fn() -> i32]` line). `…/downcast-downcast-ref-with-a-type-argument-on-dyn-inspectable.hd`
   (the A13 kind).
 - Plausible B1: `…/downcast-downcast-mut-and-downcast-ref-take-a-type-argument.hd`
-  (no `downcast_mut` on a bounded parameter). `traits/trait-implementations/implementation-targets/tuple-derived-traits.hd` (never uses `Ord`).
+  (no `downcast_mut` on a bounded parameter). `lang/traits/trait-implementations/implementation-targets/tuple-derived-traits.hd` (never uses `Ord`).
 
 #### b094 (`lang/09-traits.md`, delegation)
 
-Ledger: b094 (28): 1 row. Plausible 1: `traits/trait-delegation/trait-delegation.hd` is covered by
-`traits/trait-delegation/trait-delegation-forwards.hd` (the A13 kind). The rest is clean.
+Ledger: b094 (28): 1 row. Plausible 1: `lang/traits/trait-delegation/trait-delegation.hd` is covered by
+`lang/traits/trait-delegation/trait-delegation-forwards.hd` (the A13 kind). The rest is clean.
 
 #### b093 (`lang/09-traits.md`, sealed traits)
 
@@ -2123,74 +2123,74 @@ Ledger: b093 (36): 10 rows. Plausible 7, unverified B5 3.
   `structure-outside-template` or `trait.super.missing`. An implementation that
   reports both, or reports the other one first, fails these cases.
 - Plausible B7: `-169`, `-170` (cite `#sealed-traits` for `unknown-trait`).
-- Plausible C1: `-150` ~ `traits/sealed-traits/inspectable-user-implementation.hd`.
+- Plausible C1: `-150` ~ `lang/traits/sealed-traits/inspectable-user-implementation.hd`.
 
 #### b095 (`lang/09-traits.md`, implementations)
 
 Ledger: b095 (31): 7 rows. Confirmed 4, plausible 3.
 
-- The A11 class: `traits/trait-implementations/generic-inherent-box.hd` and
-  `traits/trait-implementations/trait-default-method-instantiates-params.hd` (private `main`; the
+- The A11 class: `lang/traits/trait-implementations/generic-inherent-box.hd` and
+  `lang/traits/trait-implementations/trait-default-method-instantiates-params.hd` (private `main`; the
   reviewer found them independently).
-- **Wrong reason / two problems (B2)**: `traits/trait-implementations/orphan-impl.hd` is
+- **Wrong reason / two problems (B2)**: `lang/traits/trait-implementations/orphan-impl.hd` is
   `impl Display for i32` with a `to_string(&self)` method. std already has
   `impl Display for i32` (`lib/std/format.hd:478`), so the line also breaks
   `trait.impl.unique`. The method also doesn't match std `Display`'s
   signature. Fix: use a std trait and std type pair that std doesn't
   implement, with the right method.
-- **Duplicate (C1)**: `traits/trait-implementations/trait-impl-missing-method.hd` = `missing-trait-method.hd`
+- **Duplicate (C1)**: `lang/traits/trait-implementations/trait-impl-missing-method.hd` = `missing-trait-method.hd`
   (only `struct User: pass` against a one-field struct). Plausible:
   `trait-method-result-type-mismatch.hd` ~ `trait-method-signature.hd`.
-- Plausible B1: `traits/trait-implementations/trait-implementations-an-impl-may-omit-a-method-with-a-default-body.hd`
-  (an accept case titled "must write every"). `modules/wasm-boundary/closable-handle-closed.hd`
+- Plausible B1: `lang/traits/trait-implementations/trait-implementations-an-impl-may-omit-a-method-with-a-default-body.hd`
+  (an accept case titled "must write every"). `lang/modules/wasm-boundary/closable-handle-closed.hd`
   (a type case claiming disposal).
 
 #### b096, b097 (`lang/10-modules.md`)
 
 Ledger: b096 (39): 1 row. b097 (45): 1 row. A pair took 132 s.
 
-- **Depends on map order (B8)**: `modules/wasm-boundary/boundary-map-round-trip.hd` asserts
+- **Depends on map order (B8)**: `lang/modules/wasm-boundary/boundary-map-round-trip.hd` asserts
   that a `Map` iterates in insertion order.
-- Plausible B1: `modules/module-initialization/module-initialization-a-function-reads-an-earlier-binding.hd`
+- Plausible B1: `lang/modules/module-initialization/module-initialization-a-function-reads-an-earlier-binding.hd`
   (nothing reads `count` and `read()` is never called).
 
 #### b098, b099 (`lang/10-modules.md`)
 
 Ledger: b098 (43): 1 row. b099 (45): 3 rows. Plausible 4.
 
-- Plausible B1: `modules/entry-point/main-maps-an-error-to-an-exit-code.hd` (`main` takes only the `Ok`
+- Plausible B1: `lang/modules/entry-point/main-maps-an-error-to-an-exit-code.hd` (`main` takes only the `Ok`
   path; the error-to-`ExitCode(2)` mapping is never run through `main`).
-  `modules/module-initialization/init-constants-only-module-reads-its-constants.hd`.
-  `modules/module-initialization/optional-none-comparison-still-checks-eq-initialization.hd` (a type
+  `lang/modules/module-initialization/init-constants-only-module-reads-its-constants.hd`.
+  `lang/modules/module-initialization/optional-none-comparison-still-checks-eq-initialization.hd` (a type
   case that claims an optimizer property).
-- Plausible C1: `modules/wasm-boundary/host-on-a-private-trait.hd` ~ `host-declaration-private.hd`.
+- Plausible C1: `lang/modules/wasm-boundary/host-on-a-private-trait.hd` ~ `host-declaration-private.hd`.
 
 #### b100, b101 (`lang/10-modules.md`)
 
 Ledger: b100 (45): 1 row. b101 (45): 0 rows. Clean apart from one plausible
-diagnostic-line question: `modules/path-inferred-modules/module-path-case-fold-collision.hd` marks
+diagnostic-line question: `lang/modules/path-inferred-modules/module-path-case-fold-collision.hd` marks
 the body line, while sibling duplicate-module fixtures mark the declaration line.
 
 #### b104, b105 (`lang/10-modules.md`)
 
 Ledger: b104 (25): 1 row. b105 (35): 1 row.
 
-- **Formatter (A7b)**: `modules/use-forms/use-group-trailing-comma.hd`. The reviewer
+- **Formatter (A7b)**: `lang/modules/use-forms/use-group-trailing-comma.hd`. The reviewer
   independently found the missing trailing comma that the formatter removed.
-- **Stale term in the title (B1)**: `modules/standard-testing/assert-equal-fieldless-data-without-partial-eq.hd`.
+- **Stale term in the title (B1)**: `lang/modules/standard-testing/assert-equal-fieldless-data-without-partial-eq.hd`.
   hd has no partial-equality trait (`trait.cmp.one-eq`).
 
 #### b102, b103 (`lang/10-modules.md`)
 
 Ledger: b102 (45): 4 rows. b103 (44): 1 row. Plausible 4, rejected 1.
 
-- **Wrong reason (B4), plausible-strong**: `modules/use-roots/relative-path-into-std.hd`.
+- **Wrong reason (B4), plausible-strong**: `lang/modules/use-roots/relative-path-into-std.hd`.
   The `user-modules` tree has no `std` module, so `super.std.text` fails as a
   missing module and the "no relative path into std" rule is never reached.
-  `modules/use-roots/integration-super-above-test-root.hd` (`tests/checkout.hd` is a
+  `lang/modules/use-roots/integration-super-above-test-root.hd` (`tests/checkout.hd` is a
   root file, so `root-file.super` rejects first).
-- Plausible: `modules/prelude/slicing-every-range-form-slices-a-string.hd` (no range
-  syntax at all). `modules/standard-testing/debug-missing-derive.hd` (B7).
+- Plausible: `lang/modules/prelude/slicing-every-range-form-slices-a-string.hd` (no range
+  syntax at all). `lang/modules/standard-testing/debug-missing-derive.hd` (B7).
 - Rejected C1: `root-file-super.hd` ~ `root-file-lib-super.hd` (the `main.hd`/`lib.hd`
   difference is deliberate; see A2 triage).
 
@@ -2199,53 +2199,53 @@ Ledger: b102 (45): 4 rows. b103 (44): 1 row. Plausible 4, rejected 1.
 Ledger: b106 (43): 11 rows. b107 (45): 6 rows. Plausible ~15.
 
 - **Checks that cannot fail (B3), plausible-strong; a provider-test pattern**:
-  - `requirements/provider-access/multi-provider-use-order.hd`: `left.value() + right.value()` is
+  - `lang/requirements/provider-access/multi-provider-use-order.hd`: `left.value() + right.value()` is
     commutative, so swapping the use order still gives 42. Use `left*100 + right`.
-  - `requirements/construction-time-requirement-binding/closure-captures-provider-scope.hd` and
-    `requirements/provider-scopes/nested-provider-scope.hd`: the provider value is discarded
+  - `lang/requirements/construction-time-requirement-binding/closure-captures-provider-scope.hd` and
+    `lang/requirements/provider-scopes/nested-provider-scope.hd`: the provider value is discarded
     (`_ := clock`) and the function returns a constant 42, so a broken capture or
     the wrong nearest provider still passes. Call a method of the provider.
-  - `requirements/cancellation/cold-suspension-cancel-idempotent.hd`: `ready!` has no visible
+  - `lang/requirements/cancellation/cold-suspension-cancel-idempotent.hd`: `ready!` has no visible
     effect, so running the cold body by mistake would go unnoticed.
-- **Stale title (B1)**: `requirements/cancellation/await-cancelled-job-cancels-all.hd` names an
+- **Stale title (B1)**: `lang/requirements/cancellation/await-cancelled-job-cancels-all.hd` names an
   `all!` combinator that doesn't exist (it is `join!`).
-- Plausible B2: `requirements/cancellation/abandon-active-ancestor.hd` (the panic marker is on
+- Plausible B2: `lang/requirements/cancellation/abandon-active-ancestor.hd` (the panic marker is on
   the caller's line; the b018 owner question).
-- Plausible B7: `requirements/cancellation/suspending-call-with-defer.hd` and `…-in-scoped-defer.hd`
-  (cite cancellation; nothing is cancelled). `modules/use-forms/result-pattern-nested-enum.hd`.
-  `modules/use-forms/unknown-std-module.hd` and `unknown-dep-module.hd` (the cited rules
+- Plausible B7: `lang/requirements/cancellation/suspending-call-with-defer.hd` and `…-in-scoped-defer.hd`
+  (cite cancellation; nothing is cancelled). `lang/modules/use-forms/result-pattern-nested-enum.hd`.
+  `lang/modules/use-forms/unknown-std-module.hd` and `unknown-dep-module.hd` (the cited rules
   state no error; `unknown-module` is defined only in the README diagnostics list).
-- Plausible: `…/context-values-a-provider-that-does-not-implement-its-key-is-a-type-mismatch.hd` (B1). `requirements/provider-scopes/nested-provider-restoration.hd`
-  ~ `…-a-later-entry-wins-over-a-spread-269.hd` (C1). `modules/use-forms/direct-variant-use.hd`
+- Plausible: `…/context-values-a-provider-that-does-not-implement-its-key-is-a-type-mismatch.hd` (B1). `lang/requirements/provider-scopes/nested-provider-restoration.hd`
+  ~ `…-a-later-entry-wins-over-a-spread-269.hd` (C1). `lang/modules/use-forms/direct-variant-use.hd`
   (`hd` reports it at use resolution; is it really a parse error?).
 
 #### b114, b115 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b114 (45): 2 rows. b115 (39): 2 rows.
 
-- Duplicate: `requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` = `row-union-private-result.hd` (already in A2).
-- Plausible B3: `requirements/suspending-functions/pending-first-poll-return-wide-result.hd` (returns 42,
+- Duplicate: `lang/requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` = `row-union-private-result.hd` (already in A2).
+- Plausible B3: `lang/requirements/suspending-functions/pending-first-poll-return-wide-result.hd` (returns 42,
   which fits in `i32`, so a narrow result type still passes).
-- Plausible: `requirements/requirement-polymorphism/row-extension-provider-restoration.hd` (B1, restoration
-  is never observed). `requirements/provider-scopes/row-forced-overlap-nearest.hd` ~
+- Plausible: `lang/requirements/requirement-polymorphism/row-extension-provider-restoration.hd` (B1, restoration
+  is never observed). `lang/requirements/provider-scopes/row-forced-overlap-nearest.hd` ~
   `dynamic-row-parameter-nearest.hd` (C1).
 
 #### b110, b111 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b110 (45): 2 rows. b111 (45): 0 rows.
 
-- Plausible B3: `requirements/providers-behind-references/provider-install-box.hd` (`count()` prints 10 whether
+- Plausible B3: `lang/requirements/providers-behind-references/provider-install-box.hd` (`count()` prints 10 whether
   the value is shared or copied, so "a value provider is a copy" is untested).
-- Plausible C1: `requirements/mutable-providers/provider-share-shared-for-mutable.hd` ~ `provider-ref-shared-for-mutable.hd`.
+- Plausible C1: `lang/requirements/mutable-providers/provider-share-shared-for-mutable.hd` ~ `provider-ref-shared-for-mutable.hd`.
 
 #### b108, b109, b112, b113 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b108 (42): 0. b109 (44): 6. b112 (43): 5. b113 (40): 3.
 
 - Already known duplicates: `row-parameter-unmarked.hd` (A2), `requirement-key-unknown-binding-rule.hd` (A2).
-- **Depends on map order (B8)**: `requirements/requirement-rows/row-subsumption/row-union-list-runs.hd` (`from_map` iterates
+- **Depends on map order (B8)**: `lang/requirements/requirement-rows/row-subsumption/row-union-list-runs.hd` (`from_map` iterates
   a map literal and asserts `health=noon;orders=db;`).
-- Plausible C1: `requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd` and
+- Plausible C1: `lang/requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd` and
   `a-local-row-fixit-uses-the-active-declaration.hd`. They match siblings in code
   and line and differ only in the fix-it, which the runner doesn't judge (the
   b007 kind of message-only difference).
@@ -2254,26 +2254,26 @@ Ledger: b108 (42): 0. b109 (44): 6. b112 (43): 5. b113 (40): 3.
 - Plausible B1/B4: `checker-…-107` (the title says `println` is forbidden in direct
   contexts; nothing tests it). `checker-…-102` (`block_on` is never reached).
   `defer-indirect-block-on-checks.hd`. `requirement-key-any-trait.hd`.
-  `requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd`.
-  `requirements/requirement-rows/row-sets/a-delayed-function-trait-value-keeps-the-callback-requirement.hd`
+  `lang/requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd`.
+  `lang/requirements/requirement-rows/row-sets/a-delayed-function-trait-value-keeps-the-callback-requirement.hd`
   (nothing is delayed).
 - Plausible B7: `…/inferred-rows-a-growing-key-in-a-recursive-row-is-too-deep.hd`
   (the error is `types.generic.polymorphic-recursion`).
-  `requirements/requirement-rows/row-subsumption/row-union-a-call-through-the-union-needs-every-key.hd` (an `if`
+  `lang/requirements/requirement-rows/row-subsumption/row-union-a-call-through-the-union-needs-every-key.hd` (an `if`
   union, not a list literal).
 
 #### b116, b117 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b116 (31): 5 rows. b117 (35): 3 rows.
 
-- `requirements/requirement-rows/closure-result-keeps-requirement-row.hd`: the A11 class (private `main`, nothing checked).
-- Accept cases titled as rejections (the A10b kind): `requirements/requirement-rows/requirement-rows-main-declaring-console-may-print.hd`,
+- `lang/requirements/requirement-rows/closure-result-keeps-requirement-row.hd`: the A11 class (private `main`, nothing checked).
+- Accept cases titled as rejections (the A10b kind): `lang/requirements/requirement-rows/requirement-rows-main-declaring-console-may-print.hd`,
   `…-generic-parameter-used-in-the-other-kind-is-a-kind-mismatch-229.hd`.
-- Plausible C1: `requirements/requirement-rows/call-missing-requirement.hd` ~ `missing-requirement.hd`.
+- Plausible C1: `lang/requirements/requirement-rows/call-missing-requirement.hd` ~ `missing-requirement.hd`.
   `bang-call-in-plain-function.hd` ~ `bang-call-outside-suspension.hd`.
   `bang-call-in-defer.hd` ~ `defer-suspends.hd`.
-- Plausible: `requirements/cancellation/a-cancelled-join-cleans-its-completed-text-result.hd` (B3,
-  cleanup not observed). `requirements/suspending-functions/mutable-suspension.hd` (B1, nothing is `mut`).
+- Plausible: `lang/requirements/cancellation/a-cancelled-join-cleans-its-completed-text-result.hd` (B3,
+  cleanup not observed). `lang/requirements/suspending-functions/mutable-suspension.hd` (B1, nothing is `mut`).
 
 **Ticket size (owner direction):** from b128 on, each Haiku reviewer takes four
 old batches (about 180 fixtures), not one or two. The 43 remaining old batches
@@ -2282,14 +2282,14 @@ old batches (about 180 fixtures), not one or two. The 43 remaining old batches
 #### b118, b119 (`lang/11`, `lang/13`)
 
 Ledger: b118 (11): 3 rows. b119 (45): 0 rows (the generated pointer-loan matrix is clean).
-- Panic marker on the caller's line (the b018 owner question): `requirements/suspendt-protocol/reentrant-cancel.hd`,
-  `requirements/suspendt-protocol/dispose-cancels-active-ancestor.hd`.
-- Plausible C1: `requirements/suspendt-protocol/second-suspension-drive.hd` ~ `block-on-completed-suspension.hd`.
+- Panic marker on the caller's line (the b018 owner question): `lang/requirements/suspendt-protocol/reentrant-cancel.hd`,
+  `lang/requirements/suspendt-protocol/dispose-cancels-active-ancestor.hd`.
+- Plausible C1: `lang/requirements/suspendt-protocol/second-suspension-drive.hd` ~ `block-on-completed-suspension.hd`.
 
 #### b120, b121 (`lang/13-values-and-references.md`, alias conflicts)
 
 Ledger: b120 (45): 1 row. b121 (45): 0 rows. Clean except a plausible spec
-question: `references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd`
+question: `lang/references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd`
 claims that a bare `*mut` argument converted to `&mut` takes a loan, but rule 7
 covers only paths that dereference a `*mut`, and `ref.convert.lend` doesn't say
 a loan is taken.
@@ -2298,7 +2298,7 @@ a loan is taken.
 
 Ledger: b122 (45): 0 rows. b123 (45): 4 rows.
 
-- **Code under test never runs (B4), plausible-strong**: `references/pointer-loans/adversarial/pointer-loan-extra-deep-shared-loans-kept.hd`
+- **Code under test never runs (B4), plausible-strong**: `lang/references/pointer-loans/adversarial/pointer-loan-extra-deep-shared-loans-kept.hd`
   (`if n > 1000` with `n <= 70`, so the `&mut` that should keep the loans never
   runs) and `…-deep-shared-loans-many-objects.hd` (`if k > 100000` with `k <= 70`).
 - Plausible C1: `…-deep-shared-loans.hd` ~ `-kept` (depths 40 and 70 are both under
@@ -2309,11 +2309,11 @@ Ledger: b122 (45): 0 rows. b123 (45): 4 rows.
 
 Ledger: b126 (37): 1 row. b127 (44): 4 rows.
 
-- Duplicate, already in A2: `references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd`.
-- Plausible B7: `references/dependent-results/a-pointer-read-from-a-place-keeps-its-root-nested-field.hd`
-  (cites a call rule; there is no call). `references/dependent-results/dependent-result-capture-static.hd`
+- Duplicate, already in A2: `lang/references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd`.
+- Plausible B7: `lang/references/dependent-results/a-pointer-read-from-a-place-keeps-its-root-nested-field.hd`
+  (cites a call rule; there is no call). `lang/references/dependent-results/dependent-result-capture-static.hd`
   (an accept case citing the error-only `ref.dep.capture-elide.ambiguous`).
-- Plausible B1: `references/dependent-results/a-copied-local-reference-in-a-list-keeps-its-own-source.hd`.
+- Plausible B1: `lang/references/dependent-results/a-copied-local-reference-in-a-list-keeps-its-own-source.hd`.
   Plausible C1: `move-while-borrowed-nested-100-levels.hd` ~ the 33-level twin
   (both are beyond any limit, so they likely take the same path).
 
@@ -2328,24 +2328,24 @@ Ledger: b124 (42): 8 rows. b125 (41): 13 rows.
   to be the point of the matrix's "local" column (no loan needed, runs). The
   generator's title template (`spec/tools/generate-pointer-loan-matrix.ts`)
   should say so, for example "an alias cannot reach the local's place".
-- **Code under test never runs (B4)**: `references/boxes/match-reference-field-loan.hd`
+- **Code under test never runs (B4)**: `lang/references/boxes/match-reference-field-loan.hd`
   (`across_call`, `across_store` and `across_guard` are never called). Plausible:
-  `references/local-references/a-plain-entry-borrows-its-cell-reference.hd` (`helper!` is never awaited).
-- **A check that cannot fail (B3)**: `references/moves/provider-local-replaced-through-a-reference-keeps-its-counts.hd`
+  `lang/references/local-references/a-plain-entry-borrows-its-cell-reference.hd` (`helper!` is never awaited).
+- **A check that cannot fail (B3)**: `lang/references/moves/provider-local-replaced-through-a-reference-keeps-its-counts.hd`
   (the replacement is the same provider, so skipping the write gives the same 2).
 - Plausible B7: the `provider-local-*-keeps-its-counts` trio (cites the Copy
-  section; the rule is `ref.type.local-uncounted`). `references/boxes/box-local-reference-alias-write.hd`
+  section; the rule is `ref.type.local-uncounted`). `lang/references/boxes/box-local-reference-alias-write.hd`
   and `box-local-reference-tuple.hd` (`ref.box.local` names no error).
-  `references/conversions/reference-container-upgrade.hd`.
-- Plausible B1: `references/moves/list-local-shared-before-a-change-keeps-its-copy.hd`,
-  `references/conversions/reference-shared-to-mut-result.hd` (`&T` in the title; the code uses `*i32`),
-  `references/identity/constant-size-reference-allocation.hd`.
+  `lang/references/conversions/reference-container-upgrade.hd`.
+- Plausible B1: `lang/references/moves/list-local-shared-before-a-change-keeps-its-copy.hd`,
+  `lang/references/conversions/reference-shared-to-mut-result.hd` (`&T` in the title; the code uses `*i32`),
+  `lang/references/identity/constant-size-reference-allocation.hd`.
 
 #### b128 to b131 (`lang/13-values-and-references.md`); first 4-batch reviewer, 340 s for 137 fixtures
 
 Ledger: b128 (44): 2. b129 (45): 2. b130 (14): 1. b131 (34): 8.
 
-- Plausible B2: `references/dependent-results/dependent-result-function-type-position.hd` (line 8
+- Plausible B2: `lang/references/dependent-results/dependent-result-function-type-position.hd` (line 8
   `&u.name` returns a reference to the value parameter `u`, a second error
   behind line 7).
 - **Owner question, the panic-marker line again (b018)**: in the `runtime/panic/element-reference-*`
@@ -2353,23 +2353,23 @@ Ledger: b128 (44): 2. b129 (45): 2. b130 (14): 1. b131 (34): 8.
   insert and get_or_insert cases mark a line inside the callee, while swap,
   sort, store, replace and field-store mark the call line. One convention
   should cover all of them.
-- Plausible B1: `references/dependent-results/suspension-holds-arguments.hd` (no `'static` argument).
-  `references/reading-through-a-reference/reference-arguments-keep-their-values.hd` (no tuple or `*T`).
-  `references/element-references/element-reference-shared-and-mut-argument.hd` (says "at any index";
+- Plausible B1: `lang/references/dependent-results/suspension-holds-arguments.hd` (no `'static` argument).
+  `lang/references/reading-through-a-reference/reference-arguments-keep-their-values.hd` (no tuple or `*T`).
+  `lang/references/element-references/element-reference-shared-and-mut-argument.hd` (says "at any index";
   both use `xs[1]`). Several `runtime/panic/*-aliases-panics.hd` titles describe a
   completed run while the case panics.
-- Plausible C1: `references/element-references/element-reference-binding.hd` (the A13 kind).
-  `references/dependent-results/conflicts-through-aliases/mut-parameter-then-closure-pushes-through-an-alias-panics.hd`.
+- Plausible C1: `lang/references/element-references/element-reference-binding.hd` (the A13 kind).
+  `lang/references/dependent-results/conflicts-through-aliases/mut-parameter-then-closure-pushes-through-an-alias-panics.hd`.
 
 #### b136 to b139 (`lang/13-values-and-references.md`, lifetimes)
 
 Ledger: b136 (45): 3. b137 (45): 1. b138 (41): 0. b139 (45): 0. Plausible 2, rejected 2.
 
-- **Message-only claim (plausible)**: `references/identity/reference-equality-wraps-a-compound-operand-in-its-value-fix.hd`.
+- **Message-only claim (plausible)**: `lang/references/identity/reference-equality-wraps-a-compound-operand-in-its-value-fix.hd`.
   The title is about the fix-it's parentheses, but the runner checks only the
   code. The b007 kind: a candidate for a `cli/` case.
-- Plausible B1: `references/dependent-results/lifetime-enums/lifetime-enum-box.hd` ("a local", but it is a parameter).
-- Rejected B6: `references/generic-locality/adapters-holding-capturing-closures-are-used-within-the-captures-scope.hd` and `references/generic-locality/a-closure-in-a-lifetime-bounded-field-runs-with-its-local-capture.hd`
+- Plausible B1: `lang/references/dependent-results/lifetime-enums/lifetime-enum-box.hd` ("a local", but it is a parameter).
+- Rejected B6: `lang/references/generic-locality/adapters-holding-capturing-closures-are-used-within-the-captures-scope.hd` and `lang/references/generic-locality/a-closure-in-a-lifetime-bounded-field-runs-with-its-local-capture.hd`
   ("a plain `let` is reassigned"). `types.value.write.let` covers field writes;
   `types.value.reassign-binding` allows reassigning a plain `let` as a whole.
 
@@ -2377,35 +2377,35 @@ Ledger: b136 (45): 3. b137 (45): 1. b138 (41): 0. b139 (45): 0. Plausible 2, rej
 
 Ledger: b132 (41): 4. b133 (41): 4. b134 (45): 1. b135 (43): 1. Confirmed 2, plausible 8.
 
-- **Duplicates (C1), confirmed by `diff`**: `references/dependent-results/conflicts-through-aliases/list-element-place-push-panics.hd`
+- **Duplicates (C1), confirmed by `diff`**: `lang/references/dependent-results/conflicts-through-aliases/list-element-place-push-panics.hd`
   = `element-binding-box-alias-push-panics.hd` (only the binding names and the
   `it` label differ; A14 missed it because the `it` strings differ).
-  `references/dependent-results/conflicts-through-aliases/nonescaping-closure-keeps-captured-root-loan.hd` =
+  `lang/references/dependent-results/conflicts-through-aliases/nonescaping-closure-keeps-captured-root-loan.hd` =
   `dependent-result-captured-list-parent-replacement-panics.hd` (only `main`
   differs). Plausible: `a-pointer-loan-rejects-an-aliased-root-write-closure-write.hd`
   ~ the same file (the closure runs from `main` against a helper).
-- Plausible B1: `references/dependent-results/conflicts-through-aliases/inlined-capture-of-an-alias-keeps-other-loans.hd` (the title
+- Plausible B1: `lang/references/dependent-results/conflicts-through-aliases/inlined-capture-of-an-alias-keeps-other-loans.hd` (the title
   says the opposite of the outcome). The `inlined-scalar-writer-*` pair (no
-  `@inline`; the "inlined" path isn't forced). `references/dependent-results/conflicts-through-aliases/replace-pointer-on-live-loan-path-panics.hd`
-  (only one of the two slots is replaced). `references/dependent-results/conflicts-through-aliases/dyn-reference-source-replaced-during-its-call.hd`.
-  `references/dependent-results/writes-while-borrowed/implicit-lend-cancellation-actors.hd` (the title describes a runtime outcome).
-- Plausible B7: `references/places-and-new-objects/deep-recursive-release.hd`.
+  `@inline`; the "inlined" path isn't forced). `lang/references/dependent-results/conflicts-through-aliases/replace-pointer-on-live-loan-path-panics.hd`
+  (only one of the two slots is replaced). `lang/references/dependent-results/conflicts-through-aliases/dyn-reference-source-replaced-during-its-call.hd`.
+  `lang/references/dependent-results/writes-while-borrowed/implicit-lend-cancellation-actors.hd` (the title describes a runtime outcome).
+- Plausible B7: `lang/references/places-and-new-objects/deep-recursive-release.hd`.
 
 #### b140 to b143 (`lang/13-values-and-references.md`, references)
 
 Ledger: b140 (40): 1. b141 (45): 3. b142 (44): 3. b143 (42): 3.
 
-- **Code under test never runs (B4)**: `references/places-and-new-objects/reference-field-stores-preserve-rhs-alias-writes.hd`
+- **Code under test never runs (B4)**: `lang/references/places-and-new-objects/reference-field-stores-preserve-rhs-alias-writes.hd`
   (`Pair::assign`, `Pair::compound` and `changed_both` are never called).
-- `references/writable-places-of-references/reference-enum-replace-build.hd`: the A11 class (private `main`), and a
+- `lang/references/writable-places-of-references/reference-enum-replace-build.hd`: the A11 class (private `main`), and a
   subset of `reference-enum-replace.hd`.
-- Plausible C1: `references/places-and-new-objects/reference-tuple-element-comparator.hd` and `…-place.hd` are
-  covered by `references/places-and-new-objects/reference-tuple-element-run.hd` (the A13 kind).
-  `references/moves/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd` ~
+- Plausible C1: `lang/references/places-and-new-objects/reference-tuple-element-comparator.hd` and `…-place.hd` are
+  covered by `lang/references/places-and-new-objects/reference-tuple-element-run.hd` (the A13 kind).
+  `lang/references/moves/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd` ~
   `field-move-after-local-borrow.hd` (also A2: identical to the runtime box fixture).
-- Plausible B1: `references/places-and-new-objects/mutable-data-paths-share-identity.hd` (copies a `*mut`, not
-  `&mut`). `references/places-and-new-objects/reference-aliases-see-writes.hd` (`r` and `s` are never live
-  together). Plausible B7: `references/dependent-results/lifetime-traits/lifetime-trait-result-outlives.hd`.
+- Plausible B1: `lang/references/places-and-new-objects/mutable-data-paths-share-identity.hd` (copies a `*mut`, not
+  `&mut`). `lang/references/places-and-new-objects/reference-aliases-see-writes.hd` (`r` and `s` are never live
+  together). Plausible B7: `lang/references/dependent-results/lifetime-traits/lifetime-trait-result-outlives.hd`.
 - Unverified B5: two `associated-payload-writes-*` (an unused `Box2`).
 
 #### b144 to b147 (`lang/13`, then `std/` chapters: collections, cmp, cli)
@@ -2498,7 +2498,7 @@ Ledger: b168 (36): 2. b169 (45): 5. b170 (18): 2.
   `std/time/clock/provider-keys-a-suspension-binds-both-providers-at-construction.hd` cites the same anchor
   for a requirement-row rule.
 - The `pointer-loan-bang-{ref,mut}-local-write.hd` title (the b124 kind).
-- Plausible B2: `references/pointer-loans/adversarial/pointer-loan-extra-other-task-field-write-panics.hd` (writes
+- Plausible B2: `lang/references/pointer-loans/adversarial/pointer-loan-extra-other-task-field-write-panics.hd` (writes
   `alias.other` while holding `&p.value`, which looks disjoint; its accept sibling runs
   disjoint writes; check the panic claim).
 
@@ -2552,61 +2552,61 @@ One reviewer read each fixture's diff in `edea876ae` (`full/fmt-diffs.txt`, brie
 ERASED means the form the fixture tests is gone, and restoring the pre-format
 version fixes it:
 
-- `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`: Closure body in the if header is now same-line, so no nested suite inside the header remains.
-- `lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`: Nested suite inside run( joined to one line; the deeper-body form is gone.
-- `lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`: Else on its own line after a same-line if joined onto the if line.
-- `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`: Bracketed expression collapsed to one line; no line starts with a dot or operator.
-- `grammar/statements/same-line-for-list.hd`: Same-line for suites and same-line bodies became indented; no same-line for remains.
-- `lexical/physical-and-logical-lines/same-line-loop-else.hd`: Same-line for and while suites with else became indented blocks; no same-line loop else remains.
-- `grammar/statements/same-line-suite-let-list.hd`: Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
-- `modules/use-forms/use-group-trailing-comma.hd`: All three grouped-use trailing commas removed.
-- `lexical/processing-model/utf8-bom.hd`: Leading BOM bytes stripped.
-- `lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: Same-line if body became indented, so the .Variant line no longer follows a same-line if.
-- `lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: Every list whose lines open with a bracket or bang collapsed to one line.
-- `lexical/physical-and-logical-lines/crlf-line-endings.hd`: Current file has zero CR bytes; the CRLF line endings the title requires are gone.
-- `lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
-- `lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd`: The := chain with a leading .size line is now one line; no such chain remains.
-- `grammar/statements/let-after-same-line-if-keeps-else.hd`: Same-line if ... let ... else forms became indented; no same-line if with let remains.
-- `expressions/primary-expressions/module-qualified-function-value-parenthesized.hd`: Parenthesized (time.s) became time.s; the parenthesized function value is gone.
-- `lexical/whitespace-and-indentation/no-final-line-ending.hd`: A final line ending was added; the file no longer ends without one.
-- `lexical/operators-and-delimiters/operators-longest-match.hd`: Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
-- `grammar/statements/same-line-suite-body-forms.hd`: Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
-- `grammar/statements/grammar-assignment-nonplace.hd`: Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
-- `grammar/statements/same-line-let-list-unused.hd`: The only same-line suite binding was indented, so the same-line case the title names is gone.
+- `lang/lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`: Closure body in the if header is now same-line, so no nested suite inside the header remains.
+- `lang/lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`: Nested suite inside run( joined to one line; the deeper-body form is gone.
+- `lang/lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`: Else on its own line after a same-line if joined onto the if line.
+- `lang/lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`: Bracketed expression collapsed to one line; no line starts with a dot or operator.
+- `lang/grammar/statements/same-line-for-list.hd`: Same-line for suites and same-line bodies became indented; no same-line for remains.
+- `lang/lexical/physical-and-logical-lines/same-line-loop-else.hd`: Same-line for and while suites with else became indented blocks; no same-line loop else remains.
+- `lang/grammar/statements/same-line-suite-let-list.hd`: Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
+- `lang/modules/use-forms/use-group-trailing-comma.hd`: All three grouped-use trailing commas removed.
+- `lang/lexical/processing-model/utf8-bom.hd`: Leading BOM bytes stripped.
+- `lang/lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: Same-line if body became indented, so the .Variant line no longer follows a same-line if.
+- `lang/lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: Every list whose lines open with a bracket or bang collapsed to one line.
+- `lang/lexical/physical-and-logical-lines/crlf-line-endings.hd`: Current file has zero CR bytes; the CRLF line endings the title requires are gone.
+- `lang/lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
+- `lang/lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd`: The := chain with a leading .size line is now one line; no such chain remains.
+- `lang/grammar/statements/let-after-same-line-if-keeps-else.hd`: Same-line if ... let ... else forms became indented; no same-line if with let remains.
+- `lang/expressions/primary-expressions/module-qualified-function-value-parenthesized.hd`: Parenthesized (time.s) became time.s; the parenthesized function value is gone.
+- `lang/lexical/whitespace-and-indentation/no-final-line-ending.hd`: A final line ending was added; the file no longer ends without one.
+- `lang/lexical/operators-and-delimiters/operators-longest-match.hd`: Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
+- `lang/grammar/statements/same-line-suite-body-forms.hd`: Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
+- `lang/grammar/statements/grammar-assignment-nonplace.hd`: Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
+- `lang/grammar/statements/same-line-let-list-unused.hd`: The only same-line suite binding was indented, so the same-line case the title names is gone.
 
 WEAKENED (some of the title's forms are gone):
 
-- `lexical/physical-and-logical-lines/bracketed-suite-header-line.hd`: Header on the bracket line erased for the if and closure cases; the for header moved to its own line.
-- `lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd`: Multi-line if suite closed by a paren on its last line joined; the match case remains.
-- `lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd`: Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
-- `lexical/operators-and-delimiters/compound-assignment-tokens.hd`: Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
-- `grammar/expressions/embedded-copy-syntax.hd`: Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
-- `functions/functions-and-closures.hd`: Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
-- `grammar/inline-conditions-and-headers.hd`: The negative-literal line after else joined to one line; the match arm and headers remain.
-- `lexical/whitespace-and-indentation/layout.hd`: Same-line fn bodies one_line and test became indented; same-line if remains.
-- `lexical/physical-and-logical-lines/leading-dot-continuation.hd`: Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
-- `grammar/statements/let-else-same-line.hd`: Same-line let-else body became an indented body; the indented form remains.
-- `lexical/physical-and-logical-lines/nested-layout.hd`: Line break after the opening paren before the closure joined; the nesting remains.
-- `grammar/use-declarations/use-declaration-forms.hd`: Trailing comma in the grouped use with an alias removed; the title names that form.
-- `grammar/expressions/bang-call-and-prefix-not.hd`: Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
-- `grammar/statements/header-and-bracket-expression-positions.hd`: Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
-- `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`: Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
-- `lexical/whitespace-and-indentation/indentation-levels.hd`: Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
-- `lexical/physical-and-logical-lines/leading-dot-chain.hd`: Most leading-dot method-chain lines joined; one .double() after a comment line remains.
-- `lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd`: Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.
-- `lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`: Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
-- `lexical/operators-and-delimiters/operators-without-spaces.hd`: Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
-- `lexical/physical-and-logical-lines/same-line-suite-boundaries.hd`: Same-line for and while suites, including one before else, became indented blocks.
-- `grammar/statements/suite-statement-right-sides.hd`: Right-side if and closure suites joined to one line; right-side match suites remain.
-- `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`: Most trailing commas removed; those in an interpolated call and a closure header remain.
+- `lang/lexical/physical-and-logical-lines/bracketed-suite-header-line.hd`: Header on the bracket line erased for the if and closure cases; the for header moved to its own line.
+- `lang/lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd`: Multi-line if suite closed by a paren on its last line joined; the match case remains.
+- `lang/lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd`: Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
+- `lang/lexical/operators-and-delimiters/compound-assignment-tokens.hd`: Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
+- `lang/grammar/expressions/embedded-copy-syntax.hd`: Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
+- `lang/functions/functions-and-closures.hd`: Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
+- `lang/grammar/inline-conditions-and-headers.hd`: The negative-literal line after else joined to one line; the match arm and headers remain.
+- `lang/lexical/whitespace-and-indentation/layout.hd`: Same-line fn bodies one_line and test became indented; same-line if remains.
+- `lang/lexical/physical-and-logical-lines/leading-dot-continuation.hd`: Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
+- `lang/grammar/statements/let-else-same-line.hd`: Same-line let-else body became an indented body; the indented form remains.
+- `lang/lexical/physical-and-logical-lines/nested-layout.hd`: Line break after the opening paren before the closure joined; the nesting remains.
+- `lang/grammar/use-declarations/use-declaration-forms.hd`: Trailing comma in the grouped use with an alias removed; the title names that form.
+- `lang/grammar/expressions/bang-call-and-prefix-not.hd`: Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
+- `lang/grammar/statements/header-and-bracket-expression-positions.hd`: Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
+- `lang/lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`: Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
+- `lang/lexical/whitespace-and-indentation/indentation-levels.hd`: Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
+- `lang/lexical/physical-and-logical-lines/leading-dot-chain.hd`: Most leading-dot method-chain lines joined; one .double() after a comment line remains.
+- `lang/lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd`: Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.
+- `lang/lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`: Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
+- `lang/lexical/operators-and-delimiters/operators-without-spaces.hd`: Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
+- `lang/lexical/physical-and-logical-lines/same-line-suite-boundaries.hd`: Same-line for and while suites, including one before else, became indented blocks.
+- `lang/grammar/statements/suite-statement-right-sides.hd`: Right-side if and closure suites joined to one line; right-side match suites remain.
+- `lang/grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`: Most trailing commas removed; those in an interpolated call and a closure header remain.
 
 Notes on the pass:
-- **`lexical/physical-and-logical-lines/crlf-line-endings.hd` was not erased by the formatter.** Its first
+- **`lang/lexical/physical-and-logical-lines/crlf-line-endings.hd` was not erased by the formatter.** Its first
   version (`8f8f62c46`) had 18 CR bytes. They were lost in `d5a28f88e` ("Bridge
   HTTP messages through internal wire providers", 2026-10-26), an unrelated
   commit, and the fixture has had no CRLF since. It needs a `.gitattributes`
   entry (`-text`) so git can't normalize it again, and so does `utf8-bom.hd`.
-- `grammar/statements/grammar-assignment-nonplace.hd`: with its parentheses removed,
+- `lang/grammar/statements/grammar-assignment-nonplace.hd`: with its parentheses removed,
   `1 + 2 = 3` becomes a parse error under `grammar.assignment_target`, not the
   expected `invalid-assignment-target`. The case may now pass for the wrong
   reason, or fail.

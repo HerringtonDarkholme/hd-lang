@@ -19,7 +19,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const check = process.argv.includes("--check");
 const stem = "pointer-loan-";
 // Every generated case lives under one topic folder of the suite.
-const topic = "references/pointer-loans";
+const topic = "lang/references/pointer-loans";
 const section = "lang/13-values-and-references.md#conflicts-through-aliases";
 
 /** The primary section: a std rule when the source imports a std item. */
