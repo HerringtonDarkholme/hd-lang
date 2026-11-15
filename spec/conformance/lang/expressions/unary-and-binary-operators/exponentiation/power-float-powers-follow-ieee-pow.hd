@@ -1,5 +1,6 @@
 # test: float powers follow ieee pow
-# Spec lang/05-expressions.md: expr.power.float.special.
+# Spec lang/05-expressions.md: expr.power.float.special, exactly; every other
+# power within 1 ULP, by expr.power.float.within-ulp.
 # expect-stdout: true
 # expect-stdout: true
 # expect-stdout: true
@@ -30,20 +31,59 @@ fn same(got: f64, want: f64) -> bool:
         return got != got
     got == want && 1.0 / got == 1.0 / want
 
+# Whether `got` is `want` or a float one step above or below it: within
+# 1 ULP, as expr.power.float.within-ulp allows. `want` is not NaN.
+fn within_ulp(got: f64, want: f64) -> bool:
+    got == want || got == step_up(want) || got == step_down(want)
+
+# The next float above `x` (IEEE nextUp). Doubling and halving a power of
+# two are exact, so the gap comes out exact.
+fn step_up(x: f64) -> f64:
+    if x == 1.0 / 0.0:
+        return x
+    if x < 0.0:
+        return -step_down(-x)
+    x + gap(x, true)
+
+# The next float below `x` (IEEE nextDown).
+fn step_down(x: f64) -> f64:
+    if x == -1.0 / 0.0:
+        return x
+    if x == 1.0 / 0.0:
+        return 1.7976931348623157e308
+    if x <= 0.0:
+        return -step_up(-x)
+    x - gap(x, false)
+
+# The distance from a finite `a`, 0 or above, to the next float above it or
+# below it: 2^-1074 among the subnormals, else 2^-52 of the power of two
+# at or below `a`, halved below an exact power of two.
+fn gap(a: f64, above: bool) -> f64:
+    if a < 2.2250738585072014e-308:
+        return 5e-324
+    let p = 1.0
+    while p * 2.0 <= a:
+        p = p * 2.0
+    while p > a:
+        p = p / 2.0
+    if !above && p == a && p > 2.2250738585072014e-308:
+        return p * 1.1102230246251565e-16
+    p * 2.220446049250313e-16
+
 pub fn main() -> void $ Console:
     inf := 1.0 / 0.0
     nan := 0.0 / 0.0
     zero := 0.0
     nzero := -0.0
-    println(same(9.0 ** 0.5, 3.0))
-    println(same(2.0 ** 0.5, 1.4142135623730951))
-    println(same(2.0 ** 10.0, 1024.0))
-    println(same(40.0 ** 23.0, 7.0368744177664e36))
-    println(same(10.0 ** (-2.0), 0.01))
-    println(same(2.0 ** (-1074.0), 5e-324))
-    println(same(2.0 ** (-1075.0), 0.0))
-    println(same(2.0 ** 1024.0, inf))
-    println(same((-2.0) ** 3.0, -8.0))
+    println(within_ulp(9.0 ** 0.5, 3.0))
+    println(within_ulp(2.0 ** 0.5, 1.4142135623730951))
+    println(within_ulp(2.0 ** 10.0, 1024.0))
+    println(within_ulp(40.0 ** 23.0, 7.0368744177664e36))
+    println(within_ulp(10.0 ** (-2.0), 0.01))
+    println(within_ulp(2.0 ** (-1074.0), 5e-324))
+    println(within_ulp(2.0 ** (-1075.0), 0.0))
+    println(within_ulp(2.0 ** 1024.0, inf))
+    println(within_ulp((-2.0) ** 3.0, -8.0))
     println(same((-2.0) ** 0.5, nan))
     println(same(nan ** zero, 1.0))
     println(same(1.0 ** nan, 1.0))
@@ -58,4 +98,4 @@ pub fn main() -> void $ Console:
     println(same(0.5 ** inf, 0.0))
     println(same(2.0 ** (-inf), 0.0))
     println(same(nan ** 1.0, nan))
-    println(same(1.0000000000000002 ** 1e300, inf))
+    println(within_ulp(1.0000000000000002 ** 1e300, inf))

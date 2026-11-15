@@ -1,0 +1,50 @@
+# test: floating power
+# Spec lang/05-expressions.md: expr.power.float.within-ulp.
+
+fn main() -> f64:
+    9.0 ** 0.5
+
+# Whether `got` is `want` or a float one step above or below it: within
+# 1 ULP, as expr.power.float.within-ulp allows. `want` is not NaN.
+fn within_ulp(got: f64, want: f64) -> bool:
+    got == want || got == step_up(want) || got == step_down(want)
+
+# The next float above `x` (IEEE nextUp). Doubling and halving a power of
+# two are exact, so the gap comes out exact.
+fn step_up(x: f64) -> f64:
+    if x == 1.0 / 0.0:
+        return x
+    if x < 0.0:
+        return -step_down(-x)
+    x + gap(x, true)
+
+# The next float below `x` (IEEE nextDown).
+fn step_down(x: f64) -> f64:
+    if x == -1.0 / 0.0:
+        return x
+    if x == 1.0 / 0.0:
+        return 1.7976931348623157e308
+    if x <= 0.0:
+        return -step_up(-x)
+    x - gap(x, false)
+
+# The distance from a finite `a`, 0 or above, to the next float above it or
+# below it: 2^-1074 among the subnormals, else 2^-52 of the power of two
+# at or below `a`, halved below an exact power of two.
+fn gap(a: f64, above: bool) -> f64:
+    if a < 2.2250738585072014e-308:
+        return 5e-324
+    let p = 1.0
+    while p * 2.0 <= a:
+        p = p * 2.0
+    while p > a:
+        p = p / 2.0
+    if !above && p == a && p > 2.2250738585072014e-308:
+        return p * 1.1102230246251565e-16
+    p * 2.220446049250313e-16
+
+tests:
+    use std.testing.assert
+
+    it("main returns 3.0 within 1 ULP"):
+        assert(within_ulp(main(), 3.0), reason="floating power")

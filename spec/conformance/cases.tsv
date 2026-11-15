@@ -1341,7 +1341,7 @@ lang/expressions/unary-and-binary-operators/signed-integer-exponent.hd	type	reje
 lang/expressions/unary-and-binary-operators/integer-power-overflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/integer-power-associativity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/power-mixed-numeric-types.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
-lang/expressions/unary-and-binary-operators/floating-power.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
+lang/expressions/unary-and-binary-operators/exponentiation/floating-power.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.within-ulp
 lang/expressions/unary-and-binary-operators/exponentiation/power-and-remainder-edges.hd	runtime	accept	lang/05-expressions.md#exponentiation
 lang/expressions/unary-and-binary-operators/exponentiation/power-any-unsigned-exponent-type-is-accepted.hd	runtime	accept	lang/05-expressions.md#r-expr.power.int.exponent
 lang/expressions/unary-and-binary-operators/exponentiation/power-float-powers-follow-ieee-pow.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.special

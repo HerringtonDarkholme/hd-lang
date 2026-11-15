@@ -1,6 +1,79 @@
 # test: power preserves integer boundary results and IEEE floating special cases at both widths
-# Spec 05 Exponentiation and Floating-Point Arithmetic: expr.power.int.exponent, expr.power.checked, expr.power.float.special, expr.float.remainder-truncated, expr.float.remainder-special.
+# Spec 05 Exponentiation and Floating-Point Arithmetic: expr.power.int.exponent, expr.power.checked, expr.power.float.special, expr.power.float.within-ulp, expr.float.remainder-truncated, expr.float.remainder-special.
 # expect: test
+
+# Whether `got` is `want` or a float one step above or below it: within
+# 1 ULP, as expr.power.float.within-ulp allows. `want` is not NaN.
+fn within_ulp(got: f64, want: f64) -> bool:
+    got == want || got == step_up(want) || got == step_down(want)
+
+# The next float above `x` (IEEE nextUp). Doubling and halving a power of
+# two are exact, so the gap comes out exact.
+fn step_up(x: f64) -> f64:
+    if x == 1.0 / 0.0:
+        return x
+    if x < 0.0:
+        return -step_down(-x)
+    x + gap(x, true)
+
+# The next float below `x` (IEEE nextDown).
+fn step_down(x: f64) -> f64:
+    if x == -1.0 / 0.0:
+        return x
+    if x == 1.0 / 0.0:
+        return 1.7976931348623157e308
+    if x <= 0.0:
+        return -step_up(-x)
+    x - gap(x, false)
+
+# The distance from a finite `a`, 0 or above, to the next float above it or
+# below it: 2^-1074 among the subnormals, else 2^-52 of the power of two
+# at or below `a`, halved below an exact power of two.
+fn gap(a: f64, above: bool) -> f64:
+    if a < 2.2250738585072014e-308:
+        return 5e-324
+    let p = 1.0
+    while p * 2.0 <= a:
+        p = p * 2.0
+    while p > a:
+        p = p / 2.0
+    if !above && p == a && p > 2.2250738585072014e-308:
+        return p * 1.1102230246251565e-16
+    p * 2.220446049250313e-16
+
+# within_ulp for `f32`.
+fn within_ulp32(got: f32, want: f32) -> bool:
+    got == want || got == step_up32(want) || got == step_down32(want)
+
+fn step_up32(x: f32) -> f32:
+    if x == 1.0f32 / 0.0f32:
+        return x
+    if x < 0.0f32:
+        return -step_down32(-x)
+    x + gap32(x, true)
+
+fn step_down32(x: f32) -> f32:
+    if x == -1.0f32 / 0.0f32:
+        return x
+    if x == 1.0f32 / 0.0f32:
+        return 3.4028235e38f32
+    if x <= 0.0f32:
+        return -step_up32(-x)
+    x - gap32(x, false)
+
+# gap for `f32`: 2^-149 among the subnormals, else 2^-23 of the power of two
+# at or below `a`, halved below an exact power of two.
+fn gap32(a: f32, above: bool) -> f32:
+    if a < 1.1754944e-38f32:
+        return 1e-45f32
+    let p = 1.0f32
+    while p * 2.0f32 <= a:
+        p = p * 2.0f32
+    while p > a:
+        p = p / 2.0f32
+    if !above && p == a && p > 1.1754944e-38f32:
+        return p * 5.9604645e-8f32
+    p * 1.1920929e-7f32
 
 tests:
     use std.testing.{assert, assert_equal}
@@ -21,9 +94,9 @@ tests:
     it("floating power uses IEEE special cases"):
         infinity := 1.0 / 0.0
         nan := 0.0 / 0.0
-        assert_equal(9.0 ** 0.5, 3.0, reason="fractional exponent")
-        assert_equal(2.0 ** -3.0, 0.125, reason="negative exponent")
-        assert_equal((-2.0) ** 3.0, -8.0, reason="negative base, integral exponent")
+        assert(within_ulp(9.0 ** 0.5, 3.0), reason="fractional exponent, within 1 ULP")
+        assert(within_ulp(2.0 ** -3.0, 0.125), reason="negative exponent, within 1 ULP")
+        assert(within_ulp((-2.0) ** 3.0, -8.0), reason="negative base, integral exponent, within 1 ULP")
         invalid := (-2.0) ** 0.5
         assert(invalid != invalid, reason="negative base with fractional exponent")
         assert_equal(nan ** 0.0, 1.0, reason="NaN to zero")
@@ -31,7 +104,7 @@ tests:
         assert_equal(0.0 ** -1.0, infinity, reason="zero with negative exponent")
         assert_equal(1.0 / ((-0.0) ** 3.0), -infinity, reason="odd power preserves negative zero")
         assert_equal(1.0 / ((-0.0) ** 2.0), infinity, reason="even power gives positive zero")
-        assert_equal(9.0f32 ** 0.5f32, 3.0f32, reason="f32 power")
+        assert(within_ulp32(9.0f32 ** 0.5f32, 3.0f32), reason="f32 power, within 1 ULP")
 
     it("floating remainder keeps signed zero and handles special values"):
         infinity := 1.0 / 0.0
