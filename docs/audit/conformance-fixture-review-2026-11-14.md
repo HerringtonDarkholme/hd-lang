@@ -2455,7 +2455,7 @@ b153 (45): 17 (mostly the same). b154 (42): 3. b155 (45): 9.
   - `runtime/valid/map-many-string-keys.hd` compares `keys_of(values)` with itself.
   - `runtime/valid/fs-glob*.hd`: the pattern `"c[a-]*.md"` expects `[]`, so it can't
     tell whether the dash in a character class works.
-  - `runtime/valid/encoding-decode-errors.hd`: the Display check only asserts
+  - `std/encoding/base64/encoding-decode-errors.hd`: the Display check only asserts
     `len > 0`, though `lib/std/encoding.hd` defines the exact text.
 - **Depends on map order (B8)**: `runtime/valid/map-index-groups.hd` pins a literal
   digest of `Map`/`UniqMap` iteration order.

@@ -139,10 +139,10 @@ runtime/valid/element-reference-nested-copy-independent.hd	A7b	lost '' gained ',
 runtime/valid/embedded-store-copies.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#data-embedding
 names/member-resolution/embedded-trait-method-via-part.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#member-resolution
 runtime/valid/empty-string-operations.hd	A7b	lost '' gained ',,'	std/text.md#string-methods
-runtime/valid/encoding-base64-vectors.hd	A7b	lost '' gained ',,,,'	std/encoding.md#r-std-encoding.base64.decode.value
-runtime/valid/encoding-decode-errors.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/encoding.md#r-std-encoding.base64.decode.order
-runtime/valid/encoding-hex-vectors.hd	A7b	lost '' gained ',,,,'	std/encoding.md#r-std-encoding.hex.encode.digits
-runtime/valid/encoding-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/encoding.md#r-std-encoding.base64.decode.value
+std/encoding/base64/encoding-base64-vectors.hd	A7b	lost '' gained ',,,,'	std/encoding.md#r-std-encoding.base64.decode.value
+std/encoding/base64/encoding-decode-errors.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/encoding.md#r-std-encoding.base64.decode.order
+std/encoding/hex/encoding-hex-vectors.hd	A7b	lost '' gained ',,,,'	std/encoding.md#r-std-encoding.hex.encode.digits
+std/encoding/base64/encoding-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/encoding.md#r-std-encoding.base64.decode.value
 runtime/valid/enum-value-fixed-at-construction.hd	A7b	lost '' gained ',,'	lang/08-data-and-enums.md#r-data.enum.immutable
 runtime/valid/env-decode-errors.hd	A7b	lost '' gained ',,,,'	std/host.md#r-std-host.env-decode.prefix-decl
 runtime/valid/env-decode-record.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,'	std/host.md#r-std-host.env-decode.prefix-decl

@@ -1049,12 +1049,12 @@ std/digest.md	5	type-fragment	-
 std/digest.md	6	complete	std/digest/streaming/digest-sha256-stream.hd
 std/digest.md	7	type-fragment	-
 std/digest.md	8	complete	std/digest/hmac/digest-hmac.hd
-std/encoding.md	1	complete	runtime/valid/encoding-hex-vectors.hd
-std/encoding.md	2	complete	runtime/valid/encoding-hex-vectors.hd
+std/encoding.md	1	complete	std/encoding/hex/encoding-hex-vectors.hd
+std/encoding.md	2	complete	std/encoding/hex/encoding-hex-vectors.hd
 std/encoding.md	3	type-fragment	-
-std/encoding.md	4	complete	runtime/valid/encoding-base64-vectors.hd
-std/encoding.md	5	complete	runtime/valid/encoding-base64-vectors.hd
-std/encoding.md	6	complete	runtime/valid/encoding-decode-errors.hd
+std/encoding.md	4	complete	std/encoding/base64/encoding-base64-vectors.hd
+std/encoding.md	5	complete	std/encoding/base64/encoding-base64-vectors.hd
+std/encoding.md	6	complete	std/encoding/base64/encoding-decode-errors.hd
 std/encoding.md	7	type-fragment	-
 std/error.md	1	complete	runtime/valid/error-chain.hd
 std/error.md	2	complete	runtime/valid/error-root-cause.hd|runtime/valid/error-find-erased.hd

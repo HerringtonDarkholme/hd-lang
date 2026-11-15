@@ -1376,10 +1376,10 @@ std/digest/sha-256/digest-sha256-vectors.hd	accept	std/digest.md#r-std-digest.sh
 std/digest/streaming/sha256-handle-shared.hd	accept	std/digest.md#r-std-digest.sha256.new-ref	-2	
 std/digest/streaming/digest-sha256-properties.hd	accept	std/digest.md#r-std-digest.sha256.update-ref	-60	
 std/digest/streaming/digest-sha256-stream.hd	accept	std/digest.md#r-std-digest.sha256.update-ref	-26	
-runtime/valid/encoding-decode-errors.hd	accept	std/encoding.md#r-std-encoding.base64.decode.order	-158	
-runtime/valid/encoding-base64-vectors.hd	accept	std/encoding.md#r-std-encoding.base64.decode.value	-16	
-runtime/valid/encoding-properties.hd	accept	std/encoding.md#r-std-encoding.base64.decode.value	-69	
-runtime/valid/encoding-hex-vectors.hd	accept	std/encoding.md#r-std-encoding.hex.encode.digits	-16	
+std/encoding/base64/encoding-decode-errors.hd	accept	std/encoding.md#r-std-encoding.base64.decode.order	-158	
+std/encoding/base64/encoding-base64-vectors.hd	accept	std/encoding.md#r-std-encoding.base64.decode.value	-16	
+std/encoding/base64/encoding-properties.hd	accept	std/encoding.md#r-std-encoding.base64.decode.value	-69	
+std/encoding/hex/encoding-hex-vectors.hd	accept	std/encoding.md#r-std-encoding.hex.encode.digits	-16	
 runtime/valid/a-generic-error-type-gets-derived-bounds.hd	accept	std/error.md#cause-chain	-9	
 runtime/valid/error-chain-method.hd	accept	std/error.md#r-std-error.chain.reference-method	-22	
 runtime/valid/error-chain-derived-causes.hd	accept	std/error.md#r-std-error.chain.source-end	-21	
