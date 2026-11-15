@@ -1,0 +1,27 @@
+# @dump: stdout
+# Sibling bodies share interface methods, but retain their own private traits.
+# The public trait occurs both in its declaring body's own items and its interface.
+use pkg.left.one
+use pkg.right.two
+
+pub fn main() -> void:
+    _ := one(1) + two(2)
+# @file: left.hd
+trait Private:
+    fn stamp(self) -> i32
+impl Private for i32:
+    fn stamp(self) -> i32: self
+pub trait Shared:
+    fn shared(self) -> i32
+impl Shared for i32:
+    fn shared(self) -> i32: self
+pub fn one(n: i32) -> i32:
+    n.stamp() + n.shared()
+# @file: right.hd
+use pkg.left.Shared
+trait Private:
+    fn stamp(self) -> i32
+impl Private for i32:
+    fn stamp(self) -> i32: self
+pub fn two(n: i32) -> i32:
+    n.stamp() + n.shared()

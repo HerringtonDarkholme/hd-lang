@@ -1,0 +1,5 @@
+# @dump: diagnostics
+use std.process.ExitCode
+
+pub fn main() -> ExitCode:
+    ExitCode(7)

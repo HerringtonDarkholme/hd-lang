@@ -1,0 +1,16 @@
+# @dump: stdout
+
+trait Make:
+    type Out
+    fn make(self) -> Self::Out
+struct Hello: pass
+impl Make for Hello:
+    type Out = fn() -> void $ Console
+    fn make(self) -> (fn() -> void $ Console):
+        fn() -> void $ Console: println("hello")
+fn call[$S, P < Make[Out = fn() -> void $ S]](maker: P) -> void $ S:
+    callback := maker.make()
+    callback()
+
+pub fn main() -> void:
+    call(Hello {})

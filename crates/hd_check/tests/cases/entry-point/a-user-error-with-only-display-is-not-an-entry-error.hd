@@ -1,0 +1,10 @@
+# @dump: diagnostics
+pub struct Oops:
+    code: i32
+
+impl Display for Oops:
+    fn to_string(&self) -> string:
+        "oops"
+
+pub fn main() -> Result[void, Oops]:
+    .Err(Oops { code: 1 })

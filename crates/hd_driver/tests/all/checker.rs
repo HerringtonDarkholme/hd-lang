@@ -101,24 +101,6 @@ fn foreign_bare_loop_names_the_endless_loop_spelling() {
 }
 
 #[test]
-fn foreign_loop_hint_does_not_change_other_unresolved_calls() {
-    for call in ["loop()", "loop(1):\n        pass", "missing:\n        pass"] {
-        let source = format!("pub fn main() -> void:\n    {call}\n");
-        let out = program(&source);
-        assert_eq!(out.diags.code, [Code::UnknownName], "{}", out.render());
-        let name = if call.starts_with("loop") {
-            "loop"
-        } else {
-            "missing"
-        };
-        assert_eq!(
-            out.diags.get_text(out.diags.message[0]),
-            format!("`{name}` is not defined")
-        );
-    }
-}
-
-#[test]
 fn local_reference_escape_names_the_position_without_a_fix() {
     let cases = [
         (
@@ -149,21 +131,6 @@ fn local_reference_escape_names_the_position_without_a_fix() {
 }
 
 #[test]
-fn a_local_reference_type_argument_is_accepted_at_function_and_method_calls() {
-    let cases = [
-        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
-        "struct Point:\n    x: i32\n\nfn consume[A, B](first: A, second: B) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[i32](+1, point)\n\npub fn main() -> void:\n    pass\n",
-        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[&Point](point)\n\npub fn main() -> void:\n    pass\n",
-        "struct Point:\n    x: i32\n\nstruct Consumer: pass\n\nimpl Consumer:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &Consumer, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
-        "struct Point:\n    x: i32\n\ntrait Consumer:\n    fn consume[T](&self, value: T) -> void\n\nstruct ConsumerImpl: pass\n\nimpl Consumer for ConsumerImpl:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &ConsumerImpl, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
-    ];
-    for source in cases {
-        let out = cold_program(source);
-        assert_eq!(out.diags.len(), 0, "{}", out.render());
-    }
-}
-
-#[test]
 fn a_local_function_local_reference_type_argument_reports_at_each_call() {
     let source = "struct Point:\n    x: i32\n\nfn check(point: &Point) -> void:\n    fn consume[T](value: T) -> void:\n        pass\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n";
     let out = cold_program(source);
@@ -179,18 +146,6 @@ fn a_local_function_local_reference_type_argument_reports_at_each_call() {
         &source[span.lo as usize..span.hi as usize],
         "consume(point)"
     );
-}
-
-#[test]
-fn a_local_reference_receiver_is_not_a_method_type_argument() {
-    let cases = [
-        "struct Consumer: pass\n\nimpl Consumer:\n    fn inspect(&self) -> void:\n        pass\n\nfn check(consumer: &Consumer) -> void:\n    consumer.inspect()\n\npub fn main() -> void:\n    pass\n",
-        "trait Consumer:\n    fn inspect(&self) -> void\n\nstruct ConsumerImpl: pass\n\nimpl Consumer for ConsumerImpl:\n    fn inspect(&self) -> void:\n        pass\n\nfn check(consumer: &dyn Consumer) -> void:\n    consumer.inspect()\n\npub fn main() -> void:\n    pass\n",
-    ];
-    for source in cases {
-        let out = cold_program(source);
-        assert_eq!(out.diags.len(), 0, "{}", out.render());
-    }
 }
 
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt.entry`, and the
@@ -426,39 +381,6 @@ fn pipes_and_comprehensions_check() {
     );
 }
 
-#[test]
-fn an_unresolved_impl_trait_only_poisons_matching_target_arguments() {
-    let input = r"
-struct Envelope[T]:
-    value: T
-
-impl From[string] for Envelope[i32]:
-    fn from(text: string) -> Envelope[i32]: Envelope { value: +1 }
-
-fn parse(text: string) -> Result[i32, string]: .Err(text)
-
-fn matching(text: string) -> Result[i32, Envelope[i32]]:
-    value := parse(text)?
-    .Ok(value)
-
-fn unrelated(text: string) -> Result[i32, Envelope[string]]:
-    value := parse(text)?
-    .Ok(value)
-";
-    let out = program(input);
-    assert_eq!(
-        codes(&out),
-        [Code::UnknownTrait, Code::InvalidResultPropagation],
-        "{}",
-        out.render()
-    );
-    assert_eq!(
-        out.diags.primary[1].lo as usize,
-        input.rfind("parse(text)?").unwrap(),
-        "the unrelated target must still report its missing conversion"
-    );
-}
-
 fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }
@@ -494,28 +416,6 @@ fn row_polymorphic_callbacks() {
         "{}",
         narrow.render()
     );
-}
-
-fn program_of(files: &[(&str, &str)]) -> Output {
-    let mut src = MemorySources::default();
-    for (path, text) in files {
-        src.insert(path, text);
-    }
-    let store = MemoryStore::default();
-    let host = Host {
-        render_tir: &[],
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    build(
-        &host,
-        "app",
-        &Goal::Program {
-            entry: "main".into(),
-        },
-    )
 }
 
 /// An error in a dependency's file is located in that file's own text, not
@@ -560,97 +460,6 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
     let at = out.diags.content_order()[0];
     let (file, line, column) = out.locate(out.diags.primary[at]);
     assert_eq!((file.as_str(), line, column), ("<ext>/src/lib.hd", 2, 12));
-}
-
-/// A `println` written directly in a non-entry module's initialization
-/// reports only `missing-requirement` (`module.init.requirement-free.non-script`):
-/// it drives nothing, so no forbidden context applies (`module.console.println-no-drive`).
-#[test]
-fn println_in_non_entry_module_init_reports_only_missing_requirement() {
-    let out = program_of(&[
-        (
-            "main.hd",
-            "use pkg.catalog.item_count\n\npub fn main() -> void:\n    _ := item_count()\n",
-        ),
-        (
-            "catalog.hd",
-            "println(\"loading\")\n\npub fn item_count() -> i32:\n    3\n",
-        ),
-    ]);
-    let mut found = codes(&out);
-    found.sort_stable_by_key(|c| c.as_str());
-    assert_eq!(found, [Code::MissingRequirement], "{}", out.render());
-}
-
-/// Sibling bodies share interface methods, but retain their own private traits.
-/// The public trait occurs both in its declaring body's own items and its interface.
-#[test]
-fn shared_method_index_keeps_private_traits_and_deduplicates_own_items() {
-    let out = program_of(&[
-        (
-            "main.hd",
-            "use pkg.left.one\nuse pkg.right.two\n\npub fn main() -> void:\n    _ := one(1) + two(2)\n",
-        ),
-        (
-            "left.hd",
-            r"trait Private:
-    fn stamp(self) -> i32
-impl Private for i32:
-    fn stamp(self) -> i32: self
-pub trait Shared:
-    fn shared(self) -> i32
-impl Shared for i32:
-    fn shared(self) -> i32: self
-pub fn one(n: i32) -> i32:
-    n.stamp() + n.shared()
-",
-        ),
-        (
-            "right.hd",
-            r"use pkg.left.Shared
-trait Private:
-    fn stamp(self) -> i32
-impl Private for i32:
-    fn stamp(self) -> i32: self
-pub fn two(n: i32) -> i32:
-    n.stamp() + n.shared()
-",
-        ),
-    ]);
-    assert!(!out.diags.has_errors(), "{}", out.render());
-}
-
-#[test]
-fn associated_function_output_infers_its_requirement_row() {
-    let header = r#"
-trait Make:
-    type Out
-    fn make(self) -> Self::Out
-struct Hello: pass
-impl Make for Hello:
-    type Out = fn() -> void $ Console
-    fn make(self) -> (fn() -> void $ Console):
-        fn() -> void $ Console: println("hello")
-fn call[$S, P < Make[Out = fn() -> void $ S]](maker: P) -> void $ S:
-    callback := maker.make()
-    callback()
-"#;
-    let missing = program(&format!(
-        "{header}\npub fn main() -> void:\n    call(Hello {{}})\n"
-    ));
-    assert!(
-        missing.diags.code.contains(&Code::MissingRequirement),
-        "{}",
-        missing.render()
-    );
-    let mismatched = program(&format!(
-        "{header}\npub fn main() -> void:\n    call::[$(), Hello](Hello {{}})\n"
-    ));
-    assert!(
-        mismatched.diags.code.contains(&Code::UnsatisfiedTraitBound),
-        "{}",
-        mismatched.render()
-    );
 }
 
 #[test]

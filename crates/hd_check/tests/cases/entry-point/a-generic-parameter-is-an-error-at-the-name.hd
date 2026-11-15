@@ -1,0 +1,3 @@
+# @dump: diagnostics
+pub fn main[T]() -> void:
+    pass

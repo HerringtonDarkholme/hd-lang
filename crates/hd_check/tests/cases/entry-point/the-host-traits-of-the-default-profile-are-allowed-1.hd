@@ -1,0 +1,13 @@
+# @dump: diagnostics
+use std.console.ConsoleInput
+use std.time.Clock
+use std.fs.{FsRead, FsWrite}
+use std.random.Random
+use std.http.Http
+use std.net.Net
+use std.process.Process
+use std.host.Sys
+use std.host.{Env, Args}
+
+pub fn main() -> void $ Console + ConsoleInput + Clock + FsRead + FsWrite + Random:
+    pass

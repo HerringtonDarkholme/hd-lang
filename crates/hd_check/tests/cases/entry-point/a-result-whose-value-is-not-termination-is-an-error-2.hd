@@ -1,0 +1,4 @@
+# @dump: diagnostics
+use std.error.Error
+pub fn main!() -> Result[i32, *dyn Error]:
+    .Ok(1)

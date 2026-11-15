@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# @file: tool.hd
+pub fn main(n: i32) -> void:
+    pass

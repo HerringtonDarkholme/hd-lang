@@ -1,0 +1,6 @@
+# @dump: stdout
+pub trait Database:
+    fn query(self) -> i32
+
+pub fn main() -> void $ Database:
+    pass

@@ -1,0 +1,4 @@
+# @dump: stdout
+pub fn main() -> void:
+    loop(1):
+        pass

@@ -1,0 +1,17 @@
+# @dump: stdout
+
+struct Envelope[T]:
+    value: T
+
+impl From[string] for Envelope[i32]:
+    fn from(text: string) -> Envelope[i32]: Envelope { value: +1 }
+
+fn parse(text: string) -> Result[i32, string]: .Err(text)
+
+fn matching(text: string) -> Result[i32, Envelope[i32]]:
+    value := parse(text)?
+    .Ok(value)
+
+fn unrelated(text: string) -> Result[i32, Envelope[string]]:
+    value := parse(text)?
+    .Ok(value)

@@ -1,0 +1,15 @@
+# @dump: stdout
+trait Consumer:
+    fn inspect(&self) -> void
+
+struct ConsumerImpl: pass
+
+impl Consumer for ConsumerImpl:
+    fn inspect(&self) -> void:
+        pass
+
+fn check(consumer: &dyn Consumer) -> void:
+    consumer.inspect()
+
+pub fn main() -> void:
+    pass

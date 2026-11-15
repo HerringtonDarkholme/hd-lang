@@ -1,0 +1,6 @@
+# @dump: diagnostics
+pub trait Database:
+    fn query(self) -> i32
+
+pub fn main() -> i32 $ Database:
+    7

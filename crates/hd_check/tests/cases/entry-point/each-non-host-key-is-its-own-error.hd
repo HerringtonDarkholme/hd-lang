@@ -1,0 +1,9 @@
+# @dump: diagnostics
+pub trait Database:
+    fn query(self) -> i32
+
+pub trait Cache:
+    fn size(self) -> i32
+
+pub fn main() -> void $ Database + Cache:
+    pass

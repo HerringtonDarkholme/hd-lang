@@ -1,0 +1,4 @@
+# @dump: diagnostics
+pub fn main() -> i32 $ Console:
+    println(1)
+    7

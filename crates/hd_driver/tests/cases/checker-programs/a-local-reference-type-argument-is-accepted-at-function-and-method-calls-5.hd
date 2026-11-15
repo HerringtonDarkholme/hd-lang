@@ -1,0 +1,18 @@
+# @dump: stdout
+struct Point:
+    x: i32
+
+trait Consumer:
+    fn consume[T](&self, value: T) -> void
+
+struct ConsumerImpl: pass
+
+impl Consumer for ConsumerImpl:
+    fn consume[T](&self, value: T) -> void:
+        pass
+
+fn check(consumer: &ConsumerImpl, point: &Point) -> void:
+    consumer.consume(point)
+
+pub fn main() -> void:
+    pass

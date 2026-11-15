@@ -1,0 +1,13 @@
+# @dump: stdout
+struct Point:
+    x: i32
+
+fn consume[T](value: T) -> void:
+    pass
+
+fn check(point: &Point) -> void:
+    consume(point)
+    consume(point)
+
+pub fn main() -> void:
+    pass

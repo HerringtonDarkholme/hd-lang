@@ -1,0 +1,5 @@
+# @dump: diagnostics
+use std.error.{Error, message}
+
+pub fn main() -> Result[void, *dyn Error]:
+    .Err(message("oops"))

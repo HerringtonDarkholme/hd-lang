@@ -1,0 +1,12 @@
+# @dump: stdout
+struct Consumer: pass
+
+impl Consumer:
+    fn inspect(&self) -> void:
+        pass
+
+fn check(consumer: &Consumer) -> void:
+    consumer.inspect()
+
+pub fn main() -> void:
+    pass

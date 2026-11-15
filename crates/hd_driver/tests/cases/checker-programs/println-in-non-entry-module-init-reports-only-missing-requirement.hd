@@ -1,0 +1,13 @@
+# @dump: stdout
+# A `println` written directly in a non-entry module's initialization
+# reports only `missing-requirement` (`module.init.requirement-free.non-script`):
+# it drives nothing, so no forbidden context applies (`module.console.println-no-drive`).
+use pkg.catalog.item_count
+
+pub fn main() -> void:
+    _ := item_count()
+# @file: catalog.hd
+println("loading")
+
+pub fn item_count() -> i32:
+    3
