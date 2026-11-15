@@ -13,7 +13,7 @@ struct Ordered:
 impl Validate for Ordered by Structure:
     value = [check(custom), max(0), min(10)]
 
-fn main() -> void:
+pub fn main() -> void:
     error := Ordered { value: 5 }.validated().err().expect("invalid")
     assert_equal(
         [for issue in error.issues() => issue.problem.code],

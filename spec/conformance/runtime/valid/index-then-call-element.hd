@@ -9,6 +9,6 @@ fn double(value: i32) -> i32:
 fn triple(value: i32) -> i32:
     value * 3
 
-fn main() -> void:
+pub fn main() -> void:
     handlers := [double, triple]
     assert_equal(handlers[1](5), 15, reason="the index picks triple")

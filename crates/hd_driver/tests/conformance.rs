@@ -1800,22 +1800,8 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &Store, serial: usize) ->
         },
     );
     let built = &runnable.out;
-    if built.diags.has_errors() {
-        let index = first_error(built);
-        if built.diags.code[index].as_str() == "unsupported" {
-            return Verdict::Unsupported(
-                first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
-            );
-        }
-        // Runtime Execution step 1 runs an entry point only when the module
-        // declares one (module.entry.private-main): no entry, nothing to run.
-        if built.diags.code[index].as_str() == "missing-entry-point"
-            && !case.expectation.starts_with("panic:")
-            && expected_stdout(&fixture.text).is_none()
-        {
-            return Verdict::Pass;
-        }
-        return Verdict::Fail(built.diags.code[index].as_str().to_owned());
+    if let Some(verdict) = build_error(built) {
+        return verdict;
     }
     let Some(wasm) = &built.wasm else {
         return Verdict::Unsupported("Link".to_owned());
@@ -2210,6 +2196,46 @@ fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
     let case = unit_case(expectation, serial);
     let store = new_store();
     runtime_case(&case, &unit_fixture(text), &store, (1 << 40) + serial)
+}
+
+#[test]
+fn runtime_requires_an_entry_or_registered_tests() {
+    assert_eq!(
+        unit_runtime(
+            "fn main() -> void:\n    panic(\"must run\")\n",
+            "accept",
+            90
+        ),
+        Verdict::Fail("missing-entry-point".to_owned())
+    );
+    assert_eq!(
+        unit_runtime("pub fn main() -> void:\n    pass\n", "accept", 91),
+        Verdict::Pass
+    );
+    assert_eq!(
+        unit_runtime(
+            "tests:\n    it(\"registered\"):\n        assert_equal(1, 1)\n",
+            "accept",
+            92
+        ),
+        Verdict::Pass
+    );
+    assert_eq!(
+        unit_runtime(
+            "pub fn main() -> void:\n    panic(\"must run\")\n",
+            "accept",
+            93
+        ),
+        Verdict::Fail("runtime-exit".to_owned())
+    );
+    assert_ne!(
+        unit_runtime(
+            "tests:\n    it(\"must run\"):\n        assert_equal(1, 2)\n",
+            "accept",
+            94
+        ),
+        Verdict::Pass
+    );
 }
 
 #[test]

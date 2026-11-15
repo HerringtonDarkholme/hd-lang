@@ -22,3 +22,7 @@ fn run() -> string $ Db:
 fn main() -> i32:
     $.with(Db=MemoryDb {}):
         if run() == "db": 1 else: 0
+
+tests:
+    it("checks the runtime result"):
+        assert_equal(main(), 1)

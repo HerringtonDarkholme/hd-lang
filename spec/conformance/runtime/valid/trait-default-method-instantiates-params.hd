@@ -20,3 +20,7 @@ fn main() -> i32:
     match counter.second():
         .Some(value) => value
         .None => 0
+
+tests:
+    it("checks the runtime result"):
+        assert_equal(main(), 2)

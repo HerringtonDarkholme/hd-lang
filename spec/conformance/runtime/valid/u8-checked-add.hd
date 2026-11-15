@@ -8,3 +8,7 @@ fn add(a: u8, b: u8) -> u8:
 fn main() -> i32:
     assert_equal(add(200, 55), 255, reason="u8 addition")
     0
+
+tests:
+    it("checks the runtime result"):
+        assert_equal(main(), 0)

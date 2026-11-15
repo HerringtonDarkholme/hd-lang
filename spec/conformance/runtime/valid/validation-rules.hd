@@ -64,7 +64,7 @@ fn codes(value: Rules) -> List[string]:
         .Ok(_) => []
         .Err(error) => [for issue in error.issues() => issue.problem.code]
 
-fn main() -> void:
+pub fn main() -> void:
     good := Rules {
         count: 5,
         low: 3,

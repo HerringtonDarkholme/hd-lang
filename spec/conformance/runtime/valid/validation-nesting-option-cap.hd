@@ -10,7 +10,7 @@ struct Item:
     name: string
 
 impl Validate for Item by Structure:
-    count = [range(1, 2)]
+    count = [range(+1, +2)]
     name = [length(2, 4)]
 
 struct Bag:
@@ -42,7 +42,7 @@ impl Validate for RecordOnly by Structure:
         context.reject("first", "first")
         context.reject("second", "second")
 
-fn main() -> void:
+pub fn main() -> void:
     assert(
         Bag { items: [Item { count: .None, name: "ok" }] }.validated().is_ok(),
         reason="None skips its payload fact",

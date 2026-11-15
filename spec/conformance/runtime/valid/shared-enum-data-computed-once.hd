@@ -20,3 +20,7 @@ fn main() -> i32:
     let empty: Box[string] = Box.Empty
     shared := if first.items.values == second.items.values && first.seen == second.seen: +10 else: 0
     shared + first.seen + second.seen + empty.seen + calls
+
+tests:
+    it("checks the runtime result"):
+        assert_equal(main(), 16)

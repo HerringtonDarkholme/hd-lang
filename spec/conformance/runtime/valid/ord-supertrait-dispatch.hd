@@ -15,3 +15,7 @@ fn less[T < PartialOrd](left: T, right: T) -> bool:
 
 fn main() -> i32:
     order(1, 2) * 100 + order(["b"], ["a"]) * 10 + (if less(1.5, 2.5): 1 else: 0)
+
+tests:
+    it("checks the runtime result"):
+        assert_equal(main(), 131)

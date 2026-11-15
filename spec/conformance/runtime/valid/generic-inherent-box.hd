@@ -13,3 +13,7 @@ fn through[T](boxed: Box[T]) -> T:
 
 fn main() -> i32:
     through(Box { value: 40 }) + Box { value: 3 }.get()
+
+tests:
+    it("checks the runtime result"):
+        assert_equal(main(), 43)
