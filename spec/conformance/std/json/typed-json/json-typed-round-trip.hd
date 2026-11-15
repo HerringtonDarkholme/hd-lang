@@ -29,7 +29,7 @@ fn ada() -> User:
         age: 36,
         admin: true,
         tags: ["math", "code"],
-        scores: { "b": 2, "a": -1 },
+        scores: { "a": -1 },
         address: Address { city: "London", zip: .None },
     }
 
@@ -50,7 +50,7 @@ tests:
     it("a data type is an object with one key per member, in declaration order"):
         assert_equal(
             encode(ada()),
-            "{\"name\":\"Ada\",\"age\":36,\"admin\":true,\"tags\":[\"math\",\"code\"],\"scores\":{\"b\":2,\"a\":-1},\"address\":{\"city\":\"London\",\"zip\":null}}",
+            "{\"name\":\"Ada\",\"age\":36,\"admin\":true,\"tags\":[\"math\",\"code\"],\"scores\":{\"a\":-1},\"address\":{\"city\":\"London\",\"zip\":null}}",
             reason="user",
         )
 
@@ -105,4 +105,5 @@ tests:
         lists := read::[List[List[i32]]]("[[1,2],[],[3]]")
         assert_equal(encode(lists), "[[1,2],[],[3]]", reason="nested lists")
         maps := read::[Map[string, List[bool]]]("{\"z\":[true],\"a\":[]}")
-        assert_equal(encode(maps), "{\"z\":[true],\"a\":[]}", reason="map keeps key order")
+        assert_equal(maps, { "z": [true], "a": [] }, reason="every entry")
+        assert_equal(read::[Map[string, List[bool]]](encode(maps)), maps, reason="map round trip")

@@ -109,10 +109,11 @@ tests:
 
     it("a map stops at a failed key"):
         let stock: Map[string, u32] = { "pen": 4, "ink": 0 }
+        keys := stock.keys()
         assert_equal(
             write(stock, +3),
-            (.Err("full at key:ink"), "map:2 key:pen uint:4"),
-            reason="no value after the key",
+            (.Err("full at key:${keys[1]}"), "map:2 key:${keys[0]} uint:${stock[keys[0]]}"),
+            reason="no value after the key; entries go in the map's iteration order",
         )
 
     it("an optional passes its payload's error on"):

@@ -11,5 +11,5 @@ tests:
             seen.push(*key)
             if key == "a":
                 values["c"] = value + 2
-        assert_equal(seen, ["a", "b"], reason="the loop visits the entries it began with")
+        assert_equal(seen.sorted(), ["a", "b"], reason="the loop visits the entries it began with")
         assert_equal(values["c"], 3, reason="the insertion reached the map")

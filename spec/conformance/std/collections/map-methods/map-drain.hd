@@ -1,4 +1,4 @@
-# test: map draining empties only its receiver and yields entries in insertion order
+# test: map draining empties only its receiver and yields every live entry once
 # expect: test
 # Spec std/collections: std-collections.map.drain.
 
@@ -13,7 +13,8 @@ tests:
     it("empties the receiver after early return and keeps snapshots"):
         let mut items = { "a": ["one"], "b": ["two"] }
         snapshot := items
-        assert_equal(first(&mut items), "aone")
+        drained := first(&mut items)
+        assert(drained == "aone" || drained == "btwo", reason="one entry, then an early return")
         assert(items.is_empty())
         assert_equal(snapshot, { "a": ["one"], "b": ["two"] })
         items["new"] = ["three"]
@@ -26,7 +27,7 @@ tests:
         let mut found: List[(string, i32)] = []
         for entry in items.drain():
             found.push(entry)
-        assert_equal(found, [("a", +1), ("c", +3)])
+        assert_equal(found.sorted(), [("a", +1), ("c", +3)])
         assert(items.is_empty())
         for entry in items.drain():
             assert(false)

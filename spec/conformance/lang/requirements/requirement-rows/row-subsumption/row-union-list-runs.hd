@@ -31,12 +31,12 @@ fn from_list() -> string $ Db + Clock:
         text = text + handler() + ";"
     text
 
-fn from_map() -> string $ Db + Clock:
+fn from_map() -> List[string] $ Db + Clock:
     routes := { "health": health, "orders": orders }
-    let text = ""
+    let mut found: List[string] = []
     for (name, route) in routes:
-        text = text + name + "=" + route() + ";"
-    text
+        found.push(name + "=" + route())
+    found
 
 tests:
     use std.testing.assert_equal
@@ -44,4 +44,8 @@ tests:
     it("each handler sees its own providers"):
         $.with(Db=MemoryDb {}, Clock=FixedClock {}):
             assert_equal(from_list(), "noon;db;", reason="a list with the union row")
-            assert_equal(from_map(), "health=noon;orders=db;", reason="a map with the union row")
+            assert_equal(
+                from_map().sorted(),
+                ["health=noon", "orders=db"],
+                reason="a map with the union row",
+            )

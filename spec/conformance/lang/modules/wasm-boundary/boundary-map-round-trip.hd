@@ -1,4 +1,4 @@
-# test: a map crosses a host call out of hd and back in, entries in insertion order, a struct key rebuilt through its Eq and Hash
+# test: a map crosses a host call out of hd and back in with every entry, a struct key rebuilt through its Eq and Hash
 # Spec Modules, Boundary-Safe Values: module.boundary.allowed, module.boundary.map-decode (#1549).
 # fixture-runtime-profile: serde-vault
 use std.hash.Hash
@@ -28,10 +28,10 @@ pub fn main() -> void $ Vault:
     kept := $.use(Vault).keep(Shelf { counts, tags })
     assert_equal(kept.counts.len(), 40, reason="every entry crosses")
     assert_equal(kept.counts["k17"], +17, reason="a decoded key finds its value")
-    let order = ""
+    let mut names: List[string] = []
     for (k, _) in kept.tags:
-        order = order + "${k.name};"
-    assert_equal(order, "one;two;", reason="entries keep insertion order")
+        names.push(k.name)
+    assert_equal(names.sorted(), ["one", "two"], reason="each struct key crosses once")
     assert_equal(
         kept.tags[Tag { id: +1, name: "one" }].len(),
         2,

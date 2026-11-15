@@ -1,5 +1,7 @@
 # test: map entry loans end correctly at continue, break, and return
 # Spec 06 Element Reference Loops and For Loops.
+# Spec 04 Maps: types.map.order.deterministic. The loops never assume which
+# key comes first, only that two loops over an unchanged key set agree.
 use std.testing.assert_equal
 
 fn update_first(items: &mut Map[string, usize]) -> usize:
@@ -9,18 +11,18 @@ fn update_first(items: &mut Map[string, usize]) -> usize:
     0
 
 pub fn main() -> void:
-    let mut values = { "a": 1, "b": 2, "c": 3 }
+    let mut values = { "a": 1, "b": 1, "c": 1 }
     assert_equal(update_first(&mut values), 11)
-    for (key, value) in &mut values:
-        if *key == "a":
+    for (_, value) in &mut values:
+        if *value == 11:
             continue
         *value += 20
         break
     values["after"] = 4
-    assert_equal(values["a"], 11)
-    assert_equal(values["b"], 22)
-    assert_equal(values["c"], 3)
+    let mut found: List[usize] = []
     let total = 0
     for (_, value) in values:
+        found.push(*value)
         total += value
-    assert_equal(total, 40)
+    assert_equal(found.sorted(), [1, 4, 11, 21])
+    assert_equal(total, 37)

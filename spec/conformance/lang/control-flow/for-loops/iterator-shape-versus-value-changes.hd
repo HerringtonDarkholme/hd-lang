@@ -14,7 +14,7 @@ tests:
                     if other != name:
                         values[other] = 30
             seen.push(*value)
-        assert_equal(seen, [1, 2, 3], reason="the loop reads the values it began with")
+        assert_equal(seen.sorted(), [1, 2, 3], reason="the loop reads the values it began with")
         assert_equal(values["c"], 30, reason="the replacement reached the map")
 
     it("replacing a later list element during for is not seen by the loop"):

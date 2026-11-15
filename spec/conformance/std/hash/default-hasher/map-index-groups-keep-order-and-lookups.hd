@@ -28,6 +28,19 @@ fn build_unique() -> UniqMap[u32, u32]:
         _ := values.insert(key(u32(index)), u32(index))
     values
 
+# Order-free: the sum of every kept key and value.
+fn map_sum(values: Map[u32, u32]) -> u64:
+    let sum: u64 = 0
+    for (found, value) in values:
+        sum += u64(*found) + u64(*value)
+    sum
+
+fn unique_sum(values: &UniqMap[u32, u32]) -> u64:
+    let sum: u64 = 0
+    for (found, value) in values.iter():
+        sum += u64(found) + u64(*value)
+    sum
+
 fn map_digest(values: Map[u32, u32]) -> u64:
     let digest: u64 = 0
     for (found, value) in values:
@@ -48,7 +61,7 @@ tests:
         second := build_map()
         assert_equal(first.len(), 3000, reason="2000 kept and 1000 added")
         assert_equal(map_digest(first), map_digest(second), reason="two seeds, one order")
-        assert_equal(map_digest(first), 46563579, reason="the order of every run")
+        assert_equal(map_sum(first), 6437720185752, reason="the kept entries")
 
     it("Map finds each kept key and none of the removed or absent ones"):
         values := build_map()
@@ -62,7 +75,7 @@ tests:
         second := build_unique()
         assert_equal(first.len(), 3000, reason="2000 kept and 1000 added")
         assert_equal(unique_digest(&first), unique_digest(&second), reason="two seeds, one order")
-        assert_equal(unique_digest(&first), 46563579, reason="the order of every run")
+        assert_equal(unique_sum(&first), 6437720185752, reason="the kept entries")
 
     it("UniqMap finds each kept key and none of the removed or absent ones"):
         values := build_unique()

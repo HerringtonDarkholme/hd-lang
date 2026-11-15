@@ -5,7 +5,8 @@
 # std-json.parse.string.lone-surrogate, std-json.error.position-bytes,
 # std-json.derive.from-json.unknown, std-json.derive.from-json.default,
 # std-json.derive.from-json.unknown-variant, std-json.derive.from-json.included-payload-form.
-# Spec std/serde: std-serde.skip.named-read-default, std-serde.std.tuple-length, std-serde.std.range.
+# Spec std/serde: std-serde.skip.named-read-default, std-serde.std.tuple-length, std-serde.std.range,
+# std-serde.std.set (a Set writes its elements in insertion order).
 use std.collections.Set
 use std.json.{Json, JsonError, decode, encode, from_json, parse}
 use std.serde.{Deserialize, Serialize, skip}

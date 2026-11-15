@@ -14,8 +14,8 @@ tests:
             *value *= 10
             *key != "b"
         )
-        assert_equal(visited, ["a", "b", "c"])
-        assert_equal(items.entries(), [("a", +10), ("c", +30)])
+        assert_equal(visited.sorted(), ["a", "b", "c"])
+        assert_equal(items.entries().sorted(), [("a", +10), ("c", +30)])
         assert_equal(snapshot, { "a": +1, "b": 2, "c": 3 })
         items.retain(fn(key: &string, value: &mut i32) -> bool: false)
         assert(items.is_empty())

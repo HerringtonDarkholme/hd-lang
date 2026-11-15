@@ -263,18 +263,13 @@ tests:
         )
         assert_equal(read::[List[f64]]([Tok.Done]), (.Ok([]), "list", 1), reason="no item")
 
-    it("a map reads next_key before each entry, and keeps the order read"):
+    it("a map reads next_key before each entry, and keeps every entry read"):
         found := read::[Map[string, u16]](
             [Tok.Key("west"), Tok.Uint(3), Tok.Key("east"), Tok.Uint(9), Tok.Done],
         )
         assert_equal(found._1, "map uint:u16 uint:u16", reason="calls")
         match found._0:
-            .Ok(gusts) =>
-                assert_equal(gusts.get("east"), .Some(9), reason="east")
-                let mut order: List[string] = []
-                for entry in gusts:
-                    order.push(*entry._0)
-                assert_equal(order, ["west", "east"], reason="order read")
+            .Ok(gusts) => assert_equal(gusts, { "west": 3, "east": 9 }, reason="both entries")
             .Err(error) => panic("read failed: $error")
 
     it("a bad item ends the read with the reader's error"):
