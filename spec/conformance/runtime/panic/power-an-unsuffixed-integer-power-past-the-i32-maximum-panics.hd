@@ -1,0 +1,5 @@
+# test: an unsuffixed integer power past the i32 maximum panics
+# Spec lang/05-expressions.md: expr.power.checked.
+
+pub fn main() -> void $ Console:
+    println(2 ** 32) # panic: integer-overflow

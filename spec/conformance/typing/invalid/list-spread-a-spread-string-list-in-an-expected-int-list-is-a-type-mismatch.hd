@@ -1,0 +1,5 @@
+# test: a spread string list in an expected int list is a type mismatch
+# Spec lang/05-expressions.md: expr.list.spread.expected.
+
+fn f(xs: List[string]) -> List[i32]:
+    [+1, xs...] # diagnostic: type-mismatch

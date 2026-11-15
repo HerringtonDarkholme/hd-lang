@@ -1,5 +1,0 @@
-# test: spread elements must fit the list
-# Spec lang/05-expressions.md: expr.list.spread.expected.
-
-fn f(xs: List[string]) -> List[i32]:
-    [+1, xs...] # diagnostic: type-mismatch

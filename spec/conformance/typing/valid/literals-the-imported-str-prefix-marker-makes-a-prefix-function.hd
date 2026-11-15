@@ -1,0 +1,13 @@
+# test: the imported str_prefix marker makes a prefix function
+use std.ops.Template
+
+use std.ops.str_prefix
+
+@str_prefix
+fn sql(t: Template[i32]) -> i32:
+    1
+
+fn find() -> i32:
+    sql"select"
+pub fn main() -> void:
+    pass

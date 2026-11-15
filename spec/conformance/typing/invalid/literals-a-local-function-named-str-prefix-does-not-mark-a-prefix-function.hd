@@ -1,0 +1,14 @@
+# test: a local function named str_prefix does not mark a prefix function
+use std.ops.Template
+
+fn str_prefix() -> i32:
+    1
+
+@str_prefix
+fn sql(t: Template[i32]) -> i32:
+    1
+
+fn find() -> i32:
+    sql"select" # diagnostic: invalid-string-prefix
+pub fn main() -> void:
+    pass

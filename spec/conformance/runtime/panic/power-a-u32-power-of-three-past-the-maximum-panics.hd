@@ -1,0 +1,5 @@
+# test: a u32 power of three past the maximum panics
+# Spec lang/05-expressions.md: expr.power.checked.
+
+pub fn main() -> void $ Console:
+    println(u32(3) ** 21) # panic: integer-overflow

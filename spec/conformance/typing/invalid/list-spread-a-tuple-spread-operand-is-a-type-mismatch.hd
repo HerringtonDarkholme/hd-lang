@@ -1,0 +1,6 @@
+# test: a tuple spread operand is a type mismatch
+# Spec lang/05-expressions.md: expr.list.spread.type.
+
+fn f() -> List[i32]:
+    t := (+1, +2)
+    [t...] # diagnostic: type-mismatch

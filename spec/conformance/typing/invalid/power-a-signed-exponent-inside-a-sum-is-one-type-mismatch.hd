@@ -1,0 +1,5 @@
+# test: a signed exponent inside a sum is one type mismatch
+fn f(e: i32) -> i32:
+    2 ** e + 1 # diagnostic: type-mismatch
+pub fn main() -> void:
+    pass

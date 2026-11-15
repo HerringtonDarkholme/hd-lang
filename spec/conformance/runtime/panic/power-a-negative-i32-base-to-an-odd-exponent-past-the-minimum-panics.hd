@@ -1,0 +1,5 @@
+# test: a negative i32 base to an odd exponent past the minimum panics
+# Spec lang/05-expressions.md: expr.power.checked.
+
+pub fn main() -> void $ Console:
+    println(i32(-2) ** 33) # panic: integer-overflow

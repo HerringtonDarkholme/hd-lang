@@ -1,0 +1,5 @@
+# test: a negative i64 base to an odd exponent past the minimum panics
+# Spec lang/05-expressions.md: expr.power.checked.
+
+pub fn main() -> void $ Console:
+    println(i64(-3) ** 41) # panic: integer-overflow

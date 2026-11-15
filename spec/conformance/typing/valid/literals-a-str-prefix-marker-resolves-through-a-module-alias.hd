@@ -1,0 +1,11 @@
+# test: a str_prefix marker resolves through a module alias
+use std.ops as ops
+use std.ops.Template
+@ops.str_prefix
+fn sql(t: Template[i32]) -> i32:
+    1
+
+fn find() -> i32:
+    sql"select"
+pub fn main() -> void:
+    pass

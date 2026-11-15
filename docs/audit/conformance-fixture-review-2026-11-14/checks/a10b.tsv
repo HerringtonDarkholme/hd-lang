@@ -3,8 +3,8 @@ runtime/valid/context-values-a-context-argument-fixes-a-generic-key-274.hd	A10b	
 typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	A10b	same title as reject typing/invalid/bare-trait-body-nested-in-tuple-and-option-is-one-error-8.hd
 typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10b	same title as reject parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd
 typing/valid/checker-a-match-must-cover-every-variant-23.hd	A10b	same title as reject typing/invalid/checker-a-match-must-cover-every-variant-24.hd
-typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-96.hd	A10b	same title as reject typing/invalid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-99.hd
-typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-97.hd	A10b	same title as reject typing/invalid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-99.hd
+typing/valid/propagation-a-try-error-converts-through-a-from-impl.hd	A10b	same title as reject typing/invalid/propagation-an-error-type-without-an-error-impl-does-not-convert-to-a-dyn-error.hd
+typing/valid/propagation-a-try-error-with-an-error-impl-converts-to-a-dyn-error.hd	A10b	same title as reject typing/invalid/propagation-an-error-type-without-an-error-impl-does-not-convert-to-a-dyn-error.hd
 typing/valid/checker-block-on-and-println-are-forbidden-in-direct-contexts-100.hd	A10b	same title as reject typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-107.hd
 typing/valid/checker-block-on-and-println-are-forbidden-in-direct-contexts-101.hd	A10b	same title as reject typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-107.hd
 typing/valid/checker-block-on-and-println-are-forbidden-in-direct-contexts-102.hd	A10b	same title as reject typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-107.hd
@@ -42,9 +42,9 @@ typing/valid/impl-targets-a-dyn-inherent-impl-lives-in-the-module-of-its-trait-7
 typing/valid/impl-targets-a-trait-argument-gives-module-ownership-only-in-its-own-module-67.hd	A10b	same title as reject typing/invalid/impl-targets-a-trait-argument-gives-module-ownership-only-in-its-own-module-68.hd
 typing/valid/literals-a-literal-converts-to-a-trait-value-at-its-default-type-47.hd	A10b	same title as reject typing/invalid/literals-a-literal-converts-to-a-trait-value-at-its-default-type-49.hd
 typing/valid/literals-a-literal-converts-to-a-trait-value-at-its-default-type-48.hd	A10b	same title as reject typing/invalid/literals-a-literal-converts-to-a-trait-value-at-its-default-type-49.hd
-typing/valid/literals-a-prefixed-string-calls-its-prefix-function-37.hd	A10b	same title as reject typing/invalid/literals-a-prefixed-string-calls-its-prefix-function-40.hd
-typing/valid/literals-a-prefixed-string-calls-its-prefix-function-38.hd	A10b	same title as reject typing/invalid/literals-a-prefixed-string-calls-its-prefix-function-40.hd
-typing/valid/literals-a-suffixed-literal-calls-its-suffix-function-21.hd	A10b	same title as reject typing/invalid/literals-a-suffixed-literal-calls-its-suffix-function-22.hd
+typing/valid/literals-a-prefixed-string-calls-its-prefix-function-with-an-interpolated-name.hd	A10b	same title as reject typing/invalid/literals-a-prefixed-string-interpolating-a-wider-integer-is-implicit-narrowing.hd
+typing/valid/literals-a-prefixed-string-calls-its-prefix-function-with-an-interpolated-expression.hd	A10b	same title as reject typing/invalid/literals-a-prefixed-string-interpolating-a-wider-integer-is-implicit-narrowing.hd
+typing/valid/literals-a-suffixed-literal-calls-its-suffix-function-and-takes-its-result-type.hd	A10b	same title as reject typing/invalid/literals-a-suffixed-literal-takes-its-suffix-function-result-type-not-its-parameter-type.hd
 typing/valid/literals-an-integer-literal-never-takes-a-float-type-52.hd	A10b	same title as reject typing/invalid/literals-an-integer-literal-never-takes-a-float-type-51.hd
 typing/valid/literals-an-open-literal-wraps-into-an-optional-43.hd	A10b	same title as reject typing/invalid/literals-an-open-literal-wraps-into-an-optional-46.hd
 typing/valid/literals-an-open-literal-wraps-into-an-optional-44.hd	A10b	same title as reject typing/invalid/literals-an-open-literal-wraps-into-an-optional-46.hd

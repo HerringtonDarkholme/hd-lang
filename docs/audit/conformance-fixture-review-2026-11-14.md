@@ -1348,7 +1348,7 @@ Ledger: b042 (40): 1 row. Plausible 1. A clean batch.
 Ledger: b041 (28): 3 rows. b043 (45): 4 rows. Confirmed 3 (title class), plausible 4.
 
 - **An accept case titled as a rejection (B1)**: `typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-{96,97}.hd`
-  and `typing/valid/checker-a-defer-suite-cannot-propagate-with-a-query-206.hd`.
+  and `typing/valid/propagation-an-ordinary-function-may-propagate-with-a-query.hd`.
   The same kind as A10, without the `-legal` suffix. See A10b below.
 - Plausible: `runtime/valid/compound-assign-index-once.hd` (the title promises
   two things it never exercises). `runtime/valid/power-and-remainder-edges.hd`
@@ -1362,7 +1362,7 @@ A10b: accept fixtures whose title equals a reject fixture's title:       87. Scr
 
 Ledger: b044 (36): 6 rows. Covered by A10 1, plausible 4, unverified 1.
 
-- `typing/valid/checker-checker-errors-are-reported-42-legal.hd`: the A10 class,
+- `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd`: the A10 class,
   and it also cites the error-only `expr.call.duplicate`.
 - Plausible: `runtime/valid/callable-values-run.hd` ("a child reads a copy" is
   untested). `typing/invalid/vararg-by-name-and-positional.hd` (B7).
@@ -1373,7 +1373,7 @@ Ledger: b044 (36): 6 rows. Covered by A10 1, plausible 4, unverified 1.
 
 Ledger: b045 (45): 3 rows. Plausible 3.
 
-- Plausible B1: `typing/valid/reference-equality-fix-equality-of-a-reference-with-a-value-is-no-reference-equality-1.hd`
+- Plausible B1: `typing/valid/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd`
   writes `*a == b`, which dereferences first, so a reference compared with a
   value is never tested.
 - Plausible B7: `runtime/panic/list-index-underflow.hd` (the panic is
@@ -1485,7 +1485,7 @@ rows in the TSVs.
 - **A check that cannot fail (B3)**: `runtime/valid/identity-ignores-permissions.hd`.
   It only asserts `!same(...)`, so an `is` that is always false passes. It
   needs a positive case.
-- **Rejected for the wrong reason (B2), plausible**: `typing/invalid/identity-operands-a-literal-has-no-identity-109.hd`
+- **Rejected for the wrong reason (B2), plausible**: `typing/invalid/identity-operands-a-literal-operand-has-no-identity.hd`
   (the error names `a: User`, a value, not the literal; use `a: &User`).
 - **Title doesn't match the code (B1), plausible**: `…-an-unbounded-type-parameter-has-no-identity-115.hd`
   (`T < Named` is bounded). `…-a-trait-value-needs-the-other-type-to-convert-122.hd`
@@ -1532,8 +1532,8 @@ Ledger: b054 (45): 6 rows. Covered by A6 2, plausible 4.
   citing the lint rule. The owner should decide whether they move to
   `typing/valid/` or become `cli/` lint cases.
 - Plausible C1: `typing/invalid/signed-exponent.hd` ~ `signed-integer-exponent.hd`.
-- Plausible B1: `typing/valid/impl-targets-the-standard-numeric-families-stay-valid-50.hd`
-  (no impl targets). `typing/invalid/identity-operands-one-value-operand-is-one-error-106.hd`
+- Plausible B1: `typing/valid/operators-arithmetic-and-bitwise-operators-apply-to-standard-integer-types.hd`
+  (no impl targets). `typing/invalid/identity-operands-an-integer-against-another-struct-is-one-error.hd`
   (both operands are values; b053 found the same in `-103` and `-104`, so this
   series probably shares one bug). `typing/valid/control-flow.hd` (a type case
   claiming laziness).
@@ -1550,7 +1550,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `typing/invalid/rejected-pattern-binds-bare-call-pattern-binds-its-names-171.hd` = `typing/invalid/bare-ok-call-pattern.hd` (b056)
 - `typing/invalid/rejected-pattern-binds-duplicate-field-binds-the-alias-173.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
 - `typing/invalid/rejected-pattern-binds-unknown-variant-field-binds-its-value-174.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
-- `typing/valid/checker-checker-errors-are-reported-42-legal.hd` = `typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
+- `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `typing/valid/declaration-checks-a-shorthand-field-counts-as-given-300.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
 - `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)

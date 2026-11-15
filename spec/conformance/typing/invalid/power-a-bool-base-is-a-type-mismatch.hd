@@ -1,0 +1,5 @@
+# test: a bool base is a type mismatch
+fn f(b: bool) -> bool:
+    b ** 2 # diagnostic: type-mismatch
+pub fn main() -> void:
+    pass

@@ -1,0 +1,6 @@
+# test: a parameter given positionally and by name is a duplicate argument
+fn f(a: i32, b: i32) -> i32:
+    a + b
+
+pub fn main() -> void $ Console:
+    println(f(1, a=2)) # diagnostic: duplicate-argument
