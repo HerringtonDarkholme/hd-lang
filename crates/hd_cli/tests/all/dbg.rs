@@ -364,20 +364,6 @@ fn release_rejects_dbg_and_builds_and_runs_nothing() {
     assert_eq!(again.err, built.err);
 }
 
-/// The call's fix-it deletes its whole statement; the function value has
-/// none (`module.dbg.release.delete`).
-#[test]
-fn release_fix_deletes_the_call_statement_only() {
-    let dir = scratch("hd-dbg-release-fix");
-    std::fs::write(dir.join("src/main.hd"), RELEASE_MAIN).expect("write");
-    let built = hd(&dir, &["build", "--release", "--format", "json"]);
-    let lines: Vec<&str> = built.out.lines().collect();
-    assert_eq!(lines.len(), 3, "{}", built.out);
-    let delete = "\"fixes\":[{\"message\":\"delete the `dbg` statement\",\"edits\":[{\"file\":\"src/main.hd\",\"start\":33,\"end\":44,\"text\":\"\"}]}]";
-    assert!(lines[0].contains(delete), "{}", lines[0]);
-    assert!(lines[1].contains("\"fixes\":[]"), "{}", lines[1]);
-}
-
 /// A debug build accepts `dbg` and prints its lines to standard error
 /// (`module.dbg.release.debug-build`).
 #[test]

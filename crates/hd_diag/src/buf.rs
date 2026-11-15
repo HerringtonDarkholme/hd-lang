@@ -429,23 +429,28 @@ impl DiagBuf {
     pub fn render_compact(&self, location: &dyn Fn(Span) -> String) -> String {
         let mut out = String::new();
         for i in self.content_order() {
-            let p = self.primary[i];
-            let sev = match self.severity[i] {
-                Severity::Error => "error",
-                Severity::Warning => "warning",
-            };
-            let text = self.get_text(self.message[i]);
-            let Some(code) = self.shown_code(i).map(Code::as_str) else {
-                let _ = writeln!(out, "{sev}: {}: {text}", location(p));
-                continue;
-            };
-            let message = text
-                .strip_prefix(code)
-                .and_then(|rest| rest.strip_prefix(": "))
-                .unwrap_or(text);
-            let _ = writeln!(out, "{sev}: {}: {code}: {message}", location(p));
+            self.render_row(i, location, &mut out);
         }
         out
+    }
+
+    /// Row `i` in the compact form of [`Self::render_compact`], one line.
+    pub fn render_row(&self, i: usize, location: &dyn Fn(Span) -> String, out: &mut String) {
+        let p = self.primary[i];
+        let sev = match self.severity[i] {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+        };
+        let text = self.get_text(self.message[i]);
+        let Some(code) = self.shown_code(i).map(Code::as_str) else {
+            let _ = writeln!(out, "{sev}: {}: {text}", location(p));
+            return;
+        };
+        let message = text
+            .strip_prefix(code)
+            .and_then(|rest| rest.strip_prefix(": "))
+            .unwrap_or(text);
+        let _ = writeln!(out, "{sev}: {}: {code}: {message}", location(p));
     }
 
     /// JSON form: one object per diagnostic, in content order.

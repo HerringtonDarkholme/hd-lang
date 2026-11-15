@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# Narrowing and a mixed numeric family offer no conversion fix-it.
+fn f(x: i32) -> f64:
+    let n: f64 = x
+    n

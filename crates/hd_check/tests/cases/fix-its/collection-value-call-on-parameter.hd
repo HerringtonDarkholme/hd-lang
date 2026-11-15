@@ -1,0 +1,7 @@
+# @dump: diagnostics fixed
+# A change to a list that is no writable place makes its binding
+# writable (`types.coll.writable.call`, `types.coll.writable.store`); the
+# fixed program checks clean.
+fn f(xs: List[i32]) -> usize:
+    xs.push(2)
+    xs.len()

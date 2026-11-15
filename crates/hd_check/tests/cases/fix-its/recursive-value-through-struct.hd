@@ -1,0 +1,9 @@
+# @dump: diagnostics fixed
+# A recursive value type's fix-it writes a reference at the recursive
+# use (`recursive-value-type`); the fixed program checks clean.
+enum Branch:
+    Leaf
+    Fork(forest: Forest)
+
+struct Forest:
+    branch: Branch

@@ -941,6 +941,7 @@ dependencies = [
  "hd_base",
  "hd_cache",
  "hd_deps",
+ "hd_diag",
  "hd_driver",
  "hd_project",
  "hd_sched",

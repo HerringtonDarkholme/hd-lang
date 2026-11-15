@@ -1,0 +1,12 @@
+# @dump: diagnostics fixed
+# Fix-its in two modules each edit their own file, and the fixed package
+# checks clean.
+fn f() -> usize:
+    xs := [+1]
+    xs.push(2)
+    xs.len()
+
+# @file: other.hd
+fn g(small: i16) -> i64:
+    let wide: i64 = small
+    wide

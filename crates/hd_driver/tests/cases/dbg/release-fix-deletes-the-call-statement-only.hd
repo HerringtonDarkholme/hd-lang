@@ -1,0 +1,8 @@
+# @dump: stdout
+# @build: release
+# A release build rejects a `dbg` call and a `dbg` function value; the
+# call's fix-it deletes its whole statement, and the function value has
+# none (module.dbg.release, module.dbg.release.delete).
+pub fn main() -> void $ Console:
+    dbg(1)
+    let show: fn((i32,)) -> void = dbg

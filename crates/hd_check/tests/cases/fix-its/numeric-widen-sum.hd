@@ -1,0 +1,13 @@
+# @dump: diagnostics fixed
+# A value of a narrower numeric type where a wider one of its family is
+# expected is `type-mismatch` with a fix-it that writes the conversion
+# around the value (types.num.no-implicit.wider, types.num.no-implicit.fix);
+# the fixed program checks clean.
+struct Box:
+    n: i64
+
+fn take(x: i64) -> i64:
+    x
+
+fn f(small: i16, big: i64) -> i64:
+    big + small

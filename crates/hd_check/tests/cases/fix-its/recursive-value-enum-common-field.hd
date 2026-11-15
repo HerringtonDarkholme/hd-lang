@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# A recursive value type's fix-it writes a reference at the recursive
+# use (`recursive-value-type`); the fixed program checks clean.
+enum Expr(parent: Expr?):
+    Num(n: i64)

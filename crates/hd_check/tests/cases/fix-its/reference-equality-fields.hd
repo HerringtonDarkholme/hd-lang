@@ -1,0 +1,9 @@
+# @dump: diagnostics fixed
+# `==` on references offers two fix-its: compare the places with `is`, or
+# the values through `*` (`reference-equality`); each fixed program checks
+# clean.
+struct Pair:
+    inner: *i32
+
+fn same(a: Pair, b: Pair) -> bool:
+    a.inner == b.inner

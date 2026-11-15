@@ -5,6 +5,7 @@
 //! lines and interleaved below them. Blessing never rewrites source cases.
 
 mod counts;
+mod diagnostics;
 mod inspection;
 mod layout;
 pub mod node_host;
@@ -48,8 +49,8 @@ pub struct Program {
     /// The fuel of each body and header goal of the case's package
     /// (`# @fuel: N`), smaller than `Fuel::BODY_DEFAULT`, so a small case
     /// reaches `item-too-complex` (`fn.limit.complexity.error`) at a chosen
-    /// step. The `tir`, `diagnostics`, `stdout` and `tests` views build with
-    /// it (`Packages::body_fuel`).
+    /// step. The `tir`, `diagnostics`, `spans`, `fixed`, `stdout` and
+    /// `tests` views build with it (`Packages::body_fuel`).
     pub fuel: Option<u64>,
     /// The file that holds the case's own text when it is not `main.hd`
     /// (`# @main: src/main.hd`), for a case about package layout.
@@ -128,10 +129,11 @@ impl Program {
 /// begins a module. The `tir` view checks the joined session; `wat`
 /// builds the inputs in order and shows the final extension module.
 /// `@fuel: N` gives the package `N` steps of fuel per item in the `tir`,
-/// `diagnostics`, `stdout` and `tests` views. `@main: PATH` names the file
-/// of the case's own text, `main.hd` by default, for a case about package
-/// layout (`src/main.hd`); `@entry: NAME` names an executable entry module
-/// (`src/NAME.hd`), as a manifest does.
+/// `diagnostics`, `spans`, `fixed`, `stdout` and `tests` views.
+/// `@main: PATH` names the file of the case's own text, `main.hd` by
+/// default, for a case about package layout (`src/main.hd`); `@entry:
+/// NAME` names an executable entry module (`src/NAME.hd`), as a manifest
+/// does.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -190,6 +192,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
                                 | "counts"
                                 | "layout"
                                 | "diagnostics"
+                                | "fixed"
+                                | "spans"
                                 | "stdout"
                                 | "tests"
                         ) {
@@ -296,12 +300,15 @@ pub fn parse(text: &str) -> Result<Case, String> {
     if (main_path.is_some() || !entries.is_empty())
         && (repl.is_some()
             || program.profile.is_some()
-            || dumps
-                .iter()
-                .any(|d| !matches!(d.as_str(), "diagnostics" | "stdout" | "tests")))
+            || dumps.iter().any(|d| {
+                !matches!(
+                    d.as_str(),
+                    "diagnostics" | "fixed" | "spans" | "stdout" | "tests"
+                )
+            }))
     {
         return Err(
-            "an `@main` or `@entry` case shows only the `diagnostics`, `stdout` and `tests` views, with no profile or REPL"
+            "an `@main` or `@entry` case shows only the `diagnostics`, `fixed`, `spans`, `stdout` and `tests` views, with no profile or REPL"
                 .to_owned(),
         );
     }
@@ -315,12 +322,15 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.entries = entries;
     if fuel.is_some()
         && (repl.is_some()
-            || dumps
-                .iter()
-                .any(|d| !matches!(d.as_str(), "tir" | "diagnostics" | "stdout" | "tests")))
+            || dumps.iter().any(|d| {
+                !matches!(
+                    d.as_str(),
+                    "tir" | "diagnostics" | "fixed" | "spans" | "stdout" | "tests"
+                )
+            }))
     {
         return Err(
-            "a `@fuel` case shows only the `tir`, `diagnostics`, `stdout` and `tests` views of a package"
+            "a `@fuel` case shows only the `tir`, `diagnostics`, `fixed`, `spans`, `stdout` and `tests` views of a package"
                 .to_owned(),
         );
     }
@@ -636,8 +646,8 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
-/// The packages of a `diagnostics`, `stdout` or `tests` build of `p` as
-/// `build`: the case's `@fuel`, `@profile` and `@entry`, and `@build`'s level (`release` runs the
+/// The packages of a `diagnostics`, `spans`, `fixed`, `stdout` or `tests`
+/// build of `p` as `build`: the case's `@fuel`, `@profile` and `@entry`, and `@build`'s level (`release` runs the
 /// optimized pipeline, and a program gets the release profile), engine
 /// target and checked runtime.
 fn packages(p: &Program, build: Build) -> hd_driver::Packages<'static> {
@@ -657,15 +667,21 @@ fn packages(p: &Program, build: Build) -> hd_driver::Packages<'static> {
 }
 
 /// The diagnostics view: every diagnostic of the case's `Analyze` build,
-/// as `severity: file:line:column: code: message`, in source order. With
+/// as `severity: file:line:column: code: message`, in source order, each
+/// followed by its fix-its' edits ([`diagnostics::render`]). With
 /// `@build: tests` it checks the `tests:` blocks too (`Goal::CheckTests`,
 /// as `hd check --tests` does).
 #[must_use]
 pub fn diagnostics(p: &Program, build: Build) -> String {
-    let src = p.sources();
+    diagnostics::render(&check(p, build, &p.sources()))
+}
+
+/// The `diagnostics` view's build of `p` as `build`, from `src`: the
+/// case's own sources, or the `fixed` view's edited ones.
+fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_driver::Output {
     let host = Host {
         render_tir: &[],
-        sources: &src,
+        sources: src,
         store: shared_store(),
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
@@ -676,7 +692,7 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
     } else {
         Goal::Analyze
     };
-    hd_driver::build_packages(&host, "app", &packages, &goal).render_located()
+    hd_driver::build_packages(&host, "app", &packages, &goal)
 }
 
 /// The tests view: the `tests:` blocks built as `hd test` builds them
@@ -701,7 +717,7 @@ pub fn tests(p: &Program, at: Build) -> String {
         filter: None,
     };
     let built = hd_driver::build_packages(&host, "app", &packages, &goal);
-    let mut out = built.render_located();
+    let mut out = diagnostics::render(&built);
     let _ = writeln!(out, "-- plan");
     for case in &built.tests {
         let _ = write!(
@@ -813,7 +829,7 @@ pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
     );
     match built.wasm {
         Some(wasm) if built.diags.is_empty() => Ok(wasm),
-        _ => Err(format!("build failed\n{}", built.render_located())),
+        _ => Err(format!("build failed\n{}", diagnostics::render(&built))),
     }
 }
 
@@ -848,6 +864,8 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
         "own" => own::view(p, build),
         "wat" => wat_for(p, build),
         "diagnostics" => diagnostics(p, build),
+        "fixed" => diagnostics::fixed(p, build),
+        "spans" => diagnostics::spans(p, build),
         "stdout" => stdout(p, build),
         "tests" => tests(p, build),
         _ => return None,
@@ -872,7 +890,8 @@ pub struct Build {
     pub checked: bool,
     /// Link a complete program, runtime helpers included.
     pub program: bool,
-    /// The `diagnostics` view checks the `tests:` blocks too.
+    /// The `diagnostics`, `spans` and `fixed` views check the `tests:`
+    /// blocks too.
     pub tests: bool,
 }
 

@@ -1,0 +1,16 @@
+# @dump: diagnostics fixed
+# A `&mut self` call through a read-only trait value reference fixes the
+# reference's type (trait.dyn.ref.member.mut); the fixed program checks
+# clean.
+trait Counter:
+    fn bump(&mut self) -> void
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+fn poke(counter: &dyn Counter) -> void:
+    counter.bump()

@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# A local reference stored in a counted reference field is
+# `local-reference-escapes`, with no fix-it.
+struct Point:
+    x: i32
+
+struct Holder:
+    point: *Point
+
+fn keep(p: &Point) -> Holder:
+    Holder { point: p }

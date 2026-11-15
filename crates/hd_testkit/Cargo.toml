@@ -10,6 +10,7 @@ publish = false
 hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache" }
 hd_deps = { path = "../hd_deps" }
+hd_diag = { path = "../hd_diag" }
 hd_driver = { path = "../hd_driver" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }

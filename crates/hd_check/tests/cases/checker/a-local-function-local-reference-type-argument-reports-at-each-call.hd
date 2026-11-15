@@ -1,0 +1,11 @@
+# @dump: diagnostics spans
+# A local function given a local reference as its type argument reports
+# `local-reference-escapes` at each call, with no fix-it.
+struct Point:
+    x: i32
+
+fn check(point: &Point) -> void:
+    fn consume[T](value: T) -> void:
+        pass
+    consume(point)
+    consume(point)

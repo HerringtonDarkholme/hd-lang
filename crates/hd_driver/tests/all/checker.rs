@@ -86,68 +86,6 @@ fn build_program(main: &str, store: &dyn CacheStore) -> Output {
     )
 }
 
-#[test]
-fn foreign_bare_loop_names_the_endless_loop_spelling() {
-    let source = "pub fn main() -> void:\n    loop:\n        pass\n";
-    let out = program(source);
-    assert_eq!(out.diags.code, [Code::UnknownName], "{}", out.render());
-    assert_eq!(
-        out.diags.get_text(out.diags.message[0]),
-        "`loop` is not defined; write 'while true:' for an endless loop"
-    );
-    let start = u32::try_from(source.find("loop:").unwrap()).unwrap();
-    assert_eq!(out.diags.primary[0].lo, start);
-    assert_eq!(out.diags.primary[0].hi, start + 4);
-}
-
-#[test]
-fn local_reference_escape_names_the_position_without_a_fix() {
-    let cases = [
-        (
-            "struct Point:\n    x: i32\n\nstruct Holder:\n    point: &Point\n\npub fn main() -> void:\n    pass\n",
-            "a local reference never escapes to a field",
-        ),
-        (
-            "struct Point:\n    x: i32\n\nstruct Holder:\n    point: *Point\n\nfn keep(p: &Point) -> Holder:\n    Holder { point: p }\n\npub fn main() -> void:\n    pass\n",
-            "a local reference never escapes to a field",
-        ),
-    ];
-    for (source, message) in cases {
-        let out = cold_program(source);
-        assert_eq!(
-            out.diags.code,
-            [Code::LocalReferenceEscapes],
-            "{}",
-            out.render()
-        );
-        assert_eq!(out.diags.get_text(out.diags.message[0]), message);
-        assert_eq!(
-            out.diags.fixes[0].len,
-            0,
-            "unexpected fix: {}",
-            out.render()
-        );
-    }
-}
-
-#[test]
-fn a_local_function_local_reference_type_argument_reports_at_each_call() {
-    let source = "struct Point:\n    x: i32\n\nfn check(point: &Point) -> void:\n    fn consume[T](value: T) -> void:\n        pass\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n";
-    let out = cold_program(source);
-    assert_eq!(
-        out.diags.code,
-        [Code::LocalReferenceEscapes, Code::LocalReferenceEscapes],
-        "{}",
-        out.render()
-    );
-    assert!(out.diags.fixes.iter().all(|fix| fix.len == 0));
-    let span = out.diags.primary[0];
-    assert_eq!(
-        &source[span.lo as usize..span.hi as usize],
-        "consume(point)"
-    );
-}
-
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt.entry`, and the
 /// trait default bodies among the bodies: 51 modules.
 #[test]

@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+# A recursive value type's fix-it writes a reference at the recursive
+# use (`recursive-value-type`); the fixed program checks clean.
+enum Pairing:
+    Single(value: i32)
+    Both(pair: (i32, Pairing))

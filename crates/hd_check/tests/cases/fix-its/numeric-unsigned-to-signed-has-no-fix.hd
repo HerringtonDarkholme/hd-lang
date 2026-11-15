@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# Narrowing and a mixed numeric family offer no conversion fix-it.
+fn f(small: u16) -> i64:
+    let n: i64 = small
+    n

@@ -1,0 +1,9 @@
+# @dump: diagnostics fixed
+# Two diagnostics whose fix-its edit the same binding: the second is left
+# out, as `hd check --fix` leaves out a fix-it that overlaps one taken
+# before it (cli.check.fix.overlap).
+fn f() -> i32:
+    xs := [+1]
+    xs.push(2)
+    xs[0] = 3
+    xs[0]

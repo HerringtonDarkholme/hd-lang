@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# Narrowing and a mixed numeric family offer no conversion fix-it.
+fn f(x: u32) -> usize:
+    let n: usize = x
+    n

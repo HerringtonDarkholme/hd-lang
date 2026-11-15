@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+# A bare trait name in a type is `trait-used-as-type` at the name, with an
+# exact fix-it that inserts `&dyn ` before it
+# (types.trait.value.dyn-required.reference-values).
+trait Factory:
+    fn create() -> Self
+
+fn main() -> void:
+    let a: Factory = panic("x")
+    _ := a

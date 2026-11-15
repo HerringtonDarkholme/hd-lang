@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# A local reference in a field type is `local-reference-escapes`, with no
+# fix-it.
+struct Point:
+    x: i32
+
+struct Holder:
+    point: &Point

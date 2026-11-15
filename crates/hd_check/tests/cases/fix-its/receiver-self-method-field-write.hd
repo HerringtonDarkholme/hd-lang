@@ -1,0 +1,16 @@
+# @dump: diagnostics fixed
+# A `&mut self` call on a binding that is not writable, and a field write
+# through `self` in a `self` method, carry a fix-it that makes the binding
+# writable (fn.method.auto-address.fix, fn.method.self-struct-write); the
+# fixed program checks clean.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+impl Point:
+    fn reset(self) -> void:
+        self.x = 0

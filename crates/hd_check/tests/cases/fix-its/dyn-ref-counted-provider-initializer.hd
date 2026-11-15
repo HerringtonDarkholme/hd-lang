@@ -1,0 +1,36 @@
+# @dump: diagnostics fixed
+# A value where a trait value reference is expected gets a fix-it that
+# writes `&` or `&mut` before a place or a struct literal
+# (trait.dyn.ref.written.reference-fix.reference-values), or, where a
+# counted one is expected, `box(...)` around a struct literal or a local's
+# initializer (req.ref.install-value.fix); the fixed program checks clean.
+trait Shape:
+    fn area(&self) -> f64
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+trait Counter:
+    fn bump(&mut self) -> void
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+fn show(shape: &dyn Shape) -> f64:
+    shape.area()
+
+fn count(counter: &mut dyn Counter) -> void:
+    counter.bump()
+
+fn demo(n: i32) -> void:
+    let mut tally = Tally { n: n }
+    $.with(Counter=tally):
+        pass

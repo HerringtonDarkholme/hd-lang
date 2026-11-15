@@ -1,0 +1,8 @@
+# @dump: diagnostics fixed
+# A change to a list that is no writable place makes its binding
+# writable (`types.coll.writable.call`, `types.coll.writable.store`); the
+# fixed program checks clean.
+fn f() -> i32:
+    let xs = [+1]
+    xs[0] = 2
+    xs[0]

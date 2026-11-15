@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+# `==` on references offers two fix-its: compare the places with `is`, or
+# the values through `*` (`reference-equality`); each fixed program checks
+# clean.
+fn same(a: *i32, b: *i32) -> bool:
+    a != b

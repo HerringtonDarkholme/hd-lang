@@ -1,0 +1,6 @@
+# @dump: diagnostics spans
+# A foreign endless-loop spelling is `unknown-name` at `loop` alone, and
+# its message names hd's spelling.
+pub fn main() -> void:
+    loop:
+        pass
