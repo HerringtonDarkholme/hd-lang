@@ -1367,9 +1367,9 @@ std/collections/map-methods/map-entries-most-common.hd	accept	std/collections.md
 std/collections/set/set-collect.hd	accept	std/collections.md#r-std-collections.set.collect	-4	
 std/collections/set-deque-and-heap-values/collection-temporary-receivers.hd	accept	std/collections.md#r-std-collections.struct.receiver-mut	-4	
 std/collections/set/set-properties.hd	accept	std/collections.md#set	-90	
-runtime/valid/console-raw-writes.hd	accept	std/console.md#printing-without-a-newline	-4	
-runtime/valid/console-struct-fake-ref.hd	accept	std/console.md#r-std-console.buffer.install-ref	-8	
-runtime/valid/console-error-traits.hd	accept	std/console.md#r-std-console.error.traits	-16	
+std/console/printing-without-a-newline/console-raw-writes.hd	accept	std/console.md#printing-without-a-newline	-4	
+std/console/buffer-console/console-struct-fake-ref.hd	accept	std/console.md#r-std-console.buffer.install-ref	-8	
+std/console/console-errors/console-error-traits.hd	accept	std/console.md#r-std-console.error.traits	-16	
 runtime/valid/digest-hmac.hd	accept	std/digest.md#r-std-digest.hmac.vectors	-66	
 runtime/valid/digest-sha256-long.hd	accept	std/digest.md#r-std-digest.sha256.fips	-4	
 runtime/valid/digest-sha256-vectors.hd	accept	std/digest.md#r-std-digest.sha256.fips	-12	

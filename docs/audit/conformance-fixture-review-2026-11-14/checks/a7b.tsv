@@ -76,9 +76,9 @@ requirements/cancellation/cold-suspension-cancel-idempotent.hd	A7b	lost '' gaine
 std/collections/set-deque-and-heap-values/collection-temporary-receivers.hd	A7b	lost '' gained ','	std/collections.md#r-std-collections.struct.receiver-mut
 lexical/physical-and-logical-lines/colons-in-brackets-and-trailing-blocks.hd	A7b	lost '' gained ','	lang/01-lexical-structure.md#r-lex.colon.ordinary
 runtime/valid/compound-assign-index.hd	A7b	lost '' gained ','	lang/05-expressions.md#r-expr.assign.compound.index-place
-runtime/valid/console-error-traits.hd	A7b	lost '' gained ',,,,'	std/console.md#r-std-console.error.traits
-runtime/valid/console-raw-writes.hd	A7b	lost '' gained ','	std/console.md#printing-without-a-newline
-runtime/valid/console-struct-fake-ref.hd	A7b	lost '' gained ',,'	std/console.md#r-std-console.buffer.install-ref
+std/console/console-errors/console-error-traits.hd	A7b	lost '' gained ',,,,'	std/console.md#r-std-console.error.traits
+std/console/printing-without-a-newline/console-raw-writes.hd	A7b	lost '' gained ','	std/console.md#printing-without-a-newline
+std/console/buffer-console/console-struct-fake-ref.hd	A7b	lost '' gained ',,'	std/console.md#r-std-console.buffer.install-ref
 runtime/valid/constant-size-reference-allocation.hd	A7b	lost '' gained ',,,,,'	lang/13-values-and-references.md#identity
 lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd	A7b	lost '' gained ','	lang/01-lexical-structure.md#r-lex.dot.statement-indent
 runtime/valid/copy-update-copies-embedded-part.hd	A7b	lost '' gained ',,'	lang/08-data-and-enums.md#data-embedding
