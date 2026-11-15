@@ -229,9 +229,7 @@ for (const commit of git("rev-list", "--reverse", `${base}..${head}`).split("\n"
     continue;
   }
   const status = git("show", "--name-status", "--format=", commit);
-  if (
-    /^A\s+(spec\/conformance\/(runtime|typing|parse|cli)\/|crates\/[a-z_]+\/tests\/)/m.test(status)
-  ) {
+  if (/^A\s+(spec\/conformance\/(lang|std|cli)\/|crates\/[a-z_]+\/tests\/)/m.test(status)) {
     continue;
   }
   // A new test in an existing file counts too: an added `#[test]`
@@ -270,10 +268,22 @@ const emits = changes.some(
   (change) => change.status !== "D" && emitter.test(change.path) && !change.path.endsWith(".md"),
 );
 const priced = changes.some((change) => /\/baselines\/.*\.wat$/.test(change.path));
+// A conformance case's phase is a column of cases.tsv, not part of its
+// path: only `runtime` cases build and run a program.
+const runtimeCases = new Set(
+  git("show", `${head}:spec/conformance/cases.tsv`)
+    .split("\n")
+    .map((row) => row.split("\t"))
+    .filter((cols) => cols[1] === "runtime")
+    .map((cols) => `spec/conformance/${cols[0]}`),
+);
 const program =
-  /^spec\/conformance\/(runtime|cli)\/|^crates\/[^/]+\/tests\/cases\/|^crates\/hd_driver\/tests\/std_rt\//;
+  /^spec\/conformance\/cli\/|^crates\/[^/]+\/tests\/cases\/|^crates\/hd_driver\/tests\/std_rt\//;
 const programs = changes
-  .filter((change) => change.status === "A" && program.test(change.path))
+  .filter(
+    (change) =>
+      change.status === "A" && (program.test(change.path) || runtimeCases.has(change.path)),
+  )
   .map((change) => change.path);
 report(
   "PRICE MISSING: compiler code changed and new programs were added, but no .wat baseline shows what they emit",
