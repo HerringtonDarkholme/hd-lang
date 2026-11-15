@@ -824,12 +824,12 @@ b160	std/num/wrapping-arithmetic/num-wrapping-mul.hd	FIX	B8	usize top.wrapping_m
 b160	std/ops/derived-default/derive-default-an-enum-without-the-derive-marks-no-variant.hd	FIX	B1	Has no @derive(Default) and no @default, so it exercises nothing its title and spec cite; merge into -181 or delete.
 b160	std/ops/derived-default/derive-default-a-field-with-a-declared-default-needs-no-default-impl.hd	MERGE	C1	Same Secret/declared-default shape as std/ops/derived-default/derived-default-declared-no-bound.hd, same rule; keep one, the runtime one runs it.
 b162	std/random/rng/rng-int-generic.hd	MERGE	C1	Lines 48-53 repeat rng-int-range.hd lines 7-12 exactly (Rng::new(7), 0..10, same draws); same rule, same expectation, keep one.
-b163	typing/invalid/serde-map-key-payload-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the payload rule. Use a MapKeyPayload member type, e.g. string.
-b163	typing/invalid/serde-map-key-struct-member-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the struct-member rule. Use a MapKeyPayload member type, e.g. string.
-b163	runtime/valid/serde-writer-first-error.hd	FIX	B8	Expects key:pen before key:ink from a map literal, but the spec promises only a deterministic order. Use a one-entry map with +1.
-b163	runtime/valid/serde-std-reads.hd	FIX	B8	Asserts ["west","east"] from iterating a map. Spec promises only a deterministic order (types.map.order.deterministic). Compare as a set or sort the keys.
-b163	typing/invalid/serde-tagging-lookalike-not-static.hd	UNSURE	C1	Same rule and error as typing/invalid/serde-tagging-not-static.hd; only the function name differs. Keep only if name shadowing is a separate resolver path.
-b164	runtime/valid/serde-reference-round-trip.hd	FIX	B1	Title says 'a tree through &Node?', but the code uses '*Cell?' and cites the counted-reference (*T) rule. Retitle to match.
+b163	std/serde/map-keys/serde-map-key-payload-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the payload rule. Use a MapKeyPayload member type, e.g. string.
+b163	std/serde/map-keys/serde-map-key-struct-member-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the struct-member rule. Use a MapKeyPayload member type, e.g. string.
+b163	std/serde/data-model/serde-writer-first-error.hd	FIX	B8	Expects key:pen before key:ink from a map literal, but the spec promises only a deterministic order. Use a one-entry map with +1.
+b163	std/serde/data-model/serde-std-reads.hd	FIX	B8	Asserts ["west","east"] from iterating a map. Spec promises only a deterministic order (types.map.order.deterministic). Compare as a set or sort the keys.
+b163	std/serde/derived-implementations/serde-tagging-lookalike-not-static.hd	UNSURE	C1	Same rule and error as std/serde/derived-implementations/serde-tagging-not-static.hd; only the function name differs. Keep only if name shadowing is a separate resolver path.
+b164	std/serde/standard-implementations/serde-reference-round-trip.hd	FIX	B1	Title says 'a tree through &Node?', but the code uses '*Cell?' and cites the counted-reference (*T) rule. Retitle to match.
 b164	runtime/valid/server-sdk-release-order.hd	UNSURE	B7	Cited dispatch.ack says the response is published only after finish, but the assertion needs respond! before finish. Check which hook publishes.
 b164	runtime/valid/a-module-function-takes-type-arguments-through-its-module.hd	FIX	B4	Identity's generic methods echo, make, say, wrap and convert! are never called; only task.race! runs.
 b164	runtime/valid/a-module-function-takes-type-arguments-through-its-module.hd	FIX	B7	Spec column cites only std/task.md with no rule; the tested rules are fn.generic.call-list (lang/07) and req.combinator.race-signature.

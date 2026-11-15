@@ -2509,8 +2509,8 @@ Ledger: b160 (44): 6. b161 (45): 0. b162 (45): 1. b163 (45): 5.
 - **Depends on `usize` width (B8)**: `std/num/float-parsing/number-text-properties.hd`,
   `num-parse-byte-reader-matches-scalar-reader.hd`, `num-parse-unsigned.hd`,
   `num-wrapping-mul.hd`. The target class is now about 20 fixtures.
-- **Depends on map order (B8)**: `runtime/valid/serde-writer-first-error.hd`, `serde-std-reads.hd`.
-- Plausible B2: `typing/invalid/serde-map-key-payload-derive.hd`, `serde-map-key-struct-member-derive.hd`.
+- **Depends on map order (B8)**: `std/serde/data-model/serde-writer-first-error.hd`, `serde-std-reads.hd`.
+- Plausible B2: `std/serde/map-keys/serde-map-key-payload-derive.hd`, `serde-map-key-struct-member-derive.hd`.
 - Plausible: `…-derived-default-enums-mark-one-variant-182.hd` (no derive or `@default`;
   also A14 paired with `-181`). `…-363.hd` ~ `derived-default-declared-no-bound` (C1).
   `rng-int-generic` ~ `rng-int-range` (C1). `serde-tagging-lookalike-not-static` (C1).
@@ -2542,7 +2542,7 @@ Ledger: b164 (45): 6. b165 (44): 2. b166 (45): 5. b167 (44): 1.
   and `runtime/valid/a-bound-call-at-a-trait-value-dispatches-through-its-vtable.hd` cite
   `std/text.md#more-string-methods` for trait-value rules (probably the tier rule
   again, as in b148). `runtime/valid/server-sdk-release-order.hd`.
-- Plausible B1: `runtime/valid/serde-reference-round-trip.hd` (`&Node?` against `*Cell?`).
+- Plausible B1: `std/serde/standard-implementations/serde-reference-round-trip.hd` (`&Node?` against `*Cell?`).
   `runtime/valid/property-assume-discards.hd` (nothing counts the cases).
 
 #### Targeted pass: formatter damage in chapters 01 and 02 (A7 + A7b, 136 fixtures)
