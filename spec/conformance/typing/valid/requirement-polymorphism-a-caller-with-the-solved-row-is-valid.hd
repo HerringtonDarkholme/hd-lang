@@ -1,4 +1,4 @@
-# test: a caller with the solved row is clean
+# test: requirement polymorphism a caller with the solved row is valid
 pub trait Db
 
 pub trait Clock

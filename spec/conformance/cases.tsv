@@ -880,7 +880,7 @@ typing/valid/related-traits-derived-eq-beside-hand-written-display-is-valid.hd	t
 typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd	type	accept	lang/09-traits.md#related-traits
 typing/valid/related-traits-hand-written-eq-and-hash-with-no-derive-are-valid.hd	type	accept	lang/09-traits.md#related-traits
 typing/valid/row-variance-a-spread-copy-builds-the-wider-list.hd	type	accept	lang/04-type-system.md#r-types.variance.function
-typing/valid/row-param-nested-a-caller-with-the-solved-row-is-clean-127-legal-rows.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
+typing/valid/requirement-polymorphism-a-caller-with-the-solved-row-is-valid.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	type	accept	lang/09-traits.md#sealed-traits
 typing/valid/sealed-traits-an-inherent-method-may-share-a-sealed-member-name.hd	type	accept	lang/09-traits.md#sealed-traits
 typing/valid/sealed-traits-sealed-traits-may-be-named-as-bounds-and-supertraits.hd	type	accept	lang/09-traits.md#sealed-traits
