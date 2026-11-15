@@ -153,6 +153,20 @@ impl<S: CacheStore> SingleFlight<S> {
         }
     }
 
+    /// Cancel the caller's unfinished key, never another build's flight.
+    fn abandon(&self, id: u64, key: Key) {
+        let mut flights = self.lock();
+        if let std::collections::hash_map::Entry::Occupied(entry) = flights.owners.entry(key)
+            && *entry.get() == id
+        {
+            self.inner.abandon(key.0, &key.1);
+            entry.remove();
+            if !flights.waits.is_empty() {
+                self.landed.notify_all();
+            }
+        }
+    }
+
     /// Build `id` ended: its waiters compute what it did not write.
     fn release(&self, id: u64) {
         let mut flights = self.lock();
@@ -190,6 +204,13 @@ impl<S: CacheStore> CacheStore for FlightRun<'_, S> {
         self.store.inner.put(kind, key, bytes);
         if self.store.kinds.contains(&kind) {
             self.store.wrote((kind, *key));
+        }
+    }
+    fn abandon(&self, kind: EntryKind, key: &Hash128) {
+        if self.store.kinds.contains(&kind) {
+            self.store.abandon(self.id, (kind, *key));
+        } else {
+            self.store.inner.abandon(kind, key);
         }
     }
     fn touch(&self, kind: EntryKind, key: &Hash128) {
@@ -257,6 +278,43 @@ mod tests {
             drop(first);
             assert!(rx.recv().expect("recv"), "a miss, to compute itself");
         });
+    }
+
+    #[test]
+    fn an_abandoned_computation_releases_its_waiter_before_the_run_ends() {
+        let store = store();
+        let first = store.run();
+        assert!(first.get(EntryKind::Check, &KEY).is_none());
+        let (tx, rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            // cost: one fixed test thread, one blocked cache query.
+            scope.spawn(|| {
+                let second = store.run();
+                let missing = second.get(EntryKind::Check, &KEY).is_none();
+                second.put(EntryKind::Check, &KEY, b"recovered");
+                tx.send(missing).unwrap();
+            });
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while store.lock().waits.is_empty() && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let blocked = !store.lock().waits.is_empty();
+            // A different build must not cancel the first one's work.
+            let stranger = store.run();
+            stranger.abandon(EntryKind::Check, &KEY);
+            assert!(rx.recv_timeout(Duration::from_millis(50)).is_err());
+            first.abandon(EntryKind::Check, &KEY);
+            let result = rx.recv_timeout(Duration::from_secs(5));
+            // Also release the owner on a failed assertion, so scope's
+            // join cannot turn a regression into an unbounded test hang.
+            drop(first);
+            assert!(blocked, "the waiter must have blocked before cancellation");
+            assert!(result.expect("waiter released"));
+        });
+        assert_eq!(
+            &*store.run().get(EntryKind::Check, &KEY).unwrap(),
+            b"recovered"
+        );
     }
 
     #[test]

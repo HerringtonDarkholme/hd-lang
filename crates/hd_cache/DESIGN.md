@@ -316,13 +316,15 @@ part of the key, not as a check after a miss.
 
 ```text
 obj/
-  pack-v2/
-    <32 hex>.new              a lease being created, before its lock
-    <32 hex>.pending          unpublished pack, exclusively leased by its writer
+  pack-v3/
+    <32 hex>.new              a lease marker being created, before its lock
+    <32 hex>.pending          zero-byte marker, exclusively leased by its writer
+    <32 hex>.data             unpublished payload, written without locking its data
     <32 hex>.pack             immutable HDCE frames, then a footer of their keys
+    index/<1 hex>.lock        writer exclusion, separate from readable data
     index/<1 hex>.log         one of 16 index shards, by a key's top four bits (#1932):
-                              its lock, a header (fold epoch, head copy, running
-                              total) and appended record batches
+                              a header (fold epoch, head copy, running total)
+                              and appended record batches
     index/<1 hex>/            the shard's folded pages
       head                    linear hash level, split pointer, rows, fold epoch
       <16 hex>                one bucket: a page of sorted rows stamped with
@@ -338,7 +340,7 @@ obj/
   payloads and checksum as before. The driver still checks kind, key,
   toolchain and layout; `LAYOUT_VERSION` remains 19. Pack IDs and offsets are
   storage addresses, never semantic cache keys. The storage namespace
-  (`pack-v2`) versions the container independently.
+  (`pack-v3`) versions the container independently.
 - **One pending batch, one pack.** `DeferredStore` retains a command's writes
   in memory, and its reads see those waiting entries. After reporting, it
   sends the pending batch to `CacheStore::put_many`. `DiskStore` writes one
@@ -346,25 +348,30 @@ obj/
   for memory/browser stores. Explicit publishes can create more than one
   pack in a command. A same-key update, including Graph coherence rows,
   replaces that key's index location; keys are not assumed insert-only.
-- **Lease, then publish, shard by shard (#1932).** No lock is shared
-  between publishers. Create a unique `<id>.new`, take its exclusive file
-  lock, and rename it `.pending`; so a `.pending` file whose lock is free
-  belongs to a dead writer. Write the frame bytes and the footer. The
-  index is 16 shards by a key's top four bits. Each has a log,
-  `index/<x>.log`, that is also its lock, and folded pages, head and pack
-  table under `index/<x>/`. The pack's ID carries its home shard, that of
-  its first key. Commit the home shard first: under its lock, grow its
-  running total by the pack's bytes, rename the pack `.pack` (still
-  locked), then append one record batch: one write, no temporary file,
-  no rename. Then commit each other shard the run's keys fall in, in shard
-  order, one lock at a time, each by one appended batch, and release the
-  pack's lock last. Runs whose keys lie in different shards never wait for
-  each other; runs that share a shard wait only for one append there. A
-  collection keeps a pack whose lock a run still holds. No `fsync` is
-  needed for derived data: a crash can lose an entry; invalid framing is a
-  miss. Namespace `pack-v2` replaced the unsharded `pack-v1`, whose single
-  writer lock serialized every publisher; the first collection retires
-  `pack-v1`'s managed files, and its entries are misses.
+- **Lease, then publish, shard by shard (#1932).** Each new pack has its
+  own lease marker. Create a zero-byte `<id>.new` marker, lock it and
+  rename it `.pending` before creating the separate `<id>.data` payload.
+  A free or absent marker proves its writer ended. Write the frame bytes
+  and footer without locking the payload. The index is 16 shards by a
+  key's top four bits. Each has a readable `index/<x>.log`, writer exclusion
+  on the separate `index/<x>.lock`, and folded pages under `index/<x>/`.
+  The pack's ID carries its home shard, that of its first key. Commit
+  the home shard first: under its lock, grow its total by the pack's bytes,
+  rename `.data` to `.pack`, then append one framed record batch. Commit
+  the other shards in order, one lock and one append at a time. Release,
+  close and remove the marker after the last commit. Readers can read any
+  visible pack while its writer continues indexing other shards. GC keeps
+  a leased pack whole: it cannot delete or compact its unindexed frames.
+  Free orphan markers and payloads are reclaimed; a crash before locking a
+  `.new` marker uses the existing age guard. No `fsync` is needed for
+  derived data: a crash can lose an entry; invalid framing is a miss.
+  Namespace `pack-v3` isolates this protocol from version 2, which locked
+  readable logs and payloads. Windows enforces those locks against readers;
+  Unix treats them as advisory. Each changed shard opens one additional
+  zero-byte lock file, and each published pack opens one additional marker.
+  Unchanged readers add no work. GC retires idle `pack-v2` data, retaining
+  its membership files, and the unsharded `pack-v1` data. Older namespaces'
+  entries are misses.
 - **Logs and folds (#1932).** A batch is framed: its op count and a
   checksum of its 59-byte ops (set a row, remove a row, track or untrack a
   pack). A torn or failing batch ends the log; readers skip it and the
@@ -407,7 +414,7 @@ obj/
   caller publishes a claimed entry as soon as it puts it
   (`DiskStore::with_claims`, which the CLI's store sets; `DeferredStore`
   does so through `CacheStore::wanted`). Every store takes a shared lock
-  on the `pack-v2/run` regular file at its first read. The `run-lock` file
+  on the `pack-v3/run` regular file at its first read. The `run-lock` file
   serializes joining and probing membership, for a constant number of lock
   calls only. A probe explicitly releases its own shared lock, tries an
   exclusive lock, releases it if granted, and restores its shared lock.
@@ -428,6 +435,28 @@ obj/
     CPU, reads the index again and hits. If the holder died (the system
     releases its lock) or published nothing, it computes under the claim
     it now holds.
+  - A computation that produces no cacheable entry calls
+    `CacheStore::abandon` before another query. A `parse` entry certifies a
+    clean parse, so a rejected source releases its claim without writing
+    that marker. The disk store removes only the addressed unfinished
+    claim, O(log claims); a completed deferred put stays claimed until its
+    publication. Overlay, deferred and counting stores forward the call;
+    a single-flight run cancels only its own flight and wakes its waiters.
+  - A contended reader announces its wait before checking its own
+    completed claims. A concurrent completion therefore either sees the
+    announcement and publishes, or is found by the reader's flush check.
+    The store records the wait-file length before acquiring its first
+    claim. Any later announcement keeps publication eager until this
+    store ends: publishing an unrelated entry cannot consume the interest
+    of a reader waiting for an unfinished entry. Historical announcements
+    do not force a later command to publish eagerly.
+    This follows the lost-wakeup discipline of
+    [Linux futex compare-and-block](https://man7.org/linux/man-pages/man2/futex.2.html),
+    using portable file locks and durable interest instead of shared memory.
+    Cost: one wait-file open and length read before the first claimed
+    miss; ordinary hits and solitary runs add no work. A contended wait
+    appends one byte before its flush check. After contention, each put
+    may publish its current batch until the command ends.
   - A store that finds other runs beside it after running alone publishes
     what it put while alone at its next put.
   - Runs of different programs wait only for keys both miss, such as
@@ -515,7 +544,7 @@ obj/
 - **Private native code is separate.** Clpack keeps its loose paths, owner,
   regular-file identity, single-link and mode-0600 checks. The new data
   index cannot name a Clpack entry. Ordinary loose records belong to the
-  retired storage layout; GC retires them once `pack-v2` exists. Old
+  retired storage layout; GC retires them once `pack-v3` exists. Old
   binaries racing that cleanup still see ordinary cache misses.
 
 **Planned logical code packs (#49, point 4).** These are distinct from
@@ -1012,7 +1041,7 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   when another process holds the lock (`try_lock`), so no command waits.
   The CLI starts a detached `hd cache gc` with `HD_CACHE_GC=auto` for it,
   as `git gc --auto` detaches (`gc.autoDetach`); a store with no spawner
-  collects on drop. A collection walks `pack-v2/` and its index shards
+  collects on drop. A collection walks `pack-v3/` and its index shards
   and reads every page, with no lock, retrying while the head changes.
   It evicts the oldest rows until the live set and its index fit 90% of
   the cap, in one commit per shard, under that shard's lock, that keeps

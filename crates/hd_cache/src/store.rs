@@ -96,6 +96,11 @@ pub trait CacheStore: Sync {
     fn get_claimed(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
         self.get(kind, key)
     }
+    /// A missed computation produced no cacheable entry. Release its
+    /// claim before another query can wait; completed entries awaiting
+    /// publication keep their claims until publication. Stores without
+    /// claims have nothing to release.
+    fn abandon(&self, _kind: EntryKind, _key: &Hash128) {}
     /// Whether this store holds the claim on an entry it missed: other
     /// runs wait for it, so the caller computes and puts it now.
     fn claims(&self, _kind: EntryKind, _key: &Hash128) -> bool {
@@ -195,6 +200,9 @@ impl CacheStore for OverlayStore<'_> {
             self.inner.touch(kind, key);
         }
     }
+    fn abandon(&self, kind: EntryKind, key: &Hash128) {
+        self.inner.abandon(kind, key);
+    }
 }
 
 /// A command's store that prints, then publishes (§5.4): writes wait in
@@ -257,6 +265,9 @@ impl<S: CacheStore> CacheStore for DeferredStore<S> {
             return self.inner.get_claimed(kind, key);
         }
         found
+    }
+    fn abandon(&self, kind: EntryKind, key: &Hash128) {
+        self.inner.abandon(kind, key);
     }
     fn claims(&self, kind: EntryKind, key: &Hash128) -> bool {
         self.inner.claims(kind, key)

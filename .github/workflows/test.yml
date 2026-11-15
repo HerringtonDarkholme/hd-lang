@@ -485,6 +485,11 @@ jobs:
         if: matrix.shard != 'cli conformance'
         run: cargo build --release -p hd_cli --features hd_cli/wasmtime
 
+      # File locks and rejected-query handoff are platform dependent too.
+      - name: Test the disk cache
+        if: matrix.shard != 'cli conformance'
+        run: cargo test --release -p hd_cache --features disk --lib
+
       - name: Test the wasmtime host
         if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast -p hd_run_wasmtime

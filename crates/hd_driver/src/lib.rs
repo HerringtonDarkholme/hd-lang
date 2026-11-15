@@ -6411,6 +6411,11 @@ impl Run<'_> {
     /// Whether the module's bytes parse without a diagnostic: a `parse`
     /// entry says so, else the parse runs and a clean one is recorded.
     fn parses(&self, m: usize) -> bool {
+        // A rejected parse has no disk marker. Reuse its existing AST
+        // result rather than reclaiming and cancelling the same key.
+        if self.parse[m].get().is_some_and(|parsed| !parsed.is_ok()) {
+            return false;
+        }
         let key = parse_key(self.toolchain, self.skim_of(m).file.source_hash);
         if self.lookup(EntryKind::Parse, key).is_some() {
             return true;
@@ -6418,6 +6423,10 @@ impl Run<'_> {
         let ok = self.parse_of(m).is_ok();
         if ok {
             self.put(EntryKind::Parse, key, &[]);
+        } else {
+            // Parse entries certify a clean parse. A rejected source has
+            // nothing to publish, so its claim must end with the parse.
+            self.host.store.abandon(EntryKind::Parse, &key);
         }
         ok
     }

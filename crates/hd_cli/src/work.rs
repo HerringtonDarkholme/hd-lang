@@ -171,6 +171,9 @@ impl hd_cache::CacheStore for Store {
     ) -> Option<std::sync::Arc<[u8]>> {
         hd_base::work::uncounted(|| (**self).get_claimed(kind, key))
     }
+    fn abandon(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) {
+        hd_base::work::uncounted(|| (**self).abandon(kind, key));
+    }
     fn claims(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) -> bool {
         (**self).claims(kind, key)
     }

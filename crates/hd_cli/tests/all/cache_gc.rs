@@ -117,7 +117,7 @@ fn sizes(dir: &Path, keep: impl Fn(&str) -> bool) -> u64 {
 fn index_bytes(obj: &Path) -> u64 {
     (0..16)
         .map(|shard| {
-            sizes(&obj.join(format!("pack-v2/index/{shard:x}")), |name| {
+            sizes(&obj.join(format!("pack-v3/index/{shard:x}")), |name| {
                 !name.contains('.') && name != "lock"
             })
         })
@@ -127,7 +127,7 @@ fn index_bytes(obj: &Path) -> u64 {
 /// Physical compiled bytes, including index and obsolete pack records;
 /// leases, the publication lock and the legacy stats ledger are not entries.
 fn total(obj: &Path) -> u64 {
-    let packs = sizes(&obj.join("pack-v2"), |name| {
+    let packs = sizes(&obj.join("pack-v3"), |name| {
         name.strip_suffix(".pack")
             .is_some_and(|id| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()))
     });
@@ -545,4 +545,117 @@ fn processes_checking_different_programs_together_check_std_once() {
     assert!(runs.iter().all(|r| r.0 == 1), "{runs:?}");
     let types = |runs: &[(u64, u64)]| runs.iter().map(|r| r.1).sum::<u64>();
     assert_eq!(types(&runs), types(&apart), "{runs:?} {apart:?}");
+}
+
+/// A rejected parse must not retain its claim across other queries, the
+/// next command, or a source edit (#1981). Use the reported CLI fixture,
+/// four actual processes and eight cold/warm/repaired batches.
+#[test]
+fn rejected_parses_then_warm_checks_release_claims_across_processes() {
+    const BAD: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../spec/conformance/cli/check-fix-elif-continuations/src/lib.hd"
+    ));
+    const GOOD: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../spec/conformance/cli/check-fix-elif-continuations/want/lib.input"
+    ));
+    rejected_checks("parse", &[("lib.hd", BAD)], GOOD, 2);
+}
+
+#[test]
+fn rejected_type_checks_then_warm_checks_release_claims_across_processes() {
+    const LIB: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../spec/conformance/cli/trait-reference-messages/src/lib.hd"
+    ));
+    const LEFT: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../spec/conformance/cli/trait-reference-messages/src/left.hd"
+    ));
+    const RIGHT: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../spec/conformance/cli/trait-reference-messages/src/right.hd"
+    ));
+    const GOOD: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../spec/conformance/cli/trait-reference-messages/valid.hd"
+    ));
+    rejected_checks(
+        "type",
+        &[("lib.hd", LIB), ("left.hd", LEFT), ("right.hd", RIGHT)],
+        GOOD,
+        5,
+    );
+}
+
+/// Exercise claim liveness across actual cold, warm and repaired commands.
+/// Diagnostics themselves remain covered by the included CLI fixtures.
+fn rejected_checks(label: &str, files: &[(&str, &str)], good: &str, errors: u64) {
+    for round in 0..8 {
+        let dir = scratch(&format!("rejected-{label}-claim-{round}"));
+        let cache = dir.join("cache");
+        std::fs::write(dir.join("hd.toml"), "[package]\nname = \"rejectclaim\"\n").unwrap();
+        std::fs::create_dir(dir.join("src")).unwrap();
+        for &(name, source) in files {
+            std::fs::write(dir.join("src").join(name), source).unwrap();
+        }
+        for (batch, expected) in [(0, 101), (1, 101), (2, 0)] {
+            if batch == 2 {
+                std::fs::write(dir.join("src/lib.hd"), good).unwrap();
+            }
+            // cost: four subprocesses per batch, all on one shared cache;
+            // one deadline kills every unfinished child before failing.
+            let mut children: Vec<_> = (0..4)
+                .map(|n| {
+                    Command::new(env!("CARGO_BIN_EXE_hd"))
+                        .current_dir(&dir)
+                        .env("HD_CACHE", &cache)
+                        .env("HD_JOBS", if round < 4 { "1" } else { "2" })
+                        .env_remove("HD_CACHE_MAX_SIZE")
+                        .args(["check", "--format", "json"])
+                        .stdout(
+                            std::fs::File::create(dir.join(format!("out-{batch}-{n}"))).unwrap(),
+                        )
+                        .stderr(
+                            std::fs::File::create(dir.join(format!("err-{batch}-{n}"))).unwrap(),
+                        )
+                        .spawn()
+                        .unwrap()
+                })
+                .collect();
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            let mut statuses = [None; 4];
+            while statuses.iter().any(Option::is_none) {
+                for (n, child) in children.iter_mut().enumerate() {
+                    if statuses[n].is_none() {
+                        statuses[n] = child.try_wait().unwrap();
+                    }
+                }
+                if std::time::Instant::now() > deadline {
+                    for child in &mut children {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                    panic!("rejected/warm check deadlocked in round{round}, batch{batch}");
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            for (n, status) in statuses.into_iter().enumerate() {
+                let out = std::fs::read_to_string(dir.join(format!("out-{batch}-{n}"))).unwrap();
+                let err = std::fs::read_to_string(dir.join(format!("err-{batch}-{n}"))).unwrap();
+                assert_eq!(status.unwrap().code(), Some(expected), "{out} {err}");
+                assert!(!err.contains("panicked"), "{err}");
+                let rows: Vec<serde_json::Value> = out
+                    .lines()
+                    .map(|line| serde_json::from_str(line).expect("diagnostics JSON"))
+                    .collect();
+                let summary = rows
+                    .iter()
+                    .find(|row| row["kind"] == "summary")
+                    .expect("summary");
+                assert_eq!(summary["errors"], if expected == 0 { 0 } else { errors });
+            }
+        }
+    }
 }

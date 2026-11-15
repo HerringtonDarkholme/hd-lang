@@ -1,10 +1,10 @@
 //! The disk store (feature `disk`): ordinary data in immutable per-run
-//! packs and a shared index, sharded by key, under `<root>/pack-v2/`; private native
+//! packs and a shared index, sharded by key, under `<root>/pack-v3/`; private native
 //! code remains in `<root>/<kind>/<shard>/<key>`. See DESIGN.md §5.4 and
 //! §5.7.
 //! Only this module touches the file system (design-overview §2.2 rule 1).
 //!
-//! Pack readers take no lock. A pending pack's file lock leases it while
+//! Pack readers take no lock. A separate marker leases a pending pack while
 //! its writer runs; the writer lock covers index commits only, never a
 //! directory walk or a pack copy. Every addressed range remains an
 //! unchanged HDCE frame. Last-use marks are per entry, at most once an
@@ -742,6 +742,10 @@ impl CacheStore for DiskStore {
         }
     }
 
+    fn abandon(&self, kind: EntryKind, key: &Hash128) {
+        self.packed.abandon(kind, key);
+    }
+
     fn claims(&self, kind: EntryKind, key: &Hash128) -> bool {
         self.packed.held(kind, key)
     }
@@ -921,7 +925,7 @@ impl Ledger {
 }
 
 /// Immutable data packs and a paged index (DESIGN.md §5.4). The index is a
-/// linear hash table per shard in `pack-v2/index/<shard>/`: a fixed head holds the level and
+/// linear hash table per shard in `pack-v3/index/<shard>/`: a fixed head holds the level and
 /// split pointer, and each bucket is one page file, so a lookup reads one
 /// page and a write rewrites only the pages it changes. A pack's exclusive
 /// file lock leases it until publication, or until its writer dies.
@@ -929,7 +933,7 @@ mod packed {
     use hd_base::SliceSort as _;
     use std::collections::btree_map::Entry as Slot;
     use std::collections::{BTreeMap, BTreeSet};
-    use std::fs::{File, OpenOptions, TryLockError};
+    use std::fs::{File, OpenOptions};
     use std::io::{self, Read, Seek, SeekFrom, Write};
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -943,8 +947,9 @@ mod packed {
     use super::{Collected, EntryKind, IndexedEntry, USE_MARK_AGE, is_real_dir, parse_key};
 
     /// The namespace of this format. The index is sharded by key (#1932),
-    /// so `pack-v1`, whose single index every writer locked, is retired.
-    pub(super) const NAMESPACE: &str = "pack-v2";
+    /// Version 3 moves writer exclusion off readable logs: old version 2
+    /// writers must not share the new lock protocol. GC retires old data.
+    pub(super) const NAMESPACE: &str = "pack-v3";
     /// Index shards, each with its own lock, by a key's top four bits.
     const SHARDS: u8 = 16;
     const PAGE_MAGIC: &[u8; 8] = b"HDPAGE02";
@@ -1028,7 +1033,8 @@ mod packed {
         /// the thread computing the entry.
         claims: Mutex<BTreeMap<Key, Claim>>,
         /// `waits`, which a run appends a byte to before it waits for a
-        /// claim, and its length when this store last published.
+        /// claim, and its length before this store's first claim. A later
+        /// wait keeps publication eager for the rest of this store's life.
         waits: Mutex<Option<(File, u64)>>,
         /// Claims are taken (`DiskStore::with_claims`): only for a caller
         /// that publishes a claimed entry as soon as it puts it.
@@ -1121,7 +1127,7 @@ mod packed {
     struct Inventory {
         /// Final packs and their lengths.
         packs: BTreeMap<u128, u64>,
-        /// Lease files, live or crashed.
+        /// Lease markers and unpublished payloads, live or crashed.
         pending: Vec<PathBuf>,
         /// Claim files, held or left by a finished or crashed run.
         claims: Vec<PathBuf>,
@@ -1147,20 +1153,26 @@ mod packed {
         keys: Vec<Key>,
     }
 
-    /// A live writer owns the file lock before it drops the index lock.
-    /// An error removes its uncommitted file; a crash releases the lease,
-    /// allowing a later GC to collect the orphan without an age heuristic.
+    /// A live writer owns a separate marker lock before its payload
+    /// exists. The payload is never locked, including after publication.
+    /// Errors clean up, and a crash releases the marker for orphan recovery.
     struct Lease {
         id: u128,
         path: PathBuf,
         file: File,
+        marker: PathBuf,
+        guard: Option<File>,
         committed: bool,
     }
 
     impl Drop for Lease {
         fn drop(&mut self) {
+            if let Some(guard) = self.guard.take() {
+                let _ = guard.unlock();
+                drop(guard);
+            }
+            let _ = std::fs::remove_file(&self.marker);
             if !self.committed {
-                let _ = self.file.unlock();
                 // Windows may retain an open file; GC retries after close.
                 let _ = std::fs::remove_file(&self.path);
             }
@@ -1594,6 +1606,11 @@ mod packed {
         /// The index in `dir`. A corrupt head is derived data: the index
         /// starts again empty, and its stale pages are reclaimed by GC.
         fn open(dir: PathBuf) -> io::Result<Txn> {
+            // Windows reports a child of a regular file as NotFound too;
+            // reject the bad shard before treating its missing head as new.
+            if std::fs::symlink_metadata(&dir).is_ok_and(|m| !m.file_type().is_dir()) {
+                return Err(invalid("cache index shard is not a directory"));
+            }
             let stored = match read_head(&dir) {
                 Ok(head) => head,
                 Err(e) if e.kind() == io::ErrorKind::InvalidData => None,
@@ -2116,12 +2133,14 @@ mod packed {
         total: Option<u64>,
     }
 
-    /// One shard under its writer lock (#1932): the log, which is also the
-    /// lock file and holds the running total, the overlay it adds, the
+    /// One shard under its separate writer lock (#1932): the readable
+    /// log and its running total, the overlay it adds, the
     /// changes this writer appends, and the folded pages under them.
     struct Shard {
         id: u8,
         file: File,
+        /// Off-data exclusion: Windows enforces locks against readers too.
+        _lock: File,
         header: LogHeader,
         end: u64,
         overlay: Overlay,
@@ -2360,9 +2379,15 @@ mod packed {
             self.root.join("index").join(format!("{shard:x}"))
         }
 
-        /// Shard `shard`'s log, which is also its lock.
+        /// Shard `shard`'s reader-visible log, never locked.
         fn log_path(&self, shard: u8) -> PathBuf {
             self.root.join("index").join(format!("{shard:x}.log"))
+        }
+
+        /// Writer exclusion lives beside the log. A lock on the log itself
+        /// denies concurrent reads on Windows, producing false cache misses.
+        fn lock_path(&self, shard: u8) -> PathBuf {
+            self.root.join("index").join(format!("{shard:x}.lock"))
         }
 
         fn ensure_root(&self) -> io::Result<()> {
@@ -2383,13 +2408,13 @@ mod packed {
         /// torn header is rebuilt from the head file with the total unknown.
         fn open_shard(&self, shard: u8) -> io::Result<Shard> {
             self.ensure_root()?;
-            let path = self.log_path(shard);
+            let path = self.lock_path(shard);
             if std::fs::symlink_metadata(&path).is_ok_and(|m| !m.file_type().is_file()) {
-                return Err(invalid("cache index shard log is not a regular file"));
+                return Err(invalid("cache index shard lock is not a regular file"));
             }
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true).truncate(false);
-            let file = match options.open(&path) {
+            let lock = match options.open(&path) {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     std::fs::create_dir_all(self.root.join("index"))?;
                     options.open(&path)?
@@ -2397,10 +2422,15 @@ mod packed {
                 opened => opened?,
             };
             count!(writer_locks, 1);
-            if file.try_lock().is_err() {
+            if lock.try_lock().is_err() {
                 count!(lock_waits, 1);
-                file.lock()?;
+                lock.lock()?;
             }
+            let path = self.log_path(shard);
+            if std::fs::symlink_metadata(&path).is_ok_and(|m| !m.file_type().is_file()) {
+                return Err(invalid("cache index shard log is not a regular file"));
+            }
+            let file = options.open(&path)?;
             let mut bytes = Vec::new();
             (&file)
                 .take(u64::try_from(MAX_INDEX).expect("limit"))
@@ -2429,6 +2459,7 @@ mod packed {
             let shard = Shard {
                 id: shard,
                 file,
+                _lock: lock,
                 header,
                 end: log.end.max(LOG_HEADER as u64),
                 overlay,
@@ -2499,11 +2530,10 @@ mod packed {
                     && base.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')))
         }
 
-        /// A new pack leased to this run, its ID in shard `home`. The file
-        /// is created as `.new`, locked, then renamed `.pending`, so a
-        /// `.pending` file whose lock is free belongs to a dead writer: no
-        /// lock is shared with other publishers. A `.new` file is left
-        /// only by a crash between creation and locking.
+        /// A new payload is written as `.data`, with liveness protected by
+        /// a separate marker. Lock `.new` before renaming it `.pending`, so
+        /// GC never sees an unlocked live marker. The payload stays readable
+        /// when it becomes `.pack`, while the lease spans all shard commits.
         fn lease(&self, home: u8) -> io::Result<Lease> {
             self.ensure_root()?;
             loop {
@@ -2512,7 +2542,7 @@ mod packed {
                     continue;
                 }
                 let new = self.root.join(format!("{id:032x}.new"));
-                let file = match OpenOptions::new()
+                let guard = match OpenOptions::new()
                     .read(true)
                     .write(true)
                     .create_new(true)
@@ -2522,24 +2552,38 @@ mod packed {
                     Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
                     Err(e) => return Err(e),
                 };
-                let mut lease = Lease {
-                    id,
-                    path: new,
-                    file,
-                    committed: false,
+                guard.lock()?;
+                let marker = self.root.join(format!("{id:032x}.pending"));
+                std::fs::rename(&new, &marker)?;
+                let path = self.root.join(format!("{id:032x}.data"));
+                let file = match OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create_new(true)
+                    .open(&path)
+                {
+                    Ok(file) => file,
+                    Err(error) => {
+                        let _ = guard.unlock();
+                        drop(guard);
+                        let _ = std::fs::remove_file(marker);
+                        return Err(error);
+                    }
                 };
-                lease.file.lock()?;
-                let path = self.root.join(format!("{id:032x}.pending"));
-                std::fs::rename(&lease.path, &path)?;
-                lease.path = path;
-                return Ok(lease);
+                return Ok(Lease {
+                    id,
+                    path,
+                    file,
+                    marker,
+                    guard: Some(guard),
+                    committed: false,
+                });
             }
         }
 
-        /// Renames the leased pack into place, still locked: until the
-        /// run's last shard commit releases it, a collection keeps it
-        /// even where no row names it yet. Called inside the home shard's
-        /// commit, after its growth is recorded.
+        /// Renames the completed immutable payload into place. Its separate
+        /// marker remains locked until the last shard commit, so collection
+        /// keeps the entire pack, including rows not yet indexed.
         fn finish(&self, lease: &mut Lease) -> io::Result<()> {
             let path = self.path(lease.id);
             if path.try_exists()? {
@@ -2939,7 +2983,14 @@ mod packed {
             };
             // An unwritable cache computes without a claim.
             let Ok(file) = file else { return None };
+            // Establish the notification baseline before owning any claim:
+            // a waiter can announce itself as soon as this lock is taken.
+            drop(self.waits());
             if file.try_lock().is_err() {
+                // Announce before checking completed entries. A concurrent
+                // put either sees this notification or precedes the check,
+                // which then requests publication before we can block.
+                self.signal_wait();
                 // Entries this store computed and has not published may be
                 // what the holder waits for: its caller publishes them, and
                 // asks again, before this run waits.
@@ -2947,9 +2998,10 @@ mod packed {
                     self.flush.store(true, Ordering::Relaxed);
                     return None;
                 }
+                #[cfg(test)]
+                self.pause("claim-before-wait");
                 self.before_waiting();
                 count!(claim_waits, 1);
-                self.signal_wait();
                 // A lock that fails leaves a claim others can still take:
                 // they compute too.
                 let _ = file.lock();
@@ -3007,6 +3059,18 @@ mod packed {
             }
         }
 
+        /// Cancel only this unfinished key, with one indexed lookup. A
+        /// completed deferred put still owes its publication to waiters.
+        pub(super) fn abandon(&self, kind: EntryKind, key: &Hash128) {
+            let mut claims = self.claims();
+            if let std::collections::btree_map::Entry::Occupied(claim) =
+                claims.entry((kind as u16, key.0))
+                && !claim.get().done
+            {
+                claim.remove();
+            }
+        }
+
         /// Whether this store holds `key`'s claim.
         pub(super) fn held(&self, kind: EntryKind, key: &Hash128) -> bool {
             self.claims().contains_key(&(kind as u16, key.0))
@@ -3014,7 +3078,7 @@ mod packed {
 
         /// At the put of `key`: whether to publish now. A claimed entry is
         /// marked computed and waits for the caller's batch, unless a run
-        /// waits for a claim (`waits` grew since this store last published)
+        /// waits for a claim (`waits` grew since this store first claimed)
         /// or the store asked for a flush: it found other runs beside it
         /// after running alone, or it is about to wait itself. A run that
         /// no one waits for pays nothing more than its batch.
@@ -3047,7 +3111,10 @@ mod packed {
                     .create(true)
                     .open(self.root.join("waits"))
                     .ok()
-                    .map(|file| (file, 0));
+                    .map(|file| {
+                        let baseline = file.metadata().map_or(0, |m| m.len());
+                        (file, baseline)
+                    });
             }
             waits
         }
@@ -3059,16 +3126,15 @@ mod packed {
             }
         }
 
-        /// Whether a run waited since this store last published.
+        /// Whether a run announced a wait after this store could first
+        /// own a claim. Keep that interest until the store ends: publishing
+        /// one entry does not wake waiters on its other unfinished entries.
         fn waited(&self) -> bool {
-            let mut waits = self.waits();
-            let Some((file, seen)) = waits.as_mut() else {
+            let waits = self.waits();
+            let Some((file, baseline)) = waits.as_ref() else {
                 return true;
             };
-            let len = file.metadata().map_or(u64::MAX, |m| m.len());
-            let grew = len != *seen;
-            *seen = len;
-            grew
+            file.metadata().map_or(true, |m| m.len() != *baseline)
         }
 
         /// Lets go of the claims on `keys`, once their entries are
@@ -3119,7 +3185,12 @@ mod packed {
                         inv.total = inv.total.saturating_add(meta.len());
                         inv.packs.insert(id, meta.len());
                     }
-                } else if name.strip_suffix(".pending").and_then(parse_key).is_some() {
+                } else if name
+                    .strip_suffix(".pending")
+                    .or_else(|| name.strip_suffix(".data"))
+                    .and_then(parse_key)
+                    .is_some()
+                {
                     inv.pending.push(e.path());
                 } else if name.strip_suffix(".new").and_then(parse_key).is_some()
                     && len(&e)?.is_some_and(|meta| super::stale_by(&meta, super::GC_INTERVAL))
@@ -3246,8 +3317,11 @@ mod packed {
         /// Whether a run still holds pack `id`'s lease lock, committing
         /// its rows; a pack no run holds has all its rows committed.
         fn leased(&self, id: u128) -> bool {
-            File::open(self.path(id))
-                .is_ok_and(|file| matches!(file.try_lock_shared(), Err(TryLockError::WouldBlock)))
+            let marker = self.root.join(format!("{id:032x}.pending"));
+            match File::open(marker) {
+                Ok(file) => file.try_lock_shared().is_err(),
+                Err(error) => error.kind() != io::ErrorKind::NotFound,
+            }
         }
 
         /// Removes the packs in `ids` from their home shards' tables, then
@@ -3293,6 +3367,11 @@ mod packed {
         /// in one shard stays elsewhere. Returns the bytes removed. Cost:
         /// the copied bytes, unlocked; the pages of the sources' keys.
         fn rewrite(&self, sources: &[Source]) -> io::Result<u64> {
+            // A live publisher can still add indexed rows to this immutable
+            // pack. Its unindexed frames are not dead space to compact away.
+            if sources.iter().any(|source| self.leased(source.id)) {
+                return Ok(0);
+            }
             // The home of the first copied key, or of the first source when
             // nothing is live: the empty copy is then dropped with them.
             let home = sources
@@ -3553,6 +3632,74 @@ mod packed {
             }
         }
 
+        /// Version 2 locked the readable log itself. Keep live old runs
+        /// isolated from this protocol, and retire their data only when idle.
+        /// Membership files stay, so an older binary can safely join again.
+        fn retire_v2(&self) {
+            let Some(old) = self.root.parent().map(|p| p.join("pack-v2")) else {
+                return;
+            };
+            if !is_real_dir(&old) {
+                return;
+            }
+            let member = match OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(old.join("run"))
+            {
+                Ok(file) => Some(file),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+                Err(_) => return,
+            };
+            if member.as_ref().is_some_and(|file| file.try_lock().is_err()) {
+                return;
+            }
+            let index = old.join("index");
+            let claims = old.join("claims");
+            // cost: GC only; sixteen known shard directories, claims, the
+            // index directory and root, then only their obsolete managed files.
+            let dirs = (0..SHARDS)
+                .map(|shard| index.join(format!("{shard:x}")))
+                .chain([claims.clone(), index.clone(), old.clone()]);
+            for dir in dirs {
+                if !is_real_dir(&dir) {
+                    continue;
+                }
+                // cost: explicit collection only, the obsolete namespace's files.
+                for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                    let name = e.file_name();
+                    let Some(name) = name.to_str() else { continue };
+                    if !e.file_type().is_ok_and(|t| t.is_file()) {
+                        continue;
+                    }
+                    let claim = dir == claims
+                        && name.len() == 36
+                        && name.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+                    let log = dir == index
+                        && name.strip_suffix(".log").is_some_and(|id| {
+                            id.len() == 1
+                                && id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+                        });
+                    let lease = name.strip_suffix(".pending").and_then(parse_key).is_some();
+                    let managed = claim
+                        || log
+                        || lease
+                        || Self::pack_id(name).is_some()
+                        || Self::index_file(name);
+                    let free = !(claim || log || lease)
+                        || OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .open(e.path())
+                            .is_ok_and(|file| file.try_lock().is_ok());
+                    if managed && free {
+                        let _ = std::fs::remove_file(e.path());
+                    }
+                }
+                let _ = std::fs::remove_dir(&dir);
+            }
+        }
+
         /// The collection (#1932): the only work that grows with the
         /// cache, run by `hd cache gc` and at most once per interval. It
         /// walks and reads the whole index with no lock, evicts the least
@@ -3562,6 +3709,7 @@ mod packed {
         /// that shard's commits only, never the walk or a copy.
         pub(super) fn collect(&self, cap: u64) -> io::Result<Collected> {
             self.retire_v1();
+            self.retire_v2();
             if !is_real_dir(&self.root) {
                 return Ok(Collected {
                     before: 0,
@@ -3865,10 +4013,18 @@ mod packed {
                     },
                 )?;
             }
-            // A lease is locked before it is named `.pending`, so one whose
-            // lock is free belongs to a dead writer.
+            // Markers are locked before naming; payload creation follows
+            // the marker. A free or absent marker proves its writer ended.
             for path in &inv.pending {
-                if File::open(path).is_ok_and(|file| file.try_lock().is_ok()) {
+                let id = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(|name| {
+                        name.strip_suffix(".pending")
+                            .or_else(|| name.strip_suffix(".data"))
+                    })
+                    .and_then(parse_key);
+                if id.is_some_and(|id| !self.leased(id.0)) {
                     let _ = std::fs::remove_file(path);
                 }
             }
@@ -4127,6 +4283,94 @@ mod packed {
                     .unwrap()
                     .next()
                     .is_none()
+            );
+        }
+
+        #[test]
+        fn a_partly_indexed_pack_stays_whole_until_every_shard_commits() {
+            let root = scratch("partly-indexed-lease");
+            let store = Store::new(&root);
+            let a = (EntryKind::Check as u16, 1);
+            let b = (EntryKind::Check as u16, (1_u128 << 124) | 2);
+            let mut lease = store.lease(0).unwrap();
+            let id = lease.id;
+            lease.file.write_all(&[7; 4000]).unwrap();
+            lease.file.write_all(&[9; 4000]).unwrap();
+            let tail = footer(&vec![(a, 0, 4000), (b, 4000, 4000)]);
+            lease.file.write_all(&tail).unwrap();
+            store
+                .commit_shard(
+                    0,
+                    8000 + tail.len() as u64,
+                    || store.finish(&mut lease),
+                    |shard| {
+                        shard.set(
+                            a,
+                            Location {
+                                pack: id,
+                                offset: 0,
+                                len: 4000,
+                                used: now(),
+                            },
+                        );
+                        shard.track(id, 8000 + tail.len() as u64);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            Store::new(&root).collect(u64::MAX).unwrap();
+            assert!(
+                store.path(id).exists(),
+                "GC cannot compact a still-publishing pack"
+            );
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(a.1))
+                    .as_deref(),
+                Some([7; 4000].as_slice())
+            );
+            store
+                .commit_shard(
+                    1,
+                    0,
+                    || Ok(()),
+                    |shard| {
+                        shard.set(
+                            b,
+                            Location {
+                                pack: id,
+                                offset: 4000,
+                                len: 4000,
+                                used: now(),
+                            },
+                        );
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            drop(lease);
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(b.1))
+                    .as_deref(),
+                Some([9; 4000].as_slice())
+            );
+        }
+
+        #[test]
+        fn a_published_pack_is_readable_before_its_lease_ends() {
+            let root = scratch("readable-live-lease");
+            let store = Store::new(&root);
+            let mut lease = store.lease(0).unwrap();
+            lease.file.write_all(b"published bytes").unwrap();
+            store.finish(&mut lease).unwrap();
+            let data = File::open(store.path(lease.id)).unwrap();
+            data.try_lock_shared()
+                .expect("lease exclusion must be off readable pack data");
+            data.unlock().unwrap();
+            assert_eq!(
+                std::fs::read(store.path(lease.id)).unwrap(),
+                b"published bytes"
             );
         }
 
@@ -4569,11 +4813,67 @@ mod packed {
         }
 
         #[test]
+        fn an_unreadable_previous_membership_keeps_the_old_data() {
+            let root = scratch("retire-v2-unreadable-membership");
+            let old = root.join("pack-v2");
+            std::fs::create_dir_all(old.join("run")).unwrap();
+            let pack = old.join(format!("{:032x}.pack", unique()));
+            std::fs::write(&pack, b"old payload").unwrap();
+            Store::new(&root).collect(u64::MAX).unwrap();
+            assert!(
+                pack.exists(),
+                "an unreadable membership is not proof of idleness"
+            );
+        }
+
+        #[test]
+        fn the_previous_lock_protocol_stays_isolated_and_retires_only_when_idle() {
+            let root = scratch("retire-v2");
+            let old = root.join("pack-v2");
+            std::fs::create_dir_all(old.join("index/0")).unwrap();
+            let member = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .open(old.join("run"))
+                .unwrap();
+            member.lock_shared().unwrap();
+            let log = File::create(old.join("index/0.log")).unwrap();
+            log.lock().unwrap();
+            let pack = old.join(format!("{:032x}.pack", unique()));
+            std::fs::write(&pack, b"old payload").unwrap();
+            std::fs::write(old.join("index/0/head"), b"old head").unwrap();
+            let store = Store::new(&root);
+            store.publish(&[item(1, b"new protocol")]).unwrap();
+            assert_eq!(
+                store.get(EntryKind::Check, &Hash128(1)).as_deref(),
+                Some(b"new protocol".as_slice())
+            );
+            store.collect(u64::MAX).unwrap();
+            assert!(pack.exists(), "a live older run keeps its namespace");
+            drop(log);
+            drop(member);
+            store.collect(u64::MAX).unwrap();
+            assert!(!pack.exists());
+            assert!(!old.join("index").exists());
+            assert!(old.join("run").exists(), "membership inode stays stable");
+        }
+
+        #[test]
         fn readers_do_not_wait_for_the_publication_lock() {
             let root = scratch("unlocked-reader");
             let store = Store::new(&root);
             store.publish(&[item(1, b"readable")]).unwrap();
             let _lock = store.open_shard(0).unwrap();
+            // Even advisory-lock hosts prove that the writer lock is not
+            // on the data file. Release this probe before the reader runs.
+            let data = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(store.log_path(0))
+                .unwrap();
+            data.try_lock().expect("writer exclusion is off the log");
+            data.unlock().unwrap();
             let (tx, rx) = std::sync::mpsc::channel();
             let reader = std::thread::spawn(move || {
                 tx.send(Store::new(&root).get(EntryKind::Check, &Hash128(1)))
@@ -4885,7 +5185,7 @@ mod packed {
                     let lock = OpenOptions::new()
                         .read(true)
                         .write(true)
-                        .open(Store::new(&root).log_path(0))
+                        .open(Store::new(&root).lock_path(0))
                         .unwrap();
                     assert!(lock.try_lock().is_ok(), "the writer lock is held at {stop}");
                     lock.unlock().unwrap();
@@ -4970,7 +5270,9 @@ mod packed {
                 let ledger = cache(n, true);
                 {
                     let store = DiskStore::new(ledger.clone());
-                    store.put_private(EntryKind::Clpack, &Hash128(5), b"native code");
+                    // Ledger recovery needs a loose entry, not executable
+                    // native code or Unix-specific permission checks.
+                    store.put(EntryKind::Clpack, &Hash128(5), b"fixture bytes");
                 }
                 std::fs::write(ledger.join("stats"), b"stale").unwrap();
                 // No collection covers it yet.
@@ -5399,6 +5701,275 @@ mod packed {
             Store::new(&root).collect(u64::MAX).unwrap();
             // cost: a test listing one small directory.
             assert_eq!(std::fs::read_dir(&claims).unwrap().count(), 0);
+        }
+
+        /// Both runs finish an entry after their workers decide to wait,
+        /// but before those workers block. The completed entries must be
+        /// published without waiting for either command to end.
+        #[test]
+        fn completion_between_the_flush_check_and_wait_cannot_lose_a_wakeup() {
+            struct Shared(Arc<DiskStore>);
+            impl CacheStore for Shared {
+                fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+                    self.0.get(kind, key)
+                }
+                fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+                    self.0.put(kind, key, bytes);
+                }
+                fn put_many(&self, entries: &[(EntryKind, Hash128, Arc<[u8]>)]) {
+                    self.0.put_many(entries);
+                }
+                fn touch(&self, kind: EntryKind, key: &Hash128) {
+                    self.0.touch(kind, key);
+                }
+                fn wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
+                    self.0.wanted(kind, key)
+                }
+                fn flush_requested(&self) -> bool {
+                    self.0.flush_requested()
+                }
+            }
+            let mut disks = Vec::new();
+            let root = scratch("claim-lost-wakeup");
+            let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+            let mut resume = Vec::new();
+            let mut stores = Vec::new();
+            for _ in 0..2 {
+                let (tx, rx) = std::sync::mpsc::channel();
+                resume.push(tx);
+                let rx = Mutex::new(rx);
+                let ready = ready_tx.clone();
+                let mut disk = DiskStore::new(root.clone()).with_claims();
+                disk.packed.on_pause = Some(Arc::new(move |at| {
+                    if at == "claim-before-wait" {
+                        ready.send(()).unwrap();
+                        rx.lock()
+                            .unwrap()
+                            .recv_timeout(Duration::from_secs(5))
+                            .unwrap();
+                    }
+                }));
+                drop(disk.packed.join());
+                let disk = Arc::new(disk);
+                disks.push(Arc::clone(&disk));
+                stores.push(Arc::new(crate::DeferredStore::new(Shared(disk))));
+            }
+            for (i, store) in stores.iter().enumerate() {
+                assert!(
+                    store
+                        .get(EntryKind::Check, &Hash128(i as u128 + 1))
+                        .is_none()
+                );
+                assert!(!disks[i].packed.flush_requested());
+                assert!(!disks[i].packed.waited());
+            }
+            let (done_tx, done_rx) = std::sync::mpsc::channel();
+            let mut workers = Vec::new();
+            for (i, store) in stores.iter().enumerate() {
+                let store = Arc::clone(store);
+                let done = done_tx.clone();
+                // cost: two test workers, one blocked read each.
+                workers.push(std::thread::spawn(move || {
+                    done.send(store.get(EntryKind::Check, &Hash128(2 - i as u128)))
+                        .unwrap();
+                }));
+            }
+            for _ in 0..2 {
+                ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            }
+            for (i, store) in stores.iter().enumerate() {
+                store.put(EntryKind::Check, &Hash128(i as u128 + 1), b"complete");
+            }
+            for tx in resume {
+                tx.send(()).unwrap();
+            }
+            let first = done_rx.recv_timeout(Duration::from_millis(500));
+            let second = done_rx.recv_timeout(Duration::from_millis(500));
+            // Release actual locks before joining even when the regression
+            // strands both workers. The deadline is a failure, never a retry.
+            for disk in &disks {
+                disk.packed.release_all();
+            }
+            for worker in workers {
+                worker.join().unwrap();
+            }
+            assert_eq!(first.unwrap().as_deref(), Some(b"complete".as_slice()));
+            assert_eq!(second.unwrap().as_deref(), Some(b"complete".as_slice()));
+        }
+
+        /// Publishing an unrelated completion must not consume the only
+        /// notification for a waiter on an entry still being computed.
+        #[test]
+        fn a_waiter_keeps_publication_active_until_its_entry_is_complete() {
+            let root = scratch("claim-wakeup-consumed");
+            let mut holder = Store::new(&root);
+            holder.claiming = true;
+            let mut reader = Store::new(&root);
+            reader.claiming = true;
+            drop(reader.join());
+            for key in 1..=2 {
+                assert!(
+                    holder
+                        .get_or_claim(EntryKind::Check, &Hash128(key))
+                        .is_none()
+                );
+            }
+            assert!(holder.flush_requested());
+            assert!(!holder.waited());
+            let wanted = std::thread::scope(|scope| {
+                // cost: one test reader waiting on one real claim lock.
+                let worker = scope.spawn(|| reader.get_or_claim(EntryKind::Check, &Hash128(1)));
+                wait_for_claim_fixture(|| {
+                    std::fs::metadata(holder.root.join("waits")).is_ok_and(|m| m.len() > 0)
+                });
+                assert!(holder.put_wanted(EntryKind::Check, &Hash128(2)));
+                holder.publish(&[item(2, b"unrelated")]).unwrap();
+                holder.release(std::iter::once((EntryKind::Check as u16, 2)));
+                let wanted = holder.put_wanted(EntryKind::Check, &Hash128(1));
+                if wanted {
+                    holder.publish(&[item(1, b"waited")]).unwrap();
+                }
+                // Release even on failure, so the scoped worker cannot hang.
+                holder.release_all();
+                let found = worker.join().unwrap();
+                if wanted {
+                    assert_eq!(found.as_deref(), Some(b"waited".as_slice()));
+                }
+                wanted
+            });
+            assert!(
+                wanted,
+                "an unrelated publication consumed the pending wakeup"
+            );
+        }
+
+        #[test]
+        fn historical_waits_do_not_make_a_new_run_publish_eagerly() {
+            let root = scratch("claim-old-waits");
+            let peer = Store::new(&root);
+            drop(peer.join());
+            std::fs::write(peer.root.join("waits"), b"old waits").unwrap();
+            let mut store = Store::new(&root);
+            store.claiming = true;
+            assert!(store.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
+            assert!(store.flush_requested());
+            assert!(!store.put_wanted(EntryKind::Check, &Hash128(1)));
+        }
+
+        /// A failing computation releases its per-key lock while its
+        /// process remains alive; another process computes and warms a
+        /// different key before the failed command ends (#1981).
+        #[test]
+        fn an_abandoned_parse_releases_another_process_and_its_warm_check() {
+            for round in 0..8 {
+                let root = scratch(&format!("claim-abandoned-parse-{round}"));
+                let waiting = DiskStore::new(root.clone()).with_claims();
+                drop(waiting.packed.join());
+                // cost: one subprocess using this same test binary.
+                let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "disk::packed::tests::abandoned_parse_holder_fixture",
+                        "--ignored",
+                        "--skip",
+                    ])
+                    .arg(format!("cache-fixture:{}", root.display()))
+                    .stdout(std::fs::File::create(root.join("child.out")).unwrap())
+                    .stderr(std::fs::File::create(root.join("child.err")).unwrap())
+                    // cost: one child per round, eight fixed rounds in this test.
+                    .spawn()
+                    .unwrap();
+                wait_for_claim_fixture(|| root.join("claimed").exists());
+                let (tx, rx) = std::sync::mpsc::channel();
+                // cost: one test thread waits on the subprocess's real file lock.
+                let waiter = std::thread::spawn(move || {
+                    cost::take();
+                    assert!(waiting.get(EntryKind::Parse, &Hash128(9)).is_none());
+                    waiting.abandon(EntryKind::Parse, &Hash128(9));
+                    waiting.put(EntryKind::Check, &Hash128(10), b"warm");
+                    assert_eq!(
+                        waiting.get(EntryKind::Check, &Hash128(10)).as_deref(),
+                        Some(b"warm".as_slice())
+                    );
+                    tx.send(cost::take().claim_waits).unwrap();
+                });
+                wait_for_claim_fixture(|| {
+                    std::fs::metadata(root.join(NAMESPACE).join("waits")).is_ok_and(|m| m.len() > 0)
+                });
+                std::fs::write(root.join("abandon"), []).unwrap();
+                let result = rx.recv_timeout(Duration::from_secs(10));
+                if result.is_err() {
+                    let _ = child.kill();
+                }
+                // Ending the child on failure releases its lock before joining.
+                if result.is_err() {
+                    let _ = child.wait();
+                }
+                waiter.join().unwrap();
+                assert_eq!(result.expect("waiter after failed parse"), 1);
+                assert!(
+                    child.try_wait().unwrap().is_none(),
+                    "claim released before holder exit"
+                );
+                std::fs::write(root.join("finish"), []).unwrap();
+                wait_for_claim_fixture(|| child.try_wait().unwrap().is_some());
+                assert!(
+                    child.wait().unwrap().success(),
+                    "{}",
+                    std::fs::read_to_string(root.join("child.err")).unwrap()
+                );
+            }
+        }
+
+        /// Bounded fixture coordination; a regression fails rather than
+        /// leaving an ignored test process waiting indefinitely.
+        fn wait_for_claim_fixture(mut ready: impl FnMut() -> bool) {
+            let end = std::time::Instant::now() + Duration::from_secs(10);
+            while !ready() {
+                assert!(std::time::Instant::now() < end, "claim fixture deadline");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+
+        #[test]
+        #[ignore = "subprocess fixture for an_abandoned_parse_releases_another_process_and_its_warm_check"]
+        fn abandoned_parse_holder_fixture() {
+            let root = std::env::args()
+                .find_map(|a| a.strip_prefix("cache-fixture:").map(PathBuf::from))
+                .unwrap();
+            let mut store = Store::new(&root);
+            store.claiming = true;
+            assert!(store.get_or_claim(EntryKind::Parse, &Hash128(9)).is_none());
+            assert!(store.held(EntryKind::Parse, &Hash128(9)));
+            std::fs::write(root.join("claimed"), []).unwrap();
+            wait_for_claim_fixture(|| root.join("abandon").exists());
+            store.abandon(EntryKind::Parse, &Hash128(9));
+            assert!(!store.held(EntryKind::Parse, &Hash128(9)));
+            wait_for_claim_fixture(|| root.join("finish").exists());
+            assert_eq!(
+                store
+                    .get_or_claim(EntryKind::Check, &Hash128(10))
+                    .as_deref(),
+                Some(b"warm".as_slice())
+            );
+        }
+
+        #[test]
+        fn abandon_keeps_completed_entries_claimed_until_deferred_publication() {
+            let root = scratch("claim-abandon-done");
+            let peer = Store::new(&root);
+            drop(peer.join());
+            let store = crate::DeferredStore::new(DiskStore::new(root).with_claims());
+            assert!(store.get(EntryKind::Parse, &Hash128(9)).is_none());
+            store.put(EntryKind::Parse, &Hash128(9), b"parsed");
+            assert!(store.claims(EntryKind::Parse, &Hash128(9)));
+            store.abandon(EntryKind::Parse, &Hash128(9));
+            assert!(
+                store.claims(EntryKind::Parse, &Hash128(9)),
+                "the put is not published yet"
+            );
+            store.publish();
+            assert!(!store.claims(EntryKind::Parse, &Hash128(9)));
         }
 
         /// A holder killed before it publishes releases the run waiting for
