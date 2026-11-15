@@ -8,9 +8,71 @@ export interface Extra {
   panic: boolean;
   what: string;
   source: string;
-  /** The rule the case checks, when it is not its section's. */
-  rule?: string;
+  /** The rule the case checks, in lang/13-values-and-references.md. */
+  rule: string;
 }
+
+/**
+ * The language-tier stand-in for a collection whose element references come
+ * from methods: a list of strings behind `get_ref` and `get_mut`, as a
+ * library collection lends them. Language-tier types only (#1951).
+ */
+export const slotsType = `struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn len(&self) -> usize:
+        self.items.len()
+
+    fn get(&self, index: usize) -> string?:
+        if index < self.items.len(): .Some(self.items[index]) else: .None
+
+    fn get_ref['a](&'a self, index: usize) -> (&'a string)?:
+        if index < self.items.len(): .Some(&self.items[index]) else: .None
+
+    fn get_mut['a](&'a mut self, index: usize) -> (&'a mut string)?:
+        if index < self.items.len(): .Some(&mut self.items[index]) else: .None
+
+    fn push(&mut self, value: string) -> void:
+        self.items.push(value)
+
+    fn remove_at(&mut self, index: usize) -> string:
+        self.items.remove_at(index)
+
+    fn swap(&mut self, left: usize, right: usize) -> void:
+        self.items.swap(left, right)
+`;
+
+/** The same for a map of strings, keyed by string. */
+export const slotMapType = `struct SlotMap:
+    map: Map[string, string]
+
+impl SlotMap:
+    fn get(&self, key: string) -> string?:
+        self.map.get(key)
+
+    fn get_ref['a](&'a self, key: string) -> (&'a string)?:
+        if self.map.contains_key(key): .Some(&self.map[key]) else: .None
+
+    fn get_mut['a](&'a mut self, key: string) -> (&'a mut string)?:
+        if self.map.contains_key(key): .Some(&mut self.map[key]) else: .None
+
+    fn insert(&mut self, key: string, value: string) -> string?:
+        old := self.map.get(key)
+        self.map[key] = value
+        old
+
+    fn remove(&mut self, key: string) -> string?:
+        self.map.remove(key)
+`;
+
+/**
+ * A suspension point a language-tier fixture reaches: the `pending-tick`
+ * profile's `tick!`, pending on its first poll and done on its second
+ * (spec/conformance/README.md, Runtime Profiles).
+ */
+export const tickProfile = "# fixture-runtime-profile: pending-tick\n";
+export const tickTrait = "pub trait Tick:\n    fn tick!(&mut self, note: string) -> void\n";
 
 /**
  * The adversarial cases. A source names the matrix's shared helpers and
@@ -20,6 +82,7 @@ export const extras: Extra[] = [
   {
     name: "own-path-other-field",
     panic: false,
+    rule: "ref.excl.alias.conflict",
     what: "a write to another field through the same pointer the reference crossed counts the reference's own loan",
     source: `struct Cell:
     value: string
@@ -41,6 +104,7 @@ pub fn main() -> void $ Console:
   {
     name: "own-path-loop-other-field",
     panic: false,
+    rule: "ref.excl.alias.conflict",
     what: "a loop over a list behind a pointer writes another field through the same pointer",
     source: `struct Bag:
     items: List[string]
@@ -61,20 +125,15 @@ pub fn main() -> void $ Console:
   {
     name: "root-pointer-last-use-before-reference",
     panic: false,
+    rule: "ref.box.root",
     what: "the local holding a reference's root pointer stays alive until the reference's last use",
-    source: `use std.collections.UniqList
-
+    source: `${slotsType}
 struct Outer:
-    items: UniqList[string]
+    items: Slots
 
 @@HELPERS@@
-fn uniq() -> UniqList[string]:
-    let mut items = UniqList::[string].new()
-    items.push(orig())
-    items
-
 fn probe() -> string:
-    p := box(Outer { items: uniq() })
+    p := box(Outer { items: Slots { items: [orig()] } })
     r := p.items.get_ref(0).expect("slot")
     junk := churn()
     seen := *r
@@ -88,40 +147,39 @@ pub fn main() -> void $ Console:
   {
     name: "root-pointer-moved-into-a-task",
     panic: false,
+    rule: "ref.box.root",
     what: "a task's pointer parameter stays alive across a suspension while a reference through it lives",
-    source: `use std.collections.UniqList
-use std.task.join
-use std.time.{Clock, sleep}
+    source: `${tickProfile}use std.task.join
 
+${tickTrait}
+${slotsType}
 struct Outer:
-    items: UniqList[string]
+    items: Slots
 
 @@HELPERS@@
-fn uniq() -> UniqList[string]:
-    let mut items = UniqList::[string].new()
-    items.push(orig())
-    items
-
-fn probe!(p: *mut Outer) -> string $ Clock:
+# Two ticks here and one in idle!, so idle! ends while this task waits.
+fn probe!(p: *mut Outer) -> string $ Tick:
     r := p.items.get_ref(0).expect("slot")
-    sleep!(2ms)
+    $.use(Tick).tick!("")
+    $.use(Tick).tick!("")
     junk := churn()
     seen := *r
     _ := junk.len()
     seen
 
-fn idle!() -> string $ Clock:
-    sleep!(1ms)
+fn idle!() -> string $ Tick:
+    $.use(Tick).tick!("")
     "idle"
 
-pub fn main!() -> void $ Console + Clock:
-    p := box(Outer { items: uniq() })
+pub fn main!() -> void $ Console + Tick:
+    p := box(Outer { items: Slots { items: [orig()] } })
     let (seen, _) = join!(probe(p), idle())
 @@TAIL@@`,
   },
   {
     name: "callee-writes-other-field-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "a callee writes another field of an object the caller's reference borrows",
     source: `struct Cell:
     value: string
@@ -144,6 +202,7 @@ pub fn main() -> void $ Console:
   {
     name: "callee-only-reads",
     panic: false,
+    rule: "ref.excl.alias.counted-access",
     what: "passing the pointer to a callee that only reads is no access",
     source: `struct Cell:
     value: string
@@ -166,6 +225,7 @@ pub fn main() -> void $ Console:
   {
     name: "later-argument-replaces-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "a later argument replaces the object an earlier argument's reference points into",
     source: `struct Cell:
     value: string
@@ -193,6 +253,7 @@ pub fn main() -> void $ Console:
   {
     name: "receiver-argument-reads-the-receiver",
     panic: false,
+    rule: "ref.excl.alias.call-loan",
     what: "an argument of a `&mut self` call reads the receiver's object through an alias, as `xs.push(xs.len())` does",
     source: `struct Bag:
     items: List[usize]
@@ -246,6 +307,7 @@ pub fn main() -> void $ Console:
   {
     name: "deep-shared-loans",
     panic: false,
+    rule: "ref.excl.alias.loan",
     what: "forty nested shared loans on one object, past an inline counter's width",
     source: `struct Cell:
     value: string
@@ -266,6 +328,7 @@ pub fn main() -> void $ Console:
   {
     name: "deep-shared-loans-kept",
     panic: false,
+    rule: "ref.excl.alias.loan",
     what: "seventy nested shared loans on one object that a `&mut` elsewhere keeps, past an inline counter's width and into the bits above it",
     source: `struct Cell:
     value: string
@@ -291,6 +354,7 @@ pub fn main() -> void $ Console:
   {
     name: "deep-shared-loans-many-objects",
     panic: false,
+    rule: "ref.excl.alias.loan",
     what: "seventy objects each over 31 shared loans at once, which a `&mut` elsewhere keeps",
     source: `struct Cell:
     value: string
@@ -321,9 +385,10 @@ pub fn main() -> void $ Console:
   {
     name: "suspending-creator-closure-write-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a closure a suspending body made writes through its pointer while another function's reference to the object lives",
-    source: `use std.time.{Clock, ms, sleep}
-
+    source: `${tickProfile}
+${tickTrait}
 struct Cell:
     value: string
     other: string
@@ -333,38 +398,39 @@ fn hold(a: *Cell, f: fn() -> void) -> usize:
     f()
     x.len()
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     p := box(Cell { value: "a", other: "o" })
     alias := p
     r := &p.other
     f := fn() -> void: p.value = "b" # panic: borrow-conflict
     println(*r)
-    sleep!(ms(1))
+    $.use(Tick).tick!("")
     println("\${hold(alias, f)}")
 `,
   },
   {
     name: "suspending-closure-writes-another-field",
     panic: false,
+    rule: "ref.excl.alias.conflict",
     what: "a suspending closure writes another field through its creator's pointer, across a suspension, while the creator's reference lives",
-    source: `use std.time.{Clock, ms, sleep}
-
+    source: `${tickProfile}
+${tickTrait}
 struct Cell:
     value: string
     other: string
 
-fn run!(f: fn!() -> void $ Clock) -> void $ Clock:
+fn run!(f: fn!() -> void $ Tick) -> void $ Tick:
     f!()
 
 fn run_plain(f: fn() -> void) -> void:
     f()
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     p := box(Cell { value: "a", other: "o" })
     r := &p.other
     run_plain(fn() -> void: p.value = "b")
-    run!(fn!() -> void $ Clock:
-        sleep!(ms(1))
+    run!(fn!() -> void $ Tick:
+        $.use(Tick).tick!("")
         p.value = "c"
     )
     if *r != "o" || p.value != "c":
@@ -375,6 +441,7 @@ pub fn main!() -> void $ Console + Clock:
   {
     name: "dyn-receiver-alias-write-panics",
     panic: true,
+    rule: "ref.excl.alias.loan",
     what: "a `&mut self` call through a `*mut dyn` writes the object through an alias it was given",
     source: `trait Touch:
     fn touch(&mut self, alias: *mut Counter) -> void
@@ -397,6 +464,7 @@ pub fn main() -> void $ Console:
   {
     name: "generic-argument-alias-write-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "a generic callee writes through an alias of the object its `&mut T` argument points into",
     source: `trait Grow:
     fn grow(&mut self) -> void
@@ -425,6 +493,7 @@ pub fn main() -> void $ Console:
   {
     name: "copy-under-element-loan-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "an alias copies a list while a `&mut` element reference into it lives",
     source: `struct Bag:
     items: List[string]
@@ -444,6 +513,7 @@ pub fn main() -> void $ Console:
   {
     name: "sort-comparator-alias-write-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "a comparator writes another field of the object whose list it sorts",
     source: `struct Bag:
     items: List[i32]
@@ -464,6 +534,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-callback-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a callback passed in writes the borrowed object; a function value has no summary",
     source: `struct Cell:
     value: string
@@ -485,6 +556,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-dyn-call-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a trait-value call writes the borrowed object through a pointer it holds",
     source: `trait Touch:
     fn touch(&self) -> void
@@ -517,6 +589,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-writes-holder-type-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a callee writes only the type that holds the pointer the reference crossed",
     source: `struct Cell:
     value: string
@@ -544,6 +617,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-writes-through-field-reference-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a callee takes `&mut` of the field of a type that contains the borrowed one",
     source: `struct Cell:
     value: string
@@ -574,6 +648,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-closure-captured-pointer-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a closure that captured the pointer writes the object",
     source: `struct Cell:
     value: string
@@ -596,25 +671,24 @@ pub fn main() -> void $ Console:
   {
     name: "elide-other-task-panics",
     panic: true,
-    what: "another task replaces a `UniqList` while the reference waits across a bang call",
-    source: `use std.collections.UniqList
-use std.task.join
-use std.time.{Clock, s, sleep}
+    rule: "ref.excl.alias.conflict",
+    what: "another task replaces a list whose method lent the reference, while the reference waits across a bang call",
+    source: `${tickProfile}use std.task.join
 
+${tickTrait}
+${slotsType}
 struct Bag:
-    items: UniqList[string]
+    items: Slots
 
 @@HELPERS@@
-fn uniq(value: string) -> UniqList[string]:
-    let mut items = UniqList::[string].new()
-    items.push(value)
-    items
+fn uniq(value: string) -> Slots:
+    Slots { items: [value] }
 
-fn hold!(p: *mut Bag) -> string $ Clock:
+fn hold!(p: *mut Bag) -> string $ Tick:
     r := p.items.get_ref(0).expect("slot")
     # join! polls its tasks in argument order (req.schedule.all-unfinished),
     # so act! writes while this task waits; the panic ends the run.
-    sleep!(s(60))
+    $.use(Tick).tick!("")
     junk := churn()
     seen := *r
     _ := junk.len()
@@ -624,7 +698,7 @@ fn act!(alias: *mut Bag) -> string:
     alias.items = uniq(fresh()) # panic: borrow-conflict
     "acted"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     p := box(Bag { items: uniq(orig()) })
     let (seen, _) = join!(hold(p), act(p))
     println("\${p.items.len()}")
@@ -633,6 +707,7 @@ pub fn main!() -> void $ Console + Clock:
   {
     name: "elide-recursive-call-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "a recursive callee writes the object at its deepest call",
     source: `struct Cell:
     value: string
@@ -660,6 +735,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-read-then-print",
     panic: false,
+    rule: "ref.excl.alias.conflict",
     what: "a reference read and printed with no write in its live range",
     source: `struct Person:
     name: string
@@ -677,6 +753,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-getter-in-loop",
     panic: false,
+    rule: "ref.excl.alias.conflict",
     what: "a getter called in a loop that writes only another type",
     source: `struct Person:
     name: string
@@ -706,6 +783,7 @@ pub fn main() -> void $ Console:
   {
     name: "elide-read-only-visitor",
     panic: false,
+    rule: "ref.excl.alias.conflict",
     what: "a read-only visitor called through a trait value over pointers",
     source: `trait Visitor:
     fn see(&mut self, name: &string) -> void
@@ -739,6 +817,7 @@ pub fn main() -> void $ Console:
   {
     name: "pass-read-with-shared",
     panic: false,
+    rule: "ref.excl.alias.call-loan",
     what: "passing a pointer as a `*T` and a `&` of its field to one call: two reads",
     source: `struct Cell:
     value: string
@@ -757,6 +836,7 @@ pub fn main() -> void $ Console:
   {
     name: "pass-alias-mut-with-shared-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "passing an alias as a `*mut` and a `&` of a field through another name",
     source: `struct Cell:
     value: string
@@ -778,6 +858,7 @@ pub fn main() -> void $ Console:
   {
     name: "pass-alias-read-with-mut-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "passing an alias as a `*T` and a `&mut` of a field through another name",
     source: `struct Cell:
     value: string
@@ -799,6 +880,7 @@ pub fn main() -> void $ Console:
   {
     name: "dependent-result-alias-panics",
     panic: true,
+    rule: "ref.excl.alias.loan",
     what: "an alias writes the object while a call result that depends on the pointer lives",
     source: `struct Cell:
     value: string
@@ -825,20 +907,21 @@ pub fn main() -> void $ Console:
   {
     name: "other-task-field-write-panics",
     panic: true,
+    rule: "ref.excl.alias.conflict",
     what: "another task of a `join!` writes the object a task's reference holds across a suspension",
-    source: `use std.task.join
-use std.time.{Clock, s, sleep}
+    source: `${tickProfile}use std.task.join
 
+${tickTrait}
 struct Cell:
     value: string
     other: string
 
 @@HELPERS@@
-fn hold!(p: *mut Cell) -> string $ Clock:
+fn hold!(p: *mut Cell) -> string $ Tick:
     r := &p.value
     # join! polls its tasks in argument order (req.schedule.all-unfinished),
     # so act! runs, and writes, while this task waits here.
-    sleep!(s(60))
+    $.use(Tick).tick!("")
     junk := churn()
     seen := *r
     _ := junk.len()
@@ -848,7 +931,7 @@ fn act!(alias: *mut Cell) -> string:
     alias.other = fresh() # panic: borrow-conflict
     "acted"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     p := box(Cell { value: orig(), other: fresh() })
     let (seen, _) = join!(hold(p), act(p))
 @@TAIL@@`,
@@ -856,25 +939,28 @@ pub fn main!() -> void $ Console + Clock:
   {
     name: "abandoned-task-ends-its-loans",
     panic: false,
+    rule: "ref.excl.alias.loan",
     what: "a task that `race!` abandons while it holds an exclusive loan across a suspension ends that loan, so a later write to the object runs",
-    source: `use std.task.race
-use std.time.{Clock, ms, s, sleep}
+    source: `${tickProfile}use std.task.race
 
+${tickTrait}
 struct Cell:
     value: string
     other: string
 
 @@HELPERS@@
-fn hold!(p: *mut Cell) -> string $ Clock:
+# Three ticks here and one in quick!, so quick! wins while this task waits.
+fn hold!(p: *mut Cell) -> string $ Tick:
     r := &mut p.value
-    sleep!(s(60))
+    for round in 0..3:
+        $.use(Tick).tick!("")
     *r
 
-fn quick!() -> string $ Clock:
-    sleep!(ms(1))
+fn quick!() -> string $ Tick:
+    $.use(Tick).tick!("")
     orig()
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     p := box(Cell { value: orig(), other: orig() })
     winner := race!(hold(p), quick())
     p.value = fresh()
@@ -884,6 +970,7 @@ pub fn main!() -> void $ Console + Clock:
   {
     name: "hidden-alias-in-another-object-panics",
     panic: true,
+    rule: "ref.excl.alias.call-loan",
     what: "a callee writes another field through an alias it reaches in another object while a reference argument holds a loan",
     source: `struct Cell:
     value: string
@@ -1114,7 +1201,7 @@ export const extraColumns: Record<string, [string, string]> = {
   "elide-writes-holder-type-panics": ["loan needed", "runs, stale"],
   "elide-writes-through-field-reference-panics": ["loan needed", "runs, sees the write"],
   "elide-closure-captured-pointer-panics": ["loan needed", "runs, sees the write"],
-  "elide-other-task-panics": ["loan needed", "panics collection-pinned"],
+  "elide-other-task-panics": ["loan needed", "runs, stale"],
   "elide-recursive-call-panics": ["loan needed", "runs, sees the write"],
   "elide-read-then-print": ["elided", "runs"],
   "elide-getter-in-loop": ["elided", "runs"],

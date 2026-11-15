@@ -13,36 +13,35 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { extraColumns, extras as extraSources } from "./pointer-loan-extras.ts";
+import {
+  extraColumns,
+  extras as extraSources,
+  slotMapType,
+  slotsType,
+  tickProfile,
+  tickTrait,
+} from "./pointer-loan-extras.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const check = process.argv.includes("--check");
 const stem = "pointer-loan-";
 // Every generated case lives under one topic folder of the suite.
 const topic = "lang/references/pointer-loans";
-const section = "lang/13-values-and-references.md#conflicts-through-aliases";
-
-/** The primary section: a std rule when the source imports a std item. */
-function sectionOf(source: string): string {
-  const cited: [string, string][] = [
-    ["use std.collections.UniqList", "std/collections.md#r-std-collections.uniq-list.type"],
-    ["use std.collections.UniqMap", "std/collections.md#r-std-collections.uniq-map.type"],
-    ["use std.time.", "std/time.md#r-std-time.helper.sleep"],
-  ];
-  return cited.find(([use]) => source.includes(use))?.[1] ?? section;
-}
+// Every case uses language-tier types only, so it cites the language rule it
+// tests (#1951).
+const chapter = "lang/13-values-and-references.md";
 const rows: string[] = [];
 const written = new Set<string>();
 
 type Kind = "ref" | "mut";
-type Path = "local" | "ptr" | "field" | "ptr2" | "list" | "map" | "ulist" | "umap";
+type Path = "local" | "ptr" | "field" | "ptr2" | "list" | "map" | "slots" | "slotmap";
 type Life = "expr" | "stmt" | "arg" | "ret" | "struct" | "loop" | "bang" | "closure";
 type Action = "read" | "write" | "other" | "elem" | "mut" | "replace" | "grow" | "shrink" | "drop";
 
 const kinds: Kind[] = ["ref", "mut"];
-const paths: Path[] = ["local", "ptr", "field", "ptr2", "list", "map", "ulist", "umap"];
+const paths: Path[] = ["local", "ptr", "field", "ptr2", "list", "map", "slots", "slotmap"];
 const lives: Life[] = ["expr", "stmt", "arg", "ret", "struct", "loop", "bang", "closure"];
-const collections: Path[] = ["list", "map", "ulist", "umap"];
+const collections: Path[] = ["list", "map", "slots", "slotmap"];
 
 /** The alias actions each path has, under one lifetime. */
 function actions(path: Path, life: Life): Action[] {
@@ -73,6 +72,33 @@ function panics(kind: Kind, path: Path, life: Life, action: Action): boolean {
   return action !== "read" || kind === "mut";
 }
 
+/**
+ * The rule a matrix case tests (#1951), the most specific its row reaches:
+ * a local root takes no loan; a dropped pointer leaves the root alive; a
+ * replaced pointer slot on the path conflicts; a loan an argument or a
+ * captured reference takes lasts until its call returns; a loan a method's
+ * result, a struct or a loop's binding holds lasts until its last use; a
+ * statement's binding and a bang call's wait conflict as the access rule says.
+ */
+function ruleOf(path: Path, life: Life, action: Action): string {
+  if (path === "local") {
+    return "ref.excl.alias.untracked-path";
+  }
+  if (action === "drop") {
+    return "ref.box.root";
+  }
+  if (action === "replace" && path === "ptr2") {
+    return "ref.excl.alias.path-pointer";
+  }
+  if (life === "expr" || life === "arg" || life === "closure") {
+    return "ref.excl.alias.call-loan";
+  }
+  if (life === "ret" || life === "struct" || life === "loop") {
+    return "ref.excl.alias.loan";
+  }
+  return "ref.excl.alias.conflict";
+}
+
 const words = {
   path: {
     local: "a field of a local struct",
@@ -81,8 +107,8 @@ const words = {
     ptr2: "a field behind a `*T` then a `*T`",
     list: "a `List` element behind a `*T`",
     map: "a `Map` value behind a `*T`",
-    ulist: "a `UniqList` element behind a `*T`",
-    umap: "a `UniqMap` value behind a `*T`",
+    slots: "a list element a method lends, behind a `*T`",
+    slotmap: "a map value a method lends, behind a `*T`",
   },
   life: {
     expr: "used within one expression",
@@ -114,11 +140,6 @@ function rootType(path: Path): string {
 
 function decls(path: Path): string {
   const cell = "struct Cell:\n    value: string\n    other: string\n";
-  const imports: Record<string, string> = {
-    ulist: "use std.collections.UniqList\n\n",
-    umap: "use std.collections.UniqMap\n\n",
-  };
-  const uses = imports[path] ?? "";
   const fields: Record<Path, string> = {
     local: "",
     ptr: "",
@@ -127,8 +148,8 @@ function decls(path: Path): string {
     ptr2: `${cell}\nstruct Outer:\n    next: *mut Cell\n    other: string\n`,
     list: "struct Outer:\n    items: List[string]\n    other: string\n",
     map: "struct Outer:\n    map: Map[string, string]\n    other: string\n",
-    ulist: "struct Outer:\n    items: UniqList[string]\n    other: string\n",
-    umap: "struct Outer:\n    map: UniqMap[string, string]\n    other: string\n",
+    slots: `${slotsType}\nstruct Outer:\n    items: Slots\n    other: string\n`,
+    slotmap: `${slotMapType}\nstruct Outer:\n    map: SlotMap\n    other: string\n`,
   };
   const base = path === "local" || path === "ptr" ? cell : fields[path];
   const make: Record<Path, string> = {
@@ -138,8 +159,8 @@ function decls(path: Path): string {
     ptr2: "box(Outer { next: box(Cell { value: orig(), other: second() }), other: second() })",
     list: "box(Outer { items: [second(), orig()], other: second() })",
     map: 'box(Outer { map: { "a": orig(), "b": second() }, other: second() })',
-    ulist: "box(Outer { items: uniq(second(), orig()), other: second() })",
-    umap: "box(Outer { map: uniq_map(orig(), second()), other: second() })",
+    slots: "box(Outer { items: slots(second(), orig()), other: second() })",
+    slotmap: "box(Outer { map: slot_map(orig(), second()), other: second() })",
   };
   const helpers: Record<Path, string> = {
     local: "",
@@ -148,11 +169,12 @@ function decls(path: Path): string {
     ptr2: "",
     list: "",
     map: "",
-    ulist:
-      "fn uniq(first: string, last: string) -> UniqList[string]:\n    let mut items = UniqList::[string].new()\n    items.push(first)\n    items.push(last)\n    items\n\n",
-    umap: 'fn uniq_map(a: string, b: string) -> UniqMap[string, string]:\n    let mut map = UniqMap::[string, string].new()\n    _ := map.insert("a", a)\n    _ := map.insert("b", b)\n    map\n\n',
+    slots:
+      "fn slots(first: string, last: string) -> Slots:\n    Slots { items: [first, last] }\n\n",
+    slotmap:
+      'fn slot_map(a: string, b: string) -> SlotMap:\n    SlotMap { map: { "a": a, "b": b } }\n\n',
   };
-  return `${uses}${base}
+  return `${base}
 fn orig() -> string:
     "orig-" + "z".repeat(40)
 
@@ -187,17 +209,17 @@ function place(path: Path, root: string): string {
     ptr2: `${root}.next.value`,
     list: `${root}.items[1]`,
     map: `${root}.map["a"]`,
-    ulist: "",
-    umap: "",
+    slots: "",
+    slotmap: "",
   }[path];
 }
 
 /** The reference expression of kind `kind` from root `root`. */
 function reference(kind: Kind, path: Path, root: string): string {
-  if (path === "ulist") {
+  if (path === "slots") {
     return `${root}.items.${kind === "mut" ? "get_mut" : "get_ref"}(1).expect("slot")`;
   }
-  if (path === "umap") {
+  if (path === "slotmap") {
     return `${root}.map.${kind === "mut" ? "get_mut" : "get_ref"}("a").expect("slot")`;
   }
   return `${kind === "mut" ? "&mut " : "&"}${place(path, root)}`;
@@ -212,47 +234,47 @@ function act(path: Path, action: Action): string {
     "ptr2:read": "seen_alias := alias.next.value",
     "list:read": "seen_alias := alias.items[1]",
     "map:read": 'seen_alias := alias.map["a"]',
-    "ulist:read": 'seen_alias := alias.items.get(1).unwrap_or("")',
-    "umap:read": 'seen_alias := alias.map.get("a").unwrap_or("")',
+    "slots:read": 'seen_alias := alias.items.get(1).unwrap_or("")',
+    "slotmap:read": 'seen_alias := alias.map.get("a").unwrap_or("")',
     "ptr:write": "alias.value = fresh()",
     "field:write": "alias.inner.value = fresh()",
     "ptr2:write": "alias.next.value = fresh()",
     "list:write": "alias.items[1] = fresh()",
     "map:write": 'alias.map["a"] = fresh()',
-    "ulist:write": "alias.items.swap(0, 1)",
-    "umap:write": '_ := alias.map.insert("a", fresh())',
+    "slots:write": "alias.items.swap(0, 1)",
+    "slotmap:write": '_ := alias.map.insert("a", fresh())',
     "ptr:other": "alias.other = fresh()",
     "field:other": "alias.other = fresh()",
     "ptr2:other": "alias.next.other = fresh()",
     "list:other": "alias.other = fresh()",
     "map:other": "alias.other = fresh()",
-    "ulist:other": "alias.other = fresh()",
-    "umap:other": "alias.other = fresh()",
+    "slots:other": "alias.other = fresh()",
+    "slotmap:other": "alias.other = fresh()",
     "list:elem": "alias.items[0] = fresh()",
     "map:elem": 'alias.map["b"] = fresh()',
-    "ulist:elem": 'set(alias.items.get_mut(0).expect("first"), fresh())',
-    "umap:elem": '_ := alias.map.insert("b", fresh())',
+    "slots:elem": 'set(alias.items.get_mut(0).expect("first"), fresh())',
+    "slotmap:elem": '_ := alias.map.insert("b", fresh())',
     "ptr:mut": "set(&mut alias.value, fresh())",
     "field:mut": "set(&mut alias.inner.value, fresh())",
     "ptr2:mut": "set(&mut alias.next.value, fresh())",
     "list:mut": "set(&mut alias.items[1], fresh())",
     "map:mut": 'set(&mut alias.map["a"], fresh())',
-    "ulist:mut": 'set(alias.items.get_mut(1).expect("slot"), fresh())',
-    "umap:mut": 'set(alias.map.get_mut("a").expect("slot"), fresh())',
+    "slots:mut": 'set(alias.items.get_mut(1).expect("slot"), fresh())',
+    "slotmap:mut": 'set(alias.map.get_mut("a").expect("slot"), fresh())',
     "field:replace": "alias.inner = Inner { value: fresh() }",
     "ptr2:replace": "alias.next = box(Cell { value: fresh(), other: fresh() })",
     "list:replace": "alias.items = [fresh(), fresh()]",
     "map:replace": 'alias.map = { "a": fresh() }',
-    "ulist:replace": "alias.items = uniq(fresh(), fresh())",
-    "umap:replace": "alias.map = uniq_map(fresh(), fresh())",
+    "slots:replace": "alias.items = slots(fresh(), fresh())",
+    "slotmap:replace": "alias.map = slot_map(fresh(), fresh())",
     "list:grow": "for round in 0..16:\n    alias.items.push(fresh())",
     "map:grow": 'for round in 0..16:\n    alias.map["z$round"] = fresh()',
-    "ulist:grow": "for round in 0..16:\n    alias.items.push(fresh())",
-    "umap:grow": 'for round in 0..16:\n    _ := alias.map.insert("z$round", fresh())',
+    "slots:grow": "for round in 0..16:\n    alias.items.push(fresh())",
+    "slotmap:grow": 'for round in 0..16:\n    _ := alias.map.insert("z$round", fresh())',
     "list:shrink": "_ := alias.items.remove_at(1)",
     "map:shrink": '_ := alias.map.remove("a")',
-    "ulist:shrink": "_ := alias.items.remove_at(1)",
-    "umap:shrink": '_ := alias.map.remove("a")',
+    "slots:shrink": "_ := alias.items.remove_at(1)",
+    "slotmap:shrink": '_ := alias.map.remove("a")',
     "ptr:drop": "holder.child = make()",
     "field:drop": "holder.child = make()",
   };
@@ -358,8 +380,8 @@ const shapes: Record<Life, (cs: Case) => { extra: string; probe: string }> = {
     probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n    apply(${cs.aliasName}, fn() -> string: *r)\n`,
   }),
   bang: (cs) => ({
-    extra: `fn act!(${cs.aliasParam}) -> string $ Clock:\n    sleep!(1ms)\n${cs.acting("    ")}\n    _ := junk.len()\n    "acted"\n\n`,
-    probe: `fn probe!(${cs.rootParam}${cs.aliasParam}) -> string $ Clock:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n    _ := act!(${cs.aliasName})\n    seen := *r\n    seen\n`,
+    extra: `fn act!(${cs.aliasParam}) -> string $ Tick:\n    $.use(Tick).tick!("")\n${cs.acting("    ")}\n    _ := junk.len()\n    "acted"\n\n`,
+    probe: `fn probe!(${cs.rootParam}${cs.aliasParam}) -> string $ Tick:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n    _ := act!(${cs.aliasName})\n    seen := *r\n    seen\n`,
   }),
 };
 
@@ -380,7 +402,7 @@ function entry(cs: Case): string {
     args = "other";
   }
   if (cs.life === "bang") {
-    return `pub fn main!() -> void $ Console + Clock:\n${setup}    seen := probe!(${args})\n${verify}    println("ok")\n`;
+    return `pub fn main!() -> void $ Console + Tick:\n${setup}    seen := probe!(${args})\n${verify}    println("ok")\n`;
   }
   return `pub fn main() -> void $ Console:\n${setup}    seen := probe(${args})\n${verify}    println("ok")\n`;
 }
@@ -402,9 +424,6 @@ function goOf(path: Path, life: Life, action: Action): string {
     return "runs";
   }
   const moves = ["grow", "replace", "shrink"].includes(action);
-  if ((path === "ulist" || path === "umap") && moves) {
-    return "panics collection-pinned";
-  }
   // A moved-on collection or a replaced object leaves the reference on the
   // storage it counted; a store in place is seen.
   return moves && path !== "field" ? "runs, stale" : "runs, sees the write";
@@ -419,24 +438,20 @@ function generate(kind: Kind, path: Path, life: Life, action: Action) {
   const name = `${stem}${life}-${kind}-${path}-${action}${cs.panic ? "-panics" : ""}`;
   const file = `${topic}/${life}/${name}.hd`;
   const { extra, probe } = shapes[life](cs);
-  let head = decls(path);
-  if (life === "bang") {
-    const uses = "use std.time.{Clock, sleep}\n";
-    head = head.startsWith("use ") ? `${uses}${head}` : `${uses}\n${head}`;
-  }
+  const head = life === "bang" ? `${tickTrait}\n${decls(path)}` : decls(path);
   const holder = action === "drop" ? `\nstruct Holder:\n    child: *mut ${rootType(path)}\n` : "";
   const verdict = cs.panic ? "panics borrow-conflict" : "runs";
   const lend = kind === "mut" ? "&mut" : "&";
   const title = `# test: pointer loans: a \`${lend}\` to ${words.path[path]}, ${words.life[life]}; an alias ${words.action[action]}; ${verdict}`;
   const contents = `${title}
-${cs.panic ? "" : "# expect-stdout: ok\n"}# Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
+${life === "bang" ? tickProfile : ""}${cs.panic ? "" : "# expect-stdout: ok\n"}# Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
 # Accepted design: docs/compiler/ownership.md#pointer-loans-model-a (2026-11-03; built under #1336).
 ${columns(kind, path, life, action)}${head}${holder}
 ${extra}${probe}
 ${entry(cs)}`;
   output(`conformance/${file}`, contents);
   rows.push(
-    `${file}\truntime\t${cs.panic ? "panic:borrow-conflict" : "accept"}\t${sectionOf(contents)}`,
+    `${file}\truntime\t${cs.panic ? "panic:borrow-conflict" : "accept"}\t${chapter}#r-${ruleOf(path, life, action)}`,
   );
 }
 
@@ -496,7 +511,7 @@ ${panic ? "" : "# expect-stdout: ok\n"}# Generated by spec/tools/generate-pointe
 ${source}`;
   output(`conformance/${file}`, contents);
   rows.push(
-    `${file}\truntime\t${panic ? "panic:borrow-conflict" : "accept"}\t${rule ? `lang/13-values-and-references.md#r-${rule}` : sectionOf(source)}`,
+    `${file}\truntime\t${panic ? "panic:borrow-conflict" : "accept"}\t${chapter}#r-${rule}`,
   );
 }
 
@@ -558,9 +573,9 @@ const sameRoot: { name: string; what: string; body: string; code?: string }[] = 
     body: 'fn probe(a: *mut Outer) -> i32:\n    c := &a.map["k"]\n    a.map["z"] = 1 # diagnostic: conflicting-access\n    *c\n',
   },
   {
-    name: "uniq-replace",
-    what: "replacing a `UniqList` behind the pointer while an element reference lives",
-    body: 'struct Bag:\n    items: UniqList[i32]\n\nfn probe(a: *mut Bag) -> i32:\n    c := a.items.get_ref(0).expect("slot")\n    a.items = UniqList::[i32].new() # diagnostic: conflicting-access\n    *c\n',
+    name: "slots-replace",
+    what: "replacing a list behind the pointer while an element reference its method lent lives",
+    body: `${slotsType}\nstruct Bag:\n    items: Slots\n\nfn probe(a: *mut Bag) -> string:\n    c := a.items.get_ref(0).expect("slot")\n    a.items = Slots { items: [] } # diagnostic: conflicting-access\n    *c\n`,
   },
   {
     name: "pass-mut-with-shared",
@@ -604,7 +619,7 @@ for (const { name, what, body, code = "conflicting-access" } of sameRoot) {
   const contents = `# test: pointer loans, same root: ${what} is a compile-time error in both models
 # Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
 # Accepted design: docs/compiler/ownership.md#pointer-loans-model-a (2026-11-03; built under #1336).
-${body.includes("UniqList") ? "use std.collections.UniqList\n\n" : ""}${sameRootDecls}
+${sameRootDecls}
 ${body}`;
   output(`conformance/${file}`, contents);
   let rule = "ref.dep.scope";
@@ -615,10 +630,7 @@ ${body}`;
   } else if (code === "conflicting-access") {
     rule = "ref.excl.place";
   }
-  const cited = body.includes("UniqList")
-    ? "std/collections.md#r-std-collections.uniq-list.type"
-    : `lang/13-values-and-references.md#r-${rule}`;
-  rows.push(`${file}\ttype\treject:${code}\t${cited}`);
+  rows.push(`${file}\ttype\treject:${code}\tlang/13-values-and-references.md#r-${rule}`);
 }
 
 // Stale generated fixtures: a matrix file the generator no longer writes.
