@@ -1626,7 +1626,7 @@ std/serde/derived-implementations/serde-internal-non-string-map.hd	A3	std/serde/
 std/serde/derived-implementations/serde-internal-scalar-newtype.hd	A3	std/serde/derived-implementations/serde-internal-tuple-newtype.hd
 std/serde/derived-implementations/serde-internal-scalar-newtype.hd	A3	std/serde/derived-implementations/serde-internal-tuple-variant.hd
 std/serde/derived-implementations/serde-internal-tuple-newtype.hd	A3	std/serde/derived-implementations/serde-internal-tuple-variant.hd
-runtime/panic/char-to-digit-radix-low.hd	A3	runtime/panic/char-to-digit-radix-high.hd
+std/text/character-classification/char-to-digit-radix-low.hd	A3	std/text/character-classification/char-to-digit-radix-high.hd
 std/num/radix-text/num-radix-to-radix-low.hd	A3	std/num/radix-text/num-radix-to-radix-high.hd
 std/num/radix-text/num-radix-parse-radix-low.hd	A3	std/num/radix-text/num-radix-parse-radix-high.hd
 typing/invalid/list-index-negative-literal.hd	A3	typing/invalid/compound-index-negative-literal.hd

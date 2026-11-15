@@ -306,7 +306,7 @@ annotations/two-annotate-forms/cfg-inactive-body-checked.hd	A9	reject:type-misma
 annotations/two-annotate-forms/facts-of-without-import.hd	A9	reject:unknown-name not mentioned in cited lang/14-annotations.md#r-annot.facts-of.declared
 annotations/two-annotate-forms/decorator-target-newtype.hd	A9	reject:decorator-target-kind not mentioned in cited lang/14-annotations.md#r-annot.target.kind.newtype-kind
 annotations/two-annotate-forms/annotate-before-function.hd	A9	reject:decorator-target-kind not mentioned in cited lang/14-annotations.md#r-annot.target.bootstrap
-typing/invalid/bytes-prefix-unknown.hd	A9	reject:unknown-name not mentioned in cited std/text.md#r-std-text.prefix.std.only-r
+std/text/raw-text-prefix/bytes-prefix-unknown.hd	A9	reject:unknown-name not mentioned in cited std/text.md#r-std-text.prefix.std.only-r
 typing/invalid/string-prefix-value-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.literal.prefixed.values
 typing/invalid/string-prefix-value-narrowing.hd	A9	reject:implicit-narrowing not mentioned in cited lang/04-type-system.md#r-types.literal.prefixed.values
 typing/invalid/a-bound-is-checked-past-alias-parts-already-checked.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/09-traits.md#r-trait.bound.no-implied
@@ -471,8 +471,8 @@ typing/invalid/string-slice-negative-offset.hd	A9	reject:type-mismatch not menti
 runtime/panic/usize-len-underflow.hd	A9	panic:integer-overflow not mentioned in cited lang/04-type-system.md#r-types.usize.sizes
 std/collections/list-methods/list-view-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/collections.md#list-methods
 std/iter/iterator-adapters/iterator-take-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/iter.md#r-std-iter.adapter.take.value
-typing/invalid/string-repeat-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/text.md#r-std-text.string.repeat
-typing/invalid/string-pad-signed-width.hd	A9	reject:type-mismatch not mentioned in cited std/text.md#r-std-text.pad.start
+std/text/string-methods/string-repeat-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/text.md#r-std-text.string.repeat
+std/text/splitting-and-padding/string-pad-signed-width.hd	A9	reject:type-mismatch not mentioned in cited std/text.md#r-std-text.pad.start
 typing/invalid/test-registration-renamed-misplaced.hd	A9	reject:misplaced-test-case not mentioned in cited lang/10-modules.md#r-module.testing.reg.identity
 typing/invalid/test-registration-qualified-duplicate.hd	A9	reject:duplicate-test-name not mentioned in cited lang/10-modules.md#r-module.testing.reg.identity.all
 typing/invalid/literal-first-use-other-body.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.literal.local.statement
@@ -775,7 +775,7 @@ runtime/panic/i32-remainder-by-zero.hd	A9	panic:integer-division-by-zero not men
 runtime/panic/i64-remainder-by-zero.hd	A9	panic:integer-division-by-zero not mentioned in cited lang/04-type-system.md#integer-arithmetic
 typing/invalid/delegated-associated-type-return-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/09-traits.md#trait-delegation
 annotations/typed-derivation/walkers-describers-and-sources/source-without-fills-defaults-bounds-defaulted-member.hd	A9	reject:member-not-derivable not mentioned in cited lang/14-annotations.md#r-annot.impl-fact.fills-defaults.exempt
-typing/invalid/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/text.md#more-string-methods
+std/text/more-string-methods/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/text.md#more-string-methods
 std/task/block-on/block-on-in-a-defer-suite-of-a-suspending-function-panics.hd	A9	panic:suspension-forbidden-context not mentioned in cited std/task.md#block-on
 std/task/block-on/block-on-through-a-helper-during-non-entry-module-initialization-panics.hd	A9	panic:suspension-forbidden-context not mentioned in cited std/task.md#block-on
 typing/invalid/a-typed-key-without-an-implementation-is-an-error-signed.hd	A9	reject:type-mismatch not mentioned in cited lang/05-expressions.md#r-expr.index.trait.choice
@@ -1021,7 +1021,7 @@ runtime/panic/mut-parameter-then-closure-pushes-through-an-alias-panics.hd	A9	pa
 runtime/panic/two-mut-arguments-from-aliased-pointers-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/top-level-binding-written-under-a-reference-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.global
 runtime/panic/top-level-list-grown-under-an-element-loop-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.global
-typing/invalid/string-builder-value-is-not-copyable.hd	A9	reject:move-out-of-place not mentioned in cited std/text.md#r-std-text.builder.unique-storage
+std/text/joining-and-building/string-builder-value-is-not-copyable.hd	A9	reject:move-out-of-place not mentioned in cited std/text.md#r-std-text.builder.unique-storage
 typing/invalid/concrete-associated-field-is-not-copy.hd	A9	reject:use-of-moved-value not mentioned in cited lang/13-values-and-references.md#r-ref.copy.structure
 typing/invalid/move-while-borrowed-nested-33-levels.hd	A9	reject:conflicting-access not mentioned in cited lang/13-values-and-references.md#r-ref.copy.structure
 typing/invalid/copy-bound-nested-40-levels.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/13-values-and-references.md#r-ref.copy.structure

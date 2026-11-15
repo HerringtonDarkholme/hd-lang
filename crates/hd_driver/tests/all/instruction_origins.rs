@@ -208,7 +208,7 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
         ),
         (
             include_str!(
-                "../../../../spec/conformance/runtime/valid/string-builder-interpolation-order.hd"
+                "../../../../spec/conformance/std/text/joining-and-building/string-builder-interpolation-order.hd"
             ),
             false,
         ),

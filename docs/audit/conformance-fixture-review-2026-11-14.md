@@ -2538,8 +2538,8 @@ Ledger: b164 (45): 6. b165 (44): 2. b166 (45): 5. b167 (44): 1.
   `task-all-list-empty.hd` ~ a test in `task-map-all.hd`. `string-from-bytes-checks-utf8.hd`
   ~ `utf8-valid-text.hd` and `utf8-truncated.hd`. `property-generators-scalars.hd`'s
   assume test ~ `property-assume-discards.hd`.
-- Plausible B7: `typing/invalid/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd`
-  and `runtime/valid/a-bound-call-at-a-trait-value-dispatches-through-its-vtable.hd` cite
+- Plausible B7: `std/text/more-string-methods/trait-values-a-trait-value-does-not-meet-a-bound-its-trait-does-not-extend.hd`
+  and `std/text/more-string-methods/a-bound-call-at-a-trait-value-dispatches-through-its-vtable.hd` cite
   `std/text.md#more-string-methods` for trait-value rules (probably the tier rule
   again, as in b148). `std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd`.
 - Plausible B1: `std/serde/standard-implementations/serde-reference-round-trip.hd` (`&Node?` against `*Cell?`).
