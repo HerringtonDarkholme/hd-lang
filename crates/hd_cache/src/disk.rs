@@ -1033,10 +1033,8 @@ mod packed {
         /// Claims are taken (`DiskStore::with_claims`): only for a caller
         /// that publishes a claimed entry as soon as it puts it.
         pub(super) claiming: bool,
-        /// The namespace directory, which every store that misses holds a
-        /// shared lock on for its life, so a store can tell whether it runs
-        /// alone.
-        runs: Mutex<Option<File>>,
+        /// Portable run membership; a shared regular-file lock per store.
+        runs: Mutex<Option<RunLocks>>,
         /// Another store ran beside this one once: it claims every miss.
         crowded: AtomicBool,
         /// The store became crowded since its caller last published.
@@ -1048,6 +1046,51 @@ mod packed {
         /// act while one is in progress.
         #[cfg(test)]
         pub(super) on_pause: Option<Arc<dyn Fn(&'static str) + Send + Sync>>,
+    }
+
+    /// `run` is shared for the store's life. `run-lock` serializes only
+    /// joining and probing membership, never entry computation or I/O.
+    /// Explicit unlocks avoid Windows' stacking (rather than converting)
+    /// overlapping locks on one handle. The gate prevents two probes from
+    /// simultaneously dropping their membership and both seeing no peer.
+    struct RunLocks {
+        run: File,
+        gate: File,
+    }
+
+    impl RunLocks {
+        fn open(root: &Path) -> io::Result<Self> {
+            let open = |name| {
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(root.join(name))
+            };
+            let gate = open("run-lock")?;
+            let run = open("run")?;
+            gate.lock()?;
+            let joined = run.lock_shared();
+            gate.unlock()?;
+            joined?;
+            Ok(Self { run, gate })
+        }
+
+        fn alone(&self) -> io::Result<bool> {
+            self.gate.lock()?;
+            let probed = (|| {
+                self.run.unlock()?;
+                let alone = self.run.try_lock().is_ok();
+                if alone {
+                    self.run.unlock()?;
+                }
+                self.run.lock_shared()?;
+                Ok(alone)
+            })();
+            self.gate.unlock()?;
+            probed
+        }
     }
 
     /// A claim this store holds: its locked file, the thread computing the
@@ -2804,9 +2847,8 @@ mod packed {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
         }
 
-        /// Takes this store's shared lock on the namespace directory, once:
-        /// the directory itself carries it, so no file is created.
-        fn join(&self) -> MutexGuard<'_, Option<File>> {
+        /// Joins the run membership once, on ordinary files on every OS.
+        fn join(&self) -> MutexGuard<'_, Option<RunLocks>> {
             let mut runs = self
                 .runs
                 .lock()
@@ -2814,37 +2856,26 @@ mod packed {
             if runs.is_none() {
                 *runs = self
                     .ensure_root()
-                    .and_then(|()| File::open(&self.root))
-                    .and_then(|file| file.lock_shared().map(|()| file))
+                    .and_then(|()| RunLocks::open(&self.root))
                     .ok();
             }
             runs
         }
 
-        /// Whether another store runs beside this one, so its misses are
-        /// claimed. A store alone claims nothing: no run can wait for it,
-        /// and a claim costs a file. The first check takes a shared lock on
-        /// the namespace directory for the store's life; each check tries
-        /// to take it exclusively, which fails while another store holds
-        /// it, and takes it shared again. Once crowded, a store stays so.
-        /// Cost: two lock calls per miss while alone, none after.
+        /// No claim files are needed while alone. Membership probes hold
+        /// the gate for a constant number of lock calls, with no directory
+        /// walk or entry I/O. Once crowded there are no further probes.
         fn crowded(&self) -> bool {
             if self.crowded.load(Ordering::Relaxed) {
                 return true;
             }
             let runs = self.join();
-            // A cache that cannot be locked claims nothing.
-            let Some(file) = runs.as_ref() else {
+            let Some(runs) = runs.as_ref() else {
                 return false;
             };
-            let alone = file.try_lock().is_ok();
-            // A failed or granted upgrade may drop the shared lock: take it
-            // again either way.
-            let _ = file.lock_shared();
+            let alone = runs.alone().unwrap_or(false);
             if !alone {
                 self.crowded.store(true, Ordering::Relaxed);
-                // What this store put while alone waits in its caller's
-                // memory: the next put publishes it all.
                 self.flush.store(true, Ordering::Relaxed);
             }
             !alone
@@ -5292,6 +5323,27 @@ mod packed {
             }
             assert_eq!(cost::take().claim_waits, 0);
             assert!(!root.join(NAMESPACE).join("claims").exists());
+        }
+
+        /// Repeated sole-run probes must neither stack locks nor lose
+        /// membership. A second independent handle then makes both peers
+        /// visible, and its close releases membership without stale state.
+        #[test]
+        fn run_membership_survives_repeated_probes_and_peer_departure() {
+            let root = scratch("run-membership");
+            let a = Store::new(&root);
+            for _ in 0..32 {
+                assert!(!a.crowded());
+            }
+            assert!(a.root.join("run").is_file());
+            let b = Store::new(&root);
+            drop(b.join());
+            assert!(a.crowded());
+            assert!(b.crowded());
+            drop(b);
+            let runs = a.join();
+            assert!(runs.as_ref().unwrap().alone().unwrap());
+            assert_eq!(cost::take().claim_waits, 0);
         }
 
         /// Runs that miss one key together compute it once (#1932): each

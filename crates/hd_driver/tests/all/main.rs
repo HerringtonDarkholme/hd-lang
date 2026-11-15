@@ -11,6 +11,7 @@ mod bare_trait_body;
 mod block_decorator;
 mod by_structure_import;
 mod checker;
+mod claim_order;
 mod closure_parameter_annotation;
 mod coherence_scale;
 mod collection_value_fix;

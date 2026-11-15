@@ -407,9 +407,15 @@ obj/
   caller publishes a claimed entry as soon as it puts it
   (`DiskStore::with_claims`, which the CLI's store sets; `DeferredStore`
   does so through `CacheStore::wanted`). Every store takes a shared lock
-  on the `pack-v2` directory at its first read. A store that can take that
-  lock exclusively for a moment runs alone, and claims nothing: no run can
-  wait for it, and a claim costs a file. Beside other runs, a miss of
+  on the `pack-v2/run` regular file at its first read. The `run-lock` file
+  serializes joining and probing membership, for a constant number of lock
+  calls only. A probe explicitly releases its own shared lock, tries an
+  exclusive lock, releases it if granted, and restores its shared lock.
+  This uses neither directory locking nor lock conversion: Windows stacks
+  overlapping locks on one handle. The gate keeps another join or probe
+  out of that temporary membership gap. A successful probe runs alone,
+  and claims nothing: no run can wait for it, and a claim costs a file.
+  Beside other runs, a miss of
   `parse`, `iface`, `check`, `check-test` or `graph` locks
   `claims/<kind><key>`.
   - If the lock is free, the store reads the key's shard again: its
@@ -446,9 +452,12 @@ obj/
     it reads no entry.
   - `StdSkims::read` (`depfiles`, the std skims): it skims the embedded
     std texts and reads no entry.
-  - `module_prep_now` (`check`): `check_key` needs every dependency in
-    memory. Its `parse` and `lint` reads come before the `check` miss, and
-    the check reads no entry.
+  - `module_prep` (`check`): `check_key` needs every dependency in
+    memory. Its `parse` and `lint` reads come before the `check` miss.
+    Preparation, bodies and the put execute in that one scheduler task,
+    before the worker takes another module. REPL input tasks depend on
+    earlier inputs and the library's complete check. Bodies within a module
+    can still fork and join on the pool.
   - `graph_hit` (`graph`, the package's entry): after every interface and
     check. The Coherence part it starts reads the package's coherence rows
     (`graph`), from which the entry is built: a dependency edge. Reading

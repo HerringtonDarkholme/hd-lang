@@ -27,8 +27,11 @@ owns what each task does.
   one `Parse` per file for `hd check`), then `FolderGraph` after the
   skims. A running task may add tasks and edges: `FolderGraph` adds a
   `FolderIface` and a `HeaderCheck` per built folder, one `ModulePrep`
-  per built module and a held `PackageResult`; `ModulePrep` adds `Body`
-  and `ModuleFinish` on a cache miss; `PackageResult` looks up the
+  per built module and a held `PackageResult`; on a cache miss, `ModulePrep`
+  checks the bodies and puts the result before returning (#1981).
+  It cannot yield an unpublished check claim to an unrelated task. Modules
+  and independent bodies within a module still run in parallel.
+  `PackageResult` looks up the
   package's `graph` entry and, on a miss, adds one `Coherence` and one
   `InitOrder` per folder, then `Collect` after them. `Collect` looks up
   the program's `link` entry; on a miss it collects the instances and

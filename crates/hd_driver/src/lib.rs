@@ -718,7 +718,6 @@ struct SkimOut {
 
 struct GraphOut {
     graph: FolderGraph,
-    package_result: TaskId,
 }
 
 /// A module's own items after `ModulePrep` (a check miss).
@@ -1702,10 +1701,6 @@ struct Run<'a> {
     /// Per REPL input: its input interface's top-level bindings, read from
     /// its `check` entry (`cli.repl.declarations.bindings`).
     input_bindings: Vec<OnceLock<Vec<InputBinding>>>,
-    /// Per module: the task after which its `check` entry is read, its
-    /// `ModulePrep` on a hit and its `ModuleFinish` on a miss. A later REPL
-    /// input's bodies wait for it, since they read its bindings.
-    check_task: Vec<OnceLock<TaskId>>,
     diags: Mutex<DiagBuf>,
     report: Mutex<PipelineReport>,
     counters: Mutex<Counters>,
@@ -2704,7 +2699,6 @@ fn build_packages_inner(
         check_roots: packages.check_roots.clone(),
         check_scope: OnceLock::new(),
         input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
-        check_task: (0..n).map(|_| OnceLock::new()).collect(),
         diags: Mutex::new(DiagBuf::default()),
         report: Mutex::new(PipelineReport {
             package: package.to_owned(),
@@ -3735,8 +3729,9 @@ impl Run<'_> {
         matches!(self.goal, Goal::Analyze | Goal::CheckTests)
     }
 
-    fn exec(&self, id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+    fn exec(&self, _id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
         let t0 = self.host.clock.now_ns();
+        let mut child_ns = 0;
         match kind {
             TaskKind::Skim(f) => self.skim(f as usize),
             TaskKind::FolderGraph => self.folder_graph(sp),
@@ -3744,7 +3739,7 @@ impl Run<'_> {
             TaskKind::HeaderCheck(f) => self.header_check(f as usize),
             TaskKind::InitOrder(f) => self.init_order(f as usize),
             TaskKind::Coherence => self.coherence(),
-            TaskKind::ModulePrep(m) => self.module_prep(id, m, sp),
+            TaskKind::ModulePrep(m) => child_ns = self.module_prep(m as usize),
             TaskKind::Body(m) => self.body(m as usize),
             TaskKind::ModuleFinish(m) => self.module_finish(m as usize),
             TaskKind::PackageResult => self.package_result(sp),
@@ -3758,7 +3753,12 @@ impl Run<'_> {
         }
         let mut c = lock(&self.counters);
         *c.tasks.entry(kind.name()).or_default() += 1;
-        *c.stage_ns.entry(kind.name()).or_default() += self.host.clock.now_ns().saturating_sub(t0);
+        *c.stage_ns.entry(kind.name()).or_default() += self
+            .host
+            .clock
+            .now_ns()
+            .saturating_sub(t0)
+            .saturating_sub(child_ns);
     }
 
     /// Records a stage's answer. A "not implemented" answer is counted and
@@ -4084,10 +4084,7 @@ impl Run<'_> {
         }
         let pr = sp.add_held(TaskKind::PackageResult, &[]);
         let order = graph.order.clone();
-        let _ = self.graph.set(GraphOut {
-            graph,
-            package_result: pr,
-        });
+        let _ = self.graph.set(GraphOut { graph });
         let g = &self.graph.get().expect("set above").graph;
         // The earlier REPL inputs are the session's, read here: they get
         // no task, so a build's tasks do not grow with the session.
@@ -4171,8 +4168,8 @@ impl Run<'_> {
             prep_task[m] = Some(prep);
         }
         // A REPL input's bodies read the earlier inputs' bindings from their
-        // `check` entries: its `ModulePrep` waits for theirs, which name the
-        // task that reads each entry (`check_task`). An edge from the input
+        // `check` entries: its `ModulePrep` waits for theirs to finish
+        // checking and publishing. An edge from the input
         // just before is enough, since that one waits for the one before
         // it; an input read from the session has no task.
         let preps: Vec<TaskId> = self
@@ -6302,27 +6299,19 @@ impl Run<'_> {
         Some(out.into_iter().collect())
     }
 
-    /// `ModulePrep(m)`: look up the optional policy-free `lint` result and
-    /// the ordinary `check` entry. Only a missing required result lowers
-    /// headers and creates `Body(m)` and `ModuleFinish(m)`
-    /// (`crates/hd_sched/DESIGN.md` §6.1).
-    fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
-        let mi = m as usize;
-        let body = self.module_prep_now(id, mi, sp);
-        let _ = self.check_task[mi].set(body.unwrap_or(id));
-    }
-
-    /// `module_prep`; the module's `ModuleFinish` task when it checks
-    /// the module's bodies.
-    fn module_prep_now(&self, id: TaskId, mi: usize, sp: &dyn Spawn) -> Option<TaskId> {
-        let m = u32_of(mi);
+    /// A module's cache claim covers its complete check and put on this
+    /// worker. Yielding between preparation, bodies and that put lets it
+    /// wait for another module while holding this one's claim (#1981).
+    /// Modules still run in parallel, as do independent bodies within one.
+    /// Returns Body/Finish time to exclude from Prep's stage attribution.
+    fn module_prep(&self, mi: usize) -> u64 {
         let Some(key) = self.check_key(mi) else {
             for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
                 self.blocked(s);
             }
             let _ = self.prep[mi].set(None);
             let _ = self.check[mi].set(None);
-            return None;
+            return 0;
         };
         lock(&self.counters)
             .check_keys
@@ -6355,7 +6344,7 @@ impl Run<'_> {
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
             let _ = self.prep[mi].set(None);
-            return None;
+            return 0;
         }
         let mut scratch = DiagBuf::default();
         let lowered = self
@@ -6366,7 +6355,7 @@ impl Run<'_> {
             self.blocked(Stage::ModuleFinish);
             let _ = self.prep[mi].set(None);
             let _ = self.check[mi].set(None);
-            return None;
+            return 0;
         };
         // The scratch holds what the module's uses report, which the
         // folder's `HeaderCheck` reports to the user.
@@ -6380,21 +6369,22 @@ impl Run<'_> {
             use_errors,
             blocks,
         }));
-        let pr = self.graph.get().map(|g| g.package_result)?;
-        // A REPL input's bodies read the bindings of `src/lib.hd`, when its
-        // session holds it, and of the earlier inputs.
-        let deps: Vec<TaskId> = std::iter::once(id)
-            .chain(
-                self.session_lib(mi)
-                    .into_iter()
-                    .chain(self.earlier_inputs(mi).iter().map(|&(_, k)| k))
-                    .filter_map(|k| self.check_task[k].get().copied()),
-            )
-            .collect();
-        let body = sp.add(TaskKind::Body(m), &deps);
-        let finish = sp.add(TaskKind::ModuleFinish(m), &[body]);
-        sp.edge(finish, pr);
-        Some(finish)
+        // REPL inputs already depend on the previous input's ModulePrep
+        // and their library's ModulePrep. Those tasks now finish their
+        // checks before returning, so all session bindings are ready here.
+        // Preserve stage attribution although these stages no longer
+        // need scheduler nodes. The caller excludes their time from Prep.
+        let t0 = self.host.clock.now_ns();
+        self.body(mi);
+        let t1 = self.host.clock.now_ns();
+        self.module_finish(mi);
+        let t2 = self.host.clock.now_ns();
+        let body_ns = t1.saturating_sub(t0);
+        let finish_ns = t2.saturating_sub(t1);
+        let mut counters = lock(&self.counters);
+        *counters.stage_ns.entry("Body").or_default() += body_ns;
+        *counters.stage_ns.entry("ModuleFinish").or_default() += finish_ns;
+        body_ns.saturating_add(finish_ns)
     }
 
     /// Whether a module this run parsed has a parse diagnostic. A scan
