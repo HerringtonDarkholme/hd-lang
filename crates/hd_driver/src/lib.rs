@@ -9881,19 +9881,20 @@ impl Run<'_> {
             !kept_module(m) && self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some()
         };
         // The init groups each root module reaches, in order, and their union.
+        // Each list keeps first-reach order and a set answers membership,
+        // so the groups cost the inits they list, not that times the
+        // roots or the inits seen.
         let mut root_modules: Vec<String> = Vec::new();
+        let mut seen_modules: HashSet<&str> = HashSet::default();
         for (_, m) in &roots {
-            let m = if m.is_empty() {
-                entry_key.clone()
-            } else {
-                m.clone()
-            };
-            if !root_modules.contains(&m) {
-                root_modules.push(m);
+            let m = if m.is_empty() { &entry_key } else { m };
+            if seen_modules.insert(m.as_str()) {
+                root_modules.push(m.clone());
             }
         }
         let mut per_module: Vec<Vec<DefId>> = Vec::new();
         let mut all_inits: Vec<DefId> = Vec::new();
+        let mut seen_inits: HashSet<DefId> = HashSet::default();
         // The entry module's own init bodies, in order: its whole init, or
         // one body per run when its module cycle's statements split it.
         // Only they may `block_on`, and a script runs them with its entry
@@ -9913,6 +9914,8 @@ impl Run<'_> {
             }
         };
         all_inits.extend(&runtime_inits);
+        seen_inits.extend(runtime_inits.iter().copied());
+        let runtime_set: HashSet<DefId> = runtime_inits.iter().copied().collect();
         for m in &root_modules {
             let defs = match self.root_init_order(m, &init_of, &has_init) {
                 Ok(o) => o,
@@ -9925,7 +9928,7 @@ impl Run<'_> {
                 order.clone_from(&defs);
             }
             for (d, module) in &defs {
-                if !all_inits.contains(d) {
+                if seen_inits.insert(*d) {
                     all_inits.push(*d);
                     if *module == entry_key {
                         own.push(*d);
@@ -9939,7 +9942,7 @@ impl Run<'_> {
                     .chain(
                         defs.into_iter()
                             .map(|(d, _)| d)
-                            .filter(|d| !runtime_inits.contains(d)),
+                            .filter(|d| !runtime_set.contains(d)),
                     )
                     .collect(),
             );
@@ -10442,19 +10445,16 @@ impl Run<'_> {
     /// numbers for `hd.test(i, ctx)` and `hd.test.init(j)`, in the order
     /// `collect` roots them.
     fn test_cases(&self) -> Vec<TestCase> {
-        let mut modules: Vec<usize> = Vec::new();
+        // Each module's init number, by its first running case.
+        let mut modules: HashMap<usize, u32> = HashMap::default();
         let mut next = 0u32;
         let mut out = Vec::new();
         for (m, r) in self.test_plan() {
             let run = if r.body.is_some() && r.ignore.is_none() {
-                let j = if let Some(j) = modules.iter().position(|x| *x == m) {
-                    j
-                } else {
-                    modules.push(m);
-                    modules.len() - 1
-                };
+                let fresh = u32_of(modules.len());
+                let j = *modules.entry(m).or_insert(fresh);
                 next += 1;
-                Some((next - 1, u32_of(j)))
+                Some((next - 1, j))
             } else {
                 None
             };
@@ -11112,24 +11112,27 @@ impl Run<'_> {
                 cases: cases.clone(),
                 inits: inits.clone(),
                 runtime_inits: {
+                    // One pass over the instance table for the inits the
+                    // groups name, not a scan of it per init.
                     let table = &c.collected.table;
                     let runtime = names.module("std.rt");
-                    inits
+                    let wanted: HashSet<Hash128> = inits.iter().flatten().copied().collect();
+                    table
+                        .key
                         .iter()
-                        .flatten()
-                        .copied()
-                        .filter(|k| {
-                            table.key.iter().position(|x| x == k).is_some_and(|i| {
-                                let mut module = names.module_node(table.item[i]);
-                                while module.get().is_some() {
-                                    if module == runtime {
-                                        return true;
-                                    }
+                        .zip(&table.item)
+                        .filter(|(k, item)| {
+                            wanted.contains(k) && {
+                                let mut module = names.module_node(**item);
+                                let mut inside = false;
+                                while module.get().is_some() && !inside {
+                                    inside = module == runtime;
                                     module = names.paths.parent(module);
                                 }
-                                false
-                            })
+                                inside
+                            }
                         })
+                        .map(|(k, _)| *k)
                         .collect()
                 },
             },
