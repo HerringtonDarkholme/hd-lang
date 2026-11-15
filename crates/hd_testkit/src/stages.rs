@@ -867,10 +867,17 @@ pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
 
 /// The `stdout` view's text of a run: its exit status, then each
 /// non-empty stream.
+///
+/// A checked build's stderr ends with the `cycles freed:` summary only
+/// when the `checked-report` cargo feature is on. CI's workspace test
+/// enables it through `hd_cli`, and `cargo test -p <crate>` does not, so the
+/// line is left out: a baseline never depends on feature unification.
+/// Leaks and double frees still fail the checked run itself.
 #[must_use]
 pub fn shown_run(exit: &str, stdout: &[u8], stderr: &[u8]) -> String {
     let mut out = format!("exit: {exit}\n");
-    for (name, bytes) in [("stdout", stdout), ("stderr", stderr)] {
+    let stderr = without_cycle_report(stderr);
+    for (name, bytes) in [("stdout", stdout), ("stderr", &stderr[..])] {
         let text = String::from_utf8_lossy(bytes);
         if !text.is_empty() {
             let _ = writeln!(out, "-- {name}");
@@ -881,6 +888,16 @@ pub fn shown_run(exit: &str, stdout: &[u8], stderr: &[u8]) -> String {
         }
     }
     out
+}
+
+/// `stderr` without the checked report's `cycles freed:` lines.
+fn without_cycle_report(stderr: &[u8]) -> Vec<u8> {
+    stderr
+        .split_inclusive(|&b| b == b'\n')
+        .filter(|line| !line.starts_with(b"cycles freed: "))
+        .flatten()
+        .copied()
+        .collect()
 }
 
 /// The output of view `name` for `p` built as `build`, or `None` for a
@@ -1196,7 +1213,29 @@ fn run_case(
 
 #[cfg(test)]
 mod tests {
-    use super::{Build, Program, diff, parse, tokens};
+    use super::{Build, Program, diff, parse, shown_run, tokens};
+
+    #[test]
+    fn a_run_shows_the_same_text_with_and_without_the_checked_report() {
+        let report = "cycles freed: 0 closure envs, 0 local cells, 0 frames, 0 waker/all nodes, 0 list/map buffers, 0 list/map headers, 0 objects\n";
+        // Only the report on stderr: no stderr section at all.
+        assert_eq!(
+            shown_run("0", b"hi\n", report.as_bytes()),
+            shown_run("0", b"hi\n", b"")
+        );
+        // A panic's own stderr stays, around the report.
+        let with = format!("panic: boom\n{report}");
+        assert_eq!(
+            shown_run("101", b"", with.as_bytes()),
+            "exit: 101\n-- stderr\npanic: boom\n"
+        );
+        // A line that only mentions the words is program output.
+        let text = b"no cycles freed: here\n";
+        assert_eq!(
+            shown_run("0", b"", text),
+            "exit: 0\n-- stderr\nno cycles freed: here\n"
+        );
+    }
 
     #[test]
     fn headers_select_dumps_builds_and_modules() {
