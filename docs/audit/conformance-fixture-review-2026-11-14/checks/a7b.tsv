@@ -96,7 +96,7 @@ runtime/valid/debug-tuple-rest.hd	A7b	lost '' gained ',,,'	lang/09-traits.md#r-t
 runtime/valid/deep-recursive-release.hd	A7b	lost '' gained ',,'	lang/13-values-and-references.md#r-ref.expr.allocate
 runtime/valid/default-constant-specialization.hd	A7b	lost '' gained ','	lang/07-functions.md#r-fn.default.observable-effects
 runtime/valid/default-method-conflict-inherent-resolves.hd	A7b	lost '' gained ','	lang/09-traits.md#default-method-conflicts
-runtime/valid/default-standard-types.hd	A7b	lost '' gained ','	std/ops.md#standard-implementations
+std/ops/default-trait/default-standard-types.hd	A7b	lost '' gained ','	std/ops.md#standard-implementations
 runtime/valid/defaults-run-in-declaration-order-after-every-explicit-argument.hd	A7b	lost '' gained ','	lang/07-functions.md#default-values
 names/binding-expressions/definite-init-diverging-branch.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#r-names.definite.diverging
 std/collections/heap/deque-heap-collect.hd	A7b	lost '' gained ',,'	std/collections.md#r-std-collections.heap.collect.linear
@@ -106,14 +106,14 @@ annotations/typed-derivation/derivation-blocks/derivation-block-generic-header.h
 annotations/typed-derivation/derivation-blocks/derivation-block-member-lines.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.block.lines
 annotations/typed-derivation/derivation-blocks/derivation-block-not-delegation.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#r-annot.block.not-delegation
 annotations/typed-derivation/derivation-blocks/derivation-block-written-method.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.block.methods
-runtime/valid/derive-default-beside-serialize.hd	A7b	lost '' gained ','	std/ops.md#r-std-ops.default.derive.source-fact
+std/ops/derived-default/derive-default-beside-serialize.hd	A7b	lost '' gained ','	std/ops.md#r-std-ops.default.derive.source-fact
 annotations/typed-derivation/derived-bounds/derive-keeps-declared-parameter-bounds.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.bound.declared
 runtime/valid/derive-members-of-data-and-enums.hd	A7b	lost '' gained ',,,'	lang/08-data-and-enums.md#typed-derivation-of-data-and-enums
 runtime/valid/derived-arbitrary-no-finite-data.hd	A7b	lost '' gained ','	std/testing.md#r-std-testing.arbitrary.derive.no-finite.data
 runtime/valid/derived-arbitrary-no-finite-value.hd	A7b	lost '' gained ',,'	std/testing.md#r-std-testing.arbitrary.derive.no-finite
 runtime/valid/derived-arbitrary-with.hd	A7b	lost '' gained ',,'	std/testing.md#r-std-testing.arbitrary.with.capture-free
 runtime/valid/derived-debug-newtype.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.derive.newtype.templated
-runtime/valid/derived-default-enum.hd	A7b	lost '' gained ','	std/ops.md#r-std-ops.default.derive.enum
+std/ops/derived-default/derived-default-enum.hd	A7b	lost '' gained ','	std/ops.md#r-std-ops.default.derive.enum
 runtime/valid/derived-eq-every-member.hd	A7b	lost '' gained ',,,,,'	lang/09-traits.md#r-trait.derive.cmp-every-member
 std/cmp/derived-equality/derived-equality-members.hd	A7b	lost '' gained '(),,'	std/cmp.md#r-std-cmp.derive.eq.compare-fields
 std/cmp/derived-ordering/derived-ordering-run.hd	A7b	lost '' gained ',,,,,,,,,'	std/cmp.md#r-std-cmp.derive.ord.data

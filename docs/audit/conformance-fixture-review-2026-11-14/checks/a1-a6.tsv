@@ -419,7 +419,7 @@ typing/invalid/tuple-template-bounds-an-unbounded-generic-member-is-no-map-key.h
 typing/invalid/tuple-template-bounds-an-unbounded-generic-member-is-no-map-key.hd	A3	typing/invalid/tuple-template-bounds-a-rest-list-of-floats-is-no-map-key.hd
 typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-map-key.hd	A3	typing/invalid/tuple-template-bounds-a-rest-list-of-floats-is-no-map-key.hd
 typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-map-key.hd	A3	typing/invalid/tuple-template-bounds-an-unhashable-data-member-is-no-map-key.hd
-typing/invalid/tuple-default-a-fixed-element-without-default-fails-the-bound-and-a-rest-list-meets-it.hd	A3	typing/invalid/default-tuple-element-without-default.hd
+std/ops/default-trait/tuple-default-a-fixed-element-without-default-fails-the-bound-and-a-rest-list-meets-it.hd	A3	std/ops/default-trait/default-tuple-element-without-default.hd
 typing/invalid/bounds-a-parameter-type-whose-default-copies-an-unmet-argument-reports-one-bound-error.hd	A3	typing/invalid/bounds-a-field-type-whose-default-copies-an-unmet-argument-reports-one-bound-error.hd
 names/name-categories/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-one-argument-is-a-type-used-as-a-value.hd
 names/name-categories/type-name-forms-a-struct-called-with-no-arguments-is-a-type-used-as-a-value.hd	A3	names/name-categories/type-name-forms-a-struct-called-with-two-arguments-is-a-type-used-as-a-value.hd
@@ -719,7 +719,7 @@ typing/invalid/const-evaluation-unary-plus-takes-an-integer.hd	A3	typing/invalid
 typing/invalid/const-evaluation-complements-no-boolean.hd	A3	typing/invalid/const-evaluation-compares-operands-of-one-type.hd
 typing/invalid/const-evaluation-complements-no-boolean.hd	A3	typing/invalid/const-evaluation-not-takes-a-boolean.hd
 typing/invalid/const-evaluation-compares-operands-of-one-type.hd	A3	typing/invalid/const-evaluation-not-takes-a-boolean.hd
-typing/valid/derive-default-an-enum-marking-one-variant-default-is-valid.hd	A3	typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd
+std/ops/derived-default/derive-default-an-enum-marking-one-variant-default-is-valid.hd	A3	std/ops/derived-default/derive-default-an-enum-without-the-derive-marks-no-variant.hd
 typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-function-value-argument-reads-an-earlier-binding.hd
 typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-reads-an-earlier-binding.hd
 typing/valid/module-initialization-a-function-value-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-bound-method-value-argument-reads-an-earlier-binding.hd

@@ -1522,10 +1522,10 @@ std/num/radix-text/num-radix-text.hd	accept	std/num.md#r-std-num.radix.round-tri
 std/num/wrapping-arithmetic/num-wrapping-mul.hd	accept	std/num.md#r-std-num.wrapping.mul	-8	
 std/num/rotation/num-rotate.hd	accept	std/num.md#rotation	-4	
 std/num/saturating-arithmetic/num-saturating.hd	accept	std/num.md#saturating-arithmetic	-4	
-runtime/valid/derived-default-enum.hd	accept	std/ops.md#r-std-ops.default.derive.enum	-4	
-runtime/valid/derive-default-beside-serialize.hd	accept	std/ops.md#r-std-ops.default.derive.source-fact	-4	
-runtime/valid/void-unit-void-has-the-tuple-template-impls.hd	accept	std/ops.md#r-std-ops.default.std.tuple.any-size	-1	
-runtime/valid/default-standard-types.hd	accept	std/ops.md#standard-implementations	-4	
+std/ops/derived-default/derived-default-enum.hd	accept	std/ops.md#r-std-ops.default.derive.enum	-4	
+std/ops/derived-default/derive-default-beside-serialize.hd	accept	std/ops.md#r-std-ops.default.derive.source-fact	-4	
+std/ops/default-trait/void-unit-void-has-the-tuple-template-impls.hd	accept	std/ops.md#r-std-ops.default.std.tuple.any-size	-1	
+std/ops/default-trait/default-standard-types.hd	accept	std/ops.md#standard-implementations	-4	
 runtime/valid/option-and-then.hd	accept	std/option.md#r-std-option.and-then	-8	
 runtime/valid/path-operations.hd	accept	std/path.md#path-operations	-16	
 runtime/valid/path-stem-with-extension.hd	accept	std/path.md#path-operations	-72	

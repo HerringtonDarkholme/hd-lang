@@ -821,8 +821,8 @@ b160	std/num/float-parsing/number-text-properties.hd	FIX	B8	Expects usize 429496
 b160	std/num/integer-parsing/num-parse-byte-reader-matches-scalar-reader.hd	FIX	B8	old_usize bounds at 4294967295 (line 145) disagree with the new usize reader on edge text 4294967296 on 64-bit targets; depends on target width.
 b160	std/num/integer-parsing/num-parse-unsigned.hd	FIX	B8	Line 77-80 expects usize 4294967296 out of range, true only on Wasm32; native 64-bit usize parses it. Pin the width or drop the usize row.
 b160	std/num/wrapping-arithmetic/num-wrapping-mul.hd	FIX	B8	usize top.wrapping_mul(top) (line 86) expects 1, the 32-bit result; on 64-bit it is 18446744065119617025. Target-dependent.
-b160	typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd	FIX	B1	Has no @derive(Default) and no @default, so it exercises nothing its title and spec cite; merge into -181 or delete.
-b160	typing/valid/derive-default-a-field-with-a-declared-default-needs-no-default-impl.hd	MERGE	C1	Same Secret/declared-default shape as runtime/valid/derived-default-declared-no-bound.hd, same rule; keep one, the runtime one runs it.
+b160	std/ops/derived-default/derive-default-an-enum-without-the-derive-marks-no-variant.hd	FIX	B1	Has no @derive(Default) and no @default, so it exercises nothing its title and spec cite; merge into -181 or delete.
+b160	std/ops/derived-default/derive-default-a-field-with-a-declared-default-needs-no-default-impl.hd	MERGE	C1	Same Secret/declared-default shape as std/ops/derived-default/derived-default-declared-no-bound.hd, same rule; keep one, the runtime one runs it.
 b162	runtime/valid/rng-int-generic.hd	MERGE	C1	Lines 48-53 repeat rng-int-range.hd lines 7-12 exactly (Rng::new(7), 0..10, same draws); same rule, same expectation, keep one.
 b163	typing/invalid/serde-map-key-payload-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the payload rule. Use a MapKeyPayload member type, e.g. string.
 b163	typing/invalid/serde-map-key-struct-member-derive.hd	FIX	B2	Error comes from i32 lacking MapKeyPayload, not the struct-member rule. Use a MapKeyPayload member type, e.g. string.

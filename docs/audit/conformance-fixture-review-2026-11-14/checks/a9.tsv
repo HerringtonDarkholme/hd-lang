@@ -178,7 +178,7 @@ typing/invalid/a-generic-row-impl-overlaps-a-later-concrete-row-impl.hd	A9	rejec
 typing/invalid/private-requirement-row.hd	A9	reject:private-type-leak not mentioned in cited lang/10-modules.md#public-uses-and-visibility
 lexical/comments/doc-comment-without-target.hd	A9	reject:doc-comment-without-target not mentioned in cited lang/01-lexical-structure.md#comments
 typing/invalid/the-stored-value-must-fit-the-update-impl.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/05-expressions.md#callable-values
-typing/invalid/using-scope-guard-missing-row.hd	A9	reject:missing-requirement not mentioned in cited std/ops.md#scope-guards
+std/ops/scope-guards/using-scope-guard-missing-row.hd	A9	reject:missing-requirement not mentioned in cited std/ops.md#scope-guards
 runtime/panic/assert-equal-without-reason.hd	A9	panic:assertion-failed not mentioned in cited lang/10-modules.md#r-module.testing.assertions.reason-empty
 typing/invalid/init-read-through-generic-bound.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/init-read-through-trait-value.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
