@@ -113,9 +113,9 @@ function walk(directory: string): string[] {
     // The inputs of a CLI case (cli/NAME) are indexed by cli-cases.tsv, below.
     {
       return ["lang", "std"].some(
-          (tier) =>
-            path === join(conformance, tier, "packages") || path === join(conformance, tier, "trees"),
-        ) || path === join(conformance, "cli")
+        (tier) =>
+          path === join(conformance, tier, "packages") || path === join(conformance, tier, "trees"),
+      ) || path === join(conformance, "cli")
         ? []
         : walk(path);
     }

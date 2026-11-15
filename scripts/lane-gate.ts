@@ -410,7 +410,10 @@ const cliCaseRule: Rule = (ctx) => {
 };
 
 const conformanceRule: Rule = (ctx) => {
-  const fixtures = captures(ctx, /^spec\/conformance\/(?!cli\/|(?:lang|std)\/(?:trees|packages)\/).*?([^/]+)\.hd$/);
+  const fixtures = captures(
+    ctx,
+    /^spec\/conformance\/(?!cli\/|(?:lang|std)\/(?:trees|packages)\/).*?([^/]+)\.hd$/,
+  );
   const cases = [ctx.named, ...fixtures]
     .join(",")
     .replace(/(^|,)none(?=,|$)/g, "$1")
