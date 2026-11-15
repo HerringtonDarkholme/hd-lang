@@ -497,7 +497,10 @@ obj/
   Each of these misses returns a guard (`Run::lookup_owed`) that
   abandons the claim when it drops, so a computation that stops before
   its put, on an internal stop or a key it no longer puts, ends its claim
-  on that return (#2021). The package graph's claim passes to its part
+  on that return (#2021). A command's deferred store that publishes
+  after a contested miss reads the key again; when that read hits, the
+  entry another run published meanwhile stands, no put follows, and the
+  store ends the first read's claim there (#2037). The package graph's claim passes to its part
   tasks, and the last part ends it, with or without the put.
   `DeferredStore::abandon` keeps the claim of an entry that is put and
   waits for publication.

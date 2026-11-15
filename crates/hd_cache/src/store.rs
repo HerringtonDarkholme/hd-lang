@@ -234,6 +234,25 @@ impl<S: CacheStore> DeferredStore<S> {
             .collect::<Vec<_>>();
         self.inner.put_many(&entries);
     }
+
+    /// The second read of a miss, after this store published: the first
+    /// read may have claimed the key, and the caller computes and puts
+    /// only on a miss. On a hit another run published the entry in
+    /// between, so no put follows and the claim ends here (#2037): a
+    /// claim nobody completes would stay held by a finished task, which a
+    /// later wait on this thread would hold across that wait. Cost: one
+    /// claim lookup per contested miss that hits on the second read.
+    fn read_again(
+        &self,
+        found: Option<Arc<[u8]>>,
+        kind: EntryKind,
+        key: &Hash128,
+    ) -> Option<Arc<[u8]>> {
+        if found.is_some() {
+            self.inner.abandon(kind, key);
+        }
+        found
+    }
 }
 
 impl<S: CacheStore> Drop for DeferredStore<S> {
@@ -251,7 +270,7 @@ impl<S: CacheStore> CacheStore for DeferredStore<S> {
         let found = self.inner.get(kind, key);
         if found.is_none() && self.inner.flush_requested() {
             self.publish();
-            return self.inner.get(kind, key);
+            return self.read_again(self.inner.get(kind, key), kind, key);
         }
         found
     }
@@ -262,7 +281,7 @@ impl<S: CacheStore> CacheStore for DeferredStore<S> {
         let found = self.inner.get_claimed(kind, key);
         if found.is_none() && self.inner.flush_requested() {
             self.publish();
-            return self.inner.get_claimed(kind, key);
+            return self.read_again(self.inner.get_claimed(kind, key), kind, key);
         }
         found
     }

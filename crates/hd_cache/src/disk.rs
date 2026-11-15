@@ -5999,6 +5999,71 @@ mod packed {
             assert!(!store.claims(EntryKind::Parse, &Hash128(9)));
         }
 
+        /// A deferred store's second read of a contested miss, made after
+        /// it publishes, can hit an entry another run published in between.
+        /// No put follows that hit, so the first read's claim ends there
+        /// (#2037). Before, the finished task kept the claim, and the next
+        /// wait on its thread held it: a debug `hd check` stopped at
+        /// "waiting for a claim while holding ...".
+        #[test]
+        fn a_miss_that_hits_after_its_flush_ends_its_claim() {
+            /// The disk store, with the peer publishing the key at the
+            /// moment the deferred store asks whether to flush.
+            struct PeerPublishesAtFlush {
+                disk: DiskStore,
+                peer: Store,
+            }
+            impl crate::CacheStore for PeerPublishesAtFlush {
+                fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+                    self.disk.get(kind, key)
+                }
+                fn get_claimed(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+                    self.disk.get_claimed(kind, key)
+                }
+                fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+                    self.disk.put(kind, key, bytes);
+                }
+                fn touch(&self, kind: EntryKind, key: &Hash128) {
+                    self.disk.touch(kind, key);
+                }
+                fn flush_requested(&self) -> bool {
+                    let asked = self.disk.flush_requested();
+                    if asked {
+                        self.peer.publish(&[item(1, b"peer")]).unwrap();
+                    }
+                    asked
+                }
+                fn abandon(&self, kind: EntryKind, key: &Hash128) {
+                    self.disk.abandon(kind, key);
+                }
+                fn claims(&self, kind: EntryKind, key: &Hash128) -> bool {
+                    self.disk.claims(kind, key)
+                }
+            }
+            // Both reads that claim a miss: `get` and `get_claimed`.
+            for claimed in [false, true] {
+                let root = scratch(&format!("claim-hit-after-flush-{claimed}"));
+                let peer = Store::new(&root);
+                drop(peer.join());
+                let store = crate::DeferredStore::new(PeerPublishesAtFlush {
+                    disk: DiskStore::new(root).with_claims(),
+                    peer,
+                });
+                // An entry waits for publication, so the flush publishes
+                // and reads the index again. The first read finds the
+                // peer, asks for that flush and claims the miss; the
+                // second read hits the entry the peer published meanwhile.
+                store.put(EntryKind::Check, &Hash128(2), b"own");
+                let read = if claimed {
+                    store.get_claimed(EntryKind::Check, &Hash128(1))
+                } else {
+                    store.get(EntryKind::Check, &Hash128(1))
+                };
+                assert_eq!(read.as_deref(), Some(b"peer".as_slice()));
+                assert!(!store.claims(EntryKind::Check, &Hash128(1)));
+            }
+        }
+
         /// A holder killed before it publishes releases the run waiting for
         /// it: the system drops its lock, and the waiter computes.
         #[test]
