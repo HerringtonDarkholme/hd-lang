@@ -24,7 +24,7 @@ export interface PackageTree {
 }
 
 const directive = /^# (?:fixture-[a-z-]+|expect|expect-stdout|expect-empty-stdout):/;
-const marker = /^#\s*(diagnostic|warning|panic):\s*([a-z0-9-]+)/;
+const marker = /^#\s*(diagnostic|panic):\s*([a-z0-9-]+)/;
 
 /** Splits code from comments across the lines of one fixture. */
 export class CommentScanner {

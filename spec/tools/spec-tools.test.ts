@@ -926,3 +926,59 @@ test("a panic marker on a call of the fixture's own function is caught", () => {
   // An unbalanced call is no call.
   assert.equal(flagged(`${remainder}remainder(1, 0 # panic: explicit-panic\n`), undefined);
 });
+
+test("the fixture index rejects a warning expectation and a warning marker", async () => {
+  const spec = await mkdtemp(join(tmpdir(), "fixture-index-"));
+  try {
+    const conformance = join(spec, "conformance");
+    for (const directory of ["lang/trees", "std/trees", "cli", "lang/x"]) {
+      await mkdir(join(conformance, directory), { recursive: true });
+    }
+    await writeFile(join(spec, "README.md"), "| Error | `type-mismatch` |\n");
+    await mkdir(join(spec, "lang"));
+    await writeFile(join(spec, "lang/06-control-flow.md"), "");
+    await writeFile(join(spec, "lang/04-type-system.md"), "");
+    await mkdir(join(spec, "cli"));
+    await writeFile(join(spec, "cli/command-line.md"), "");
+    await writeFile(join(conformance, "cli-cases.tsv"), "case\trules\n");
+    await writeFile(join(conformance, "examples.tsv"), "specification\tblock\tclass\tfixtures\n");
+    const cited = "lang/04-type-system.md#r-types.x";
+    await writeFile(join(conformance, "lang/x/warn.hd"), "x := 1 # warning: unused-binding\n");
+    await writeFile(join(conformance, "lang/x/marked.hd"), "y := 2 # warning: unused-binding\n");
+    await writeFile(
+      join(conformance, "lang/x/reject.hd"),
+      'z: i32 = "" # diagnostic: type-mismatch\n',
+    );
+    await writeFile(
+      join(conformance, "cases.tsv"),
+      [
+        "path\tphase\texpectation\tspecification",
+        `lang/x/warn.hd\ttype\twarn:unused-binding\t${cited}`,
+        `lang/x/marked.hd\ttype\taccept\t${cited}`,
+        `lang/x/reject.hd\ttype\treject:type-mismatch\t${cited}`,
+        "",
+      ].join("\n"),
+    );
+    let stderr = "";
+    try {
+      execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", resolve(SPEC_ROOT, "check-fixture-index.ts"), spec],
+        { stdio: "pipe" },
+      );
+    } catch (error) {
+      stderr = String((error as { stderr: Buffer }).stderr);
+    }
+    const problems = stderr
+      .split("\n")
+      .filter((line) => line !== "")
+      .map((line) => line.replace("spec check failed: ", ""));
+    assert.deepEqual(problems, [
+      "fixture lang/x/warn.hd declares a # warning: marker; test a lint in its cli/lint-* case",
+      "fixture lang/x/warn.hd expects a warning; test a lint in its cli/lint-* case",
+      "fixture lang/x/marked.hd declares a # warning: marker; test a lint in its cli/lint-* case",
+    ]);
+  } finally {
+    await rm(spec, { recursive: true, force: true });
+  }
+});

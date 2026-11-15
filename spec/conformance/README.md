@@ -35,7 +35,7 @@ Inside `lang/` and `std/`, fixtures live in topic folders, as the stage
 tests under `crates/` do. A folder is one topic of the specification: a
 chapter, such as `lang/traits/` or `std/json/`, then a section or rule
 family inside it, such as `lang/traits/bounds/`. The topic comes from what the case tests and the rule its
-row cites. Accept, reject, warning and panic cases of one topic sit
+row cites. Accept, reject and panic cases of one topic sit
 together.
 
 A folder that grows past what a reader can scan splits by sub-topic.
@@ -144,13 +144,15 @@ language. There are two forms:
   Each appears at most once per fixture, except `# expect-stdout:`, which
   may repeat.
 - **Line markers** end a source line, in the form `# KIND: CODE`. `KIND` is
-  `diagnostic`, `warning`, or `panic`, and `CODE` matches `[a-z0-9-]+`,
+  `diagnostic` or `panic`, and `CODE` matches `[a-z0-9-]+`,
   followed by optional trailing whitespace and the line end. The marker names
   the source line it ends.
 
-A reject, warn, or panic fixture has exactly one line marker. An accept
+A reject or panic fixture has exactly one line marker. An accept
 fixture has none. `spec/check.sh` enforces both rules, and rejects any header
-directive not listed below.
+directive not listed below. A warning is no case's expectation: a lint
+finding is tested by the `cli/lint-*` case of its lint, so `spec/check.sh`
+rejects a `# warning:` marker and a `warn:` expectation.
 
 A panic marker sits on the line that raises the panic, inside the function
 that raises it, not on the call that reaches that function. `spec/check.sh`
@@ -166,7 +168,6 @@ names the call site ([`fn.caller.frames`](../lang/07-functions.md#r-fn.caller.fr
 | Directive                                   | Form        | Meaning |
 | ------------------------------------------- | ----------- | ------- |
 | `# diagnostic: CODE`                        | line marker | The case's error category, reported on this line. `CODE` is in an Error row of [the diagnostic table](../README.md#diagnostics). |
-| `# warning: CODE`                           | line marker | The case's warning category, reported on this line. `CODE` is in the Warning row. |
 | `# panic: CODE`                             | line marker | The case's panic category, raised by this line. `CODE` is a stable category from [Runtime Panics](../lang/06-control-flow.md#runtime-panics). |
 | `# test: NAME`                              | header      | Optional human-readable name. Cases are identified by path, never by name. |
 | `# expect: parse`, `accept`, or `test`      | header      | Optional restatement of a `parse`, `type`, or `runtime` accept case. If present, it must agree with `cases.tsv`. |
@@ -188,7 +189,7 @@ tab-separated fields:
 
 - `path`: the fixture path relative to this directory;
 - `phase`: `parse`, `type`, or `runtime`;
-- `expectation`: `accept`, `reject:CODE`, `warn:CODE`, or `panic:CODE`. For a
+- `expectation`: `accept`, `reject:CODE`, or `panic:CODE`. For a
   marked fixture, it equals the marker kind (`diagnostic` is written
   `reject`) and code;
 - `specification`: the one primary section, as `lang/NN-chapter.md#anchor`, or
@@ -275,7 +276,6 @@ fixture's directives select, and `check` always receives `--tests` (see
 | `parse`   | `reject:CODE` | `parse FILE`                   | exit 101, a located `CODE` on the marker line, and no other located error |
 | `type`    | `accept`      | `check FILE`                   | exit 0 (warnings allowed) |
 | `type`    | `reject:CODE` | `check FILE`                   | exit 101, a located error `CODE` on the marker line, and no other located error |
-| `type`    | `warn:CODE`   | `check FILE`                   | exit 0, and a located warning `CODE` on the marker line |
 | `runtime` | `accept`      | `check FILE`, then `test FILE` or the entry run | both exit 0 |
 | `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
 | `runtime` | `accept` with `# expect-empty-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the last writes no standard output |
@@ -582,7 +582,7 @@ and `PATH`.
 
 A tree case differs from the Judging a Case table in two points:
 
-- **Codes, not lines.** A located error or warning in any file of the tree
+- **Codes, not lines.** A located error in any file of the tree
   counts for the marker, whatever its line, as a panic's line is not judged.
   A rule about several files, such as a loop of folders, does not say which
   file reports it. The marker documents one intended line.

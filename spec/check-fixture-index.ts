@@ -36,7 +36,10 @@ function fixture(path: string): string | undefined {
 
 const readme = readFileSync(join(specDir, "README.md"), "utf8");
 const controlFlow = readFileSync(join(specDir, "lang/06-control-flow.md"), "utf8");
-const marker = /# (diagnostic|warning|panic): [a-z0-9-]+[ \t]*$/;
+const marker = /# (diagnostic|panic): [a-z0-9-]+[ \t]*$/;
+// A warning is no case's expectation (#1952): a lint finding is tested by
+// the cli/lint-* case of its lint.
+const warningMarker = /# warning: [a-z0-9-]+[ \t]*$/;
 
 // cases.tsv
 const [header, ...cases] = readRows(join(conformance, "cases.tsv"));
@@ -60,6 +63,9 @@ for (const row of cases) {
   indexed.push({ path, phase, expectation, text });
   const lines = text.split("\n");
   const markers = lines.filter((line) => marker.test(line)).length;
+  if (lines.some((line) => warningMarker.test(line))) {
+    fail(`fixture ${path} declares a # warning: marker; test a lint in its cli/lint-* case`);
+  }
   if (!["parse", "type", "runtime"].includes(phase)) {
     fail(`unknown phase '${phase}' for ${path}`);
   }
@@ -67,10 +73,12 @@ for (const row of cases) {
     if (markers !== 0) {
       fail(`accept fixture ${path} declares an error marker`);
     }
-  } else if (/^(reject|warn|panic):/.test(expectation)) {
+  } else if (/^(reject|panic):/.test(expectation)) {
     if (markers !== 1) {
       fail(`fixture ${path} must declare exactly one expectation marker`);
     }
+  } else if (expectation.startsWith("warn:")) {
+    fail(`fixture ${path} expects a warning; test a lint in its cli/lint-* case`);
   } else {
     fail(`unknown expectation '${expectation}' for ${path}`);
   }
@@ -101,8 +109,6 @@ for (const row of cases) {
   };
   if (kind === "reject") {
     check("diagnostic", "diagnostic", readme, "error");
-  } else if (kind === "warn") {
-    check("warning", "warning", readme, "warning");
   } else if (kind === "panic") {
     check("panic", "panic", controlFlow, "panic");
     const callee = panicMarkerOnCall(text);

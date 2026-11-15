@@ -265,11 +265,7 @@ function applyMutation({
 /** Strips conformance markers so a mutated seed does not carry stale expectations. */
 function stripMarkers(lines: Line[]): void {
   for (const line of lines) {
-    if (
-      /^#\s*(?:diagnostic|warning|panic|test|expect|expect-result|fixture-[a-z-]+):/.test(
-        line.comment,
-      )
-    ) {
+    if (/^#\s*(?:diagnostic|panic|test|expect|expect-result|fixture-[a-z-]+):/.test(line.comment)) {
       line.comment = "";
     }
   }

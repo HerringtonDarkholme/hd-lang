@@ -677,27 +677,6 @@ fn parse_case(case: &Case, text: &str) -> Verdict {
                 ))
             }
         }
-        expectation if expectation.starts_with("warn:") => {
-            let expected = expectation.trim_start_matches("warn:");
-            let no_errors = parsed
-                .diagnostics
-                .iter()
-                .all(|diagnostic| diagnostic.severity != Severity::Error);
-            let line = marker_line(text, "warning");
-            let found = parsed.diagnostics.iter().any(|diagnostic| {
-                diagnostic.severity == Severity::Warning
-                    && diagnostic.code.as_str() == expected
-                    && line.is_none_or(|line| byte_line(text, diagnostic.primary.lo) == line)
-            });
-            if no_errors && found {
-                Verdict::Pass
-            } else {
-                Verdict::Fail(parsed.diagnostics.first().map_or_else(
-                    || "no-diagnostic".to_owned(),
-                    |d| d.code.as_str().to_owned(),
-                ))
-            }
-        }
         _ => Verdict::Fail("unsupported-expectation".to_owned()),
     }
 }
@@ -730,55 +709,33 @@ fn check_errors(output: &Output) -> Vec<usize> {
 
 fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option<Verdict> {
     let errors = check_errors(output);
-    let warnings: Vec<usize> = output
-        .diags
-        .content_order()
-        .into_iter()
-        .filter(|index| output.diags.severity[*index] == Severity::Warning)
-        .collect();
     if case.expectation == "accept" {
         return errors
             .first()
             .map(|index| Verdict::Fail(output.diags.code[*index].as_str().to_owned()));
     }
-    let (kind, expected) = case
+    let expected = case
         .expectation
         .split_once(':')
-        .unwrap_or((case.expectation.as_str(), ""));
-    let line_kind = if kind == "warn" {
-        "warning"
-    } else {
-        "diagnostic"
-    };
+        .map_or("", |(_, code)| code);
     let on_marker = |index: usize| {
         fixture.tree
-            || marker_line(&fixture.text, line_kind).is_none_or(|line| {
+            || marker_line(&fixture.text, "diagnostic").is_none_or(|line| {
                 let span = output.diags.primary[index];
                 output.files.get(span.file.idx()) == Some(&fixture.primary)
                     && byte_line(&fixture.text, span.lo) == line
             })
     };
-    if kind == "warn" {
-        // `warn:CODE`: "exit 0, and a located warning `CODE` on the marker
-        // line"; warnings never fail a case, so other warnings are allowed.
-        let found = warnings
-            .iter()
-            .any(|index| output.diags.code[*index].as_str() == expected && on_marker(*index));
-        if errors.is_empty() && found {
-            return Some(Verdict::Pass);
-        }
-    } else {
-        let only_one = errors.len() == 1;
-        let code_ok = errors
-            .first()
-            .is_some_and(|index| output.diags.code[*index].as_str() == expected);
-        if only_one && code_ok && errors.first().is_some_and(|index| on_marker(*index)) {
-            return Some(Verdict::Pass);
-        }
+    // `reject:CODE`: one error, `CODE`, on the marker line; warnings
+    // never fail a case.
+    let code_ok = errors
+        .first()
+        .is_some_and(|index| output.diags.code[*index].as_str() == expected);
+    if errors.len() == 1 && code_ok && errors.first().is_some_and(|index| on_marker(*index)) {
+        return Some(Verdict::Pass);
     }
     errors
         .first()
-        .or_else(|| warnings.first())
         .map(|index| Verdict::Fail(output.diags.code[*index].as_str().to_owned()))
 }
 

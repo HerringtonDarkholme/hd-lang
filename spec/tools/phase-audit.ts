@@ -28,7 +28,7 @@ function expectedPhase(
   return panics.has(code) ? "runtime" : null;
 }
 
-/** Checks every reject, warning, and panic expectation in a fixture index. */
+/** Checks every reject and panic expectation in a fixture index. */
 export function phaseAudit(readme: string, controlFlow: string, cases: string): PhaseAudit {
   const lines = cases.trimEnd().split(/\r?\n/);
   const header = lines.shift()?.split("\t") ?? [];
@@ -48,7 +48,7 @@ export function phaseAudit(readme: string, controlFlow: string, cases: string): 
       continue;
     }
     const fields = line.split("\t");
-    const match = /^(reject|warn|panic):([a-z0-9-]+)$/.exec(fields[expectationAt] ?? "");
+    const match = /^(reject|panic):([a-z0-9-]+)$/.exec(fields[expectationAt] ?? "");
     if (!match) {
       continue;
     }

@@ -31,7 +31,7 @@ function parseCodes(cases: string): Set<string> {
   const result = new Set<string>();
   for (const line of lines) {
     const fields = line.split("\t");
-    const match = /^(?:reject|warn):(.*)$/.exec(fields[expectationAt] ?? "");
+    const match = /^reject:(.*)$/.exec(fields[expectationAt] ?? "");
     if (fields[phaseAt] === "parse" && match) {
       result.add(match[1]!);
     }
