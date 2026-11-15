@@ -1,36 +1,36 @@
 batch	path	verdict	rubric	reason
-b001	typing/invalid/poison-a-call-of-a-non-function-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 7 for `let z = w + 1`; title says later uses report nothing.
-b001	typing/invalid/poison-a-call-of-an-unknown-function-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = v + 1`; title says later uses report nothing.
-b001	typing/invalid/poison-a-copy-update-from-a-poisoned-source-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 10 for `let z = q`; title says no later report.
-b001	typing/invalid/poison-a-copy-update-from-another-type-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 10 for `let z = q`; title says no later report.
-b001	typing/invalid/poison-a-data-literal-of-an-enum-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = p.x + 1`; title says no later report.
-b001	typing/invalid/poison-a-field-of-a-poisoned-base-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = v + 1`; title says no later report.
-b001	typing/invalid/poison-a-list-spread-of-a-non-list-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = xs`; title says no later binding report.
-b001	typing/invalid/poison-a-literal-of-an-unknown-type-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = p.x + 1`; title says no later report.
-b001	typing/invalid/poison-a-member-of-a-primitive-type-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = g`; title says no later binding report.
-b001	typing/invalid/poison-a-method-on-a-poisoned-receiver-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = v + 1`; title says no later report.
-b001	typing/invalid/poison-a-pipe-step-without-a-placeholder-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = v + 1`; title says no later report.
-b001	typing/invalid/poison-a-question-mark-on-a-plain-value-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = v + 1`; title says no later report.
-b001	typing/invalid/poison-a-tuple-selection-past-the-end-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = y + 1`; title says no later report.
-b001	typing/invalid/poison-a-tuple-spread-of-a-non-list-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = t`; title says no later binding report.
-b001	typing/invalid/poison-an-unknown-field-read-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = y + 1`; title says no later report.
-b001	typing/invalid/poison-an-unknown-variant-value-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 10 for `let z = e`; title says no later report.
-b001	typing/invalid/poison-a-path-through-a-missing-module-member-reports-once.hd	UNSURE	B2	Tree case, not reproducible with plain check; scratch run shows uninhabited-binding on lines 7 and 8 too.
-b001	typing/invalid/poison-a-path-to-a-missing-module-name-reports-once.hd	UNSURE	B2	Tree case, not reproducible here; likely the same uninhabited-binding follow-on at line 8 as its siblings.
-b001	typing/invalid/poison-a-data-pattern-with-an-unknown-field-binds-its-name.hd	UNSURE	B2	hd reports unknown-name for `nope` at line 10 col 34; title says the name is bound to poison.
-b001	typing/invalid/poison-a-variant-arm-of-the-wrong-arity-binds-its-names.hd	UNSURE	B2	hd reports unknown-name for `n` and `m` at line 10; title says the arm's names are bound to poison.
-b001	typing/invalid/poison-a-variant-pattern-with-an-unknown-field-hides-no-later-arm.hd	UNSURE	B2	hd reports unreachable-match-arm at line 12; title says the rejected arm hides no later arm.
-b001	typing/invalid/poison-an-arm-with-an-unknown-variant-rejects-the-arm.hd	UNSURE	B2	hd reports unknown-name for `n` in the rejected arm body at line 6; title says only the arm is rejected.
-b001	typing/invalid/poison-an-unknown-variant-arm-binds-its-names.hd	UNSURE	B2	hd reports unknown-name for `a` and `b` at line 11; title says the arm's names are bound to poison.
-b001	typing/invalid/poison-a-field-of-an-unknown-type-adds-no-read-error.hd	UNSURE	B2	hd reports cannot-infer-type at line 8 for `let value = h.value`; title says no inference error at the read.
-b001	typing/invalid/poison-an-unknown-result-type-adds-no-body-inference-error.hd	UNSURE	B2	hd reports cannot-infer-type at line 5 for `let values = []`; title says no body inference error.
-b001	typing/invalid/poison-an-unknown-type-in-a-callee-signature-adds-no-call-error.hd	UNSURE	B2	hd reports cannot-infer-type at line 8 for `let made = make()`; title says no call error.
-b001	typing/invalid/poison-an-unknown-bound-in-an-impl-method-is-no-signature-mismatch.hd	UNSURE	B2	hd also reports trait-method-signature at line 11; title says an unknown bound is no signature mismatch.
-b001	typing/invalid/poison-an-unknown-parameter-type-in-an-impl-method-is-no-signature-mismatch.hd	UNSURE	B2	hd also reports trait-method-signature at line 11; title says an unknown parameter type is no signature mismatch.
-b001	typing/invalid/poison-an-unknown-type-in-an-impl-method-result-is-no-signature-mismatch.hd	UNSURE	B2	hd also reports trait-method-signature at line 11; title says an unknown result type is no signature mismatch.
-b001	typing/invalid/poison-an-unknown-variant-arm-binds-its-names.hd	FIX	B2	The match has no `.Line` arm, so nonexhaustive-match fires at line 9 on its own. Add `.Line(_, _) => 0`.
-b001	typing/invalid/poison-an-arm-with-an-unknown-variant-rejects-the-arm.hd	FIX	B2	No `.Ok` arm, so nonexhaustive-match fires at line 5 on its own. Add `.Ok(v) => v` to the match.
-b001	typing/invalid/poison-a-data-pattern-naming-a-field-twice-reports-once.hd	FIX	B2	`Point { x, x }` also breaks names.pattern.distinct: duplicate-binding fires at line 10. Write `Point { x, x: alias } => alias`.
+b001	conformance-language/poison-a-call-of-a-non-function-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 7 for `let z = w + 1`; title says later uses report nothing.
+b001	conformance-language/poison-a-call-of-an-unknown-function-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = v + 1`; title says later uses report nothing.
+b001	conformance-language/poison-a-copy-update-from-a-poisoned-source-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 10 for `let z = q`; title says no later report.
+b001	conformance-language/poison-a-copy-update-from-another-type-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 10 for `let z = q`; title says no later report.
+b001	conformance-language/poison-a-data-literal-of-an-enum-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = p.x + 1`; title says no later report.
+b001	conformance-language/poison-a-field-of-a-poisoned-base-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = v + 1`; title says no later report.
+b001	conformance-language/poison-a-list-spread-of-a-non-list-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = xs`; title says no later binding report.
+b001	conformance-language/poison-a-literal-of-an-unknown-type-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = p.x + 1`; title says no later report.
+b001	conformance-language/poison-a-member-of-a-primitive-type-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = g`; title says no later binding report.
+b001	conformance-language/poison-a-method-on-a-poisoned-receiver-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = v + 1`; title says no later report.
+b001	conformance-language/poison-a-pipe-step-without-a-placeholder-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = v + 1`; title says no later report.
+b001	conformance-language/poison-a-question-mark-on-a-plain-value-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = v + 1`; title says no later report.
+b001	conformance-language/poison-a-tuple-selection-past-the-end-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = y + 1`; title says no later report.
+b001	conformance-language/poison-a-tuple-spread-of-a-non-list-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 6 for `let z = t`; title says no later binding report.
+b001	conformance-language/poison-an-unknown-field-read-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 9 for `let z = y + 1`; title says no later report.
+b001	conformance-language/poison-an-unknown-variant-value-reports-once.hd	UNSURE	B2	hd also reports uninhabited-binding at line 10 for `let z = e`; title says no later report.
+b001	conformance-language/poison-a-path-through-a-missing-module-member-reports-once.hd	UNSURE	B2	Tree case, not reproducible with plain check; scratch run shows uninhabited-binding on lines 7 and 8 too.
+b001	conformance-language/poison-a-path-to-a-missing-module-name-reports-once.hd	UNSURE	B2	Tree case, not reproducible here; likely the same uninhabited-binding follow-on at line 8 as its siblings.
+b001	conformance-language/poison-a-data-pattern-with-an-unknown-field-binds-its-name.hd	UNSURE	B2	hd reports unknown-name for `nope` at line 10 col 34; title says the name is bound to poison.
+b001	conformance-language/poison-a-variant-arm-of-the-wrong-arity-binds-its-names.hd	UNSURE	B2	hd reports unknown-name for `n` and `m` at line 10; title says the arm's names are bound to poison.
+b001	conformance-language/poison-a-variant-pattern-with-an-unknown-field-hides-no-later-arm.hd	UNSURE	B2	hd reports unreachable-match-arm at line 12; title says the rejected arm hides no later arm.
+b001	conformance-language/poison-an-arm-with-an-unknown-variant-rejects-the-arm.hd	UNSURE	B2	hd reports unknown-name for `n` in the rejected arm body at line 6; title says only the arm is rejected.
+b001	conformance-language/poison-an-unknown-variant-arm-binds-its-names.hd	UNSURE	B2	hd reports unknown-name for `a` and `b` at line 11; title says the arm's names are bound to poison.
+b001	conformance-language/poison-a-field-of-an-unknown-type-adds-no-read-error.hd	UNSURE	B2	hd reports cannot-infer-type at line 8 for `let value = h.value`; title says no inference error at the read.
+b001	conformance-language/poison-an-unknown-result-type-adds-no-body-inference-error.hd	UNSURE	B2	hd reports cannot-infer-type at line 5 for `let values = []`; title says no body inference error.
+b001	conformance-language/poison-an-unknown-type-in-a-callee-signature-adds-no-call-error.hd	UNSURE	B2	hd reports cannot-infer-type at line 8 for `let made = make()`; title says no call error.
+b001	conformance-language/poison-an-unknown-bound-in-an-impl-method-is-no-signature-mismatch.hd	UNSURE	B2	hd also reports trait-method-signature at line 11; title says an unknown bound is no signature mismatch.
+b001	conformance-language/poison-an-unknown-parameter-type-in-an-impl-method-is-no-signature-mismatch.hd	UNSURE	B2	hd also reports trait-method-signature at line 11; title says an unknown parameter type is no signature mismatch.
+b001	conformance-language/poison-an-unknown-type-in-an-impl-method-result-is-no-signature-mismatch.hd	UNSURE	B2	hd also reports trait-method-signature at line 11; title says an unknown result type is no signature mismatch.
+b001	conformance-language/poison-an-unknown-variant-arm-binds-its-names.hd	FIX	B2	The match has no `.Line` arm, so nonexhaustive-match fires at line 9 on its own. Add `.Line(_, _) => 0`.
+b001	conformance-language/poison-an-arm-with-an-unknown-variant-rejects-the-arm.hd	FIX	B2	No `.Ok` arm, so nonexhaustive-match fires at line 5 on its own. Add `.Ok(v) => v` to the match.
+b001	conformance-language/poison-a-data-pattern-naming-a-field-twice-reports-once.hd	FIX	B2	`Point { x, x }` also breaks names.pattern.distinct: duplicate-binding fires at line 10. Write `Point { x, x: alias } => alias`.
 b002	lexical/literals/repeated-numeric-separator.hd	DELETE	C1	Duplicates lexical/literals/double-numeric-separator.hd: same `1__0`, invalid-token, same rule; only the name and line differ.
 b002	lexical/literals/semicolon-after-binding.hd	DELETE	C1	Duplicates lexical/operators-and-delimiters/semicolon.hd: same reserved-semicolon on `;`; only the literal operand differs, which the rule does not name.
 b002	lexical/literals/semicolon-after-binding.hd	FIX	B7	Cites #literals, but the semicolon rule lives under Operators And Delimiters; cite #operators-and-delimiters.
