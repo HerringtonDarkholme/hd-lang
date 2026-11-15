@@ -127,6 +127,6 @@ Integer, char and bool duplicates are already caught.
 
 **Where.** crates/hd_check/src/pat.rs (coverage).
 
-**Done check.** An invalid fixture in spec/conformance/typing/invalid/,
+**Done check.** A reject fixture in spec/conformance/lang/<chapter>/<section>/,
 indexed in cases.tsv, citing the rule; fails before, passes after.
 ```

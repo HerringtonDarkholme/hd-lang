@@ -3346,7 +3346,7 @@ new address must reach the place the list was read from.
   store into a top-level binding, so after `n := save(xs)` and
   `xs.push(n)`, `saved` has the pushed element too (`types.coll.value`).
   With retains it cannot. Its runtime case,
-  `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`, passes
+  `lang/types/collection-values/a-list-a-callee-stores-at-top-level-is-a-copy`, passes
   from commit 3f.
 
 **The inliner's four commits**, each green on its own and reporting its
@@ -3647,7 +3647,7 @@ CPU, medians of 11 interleaved release builds: json 0.28 s to 0.28 s,
 nbody 0.24 s to 0.24 s. The web compiler's gzip shrinks 239 B
 (1,904,287 to 1,904,048, both built here). The header model's hole that
 the settling above found has its runtime case,
-`runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`, a known
+`lang/types/collection-values/a-list-a-callee-stores-at-top-level-is-a-copy`, a known
 failure (#667) until commit 3f.
 
 **Emitted size budget.** hello's Wasm does not change, and each
@@ -3856,7 +3856,7 @@ whose noise was about ±2.5% at `List`'s commit 1.
   `header_copy` still answers, which is sound with retains: `copies.rs`
   lets two holders share only where nothing changes or pins the
   collection while both live. The known failure
-  `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy` passes,
+  `lang/types/collection-values/a-list-a-callee-stores-at-top-level-is-a-copy` passes,
   and its `KNOWN_FAILURES.tsv` row goes.
 - **3g. No header copies.** `header_copy` goes for both kinds, and with
   it `copies.rs` and its verifier. Every count a copy of a collection
@@ -3918,7 +3918,7 @@ checked the value it had read. Cold build CPU, medians of 11 interleaved
 builds with the dev-profile compiler: json 0.35 s to 0.35 s, nbody
 0.29 s to 0.29 s. The web compiler's gzip grows 302 B
 (1,904,470 to 1,904,772). The known failure
-`runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy` stays: its
+`lang/types/collection-values/a-list-a-callee-stores-at-top-level-is-a-copy` stays: its
 change is through a local whose header a callee stored into a binding,
 which 3f fixes.
 
@@ -4312,7 +4312,7 @@ snapshot cases, and four valid ones flip their replacement assertions.
 `emit/erased.rs` +28/−2, `ir/owned.rs` +22/−6, `emit.rs` +20/−6,
 `emit/count.rs` +19/−6, the rest +19/−42), the write-back's walk and its
 erased and view paths being most of the overrun over the share of 165. The
-known failure `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`
+known failure `lang/types/collection-values/a-list-a-callee-stores-at-top-level-is-a-copy`
 passes and its row goes; the new case
 `a-push-through-a-map-value-with-a-computed-key-keeps-every-element` grows
 the inner lists several times. Release `.wasm` on node against main
