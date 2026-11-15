@@ -3,7 +3,7 @@
 use std.ops.Index
 
 fn lookup[K, V, C < Index[K, Out = V]](entries: C, key: K) -> V:
-    entries[key]
+    entries[key] # panic: index-out-of-bounds
 
 ages := { "ada": 36 }
-age := lookup(ages, "grace") # panic: index-out-of-bounds
+age := lookup(ages, "grace")

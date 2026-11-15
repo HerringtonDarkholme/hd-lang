@@ -38,6 +38,7 @@ import {
   fixtureProgram,
   renamedProgram,
 } from "./fixture-duplicates.ts";
+import { panicMarkerOnCall } from "./panic-marker-line.ts";
 
 /** Whether this checkout's history holds `rev`; a shallow clone may not. */
 function hasCommit(rev: string): boolean {
@@ -808,4 +809,120 @@ test("duplicate trees hold the same files in any order", () => {
     ]),
     ["package trees trees/a and trees/b hold identical files; point their fixtures at one tree"],
   );
+});
+
+test("a panic marker on a call of the fixture's own function is caught", () => {
+  const remainder = "fn remainder(a: i32, b: i32) -> i32:\n    a % b\n\n";
+  const flagged = (text: string) => panicMarkerOnCall(text);
+  // Statement forms of one call with literal and name arguments.
+  for (const statement of [
+    "_ := remainder(1, 0)",
+    "_ = remainder(1, 0)",
+    "x := remainder(+1, -0)",
+    "let x: i32 = remainder(1, 0)",
+    "return remainder(one, zero)",
+    "remainder(1, 0)",
+    "remainder::[i32](1, 0)",
+    "remainder(a=1, b=[0, 1])",
+    "remainder(1, (0, .None))",
+    "remainder([], [0, ])",
+    "remainder('a', \"b # c\")",
+  ]) {
+    assert.equal(
+      flagged(`${remainder}${statement} # panic: integer-division-by-zero\n`),
+      "remainder",
+      statement,
+    );
+  }
+  // CRLF lines, a method, a bang call, a static path, a multi-line call, a doc test.
+  assert.equal(
+    flagged(
+      `${remainder}_ := remainder(1, 0) # panic: integer-division-by-zero\n`.replaceAll(
+        "\n",
+        "\r\n",
+      ),
+    ),
+    "remainder",
+  );
+  assert.equal(
+    flagged(
+      "impl P:\n    fn bump(self, n: i32) -> i32:\n        n + 1\n\np.bump(1) # panic: integer-overflow\n",
+    ),
+    "bump",
+  );
+  assert.equal(
+    flagged("fn go!() -> i32:\n    1 / 0\n\n_ := go!() # panic: integer-division-by-zero\n"),
+    "go",
+  );
+  assert.equal(
+    flagged(
+      `${remainder.replace("fn remainder", "pub fn remainder")}T::remainder(1, 0) # panic: explicit-panic\n`,
+    ),
+    "remainder",
+  );
+  assert.equal(
+    flagged(`${remainder}remainder(\n    1,\n    0,\n) # panic: integer-division-by-zero\n`),
+    "remainder",
+  );
+  assert.equal(
+    flagged(`${remainder}## remainder(1, 0) # panic: integer-division-by-zero\n`),
+    "remainder",
+  );
+  // A parameter list over several lines still has a body.
+  assert.equal(
+    flagged("fn f(\n    a: i32,\n) -> i32:\n    a / 0\n\nf(1) # panic: integer-division-by-zero\n"),
+    "f",
+  );
+  // A one-line body.
+  assert.equal(flagged("fn f() -> i32: 1 / 0\n\nf() # panic: integer-division-by-zero\n"), "f");
+
+  // Lines whose own evaluation can raise the panic stay legal.
+  for (const statement of [
+    "remainder(xs[0], 0)",
+    "remainder(1, 1 / 0)",
+    "remainder(1, other(0))",
+    "remainder(1, &mut x)",
+    "remainder(1, fn(): 0)",
+    'remainder(1, "${x / 0}")',
+    "remainder(1, 0) + 1",
+    "remainder(1, 0)[2]",
+    "remainder(1, [0][0])",
+    "remainder::[i32(1, 0)",
+    "(remainder(1, 0))",
+    "-remainder(1, 0)",
+    "let x: i32",
+    "xs[0].remainder(1)",
+    "assert_equal(remainder(1, 0), 0)",
+    "println(1 / 0)",
+  ]) {
+    assert.equal(
+      flagged(`${remainder}${statement} # panic: integer-division-by-zero\n`),
+      undefined,
+      statement,
+    );
+  }
+  // Panics a call raises itself, and calls that are not of a bodied, own function.
+  for (const code of ["borrow-conflict", "stack-exhausted", "suspension-reentrant-poll"]) {
+    assert.equal(flagged(`${remainder}remainder(p, q) # panic: ${code}\n`), undefined, code);
+  }
+  assert.equal(
+    flagged(`@track_caller\n${remainder}remainder(1, 0) # panic: integer-division-by-zero\n`),
+    undefined,
+  );
+  assert.equal(
+    flagged("trait T:\n    fn level(self) -> u8\n\nlevel(1) # panic: host-contract\n"),
+    undefined,
+  );
+  assert.equal(flagged("other(1, 0) # panic: integer-division-by-zero\n"), undefined);
+  assert.equal(flagged(`${remainder}remainder(1, 0)\n`), undefined);
+  // A `fn` word inside a string declares nothing; only the first marker counts.
+  assert.equal(flagged('x := """\nfn word\n"""\nword(1) # panic: explicit-panic\n'), undefined);
+  assert.equal(
+    flagged(
+      `${remainder}println(1) # panic: explicit-panic\nremainder(1, 0) # panic: explicit-panic\n`,
+    ),
+    undefined,
+  );
+  // An unbalanced call is no call.
+  assert.equal(flagged(`${remainder}remainder(1, 0 # panic: explicit-panic\n`), undefined);
 });

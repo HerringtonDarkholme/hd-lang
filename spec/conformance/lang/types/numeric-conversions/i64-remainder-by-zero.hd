@@ -2,6 +2,6 @@
 # Spec 04 Checked Arithmetic: types.arith.always.
 
 fn remainder(a: i64, b: i64) -> i64:
-    a % b
+    a % b # panic: integer-division-by-zero
 
-_ := remainder(1, 0) # panic: integer-division-by-zero
+_ := remainder(1, 0)

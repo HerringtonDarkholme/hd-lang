@@ -19,11 +19,11 @@ fn nothing_more(list: &mut List[string], first: &string) -> string:
 # The list comes through a box alias, which the checker does not see.
 fn through(list: *mut List[string]) -> string:
     alias := list
-    nothing_more(alias, &list[0])
+    nothing_more(alias, &list[0]) # panic: borrow-conflict
 
 tests:
     use std.testing.assert_equal
 
     it("extending a pinned list by nothing does not panic"):
         words := box(["w"])
-        assert_equal(through(words), "w", reason="the length is unchanged") # panic: borrow-conflict
+        assert_equal(through(words), "w", reason="the length is unchanged")

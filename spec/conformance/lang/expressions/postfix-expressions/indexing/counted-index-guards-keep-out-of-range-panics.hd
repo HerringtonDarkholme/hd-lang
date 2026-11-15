@@ -7,7 +7,7 @@ fn scan[T < Eq](items: List[T], start: usize, end: usize, needle: T) -> usize:
     while at + 4 <= end:
         if items[at] == needle:
             break
-        if items[at + 1] == needle:
+        if items[at + 1] == needle: # panic: index-out-of-bounds
             at += 1
             break
         if items[at + 2] == needle:
@@ -19,4 +19,4 @@ fn scan[T < Eq](items: List[T], start: usize, end: usize, needle: T) -> usize:
         at += 4
     at
 
-scan([+7], 0, 8, +9) # panic: index-out-of-bounds
+scan([+7], 0, 8, +9)

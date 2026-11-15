@@ -1,7 +1,7 @@
-# test: Map.get_or_insert panics when inserting while a value reference holds a loan on the map, as model A gives a write through an alias of a borrowed collection
-# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+# test: `through` lends two aliases of one boxed map as two `&mut` arguments, so the call conflicts before Map.get_or_insert runs
+# Spec 13 Conversions: ref.convert.lend.loan; Conflicts Through Aliases: ref.excl.alias.conflict.
 fn insert(stock: &mut Map[string, i32], apples: &mut i32) -> void:
-    _ := stock.get_or_insert("pear", 1) # panic: borrow-conflict
+    _ := stock.get_or_insert("pear", 1)
     *apples += 1
 
 fn through(stock: &mut Map[string, i32], alias: &mut Map[string, i32]) -> void:
@@ -12,4 +12,4 @@ tests:
     it("a missing key changes the length of a pinned map"):
         stock := box::[Map[string, i32]]({ "apple": 3 })
         alias := stock
-        through(stock, alias)
+        through(stock, alias) # panic: borrow-conflict

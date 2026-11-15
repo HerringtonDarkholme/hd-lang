@@ -27,7 +27,7 @@ const directive = /^# (?:fixture-[a-z-]+|expect|expect-stdout|expect-empty-stdou
 const marker = /^#\s*(diagnostic|warning|panic):\s*([a-z0-9-]+)/;
 
 /** Splits code from comments across the lines of one fixture. */
-class CommentScanner {
+export class CommentScanner {
   // Inside a `"..."` or `"""..."""` literal: its closing quote; else "".
   private quote = "";
   // Open `${` interpolations: the literal each returns to, and its open braces.

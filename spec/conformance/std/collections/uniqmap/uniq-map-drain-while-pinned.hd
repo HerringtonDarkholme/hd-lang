@@ -5,7 +5,6 @@ struct Bag:
     items: UniqMap[string, string]
 
 fn change(first: &mut string, alias: *mut Bag) -> void:
-    alias.items.reserve(0)
     _ := alias.items.drain() # panic: borrow-conflict
     *first = "still live"
 

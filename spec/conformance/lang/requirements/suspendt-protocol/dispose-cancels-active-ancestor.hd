@@ -10,7 +10,7 @@ struct Guard:
 impl AsyncDisposable for Guard:
     fn dispose!(&mut self) -> void:
         match self.slot.task:
-            .Some(task) => _ := task.cancel!()
+            .Some(task) => _ := task.cancel!() # panic: suspension-reentrant-poll
             .None => pass
 
 fn inner!(slot: *mut Slot) -> i32:
@@ -24,4 +24,4 @@ pub fn main!() -> void:
     slot := box(Slot { task: .None })
     let pending: Suspend[i32] = outer(slot)
     slot.task = pending
-    _ := pending!() # panic: suspension-reentrant-poll
+    _ := pending!()

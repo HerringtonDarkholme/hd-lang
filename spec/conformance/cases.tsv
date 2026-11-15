@@ -5152,7 +5152,7 @@ lang/control-flow/for-loops/for-element-references-field-reference.hd	type	accep
 lang/control-flow/for-loops/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 lang/control-flow/for-loops/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
 lang/references/dependent-results/conflicts-through-aliases/map-element-reference-insert-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
-lang/references/dependent-results/conflicts-through-aliases/map-get-or-insert-pinned-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
+lang/references/dependent-results/conflicts-through-aliases/map-get-or-insert-pinned-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.convert.lend.loan
 lang/references/dependent-results/conflicts-through-aliases/map-element-place-pinned-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/types/collection-values/value-argument-sibling-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 lang/references/dependent-results/conflicts-through-aliases/pointer-as-mut-argument-later-alias-pop-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan

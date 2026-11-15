@@ -3,7 +3,7 @@ struct Slot:
 
 fn inner!(slot: &mut Slot) -> i32:
     match slot.task:
-        .Some(task) => _ := task.cancel!()
+        .Some(task) => _ := task.cancel!() # panic: suspension-reentrant-poll
         .None => pass
     1
 
@@ -16,4 +16,4 @@ pub fn main!() -> void:
     frame_slot := slot
     let pending: Suspend[i32] = outer(frame_slot)
     slot.task = pending
-    _ := pending!() # panic: suspension-reentrant-poll
+    _ := pending!()

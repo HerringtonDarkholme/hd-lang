@@ -152,6 +152,17 @@ A reject, warn, or panic fixture has exactly one line marker. An accept
 fixture has none. `spec/check.sh` enforces both rules, and rejects any header
 directive not listed below.
 
+A panic marker sits on the line that raises the panic, inside the function
+that raises it, not on the call that reaches that function. `spec/check.sh`
+rejects a panic marker on a statement that is one call of a function the
+fixture declares, when its receiver and arguments are only literals and
+names. Such a call evaluates nothing that can panic before its callee's body
+runs. Three kinds of panic come from the call itself, so the check skips
+them: `borrow-conflict`, from lending a pointer argument; `stack-exhausted`,
+from the call's frame; and the `suspension-*` categories, from polling a bang
+call. It skips a call of a `@track_caller` function too, whose panic report
+names the call site ([`fn.caller.frames`](../lang/07-functions.md#r-fn.caller.frames)).
+
 | Directive                                   | Form        | Meaning |
 | ------------------------------------------- | ----------- | ------- |
 | `# diagnostic: CODE`                        | line marker | The case's error category, reported on this line. `CODE` is in an Error row of [the diagnostic table](../README.md#diagnostics). |

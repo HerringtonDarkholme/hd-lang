@@ -5,7 +5,6 @@ struct Bag:
     items: UniqList[string]
 
 fn change(first: &mut string, alias: *mut Bag) -> void:
-    alias.items.reserve(0)
     let mut destination = UniqList::[string].new()
     destination.append(&mut alias.items) # panic: borrow-conflict
     *first = "still live"

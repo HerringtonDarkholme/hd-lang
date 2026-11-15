@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { duplicateFixtures, duplicateTrees, type FixtureCase } from "./tools/fixture-duplicates.ts";
+import { panicMarkerOnCall } from "./tools/panic-marker-line.ts";
 
 const specDir = process.argv[2];
 if (!specDir) {
@@ -104,6 +105,12 @@ for (const row of cases) {
     check("warning", "warning", readme, "warning");
   } else if (kind === "panic") {
     check("panic", "panic", controlFlow, "panic");
+    const callee = panicMarkerOnCall(text);
+    if (callee !== undefined) {
+      fail(
+        `fixture ${path} marks a call of its own function ${callee}; the panic marker belongs on the line in ${callee} that raises it`,
+      );
+    }
   }
 }
 
