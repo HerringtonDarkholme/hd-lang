@@ -262,21 +262,37 @@ impl Em<'_, '_, '_> {
             // type once, so a part nested `n` deep costs one probe, not
             // the `n` levels below it.
             crate::work::member_layouts(1);
-            if !root && !crate::layout::holds_drop(em.pool(), em.env(), t) {
+            let holds = crate::layout::holds_drop(em.pool(), em.env(), t);
+            if !root && !holds {
                 return;
             }
-            if (root || matches!(em.kind(t), Kind::Value))
-                && let Some(&key) = em.input.collected.drop_glue.get(&t)
-            {
-                out.push((
-                    DropCall {
-                        offset: base,
-                        target: key,
-                        guards: guards.to_vec(),
-                    },
-                    path.to_vec(),
-                ));
+            // A newtype holds its base by value at its own offset and
+            // place (types.newtype.construct-value): each layer's `Drop`
+            // runs, outermost first, then the base's, then the base's
+            // parts' (module.rt.drop.glue). The layers are walked only
+            // when one of them or the base holds a `Drop` value, in
+            // O(layers), as `strip` below is.
+            let glue = |layer: Ty, out: &mut Vec<(DropCall, Vec<hd_tir::ir::Proj>)>| {
+                if (root || matches!(em.kind(layer), Kind::Value))
+                    && let Some(&key) = em.input.collected.drop_glue.get(&layer)
+                {
+                    out.push((
+                        DropCall {
+                            offset: base,
+                            target: key,
+                            guards: guards.to_vec(),
+                        },
+                        path.to_vec(),
+                    ));
+                }
+            };
+            if holds {
+                crate::layout::newtype_layers(em.pool(), em.env(), t, &mut |layer| {
+                    glue(layer, out);
+                });
             }
+            let t = crate::layout::strip(em.pool(), em.env(), t);
+            glue(t, out);
             if let Some(variants) = em.try_variant_tys(t)
                 && let Ok(Some(flat)) = em.flat(t)
                 && variants.len() == flat.positions.len()

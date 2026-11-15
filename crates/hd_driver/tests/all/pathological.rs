@@ -3156,6 +3156,16 @@ fn generic_nest(n: usize) -> String {
     )
 }
 
+/// A generic newtype nested `n` deep by a call per level: each level's
+/// value `N^i[i32]` is a newtype over the level below.
+fn newtype_nest(n: usize) -> String {
+    format!(
+        "type N[T](T)\n\nfn wrap[T](x: T) -> N[T]: N(x)\n\npub fn main() -> void $ Console:\n    let t = +0\n    w := {}t{}\n    println(\"${{t}}\")\n    _ := w\n",
+        "wrap(".repeat(n),
+        ")".repeat(n),
+    )
+}
+
 /// [`generic_nest`] with nine parameters: each level's type
 /// `W^i[?t, ?a, ..., ?h]` holds the level below and the same eight
 /// literal variables, nine variables in all, which stay unbound to the
@@ -3300,6 +3310,31 @@ fn generic_nest_builds_walk_each_level_once() {
                 "{name}: static-value instructions read at depth 7 and 31 over 4: {looks:?}"
             );
         }
+    });
+}
+
+// Emitter: #1989, a release of a newtype runs each layer's `Drop`, so the
+// drop walk and `holds_drop` step through a value's newtype layers. Each
+// level of a newtype nest is a newtype over the level below.
+#[test]
+fn newtype_nest_drop_walks_are_linear() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |n: usize| {
+            let (out, nodes) =
+                hd_wasm::work::count_member_layouts(|| compile(&newtype_nest(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            nodes
+        };
+        work(1);
+        let base = work(2);
+        let (small, large) = (work(5) - base, work(29) - base);
+        assert!(
+            small > 0 && large <= 11 * small,
+            "member layouts and newtype layers at depth 5 and 29 over 2: {small} and {large}"
+        );
     });
 }
 

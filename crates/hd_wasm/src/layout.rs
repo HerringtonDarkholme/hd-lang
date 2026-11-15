@@ -2203,11 +2203,17 @@ fn assemble(
 
 /// Whether a value of `t` holds, by value, a value whose type implements
 /// `std.rt.Drop`: releasing it runs that implementation, so the value is
-/// never bound twice (a `UniqList`).
+/// never bound twice (a `UniqList`). A newtype layer counts as well as its
+/// base: `type Flag(usize)` with a `Drop` of its own holds one.
 pub fn holds_drop(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    memoized(&DROPS, pool, env, t, &|t, part| {
-        drop_one(pool, env, t, part)
-    })
+    let held = DROPS.take();
+    let linked = held.is_some();
+    let mut done = held.unwrap_or_default();
+    let got = drops_by_parts(pool, env, t, &mut done);
+    if linked {
+        DROPS.set(Some(done));
+    }
+    got
 }
 
 /// [`holds_drop`] over `memo`, a map the caller keeps across links and
@@ -2219,18 +2225,81 @@ pub fn holds_drop_in(
     t: Ty,
     memo: &mut hd_base::HashMap<Ty, bool>,
 ) -> bool {
-    by_parts(pool, env, t, memo, &|t, part| drop_one(pool, env, t, part))
+    drops_by_parts(pool, env, t, memo)
 }
 
-/// [`holds_drop`] of `t` from its parts' answers, which `part` reads.
-fn drop_one(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, part: &dyn Fn(Ty) -> bool) -> bool {
-    crate::work::member_layouts(1);
-    if let TyData::Adt { def, .. } = pool.get(t)
-        && env.has_drop(def)
-    {
-        return true;
+/// [`holds_drop`] of `t` and of every type it holds by value
+/// ([`value_parts`]), parts first, with a stack of its own, into `done`.
+/// Unlike the layout memos, `done` is keyed by the type itself, not the
+/// stripped one: a newtype is a node whose one part is its base, so a
+/// layer's own `Drop` counts. A part met again while it is open (a cyclic
+/// newtype, which has no values) adds nothing to the edge that meets it.
+/// Each type is answered once per memo: O(types + parts).
+fn drops_by_parts(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    done: &mut hd_base::HashMap<Ty, bool>,
+) -> bool {
+    let mut open = hd_base::HashSet::default();
+    let mut stack = vec![(t, false)];
+    while let Some((u, ready)) = stack.pop() {
+        if done.contains_key(&u) {
+            continue;
+        }
+        let parts = value_parts(pool, env, u);
+        if !ready {
+            // A `(u, false)` entry pushed before `u` opened lies below
+            // `(u, true)`, so it pops once `u` is done.
+            open.insert(u);
+            let pending: Vec<Ty> = parts
+                .iter()
+                .copied()
+                .filter(|p| !done.contains_key(p) && !open.contains(p))
+                .collect();
+            if !pending.is_empty() {
+                stack.push((u, true));
+                stack.extend(pending.into_iter().map(|p| (p, false)));
+                continue;
+            }
+        }
+        crate::work::member_layouts(1);
+        let own = matches!(pool.get(u), TyData::Adt { def, .. } if env.has_drop(def));
+        let got = own || parts.iter().any(|p| done.get(p).copied().unwrap_or(false));
+        open.remove(&u);
+        done.insert(u, got);
     }
-    value_parts(pool, env, t).into_iter().any(part)
+    done.get(&t).copied().unwrap_or(false)
+}
+
+/// Visits the newtype layers of `t` outermost first, `t` itself when it
+/// is one, and stops at the base [`strip`] returns, which it does not
+/// visit. Each step is `strip_newtype`'s, so the walk ends where it does,
+/// a cyclic newtype's bound included: O(layers) per call.
+pub(crate) fn newtype_layers(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    visit: &mut dyn FnMut(Ty),
+) {
+    let base = strip(pool, env, t);
+    let mut layer = t;
+    // A layer short of `strip`'s base is a newtype `Adt`, since
+    // `strip_newtype` took a step from it, so the guard's last two
+    // conditions hold whenever the first does.
+    while layer != base
+        && let Some((def, args)) = pool.adt(layer)
+        && let Some(inner) = env.newtype_base(def)
+    {
+        crate::work::member_layouts(1);
+        visit(layer);
+        let substitutions = pool.list_items(args);
+        layer = pool.subst(inner, &|p: hd_types::ParamRef| {
+            (p.owner == def)
+                .then(|| substitutions.get(usize::from(p.index)).copied())
+                .flatten()
+        });
+    }
 }
 
 /// The variants' payload types of an enum or optional type, `None` for

@@ -2,6 +2,7 @@
 # This module joins std because only std may implement its runtime trait.
 use std.rt.Drop
 use std.annotation.inline
+use std.collections.UniqList
 
 let drops: usize = 0
 let empty_drops: usize = 0
@@ -215,6 +216,120 @@ fn released_outer(id: usize) -> usize:
     value := identity(outer(id))
     value.id
 
+# A newtype over a Drop value holds its base by value, so releasing it
+# releases the base (module.rt.drop.glue), wherever the newtype sits.
+type Wrapped(Token)
+
+type Rewrapped(Wrapped)
+
+type Around[T < ?Copy](T)
+
+struct WrapHolder:
+    wrapped: Wrapped
+    id: usize
+
+impl !Copy for WrapHolder
+
+enum WrapChoice:
+    Nothing
+    Value(Wrapped)
+
+impl !Copy for WrapChoice
+
+let guard_drops: usize = 0
+let guard_saw: usize = 0
+
+type Guarded(Token)
+
+impl Drop for Guarded:
+    fn drop(&mut self) -> void:
+        guard_drops = guard_drops + 1
+        guard_saw = drops
+
+let flag_drops: usize = 0
+
+type Flag(usize)
+
+impl Drop for Flag:
+    fn drop(&mut self) -> void:
+        flag_drops = flag_drops + 1
+
+type Label(string)
+
+impl Drop for Label:
+    fn drop(&mut self) -> void:
+        if string(*self).len() == 0:
+            panic("a label dropped after its text")
+        flag_drops = flag_drops + 1
+
+struct FlagHolder:
+    flag: Flag
+    label: Label
+    id: usize
+
+impl !Copy for FlagHolder
+
+fn wrapped_alone(id: usize) -> void:
+    _ := identity(Wrapped(Token { id: id }))
+
+# A newtype over a `!Copy` base moves (`types.newtype.holds`): each move
+# hands the one base on, so it drops once, at the last holder.
+fn wrapped_moved(id: usize) -> usize:
+    first := Wrapped(Token { id: id })
+    second := first
+    third := identity(second)
+    Token(third).id
+
+fn wrapped_field(id: usize) -> usize:
+    value := identity(WrapHolder { wrapped: Wrapped(Token { id: id }), id: id })
+    value.id
+
+fn wrapped_payload(id: usize) -> void:
+    _ := identity(WrapChoice.Value(Wrapped(Token { id: id })))
+
+# `Wrapped` holds a `!Copy` base, so it moves (`types.newtype.holds`)
+# and its elements go in a `UniqList`.
+fn wrapped_elements(id: usize) -> usize:
+    let mut items = UniqList::[Wrapped].new()
+    items.push(Wrapped(Token { id: id }))
+    items.push(Wrapped(Token { id: id + 1 }))
+    identity(items).len()
+
+fn wrapped_option(id: usize) -> void:
+    let value: Wrapped? = .Some(Wrapped(Token { id: id }))
+    _ := identity(value)
+
+fn wrapped_twice(id: usize) -> void:
+    _ := identity(Rewrapped(Wrapped(Token { id: id })))
+
+fn wrapped_generic(id: usize) -> void:
+    _ := identity(Around(Token { id: id }))
+
+fn wrapped_tuple(id: usize) -> usize:
+    pair := identity((id, Wrapped(Token { id: id })))
+    pair._0
+
+fn wrapped_boxed(id: usize) -> void:
+    _ := box(Wrapped(Token { id: id }))
+
+fn wrapped_cell() -> usize:
+    let value = Wrapped(Token { id: 0 })
+    read := fn() -> usize: Token(value).id
+    _ := read()
+    value = Wrapped(Token { id: 1 })
+    read()
+
+fn guarded(id: usize) -> void:
+    _ := identity(Guarded(Token { id: id }))
+
+fn flag_alone(id: usize) -> void:
+    _ := identity(Flag(id))
+    _ := identity(Label("label-${id}"))
+
+fn flag_field(id: usize) -> usize:
+    value := identity(FlagHolder { flag: Flag(id), label: Label("label-${id}"), id: id })
+    value.id
+
 trait Relay:
     fn relay!(&self, value: Token) -> Token
 
@@ -246,6 +361,52 @@ tests:
         before := drops
         assert_equal(released_outer(3), 3)
         assert_equal(drops, before + 3)
+
+    it("a newtype over a Drop value drops its base once, alone and as a field"):
+        before := drops
+        wrapped_alone(1)
+        assert_equal(drops, before + 1)
+        assert_equal(wrapped_field(2), 2)
+        assert_equal(drops, before + 2)
+
+    it("a moved newtype over a Drop value drops its base once"):
+        before := drops
+        assert_equal(wrapped_moved(3), 3)
+        assert_equal(drops, before + 1)
+
+    it("a newtype over a Drop value drops its base once wherever it sits"):
+        before := drops
+        wrapped_payload(1)
+        assert_equal(drops, before + 1)
+        assert_equal(wrapped_elements(1), 2)
+        assert_equal(drops, before + 3)
+        wrapped_option(1)
+        assert_equal(drops, before + 4)
+        wrapped_twice(1)
+        assert_equal(drops, before + 5)
+        wrapped_generic(1)
+        assert_equal(drops, before + 6)
+        assert_equal(wrapped_tuple(1), 1)
+        assert_equal(drops, before + 7)
+        wrapped_boxed(1)
+        assert_equal(drops, before + 8)
+        assert_equal(wrapped_cell(), 1)
+        assert_equal(drops, before + 10)
+
+    it("a newtype with a Drop of its own runs it, then its base's"):
+        before := drops
+        guards := guard_drops
+        guarded(1)
+        assert_equal(guard_drops, guards + 1)
+        assert_equal(guard_saw, before)
+        assert_equal(drops, before + 1)
+
+    it("a newtype with a Drop over a base without one drops, alone and as a field"):
+        before := flag_drops
+        flag_alone(1)
+        assert_equal(flag_drops, before + 2)
+        assert_equal(flag_field(2), 2)
+        assert_equal(flag_drops, before + 4)
 
     it("a zero-sized value still has Drop ownership"):
         before := empty_drops
@@ -350,4 +511,3 @@ tests:
         assert_equal(value.id, 0)
         _ := identity(value)
         assert_equal(drops, before + 1)
-
