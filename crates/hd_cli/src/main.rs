@@ -343,12 +343,17 @@ pub(crate) fn cache_cap() -> Result<u64, String> {
 /// (`cli.cache.obj.evict`, #1932). A command that compiles rejects an
 /// invalid cap before it gets here.
 pub(crate) fn disk_store() -> work::Store {
-    work::Store::new(
-        DiskStore::new(cache_dir())
-            .with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))
-            .on_write_failure(warn_cache_write)
-            .on_collection_due(spawn_collection),
-    )
+    work::Store::new(open_disk_store())
+}
+
+/// The disk store itself, for a consumer that takes a `DiskStore` by value:
+/// the wasmtime engine's code cache. The scale check runs only `check` and
+/// `build`, which go through [`disk_store`], so none of its work is counted.
+pub(crate) fn open_disk_store() -> DiskStore {
+    DiskStore::new(cache_dir())
+        .with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))
+        .on_write_failure(warn_cache_write)
+        .on_collection_due(spawn_collection)
 }
 
 /// Starts `hd cache gc` in the background, with `HD_CACHE_GC=auto`: it

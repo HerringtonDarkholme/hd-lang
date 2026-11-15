@@ -30,7 +30,7 @@ impl TryFrom<Vec<(String, Vec<u8>, hd_run::Grants)>> for Programs {
 /// kept in the compiled cache, under its cap, while the value lives. An
 /// engine made after it reuses the functions an earlier run compiled.
 pub(crate) fn code_cache() -> Option<hd_run_wasmtime::CodeCache> {
-    hd_run_wasmtime::install_code_cache(crate::disk_store())
+    hd_run_wasmtime::install_code_cache(crate::open_disk_store())
 }
 
 /// One engine and compiled child-program list for a package's test run.
