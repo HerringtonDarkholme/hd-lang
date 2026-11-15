@@ -7,7 +7,7 @@ types/numeric-conversions/u8-checked-add.hd	A11	accept; private main, no tests: 
 data/shared-enum-constructor-data/shared-enum-data-computed-once.hd	A11	accept; private main, no tests: nothing runs
 requirements/requirement-rows/closure-result-keeps-requirement-row.hd	A11	accept; private main, no tests: nothing runs
 traits/trait-implementations/trait-default-method-instantiates-params.hd	A11	accept; private main, no tests: nothing runs
-runtime/valid/reference-enum-replace-build.hd	A11	accept; private main, no tests: nothing runs
+references/writable-places-of-references/reference-enum-replace-build.hd	A11	accept; private main, no tests: nothing runs
 std/validate/rule-facts/validation-rules.hd	A11	accept; private main, no tests: nothing runs
 std/validate/rule-facts/validation-rule-order.hd	A11	accept; private main, no tests: nothing runs
 std/validate/validate/validation-nesting-option-cap.hd	A11	accept; private main, no tests: nothing runs

@@ -18,7 +18,7 @@ lexical/processing-model/utf8-bom.hd	A7b	lost '\ufeff' gained ''	lang/01-lexical
 modules/standard-testing/assert-equal-map-unequal.hd	A7b	lost '' gained ','	lang/10-modules.md#standard-testing
 modules/standard-testing/assert-equal-tuple-unequal.hd	A7b	lost '' gained ','	lang/10-modules.md#standard-testing
 functions/closures/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd	A7b	lost '' gained ','	lang/07-functions.md#r-fn.capture.cell.writes
-runtime/valid/a-data-value-is-its-trait-value-conversion.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#identity
+references/identity/a-data-value-is-its-trait-value-conversion.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#identity
 std/error/cause-chain/a-generic-error-type-gets-derived-bounds.hd	A7b	lost '' gained ',,'	std/error.md#cause-chain
 control-flow/for-loops/a-list-cursor-iterates-the-list-as-iter-found-it.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.cursor.snapshot
 control-flow/for-loops/a-map-cursor-iterates-the-map-as-iter-found-it.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.cursor.snapshot
@@ -42,7 +42,7 @@ types/generics/inference-through-a-bound/bound-inference-two-bounds.hd	A7b	lost 
 requirements/suspendt-protocol/cancel-cold-and-completed-suspension.hd	A7b	lost '' gained ',,'	lang/11-requirements-and-suspension.md#suspendt-protocol
 traits/method-resolution/candidate-scope-isolation-reversed.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.resolve.one-applies
 traits/method-resolution/candidate-scope-isolation.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.resolve.one-applies
-runtime/valid/capture-closure-called-through-reference.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.read.shallow
+references/reading-through-a-reference/capture-closure-called-through-reference.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.read.shallow
 std/text/character-classification/char-ascii-classes.hd	A7b	lost '' gained ',,,,,,,'	std/text.md#character-classification
 std/text/character-classification/char-unicode-digits.hd	A7b	lost '' gained ',,,'	std/text.md#r-std-text.char.alphanumeric
 std/text/character-classification/char-unicode-letters.hd	A7b	lost '' gained ',,,,'	std/text.md#r-std-text.char.alphabetic
@@ -79,7 +79,7 @@ expressions/expression-categories/compound-assign-index.hd	A7b	lost '' gained ',
 std/console/console-errors/console-error-traits.hd	A7b	lost '' gained ',,,,'	std/console.md#r-std-console.error.traits
 std/console/printing-without-a-newline/console-raw-writes.hd	A7b	lost '' gained ','	std/console.md#printing-without-a-newline
 std/console/buffer-console/console-struct-fake-ref.hd	A7b	lost '' gained ',,'	std/console.md#r-std-console.buffer.install-ref
-runtime/valid/constant-size-reference-allocation.hd	A7b	lost '' gained ',,,,,'	lang/13-values-and-references.md#identity
+references/identity/constant-size-reference-allocation.hd	A7b	lost '' gained ',,,,,'	lang/13-values-and-references.md#identity
 lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd	A7b	lost '' gained ','	lang/01-lexical-structure.md#r-lex.dot.statement-indent
 data/data-embedding/copy-update-copies-embedded-part.hd	A7b	lost '' gained ',,'	lang/08-data-and-enums.md#data-embedding
 data/construction-and-access/copy-update-evaluation-order.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#copy-update-literals
@@ -93,7 +93,7 @@ annotations/typed-derivation/members-and-variants/data-variant-facts-empty.hd	A7
 modules/prelude/dbg-without-requirement.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.dbg.no-requirement
 std/format/debug-text/debug-string-runs.hd	A7b	lost '' gained ',,'	std/format.md#r-std-format.debug.source
 traits/trait-implementations/debug-trait/debug-tuple-rest.hd	A7b	lost '' gained ',,,'	lang/09-traits.md#r-trait.debug.tuples.rest
-runtime/valid/deep-recursive-release.hd	A7b	lost '' gained ',,'	lang/13-values-and-references.md#r-ref.expr.allocate
+references/places-and-new-objects/deep-recursive-release.hd	A7b	lost '' gained ',,'	lang/13-values-and-references.md#r-ref.expr.allocate
 functions/parameters/default-constant-specialization.hd	A7b	lost '' gained ','	lang/07-functions.md#r-fn.default.observable-effects
 traits/default-method-conflicts/default-method-conflict-inherent-resolves.hd	A7b	lost '' gained ','	lang/09-traits.md#default-method-conflicts
 std/ops/default-trait/default-standard-types.hd	A7b	lost '' gained ','	std/ops.md#standard-implementations
@@ -135,7 +135,7 @@ std/time/duration/duration-parse-errors.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,
 std/time/duration/duration-parse.hd	A7b	lost '' gained ',,,,,,,'	std/time.md#r-std-time.duration.parse
 std/time/serialization/duration-serde-text.hd	A7b	lost '' gained ',,'	std/time.md#r-std-time.serde.duration-text-read
 traits/dynamic-trait-values/dynamic-trait-value-satisfies-own-bound.hd	A7b	lost '' gained ','	lang/09-traits.md#dynamic-trait-values
-runtime/valid/element-reference-nested-copy-independent.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.elem.index
+references/element-references/element-reference-nested-copy-independent.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.elem.index
 data/data-embedding/embedded-store-copies.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#data-embedding
 names/member-resolution/embedded-trait-method-via-part.hd	A7b	lost '' gained ',,'	lang/03-names-and-scopes.md#member-resolution
 std/text/string-methods/empty-string-operations.hd	A7b	lost '' gained ',,'	std/text.md#string-methods
@@ -338,9 +338,9 @@ control-flow/for-loops/map-iterator.hd	A7b	lost '' gained ','	lang/06-control-fl
 expressions/primary-expressions/map-literal-and-comprehension-order.hd	A7b	lost '' gained ','	lang/05-expressions.md#list-and-map-expressions
 std/collections/map-methods/map-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/collections.md#r-std-collections.map.entries
 std/host/map-sys/map-sys.hd	A7b	lost '' gained ',,,'	std/host.md#map-sys
-runtime/valid/map-value-element-reference.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.elem.map
+references/element-references/map-value-element-reference.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.elem.map
 types/collection-values/map-value-field-write.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.coll.map-value.place
-runtime/valid/match-reference-field-loan.hd	A7b	lost '' gained ',,,,,'	lang/13-values-and-references.md#r-ref.box.lifetime
+references/boxes/match-reference-field-loan.hd	A7b	lost '' gained ',,,,,'	lang/13-values-and-references.md#r-ref.box.lifetime
 annotations/typed-derivation/derivation-blocks/member-line-extend.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.line.extend
 annotations/typed-derivation/derivation-blocks/member-line-list-expression.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.line.right-typed
 std/fs/copying-files/memory-fs-copy.hd	A7b	lost '' gained ',,,,,,,,,,,'	std/fs.md#r-std-fs.copy.bytes
@@ -452,7 +452,7 @@ functions/recursion/explicitly-typed-local-closures-recurse-through-their-enviro
 data/struct-declarations/recursive-optional-reference-list.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#r-data.struct.contains.reference
 types/collection-values/recursive-value-copies-stay-independent.hd	A7b	lost '' gained ',,,,'	lang/04-type-system.md#collection-values
 types/trait-values-and-any/reference-bounded-dynamic-method.hd	A7b	lost '' gained ',,'	lang/04-type-system.md#trait-values-and-any
-runtime/valid/reference-field-stores-preserve-rhs-alias-writes.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.place.alias
+references/places-and-new-objects/reference-field-stores-preserve-rhs-alias-writes.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.place.alias
 expressions/unary-and-binary-operators/reference-identity.hd	A7b	lost '' gained '()'	lang/05-expressions.md#unary-and-binary-operators
 std/regex/searching/regex-captures-linear-time.hd	A7b	lost '' gained ',,,,,'	std/regex.md#time-bound
 std/regex/captures/regex-captures.hd	A7b	lost '' gained ',,,,,,,,,,,'	std/regex.md#captures
@@ -610,7 +610,7 @@ types/collection-values/value-argument-legacy-alias.hd	A7b	lost '' gained ',,,'	
 types/collection-values/value-argument-reference-change.hd	A7b	lost '' gained ',,'	lang/04-type-system.md#r-types.coll.value
 types/collection-values/value-argument-sibling-change.hd	A7b	lost '' gained ',,,,,,,'	lang/04-type-system.md#r-types.coll.value
 annotations/typed-derivation/walkers-describers-and-sources/walker-skips-fact.hd	A7b	lost '' gained ',,,,'	lang/14-annotations.md#r-annot.impl-fact.skips
-runtime/valid/wide-counted-struct-copies.hd	A7b	lost '' gained ',,'	lang/13-values-and-references.md#r-ref.deref.write
+references/writing-through-a-reference/wide-counted-struct-copies.hd	A7b	lost '' gained ',,'	lang/13-values-and-references.md#r-ref.deref.write
 data/struct-declarations/wide-struct-argument-and-result.hd	A7b	lost '' gained '(()),,,'	lang/08-data-and-enums.md#r-data.struct.value
 data/struct-declarations/wide-value-field-reads.hd	A7b	lost '' gained '(),,,'	lang/08-data-and-enums.md#r-data.struct.value
 std/time/clock/wide-value-suspension.hd	A7b	lost '' gained ','	std/time.md#r-std-time.helper.sleep

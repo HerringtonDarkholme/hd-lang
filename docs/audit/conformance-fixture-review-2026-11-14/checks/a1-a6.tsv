@@ -17,14 +17,14 @@ modules/use-roots/root-file-super.hd	A2	same code (comments/directives stripped)
 requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd [reject:generic-kind-mismatch] [reject:generic-kind-mismatch]
 lexical/comments/module-documentation.hd	A2	same code (comments/directives stripped) as lexical/comments/module-documentation-second-block.hd [reject:doc-comment-without-target] [accept]
 modules/path-inferred-modules/module-named-pkg.hd	A2	same code (comments/directives stripped) as modules/path-inferred-modules/root-mod-file.hd [reject:reserved-module-name], modules/path-inferred-modules/module-path-not-identifier.hd [reject:invalid-module-path] [reject:reserved-module-name]
-runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A2	same code (comments/directives stripped) as typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd [accept] [accept]
-parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd
-parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
-parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
-parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
-parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
-parse/invalid/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
-parse/invalid/caret-prefix-expression.hd	A3	parse/invalid/caret-type.hd
+references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A2	same code (comments/directives stripped) as references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd [accept] [accept]
+references/operator-tokens/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	references/operator-tokens/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd
+references/operator-tokens/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	references/operator-tokens/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
+references/operator-tokens/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	references/operator-tokens/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
+references/operator-tokens/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd	A3	references/operator-tokens/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd
+references/operator-tokens/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd	A3	references/operator-tokens/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
+references/operator-tokens/caret-is-xor-a-caret-before-self-is-a-syntax-error.hd	A3	references/operator-tokens/caret-is-xor-a-caret-before-a-reference-receiver-is-a-syntax-error.hd
+references/operator-tokens/caret-prefix-expression.hd	A3	references/operator-tokens/caret-type.hd
 grammar/declarations/impl-trait-binding.hd	A3	grammar/declarations/impl-trait-closure.hd
 grammar/declarations/impl-trait-binding.hd	A3	grammar/declarations/impl-trait-field.hd
 grammar/declarations/impl-trait-binding.hd	A3	grammar/declarations/impl-trait-function-type.hd
@@ -122,8 +122,8 @@ traits/trait-implementations/implementation-targets/impl-targets-a-bounded-bare-
 traits/trait-implementations/implementation-targets/impl-targets-a-bounded-bare-parameter-target-is-one-error.hd	A3	traits/trait-implementations/implementation-targets/bare-parameter-impl-target.hd
 traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-beside-another-parameter-is-one-error.hd	A3	traits/trait-implementations/implementation-targets/bare-parameter-impl-target.hd
 annotations/typed-derivation/templates/templates-a-generic-pair-impl-overlaps-the-tuple-template.hd	A3	annotations/typed-derivation/templates/tuple-template-overlap.hd
-typing/invalid/newtype-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/newtype-trailing-block-cannot-capture-a-local-reference.hd
-typing/invalid/variant-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/variant-trailing-block-cannot-capture-a-local-reference.hd
+references/local-references/newtype-callback-cannot-capture-a-local-reference.hd	A3	references/local-references/newtype-trailing-block-cannot-capture-a-local-reference.hd
+references/local-references/variant-callback-cannot-capture-a-local-reference.hd	A3	references/local-references/variant-trailing-block-cannot-capture-a-local-reference.hd
 traits/dynamic-trait-values/impl-trait-method-dyn-mut-call.hd	A3	traits/dynamic-trait-values/impl-trait-method-dyn-reference.hd
 types/opaque-result-types/impl-trait-recursive.hd	A3	types/opaque-result-types/impl-trait-nested-recursive-only.hd
 functions/declarations/impl-trait-return-mismatch.hd	A3	functions/declarations/impl-trait-return-void-mismatch.hd
@@ -1701,32 +1701,32 @@ std/num/powers/num-pow-overflow-u8.hd	A3	std/num/powers/num-pow-overflow-u64.hd
 std/num/powers/num-pow-overflow-u32.hd	A3	std/num/powers/num-pow-overflow-i64.hd
 std/num/powers/num-pow-overflow-u32.hd	A3	std/num/powers/num-pow-overflow-u64.hd
 std/num/powers/num-pow-overflow-i64.hd	A3	std/num/powers/num-pow-overflow-u64.hd
-parse/invalid/reference-type-and-and.hd	A3	parse/invalid/reference-type-mut-before-reference.hd
-parse/invalid/reference-type-and-and.hd	A3	parse/invalid/reference-type-doubled-mut.hd
-parse/invalid/reference-type-and-and.hd	A3	parse/invalid/reference-type-counted-to-local.hd
-parse/invalid/reference-type-mut-before-reference.hd	A3	parse/invalid/reference-type-doubled-mut.hd
-parse/invalid/reference-type-mut-before-reference.hd	A3	parse/invalid/reference-type-counted-to-local.hd
-parse/invalid/reference-type-doubled-mut.hd	A3	parse/invalid/reference-type-counted-to-local.hd
-typing/invalid/reference-shallow-not-writable.hd	A3	typing/invalid/reference-shallow-replace-field.hd
-typing/invalid/reference-shallow-not-writable.hd	A3	typing/invalid/reference-shallow-take-field.hd
-typing/invalid/reference-shallow-replace-field.hd	A3	typing/invalid/reference-shallow-take-field.hd
-typing/invalid/reference-container-writable-conversion.hd	A3	typing/invalid/reference-container-invariant.hd
-typing/invalid/reference-container-writable-conversion.hd	A3	typing/invalid/reference-container-nested-writable.hd
-typing/invalid/reference-container-writable-conversion.hd	A3	typing/invalid/reference-container-writable-option.hd
-typing/invalid/reference-container-invariant.hd	A3	typing/invalid/reference-container-nested-writable.hd
-typing/invalid/reference-container-invariant.hd	A3	typing/invalid/reference-container-writable-option.hd
-typing/invalid/reference-container-nested-writable.hd	A3	typing/invalid/reference-container-writable-option.hd
-runtime/panic/element-reference-push-panics.hd	A3	runtime/panic/element-reference-insert-panics.hd
-runtime/panic/element-reference-push-panics.hd	A3	runtime/panic/element-reference-remove-at-panics.hd
-runtime/panic/element-reference-push-panics.hd	A3	runtime/panic/element-reference-pop-panics.hd
-runtime/panic/element-reference-push-panics.hd	A3	runtime/panic/element-reference-clear-panics.hd
-runtime/panic/element-reference-insert-panics.hd	A3	runtime/panic/element-reference-remove-at-panics.hd
-runtime/panic/element-reference-insert-panics.hd	A3	runtime/panic/element-reference-pop-panics.hd
-runtime/panic/element-reference-insert-panics.hd	A3	runtime/panic/element-reference-clear-panics.hd
-runtime/panic/element-reference-remove-at-panics.hd	A3	runtime/panic/element-reference-pop-panics.hd
-runtime/panic/element-reference-remove-at-panics.hd	A3	runtime/panic/element-reference-clear-panics.hd
-runtime/panic/element-reference-pop-panics.hd	A3	runtime/panic/element-reference-clear-panics.hd
-typing/invalid/reference-equality.hd	A3	typing/invalid/reference-inequality.hd
+references/reference-types/reference-type-and-and.hd	A3	references/reference-types/reference-type-mut-before-reference.hd
+references/reference-types/reference-type-and-and.hd	A3	references/reference-types/reference-type-doubled-mut.hd
+references/reference-types/reference-type-and-and.hd	A3	references/reference-types/reference-type-counted-to-local.hd
+references/reference-types/reference-type-mut-before-reference.hd	A3	references/reference-types/reference-type-doubled-mut.hd
+references/reference-types/reference-type-mut-before-reference.hd	A3	references/reference-types/reference-type-counted-to-local.hd
+references/reference-types/reference-type-doubled-mut.hd	A3	references/reference-types/reference-type-counted-to-local.hd
+references/writable-places-of-references/reference-shallow-not-writable.hd	A3	references/writable-places-of-references/reference-shallow-replace-field.hd
+references/writable-places-of-references/reference-shallow-not-writable.hd	A3	references/writable-places-of-references/reference-shallow-take-field.hd
+references/writable-places-of-references/reference-shallow-replace-field.hd	A3	references/writable-places-of-references/reference-shallow-take-field.hd
+references/conversions/reference-container-writable-conversion.hd	A3	references/conversions/reference-container-invariant.hd
+references/conversions/reference-container-writable-conversion.hd	A3	references/conversions/reference-container-nested-writable.hd
+references/conversions/reference-container-writable-conversion.hd	A3	references/conversions/reference-container-writable-option.hd
+references/conversions/reference-container-invariant.hd	A3	references/conversions/reference-container-nested-writable.hd
+references/conversions/reference-container-invariant.hd	A3	references/conversions/reference-container-writable-option.hd
+references/conversions/reference-container-nested-writable.hd	A3	references/conversions/reference-container-writable-option.hd
+references/dependent-results/conflicts-through-aliases/element-reference-push-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-insert-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-push-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-remove-at-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-push-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-pop-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-push-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-clear-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-insert-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-remove-at-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-insert-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-pop-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-insert-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-clear-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-remove-at-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-pop-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-remove-at-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-clear-panics.hd
+references/dependent-results/conflicts-through-aliases/element-reference-pop-panics.hd	A3	references/dependent-results/conflicts-through-aliases/element-reference-clear-panics.hd
+references/identity/reference-equality.hd	A3	references/identity/reference-inequality.hd
 types/literal-types/f32-literal-out-of-range.hd	A3	types/literal-types/f32-literal-negative-out-of-range.hd
 names/lexical-scopes/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	names/lexical-scopes/recursive-closure-a-middle-name-of-a-chain-is-not-in-scope-in-its-closure.hd
 names/lexical-scopes/recursive-closure-the-first-name-of-a-chain-is-not-in-scope-in-its-closure.hd	A3	names/lexical-scopes/recursive-closure-the-last-name-of-a-chain-is-not-in-scope-in-its-closure.hd
@@ -1940,10 +1940,10 @@ runtime/panic/pointer-loan-closure-ref-umap-grow-panics.hd	A3	runtime/panic/poin
 runtime/panic/pointer-loan-closure-ref-umap-grow-panics.hd	A3	runtime/panic/pointer-loan-closure-mut-umap-grow-panics.hd
 runtime/panic/pointer-loan-closure-ref-umap-replace-panics.hd	A3	runtime/panic/pointer-loan-closure-mut-umap-replace-panics.hd
 runtime/panic/pointer-loan-closure-mut-umap-grow-panics.hd	A3	runtime/panic/pointer-loan-closure-mut-umap-replace-panics.hd
-typing/invalid/element-binding-push-while-live.hd	A3	typing/invalid/element-binding-pop-while-live.hd
-typing/invalid/element-binding-push-while-live.hd	A3	typing/invalid/element-binding-clear-while-live.hd
-typing/invalid/element-binding-pop-while-live.hd	A3	typing/invalid/element-binding-clear-while-live.hd
-typing/invalid/element-access-conflict-method.hd	A3	typing/invalid/element-argument-method-beside-mut-parameter-list.hd
+references/element-references/element-binding-push-while-live.hd	A3	references/element-references/element-binding-pop-while-live.hd
+references/element-references/element-binding-push-while-live.hd	A3	references/element-references/element-binding-clear-while-live.hd
+references/element-references/element-binding-pop-while-live.hd	A3	references/element-references/element-binding-clear-while-live.hd
+references/element-references/element-access-conflict-method.hd	A3	references/element-references/element-argument-method-beside-mut-parameter-list.hd
 control-flow/for-loops/for-cursor-item-outlives-local.hd	A3	control-flow/for-loops/for-mut-cursor-item-outlives-local.hd
 types/numeric-conversions/i32-remainder-by-zero.hd	A3	types/numeric-conversions/i64-remainder-by-zero.hd
 traits/dynamic-trait-values/self-in-a-list-is-unavailable-on-a-dyn-value.hd	A3	traits/dynamic-trait-values/self-in-a-function-type-is-unavailable-on-a-dyn-value.hd
@@ -1987,25 +1987,25 @@ modules/prelude/prelude-explicit-poll-context.hd	A3	modules/prelude/prelude-expl
 modules/wasm-boundary/host-declaration-private.hd	A3	modules/wasm-boundary/host-declaration-function.hd
 modules/wasm-boundary/host-declaration-private.hd	A3	modules/wasm-boundary/host-on-a-private-trait.hd
 modules/wasm-boundary/host-declaration-function.hd	A3	modules/wasm-boundary/host-on-a-private-trait.hd
-typing/invalid/local-reference-escapes-trait-argument-parameter.hd	A3	typing/invalid/local-reference-escapes-trait-argument-impl-parameter.hd
-typing/invalid/local-reference-escapes-trait-argument-parameter.hd	A3	typing/invalid/local-reference-escapes-trait-argument-result.hd
-typing/invalid/local-reference-escapes-trait-argument-bound.hd	A3	typing/invalid/local-reference-escapes-trait-argument-bound-nested.hd
-typing/invalid/local-reference-escapes-trait-argument-bound.hd	A3	typing/invalid/local-reference-escapes-trait-argument-supertrait.hd
-typing/invalid/local-reference-escapes-trait-argument-bound.hd	A3	typing/invalid/local-reference-escapes-trait-argument-associated-bound.hd
-typing/invalid/local-reference-escapes-trait-argument-bound-nested.hd	A3	typing/invalid/local-reference-escapes-trait-argument-supertrait.hd
-typing/invalid/local-reference-escapes-trait-argument-bound-nested.hd	A3	typing/invalid/local-reference-escapes-trait-argument-associated-bound.hd
-typing/invalid/local-reference-escapes-trait-argument-supertrait.hd	A3	typing/invalid/local-reference-escapes-trait-argument-associated-bound.hd
-typing/invalid/local-reference-escapes-bound-argument-store-nested.hd	A3	typing/invalid/local-reference-escapes-bound-argument-store-supertrait-argument.hd
-typing/invalid/local-reference-escapes-bound-argument-bare-binding.hd	A3	typing/invalid/local-reference-escapes-trait-method-projection-result.hd
-typing/invalid/local-reference-escapes-bound-argument-store-assoc.hd	A3	typing/invalid/local-reference-escapes-bound-argument-store-assoc-supertrait.hd
-typing/invalid/local-reference-escapes-bound-argument-store-assoc.hd	A3	typing/invalid/local-reference-escapes-bound-argument-store-assoc-bound-supertrait.hd
-typing/invalid/local-reference-escapes-bound-argument-store-assoc.hd	A3	typing/invalid/local-reference-escapes-bound-argument-store-assoc-generic-fn.hd
-typing/invalid/dependent-result-ambiguous.hd	A3	typing/invalid/dependent-result-ambiguous-unused.hd
-typing/invalid/dependent-result-ambiguous.hd	A3	typing/invalid/dependent-result-ambiguous-trait-method.hd
-typing/invalid/dependent-result-ambiguous-unused.hd	A3	typing/invalid/dependent-result-ambiguous-trait-method.hd
-typing/invalid/dependent-result-implicit-counted-field-origin.hd	A3	typing/invalid/dependent-result-explicit-counted-field-origin.hd
-typing/invalid/dependent-result-implicit-counted-field-origin.hd	A3	typing/invalid/dependent-result-contextual-tuple-counted-field-origin.hd
-typing/invalid/dependent-result-explicit-counted-field-origin.hd	A3	typing/invalid/dependent-result-contextual-tuple-counted-field-origin.hd
+references/local-references/local-reference-escapes-trait-argument-parameter.hd	A3	references/local-references/local-reference-escapes-trait-argument-impl-parameter.hd
+references/local-references/local-reference-escapes-trait-argument-parameter.hd	A3	references/local-references/local-reference-escapes-trait-argument-result.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-bound.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-bound-nested.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-bound.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-supertrait.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-bound.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-associated-bound.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-bound-nested.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-supertrait.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-bound-nested.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-associated-bound.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-supertrait.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-argument-associated-bound.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-nested.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-supertrait-argument.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-bare-binding.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-trait-method-projection-result.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-assoc.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-assoc-supertrait.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-assoc.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-assoc-bound-supertrait.hd
+references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-assoc.hd	A3	references/dependent-results/lifetime-traits/local-reference-escapes-bound-argument-store-assoc-generic-fn.hd
+references/dependent-results/dependent-result-ambiguous.hd	A3	references/dependent-results/dependent-result-ambiguous-unused.hd
+references/dependent-results/dependent-result-ambiguous.hd	A3	references/dependent-results/dependent-result-ambiguous-trait-method.hd
+references/dependent-results/dependent-result-ambiguous-unused.hd	A3	references/dependent-results/dependent-result-ambiguous-trait-method.hd
+references/dependent-results/dependent-result-implicit-counted-field-origin.hd	A3	references/dependent-results/dependent-result-explicit-counted-field-origin.hd
+references/dependent-results/dependent-result-implicit-counted-field-origin.hd	A3	references/dependent-results/dependent-result-contextual-tuple-counted-field-origin.hd
+references/dependent-results/dependent-result-explicit-counted-field-origin.hd	A3	references/dependent-results/dependent-result-contextual-tuple-counted-field-origin.hd
 functions/declarations/opaque-named-variant-payload-keeps-its-hidden-type.hd	A3	functions/declarations/opaque-spread-variant-payload-keeps-its-hidden-type.hd
 types/type-forms/never-call-argument.hd	A3	types/type-forms/never-binary-operand.hd
 types/type-forms/never-call-argument.hd	A3	types/type-forms/never-list-element.hd
@@ -2013,11 +2013,11 @@ types/type-forms/never-call-argument.hd	A3	types/type-forms/never-interpolation-
 types/type-forms/never-binary-operand.hd	A3	types/type-forms/never-list-element.hd
 types/type-forms/never-binary-operand.hd	A3	types/type-forms/never-interpolation-part.hd
 types/type-forms/never-list-element.hd	A3	types/type-forms/never-interpolation-part.hd
-typing/valid/result-path-through-reference-caller.hd	A3	typing/valid/result-path-through-reference-sibling.hd
-typing/valid/result-path-through-reference-caller.hd	A3	typing/valid/result-path-through-shared-reference.hd
-typing/invalid/result-path-through-reference-write.hd	A3	typing/invalid/result-path-through-reference-replace.hd
-typing/invalid/lifetime-store-other-lifetime.hd	A3	typing/invalid/lifetime-store-unnamed-lifetime.hd
-typing/invalid/lifetime-return-unshared-parameter.hd	A3	typing/invalid/lifetime-return-other-variable.hd
+references/dependent-results/result-paths/result-path-through-reference-caller.hd	A3	references/dependent-results/result-paths/result-path-through-reference-sibling.hd
+references/dependent-results/result-paths/result-path-through-reference-caller.hd	A3	references/dependent-results/result-paths/result-path-through-shared-reference.hd
+references/dependent-results/result-paths/result-path-through-reference-write.hd	A3	references/dependent-results/result-paths/result-path-through-reference-replace.hd
+references/dependent-results/lifetime-stores/lifetime-store-other-lifetime.hd	A3	references/dependent-results/lifetime-stores/lifetime-store-unnamed-lifetime.hd
+references/dependent-results/lifetime-variables/lifetime-return-unshared-parameter.hd	A3	references/dependent-results/lifetime-variables/lifetime-return-other-variable.hd
 functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-store.hd
 functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd
 functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
@@ -2038,35 +2038,35 @@ functions/function-types-and-values/lifetimes-in-function-types/local-reference-
 functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
 functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
 functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
-typing/invalid/local-reference-escapes-type-parameter-whole-result.hd	A3	typing/invalid/local-reference-escapes-type-parameter-whole-function-value.hd
-typing/invalid/local-reference-escapes-whole-place-store-call.hd	A3	typing/invalid/local-reference-escapes-whole-place-function-value.hd
-typing/invalid/local-reference-escapes-whole-place-store-call.hd	A3	typing/invalid/local-reference-escapes-whole-place-assign.hd
-typing/invalid/local-reference-escapes-whole-place-assign.hd	A3	typing/invalid/local-reference-escapes-whole-place-field.hd
-typing/invalid/shared-self-mut-result-path-while-live.hd	A3	typing/invalid/shared-self-mut-result-while-live.hd
-typing/valid/dependent-result-write-after-last-use.hd	A3	typing/valid/dependent-result-copy-out.hd
+references/generic-locality/local-reference-escapes-type-parameter-whole-result.hd	A3	references/generic-locality/local-reference-escapes-type-parameter-whole-function-value.hd
+references/dependent-results/lifetime-stores/local-reference-escapes-whole-place-store-call.hd	A3	references/dependent-results/lifetime-stores/local-reference-escapes-whole-place-function-value.hd
+references/dependent-results/lifetime-stores/local-reference-escapes-whole-place-store-call.hd	A3	references/dependent-results/lifetime-stores/local-reference-escapes-whole-place-assign.hd
+references/dependent-results/lifetime-stores/local-reference-escapes-whole-place-assign.hd	A3	references/dependent-results/lifetime-stores/local-reference-escapes-whole-place-field.hd
+references/dependent-results/writes-while-borrowed/shared-self-mut-result-path-while-live.hd	A3	references/dependent-results/writes-while-borrowed/shared-self-mut-result-while-live.hd
+references/dependent-results/writes-while-borrowed/dependent-result-write-after-last-use.hd	A3	references/dependent-results/writes-while-borrowed/dependent-result-copy-out.hd
 control-flow/auto-closing-calls/auto-closing-stored.hd	A3	control-flow/auto-closing-calls/auto-closing-stored-through-a-shorthand-field.hd
 control-flow/auto-closing-calls/auto-closing-undecorated-return.hd	A3	control-flow/auto-closing-calls/auto-closing-explicit-return-undecorated.hd
 types/union-type-identity/union-order-is-type-identity.hd	A3	types/union-type-identity/union-duplicate-arity-is-type-identity.hd
 types/union-construction-and-matching/union-constructor-without-result-context.hd	A3	types/union-construction-and-matching/union-constructor-with-a-non-union-result.hd
 types/union-construction-and-matching/union-constructor-unknown-case.hd	A3	types/union-construction-and-matching/a-union-case-past-its-arity-in-a-value-path.hd
-typing/invalid/mut-reference-use-after-tuple-element.hd	A3	typing/invalid/mut-reference-use-after-constructed-value.hd
-typing/invalid/move-field-out-of-counted-reference.hd	A3	typing/invalid/move-field-out-of-counted-mut-reference.hd
-typing/invalid/copy-relaxed-parameter-moves.hd	A3	typing/invalid/copy-relaxed-local-fn-parameter-moves.hd
-typing/invalid/copy-negative-impl-other-trait.hd	A3	typing/invalid/copy-negative-impl-primitive.hd
+references/moves/mut-reference-use-after-tuple-element.hd	A3	references/moves/mut-reference-use-after-constructed-value.hd
+references/moves/move-field-out-of-counted-reference.hd	A3	references/moves/move-field-out-of-counted-mut-reference.hd
+references/moves/copy-relaxed-parameter-moves.hd	A3	references/moves/copy-relaxed-local-fn-parameter-moves.hd
+references/moves/copy-negative-impl-other-trait.hd	A3	references/moves/copy-negative-impl-primitive.hd
 std/iter/what-collect-builds/collect-without-a-target.hd	A3	std/iter/what-collect-builds/a-method-name-does-not-choose-a-collect-target.hd
 std/collections/uniqlist/uniq-list-drain-reversed.hd	A3	std/collections/uniqlist/uniq-list-drain-past-end.hd
 std/collections/uniqlist/uniq-list-drain-reversed.hd	A3	std/collections/uniqlist/uniq-list-drain-inclusive-overflow.hd
 std/collections/uniqlist/uniq-list-drain-past-end.hd	A3	std/collections/uniqlist/uniq-list-drain-inclusive-overflow.hd
 std/collections/uniqmap/uniq-map-reserve-overflow.hd	A3	std/collections/uniqmap/uniq-map-capacity-overflow.hd
-typing/invalid/reference-impl-covers-only-its-kind.hd	A3	typing/invalid/local-impl-rejects-counted-caller.hd
+references/reference-types/reference-impl-covers-only-its-kind.hd	A3	references/reference-types/local-impl-rejects-counted-caller.hd
 std/collections/list-methods/list-drain-reversed.hd	A3	std/collections/list-methods/list-drain-past-end.hd
 std/collections/list-methods/list-drain-reversed.hd	A3	std/collections/list-methods/list-drain-inclusive-overflow.hd
 std/collections/list-methods/list-drain-past-end.hd	A3	std/collections/list-methods/list-drain-inclusive-overflow.hd
 control-flow/for-loops/map-loop-mutable-unused-insert.hd	A3	control-flow/for-loops/map-loop-mutable-unused-replace.hd
 control-flow/for-loops/map-loop-mutable-unused-insert.hd	A3	control-flow/for-loops/map-loop-mutable-unused-read.hd
 control-flow/for-loops/map-loop-mutable-unused-replace.hd	A3	control-flow/for-loops/map-loop-mutable-unused-read.hd
-runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A3	runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-closure.hd
-runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-closure.hd	A3	typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd
+references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A3	references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-closure.hd
+references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-closure.hd	A3	references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd
 control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd
 control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
 control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-dependent-pointer-loan-blocks-a-store-through-its-loop-binding.hd
@@ -2121,7 +2121,7 @@ grammar/expressions/a-colon-in-parentheses-before-no-type-gives-the-schematic-hi
 grammar/expressions/a-colon-in-parentheses-before-no-type-gives-the-schematic-hint.hd	A3	grammar/expressions/a-colon-in-parentheses-after-a-long-operand-gives-the-schematic-hint.hd
 grammar/expressions/a-colon-in-parentheses-before-a-comma-gives-the-schematic-hint.hd	A3	grammar/expressions/a-colon-in-parentheses-after-a-long-operand-gives-the-schematic-hint.hd
 traits/generic-bounds-and-static-dispatch/a-written-type-argument-meets-its-bound-bindings.hd	A3	traits/generic-bounds-and-static-dispatch/a-construction-meets-its-bound-bindings.hd
-typing/invalid/implicit-shared-loan-rejects-same-owner-mutable-loan.hd	A3	typing/invalid/implicit-mutable-loan-rejects-second-same-owner-mutable-loan.hd
+references/dependent-results/writes-while-borrowed/implicit-shared-loan-rejects-same-owner-mutable-loan.hd	A3	references/dependent-results/writes-while-borrowed/implicit-mutable-loan-rejects-second-same-owner-mutable-loan.hd
 typing/invalid/pointer-loan-same-root-field.hd	A3	typing/invalid/pointer-loan-same-root-method-write.hd
 typing/invalid/pointer-loan-same-root-nested-pointer.hd	A3	typing/invalid/pointer-loan-same-root-list-push.hd
 typing/invalid/pointer-loan-same-root-nested-pointer.hd	A3	typing/invalid/pointer-loan-same-root-map-store.hd
@@ -2203,9 +2203,9 @@ data/shared-enum-constructor-data/shared-enum-data-computed-once.hd	A4	runtime a
 requirements/requirement-rows/closure-result-keeps-requirement-row.hd	A4	runtime accept with no assert, stdout check, or scenario
 traits/trait-implementations/trait-default-method-instantiates-params.hd	A4	runtime accept with no assert, stdout check, or scenario
 modules/path-inferred-modules/doc-test-console-row.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/reference-enum-replace-build.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	A4	runtime accept with no assert, stdout check, or scenario
+references/writable-places-of-references/reference-enum-replace-build.hd	A4	runtime accept with no assert, stdout check, or scenario
+references/moves/field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
+references/moves/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/collections/uniqlist/uniq-list-field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
 modules/wasm-boundary/boundary-fieldless-struct-crosses.hd	A4	runtime accept with no assert, stdout check, or scenario
 functions/closures/known-closure-consumers-preserve-captures.hd	A4	runtime accept with no assert, stdout check, or scenario

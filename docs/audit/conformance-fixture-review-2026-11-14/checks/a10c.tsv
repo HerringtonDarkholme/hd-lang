@@ -1,5 +1,5 @@
 traits/dynamic-trait-values/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10c	# test: bare trait body nested in tuple and option is one error
-typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
+references/operator-tokens/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
 traits/method-resolution/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
 data/struct-declarations/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
 data/matching-enums/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10c	# test: checker checker errors are reported

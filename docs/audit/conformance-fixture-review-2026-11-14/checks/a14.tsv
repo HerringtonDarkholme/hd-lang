@@ -14,4 +14,4 @@ requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd	A14	ac
 requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd	A14	reject:unknown-associated-type: same code after renaming as requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd
 requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A14	reject:generic-kind-mismatch: same code after renaming as requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd
 types/generics/generic-arguments/placeholder-in-ordinary-type.hd	A14	reject:syntax-error: same code after renaming as types/generics/generic-arguments/placeholder-in-a-declaration.hd
-typing/valid/shared-reference-disjoint-field-write.hd	A14	accept: same code after renaming as typing/valid/dependent-result-borrow-field-instead.hd
+references/dependent-results/writes-while-borrowed/shared-reference-disjoint-field-write.hd	A14	accept: same code after renaming as references/dependent-results/writes-while-borrowed/dependent-result-borrow-field-instead.hd

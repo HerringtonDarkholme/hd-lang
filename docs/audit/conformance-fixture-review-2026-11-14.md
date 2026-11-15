@@ -524,7 +524,7 @@ other rule.
 - `requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `requirements/requirement-rows/row-subsumption/row-union-private-result.hd` (`req.row.union.sites`)
 - `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd` = `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd` (same rule, too)
 - `requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd` (`req.row.param.unmarked`) = `requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd` (`req.row.param.no-inference`)
-- `typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd` is the `runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd` program without its `expect-stdout`. The runtime case covers it.
+- `references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd` is the `references/dependent-results/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd` program without its `expect-stdout`. The runtime case covers it.
 
 **REJECTED (legitimate, 4 groups)**: they differ only by a directive or a
 doc comment, and that difference is the point of the case.
@@ -1554,7 +1554,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `expressions/postfix-expressions/propagation/propagation-without-target.hd` = `expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd`
 - `types/generics/generic-arguments/placeholder-in-ordinary-type.hd` = `types/generics/generic-arguments/placeholder-in-a-declaration.hd` (b027)
-- `typing/valid/shared-reference-disjoint-field-write.hd` = `typing/valid/dependent-result-borrow-field-instead.hd`
+- `references/dependent-results/writes-while-borrowed/shared-reference-disjoint-field-write.hd` = `references/dependent-results/writes-while-borrowed/dependent-result-borrow-field-instead.hd`
 
 A pattern: the numbered `rejected-pattern-binds-*`, `checker-*` and
 `declaration-checks-*` series were split from spec examples, and several
@@ -2309,11 +2309,11 @@ Ledger: b122 (45): 0 rows. b123 (45): 4 rows.
 
 Ledger: b126 (37): 1 row. b127 (44): 4 rows.
 
-- Duplicate, already in A2: `typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd`.
-- Plausible B7: `typing/invalid/a-pointer-read-from-a-place-keeps-its-root-nested-field.hd`
-  (cites a call rule; there is no call). `runtime/valid/dependent-result-capture-static.hd`
+- Duplicate, already in A2: `references/dependent-results/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd`.
+- Plausible B7: `references/dependent-results/a-pointer-read-from-a-place-keeps-its-root-nested-field.hd`
+  (cites a call rule; there is no call). `references/dependent-results/dependent-result-capture-static.hd`
   (an accept case citing the error-only `ref.dep.capture-elide.ambiguous`).
-- Plausible B1: `typing/valid/a-copied-local-reference-in-a-list-keeps-its-own-source.hd`.
+- Plausible B1: `references/dependent-results/a-copied-local-reference-in-a-list-keeps-its-own-source.hd`.
   Plausible C1: `move-while-borrowed-nested-100-levels.hd` ~ the 33-level twin
   (both are beyond any limit, so they likely take the same path).
 
@@ -2328,24 +2328,24 @@ Ledger: b124 (42): 8 rows. b125 (41): 13 rows.
   to be the point of the matrix's "local" column (no loan needed, runs). The
   generator's title template (`spec/tools/generate-pointer-loan-matrix.ts`)
   should say so, for example "an alias cannot reach the local's place".
-- **Code under test never runs (B4)**: `runtime/valid/match-reference-field-loan.hd`
+- **Code under test never runs (B4)**: `references/boxes/match-reference-field-loan.hd`
   (`across_call`, `across_store` and `across_guard` are never called). Plausible:
-  `runtime/valid/a-plain-entry-borrows-its-cell-reference.hd` (`helper!` is never awaited).
-- **A check that cannot fail (B3)**: `runtime/valid/provider-local-replaced-through-a-reference-keeps-its-counts.hd`
+  `references/local-references/a-plain-entry-borrows-its-cell-reference.hd` (`helper!` is never awaited).
+- **A check that cannot fail (B3)**: `references/moves/provider-local-replaced-through-a-reference-keeps-its-counts.hd`
   (the replacement is the same provider, so skipping the write gives the same 2).
 - Plausible B7: the `provider-local-*-keeps-its-counts` trio (cites the Copy
-  section; the rule is `ref.type.local-uncounted`). `typing/invalid/box-local-reference-alias-write.hd`
+  section; the rule is `ref.type.local-uncounted`). `references/boxes/box-local-reference-alias-write.hd`
   and `box-local-reference-tuple.hd` (`ref.box.local` names no error).
-  `typing/invalid/reference-container-upgrade.hd`.
-- Plausible B1: `runtime/valid/list-local-shared-before-a-change-keeps-its-copy.hd`,
-  `typing/invalid/reference-shared-to-mut-result.hd` (`&T` in the title; the code uses `*i32`),
-  `runtime/valid/constant-size-reference-allocation.hd`.
+  `references/conversions/reference-container-upgrade.hd`.
+- Plausible B1: `references/moves/list-local-shared-before-a-change-keeps-its-copy.hd`,
+  `references/conversions/reference-shared-to-mut-result.hd` (`&T` in the title; the code uses `*i32`),
+  `references/identity/constant-size-reference-allocation.hd`.
 
 #### b128 to b131 (`lang/13-values-and-references.md`); first 4-batch reviewer, 340 s for 137 fixtures
 
 Ledger: b128 (44): 2. b129 (45): 2. b130 (14): 1. b131 (34): 8.
 
-- Plausible B2: `typing/invalid/dependent-result-function-type-position.hd` (line 8
+- Plausible B2: `references/dependent-results/dependent-result-function-type-position.hd` (line 8
   `&u.name` returns a reference to the value parameter `u`, a second error
   behind line 7).
 - **Owner question, the panic-marker line again (b018)**: in the `runtime/panic/element-reference-*`
@@ -2353,23 +2353,23 @@ Ledger: b128 (44): 2. b129 (45): 2. b130 (14): 1. b131 (34): 8.
   insert and get_or_insert cases mark a line inside the callee, while swap,
   sort, store, replace and field-store mark the call line. One convention
   should cover all of them.
-- Plausible B1: `typing/valid/suspension-holds-arguments.hd` (no `'static` argument).
-  `runtime/valid/reference-arguments-keep-their-values.hd` (no tuple or `*T`).
-  `typing/invalid/element-reference-shared-and-mut-argument.hd` (says "at any index";
+- Plausible B1: `references/dependent-results/suspension-holds-arguments.hd` (no `'static` argument).
+  `references/reading-through-a-reference/reference-arguments-keep-their-values.hd` (no tuple or `*T`).
+  `references/element-references/element-reference-shared-and-mut-argument.hd` (says "at any index";
   both use `xs[1]`). Several `runtime/panic/*-aliases-panics.hd` titles describe a
   completed run while the case panics.
-- Plausible C1: `typing/valid/element-reference-binding.hd` (the A13 kind).
-  `runtime/panic/mut-parameter-then-closure-pushes-through-an-alias-panics.hd`.
+- Plausible C1: `references/element-references/element-reference-binding.hd` (the A13 kind).
+  `references/dependent-results/conflicts-through-aliases/mut-parameter-then-closure-pushes-through-an-alias-panics.hd`.
 
 #### b136 to b139 (`lang/13-values-and-references.md`, lifetimes)
 
 Ledger: b136 (45): 3. b137 (45): 1. b138 (41): 0. b139 (45): 0. Plausible 2, rejected 2.
 
-- **Message-only claim (plausible)**: `typing/invalid/reference-equality-wraps-a-compound-operand-in-its-value-fix.hd`.
+- **Message-only claim (plausible)**: `references/identity/reference-equality-wraps-a-compound-operand-in-its-value-fix.hd`.
   The title is about the fix-it's parentheses, but the runner checks only the
   code. The b007 kind: a candidate for a `cli/` case.
-- Plausible B1: `typing/invalid/lifetime-enum-box.hd` ("a local", but it is a parameter).
-- Rejected B6: `typing/valid/fn-bound-nested-captures.hd` and `runtime/valid/fn-bound-lifetime-field.hd`
+- Plausible B1: `references/dependent-results/lifetime-enums/lifetime-enum-box.hd` ("a local", but it is a parameter).
+- Rejected B6: `references/generic-locality/adapters-holding-capturing-closures-are-used-within-the-captures-scope.hd` and `references/generic-locality/a-closure-in-a-lifetime-bounded-field-runs-with-its-local-capture.hd`
   ("a plain `let` is reassigned"). `types.value.write.let` covers field writes;
   `types.value.reassign-binding` allows reassigning a plain `let` as a whole.
 
@@ -2377,35 +2377,35 @@ Ledger: b136 (45): 3. b137 (45): 1. b138 (41): 0. b139 (45): 0. Plausible 2, rej
 
 Ledger: b132 (41): 4. b133 (41): 4. b134 (45): 1. b135 (43): 1. Confirmed 2, plausible 8.
 
-- **Duplicates (C1), confirmed by `diff`**: `runtime/panic/list-element-place-push-panics.hd`
+- **Duplicates (C1), confirmed by `diff`**: `references/dependent-results/conflicts-through-aliases/list-element-place-push-panics.hd`
   = `element-binding-box-alias-push-panics.hd` (only the binding names and the
   `it` label differ; A14 missed it because the `it` strings differ).
-  `runtime/panic/nonescaping-closure-keeps-captured-root-loan.hd` =
+  `references/dependent-results/conflicts-through-aliases/nonescaping-closure-keeps-captured-root-loan.hd` =
   `dependent-result-captured-list-parent-replacement-panics.hd` (only `main`
   differs). Plausible: `a-pointer-loan-rejects-an-aliased-root-write-closure-write.hd`
   ~ the same file (the closure runs from `main` against a helper).
-- Plausible B1: `runtime/panic/inlined-capture-of-an-alias-keeps-other-loans.hd` (the title
+- Plausible B1: `references/dependent-results/conflicts-through-aliases/inlined-capture-of-an-alias-keeps-other-loans.hd` (the title
   says the opposite of the outcome). The `inlined-scalar-writer-*` pair (no
-  `@inline`; the "inlined" path isn't forced). `runtime/panic/replace-pointer-on-live-loan-path-panics.hd`
-  (only one of the two slots is replaced). `runtime/valid/dyn-reference-source-replaced-during-its-call.hd`.
-  `typing/invalid/implicit-lend-cancellation-actors.hd` (the title describes a runtime outcome).
-- Plausible B7: `runtime/valid/deep-recursive-release.hd`.
+  `@inline`; the "inlined" path isn't forced). `references/dependent-results/conflicts-through-aliases/replace-pointer-on-live-loan-path-panics.hd`
+  (only one of the two slots is replaced). `references/dependent-results/conflicts-through-aliases/dyn-reference-source-replaced-during-its-call.hd`.
+  `references/dependent-results/writes-while-borrowed/implicit-lend-cancellation-actors.hd` (the title describes a runtime outcome).
+- Plausible B7: `references/places-and-new-objects/deep-recursive-release.hd`.
 
 #### b140 to b143 (`lang/13-values-and-references.md`, references)
 
 Ledger: b140 (40): 1. b141 (45): 3. b142 (44): 3. b143 (42): 3.
 
-- **Code under test never runs (B4)**: `runtime/valid/reference-field-stores-preserve-rhs-alias-writes.hd`
+- **Code under test never runs (B4)**: `references/places-and-new-objects/reference-field-stores-preserve-rhs-alias-writes.hd`
   (`Pair::assign`, `Pair::compound` and `changed_both` are never called).
-- `runtime/valid/reference-enum-replace-build.hd`: the A11 class (private `main`), and a
+- `references/writable-places-of-references/reference-enum-replace-build.hd`: the A11 class (private `main`), and a
   subset of `reference-enum-replace.hd`.
-- Plausible C1: `typing/valid/reference-tuple-element-comparator.hd` and `…-place.hd` are
-  covered by `runtime/valid/reference-tuple-element-run.hd` (the A13 kind).
-  `runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd` ~
+- Plausible C1: `references/places-and-new-objects/reference-tuple-element-comparator.hd` and `…-place.hd` are
+  covered by `references/places-and-new-objects/reference-tuple-element-run.hd` (the A13 kind).
+  `references/moves/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd` ~
   `field-move-after-local-borrow.hd` (also A2: identical to the runtime box fixture).
-- Plausible B1: `runtime/valid/mutable-data-paths-share-identity.hd` (copies a `*mut`, not
-  `&mut`). `runtime/valid/reference-aliases-see-writes.hd` (`r` and `s` are never live
-  together). Plausible B7: `typing/invalid/lifetime-trait-result-outlives.hd`.
+- Plausible B1: `references/places-and-new-objects/mutable-data-paths-share-identity.hd` (copies a `*mut`, not
+  `&mut`). `references/places-and-new-objects/reference-aliases-see-writes.hd` (`r` and `s` are never live
+  together). Plausible B7: `references/dependent-results/lifetime-traits/lifetime-trait-result-outlives.hd`.
 - Unverified B5: two `associated-payload-writes-*` (an unused `Box2`).
 
 #### b144 to b147 (`lang/13`, then `std/` chapters: collections, cmp, cli)
