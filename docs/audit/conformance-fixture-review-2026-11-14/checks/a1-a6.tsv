@@ -69,7 +69,7 @@ std/http/request-builder/http-form-map-number.hd	A3	std/http/request-builder/htt
 std/http/request-builder/http-form-map-number.hd	A3	std/http/request-builder/http-form-root-scalar.hd
 std/http/request-builder/http-form-root-list.hd	A3	std/http/request-builder/http-form-root-scalar.hd
 typing/valid/impl-trait-trait-method.hd	A3	typing/valid/impl-trait-nested-trait-method.hd
-runtime/valid/a-cancelled-cleanup-scope-releases-a-moved-temporary-once.hd	A3	runtime/valid/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd
+std/time/clock/a-cancelled-cleanup-scope-releases-a-moved-temporary-once.hd	A3	std/time/clock/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd
 runtime/valid/pointer-loan-expr-ref-ulist-grow.hd	A3	runtime/valid/pointer-loan-expr-mut-ulist-grow.hd
 typing/valid/tuple-template-bounds-a-derived-hash-over-an-integer-tuple-field-is-valid.hd	A3	typing/valid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members.hd
 typing/valid/tuple-template-bounds-a-generic-member-meets-the-bound-through-the-environment.hd	A3	typing/valid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members.hd

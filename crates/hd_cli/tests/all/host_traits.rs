@@ -967,7 +967,7 @@ fn a_compiled_root_runs_through_synchronous_host_turns() {
     );
     write(
         &dir.join("src/main.hd"),
-        include_str!("../../../../spec/conformance/runtime/valid/host-driver-turns.hd"),
+        include_str!("../../../../spec/conformance/std/time/clock/host-driver-turns.hd"),
     );
     let built = run(&dir, &["build", "--engine", "node"]);
     assert!(built.status.success(), "{}", text(&built.stderr));

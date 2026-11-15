@@ -49,7 +49,7 @@ typing/valid/literal-types-float-literals-multiply-as-floats.hd	A10b	same title 
 typing/valid/literal-types-an-integer-literal-wraps-into-an-optional-binding.hd	A10b	same title as reject typing/invalid/literal-types-a-literal-wrapped-into-an-optional-is-range-checked-against-its-payload.hd
 typing/valid/literal-types-an-integer-literal-wraps-into-an-optional-if-branch.hd	A10b	same title as reject typing/invalid/literal-types-a-literal-wrapped-into-an-optional-is-range-checked-against-its-payload.hd
 typing/valid/literal-types-a-float-literal-wraps-into-an-optional-list-element.hd	A10b	same title as reject typing/invalid/literal-types-a-literal-wrapped-into-an-optional-is-range-checked-against-its-payload.hd
-typing/valid/literals-duration-literals-of-every-unit-add-up-to-a-duration.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
+std/time/duration/literals-duration-literals-of-every-unit-add-up-to-a-duration.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
 typing/valid/literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
 typing/valid/literal-types-the-largest-millisecond-duration-literal-is-in-range.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd
 typing/valid/literal-types-the-largest-second-duration-literal-is-in-range.hd	A10b	same title as reject typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd

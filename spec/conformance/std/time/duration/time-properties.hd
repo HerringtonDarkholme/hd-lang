@@ -2,7 +2,7 @@
 # Spec std/time: std-time.duration.parse.round-trip, std-time.duration.add,
 # std-time.duration.text.max-value, std-time.rfc3339.parse.round-trip,
 # std-time.rfc3339.parse.leap-day, std-time.timestamp.display.
-# Also run the existing runtime/panic/duration-add-overflow.hd: overflowing
+# Also run the existing std/time/duration/duration-add-overflow.hd: overflowing
 # arithmetic is a separate panic contract, not an associative input domain.
 use std.time.{Date, Duration, ParseTimeError, Timestamp}
 use std.testing.{Choices, assert_equal, it_each, it_prop_with}

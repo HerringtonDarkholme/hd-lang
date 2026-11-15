@@ -2487,15 +2487,15 @@ Ledger: b156 (45): 4. b157 (45): 0. b158 (45): 6. b159 (44): 4.
 
 Ledger: b168 (36): 2. b169 (45): 5. b170 (18): 2.
 
-- **Checks that cannot fail (B3)**: `runtime/valid/time-serde-forms.hd` (the only
+- **Checks that cannot fail (B3)**: `std/time/serialization/time-serde-forms.hd` (the only
   `Timestamp` written has zero milliseconds, so a writer that drops milliseconds
-  still passes). `runtime/valid/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd`
+  still passes). `std/time/clock/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd`
   (output `11` either way).
 - **Title doesn't match the code (B1)**: `typing/valid/validation-phantom-derive-no-bound.hd`
-  (names std's `Length` fact; tests a local `Phantom`). `runtime/valid/a-moved-cell-releases-storage-after-transferring-its-payload.hd`
+  (names std's `Length` fact; tests a local `Phantom`). `std/time/clock/a-moved-cell-releases-storage-after-transferring-its-payload.hd`
   (no `# test:` title; the `same()` results are discarded).
 - The tier-forced citation (b148): 36 `pointer-loan-*` cite `std/time.md#r-std-time.helper.sleep`.
-  `runtime/valid/provider-keys-a-suspension-binds-both-providers-at-construction.hd` cites the same anchor
+  `std/time/clock/provider-keys-a-suspension-binds-both-providers-at-construction.hd` cites the same anchor
   for a requirement-row rule.
 - The `pointer-loan-bang-{ref,mut}-local-write.hd` title (the b124 kind).
 - Plausible B2: `runtime/panic/pointer-loan-extra-other-task-field-write-panics.hd` (writes

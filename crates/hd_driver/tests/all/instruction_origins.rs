@@ -193,7 +193,7 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
             false,
         ),
         (
-            include_str!("../../../../spec/conformance/runtime/valid/wide-value-suspension.hd"),
+            include_str!("../../../../spec/conformance/std/time/clock/wide-value-suspension.hd"),
             true,
         ),
         (
