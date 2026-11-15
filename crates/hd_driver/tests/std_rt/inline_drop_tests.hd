@@ -185,6 +185,36 @@ fn named_suspension!() -> usize:
         panic("lost the name")
     value.token.id
 
+# Each part below holds a Drop value only through parts that have no
+# Drop of their own: a tuple, an option and a user enum, each inside a
+# struct inside a struct.
+struct Holder:
+    pair: (usize, (string, Token))
+    maybe: Token?
+    slot: Slot[Token]
+
+impl !Copy for Holder
+
+struct Outer:
+    holder: Holder
+    id: usize
+
+impl !Copy for Outer
+
+fn outer(id: usize) -> Outer:
+    Outer {
+        holder: Holder {
+            pair: (id, ("pair", Token { id: id })),
+            maybe: .Some(Token { id: id }),
+            slot: Slot.Held(Token { id: id }),
+        },
+        id: id,
+    }
+
+fn released_outer(id: usize) -> usize:
+    value := identity(outer(id))
+    value.id
+
 trait Relay:
     fn relay!(&self, value: Token) -> Token
 
@@ -211,6 +241,11 @@ tests:
             assert_equal(boxed_room(id), 200)
             assert_equal(container_room(id), 200)
         assert_equal(drops, before + 300)
+
+    it("a Drop value under parts without a Drop of their own drops once"):
+        before := drops
+        assert_equal(released_outer(3), 3)
+        assert_equal(drops, before + 3)
 
     it("a zero-sized value still has Drop ownership"):
         before := empty_drops

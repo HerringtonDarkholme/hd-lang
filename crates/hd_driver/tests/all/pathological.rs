@@ -2823,6 +2823,42 @@ fn nested_pattern_copy_questions_walk_each_type_once() {
     });
 }
 
+// Emitter: #1918, the walk for a release's `Drop` calls entered every
+// inline part of each value it released, so each level of an option or
+// tuple nest walked the `i` levels below it: O(depth^2). A part that
+// holds no `Drop` value is now skipped, by the link's memo of
+// `holds_drop`.
+#[test]
+fn drop_call_walks_skip_parts_without_a_drop_value() {
+    on_test_stack(|| {
+        let shapes: [(&str, Generate); 2] =
+            [("tuple-nest", tuple_nest), ("option-nest", option_nest)];
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        // A level nests one bracket deep: 120 stays below the limit. The
+        // sizes differ from the copy test's, whose checker memo a build
+        // here would fill.
+        let n = 12;
+        for (name, generate) in shapes {
+            let work = |k: usize| {
+                let (out, work) =
+                    hd_wasm::work::count_member_layouts(|| compile(&generate(k), &goal));
+                assert!(!out.diags.has_errors(), "{name} {k}: {}", out.render());
+                work
+            };
+            let zero = work(0);
+            let small = work(n) - zero;
+            let large = work(10 * n) - zero;
+            assert!(
+                small > 0 && large <= 12 * small,
+                "{name}: drop walk and member layouts over the empty body at {n} and {}: {small} and {large}",
+                10 * n
+            );
+        }
+    });
+}
+
 /// `n` statements each testing a `&&` value: rule 20's `if` with an
 /// empty other arm.
 fn and_if_run(n: usize) -> String {

@@ -257,6 +257,14 @@ impl Em<'_, '_, '_> {
             path: &[hd_tir::ir::Proj],
             out: &mut Vec<(DropCall, Vec<hd_tir::ir::Proj>)>,
         ) {
+            // An inline part that holds no `Drop` value adds no call: its
+            // fields are not walked (#1912). The link's memo answers each
+            // type once, so a part nested `n` deep costs one probe, not
+            // the `n` levels below it.
+            crate::work::member_layouts(1);
+            if !root && !crate::layout::holds_drop(em.pool(), em.env(), t) {
+                return;
+            }
             if (root || matches!(em.kind(t), Kind::Value))
                 && let Some(&key) = em.input.collected.drop_glue.get(&t)
             {

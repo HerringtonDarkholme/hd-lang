@@ -44,7 +44,8 @@ pub fn count_loan_queries<R>(run: impl FnOnce() -> R) -> (R, u64) {
 }
 
 /// Counts the members the layout's struct and tuple member memo lays
-/// out, and its probes, on this thread ([`crate::layout::members`]).
+/// out, and its probes, on this thread ([`crate::layout::members`]), and
+/// the inline parts the walk for a release's `Drop` calls enters.
 pub fn count_member_layouts<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&MEMBER_LAYOUTS, run)
 }
