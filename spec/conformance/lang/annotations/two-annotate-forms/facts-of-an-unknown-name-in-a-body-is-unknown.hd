@@ -1,5 +1,5 @@
 # test: an unknown name in a function body is unknown
-# Spec 14 facts_of: annot.facts-of.target.error; name resolution fails first.
+# Spec 14 facts_of: annot.facts-of.target.unresolved; name resolution fails first.
 use std.annotation.facts_of
 
 fn read() -> void:

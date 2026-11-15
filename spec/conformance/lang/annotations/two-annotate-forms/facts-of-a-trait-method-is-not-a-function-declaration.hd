@@ -1,0 +1,8 @@
+# test: a trait's method resolves, but it is not a module-level function
+# Spec 14 facts_of: annot.facts-of.target.error.
+use std.annotation.facts_of
+
+trait Shape:
+    fn area(self) -> i32
+
+value := facts_of(Shape::area) # diagnostic: invalid-facts-of-target

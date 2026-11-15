@@ -1,0 +1,9 @@
+# test: a type member through a module that does not declare the type is an unknown import
+# Spec 14 facts_of: annot.facts-of.target.unresolved; Spec 05: expr.name.qualified.missing.
+# fixture-package-tree: facts-of-module/src/main.hd
+use pkg.routes
+use std.annotation.facts_of
+
+value := facts_of(routes.Missing::home) # diagnostic: unknown-import
+pub fn main() -> void:
+    pass

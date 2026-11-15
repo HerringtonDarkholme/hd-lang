@@ -1,0 +1,8 @@
+# test: a type-qualified name the type does not have is an unknown method, as any use of it is
+# Spec 14 facts_of: annot.facts-of.target.unresolved.
+use std.annotation.facts_of
+
+struct User:
+    name: string
+
+value := facts_of(User::missing) # diagnostic: unknown-method

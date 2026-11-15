@@ -29,6 +29,7 @@ use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex};
 use crate::call::{Args, subst_owner};
+use crate::fnref::PathOwner;
 use crate::structure::{FactLines, Slot};
 use crate::ty::Named;
 
@@ -1487,7 +1488,11 @@ impl Ck<'_, '_> {
 
     /// `facts_of(f)`: the call of `f`'s facts body, for a module-level
     /// function `f` named by the one argument (`annot.facts-of.target`).
-    pub(crate) fn facts_of_call(&mut self, args: &Args<'_>, n: NodeRef<'_>) -> (Ref, Ty) {
+    pub(crate) fn facts_of_call(
+        &mut self,
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let (facts_ty, items_ty) = facts_types(self.cx);
         let plain = args.spread.is_none()
@@ -1496,50 +1501,26 @@ impl Ck<'_, '_> {
             && args.trailing.is_none();
         let (true, [arg]) = (plain, args.positional.as_slice()) else {
             self.err(Code::ArgumentCount, n, "`facts_of` takes one argument");
-            return (Ref(NONE), Ty::POISON);
+            return Ok((Ref(NONE), Ty::POISON));
         };
         let segs = self.segments_expr(*arg);
         let Some(first) = segs.first() else {
-            return self.bad_facts_target(*arg, "this argument is not a name");
+            return Ok(self.bad_facts_target(*arg, "this argument is not a name"));
         };
         if self.find_local(self.cx.names.syms.intern(first)).is_some() {
-            return self.bad_facts_target(*arg, "a local binding is not a declaration");
+            return Ok(self.bad_facts_target(*arg, "a local binding is not a declaration"));
         }
         if self.is_poison_name(first) {
-            return self.poison_value(n);
+            return Ok(self.poison_value(n));
         }
         let Some(def) = self.resolve_path(&segs) else {
-            let sym = self.cx.names.syms.intern(first);
-            let global = {
-                let init = self.cx.init.borrow();
-                init.globals.contains_key(&sym) || init.earlier.contains_key(&sym)
-            };
-            // `annot.facts-of.target.error`: an argument that names
-            // nothing fails name resolution first, so it is
-            // `unknown-name`: a plain name with no declaration or global,
-            // or a module path whose module declares no such name.
-            let named = self.scope_name(first);
-            if named.is_none() && !global {
-                let msg = format!("`{first}` is not defined");
-                self.err(Code::UnknownName, *arg, &msg);
-                return (Ref(NONE), Ty::POISON);
-            }
-            if matches!(named, Some(Named::Module(_))) {
-                let msg = format!(
-                    "`{}` is not defined: its module declares no `{}`",
-                    segs.join("."),
-                    segs[segs.len() - 1]
-                );
-                self.err(Code::UnknownName, *arg, &msg);
-                return (Ref(NONE), Ty::POISON);
-            }
-            return self.bad_facts_target(*arg, "this name is not a function");
+            return self.unresolved_facts_target(*arg, &segs);
         };
         if !matches!(
             self.cx.lookup.item(def).map(|i| &i.data),
             Some(ItemData::Fn(_, _))
         ) {
-            return self.bad_facts_target(*arg, "this name is not a function");
+            return Ok(self.bad_facts_target(*arg, "this name is not a function"));
         }
         // A function with no value-bearing decorator holds no facts.
         if !(self.cx.lookup.item(def))
@@ -1550,7 +1531,7 @@ impl Ck<'_, '_> {
             let list = self.b.emit(Tag::NewList, NONE, rec, items_ty, n.index());
             let rec = self.b.refs_record(&[list]);
             let value = self.b.emit(Tag::NewStruct, NONE, rec, facts_ty, n.index());
-            return (value, facts_ty);
+            return Ok((value, facts_ty));
         }
         let body = self.cx.names.member(def, PathKind::Hidden, "facts");
         let targs = pool.list(&[]);
@@ -1559,7 +1540,77 @@ impl Ck<'_, '_> {
         let call = self
             .b
             .emit(Tag::DefaultCall, a, earlier, facts_ty, n.index());
-        (call, facts_ty)
+        Ok((call, facts_ty))
+    }
+
+    /// A `facts_of` argument that resolves to no declaration: an argument
+    /// that names nothing reports the resolver's own error for its form,
+    /// as the same name does anywhere else
+    /// (`annot.facts-of.target.unresolved`), and one that names something
+    /// other than a module-level function is `invalid-facts-of-target`
+    /// (`annot.facts-of.target.error`). Each form uses
+    /// the lookup an ordinary use of it uses, so the two cannot drift:
+    /// a missing module member goes through `missing_export`
+    /// (`unknown-import` or `private-import`), `Owner::name` through
+    /// `path_owner` and the member lookup of a function reference
+    /// (`unknown-method`), and a first name that names nothing is
+    /// `unknown-name`. Cost: one lookup per path segment.
+    fn unresolved_facts_target(
+        &mut self,
+        arg: NodeRef<'_>,
+        segs: &[String],
+    ) -> StageResult<(Ref, Ty)> {
+        if arg.kind() == SyntaxKind::PathExpr {
+            let name = &segs[segs.len() - 1];
+            match self.path_owner(arg)? {
+                Some(PathOwner::Poison) => return Ok(self.poison_value(arg)),
+                Some(PathOwner::Missing) => return Ok((Ref(NONE), Ty::POISON)),
+                Some(PathOwner::Module(m)) => {
+                    // `resolve_path` found no export, so this reports.
+                    self.missing_export(m, name, arg);
+                    return Ok((Ref(NONE), Ty::POISON));
+                }
+                Some(PathOwner::Trait(tr, _)) => {
+                    if self.trait_method(tr, name, arg).is_none() {
+                        return Ok((Ref(NONE), Ty::POISON));
+                    }
+                    return Ok(
+                        self.bad_facts_target(arg, "a trait method is not a module-level function")
+                    );
+                }
+                Some(PathOwner::Type(t)) => {
+                    if !self.has_member(t, name, arg)? {
+                        return Ok((Ref(NONE), Ty::POISON));
+                    }
+                    return Ok(
+                        self.bad_facts_target(arg, "a method is not a module-level function")
+                    );
+                }
+                // The owner is a value: a bound method is no declaration.
+                None => {}
+            }
+        }
+        let first = &segs[0];
+        let named = self.scope_name(first);
+        // `expr.name.qualified.missing`: through a module, the first
+        // segment its module does not declare.
+        if let Some(Named::Module(m)) = named
+            && self.export(m, &segs[1]).is_none()
+        {
+            self.missing_export(m, &segs[1], arg);
+            return Ok((Ref(NONE), Ty::POISON));
+        }
+        let sym = self.cx.names.syms.intern(first);
+        let global = {
+            let init = self.cx.init.borrow();
+            init.globals.contains_key(&sym) || init.earlier.contains_key(&sym)
+        };
+        if named.is_none() && !global {
+            let msg = format!("`{first}` is not defined");
+            self.err(Code::UnknownName, arg, &msg);
+            return Ok((Ref(NONE), Ty::POISON));
+        }
+        Ok(self.bad_facts_target(arg, "this name is not a function"))
     }
 
     /// `facts_of` used as a value, or on a target that is not a

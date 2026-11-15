@@ -1,5 +1,5 @@
 # test: a module path through an unknown module is unknown
-# Spec 14 facts_of: annot.facts-of.target.error; name resolution fails first.
+# Spec 14 facts_of: annot.facts-of.target.unresolved; name resolution fails first.
 use std.annotation.facts_of
 
 value := facts_of(nowhere.home) # diagnostic: unknown-name

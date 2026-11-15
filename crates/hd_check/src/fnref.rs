@@ -103,6 +103,20 @@ fn inst_row(pool: hd_types::Types<'_>, m: &Member, r: RowId) -> RowId {
     })
 }
 
+/// The owner of `Owner::name`, as [`Ck::path_owner`] resolves it.
+pub(crate) enum PathOwner {
+    /// A name bound by a failed `use`: that error is the answer.
+    Poison,
+    /// A module member already reported missing.
+    Missing,
+    /// A module, whose member `name` is.
+    Module(u32),
+    /// A trait, with its written type arguments.
+    Trait(DefId, Vec<Ty>),
+    /// A type, a type parameter or a primitive.
+    Type(Ty),
+}
+
 impl Ck<'_, '_> {
     /// Whether `e` is a bound method reference on a local, `local::name`,
     /// which a call checks against its parameter's type so that one passed
@@ -117,6 +131,56 @@ impl Ck<'_, '_> {
 
     /// `Owner::name` or `value::name` as a value; `method_targs` are the
     /// member's written type arguments (`Counter::pick::[i32]`).
+    /// What the owner of `Owner::name` names (`fn.ref.unbound`): a type, a
+    /// trait, a type parameter or a module, as a qualified call's owner
+    /// does; `None` when the base is a value (`fn.ref.bound`). A module
+    /// member that is missing is reported here, as `Missing`. One lookup
+    /// per path segment; `path_value` and `facts_of` share it, so both
+    /// resolve an owner the same way.
+    pub(crate) fn path_owner(&mut self, n: NodeRef<'_>) -> StageResult<Option<PathOwner>> {
+        let [base] = n.parts();
+        if !(matches!(base.kind(), SyntaxKind::NameExpr | SyntaxKind::TypeArgsExpr)
+            && (base.kind() == SyntaxKind::TypeArgsExpr
+                || self.find_local(self.sym_of(base)).is_none())
+            || base.kind() == SyntaxKind::FieldExpr)
+        {
+            return Ok(None);
+        }
+        let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
+            let [inner, tl] = base.parts();
+            let gens = self.explicit_generics(inner);
+            (inner, self.explicit_targs(inner, tl, &gens)?)
+        } else {
+            (base, vec![])
+        };
+        let text = self.cx.src.text(self.cx.src.first(bnode)).to_owned();
+        let named = if bnode.kind() == SyntaxKind::FieldExpr {
+            self.module_item(bnode)
+        } else {
+            if let Some(p) = self.type_param(&text) {
+                return Ok(Some(PathOwner::Type(p)));
+            }
+            if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
+                return Ok(Some(PathOwner::Type(Ty::prim(*p))));
+            }
+            self.scope_name(&text)
+        };
+        Ok(match named {
+            Some(Named::Poison) => Some(PathOwner::Poison),
+            Some(Named::Missing) => Some(PathOwner::Missing),
+            Some(Named::Module(m)) => Some(PathOwner::Module(m)),
+            Some(Named::Item(def)) => match self.kind_of_item(def) {
+                Some(HeadKind::Trait) => Some(PathOwner::Trait(def, explicit)),
+                Some(HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype) => {
+                    Some(PathOwner::Type(self.ctor(def, &explicit, n)))
+                }
+                // A function's, and a name with no item kind, is a value.
+                Some(HeadKind::Fn | HeadKind::Impl) | None => None,
+            },
+            None => None,
+        })
+    }
+
     pub(crate) fn path_value(
         &mut self,
         n: NodeRef<'_>,
@@ -127,60 +191,26 @@ impl Ck<'_, '_> {
         let name = self.cx.src.text(self.cx.src.last(n)).to_owned();
         // `fn.ref.unbound`: the owner names a type, a trait or a type
         // parameter (the forms of a qualified call).
-        if matches!(base.kind(), SyntaxKind::NameExpr | SyntaxKind::TypeArgsExpr)
-            && (base.kind() == SyntaxKind::TypeArgsExpr
-                || self.find_local(self.sym_of(base)).is_none())
-            || base.kind() == SyntaxKind::FieldExpr
-        {
-            let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
-                let [inner, tl] = base.parts();
-                let gens = self.explicit_generics(inner);
-                (inner, self.explicit_targs(inner, tl, &gens)?)
-            } else {
-                (base, vec![])
-            };
-            let text = self.cx.src.text(self.cx.src.first(bnode)).to_owned();
-            let named = if bnode.kind() == SyntaxKind::FieldExpr {
-                self.module_item(bnode)
-            } else {
-                if let Some(p) = self.type_param(&text) {
-                    return self.type_ref(p, &name, method_targs, want, n);
+        match self.path_owner(n)? {
+            Some(PathOwner::Poison) => return Ok(self.poison_value(n)),
+            Some(PathOwner::Missing) => return Ok((Ref(NONE), Ty::POISON)),
+            Some(PathOwner::Module(m)) => {
+                let Some(def) = self.export(m, &name) else {
+                    self.missing_export(m, &name, n);
+                    return Ok((Ref(NONE), Ty::POISON));
+                };
+                if let Some(ItemData::Fn(sig, _)) = self.cx.lookup.item(def).map(|i| &i.data) {
+                    let sig = sig.clone();
+                    return self.item_value(def, &sig, method_targs, want, n);
                 }
-                if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
-                    return self.type_ref(Ty::prim(*p), &name, method_targs, want, n);
-                }
-                self.scope_name(&text)
-            };
-            match named {
-                Some(Named::Poison) => return Ok(self.poison_value(n)),
-                Some(Named::Missing) => return Ok((Ref(NONE), Ty::POISON)),
-                Some(Named::Module(m)) => {
-                    let Some(def) = self.export(m, &name) else {
-                        self.missing_export(m, &name, n);
-                        return Ok((Ref(NONE), Ty::POISON));
-                    };
-                    if let Some(ItemData::Fn(sig, _)) = self.cx.lookup.item(def).map(|i| &i.data) {
-                        let sig = sig.clone();
-                        return self.item_value(def, &sig, method_targs, want, n);
-                    }
-                    return self.declaration_value(def, &name, want, n);
-                }
-                Some(Named::Item(def)) => match self.kind_of_item(def) {
-                    Some(HeadKind::Trait) => {
-                        return self.trait_ref(def, explicit, &name, method_targs, want, n);
-                    }
-                    Some(
-                        HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype,
-                    ) => {
-                        let t = self.ctor(def, &explicit, n);
-                        return self.type_ref(t, &name, method_targs, want, n);
-                    }
-                    // A function's, and a name with no item kind, is a
-                    // value: its field is read below.
-                    Some(HeadKind::Fn | HeadKind::Impl) | None => {}
-                },
-                None => {}
+                return self.declaration_value(def, &name, want, n);
             }
+            Some(PathOwner::Trait(def, explicit)) => {
+                return self.trait_ref(def, explicit, &name, method_targs, want, n);
+            }
+            Some(PathOwner::Type(t)) => return self.type_ref(t, &name, method_targs, want, n),
+            // The base is a value: its member is read below.
+            None => {}
         }
         // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
         // method takes the address of a place now (`fn.ref.bound.address`).
@@ -333,20 +363,15 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `Trait::name`: `Self` comes from the expected type or the call
-    /// (`fn.ref.trait-self`); only the trait's own members
-    /// (`trait.qualified.declaring`).
-    fn trait_ref(
+    /// The method `name` that trait `tr` declares, with the trait's
+    /// generic count, or `unknown-method` at `n` (`trait.qualified.declaring`).
+    /// The caller resolved `tr` as a trait.
+    pub(crate) fn trait_method(
         &mut self,
         tr: DefId,
-        mut trait_args: Vec<Ty>,
         name: &str,
-        explicit: &[Ty],
-        want: Option<Ty>,
         n: NodeRef<'_>,
-    ) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
-        // The caller resolved `tr` as a trait.
+    ) -> Option<(usize, DefId)> {
         let sym = self.cx.names.syms.intern(name);
         let (n_trait, found) = match self.cx.lookup.item(tr) {
             Some(
@@ -366,6 +391,25 @@ impl Ck<'_, '_> {
                 self.cx.names.display_name(tr)
             );
             self.err(Code::UnknownMethod, n, &msg);
+            return None;
+        };
+        Some((n_trait, method))
+    }
+
+    /// `Trait::name`: `Self` comes from the expected type or the call
+    /// (`fn.ref.trait-self`); only the trait's own members
+    /// (`trait.qualified.declaring`).
+    fn trait_ref(
+        &mut self,
+        tr: DefId,
+        mut trait_args: Vec<Ty>,
+        name: &str,
+        explicit: &[Ty],
+        want: Option<Ty>,
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let Some((n_trait, method)) = self.trait_method(tr, name, n) else {
             return Ok((Ref(NONE), Ty::POISON));
         };
         while trait_args.len() < n_trait {
@@ -562,6 +606,13 @@ impl Ck<'_, '_> {
             }
         };
         Ok(Some(Found::Member(m)))
+    }
+
+    /// Whether `t` has a member `name` that `T::name` reaches, by the
+    /// lookup of `type_ref`; when it has none, `member_of` has reported
+    /// why at `n`, as a function reference would.
+    pub(crate) fn has_member(&mut self, t: Ty, name: &str, n: NodeRef<'_>) -> StageResult<bool> {
+        Ok(self.member_of(t, name, &[], n)?.is_some())
     }
 
     /// Whether the member takes `self`.

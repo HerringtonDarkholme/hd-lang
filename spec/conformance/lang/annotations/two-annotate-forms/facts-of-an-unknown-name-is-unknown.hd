@@ -1,5 +1,5 @@
 # test: an unknown name is unknown
-# Spec 14 facts_of: annot.facts-of.target.error; name resolution fails first, so not invalid-facts-of-target.
+# Spec 14 facts_of: annot.facts-of.target.unresolved; name resolution fails first. so not invalid-facts-of-target.
 use std.annotation.facts_of
 
 @"label"

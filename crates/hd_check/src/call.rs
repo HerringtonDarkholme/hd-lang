@@ -2728,7 +2728,7 @@ impl Ck<'_, '_> {
                     .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "facts_of")
                 {
-                    return Ok(self.facts_of_call(args, n));
+                    return self.facts_of_call(args, n);
                 }
                 // The result first, so an expected type guides literals.
                 let ret = self.normalize_deep(inst(sig.ret))?;
