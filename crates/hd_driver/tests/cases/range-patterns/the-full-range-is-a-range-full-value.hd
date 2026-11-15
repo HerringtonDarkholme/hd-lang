@@ -1,0 +1,8 @@
+# @dump: stdout
+use std.ops.RangeFull
+
+fn f() -> RangeFull:
+    ..
+
+pub fn main() -> void $ Console:
+    println(0)

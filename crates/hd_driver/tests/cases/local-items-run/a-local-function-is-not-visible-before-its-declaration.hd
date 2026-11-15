@@ -1,0 +1,8 @@
+# @dump: stdout
+fn shipping(weight: i32) -> i32:
+    early := surcharge(weight)
+    fn surcharge(w: i32) -> i32: w * 2
+    early
+
+pub fn main() -> void $ Console:
+    println(shipping(4))

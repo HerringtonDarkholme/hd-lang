@@ -1,0 +1,10 @@
+# @dump: stdout
+fn f(t: (u8, i8?)) -> i32:
+    match t:
+        (0, .Some(..0)) => 0
+        (0, _) => 1
+        (1.., .Some(0..)) => 2
+        (1.., _) => 3
+
+pub fn main() -> void $ Console:
+    println(0)

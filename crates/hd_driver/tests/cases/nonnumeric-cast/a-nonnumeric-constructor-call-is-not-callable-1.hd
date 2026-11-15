@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(c: char) -> string:
+    string(c)
+
+pub fn main() -> void: pass

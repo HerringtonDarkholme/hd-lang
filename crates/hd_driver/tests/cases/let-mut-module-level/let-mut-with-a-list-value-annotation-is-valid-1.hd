@@ -1,0 +1,5 @@
+# @dump: stdout
+let mut xs: List[i32] = []
+
+pub fn main() -> void $ Console:
+    println(1)

@@ -1,0 +1,6 @@
+# @dump: stdout
+use pkg.nowhere.{f}
+
+pub fn main() -> void:
+    f()
+    other()

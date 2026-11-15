@@ -1,0 +1,7 @@
+# @dump: stdout
+fn f(n: u32) -> void:
+    _ := 0..n
+    _ := +1..
+    _ := ..
+
+pub fn main() -> void: pass

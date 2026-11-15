@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(x: f64, n: i32) -> void:
+    _ := x..n
+
+pub fn main() -> void: pass

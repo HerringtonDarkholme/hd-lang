@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(left: i32, right: u32) -> i64:
+    left + right
+
+pub fn main() -> void: pass

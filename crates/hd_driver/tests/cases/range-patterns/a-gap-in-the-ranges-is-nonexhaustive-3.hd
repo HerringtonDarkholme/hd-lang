@@ -1,0 +1,7 @@
+# @dump: stdout
+fn f(n: u8, g: bool) -> i32:
+    match n:
+        0.. if g => 0
+
+pub fn main() -> void $ Console:
+    println(0)

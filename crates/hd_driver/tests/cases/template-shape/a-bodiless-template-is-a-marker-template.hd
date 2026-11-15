@@ -1,0 +1,10 @@
+# @dump: stdout
+use std.structure.Structure
+
+trait Tagged:
+    fn tag(self) -> string:
+        "tagged"
+
+impl[T] Tagged for T by Structure
+
+pub fn main() -> void: pass

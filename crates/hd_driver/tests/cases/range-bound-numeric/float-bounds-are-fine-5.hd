@@ -1,0 +1,6 @@
+# @dump: stdout
+use std.ops.Range
+fn f(x: f64, y: f64, n: f32) -> void:
+    _ := x..=y
+
+pub fn main() -> void: pass

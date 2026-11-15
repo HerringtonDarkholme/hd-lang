@@ -1,0 +1,44 @@
+# @dump: stdout
+use std.ops.RangeFull
+
+fn bucket(n: i32) -> string:
+    match n:
+        ..=-1 => "negative"
+        0 => "zero"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn first(n: u8) -> string:
+    match n:
+        0..=200 => "low"
+        100.. => "high"
+
+fn edge(n: i64) -> string:
+    match n:
+        ..-9_000_000_000 => "below"
+        -9_000_000_000..=9_000_000_000 => "inside"
+        9_000_000_001.. => "above"
+
+fn pair(t: (u8, i8)) -> string:
+    match t:
+        (0, ..0) => "zero-neg"
+        (0, _) => "zero"
+        (1.., 0..) => "pos-pos"
+        (_, ..=-1) => "other-neg"
+
+pub fn main() -> void $ Console:
+    for n in [-5, -1, 0, 1, 9, 10, 99, 100, 1000]:
+        println(bucket(n))
+    println(first(150))
+    println(first(201))
+    println(edge(-9_000_000_001))
+    println(edge(-9_000_000_000))
+    println(edge(9_000_000_000))
+    println(edge(9_000_000_001))
+    println(pair((0, -3)))
+    println(pair((0, 3)))
+    println(pair((7, 0)))
+    println(pair((7, -1)))
+    full := ..
+    println(full == RangeFull {})

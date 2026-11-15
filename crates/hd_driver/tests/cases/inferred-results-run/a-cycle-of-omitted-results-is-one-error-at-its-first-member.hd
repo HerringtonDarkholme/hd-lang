@@ -1,0 +1,16 @@
+# @dump: stdout
+# A cycle of omitted results is one error, at the member first in source
+# order even when M1 entered another member first
+# (`fn.decl.omitted-cycle.report`): `entry` reaches `late` before `odd`.
+fn entry(): late(4)
+
+fn odd(n: i32):
+    if n == 0: false
+    else: late(n - 1)
+
+fn late(n: i32):
+    if n == 0: true
+    else: odd(n - 1)
+
+pub fn main() -> void $ Console:
+    println(1)

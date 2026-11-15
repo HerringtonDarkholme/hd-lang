@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f() -> i32:
+    i32("5")
+
+pub fn main() -> void: pass

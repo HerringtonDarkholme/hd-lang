@@ -1,0 +1,15 @@
+# @dump: stdout
+type Meters(i32)
+enum Shape:
+    Dot
+    Circle(radius: f64)
+fn f(wide: i64, ratio: f64, m: Meters) -> void:
+    _ := i16(wide)
+    _ := i64(ratio)
+    _ := f32(wide)
+    _ := i32(m)
+    _ := u8(wide)
+    _ := Meters(3)
+    _ := Shape.Circle(2.0)
+
+pub fn main() -> void: pass

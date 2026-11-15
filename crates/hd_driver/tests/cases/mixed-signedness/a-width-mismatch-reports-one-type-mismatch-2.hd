@@ -1,0 +1,6 @@
+# @dump: stdout
+fn f(a: i16, b: i64) -> void:
+    let x: i64 = a + b
+    _ := x
+
+pub fn main() -> void: pass

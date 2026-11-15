@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(count: u32, limit: i32) -> void:
+    _ := count..limit
+
+pub fn main() -> void: pass

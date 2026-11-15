@@ -1,0 +1,4 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let points: Map[(i32, f64), string] = {}
+    println(points.len())

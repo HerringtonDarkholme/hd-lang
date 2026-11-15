@@ -1,0 +1,6 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut n = +0
+    r := &mut n
+    *r += 1
+    println(1)

@@ -1,0 +1,9 @@
+# @dump: stdout
+fn f(n: i32) -> i32:
+    match n:
+        ..10 => 0
+        3..=5 => 1
+        _ => 2
+
+pub fn main() -> void $ Console:
+    println(0)

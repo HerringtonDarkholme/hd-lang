@@ -1,0 +1,6 @@
+# @dump: stdout
+fn f(lo: f32) -> void:
+    for x in lo..lo:
+        _ := x
+
+pub fn main() -> void: pass

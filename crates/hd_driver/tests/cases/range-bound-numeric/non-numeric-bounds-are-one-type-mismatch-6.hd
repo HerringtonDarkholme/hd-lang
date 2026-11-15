@@ -1,0 +1,6 @@
+# @dump: stdout
+fn f(s: string, b: bool) -> void:
+    a := b..b
+    _ := a
+
+pub fn main() -> void: pass

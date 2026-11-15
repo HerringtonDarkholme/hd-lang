@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(a: u32, b: i32) -> void:
+    _ := a < b
+
+pub fn main() -> void: pass

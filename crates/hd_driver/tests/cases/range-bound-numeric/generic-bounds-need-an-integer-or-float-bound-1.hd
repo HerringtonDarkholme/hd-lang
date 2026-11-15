@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f[T](a: T, b: T) -> void:
+    _ := a..b
+
+pub fn main() -> void: pass

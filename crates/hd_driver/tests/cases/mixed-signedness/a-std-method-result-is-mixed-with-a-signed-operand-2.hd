@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(flags: u8, limit: i32) -> bool:
+    flags.count_ones() > limit
+
+pub fn main() -> void: pass

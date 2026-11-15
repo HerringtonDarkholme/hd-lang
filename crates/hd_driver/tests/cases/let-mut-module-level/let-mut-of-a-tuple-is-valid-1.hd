@@ -1,0 +1,5 @@
+# @dump: stdout
+let mut pair = (1, 2)
+
+pub fn main() -> void $ Console:
+    println(1)

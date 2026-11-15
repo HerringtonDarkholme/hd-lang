@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(n: i32) -> bool:
+    bool(n)
+
+pub fn main() -> void: pass

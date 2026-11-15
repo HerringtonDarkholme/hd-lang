@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(a: i32, b: i32, limit: i32) -> bool:
+    a.abs_diff(b) < limit
+
+pub fn main() -> void: pass

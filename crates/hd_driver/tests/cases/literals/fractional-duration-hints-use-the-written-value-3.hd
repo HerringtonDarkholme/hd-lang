@@ -1,0 +1,6 @@
+# @dump: stdout
+fn delay():
+    _ := 0.125h
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,5 @@
+# @dump: stdout
+let n = +0
+
+pub fn main() -> void $ Console:
+    println(1)

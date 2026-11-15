@@ -1,0 +1,5 @@
+# @dump: stdout
+let mut f = 1.5
+
+pub fn main() -> void $ Console:
+    println(1)

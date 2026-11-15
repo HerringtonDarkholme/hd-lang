@@ -1,0 +1,6 @@
+# @dump: stdout
+use std.num.Integer
+fn f[T < Integer](a: T, b: T) -> void:
+    _ := a..b
+
+pub fn main() -> void: pass

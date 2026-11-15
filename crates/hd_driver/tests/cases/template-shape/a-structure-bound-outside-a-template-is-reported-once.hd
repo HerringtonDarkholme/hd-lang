@@ -1,0 +1,7 @@
+# @dump: stdout
+use std.structure.Structure
+
+fn fields[X < Structure]() -> void:
+    pass
+
+pub fn main() -> void: pass

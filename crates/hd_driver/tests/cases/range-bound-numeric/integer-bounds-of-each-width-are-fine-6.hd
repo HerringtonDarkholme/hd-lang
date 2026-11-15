@@ -1,0 +1,10 @@
+# @dump: stdout
+fn f(a: u16, b: u16) -> void:
+    _ := a..b
+    _ := a..
+    _ := ..b
+    _ := a..=b
+    _ := 0..b
+    _ := a..=1
+
+pub fn main() -> void: pass

@@ -1,0 +1,5 @@
+# @dump: stdout
+fn f(a: u32, b: usize) -> usize:
+    a + b
+
+pub fn main() -> void: pass

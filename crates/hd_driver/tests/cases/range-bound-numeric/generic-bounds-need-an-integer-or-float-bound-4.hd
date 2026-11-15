@@ -1,0 +1,7 @@
+# @dump: stdout
+use std.num.Float
+fn f[F < Float](a: F, b: F) -> void:
+    for x in a..b:
+        _ := x
+
+pub fn main() -> void: pass
