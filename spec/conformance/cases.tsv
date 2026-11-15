@@ -575,7 +575,7 @@ typing/valid/row-inference-a-unique-key-match-solves-the-argument.hd	type	accept
 typing/valid/member-metadata-lines-for-direct-members-self-and-variants-are-valid.hd	type	accept	lang/14-annotations.md#member-metadata
 typing/valid/bare-trait-dyn-trait-types-bounds-and-impls-are-valid.hd	type	accept	lang/09-traits.md#r-trait.dyn.reference-keyword
 typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	type	accept	lang/09-traits.md#r-trait.dyn.reference-keyword
-typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
+typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
 typing/valid/caret-is-xor-own-stays-a-plain-name-and-caret-is-xor.hd	type	accept	lang/13-values-and-references.md#r-ref.token.caret
 typing/valid/type-argument-defaults-a-bound-takes-the-trait-argument-default.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/type-argument-defaults-a-bound-with-an-output-binding-takes-the-trait-argument-default.hd	type	accept	lang/04-type-system.md#type-argument-defaults

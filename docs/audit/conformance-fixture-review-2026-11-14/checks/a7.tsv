@@ -1255,7 +1255,7 @@ runtime/valid/reference-field-stores-preserve-rhs-alias-writes.hd	accept	lang/13
 typing/valid/reference-forms.hd	accept	lang/13-values-and-references.md#r-ref.place.shared-any	3	
 runtime/valid/capture-closure-called-through-reference.hd	accept	lang/13-values-and-references.md#r-ref.read.shallow	-2	
 parse/valid/reference-operator-tokens.hd	accept	lang/13-values-and-references.md#r-ref.token.and-and	-1	
-typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	accept	lang/13-values-and-references.md#r-ref.token.caret	-3	
+typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	accept	lang/13-values-and-references.md#r-ref.token.caret	-3	
 parse/valid/reference-types.hd	accept	lang/13-values-and-references.md#r-ref.type.forms	-3	
 runtime/valid/structure-build-fills-the-members-the-source-never-names.hd	accept	lang/14-annotations.md#build	-2	
 runtime/valid/error-derivation-run.hd	accept	lang/14-annotations.md#error-derivation	-42	

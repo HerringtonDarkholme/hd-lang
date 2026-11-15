@@ -1,4 +1,4 @@
-# test: caret is xor a caret on a type or a receiver is a syntax error
+# test: caret is xor reference types and receivers without a caret are valid
 struct File:
     fd: i32
 
