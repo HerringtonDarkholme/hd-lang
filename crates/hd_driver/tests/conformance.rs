@@ -2810,7 +2810,7 @@ fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
     }
 }
 
-/// Every `typing/invalid` fixture, checked: none reaches an internal error
+/// Every type-phase reject case, checked: none reaches an internal error
 /// (`hd_diag::DiagBuf::internal_error`), such as a body that fails the TIR
 /// verifier. Error recovery must leave a body the verifier accepts, so a
 /// rejected program reports its diagnostic and never a compiler bug. The
@@ -2827,9 +2827,9 @@ fn no_typing_invalid_fixture_reaches_an_internal_error() {
     };
     let cases: Vec<Case> = cases
         .into_iter()
-        .filter(|case| case.phase == Phase::Type && case.path.starts_with("typing/invalid/"))
+        .filter(|case| case.phase == Phase::Type && case.expectation.starts_with("reject:"))
         .collect();
-    assert!(!cases.is_empty(), "no typing/invalid cases");
+    assert!(!cases.is_empty(), "no type-phase reject cases");
     let store = new_store();
     let next = AtomicUsize::new(0);
     let found = Mutex::new(Vec::new());
@@ -2854,7 +2854,7 @@ fn no_typing_invalid_fixture_reaches_an_internal_error() {
     found.sort_stable();
     assert!(
         found.is_empty(),
-        "typing/invalid fixtures reach an internal error:\n{}",
+        "type-phase reject cases reach an internal error:\n{}",
         found.join("\n")
     );
 }

@@ -26,23 +26,17 @@ outside `spec/` to run the suite.
 
 ## Layout
 
-- `parse/valid`: must parse under the core grammar.
-- `parse/invalid`: must be rejected during lexing or parsing.
-- `typing/valid`: must parse and type-check.
-- `typing/invalid`: must parse, then fail with the diagnostic category in an
-  inline `# diagnostic: CODE` comment on the rejected source line.
-- `typing/warnings`: must parse and type-check, then emit the category in an
-  inline `# warning: CODE` comment on the warned source line.
-- `runtime/valid`: must parse and type-check, then complete successfully when
-  executed by its declared fixture environment.
-- `runtime/panic`: must parse and type-check, then panic with the category in
-  an inline `# panic: CODE` comment on the triggering source line.
+Fixtures live in topic folders, as the stage tests under `crates/` do. A
+folder is one topic of the specification: a chapter, such as `traits/` or
+`std/json/`, then a section or rule family inside it, such as
+`traits/bounds/`. The topic comes from what the case tests and the rule its
+row cites. Accept, reject, warning and panic cases of one topic sit
+together.
 
-An area may group its fixtures one level deeper, in a directory of its own
-inside each phase directory.
+A folder that grows past what a reader can scan splits by sub-topic.
 
-The directory is informative. A case's phase and expectation come from
-`cases.tsv`, and the two must agree.
+The directory carries no phase or expectation. A case's phase and
+expectation come from its `cases.tsv` row alone.
 
 `cli/NAME/` holds the inputs and the `expect.txt` of one CLI case. It holds no
 fixture of the `cases.tsv` suite, and `cases.tsv` has no row for it.
