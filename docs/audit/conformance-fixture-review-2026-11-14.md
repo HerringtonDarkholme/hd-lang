@@ -1436,7 +1436,7 @@ under test:
   `grammar/test-blocks/test-block.hd`, `grammar/patterns/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
   `parse/valid/data-embedding.hd`, `parse/valid/functions-and-closures.hd`,
   `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
-  `runtime/valid/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
+  `std/json/parsing/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
   `typing/valid/composite-ordering.hd`, `typing/valid/data-types.hd`,
   `typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd`,
   `typing/valid/generic-data-embedding.hd`: trailing commas removed.
@@ -2470,7 +2470,7 @@ b153 (45): 17 (mostly the same). b154 (42): 3. b155 (45): 9.
 
 Ledger: b156 (45): 4. b157 (45): 0. b158 (45): 6. b159 (44): 4.
 
-- **Depends on map or set order (B8)**: `runtime/valid/json-typed-round-trip.hd` (`Map`
+- **Depends on map or set order (B8)**: `std/json/typed-json/json-typed-round-trip.hd` (`Map`
   output in insertion order), `json-model-round-trips.hd` and `json-adversarial-inputs.hd`
   (`Set` output in first-occurrence order; `std-collections.set.iter` doesn't promise it).
 - **Depends on `usize` width (B8, the target owner question)**: `runtime/valid/num-intrinsic-boundaries.hd`,

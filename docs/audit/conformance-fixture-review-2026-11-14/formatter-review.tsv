@@ -81,7 +81,7 @@ lexical/whitespace-and-indentation/indentation-levels.hd	WEAKENED	Comment lines 
 grammar/expressions/index-then-call-element.hd	HARMLESS	
 lexical/literals/integer-literal-forms.hd	HARMLESS	
 lexical/literals/interpolation-forms.hd	HARMLESS	
-runtime/valid/json-number-grammar.hd	HARMLESS	
+std/json/parsing/json-number-grammar.hd	HARMLESS	
 lexical/physical-and-logical-lines/leading-dot-chain.hd	WEAKENED	Most leading-dot method-chain lines joined; one .double() after a comment line remains.
 lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd	ERASED	Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
 lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd	WEAKENED	Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.

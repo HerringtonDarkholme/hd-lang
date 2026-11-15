@@ -807,10 +807,10 @@ b156	std/http/request-builder/http-form-map-number.hd	FIX	B5	Unused import use s
 b156	std/http/request-builder/http-form-root-list.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case has no Serialize derive or impl.
 b156	std/http/request-builder/http-form-root-scalar.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case uses no Serialize item.
 b156	std/http/read-once-bodies/http-body-serialize-removed.hd	UNSURE	B7	Cites body.declaration, which says only private shared state; no rule states that Body is not Serialize.
-b158	runtime/valid/json-typed-round-trip.hd	FIX	B8	Lines 53 and 108 expect map output in insertion order; map order is unspecified (types.map.order.unspecified).
-b158	runtime/valid/json-model-round-trips.hd	FIX	B8	Sets round trip expects encoding in first-occurrence order (line 253); set iteration order is unspecified (std-collections.set.iter).
-b158	runtime/valid/json-adversarial-inputs.hd	FIX	B8	Line 424 expects Set[i32] encoded as [3,1,2]; set iteration order is unspecified (std-collections.set.iter).
-b158	runtime/valid/union-serde.hd	FIX	B3	Only asserts a round trip; the positional single-payload wire form named in the title is never checked.
+b158	std/json/typed-json/json-typed-round-trip.hd	FIX	B8	Lines 53 and 108 expect map output in insertion order; map order is unspecified (types.map.order.unspecified).
+b158	std/json/typed-json/json-model-round-trips.hd	FIX	B8	Sets round trip expects encoding in first-occurrence order (line 253); set iteration order is unspecified (std-collections.set.iter).
+b158	std/json/parsing/json-adversarial-inputs.hd	FIX	B8	Line 424 expects Set[i32] encoded as [3,1,2]; set iteration order is unspecified (std-collections.set.iter).
+b158	std/json/typed-json/union-serde.hd	FIX	B3	Only asserts a round trip; the positional single-payload wire form named in the title is never checked.
 b158	std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	FIX	B7	Cites std-iter.from-fn, but the top-level-read-before-initialization error is governed by module.init.definite in lang/10-modules.md.
 b158	std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	UNSURE	B7	Cites std-iter.from-fn; the accepted ordering is governed by module.init.definite (lang/10-modules.md), so the citation may be off.
 b159	runtime/valid/num-intrinsic-boundaries.hd	FIX	B8	The usize block uses 4294967295 as its maximum; usize is the target pointer width (types.usize.width), so 64-bit targets fail.
