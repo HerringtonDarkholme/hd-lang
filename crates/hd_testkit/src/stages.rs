@@ -154,7 +154,15 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     for view in value.split_whitespace() {
                         if !matches!(
                             view,
-                            "tokens" | "tree" | "tir" | "own" | "wat" | "counts" | "layout"
+                            "tokens"
+                                | "tree"
+                                | "tir"
+                                | "own"
+                                | "wat"
+                                | "counts"
+                                | "layout"
+                                | "diagnostics"
+                                | "stdout"
                         ) {
                             return Err(format!("unknown dump `{view}`"));
                         }
@@ -562,6 +570,84 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
+/// The diagnostics view: every diagnostic of the case's `Analyze` build,
+/// as `severity: file:line:column: code: message`, in source order.
+#[must_use]
+pub fn diagnostics(p: &Program) -> String {
+    let src = p.sources();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: shared_store(),
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = hd_driver::Packages {
+        body_fuel: p.fuel,
+        ..hd_driver::Packages::default()
+    };
+    hd_driver::build_packages(&host, "app", &packages, &Goal::Analyze).render_located()
+}
+
+/// The stdout view: the program built from `main` on the dev pipeline and
+/// run on the default host, as its exit status, standard output and
+/// standard error; or its diagnostics when it does not build.
+///
+/// # Panics
+/// When the Wasm cannot be written or `node` cannot start.
+#[must_use]
+pub fn stdout(p: &Program) -> String {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let src = p.sources();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: shared_store(),
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let built = hd_driver::build(
+        &host,
+        "app",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    let Some(wasm) = built.wasm.as_deref().filter(|_| built.diags.is_empty()) else {
+        return format!("build failed\n{}", built.render_located());
+    };
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("hd-stage-{}-{n}.wasm", std::process::id()));
+    std::fs::write(&path, wasm).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    // cost: one Node process per `stdout` case, after its one build, since
+    // a program run needs a host; no other view starts one.
+    let ran = std::process::Command::new("node")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
+        .arg(&path)
+        .output()
+        .expect("node");
+    let _ = std::fs::remove_file(&path);
+    let shown = path.display().to_string();
+    let stdout = String::from_utf8_lossy(&ran.stdout).replace(&shown, "<wasm>");
+    let stderr = String::from_utf8_lossy(&ran.stderr).replace(&shown, "<wasm>");
+    let mut out = format!(
+        "exit: {}\n",
+        ran.status
+            .code()
+            .map_or_else(|| "signal".to_owned(), |c| c.to_string())
+    );
+    for (name, text) in [("stdout", stdout), ("stderr", stderr)] {
+        if !text.is_empty() {
+            let _ = writeln!(out, "-- {name}");
+            out.push_str(&text);
+            if !text.ends_with('\n') {
+                out.push_str("\n<no newline at end>\n");
+            }
+        }
+    }
+    out
+}
+
 /// The output of view `name` for `p` built as `build`, or `None` for a
 /// view this harness does not know.
 #[must_use]
@@ -574,6 +660,8 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
         "tir" => tir(p),
         "own" => own::view(p, build),
         "wat" => wat_for(p, build),
+        "diagnostics" => diagnostics(p),
+        "stdout" => stdout(p),
         _ => return None,
     })
 }

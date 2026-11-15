@@ -129,7 +129,12 @@ fn duplicate(text: string) -> (string, string):
 ```
 
 `@dump` lists one or more of `tokens`, `tree`, `tir`, `own`, `wat`,
-`counts`, or `layout`. `@build` is optional: engine targets are `v8`
+`counts`, `layout`, `diagnostics`, or `stdout`. `diagnostics` lists every
+diagnostic of the case's `Analyze` build as
+`severity: file:line:column: code: message`, in source order. `stdout`
+builds the program from `pub fn main` on the dev pipeline, runs it on the
+Node host, and shows its exit status, standard output and standard error,
+or its diagnostics when it does not build. `@build` is optional: engine targets are `v8`
 (the default), `wasmtime`, and `browser`; levels are `dev` (the default)
 and `release` (the optimized pipeline and release profile). A separate
 case file chooses a different build, so each baseline has one unambiguous

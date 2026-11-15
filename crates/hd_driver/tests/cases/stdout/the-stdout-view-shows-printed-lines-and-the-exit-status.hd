@@ -1,0 +1,4 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println("one")
+    println("two")

@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn first() -> i32:
+    "text"
+
+fn second() -> i32:
+    missing_name
