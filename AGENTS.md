@@ -38,6 +38,13 @@ code, the author checks each of these and says so in the report:
   recursion, interned and cached queries, one pass where one suffices. A
   naive algorithm needs a stated reason. Where hd does worse than the
   reference, the commit says so and why.
+  Before designing a pass or a data structure, read how a production
+  implementation solves the same problem, in its source or design notes
+  (owner, 2026-11-15: "feel free to check how other SOTA impls are doing
+  it"). Fetching them read-only is fine. Examples: Binaryen's
+  `CoalesceLocals` for wasm locals, regalloc2 for live ranges, Cranelift
+  for code generation, rustc's query system for incremental work. The
+  commit's design paragraph names the one followed and where hd differs.
 
 ## Design Cost Order
 

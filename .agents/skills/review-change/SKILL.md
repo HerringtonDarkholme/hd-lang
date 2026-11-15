@@ -33,6 +33,11 @@ Each of these is sent back. Never merge it with a follow-up ticket.
    a special case for one type, or a second copy of a walk that already
    exists. Send it back with the design that would hold: the index, memo
    or single pass a state-of-the-art compiler uses (rustc, Zig, Swift).
+4. **A design that names no reference.** A new pass or data structure
+   names the production implementation it follows (Binaryen, regalloc2,
+   Cranelift, rustc, LLVM, V8, Zig, Swift) and where it differs, in the
+   commit's design paragraph. Without one, send it back to read one
+   first.
 
 ## The Spec Is The Judge
 
