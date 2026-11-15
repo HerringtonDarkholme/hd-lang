@@ -85,7 +85,6 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["dyn-values build", "#1908"],
   ["matches build", "#1917"],
   ["enum-arms build", "#1909"],
-  ["interpolation build", "#1914"],
 ]);
 
 /**
