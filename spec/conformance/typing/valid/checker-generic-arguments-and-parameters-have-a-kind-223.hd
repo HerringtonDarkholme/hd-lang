@@ -1,5 +1,0 @@
-# test: checker generic arguments and parameters have a kind
-fn run[$ R](callback: fn() -> void $ R) -> void $ R:
-    callback()
-pub fn main() -> void:
-    pass

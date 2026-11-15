@@ -1,0 +1,5 @@
+# test: row parameters a row parameter used as a row is valid
+fn f[$ R]() -> void $ R:
+    pass
+pub fn main() -> void:
+    pass

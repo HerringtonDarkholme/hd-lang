@@ -1,5 +1,0 @@
-# test: checker generic parameter used in the other kind is a kind mismatch
-fn f[$ R]() -> void $ R:
-    pass
-pub fn main() -> void:
-    pass

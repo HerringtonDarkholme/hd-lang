@@ -1,0 +1,8 @@
+# test: poll context a poll context parameter is allowed
+use std.task.PollContext
+
+pub fn main() -> void $ Console:
+    println("x")
+
+fn take(_c: PollContext) -> void:
+    pass

@@ -631,7 +631,7 @@ typing/invalid/grammar-assignment-nonplace.hd	A7b	lost '()' gained ''	lang/02-gr
 typing/invalid/pipe-multi-line-step.hd	A7b	lost '' gained '+,2:=_v'	lang/05-expressions.md#r-expr.pipe.single-line
 typing/invalid/property-examples-wrong-type.hd	A7b	lost '' gained ','	std/testing.md#r-std-testing.prop.examples
 typing/invalid/property-input-not-debug.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.testing.reg.prop-debug
-typing/invalid/row-param-nested-two-occurrences-that-disagree-are-one-mismatch-143.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#requirement-polymorphism
+typing/invalid/requirement-polymorphism-a-list-and-a-map-with-disagreeing-rows-are-one-mismatch.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#requirement-polymorphism
 typing/invalid/trait-resolution-depth-signature.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	lang/09-traits.md#r-trait.bound.depth.limit
 typing/invalid/trait-resolution-depth.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	lang/09-traits.md#r-trait.bound.depth.limit
 typing/valid/composite-ordering.hd	A7b	lost ',' gained ''	lang/05-expressions.md#unary-and-binary-operators

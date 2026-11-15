@@ -504,8 +504,8 @@ Each pair should become one tree used by both fixtures.
 - `trees/migrate-64-impl-placement` = `trees/migrate-69-impl-placement`
 - `trees/dyn-inherent-nonlocal` = `trees/migrate-71-impl-placement`
 - `trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced` = `trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced`
-- `trees/migrate-698-8` = `trees/migrate-698-9`
-- `trees/migrate-698-10` = `trees/migrate-698-11`
+- `trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller` = `trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it`
+- `trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row` = `trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch`
 - `trees/migrate-698-28` = `trees/migrate-698-29`
 
 ### A2. Identical code once comments and directives are stripped (13 groups)
@@ -2215,7 +2215,7 @@ Ledger: b106 (43): 11 rows. b107 (45): 6 rows. Plausible ~15.
   (cite cancellation; nothing is cancelled). `runtime/valid/result-pattern-nested-enum.hd`.
   `typing/invalid/unknown-std-module.hd` and `unknown-dep-module.hd` (the cited rules
   state no error; `unknown-module` is defined only in the README diagnostics list).
-- Plausible: `…/context-values-spreads-take-only-contexts-280.hd` (B1). `runtime/valid/nested-provider-restoration.hd`
+- Plausible: `…/context-values-a-provider-that-does-not-implement-its-key-is-a-type-mismatch.hd` (B1). `runtime/valid/nested-provider-restoration.hd`
   ~ `…-a-later-entry-wins-over-a-spread-269.hd` (C1). `parse/invalid/direct-variant-use.hd`
   (`hd` reports it at use resolution; is it really a parse error?).
 
@@ -2267,7 +2267,7 @@ Ledger: b108 (42): 0. b109 (44): 6. b112 (43): 5. b113 (40): 3.
 Ledger: b116 (31): 5 rows. b117 (35): 3 rows.
 
 - `runtime/valid/closure-result-keeps-requirement-row.hd`: the A11 class (private `main`, nothing checked).
-- Accept cases titled as rejections (the A10b kind): `typing/valid/checker-a-missing-requirement-is-an-error-18.hd`,
+- Accept cases titled as rejections (the A10b kind): `typing/valid/requirement-rows-main-declaring-console-may-print.hd`,
   `…-generic-parameter-used-in-the-other-kind-is-a-kind-mismatch-229.hd`.
 - Plausible C1: `typing/invalid/call-missing-requirement.hd` ~ `missing-requirement.hd`.
   `bang-call-in-plain-function.hd` ~ `bang-call-outside-suspension.hd`.

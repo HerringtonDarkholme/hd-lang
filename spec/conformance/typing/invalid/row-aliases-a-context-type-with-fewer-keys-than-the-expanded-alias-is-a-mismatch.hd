@@ -1,0 +1,6 @@
+# test: row aliases a context type with fewer keys than the expanded alias is a mismatch
+# fixture-package-tree: row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch/src/main.hd
+use pkg.lib.ctx.{AppRow, Db, Cache, pass_on}
+
+fn again(ctx: $.Context[$ Db + Cache]) -> $.Context[$ Db]:
+    pass_on(ctx) # diagnostic: type-mismatch

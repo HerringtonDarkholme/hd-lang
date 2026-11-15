@@ -1,0 +1,6 @@
+# test: poll context a literal naming the private field is one private member error
+use std.task.PollContext
+
+pub fn main() -> void $ Console:
+    let _c = PollContext { waker: () } # diagnostic: private-member
+    println("x")

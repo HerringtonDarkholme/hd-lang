@@ -1,3 +1,0 @@
-# test: checker a missing requirement is an error
-pub fn main() -> void $ Console:
-    println(42)

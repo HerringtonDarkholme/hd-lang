@@ -1,0 +1,3 @@
+# test: requirement rows main declaring console may print
+pub fn main() -> void $ Console:
+    println(42)

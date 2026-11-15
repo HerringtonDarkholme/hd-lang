@@ -1,0 +1,3 @@
+# test: type name forms a requirement key naming no trait is unknown
+fn run() -> void:
+    _ := $.use(Mailer) # diagnostic: unknown-trait

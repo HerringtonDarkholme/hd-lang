@@ -1,0 +1,22 @@
+# test: combinators race and join take positional typed named and spread forms
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 2
+# expect-stdout: 1 2
+use std.task.{join, race}
+
+fn one!() -> i32:
+    1
+
+fn two!() -> i32:
+    2
+
+pub fn main!() -> void $ Console:
+    println(race!(one(), two()))
+    println(race!::[i32](one()))
+    println(race!(tasks=[one(), two()]))
+    let list: List[Suspend[i32]] = [two(), one()]
+    println(race!(list...))
+    let (a, b) = join!(one(), two())
+    println("${a} ${b}")

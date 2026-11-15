@@ -1,0 +1,6 @@
+# test: row aliases a context type naming a row alias matches its expanded row
+# fixture-package-tree: row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row/src/main.hd
+use pkg.lib.ctx.{AppRow, Db, Cache, pass_on}
+
+fn again(ctx: $.Context[$ Db + Cache]) -> $.Context[$ AppRow]:
+    pass_on(ctx)

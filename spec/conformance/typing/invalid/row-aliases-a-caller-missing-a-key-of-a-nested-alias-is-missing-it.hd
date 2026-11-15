@@ -1,0 +1,18 @@
+# test: row aliases a caller missing a key of a nested alias is missing it
+# fixture-package-tree: row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it/src/main.hd
+use pkg.keys.{Db, Cache, Log, Web, WithLog}
+
+fn serve() -> void $ Web + Db:
+    pass
+
+fn run() -> void $ Log + Db:
+    serve() # diagnostic: missing-requirement
+
+fn logged[$ R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
+    job()
+
+fn quiet() -> void $ Db:
+    pass
+
+fn outer() -> void $ Db + Log:
+    logged(quiet)
