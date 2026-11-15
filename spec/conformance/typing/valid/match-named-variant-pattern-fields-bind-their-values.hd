@@ -1,4 +1,4 @@
-# test: unknown variant field binds its value
+# test: match named variant pattern fields bind their values
 enum Choice:
     Pair(left: i32, right: i32)
 

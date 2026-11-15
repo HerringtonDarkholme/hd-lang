@@ -1,4 +1,4 @@
-# test: nested names bind without a second error
+# test: match an unsolved scrutinee binds nested names without a second error
 fn make[T]() -> T:
     panic("no")
 

@@ -1,4 +1,4 @@
-# test: a failed use scrutinee reports once
+# test: match a scrutinee called from an imported function
 # fixture-package-tree: match-cascade-import-legal/src/main.hd
 use pkg.nowhere.thing
 

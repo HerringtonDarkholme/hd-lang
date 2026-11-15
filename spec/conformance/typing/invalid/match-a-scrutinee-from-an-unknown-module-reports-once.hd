@@ -1,4 +1,4 @@
-# test: a failed use scrutinee reports once
+# test: match a scrutinee from an unknown module reports once
 # fixture-package-tree: match-cascade-missing-import/src/main.hd
 use pkg.nowhere.thing # diagnostic: unknown-module
 

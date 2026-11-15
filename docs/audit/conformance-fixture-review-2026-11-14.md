@@ -1547,9 +1547,9 @@ dropping a `pub fn main` that only prints. Directives (`# fixture-*`,
 `# expect-stdout`) are kept, so tree-path and scenario variants stay
 distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 6 new ones are all confirmed by `diff`:
-- `typing/invalid/rejected-pattern-binds-bare-call-pattern-binds-its-names-171.hd` = `typing/invalid/bare-ok-call-pattern.hd` (b056)
-- `typing/invalid/rejected-pattern-binds-duplicate-field-binds-the-alias-173.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
-- `typing/invalid/rejected-pattern-binds-unknown-variant-field-binds-its-value-174.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
+- `typing/invalid/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `typing/invalid/bare-ok-call-pattern.hd` (b056)
+- `typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
+- `typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
 - `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `typing/valid/declaration-checks-a-shorthand-field-counts-as-given-300.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
@@ -1615,7 +1615,7 @@ Ledger: b056 (45): 7 rows. b057 (46): 14 rows (10 are the A10 class). b058 (42):
   `runtime/valid/iterator-single-pass.hd`.
 - Plausible B2: `typing/invalid/bare-variant-pattern-in-match.hd` (the payload-arity
   rule may also apply to the marked line).
-  `…/unsolved-scrutinee-nested-names-bind-without-a-second-error-48.hd`.
+  `…/match-an-unsolved-scrutinee-binds-nested-names-without-a-second-error.hd`.
 - `typing/warnings/variant-binding-name-mismatch.hd`: A6.
 
 #### b059 (`lang/06-control-flow.md`)

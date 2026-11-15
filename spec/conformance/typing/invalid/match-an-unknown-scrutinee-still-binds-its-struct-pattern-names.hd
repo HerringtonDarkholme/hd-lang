@@ -1,4 +1,4 @@
-# test: a failed scrutinee binds data pattern names
+# test: an unknown scrutinee still binds its struct pattern names, so it reports once
 struct Point:
     x: i32
     y: i32

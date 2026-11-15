@@ -1,4 +1,4 @@
-# test: duplicate field binds the alias
+# test: match a struct pattern field binds an alias
 struct User:
     name: string
 

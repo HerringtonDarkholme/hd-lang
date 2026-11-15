@@ -1,4 +1,4 @@
-# test: a solved scrutinee still checks
+# test: match a scrutinee solved by an annotation checks
 fn make[T]() -> T:
     panic("no")
 

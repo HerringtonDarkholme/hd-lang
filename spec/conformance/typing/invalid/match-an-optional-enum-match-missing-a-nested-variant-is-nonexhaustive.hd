@@ -1,4 +1,4 @@
-# test: checker a match must cover every variant
+# test: match an optional enum match missing a nested variant is nonexhaustive
 enum Color:
     Red
     Green

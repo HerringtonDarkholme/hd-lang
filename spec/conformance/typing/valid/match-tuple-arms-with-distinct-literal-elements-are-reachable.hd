@@ -1,4 +1,4 @@
-# test: checker duplicate literal arms are unreachable
+# test: match tuple arms with distinct literal elements are reachable
 fn f(p: (string, i32)) -> i32:
     match p:
         ("a", _) => 1

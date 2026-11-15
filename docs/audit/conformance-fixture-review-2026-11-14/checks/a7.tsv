@@ -493,8 +493,8 @@ runtime/valid/using-dispose-order.hd	accept	lang/06-control-flow.md#binding-and-
 runtime/valid/using-race-loser-disposes.hd	accept	lang/06-control-flow.md#binding-and-registration	-2	
 typing/invalid/discarded-optional-result.hd	reject:discarded-must-use-value	lang/06-control-flow.md#blocks-and-completion	-2	
 typing/invalid/discarded-suspension.hd	reject:discarded-must-use-value	lang/06-control-flow.md#blocks-and-completion	-1	
-typing/invalid/void-final-non-void-tail-is-one-error-36.hd	reject:type-mismatch	lang/06-control-flow.md#blocks-and-completion	-1	
-typing/invalid/void-final-non-void-tail-is-one-error-37.hd	reject:type-mismatch	lang/06-control-flow.md#blocks-and-completion	-1	
+typing/invalid/void-final-a-literal-tail-in-a-void-function-is-one-error.hd	reject:type-mismatch	lang/06-control-flow.md#blocks-and-completion	-1	
+typing/invalid/void-final-a-call-tail-in-a-void-function-is-one-error.hd	reject:type-mismatch	lang/06-control-flow.md#blocks-and-completion	-1	
 typing/valid/optional-result-explicitly-discarded.hd	accept	lang/06-control-flow.md#blocks-and-completion	-2	
 runtime/valid/conditional-call-program.hd	accept	lang/06-control-flow.md#conditional-expressions	3	
 runtime/valid/else-if-chain.hd	accept	lang/06-control-flow.md#conditional-expressions	4	

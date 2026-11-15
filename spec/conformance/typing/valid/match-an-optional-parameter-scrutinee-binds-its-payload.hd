@@ -1,4 +1,4 @@
-# test: an unknown name scrutinee reports once
+# test: match an optional parameter scrutinee binds its payload
 fn run(missing: i32?) -> i32:
     match missing:
         .Some(n) => n + 1

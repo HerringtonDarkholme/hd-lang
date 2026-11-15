@@ -1,4 +1,4 @@
-# test: void and diverging tails stay clean
+# test: void final a void function may end in a panic
 fn f() -> void:
     panic("x")
 

@@ -1,4 +1,4 @@
-# test: an unknown method scrutinee reports once
+# test: match an optional binding scrutinee binds its payload
 fn run(v: i32) -> i32:
     let item: i32? = .Some(v)
     match item:

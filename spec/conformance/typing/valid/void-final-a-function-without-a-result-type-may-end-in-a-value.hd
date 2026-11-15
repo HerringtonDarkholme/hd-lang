@@ -1,0 +1,6 @@
+# test: void final a function without a result type may end in a value
+fn f():
+    42
+
+pub fn main() -> void:
+    pass

@@ -1,4 +1,4 @@
-# test: non void tail is one error
+# test: void final a call tail in a void function is one error
 fn g() -> i32:
     1
 

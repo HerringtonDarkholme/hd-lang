@@ -1,4 +1,4 @@
-# test: checker duplicate literal arms are unreachable
+# test: match a tuple arm covered by an earlier wildcard element is unreachable
 fn f(p: (string, i32)) -> i32:
     match p:
         ("a", _) => 1

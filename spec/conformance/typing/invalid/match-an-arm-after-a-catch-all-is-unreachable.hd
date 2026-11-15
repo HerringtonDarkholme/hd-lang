@@ -1,4 +1,4 @@
-# test: arm after catch all is still unreachable
+# test: match an arm after a catch all is unreachable
 fn f(o: i32?) -> i32:
     match o:
         _ => 0

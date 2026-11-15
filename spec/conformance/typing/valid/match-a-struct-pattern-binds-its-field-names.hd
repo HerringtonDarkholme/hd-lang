@@ -1,4 +1,4 @@
-# test: a failed scrutinee binds data pattern names
+# test: match a struct pattern binds its field names
 struct Point:
     x: i32
     y: i32

@@ -14,9 +14,9 @@ typing/valid/generic-inference-join-bool-literal-against-integer-still-errors-38
 typing/valid/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected-47-legal.hd	A10c	# test: a bare parameter target with a delegation is rejected
 typing/valid/misplaced-derivation-a-rejected-block-reports-nothing-else-130-legal.hd	A10c	# test: a rejected block reports nothing else
 typing/valid/literals-float-literal-past-f64-range-is-rejected-55-legal.hd	A10c	# test: float literal past f64 range is rejected
-typing/valid/match-cascade-a-failed-use-scrutinee-reports-once-123-legal.hd	A10c	# test: a failed use scrutinee reports once
-typing/valid/match-cascade-an-unknown-method-scrutinee-reports-once-121-legal.hd	A10c	# test: an unknown method scrutinee reports once
-typing/valid/match-cascade-an-unknown-name-scrutinee-reports-once-122-legal.hd	A10c	# test: an unknown name scrutinee reports once
+typing/valid/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
+typing/valid/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
+typing/valid/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
 typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	A10c	# test: a bound naming no trait adds no second error
 typing/valid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57-legal-type-arguments.hd	A10c	# test: a parameter named nowhere is reported once
 typing/valid/unsolved-call-parameter-an-unsolved-data-literal-parameter-is-reported-61-legal.hd	A10c	# test: an unsolved data literal parameter is reported

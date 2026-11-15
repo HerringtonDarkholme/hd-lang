@@ -1,4 +1,4 @@
-# test: bare call pattern binds its names
+# test: match a dotted variant call pattern binds its names
 fn f(r: Result[i32, string]) -> i32:
     match r:
         .Ok(number) => number

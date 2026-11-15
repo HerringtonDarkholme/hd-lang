@@ -1,4 +1,4 @@
-# test: checker duplicate literal arms are unreachable
+# test: match a repeated float literal arm is unreachable
 fn f(x: f64) -> i32:
     match x:
         1.5 => 1

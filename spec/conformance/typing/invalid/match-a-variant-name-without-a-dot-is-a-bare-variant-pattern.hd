@@ -1,4 +1,4 @@
-# test: bare variant arm hides no neighbour
+# test: match a variant name without a dot is a bare variant pattern
 enum Flag:
     On(value: i32)
     Off

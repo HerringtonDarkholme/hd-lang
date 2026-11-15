@@ -1,4 +1,4 @@
-# test: bare variant arm hides no neighbour
+# test: match a dotted variant pattern with a wildcard payload matches
 enum Flag:
     On(value: i32)
     Off

@@ -1,4 +1,4 @@
-# test: unknown variant field binds its value
+# test: match a named variant pattern field the variant lacks is unknown
 enum Choice:
     Pair(left: i32, right: i32)
 
