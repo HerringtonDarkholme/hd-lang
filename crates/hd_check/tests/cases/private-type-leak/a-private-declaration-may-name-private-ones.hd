@@ -1,0 +1,23 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+struct Wrap:
+    pub h: Hidden
+    Hidden
+
+type Alias = Hidden
+type Base(Hidden)
+trait Sub < Tag:
+    fn sub(self) -> Hidden
+
+fn take(h: Hidden, xs: List[Hidden]) -> Hidden:
+    h
+
+fn bound[T < Tag](t: T) -> i32: t.tag()
+
+fn row() -> void $ Tag:
+    pass

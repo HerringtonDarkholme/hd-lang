@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# #1847: each form that holds a type, with a private type in a union
+# inside it, and a union holding it.
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub fn f(x: i32 | (string | Hidden)) -> i32: 0

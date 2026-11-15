@@ -1,0 +1,11 @@
+# @dump: diagnostics
+use pkg.shop.{Open}
+
+pub fn main() -> void:
+    pass
+# @file: shop.hd
+struct Secret:
+    n: i32
+
+pub struct Open:
+    pub s: Secret

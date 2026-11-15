@@ -1,0 +1,10 @@
+# @dump: diagnostics
+use pkg.shop.{Open}
+
+pub fn wrap(o: Open) -> Open: o
+
+pub fn main() -> void:
+    pass
+# @file: shop.hd
+pub struct Open:
+    pub n: i32

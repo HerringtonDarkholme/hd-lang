@@ -1,0 +1,9 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub trait Shown < Tag:
+    fn s(self) -> i32

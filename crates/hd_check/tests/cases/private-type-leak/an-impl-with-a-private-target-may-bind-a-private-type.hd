@@ -1,0 +1,20 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub trait Make:
+    type Out
+    fn make(self) -> Self::Out
+
+pub struct Maker:
+    k: i32
+
+struct Inner:
+    k: i32
+
+impl Make for Inner:
+    type Out = Hidden
+    fn make(self) -> Hidden: Hidden { n: self.k }

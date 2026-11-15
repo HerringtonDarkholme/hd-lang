@@ -1,0 +1,17 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub trait Make:
+    type Out
+    fn make(self) -> Self::Out
+
+pub struct Maker:
+    k: i32
+
+impl Make for Maker:
+    type Out = List[Hidden]
+    fn make(self) -> List[Hidden]: []

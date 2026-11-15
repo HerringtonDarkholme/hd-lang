@@ -1,0 +1,12 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+struct Inner:
+    n: i32
+
+impl Inner:
+    pub fn take(self, h: Hidden) -> i32: h.n

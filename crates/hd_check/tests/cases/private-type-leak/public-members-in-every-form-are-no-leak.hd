@@ -1,0 +1,24 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub struct Open:
+    pub n: i32
+
+pub trait Shape:
+    fn area(self) -> i32
+
+pub type Choice = Open | i32
+pub fn f(
+    a: Open | i32,
+    b: (i32, Open | i32) | (Open, i32),
+    c: fn(Open | i32) -> i32 | Open,
+    d: (Open | i32)? | Open?,
+    e: &(Open | i32),
+    g: List[Open | i32] | List[Open],
+    h: i32 | &dyn Shape,
+) -> Choice:
+    ._1(0)

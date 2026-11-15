@@ -1,0 +1,14 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub fn size() -> i32:
+    let h: Hidden = Hidden { n: 1 }
+    h.n
+
+pub fn run[T](t: T) -> i32:
+    fn local(h: Hidden) -> i32: h.n
+    local(Hidden { n: 2 })

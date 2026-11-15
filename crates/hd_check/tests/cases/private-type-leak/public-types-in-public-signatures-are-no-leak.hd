@@ -1,0 +1,18 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub struct Open:
+    pub n: i32
+
+pub trait Shape:
+    fn area(self) -> i32
+
+pub type Names = List[string]
+type Hidden2 = Open
+pub fn take(o: Open, xs: List[Open], t: fn(Open) -> Open?) -> Open: o
+pub fn bound[T < Shape](t: T) -> Hidden2:
+    Open { n: t.area() }

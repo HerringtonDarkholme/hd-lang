@@ -1,0 +1,13 @@
+# @dump: diagnostics
+struct Hidden:
+    n: i32
+
+trait Tag:
+    fn tag(self) -> i32
+
+pub struct Open:
+    pub n: i32
+
+type Alias = Open
+
+pub fn take(o: Alias) -> Alias: o
