@@ -734,6 +734,18 @@ impl CacheStore for DiskStore {
         self.packed.flush_requested()
     }
 
+    fn get_claimed(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        if kind == EntryKind::Clpack {
+            self.read(kind, key, |_, _| true)
+        } else {
+            self.packed.get_or_claim_any(kind, key, true)
+        }
+    }
+
+    fn claims(&self, kind: EntryKind, key: &Hash128) -> bool {
+        self.packed.held(kind, key)
+    }
+
     fn touch(&self, kind: EntryKind, key: &Hash128) {
         if kind == EntryKind::Clpack {
             self.touch_loose(kind, key);
@@ -1050,7 +1062,9 @@ mod packed {
     /// right after it misses them, once everything they depend on is in
     /// memory, and publishes when it puts them. `depfiles` stays out: a run
     /// writes its aggregate entries as it ends, and claiming one would make
-    /// other programs' runs wait for that whole command.
+    /// other programs' runs wait for that whole command. The std skims,
+    /// which their reader computes at once, are claimed through
+    /// [`CacheStore::get_claimed`].
     const CLAIMED: [EntryKind; 5] = [
         EntryKind::Parse,
         EntryKind::Iface,
@@ -2850,13 +2864,24 @@ mod packed {
         /// computed once"). Cost: one claim file opened and locked per miss
         /// beside other runs; nothing alone.
         pub(super) fn get_or_claim(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+            self.get_or_claim_any(kind, key, CLAIMED.contains(&kind))
+        }
+
+        /// [`Store::get_or_claim`], claiming a miss of any kind when
+        /// `claimed`: the caller computes and puts the entry at once.
+        pub(super) fn get_or_claim_any(
+            &self,
+            kind: EntryKind,
+            key: &Hash128,
+            claimed: bool,
+        ) -> Option<Arc<[u8]>> {
             // Join the runs at the first read, long before the first miss,
             // so runs that start together see each other at once.
             drop(self.join());
             if let Some(bytes) = self.get(kind, key) {
                 return Some(bytes);
             }
-            if !self.claiming || !CLAIMED.contains(&kind) || !self.crowded() {
+            if !self.claiming || !claimed || !self.crowded() {
                 return None;
             }
             let k = (kind as u16, key.0);
@@ -2944,8 +2969,7 @@ mod packed {
         }
 
         /// Whether this store holds `key`'s claim.
-        #[cfg(test)]
-        fn held(&self, kind: EntryKind, key: &Hash128) -> bool {
+        pub(super) fn held(&self, kind: EntryKind, key: &Hash128) -> bool {
             self.claims().contains_key(&(kind as u16, key.0))
         }
 
@@ -5377,9 +5401,10 @@ mod packed {
         }
 
         /// A store does not wait for its own claim, and a kind written as a
-        /// command ends is never claimed.
+        /// command ends is claimed only when its reader asks (the std
+        /// skims, which it computes at once).
         #[test]
-        fn a_store_never_waits_for_its_own_claim_and_depfiles_are_never_claimed() {
+        fn a_store_never_waits_for_its_own_claim_and_claims_depfiles_only_when_asked() {
             let root = scratch("claim-own");
             let (mut a, b) = (Store::new(&root), Store::new(&root));
             a.claiming = true;
@@ -5390,6 +5415,11 @@ mod packed {
             assert!(a.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
             assert!(a.get_or_claim(EntryKind::Depfiles, &Hash128(2)).is_none());
             assert!(!a.held(EntryKind::Depfiles, &Hash128(2)));
+            assert!(
+                a.get_or_claim_any(EntryKind::Depfiles, &Hash128(2), true)
+                    .is_none()
+            );
+            assert!(a.held(EntryKind::Depfiles, &Hash128(2)));
             assert_eq!(cost::take().claim_waits, 0);
             a.release(std::iter::once((EntryKind::Check as u16, 1)));
             assert!(!a.held(EntryKind::Check, &Hash128(1)));

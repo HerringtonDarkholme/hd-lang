@@ -278,6 +278,10 @@ pub(crate) struct StdSkims<'a> {
     key: Hash128,
     /// The entry's skims once read; `None` on a miss.
     table: OnceLock<Option<HashMap<String, Arc<FileSkim>>>>,
+    /// The run missed the entry and recorded it at once, for the runs
+    /// waiting for its claim (#1932). Still a miss; nothing to record at
+    /// the end.
+    early: std::sync::atomic::AtomicBool,
 }
 
 impl<'a> StdSkims<'a> {
@@ -287,6 +291,7 @@ impl<'a> StdSkims<'a> {
             toolchain,
             key: hd_cache::depfiles_key(toolchain, "std"),
             table: OnceLock::new(),
+            early: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -299,7 +304,9 @@ impl<'a> StdSkims<'a> {
     }
 
     fn read(&self) -> Option<HashMap<String, Arc<FileSkim>>> {
-        let bytes = self.store.get(EntryKind::Depfiles, &self.key)?;
+        let Some(bytes) = self.store.get_claimed(EntryKind::Depfiles, &self.key) else {
+            return self.skim_all();
+        };
         let (h, sections) = hd_cache::decode_entry(&bytes).ok()?;
         if h.key != self.key || h.toolchain != self.toolchain || h.layout != super::LAYOUT {
             return None;
@@ -312,6 +319,32 @@ impl<'a> StdSkims<'a> {
             table.insert(path, Arc::new(FileSkim::read(&mut r)));
         }
         (r.ok() && r.at_end()).then_some(table)
+    }
+
+    /// On a miss that this run claimed, other runs wait for the entry:
+    /// skims every std file now and records it at once, so they read it
+    /// rather than skim std too. A run alone claims nothing and skims each
+    /// std file as it reads it. Cost: the skims the miss's record at the
+    /// end would make anyway, made first.
+    fn skim_all(&self) -> Option<HashMap<String, Arc<FileSkim>>> {
+        if !self.store.claims(EntryKind::Depfiles, &self.key) {
+            return None;
+        }
+        let std = &super::embedded_std().sources;
+        let table: HashMap<String, Arc<FileSkim>> = std
+            .list()
+            .iter()
+            .map(|e| {
+                let text = std.read(&e.path).unwrap_or_else(|| Arc::from(&b""[..]));
+                let skim = FileSkim::of(&String::from_utf8_lossy(&text));
+                (e.path.clone(), Arc::new(skim))
+            })
+            .collect();
+        let known: HashMap<&str, &FileSkim> =
+            table.iter().map(|(p, s)| (p.as_str(), &**s)).collect();
+        self.record(std, &known);
+        self.early.store(true, std::sync::atomic::Ordering::Relaxed);
+        Some(table)
     }
 
     /// Records the entry after a miss: each file of `std`, with the skim
@@ -480,15 +513,15 @@ impl<'a> FileSkims<'a> {
             }
         }
         let std = self.std.as_ref()?;
-        let hit = std.table.get()?.is_some();
-        if !hit {
+        let read = std.table.get()?.is_some();
+        if !read {
             let known: HashMap<&str, &FileSkim> = (0..self.cells.len())
                 .filter(|&m| is_std(table, m))
                 .filter_map(|m| Some((table.sources[m].1.as_str(), &**self.cells[m].get()?)))
                 .collect();
             std.record(&super::embedded_std().sources, &known);
         }
-        Some(hit)
+        Some(read && !std.early.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     /// Writes package `p`'s record when this run skimmed a stamped file it

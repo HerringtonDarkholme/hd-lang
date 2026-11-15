@@ -164,6 +164,16 @@ impl hd_cache::CacheStore for Store {
     fn flush_requested(&self) -> bool {
         (**self).flush_requested()
     }
+    fn get_claimed(
+        &self,
+        kind: hd_cache::EntryKind,
+        key: &hd_base::Hash128,
+    ) -> Option<std::sync::Arc<[u8]>> {
+        hd_base::work::uncounted(|| (**self).get_claimed(kind, key))
+    }
+    fn claims(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) -> bool {
+        (**self).claims(kind, key)
+    }
 }
 
 impl Drop for Store {

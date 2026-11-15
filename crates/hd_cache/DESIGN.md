@@ -426,10 +426,14 @@ obj/
     what it put while alone at its next put.
   - Runs of different programs wait only for keys both miss, such as
     std's: keys are content hashes.
-  - `depfiles` is not claimed. A run writes its aggregate entries (the std
-    skims, its source records, package results) as it ends, so a claim on
-    one would make other programs wait for that whole command. Runs that
-    start together each compute those.
+  - `depfiles` is not claimed, except the std skims. A run writes its
+    source records and package results as it ends, so a claim on one
+    would make other programs wait for that whole command; runs that start
+    together each compute those. The std skims entry is claimed through
+    `CacheStore::get_claimed`: its holder skims every std file at once and
+    puts the entry, and the runs waiting for it read it rather than skim
+    std too. A run alone skims each std file as it reads it and records
+    the entry as it ends.
 - **Why claims cannot deadlock.** A claim is held from a miss to the put of
   the same entry. Every place `hd_driver` misses a claimed kind, and what
   it reads while it holds the claim (`crates/hd_driver/src/lib.rs`):
@@ -440,6 +444,8 @@ obj/
   - `header_check` (`graph`, a folder's findings): blocked until its own
     and its closure's interfaces and template sources are in memory; then
     it reads no entry.
+  - `StdSkims::read` (`depfiles`, the std skims): it skims the embedded
+    std texts and reads no entry.
   - `module_prep_now` (`check`): `check_key` needs every dependency in
     memory. Its `parse` and `lint` reads come before the `check` miss, and
     the check reads no entry.

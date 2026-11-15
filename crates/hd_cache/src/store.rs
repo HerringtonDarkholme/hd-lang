@@ -91,6 +91,16 @@ pub trait CacheStore: Sync {
     fn flush_requested(&self) -> bool {
         false
     }
+    /// Reads an entry the caller computes at once on a miss, whatever its
+    /// kind, so a store that claims misses claims this one too (#1932).
+    fn get_claimed(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        self.get(kind, key)
+    }
+    /// Whether this store holds the claim on an entry it missed: other
+    /// runs wait for it, so the caller computes and puts it now.
+    fn claims(&self, _kind: EntryKind, _key: &Hash128) -> bool {
+        false
+    }
 }
 
 type Entries = Mutex<HashMap<(EntryKind, Hash128), Arc<[u8]>>>;
@@ -236,6 +246,20 @@ impl<S: CacheStore> CacheStore for DeferredStore<S> {
             return self.inner.get(kind, key);
         }
         found
+    }
+    fn get_claimed(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        if let Some(bytes) = self.waiting.get(kind, key) {
+            return Some(bytes);
+        }
+        let found = self.inner.get_claimed(kind, key);
+        if found.is_none() && self.inner.flush_requested() {
+            self.publish();
+            return self.inner.get_claimed(kind, key);
+        }
+        found
+    }
+    fn claims(&self, kind: EntryKind, key: &Hash128) -> bool {
+        self.inner.claims(kind, key)
     }
     /// Waits in memory, unless other runs wait: then it is published now,
     /// with every entry put before it, in order, so they need not wait for
