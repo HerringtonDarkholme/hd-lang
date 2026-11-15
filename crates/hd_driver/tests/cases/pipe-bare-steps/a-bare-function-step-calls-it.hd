@@ -1,0 +1,10 @@
+# @dump: stdout
+fn double(n: i32) -> i32: n * 2
+fn inc(n: i32) -> i32: n + 1
+
+pub fn main() -> void $ Console:
+    x := +20
+    println(x |> double |> inc)
+    println(3 |> double)
+    f := inc
+    println(x |> f)

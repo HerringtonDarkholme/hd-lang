@@ -1,0 +1,22 @@
+# @dump: diagnostics
+# Three aliases that expand to one another, declared out of order across
+# two modules, are one cycle: one `alias-cycle`, on the cycle's first
+# declaration in the source (`types.alias.cycle.reported`), and no
+# follow-on error where the aliases are used.
+# @file: a.hd
+use pkg.b.{Back, Db}
+
+pub type Front = $ Back + Db
+
+fn uses() -> void $ Front:
+    pass
+# @file: b.hd
+use pkg.a.Front
+
+pub trait Db
+
+pub trait Cache
+
+pub type Back = $ Middle + Cache
+
+pub type Middle = $ Front

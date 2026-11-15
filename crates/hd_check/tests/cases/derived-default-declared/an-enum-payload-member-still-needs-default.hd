@@ -1,0 +1,11 @@
+# @dump: diagnostics
+use std.ops.{Default, default}
+
+struct Secret:
+    value: i32
+
+@derive(Default)
+enum Choice:
+    Plain
+    @default
+    Held(secret: Secret)

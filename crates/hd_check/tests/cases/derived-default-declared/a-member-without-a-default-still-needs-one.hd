@@ -1,0 +1,10 @@
+# @dump: diagnostics
+use std.ops.Default
+
+struct Secret:
+    value: i32
+
+@derive(Default)
+struct Vault:
+    secret: Secret
+    other: Secret = Secret { value: 7 }

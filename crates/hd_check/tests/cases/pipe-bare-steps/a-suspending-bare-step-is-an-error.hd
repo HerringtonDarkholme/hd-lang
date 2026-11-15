@@ -1,0 +1,8 @@
+# @dump: diagnostics
+fn fetch!(id: i32) -> i32: id
+
+fn loaded!(n: i32) -> i32:
+    n |> fetch
+
+pub fn main() -> void $ Console:
+    println(1)

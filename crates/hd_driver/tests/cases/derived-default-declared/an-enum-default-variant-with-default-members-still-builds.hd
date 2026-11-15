@@ -1,0 +1,13 @@
+# @dump: stdout
+use std.ops.{Default, default}
+
+@derive(Default)
+enum Choice:
+    Plain
+    @default
+    Held(count: i32, name: string)
+
+pub fn main() -> void $ Console:
+    match Choice::default():
+        .Held(count, name) => println("$count ${name.len()}")
+        .Plain => println("plain")

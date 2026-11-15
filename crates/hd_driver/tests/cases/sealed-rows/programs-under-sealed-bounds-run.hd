@@ -1,0 +1,48 @@
+# @dump: stdout
+# Instances under sealed bounds collect and run: `AnyRef` (a reference)
+# and `AnyVal` (a newtype over a primitive), a user trait with `AnyRef`
+# as its supertrait, `Tuple`, and `Inspectable`, whose coercion to a trait
+# value selects the compiler-supplied impl.
+use std.inspect.Inspectable
+use std.function.Tuple
+
+type Mile(i32)
+
+struct User:
+    name: string
+
+trait Named < AnyRef:
+    fn name(self) -> string
+
+impl Named for *User:
+    fn name(self) -> string: self.name
+
+fn pick[T < AnyRef](a: T, b: T, left: bool) -> T:
+    if left:
+        return a
+    b
+
+fn keep[T < AnyVal](x: T) -> T: x
+
+fn names[T < Named](xs: List[T]) -> string:
+    let out = ""
+    for x in xs:
+        out = out + x.name()
+    out
+
+fn first[A < Tuple](a: A) -> A: a
+
+fn erase[T < Inspectable & 'static](x: T) -> *dyn Inspectable: box(x)
+
+pub fn main() -> void $ Console:
+    let u: *User = box(User { name: "ann" })
+    let v: *User = box(User { name: "bob" })
+    println(pick(u, v, false).name)
+    _ := keep(Mile(3))
+    println(keep(7))
+    println(names([u, v]))
+    let (n, s) = first((1, "x"))
+    println("$n$s")
+    _ := erase(*u)
+    _ := erase([(1, "a")])
+    println("done")

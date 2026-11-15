@@ -1,0 +1,8 @@
+# @dump: stdout
+fn show(n: i32) -> i32 $ Console:
+    println(n)
+    n
+
+pub fn main() -> void $ Console:
+    x := 1 |> show
+    println(x)

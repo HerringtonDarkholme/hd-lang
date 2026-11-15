@@ -1,0 +1,25 @@
+# @dump: diagnostics
+struct Fixed[T, N < const usize]:
+    value: T
+
+fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
+    value
+
+fn pick[N < const usize]() -> Fixed[i32, N]:
+    Fixed { value: 1 }
+
+trait Mark[N < const usize]:
+    fn marked(self) -> i32
+
+impl[T, N < const usize] Mark[N] for Fixed[T, N]:
+    fn marked(self) -> i32:
+        1
+
+fn needs_four[M < Mark[4]](m: M) -> i32:
+    m.marked()
+
+fn uses() -> void:
+    let a: Fixed[i32, 4] = Fixed { value: 1 }
+    let b: Fixed[i32, 5] = keep(a)
+
+pub fn main() -> void: pass

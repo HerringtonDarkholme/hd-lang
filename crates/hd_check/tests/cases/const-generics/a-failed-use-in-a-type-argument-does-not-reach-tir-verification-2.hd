@@ -1,0 +1,11 @@
+# @dump: diagnostics
+use std.text.{Nope}
+
+struct Fixed[T, N < const usize]:
+    value: T
+
+struct Plain[T]:
+    value: T
+
+fn broken() -> void:
+    let value: Plain[Nope] = Plain { value: 1 }

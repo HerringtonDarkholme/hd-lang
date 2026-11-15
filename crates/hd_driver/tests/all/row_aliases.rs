@@ -8,7 +8,6 @@
 //! the row as written and its expanded keys.
 
 use hd_cache::MemoryStore;
-use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -30,46 +29,6 @@ fn run(store: &MemoryStore, src: &MemorySources, goal: &Goal) -> Output {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     build(&host, "app", goal)
-}
-
-fn check(files: &[(&str, &str)]) -> Output {
-    run(&MemoryStore::default(), &sources(files), &Goal::Analyze)
-}
-
-fn codes(out: &Output) -> Vec<Code> {
-    out.diags.code.clone()
-}
-
-/// Three aliases that expand to one another, declared out of order across
-/// two modules, are one cycle: one `alias-cycle`, on the cycle's first
-/// declaration in the source (`types.alias.cycle.reported`), and no
-/// follow-on error where the aliases are used.
-#[test]
-fn an_alias_cycle_is_reported_once_on_its_first_declaration() {
-    let a = "\
-use pkg.b.{Back, Db}
-
-pub type Front = $ Back + Db
-
-fn uses() -> void $ Front:
-    pass
-";
-    let b = "\
-use pkg.a.Front
-
-pub trait Db
-
-pub trait Cache
-
-pub type Back = $ Middle + Cache
-
-pub type Middle = $ Front
-";
-    let out = check(&[("a.hd", a), ("b.hd", b)]);
-    assert_eq!(codes(&out), vec![Code::AliasCycle], "{}", out.render());
-    let rendered = out.render();
-    assert!(rendered.contains("a.hd:"), "{rendered}");
-    assert!(rendered.contains("`Front` expands to itself"), "{rendered}");
 }
 
 /// A header row written through an alias and the same row spelled out
@@ -129,46 +88,4 @@ pub fn main() -> void $ Console:
     );
     assert_eq!(c.modules_checked, vec!["app.geo.shapes".to_owned()]);
     assert_eq!(warm.wasm, cold.wasm);
-}
-
-/// A missing key under a row written with an alias names the key, the row
-/// as written and its expanded keys (`req.row.alias.diagnostics`,
-/// `req.row.alias.diagnostics.expanded`).
-#[test]
-fn a_missing_key_names_the_row_as_written_and_its_expansion() {
-    let main = "\
-trait Db
-
-trait Cache
-
-trait Clock
-
-trait Metrics
-
-trait Auth
-
-type AppRow = $ Db + Cache
-
-type WebRow = $ AppRow + Clock
-
-fn respond() -> void $ Metrics:
-    pass
-
-fn get_order() -> void $ WebRow + Auth:
-    respond()
-";
-    let out = check(&[("main.hd", main)]);
-    assert_eq!(
-        codes(&out),
-        vec![Code::MissingRequirement],
-        "{}",
-        out.render()
-    );
-    let rendered = out.render();
-    assert!(
-        rendered.contains(
-            "this needs `$ Metrics`, which the enclosing function's row does not name; `$ WebRow + Auth` is `$ Auth + Cache + Clock + Db`"
-        ),
-        "{rendered}"
-    );
 }

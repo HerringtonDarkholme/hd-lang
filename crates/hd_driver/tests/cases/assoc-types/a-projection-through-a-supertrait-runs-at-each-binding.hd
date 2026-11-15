@@ -1,0 +1,65 @@
+# @dump: stdout
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Counter:
+    start: i32
+
+impl Supplier for Counter:
+    type Item = i32
+    fn get(self) -> i32:
+        self.start
+
+struct Name:
+    text: string
+
+impl Supplier for Name:
+    type Item = string
+    fn get(self) -> string:
+        self.text
+
+struct Opaque:
+    id: i32
+
+struct Vault:
+    inside: Opaque
+
+impl Supplier for Vault:
+    type Item = Opaque
+    fn get(self) -> Opaque:
+        self.inside
+
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+trait Count < Supplier[Item = i32]:
+    fn label(self) -> string
+
+impl NamedSupplier for Counter:
+    fn name(self) -> string: "counter"
+
+impl Count for Counter:
+    fn label(self) -> string: "count"
+
+fn item[S < NamedSupplier](s: S) -> S::Item:
+    s.get()
+
+fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
+    s.get() + 1
+
+fn widen(s: *dyn NamedSupplier[Item = i32]) -> *dyn Supplier[Item = i32]:
+    s
+
+fn twice(c: &dyn Count) -> i32:
+    c.get() * 2
+
+pub fn main() -> void $ Console:
+    c := Counter { start: 20 }
+    shared := box(Counter { start: 20 })
+    println(item(c))
+    println(read(&c))
+    println(widen(shared).get())
+    println(twice(&c))
+    let s: &dyn NamedSupplier[Item = i32] = &c
+    println(item(s))

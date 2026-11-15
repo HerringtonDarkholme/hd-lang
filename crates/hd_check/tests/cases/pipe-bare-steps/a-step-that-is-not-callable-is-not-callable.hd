@@ -1,0 +1,5 @@
+# @dump: diagnostics
+pub fn main() -> void $ Console:
+    n := +1
+    m := +2
+    println(n |> m)

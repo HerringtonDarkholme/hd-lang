@@ -1,0 +1,7 @@
+# @dump: stdout
+fn twice[T](value: T) -> (T, T): (value, value)
+
+pub fn main() -> void $ Console:
+    pair := "a" |> twice
+    println(pair._1)
+    println(+7 |> twice |> _._0)

@@ -1,0 +1,59 @@
+# @dump: stdout
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Counter:
+    start: i32
+
+impl Supplier for Counter:
+    type Item = i32
+    fn get(self) -> i32:
+        self.start
+
+struct Name:
+    text: string
+
+impl Supplier for Name:
+    type Item = string
+    fn get(self) -> string:
+        self.text
+
+struct Opaque:
+    id: i32
+
+struct Vault:
+    inside: Opaque
+
+impl Supplier for Vault:
+    type Item = Opaque
+    fn get(self) -> Opaque:
+        self.inside
+
+fn first_item[S < Supplier](s: S) -> S::Item:
+    s.get()
+
+fn shown[T < Display, S < Supplier[Item = T]](s: S) -> string:
+    let item: S::Item = s.get()
+    item.to_string()
+
+fn plus_one[S < Supplier[Item = i32]](s: S) -> i32:
+    s.get() + 1
+
+struct Feed[I]:
+    source: I
+
+impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
+    fn to_string(&self) -> string:
+        "feed of " + shown(self.source)
+
+pub fn main() -> void $ Console:
+    println(Feed::[Counter] { source: Counter { start: 5 } }.to_string())
+    println(Feed::[Name] { source: Name { text: "Lin" } })
+    let count: i32 = first_item(Counter { start: 41 })
+    println(count + 1)
+    println(first_item(Name { text: "Ada" }))
+    println(shown(Counter { start: 7 }))
+    println(shown(Name { text: "Grace" }))
+    println(plus_one(Counter { start: 1 }))
+    println(first_item(Vault { inside: Opaque { id: 9 } }).id)

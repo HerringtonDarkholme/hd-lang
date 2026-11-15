@@ -1,0 +1,51 @@
+# @dump: stdout
+struct Fixed[T, N < const usize]:
+    value: T
+
+fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
+    value
+
+fn pick[N < const usize]() -> Fixed[i32, N]:
+    Fixed { value: 1 }
+
+trait Mark[N < const usize]:
+    fn marked(self) -> i32
+
+impl[T, N < const usize] Mark[N] for Fixed[T, N]:
+    fn marked(self) -> i32:
+        1
+
+fn needs_four[M < Mark[4]](m: M) -> i32:
+    m.marked()
+
+trait Size[N < const usize]:
+    fn size(self) -> i32
+
+impl Size[4] for Fixed[i32, 4]:
+    fn size(self) -> i32:
+        4
+
+impl Size[5] for Fixed[i32, 5]:
+    fn size(self) -> i32:
+        5
+
+fn sized[M < Size[5]](m: M) -> i32:
+    m.size()
+
+fn through(m: &dyn Size[4]) -> i32:
+    m.size()
+
+struct Named[S < const string]:
+    n: i32
+
+fn named[S < const string](x: Named[S]) -> i32:
+    x.n
+
+pub fn main() -> void $ Console:
+    let a: Fixed[i32, 2 + 2] = pick::[4]()
+    let b: Fixed[i32, 5] = keep(pick::[5]())
+    println(needs_four(a) + sized(b))
+    println(through(&a))
+    let x: Named["a"] = Named { n: 10 }
+    let y: Named["b"] = Named { n: 20 }
+    println(named(x) + named(y))

@@ -1,0 +1,83 @@
+# @dump: stdout
+use std.annotation.{annotate, facts_of}
+use std.structure.{Structure, Field, Variant, Describer}
+
+@annotate::[F](.Field, .Fn)
+struct Tag[F]:
+    label: string
+
+fn tag[F](label: string) -> Tag[F]:
+    Tag::[F] { label: label }
+
+trait Labels:
+    fn labels() -> string
+
+fn label_of[S, F](h: Field[S, F]) -> string:
+    match h.fact::[Tag[F]]():
+        .Some(found) => found.label
+        .None => "-"
+
+struct Collect:
+    out: string
+
+impl[S] Describer[S] for Collect:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + h.info.name + ":" + label_of(h) + ";"
+        .Ok(())
+
+impl[T] Labels for T by Structure:
+    fn labels() -> string:
+        let mut c = Collect { out: "" }
+        _ := T::describe(&mut c)
+        c.out
+
+struct Counter:
+    count: i64
+
+@derive(Labels)
+struct Job:
+    @tag("n")
+    n: i32
+    @tag("run")
+    run: fn() -> i32
+    @tag("hits")
+    hits: Counter
+    plain: List[string]
+
+struct Pair[A]:
+    @tag("first")
+    first: A
+    second: List[A]
+
+impl[A] Labels for Pair[A] by Structure:
+    second += [tag("second")]
+
+@derive(Labels)
+enum Event:
+    Click(@tag("x") x: i32, y: i32)
+    Key(@tag("code") code: string)
+
+@derive(Labels)
+struct Lined:
+    a: i64
+    b: string
+
+impl Lined by Structure:
+    b += [tag("b-line")]
+
+@tag("f")
+fn tagged(n: i64) -> i64:
+    n
+
+pub fn main() -> void $ Console:
+    println(Job::labels())
+    println(Pair::[i32]::labels())
+    println(Pair::[string]::labels())
+    println(Event::labels())
+    println(Lined::labels())
+    println(facts_of(tagged).items.len())

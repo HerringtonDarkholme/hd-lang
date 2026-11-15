@@ -1,0 +1,63 @@
+# @dump: diagnostics
+use std.annotation.annotate
+use std.function.Fn
+use std.num.{Integer, Num}
+use std.structure.{Structure, Field}
+
+@annotate::[T](.Field)
+struct Fact[T]:
+    value: T
+
+fn fact[T](value: T) -> Fact[T]:
+    Fact::[T] { value: value }
+
+@annotate::[F](.Field)
+struct Positive[F < Integer]: pass
+
+fn positive[F < Integer]() -> Positive[F]:
+    Positive::[F] {}
+
+@annotate::[i32](.Field)
+struct Port:
+    number: i32
+
+fn port(number: i32) -> Port:
+    Port { number: number }
+
+@annotate::[fn(T) -> R](.Fn, .Field)
+struct FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+@annotate::[F](.Fn)
+struct Handler[F]: pass
+
+fn handler[R]() -> Handler[fn(i64) -> R]:
+    Handler::[fn(i64) -> R] {}
+
+@annotate::[F](.Field)
+struct Fallback[F]:
+    make: fn() -> F?
+
+fn fallback[F, G < Fn() -> F? & 'static](make: G) -> Fallback[F]:
+    Fallback::[F] { make: fn(): make() }
+
+fn missing[T]() -> T?:
+    .None
+
+fn missing_list[T]() -> List[T]?:
+    .None
+
+@annotate::[List[T]](.Field)
+struct MaxLen[T]:
+    limit: i32
+
+fn max_len[T](limit: i32) -> MaxLen[T]:
+    MaxLen::[T] { limit: limit }
+
+fn limit_of[S](h: Field[S, List[string]]) -> i32:
+    let found: MaxLen[string]? = h.fact::[MaxLen]()
+    match found:
+        .Some(f) => f.limit
+        .None => -1

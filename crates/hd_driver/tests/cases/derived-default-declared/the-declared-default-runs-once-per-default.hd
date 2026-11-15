@@ -1,0 +1,16 @@
+# @dump: stdout
+use std.ops.Default
+
+struct Secret:
+    value: i32
+
+fn seven() -> i32:
+    7
+
+@derive(Default)
+struct Vault:
+    secret: Secret = Secret { value: seven() }
+
+pub fn main() -> void $ Console:
+    println(Vault::default().secret.value)
+    println(Vault::default().secret.value + 1)

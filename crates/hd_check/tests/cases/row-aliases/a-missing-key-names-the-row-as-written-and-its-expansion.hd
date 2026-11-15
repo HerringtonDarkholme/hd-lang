@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# A missing key under a row written with an alias names the key, the row
+# as written and its expanded keys (`req.row.alias.diagnostics`,
+# `req.row.alias.diagnostics.expanded`).
+trait Db
+
+trait Cache
+
+trait Clock
+
+trait Metrics
+
+trait Auth
+
+type AppRow = $ Db + Cache
+
+type WebRow = $ AppRow + Clock
+
+fn respond() -> void $ Metrics:
+    pass
+
+fn get_order() -> void $ WebRow + Auth:
+    respond()

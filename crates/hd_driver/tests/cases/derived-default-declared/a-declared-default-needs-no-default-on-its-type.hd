@@ -1,0 +1,19 @@
+# @dump: stdout
+use std.ops.Default
+
+struct Secret:
+    value: i32
+
+@derive(Default)
+struct Vault:
+    secret: Secret = Secret { value: 7 }
+    count: i32 = +5
+    plain: i32
+    name: string
+
+pub fn main() -> void $ Console:
+    v := Vault::default()
+    println(v.secret.value)
+    println(v.count)
+    println(v.plain)
+    println(v.name.len())

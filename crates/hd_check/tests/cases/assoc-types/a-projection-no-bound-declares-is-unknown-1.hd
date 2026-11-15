@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Named:
+    fn name(self) -> string
+
+fn pick[I < Named](value: I::Item) -> string:
+    panic("unreachable")

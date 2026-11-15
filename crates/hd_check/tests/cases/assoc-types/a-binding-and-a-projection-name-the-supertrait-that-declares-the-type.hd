@@ -1,0 +1,60 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Counter:
+    start: i32
+
+impl Supplier for Counter:
+    type Item = i32
+    fn get(self) -> i32:
+        self.start
+
+struct Name:
+    text: string
+
+impl Supplier for Name:
+    type Item = string
+    fn get(self) -> string:
+        self.text
+
+struct Opaque:
+    id: i32
+
+struct Vault:
+    inside: Opaque
+
+impl Supplier for Vault:
+    type Item = Opaque
+    fn get(self) -> Opaque:
+        self.inside
+
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+trait Count < Supplier[Item = i32]:
+    fn label(self) -> string
+
+impl NamedSupplier for Counter:
+    fn name(self) -> string: "counter"
+
+impl Count for Counter:
+    fn label(self) -> string: "count"
+
+fn first[T, S < NamedSupplier[Item = T]](s: S) -> T:
+    s.get()
+
+fn item[S < NamedSupplier](s: S) -> S::Item:
+    s.get()
+
+fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
+    s.get() + item(s)
+
+fn counted(s: *dyn Count) -> *dyn Count[Item = i32]:
+    s
+
+pub fn main() -> void:
+    _ := first(Counter { start: 1 }) + item(Counter { start: 2 })
+    _ := read(&Counter { start: 3 })
+    _ := counted(box(Counter { start: 4 })).get() + 1

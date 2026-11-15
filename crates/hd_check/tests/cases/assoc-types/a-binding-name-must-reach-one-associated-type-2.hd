@@ -1,0 +1,14 @@
+# @dump: diagnostics
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+trait Record < Named & Keyed
+
+fn third[T, R < Record[Item = T]](record: R) -> T:
+    panic("unreachable")
+
+fn pick[I < Named & Keyed](value: I) -> I::Item:
+    panic("unreachable")

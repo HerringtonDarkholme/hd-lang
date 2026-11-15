@@ -1,0 +1,7 @@
+# @dump: diagnostics
+fn scale(value: i32, by: i32) -> i32: value * by
+fn same[T](value: T) -> T: value
+
+pub fn main() -> void $ Console:
+    println(2 |> scale(3))
+    println(2 |> same::[i32])

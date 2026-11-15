@@ -1,0 +1,12 @@
+# @dump: stdout
+struct Scale:
+    factor: i32
+
+impl Scale:
+    fn apply(self, n: i32) -> i32: n * self.factor
+    fn make(n: i32) -> Scale: Scale { factor: n }
+
+pub fn main() -> void $ Console:
+    s := Scale { factor: 3 }
+    println(+5 |> s.apply)
+    println(+4 |> Scale::make |> _.factor)

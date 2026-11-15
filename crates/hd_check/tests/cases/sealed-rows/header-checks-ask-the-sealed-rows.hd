@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# Header checks ask the same rows (`crates/hd_check/DESIGN.md` (trait solver) §3.7): a written
+# `Box[i32]` misses `Box`'s `AnyRef` bound, and an impl of a trait whose
+# supertrait is `AnyRef` misses it for `i32` but not for a reference type.
+# @file: a/defs.hd
+pub struct Box[T < AnyRef]:
+    pub v: T
+
+pub struct User:
+    pub name: string
+
+pub trait Keyed < AnyRef:
+    fn key(self) -> i32
+
+impl Keyed for &User:
+    fn key(self) -> i32: 1
+
+impl Keyed for i32:
+    fn key(self) -> i32: self
+
+pub fn held(b: Box[i32]) -> i32: 0
+
+pub fn kept(b: Box[*User]) -> i32: 0
