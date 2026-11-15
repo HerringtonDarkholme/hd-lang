@@ -1,4 +1,4 @@
-# @dump: own counts
+# @dump: own counts stdout
 # @build: v8 release
 # expected: the provider conversion takes the source's count. The original
 # reference still has its own owner for the read after the provider scope.

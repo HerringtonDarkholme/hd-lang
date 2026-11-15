@@ -3660,7 +3660,10 @@ pub(crate) mod tests {
                     let value = call(&mut b, 7, &[], Ty::STRING);
                     b.set(owner, value, n);
                     let place = b.place(&format!("[${}]", owner.raw()).parse().expect("place"));
-                    refs.push(b.emit(Tag::Ref, place, 0, Ty::STRING, n));
+                    // A counted view keeps this owner in a cell. The local
+                    // view keeps the local's count live through the call.
+                    b.emit(Tag::Ref, place, 0, Ty::STRING, n);
+                    refs.push(b.emit(Tag::Ref, place, crate::ir::ref_word::LOCAL, Ty::STRING, n));
                     owners.push(owner.raw());
                 }
                 let use_at = call(&mut b, 8, &refs, Ty::VOID).0;

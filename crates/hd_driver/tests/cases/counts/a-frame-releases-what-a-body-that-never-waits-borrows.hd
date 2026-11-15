@@ -1,4 +1,4 @@
-# @dump: own counts wat
+# @dump: own counts wat stdout
 # @build: std
 # expected: `change` takes the counted owner of `n`, even without a wait.
 # Its body releases that owner; cold cancellation releases the saved owner.

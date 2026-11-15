@@ -81,10 +81,7 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
  * Superlinear lines already found, as `SHAPE COMMAND` to the issue. The
  * first run's findings name the issue that tracks each one.
  */
-export const KNOWN: ReadonlyMap<string, string> = new Map([
-  ["dyn-values build", "#1908"],
-  ["enum-arms build", "#1909"],
-]);
+export const KNOWN: ReadonlyMap<string, string> = new Map([["enum-arms build", "#1909"]]);
 
 /**
  * Superlinear lines the owner accepted as bounded by a language limit,

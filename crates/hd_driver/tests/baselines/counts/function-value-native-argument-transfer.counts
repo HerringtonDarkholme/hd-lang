@@ -257,8 +257,6 @@ pub fn main!() -> void $ Clock:
     plain_controls()
 > std/rt_tests.stage_case/main
 >   release *mut i32 (last use)
->   release counted reference (last use)
->   release counted reference (last use)
 >   release *mut i32 (last use)
 >   release List[bool] (last use)
 > std/rt_tests.stage_case/main
@@ -269,6 +267,7 @@ pub fn main!() -> void $ Clock:
     empty_controls()
     seen := box(+0)
 >   retain *mut i32 (stored)
+>   release counted reference (last use)
     for literal in [false, true]:
 >   release List[bool] (last use)
         before := *seen

@@ -137,26 +137,26 @@
         i32.const 8
         i32.const 1
         call $rt:new/class-1'1
-        local.tee $t4
+        local.tee $t3
         i32.const 64 ;; &"n"
         i32.store $heap
-        local.get $t4
+        local.get $t3
         i32.const 1
         i32.store $heap offset=4
-        local.get $t4
+        local.get $t3
         i32.eqz
         if
           i32.const 8
           i32.const 1
           call $rt:new/class-1'1
-          local.tee $t4
+          local.tee $t3
           local.get $t1
           i32.store $heap
-          local.get $t4
+          local.get $t3
           local.get $t2
           i32.store $heap offset=4
         end
-        local.get $t4
+        local.get $t3
         local.tee $a
         if
           local.get $a
@@ -168,11 +168,7 @@
             call $rt:retain_known
           end
         end
-        local.get $t4
-    ;; 21 |     let (a, _) = join!(change(n), other())
-        call $change'1
-        local.set $t3
-        local.get $t4
+        local.get $t3
         local.tee $a
         if
           local.get $a
@@ -186,6 +182,10 @@
             call $rt:release_ref'1
           end
         end
+        local.get $t3
+    ;; 21 |     let (a, _) = join!(change(n), other())
+        call $change'1
+        local.set $t3
         call $other'1
         local.set $t4
     ;; 20 |     n := box::[Note](Note { text: "n" })

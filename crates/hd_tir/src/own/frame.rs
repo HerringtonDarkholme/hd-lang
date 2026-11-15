@@ -61,6 +61,9 @@
 
 use hd_base::SliceSort as _;
 
+#[cfg(test)]
+mod tests;
+
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{
     Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
@@ -811,6 +814,9 @@ fn extra_cell_uses(
             && eligible(i)
             && let Some(l) = b.local_in_place(b.data[i][0])
             && t.bit.get(l.idx()).is_none_or(|&m| m == 0)
+            // A counted Ref retains the cell itself. Only a local view
+            // needs the local's count to outlive its uses (ref.count.local).
+            && b.data[i][1] & crate::ir::ref_word::LOCAL != 0
         {
             locals.push(l.raw());
         }

@@ -165,24 +165,24 @@ fn bound!(s: string) -> usize:
 >   %7 = Store [$3] %6 : ()
 >   %8 = Ref mut [$3] : *mut Named
 >   %9 = Retain %8 Value #0 : ()
->   %10 = Break L0 %8 : never
->   %11 = Block - : *mut Named
->   %12 = Scope %11 [] : *mut Named
->   %13 = Coerce %12 [RefToTraitValue -] : Tag
->   %14 = Block %13 : Tag
->   %15 = RefDyn %14 : *dyn Tag
->   %16 = LoanEnd [%12] : ()
->   %17 = Coerce %15 [RefAsProvider -] : Tag
->   %18 = LoanEnd [%15] : ()
->   %21 = With [Tag %17] %20 : Suspend[usize]
->   %22 = Drop [%17] : ()
->   %23 = Drop [$3] : ()
->   %24 = Store [$1] %21 : ()
+>   %10 = Drop [$3] : ()
+>   %11 = Break L0 %8 : never
+>   %12 = Block - : *mut Named
+>   %13 = Scope %12 [] : *mut Named
+>   %14 = Coerce %13 [RefToTraitValue -] : Tag
+>   %15 = Block %14 : Tag
+>   %16 = RefDyn %15 : *dyn Tag
+>   %17 = LoanEnd [%13] : ()
+>   %18 = Coerce %16 [RefAsProvider -] : Tag
+>   %19 = LoanEnd [%16] : ()
+>   %22 = With [Tag %18] %21 : Suspend[usize]
+>   %23 = Drop [%18] : ()
+>   %24 = Store [$1] %22 : ()
 >   %30 = Block %26 : usize
 >   %8 finds [$3] full
         tagged()
->   %19 = Call app/main/tagged[] () : Suspend[usize]
->   %20 = Block %19 : Suspend[usize]
+>   %20 = Call app/main/tagged[] () : Suspend[usize]
+>   %21 = Block %20 : Suspend[usize]
     pending!()
 >   %25 = Read move [$1] : Suspend[usize]
 >   %26 = AwaitValue %25 : usize
