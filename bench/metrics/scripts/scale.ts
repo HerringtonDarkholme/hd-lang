@@ -29,7 +29,9 @@
 //
 // KNOWN lists the superlinear lines already filed: such a line passes
 // with its issue in the note, and fails once it turns linear, so the row
-// is removed with the fix. HD_SCALE_SHAPES=A,B measures only those shapes.
+// is removed with the fix. BOUNDED lists the lines the owner accepted as
+// bounded by a language limit: they pass with the limit in the note, and
+// fail the same way once linear. HD_SCALE_SHAPES=A,B measures only those shapes.
 //
 // Every hd run has a scratch HD_CACHE of its own (`measuredEnv`): a copy
 // of one warm std cache, removed with the run's directory, never the
@@ -84,7 +86,18 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["matches build", "#1917"],
   ["enum-arms build", "#1909"],
   ["interpolation build", "#1914"],
-  ["tuple-nest build", "#1924"],
+]);
+
+/**
+ * Superlinear lines the owner accepted as bounded by a language limit,
+ * as `SHAPE COMMAND` to the limit and the decision. Each row names the
+ * limit that caps the work and what the work costs at that limit.
+ */
+export const BOUNDED: ReadonlyMap<string, string> = new Map([
+  [
+    "tuple-nest build",
+    "bounded by the parser's MAX_NESTING = 160 (owner 2026-11-15, #1924): +37 MB allocated at depth 150, no measured time",
+  ],
 ]);
 
 /** Each counter's total in one run. */
@@ -153,7 +166,11 @@ export interface Three {
 export function judgeShape(
   label: string,
   { zero, small, large }: Three,
-  { known, bytes = 4 }: { readonly known?: string; readonly bytes?: number } = {},
+  {
+    known,
+    bounded,
+    bytes = 4,
+  }: { readonly known?: string; readonly bounded?: string; readonly bytes?: number } = {},
 ): TargetResult {
   const all = growths(zero, small, large, bytes);
   const bad = all.filter((growth) => growth.bad);
@@ -170,6 +187,11 @@ export function judgeShape(
   }
   const target = bytes === 4 ? `≤ ${GROWTH}x` : `≤ ${GROWTH}x per 4x bytes (${bytes.toFixed(1)}x)`;
   const base = { metric: NAME, name: label, value, target };
+  if (bounded !== undefined) {
+    return bad.length > 0
+      ? { ...base, status: "pass", note: `accepted superlinear, ${bounded}: ${note}` }
+      : { ...base, status: "fail", note: `now linear: remove the BOUNDED row; ${note}` };
+  }
   if (known !== undefined) {
     return bad.length > 0
       ? { ...base, status: "pass", note: `known superlinear, ${known}: ${note}` }
@@ -288,7 +310,12 @@ function lineOf(shape: Shape, command: Command, [zero, small, large]: readonly [
   const growth = (bytes(4 * shape.n) - b0) / (bytes(shape.n) - b0);
   const work = { zero: zero.work!, small: small.work!, large: large.work! };
   const known = KNOWN.get(label);
-  return judgeShape(label, work, { ...(known === undefined ? {} : { known }), bytes: growth });
+  const bounded = BOUNDED.get(label);
+  return judgeShape(label, work, {
+    ...(known === undefined ? {} : { known }),
+    ...(bounded === undefined ? {} : { bounded }),
+    bytes: growth,
+  });
 }
 
 /**

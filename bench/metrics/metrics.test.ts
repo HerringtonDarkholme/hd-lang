@@ -940,6 +940,23 @@ describe("scale", () => {
     assert.match(fixed.note!, /remove the KNOWN row/);
   });
 
+  it("passes a superlinear line bounded by a limit and fails it once it turns linear", () => {
+    const quadratic = judgeShape(
+      "s build",
+      { zero, small: { allocs: 3000 }, large: { allocs: 1000 + 32_000 } },
+      { bounded: "bounded by LIMIT" },
+    );
+    assert.equal(quadratic.status, "pass");
+    assert.match(quadratic.note!, /accepted superlinear, bounded by LIMIT/);
+    const fixed = judgeShape(
+      "s build",
+      { zero, small: { allocs: 3000 }, large: { allocs: 9000 } },
+      { bounded: "bounded by LIMIT" },
+    );
+    assert.equal(fixed.status, "fail");
+    assert.match(fixed.note!, /remove the BOUNDED row/);
+  });
+
   it("runs hd only with a scratch HD_CACHE of its own", () => {
     assert.throws(() => measuredEnv(""), /scratch HD_CACHE/);
     const env = measuredEnv("/tmp/run-cache", { HD_WORK: "w.json", HD_CACHE: "/elsewhere" });
