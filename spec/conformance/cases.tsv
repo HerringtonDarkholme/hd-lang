@@ -3800,10 +3800,10 @@ typing/invalid/literal-receiver-params-differ.hd	type	reject:unknown-method	lang
 runtime/valid/literal-receiver-params-differ-annotated.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.form.receiver
 typing/invalid/a-call-without-update-is-not-a-place-compound.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 typing/invalid/a-callable-value-takes-no-arguments-store.hd	type	reject:argument-count	lang/05-expressions.md#callable-values
-typing/invalid/a-chain-may-not-redeclare-a-name-1.hd	type	reject:duplicate-binding	lang/02-grammar.md#r-grammar.stmt.chain
-typing/invalid/a-chain-may-not-redeclare-a-name-2.hd	type	reject:duplicate-binding	lang/02-grammar.md#r-grammar.stmt.chain
-typing/invalid/a-chained-name-is-not-reassignable-1.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
-typing/invalid/a-chained-name-is-not-reassignable-2.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chain-may-not-redeclare-a-name-in-its-last-link.hd	type	reject:duplicate-binding	lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chain-may-not-redeclare-a-name-in-its-first-link.hd	type	reject:duplicate-binding	lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chained-name-is-not-reassignable-in-its-last-link.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chained-name-is-not-reassignable-in-its-first-link.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
 typing/invalid/a-compound-store-reads-through-apply-compound.hd	type	reject:type-mismatch	lang/05-expressions.md#callable-values
 typing/invalid/a-function-call-is-not-a-place-plain.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 typing/invalid/a-function-call-is-not-a-place-stored.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values

@@ -493,10 +493,10 @@ typing/invalid/literal-erased-any-range.hd	A9	reject:integer-literal-range not m
 typing/invalid/module-qualified-without-use.hd	A9	reject:unknown-name not mentioned in cited lang/03-names-and-scopes.md#r-names.use.introduces
 typing/invalid/literal-trait-value-no-one-fit.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.literal.local.erased.reference-values
 typing/invalid/literal-receiver-params-differ.hd	A9	reject:unknown-method not mentioned in cited lang/04-type-system.md#r-types.literal.local.statement
-typing/invalid/a-chain-may-not-redeclare-a-name-1.hd	A9	reject:duplicate-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
-typing/invalid/a-chain-may-not-redeclare-a-name-2.hd	A9	reject:duplicate-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
-typing/invalid/a-chained-name-is-not-reassignable-1.hd	A9	reject:non-reassignable-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
-typing/invalid/a-chained-name-is-not-reassignable-2.hd	A9	reject:non-reassignable-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chain-may-not-redeclare-a-name-in-its-last-link.hd	A9	reject:duplicate-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chain-may-not-redeclare-a-name-in-its-first-link.hd	A9	reject:duplicate-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chained-name-is-not-reassignable-in-its-last-link.hd	A9	reject:non-reassignable-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
+typing/invalid/a-chained-name-is-not-reassignable-in-its-first-link.hd	A9	reject:non-reassignable-binding not mentioned in cited lang/02-grammar.md#r-grammar.stmt.chain
 typing/invalid/a-compound-store-reads-through-apply-compound.hd	A9	reject:type-mismatch not mentioned in cited lang/05-expressions.md#callable-values
 typing/invalid/absolute-path-in-expression.hd	A9	reject:unknown-name not mentioned in cited lang/10-modules.md#r-module.root.use-only
 typing/invalid/contextual-variant-payload-needs-call.hd	A9	reject:unsaturated-enum-constructor not mentioned in cited lang/05-expressions.md#r-expr.name.contextual.rules

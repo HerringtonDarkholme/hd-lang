@@ -1635,8 +1635,8 @@ runtime/panic/cli-command-after-positional.hd	A3	runtime/panic/cli-positional-af
 typing/valid/literal-first-use-generic-wait.hd	A3	typing/valid/literal-first-use-method.hd
 typing/invalid/literal-first-use-conflict.hd	A3	typing/invalid/literal-first-use-closure-conflict.hd
 runtime/valid/module-qualified-function-value.hd	A3	runtime/valid/module-qualified-function-value-parenthesized.hd
-typing/invalid/a-chain-may-not-redeclare-a-name-1.hd	A3	typing/invalid/a-chain-may-not-redeclare-a-name-2.hd
-typing/invalid/a-chained-name-is-not-reassignable-1.hd	A3	typing/invalid/a-chained-name-is-not-reassignable-2.hd
+typing/invalid/a-chain-may-not-redeclare-a-name-in-its-last-link.hd	A3	typing/invalid/a-chain-may-not-redeclare-a-name-in-its-first-link.hd
+typing/invalid/a-chained-name-is-not-reassignable-in-its-last-link.hd	A3	typing/invalid/a-chained-name-is-not-reassignable-in-its-first-link.hd
 typing/invalid/a-spread-whose-arity-is-not-known-is-rejected-known.hd	A3	typing/invalid/a-spread-whose-arity-is-not-known-is-rejected-other.hd
 typing/invalid/module-member-a-private-declaration-through-a-module-is-private-import-enum-variant.hd	A3	typing/invalid/module-member-a-private-declaration-through-a-module-is-private-import-associated-call.hd
 typing/invalid/module-member-a-missing-declaration-through-a-module-is-unknown-import-enum-variant.hd	A3	typing/invalid/module-member-a-missing-declaration-through-a-module-is-unknown-import-associated-call.hd
