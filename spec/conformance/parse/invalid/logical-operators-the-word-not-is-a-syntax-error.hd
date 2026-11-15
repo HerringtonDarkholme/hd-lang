@@ -1,1 +1,2 @@
+# test: the word not is not a logical operator
 fn negate(ready: bool) -> bool: not ready  # diagnostic: syntax-error

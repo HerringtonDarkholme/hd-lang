@@ -1148,7 +1148,7 @@ runtime/panic/integer-add-overflow.hd	A3	runtime/panic/integer-negation-overflow
 runtime/panic/i32-add-overflow-in-function.hd	A3	runtime/panic/i32-min-divided-by-minus-one.hd
 runtime/panic/list-index-out-of-bounds.hd	A3	runtime/panic/list-set-out-of-bounds.hd
 parse/invalid/chained-comparison.hd	A3	parse/invalid/comparison-chaining-with-names.hd
-parse/invalid/old-or-operator.hd	A3	parse/invalid/old-not-operator.hd
+parse/invalid/logical-operators-the-word-or-is-a-syntax-error.hd	A3	parse/invalid/logical-operators-the-word-not-is-a-syntax-error.hd
 parse/invalid/invalid-escape.hd	A3	parse/invalid/brace-escape.hd
 parse/invalid/invalid-escape.hd	A3	parse/invalid/surrogate-unicode-escape.hd
 parse/invalid/invalid-escape.hd	A3	parse/invalid/out-of-range-unicode-escape.hd

@@ -1,3 +1,4 @@
+# test: the word and is not a logical operator
 fn both(a: bool, b: bool) -> bool:
     if a and b:  # diagnostic: syntax-error
         true

@@ -150,9 +150,9 @@ typing/invalid/const-argument-shifts-by-a-bool.hd	A9	reject:type-mismatch not me
 typing/invalid/const-argument-negates-an-integer-for-a-bool.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.generic.const.evaluate
 typing/invalid/const-argument-suffixed-literal-of-another-type.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.generic.const.evaluate
 runtime/panic/invalid-shift.hd	A9	panic:invalid-shift not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
-parse/invalid/old-and-operator.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
-parse/invalid/old-or-operator.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
-parse/invalid/old-not-operator.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
+parse/invalid/logical-operators-the-word-and-is-a-syntax-error.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
+parse/invalid/logical-operators-the-word-or-is-a-syntax-error.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
+parse/invalid/logical-operators-the-word-not-is-a-syntax-error.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#unary-and-binary-operators
 parse/invalid/an-identifier-ends-at-a-character-that-cannot-continue-it.hd	A9	reject:invalid-token not mentioned in cited lang/01-lexical-structure.md#r-lex.ident.form
 parse/invalid/mid-file-bom.hd	A9	reject:unexpected-bom not mentioned in cited lang/01-lexical-structure.md#processing-model
 typing/invalid/nonfinal-spread.hd	A9	reject:nonfinal-positional-spread not mentioned in cited lang/07-functions.md#varargs
