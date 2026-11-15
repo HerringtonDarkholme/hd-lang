@@ -1537,6 +1537,15 @@ impl Scan {
 /// its own. A copy between two locals of one class then goes, a pair of a
 /// multi-value copy too ([`same_local_copies`]).
 ///
+/// The one probe is a priced limit (#2025): a bundle that fits only a
+/// free class other than the one it probes opens a class, so 13 stage
+/// baselines declare one or two locals more than the quadratic first fit
+/// did, with no code bytes. An exact fit needs a probe per class. Putting
+/// the bundles of several ranges in a sweep before those of one range, as
+/// regalloc2 allocates by priority, left the stage baselines' locals equal
+/// in total and made the 38 bench builds 8 bytes larger, so the order
+/// stays by first position.
+///
 /// Cost, for a body of `B` instructions, `n` locals, `c` copies and `R`
 /// ranges (at most the writes, the reads, `n`, and two per access a hole
 /// is paid by): the liveness pass and the walk, `O((B + R) log n)`; a
