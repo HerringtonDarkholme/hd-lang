@@ -58,6 +58,10 @@ pub struct Program {
     /// The package's executable entry modules, by path below `src/`
     /// (`# @entry: tool`), as a manifest's `[[bin]]` names them.
     pub entries: Vec<String>,
+    /// The `tests` view's name filter (`# @filter: TEXT`): only the cases
+    /// whose names contain it, as `hd test --filter` selects
+    /// (`cli.test.filter`).
+    pub filter: Option<String>,
     marked: bool,
 }
 
@@ -80,6 +84,7 @@ impl Program {
             fuel: None,
             main: None,
             entries: Vec::new(),
+            filter: None,
             marked: span.is_some(),
         })
     }
@@ -133,7 +138,8 @@ impl Program {
 /// `@main: PATH` names the file of the case's own text, `main.hd` by
 /// default, for a case about package layout (`src/main.hd`); `@entry:
 /// NAME` names an executable entry module (`src/NAME.hd`), as a manifest
-/// does.
+/// does. `@filter: TEXT` keeps only the test cases whose names contain
+/// `TEXT` in the `tests` view.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -146,6 +152,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut fuel = None;
     let mut main_path = None;
     let mut entries = Vec::new();
+    let mut filter = None;
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
@@ -175,6 +182,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         | "fuel"
                         | "main"
                         | "entry"
+                        | "filter"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -253,6 +261,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     main_path = Some(value.to_owned());
                 }
                 "entry" => entries.extend(value.split_whitespace().map(str::to_owned)),
+                "filter" => filter = Some(value.to_owned()),
                 "file" => {
                     if !module_path_ok(value) {
                         return Err(format!("invalid module path `{value}`"));
@@ -320,6 +329,10 @@ pub fn parse(text: &str) -> Result<Case, String> {
     }
     program.main = main_path;
     program.entries = entries;
+    if filter.is_some() && dumps.iter().any(|d| d != "tests") {
+        return Err("a `@filter` case shows only the `tests` view".to_owned());
+    }
+    program.filter = filter;
     if fuel.is_some()
         && (repl.is_some()
             || dumps.iter().any(|d| {
@@ -696,7 +709,7 @@ fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_drive
 }
 
 /// The tests view: the `tests:` blocks built as `hd test` builds them
-/// (`Goal::Tests`), as the build's diagnostics, then the test plan, one
+/// (`Goal::Tests`, with the case's `@filter`), as the build's diagnostics, then the test plan, one
 /// case per line (`kind "name" file:line`, with its `ignore`, expected
 /// panic or reason it cannot run), then, when the build has no errors,
 /// each result record of the runnable cases from the shared Node host
@@ -714,7 +727,7 @@ pub fn tests(p: &Program, at: Build) -> String {
     let packages = packages(p, at);
     let goal = Goal::Tests {
         module: None,
-        filter: None,
+        filter: p.filter.clone(),
     };
     let built = hd_driver::build_packages(&host, "app", &packages, &goal);
     let mut out = diagnostics::render(&built);
@@ -1171,6 +1184,8 @@ mod tests {
             "# @dunp: tir\n",
             "# @dump: tir\nx := 1\n# @dump: wat\n",
             "# @dump: tir\nx := 1\n# @build: release\n",
+            "# @dump: tests\nx := 1\n# @filter: name\n",
+            "# @dump: tests diagnostics\n# @filter: name\n",
         ] {
             assert!(parse(bad).is_err(), "{bad}");
         }

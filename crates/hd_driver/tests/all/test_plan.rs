@@ -1,6 +1,7 @@
 //! `Goal::Tests` (`docs/compiler/engines-and-test-runner.md` §19.1, §19.2): the test plan
-//! lists the cases in content order with their exports, `--filter`
-//! selects by name, a second run is warm (no module checked), and the serial and pool executors build the same program.
+//! lists the cases in content order with their exports, a second run is
+//! warm (no module checked), and the serial and pool executors build the
+//! same program. `--filter` is the stage case `test-plan/filter-selects-by-name`.
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -38,7 +39,7 @@ fn sources() -> MemorySources {
     s
 }
 
-fn run(store: &MemoryStore, executor: Executor, filter: Option<&str>) -> Output {
+fn run(store: &MemoryStore, executor: Executor) -> Output {
     let src = sources();
     let host = Host {
         render_tir: &[],
@@ -52,7 +53,7 @@ fn run(store: &MemoryStore, executor: Executor, filter: Option<&str>) -> Output 
         "app",
         &Goal::Tests {
             module: None,
-            filter: filter.map(str::to_owned),
+            filter: None,
         },
     )
 }
@@ -64,7 +65,7 @@ const SERIAL: Executor = Executor::Serial(SerialOrder::Priority);
 
 #[test]
 fn lists_cases_in_content_order_with_their_exports() {
-    let out = run(&MemoryStore::default(), SERIAL, None);
+    let out = run(&MemoryStore::default(), SERIAL);
     assert!(out.diags.is_empty(), "{}", out.render());
     let got: Vec<Listed<'_>> = out
         .tests
@@ -91,7 +92,7 @@ fn lists_cases_in_content_order_with_their_exports() {
 #[test]
 fn a_comment_edit_moves_case_lines_without_a_recheck() {
     let store = MemoryStore::default();
-    let cold = run(&store, SERIAL, None);
+    let cold = run(&store, SERIAL);
     let mut src = sources();
     src.insert(
         "math.hd",
@@ -125,18 +126,10 @@ fn a_comment_edit_moves_case_lines_without_a_recheck() {
 }
 
 #[test]
-fn filter_selects_by_name() {
-    let out = run(&MemoryStore::default(), SERIAL, Some("comp"));
-    let names: Vec<&str> = out.tests.iter().map(|c| c.name.as_str()).collect();
-    assert_eq!(names, ["compares"]);
-    assert_eq!(out.tests[0].run, Some((0, 0)));
-}
-
-#[test]
 fn a_second_run_is_warm_and_executors_agree() {
     let store = MemoryStore::default();
-    let cold = run(&store, SERIAL, None);
-    let warm = run(&store, SERIAL, None);
+    let cold = run(&store, SERIAL);
+    let warm = run(&store, SERIAL);
     assert!(
         !warm
             .counters
@@ -148,7 +141,7 @@ fn a_second_run_is_warm_and_executors_agree() {
     );
     assert_eq!(warm.wasm, cold.wasm);
     assert_eq!(warm.tests, cold.tests);
-    let pool = run(&MemoryStore::default(), Executor::Pool(4), None);
+    let pool = run(&MemoryStore::default(), Executor::Pool(4));
     assert_eq!(pool.wasm, cold.wasm);
     assert_eq!(pool.tests, cold.tests);
 }
@@ -158,7 +151,7 @@ fn a_second_run_is_warm_and_executors_agree() {
 #[test]
 fn an_ignore_edit_relinks() {
     let store = MemoryStore::default();
-    let cold = run(&store, SERIAL, None);
+    let cold = run(&store, SERIAL);
     assert_eq!(cold.tests[1].run, None);
     let mut src = sources();
     src.insert(

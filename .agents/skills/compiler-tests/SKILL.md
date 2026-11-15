@@ -77,6 +77,8 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
   - `# @main: src/main.hd` puts the case's own text in that file, and
     `# @entry: tool` names an executable entry module, for a package
     layout case (`diagnostics`, `spans`, `fixed`, `stdout`, `tests`).
+  - `# @filter: TEXT` keeps only the test cases whose names contain
+    `TEXT`, as `hd test --filter` does (`tests` only).
   - For `diagnostics`, `spans`, `fixed`, `stdout` and `tests`, `@build:
     release` builds as `--release` does, `checked` links the checked
     runtime, and `tests` makes `diagnostics`, `spans` and `fixed` check
