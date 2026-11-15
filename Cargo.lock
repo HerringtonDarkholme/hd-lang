@@ -972,6 +972,7 @@ dependencies = [
 name = "hd_wasm"
 version = "0.0.0"
 dependencies = [
+ "hashbrown 0.17.1",
  "hd_base",
  "hd_host_abi",
  "hd_mono",

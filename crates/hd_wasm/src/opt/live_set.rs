@@ -42,7 +42,14 @@ struct Node {
 #[derive(Default)]
 pub(super) struct Sets {
     nodes: Vec<Node>,
-    made: hd_base::HashMap<Node, Set>,
+    /// The hash-consing table: each node's index in `nodes`, hashed by the
+    /// node it names, as `indexmap` and rustc's interners key a table by
+    /// index. An entry is 4 bytes and a control byte, where a map from
+    /// node to set held a copy of the 20-byte node and its 4-byte set
+    /// (#2026).
+    made: hashbrown::HashTable<u32>,
+    /// The hasher of `made`'s nodes.
+    hasher: hd_base::FixedState,
     /// Whether nodes are hash-consed through `made`; see [`Sets::unconsed`].
     unconsed: bool,
     /// Each node asked for, made or found, and each node a difference
@@ -94,20 +101,27 @@ impl Sets {
     }
 
     fn push(&mut self, node: Node) -> Set {
+        use hashbrown::hash_table::Entry;
+        use std::hash::BuildHasher as _;
         self.tick();
-        if !self.unconsed
-            && let Some(&s) = self.made.get(&node)
-        {
-            return s;
-        }
         // ruled out: more than `u32::MAX - 1` nodes; a pass makes at most
         // 32 per instruction, and a body's length is a u32.
         let id = u32::try_from(self.nodes.len()).expect("live set nodes");
         assert_ne!(id, u32::MAX, "live set nodes");
-        self.nodes.push(node);
         if !self.unconsed {
-            self.made.insert(node, Set(id));
+            let (nodes, hasher) = (&self.nodes, self.hasher);
+            match self.made.entry(
+                hasher.hash_one(node),
+                |&i| nodes[i as usize] == node,
+                |&i| hasher.hash_one(nodes[i as usize]),
+            ) {
+                Entry::Occupied(found) => return Set(*found.get()),
+                Entry::Vacant(slot) => {
+                    slot.insert(id);
+                }
+            }
         }
+        self.nodes.push(node);
         Set(id)
     }
 
@@ -624,6 +638,14 @@ mod tests {
             let a = sets.insert(a, n + 1);
             let b = sets.remove(base, n / 2);
             let made = sets.made();
+            // The table holds an index and a control byte per slot, not
+            // a copy of each node: at most 8 slots per 7 entries, doubled
+            // by the last growth.
+            let table = sets.made.allocation_size();
+            assert!(
+                table <= made * 5 * 8 * 2 / 7 + 64,
+                "{n}: {table} table bytes for {made} nodes"
+            );
             let both = sets.union(a, b);
             assert_eq!(sets.len(both), n as usize + 1);
             // About two paths of `log2 n` nodes, not `n`.
