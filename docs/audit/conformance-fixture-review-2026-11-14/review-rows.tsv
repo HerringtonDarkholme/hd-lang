@@ -813,14 +813,14 @@ b158	std/json/parsing/json-adversarial-inputs.hd	FIX	B8	Line 424 expects Set[i32
 b158	std/json/typed-json/union-serde.hd	FIX	B3	Only asserts a round trip; the positional single-payload wire form named in the title is never checked.
 b158	std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	FIX	B7	Cites std-iter.from-fn, but the top-level-read-before-initialization error is governed by module.init.definite in lang/10-modules.md.
 b158	std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	UNSURE	B7	Cites std-iter.from-fn; the accepted ordering is governed by module.init.definite (lang/10-modules.md), so the citation may be off.
-b159	runtime/valid/num-intrinsic-boundaries.hd	FIX	B8	The usize block uses 4294967295 as its maximum; usize is the target pointer width (types.usize.width), so 64-bit targets fail.
-b159	runtime/valid/num-bit-count-widths.hd	FIX	B8	The usize block passes 4294967295 with width 32; usize is the target pointer width (types.usize.width).
-b159	runtime/valid/num-bit-counts.hd	FIX	B8	Line asserting 1.leading_zeros() == 31 assumes a 32-bit fallback usize; it is 63 on 64-bit (types.usize.width).
-b159	runtime/valid/num-checked-wrapping.hd	FIX	B8	65536.checked_mul(65536) expects None, true only for a 32-bit fallback usize; it is Some on 64-bit (types.usize.width).
-b160	runtime/valid/number-text-properties.hd	FIX	B8	Expects usize 4294967296 to be OutOfRange (line 165, integer_edges); native 64-bit usize accepts it, so the row depends on the target width.
-b160	runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	FIX	B8	old_usize bounds at 4294967295 (line 145) disagree with the new usize reader on edge text 4294967296 on 64-bit targets; depends on target width.
-b160	runtime/valid/num-parse-unsigned.hd	FIX	B8	Line 77-80 expects usize 4294967296 out of range, true only on Wasm32; native 64-bit usize parses it. Pin the width or drop the usize row.
-b160	runtime/valid/num-wrapping-mul.hd	FIX	B8	usize top.wrapping_mul(top) (line 86) expects 1, the 32-bit result; on 64-bit it is 18446744065119617025. Target-dependent.
+b159	std/num/checked-arithmetic/num-intrinsic-boundaries.hd	FIX	B8	The usize block uses 4294967295 as its maximum; usize is the target pointer width (types.usize.width), so 64-bit targets fail.
+b159	std/num/bit-counts/num-bit-count-widths.hd	FIX	B8	The usize block passes 4294967295 with width 32; usize is the target pointer width (types.usize.width).
+b159	std/num/bit-counts/num-bit-counts.hd	FIX	B8	Line asserting 1.leading_zeros() == 31 assumes a 32-bit fallback usize; it is 63 on 64-bit (types.usize.width).
+b159	std/num/checked-arithmetic/num-checked-wrapping.hd	FIX	B8	65536.checked_mul(65536) expects None, true only for a 32-bit fallback usize; it is Some on 64-bit (types.usize.width).
+b160	std/num/float-parsing/number-text-properties.hd	FIX	B8	Expects usize 4294967296 to be OutOfRange (line 165, integer_edges); native 64-bit usize accepts it, so the row depends on the target width.
+b160	std/num/integer-parsing/num-parse-byte-reader-matches-scalar-reader.hd	FIX	B8	old_usize bounds at 4294967295 (line 145) disagree with the new usize reader on edge text 4294967296 on 64-bit targets; depends on target width.
+b160	std/num/integer-parsing/num-parse-unsigned.hd	FIX	B8	Line 77-80 expects usize 4294967296 out of range, true only on Wasm32; native 64-bit usize parses it. Pin the width or drop the usize row.
+b160	std/num/wrapping-arithmetic/num-wrapping-mul.hd	FIX	B8	usize top.wrapping_mul(top) (line 86) expects 1, the 32-bit result; on 64-bit it is 18446744065119617025. Target-dependent.
 b160	typing/valid/derive-default-an-enum-without-the-derive-marks-no-variant.hd	FIX	B1	Has no @derive(Default) and no @default, so it exercises nothing its title and spec cite; merge into -181 or delete.
 b160	typing/valid/derive-default-a-field-with-a-declared-default-needs-no-default-impl.hd	MERGE	C1	Same Secret/declared-default shape as runtime/valid/derived-default-declared-no-bound.hd, same rule; keep one, the runtime one runs it.
 b162	runtime/valid/rng-int-generic.hd	MERGE	C1	Lines 48-53 repeat rng-int-range.hd lines 7-12 exactly (Rng::new(7), 0..10, same draws); same rule, same expectation, keep one.

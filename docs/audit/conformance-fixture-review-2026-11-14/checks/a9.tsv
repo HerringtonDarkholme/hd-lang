@@ -460,7 +460,7 @@ runtime/panic/power-a-negative-i64-base-to-an-odd-exponent-past-the-minimum-pani
 runtime/panic/power-a-u64-power-of-two-past-the-maximum-panics.hd	A9	panic:integer-overflow not mentioned in cited lang/05-expressions.md#r-expr.power.checked
 runtime/panic/power-a-u64-power-of-ten-past-the-maximum-panics.hd	A9	panic:integer-overflow not mentioned in cited lang/05-expressions.md#r-expr.power.checked
 runtime/panic/power-an-exponent-in-the-billions-panics-on-overflow.hd	A9	panic:integer-overflow not mentioned in cited lang/05-expressions.md#r-expr.power.checked
-typing/invalid/num-bit-count-u32.hd	A9	reject:mixed-signedness not mentioned in cited std/num.md#r-std-num.bits.count-ones-u32
+std/num/bit-counts/num-bit-count-u32.hd	A9	reject:mixed-signedness not mentioned in cited std/num.md#r-std-num.bits.count-ones-u32
 typing/invalid/serde-map-key-payload-derive.hd	A9	reject:member-not-derivable not mentioned in cited std/serde.md#r-std-serde.map-key.derive-payload-reject
 typing/invalid/serde-map-key-struct-member-derive.hd	A9	reject:member-not-derivable not mentioned in cited std/serde.md#r-std-serde.map-key.derive-payload-reject
 runtime/panic/println-console-closed.hd	A9	panic:explicit-panic not mentioned in cited lang/10-modules.md#r-module.console.println-write-error.single
@@ -794,7 +794,7 @@ annotations/typed-derivation/derivation-blocks/member-line-lists-a-name-that-doe
 std/http/requests-and-responses/http-request-timeout-removed.hd	A9	reject:unknown-field not mentioned in cited std/http.md#r-std-http.types.parsed-messages
 std/http/request-builder/http-request-send-missing-provider.hd	A9	reject:missing-requirement not mentioned in cited std/http.md#r-std-http.request.send-borrowed
 typing/invalid/regex-decode-requires-deserialize.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited std/regex.md#r-std-regex.decode.regex
-typing/invalid/num-parse-free-function-removed.hd	A9	reject:unknown-import not mentioned in cited std/num.md#parse-impls
+std/num/integer-parsing/num-parse-free-function-removed.hd	A9	reject:unknown-import not mentioned in cited std/num.md#parse-impls
 std/error/cause-chain/error-chain-free-function-removed.hd	A9	reject:unknown-import not mentioned in cited std/error.md#r-std-error.chain.method-only
 std/error/error-context/error-context-private-type.hd	A9	reject:private-import not mentioned in cited std/error.md#r-std-error.context.private-wrapper
 std/error/error-context/error-context-private-field.hd	A9	reject:unknown-field not mentioned in cited std/error.md#r-std-error.context.private-wrapper

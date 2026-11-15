@@ -1286,7 +1286,7 @@ Ledger: b037 (50): 4 rows. Plausible 2, spec question 2 (the target class).
   `runtime/valid/usize-width-wasm32.hd` and `runtime/panic/usize-max-overflow-wasm32.hd`
   also assume a 32-bit `usize`. A grep for "wasm32" or "32-bit" in the
   fixtures finds 6 files: these two, `runtime/panic/usize-width-u32.hd`,
-  `runtime/valid/sized-integer-arithmetic.hd`, `runtime/valid/num-parse-unsigned.hd`
+  `runtime/valid/sized-integer-arithmetic.hd`, `std/num/integer-parsing/num-parse-unsigned.hd`
   and `std/hash/default-hasher/hasher-write-methods.hd`. The README names no target, and
   no directive selects one.
 - Plausible B3: `runtime/valid/union-members-name-self-and-hold-a-reference.hd`
@@ -2473,7 +2473,7 @@ Ledger: b156 (45): 4. b157 (45): 0. b158 (45): 6. b159 (44): 4.
 - **Depends on map or set order (B8)**: `std/json/typed-json/json-typed-round-trip.hd` (`Map`
   output in insertion order), `json-model-round-trips.hd` and `json-adversarial-inputs.hd`
   (`Set` output in first-occurrence order; `std-collections.set.iter` doesn't promise it).
-- **Depends on `usize` width (B8, the target owner question)**: `runtime/valid/num-intrinsic-boundaries.hd`,
+- **Depends on `usize` width (B8, the target owner question)**: `std/num/checked-arithmetic/num-intrinsic-boundaries.hd`,
   `num-bit-count-widths.hd`, `num-bit-counts.hd`, `num-checked-wrapping.hd` all assume a
   32-bit `usize`. Together with b032–b037, b147 and b155, the target-width class is now
   about 15 fixtures. A `# fixture-target:` directive or a rule that hd's `usize`
@@ -2506,7 +2506,7 @@ Ledger: b168 (36): 2. b169 (45): 5. b170 (18): 2.
 
 Ledger: b160 (44): 6. b161 (45): 0. b162 (45): 1. b163 (45): 5.
 
-- **Depends on `usize` width (B8)**: `runtime/valid/number-text-properties.hd`,
+- **Depends on `usize` width (B8)**: `std/num/float-parsing/number-text-properties.hd`,
   `num-parse-byte-reader-matches-scalar-reader.hd`, `num-parse-unsigned.hd`,
   `num-wrapping-mul.hd`. The target class is now about 20 fixtures.
 - **Depends on map order (B8)**: `runtime/valid/serde-writer-first-error.hd`, `serde-std-reads.hd`.
