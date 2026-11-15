@@ -76,10 +76,10 @@ which kind of row it rests on.
 - **P0 item 1: confirmed.** `crates/hd_driver/tests/conformance.rs:1812`
   returns `Verdict::Pass` on `missing-entry-point`. `runtime/valid/result-ok-unit.hd`
   has a private `main` and no tests, so its body never runs.
-- **P0 item 2: confirmed.** `runtime/valid/crlf-line-endings.hd` had 18 CRLF
+- **P0 item 2: confirmed.** `lexical/physical-and-logical-lines/crlf-line-endings.hd` had 18 CRLF
   line endings when 8f8f62c46 added it and 0 after edea876ae. The format commit
   folded the nested suite inside the header of
-  `parse/valid/header-resumes-after-nested-suite.hd`, the feature it tests.
+  `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`, the feature it tests.
   `.gitattributes` has no line for either fixture.
 - **Hand findings, sampled:**
   - B2 `typing/invalid/derived-hash-field-not-hash.hd`: confirmed. The error
@@ -124,8 +124,8 @@ unless it says otherwise.
    - Restore the 21 ERASED fixtures (`formatter-review.tsv`) from `edea876ae^`,
      and `crlf-line-endings.hd` from `8f8f62c46`. Hand-check the 23 WEAKENED
      ones and restore only the lost forms.
-   - Add `spec/conformance/runtime/valid/crlf-line-endings.hd -text` and the same
-     for `parse/valid/utf8-bom.hd` to `.gitattributes`.
+   - Add `spec/conformance/lexical/physical-and-logical-lines/crlf-line-endings.hd -text` and the same
+     for `lexical/processing-model/utf8-bom.hd` to `.gitattributes`.
    - Exclude layout and lexical fixtures (at least those citing `lang/01` and
      `lang/02`) from `hd fmt` runs over `spec/conformance`, or mark them
      format-exempt.
@@ -653,18 +653,18 @@ Commit `edea876ae` ("Apply the canonical hd format", 2026-10-27) reformatted
 byte-exact", but it did reformat valid lexical and layout fixtures. The
 following fixtures have lost the feature their title names, and their
 pre-format version (`git show edea876ae^:PATH`) still has it:
-- `runtime/valid/continuation-line-opens-with-a-bracket.hd`: the multi-line
+- `lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: the multi-line
   bracket lists were joined onto one line.
-- `runtime/valid/leading-dot-deeper-continues.hd`: no leading-dot line is left.
-- `runtime/valid/contextual-variant-after-same-line-if.hd`: the same-line `if`
+- `lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: no leading-dot line is left.
+- `lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: the same-line `if`
   became a block.
-- `runtime/valid/no-final-line-ending.hd`: the formatter added the final newline
+- `lexical/whitespace-and-indentation/no-final-line-ending.hd`: the formatter added the final newline
   the fixture must lack (`lex.indent.eof-newline`).
-- `parse/valid/nested-suite-body-deeper-than-statement.hd`,
-  `parse/valid/header-resumes-after-nested-suite.hd`,
-  `parse/valid/operator-and-member-lines-continue-in-brackets.hd`,
-  `runtime/valid/leading-pipe-lines-join-the-chain.hd`,
-  `runtime/valid/colons-in-brackets-and-trailing-blocks.hd`: their continuation
+- `lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`,
+  `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`,
+  `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`,
+  `lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`,
+  `lexical/physical-and-logical-lines/colons-in-brackets-and-trailing-blocks.hd`: their continuation
   and suite layouts were flattened.
 Fix: restore each from `edea876ae^`, and exclude layout-sensitive fixtures
 from the formatter (the ones that cite `lex.*` rules, at least). **Script check
@@ -674,28 +674,28 @@ them citing chapters 01 or 02. Those 122 need a targeted review against their
 pre-format version (planned as extra batches at the end).
 
 **Title doesn't match the code (B1), not the formatter**
-- `runtime/valid/bom-inside-comment.hd`: the title says a U+FEFF "in a comment or
+- `lexical/processing-model/bom-inside-comment.hd`: the title says a U+FEFF "in a comment or
   a string literal" is content. Both BOMs are in comments, and that was true
   before the format commit too.
-- `parse/valid/every-operator-and-delimiter-token.hd`: `$` and `::` never appear.
-- `parse/invalid/reserved-word-interpolation.hd`: the title says a `$` before a
+- `lexical/operators-and-delimiters/every-operator-and-delimiter-token.hd`: `$` and `::` never appear.
+- `lexical/literals/reserved-word-interpolation.hd`: the title says a `$` before a
   reserved word is a bare `$`, but the case expects `syntax-error`
   (`lex.interp.reserved-dollar`).
 
 **Wrong citation (B7)**
-- `parse/invalid/semicolon-after-binding.hd`: cites `#literals`; the rule is
+- `lexical/literals/semicolon-after-binding.hd`: cites `#literals`; the rule is
   `lex.punct.semicolon-reserved` under Operators And Delimiters.
-- `parse/invalid/mid-file-bom.hd`: cites `#processing-model`; the rule is
+- `lexical/processing-model/mid-file-bom.hd`: cites `#processing-model`; the rule is
   `lex.encoding.stray-bom` under Source Encoding.
-- `typing/invalid/unary-plus-i32-literal-range.hd`: cites 01 `#integer-literals`;
+- `lexical/literals/unary-plus-i32-literal-range.hd`: cites 01 `#integer-literals`;
   the `integer-literal-range` rule is `types.literal.int-range` in chapter 04.
 
 **Duplicates (C1)**
-- `parse/invalid/repeated-numeric-separator.hd` = `parse/invalid/double-numeric-separator.hd`
+- `lexical/literals/repeated-numeric-separator.hd` = `lexical/literals/double-numeric-separator.hd`
   (both are `1__0`, the same rule).
-- `parse/invalid/semicolon-after-binding.hd` ~ `parse/invalid/semicolon.hd` (only
+- `lexical/literals/semicolon-after-binding.hd` ~ `lexical/operators-and-delimiters/semicolon.hd` (only
   the literal before the `;` differs).
-- `parse/valid/stray-dollar-in-string.hd` ~ `parse/valid/stray-dollar.hd` (both put
+- `lexical/literals/stray-dollar-in-string.hd` ~ `lexical/literals/stray-dollar.hd` (both put
   a `$` before the closing quote).
 
 **Rejected**: three `parse/valid` B6 flags (`closure-body-ends-at-comma-line`,
@@ -720,15 +720,15 @@ on it before they count.
 
 Ledger: b005 (44): 8 rows. Confirmed 3, plausible 2, rejected 3.
 
-- **Formatter (systemic, see above)**: `parse/valid/next-line-else-after-same-line-if.hd`.
+- **Formatter (systemic, see above)**: `lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`.
   The `else:` on the next physical line was joined onto the `if` line, so
   `lex.suite-end.else-next-line` is untested.
-- **Duplicates (C1)**: `parse/invalid/tab-indentation.hd` = `parse/invalid/tab-in-function-body.hd`
+- **Duplicates (C1)**: `lexical/whitespace-and-indentation/tab-indentation.hd` = `lexical/whitespace-and-indentation/tab-in-function-body.hd`
   (a tab before a body line); `parse/invalid/positional-after-named.hd` =
   `parse/invalid/positional-after-named-argument.hd` (`resize(width=640, 480)`).
 - Plausible: `parse/valid/while-else.hd` (the title says the loop produces a
-  value; none is used). `typing/valid/raw-identifiers.hd` ~
-  `runtime/valid/raw-identifiers.hd`.
+  value; none is used). `lexical/identifiers/raw-identifiers-name-fields-members-labels-parameters-and-bindings.hd` ~
+  `lexical/identifiers/raw-identifiers-are-ordinary-names-at-run-time.hd`.
 - Rejected: two B7 flags claimed `#control-flow-expressions` is missing; the
   heading "Control-Flow Expressions" exists. One C1 flag: `brace-escape`
   (`\{`) and `invalid-escape` (`\x`) are different escapes.
@@ -1430,19 +1430,19 @@ with whitespace and comments removed. 660 fixtures changed. Most of them
 only *gained* trailing commas, which is harmless. **21 lost tokens**
 (`full/a7b-lost.tsv`), and for these the formatter rewrote the very form
 under test:
-- `parse/valid/utf8-bom.hd`: **its leading U+FEFF was stripped**, the one thing it tests.
+- `lexical/processing-model/utf8-bom.hd`: **its leading U+FEFF was stripped**, the one thing it tests.
 - `parse/valid/use-group-trailing-comma.hd`, `runtime/valid/trailing-commas-everywhere.hd`
   (17 commas), `parse/valid/use-declaration-forms.hd`, `parse/valid/single-and-grouped-use.hd`,
-  `parse/valid/test-block.hd`, `parse/valid/spread-pattern-syntax.hd`, `parse/valid/layout.hd`,
+  `parse/valid/test-block.hd`, `parse/valid/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
   `parse/valid/data-embedding.hd`, `parse/valid/functions-and-closures.hd`,
-  `parse/valid/literal-field-comparison-value.hd`, `runtime/valid/implicit-continuation-in-delimiters.hd`,
+  `parse/valid/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
   `runtime/valid/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
   `typing/valid/composite-ordering.hd`, `typing/valid/data-types.hd`,
   `typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd`,
   `typing/valid/generic-data-embedding.hd`: trailing commas removed.
 - `runtime/valid/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
   became `time.s`, so it is now a duplicate of `module-qualified-function-value.hd`),
-  `parse/valid/operator-and-member-lines-continue-in-brackets.hd`, and
+  `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`, and
   **`typing/invalid/grammar-assignment-nonplace.hd`**, a reject case: parentheses removed.
 
 Fix: restore all 21 from `edea876ae^` together with the A7 layout cases.
@@ -2552,56 +2552,56 @@ One reviewer read each fixture's diff in `edea876ae` (`full/fmt-diffs.txt`, brie
 ERASED means the form the fixture tests is gone, and restoring the pre-format
 version fixes it:
 
-- `parse/valid/header-resumes-after-nested-suite.hd`: Closure body in the if header is now same-line, so no nested suite inside the header remains.
-- `parse/valid/nested-suite-body-deeper-than-statement.hd`: Nested suite inside run( joined to one line; the deeper-body form is gone.
-- `parse/valid/next-line-else-after-same-line-if.hd`: Else on its own line after a same-line if joined onto the if line.
-- `parse/valid/operator-and-member-lines-continue-in-brackets.hd`: Bracketed expression collapsed to one line; no line starts with a dot or operator.
+- `lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd`: Closure body in the if header is now same-line, so no nested suite inside the header remains.
+- `lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`: Nested suite inside run( joined to one line; the deeper-body form is gone.
+- `lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`: Else on its own line after a same-line if joined onto the if line.
+- `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`: Bracketed expression collapsed to one line; no line starts with a dot or operator.
 - `parse/valid/same-line-for-list.hd`: Same-line for suites and same-line bodies became indented; no same-line for remains.
-- `parse/valid/same-line-loop-else.hd`: Same-line for and while suites with else became indented blocks; no same-line loop else remains.
+- `lexical/physical-and-logical-lines/same-line-loop-else.hd`: Same-line for and while suites with else became indented blocks; no same-line loop else remains.
 - `parse/valid/same-line-suite-let-list.hd`: Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
 - `parse/valid/use-group-trailing-comma.hd`: All three grouped-use trailing commas removed.
-- `parse/valid/utf8-bom.hd`: Leading BOM bytes stripped.
-- `runtime/valid/contextual-variant-after-same-line-if.hd`: Same-line if body became indented, so the .Variant line no longer follows a same-line if.
-- `runtime/valid/continuation-line-opens-with-a-bracket.hd`: Every list whose lines open with a bracket or bang collapsed to one line.
-- `runtime/valid/crlf-line-endings.hd`: Current file has zero CR bytes; the CRLF line endings the title requires are gone.
-- `runtime/valid/leading-dot-deeper-continues.hd`: Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
-- `runtime/valid/leading-dot-statement-indent-tail.hd`: The := chain with a leading .size line is now one line; no such chain remains.
+- `lexical/processing-model/utf8-bom.hd`: Leading BOM bytes stripped.
+- `lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: Same-line if body became indented, so the .Variant line no longer follows a same-line if.
+- `lexical/physical-and-logical-lines/continuation-line-opens-with-a-bracket.hd`: Every list whose lines open with a bracket or bang collapsed to one line.
+- `lexical/physical-and-logical-lines/crlf-line-endings.hd`: Current file has zero CR bytes; the CRLF line endings the title requires are gone.
+- `lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
+- `lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd`: The := chain with a leading .size line is now one line; no such chain remains.
 - `runtime/valid/let-after-same-line-if-keeps-else.hd`: Same-line if ... let ... else forms became indented; no same-line if with let remains.
 - `runtime/valid/module-qualified-function-value-parenthesized.hd`: Parenthesized (time.s) became time.s; the parenthesized function value is gone.
-- `runtime/valid/no-final-line-ending.hd`: A final line ending was added; the file no longer ends without one.
-- `runtime/valid/operators-longest-match.hd`: Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
+- `lexical/whitespace-and-indentation/no-final-line-ending.hd`: A final line ending was added; the file no longer ends without one.
+- `lexical/operators-and-delimiters/operators-longest-match.hd`: Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
 - `runtime/valid/same-line-suite-body-forms.hd`: Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
 - `typing/invalid/grammar-assignment-nonplace.hd`: Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
 - `typing/warnings/same-line-let-list-unused.hd`: The only same-line suite binding was indented, so the same-line case the title names is gone.
 
 WEAKENED (some of the title's forms are gone):
 
-- `parse/valid/bracketed-suite-header-line.hd`: Header on the bracket line erased for the if and closure cases; the for header moved to its own line.
-- `parse/valid/closing-delimiter-ends-nested-suite.hd`: Multi-line if suite closed by a paren on its last line joined; the match case remains.
-- `parse/valid/closure-body-ends-at-comma-line.hd`: Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
-- `parse/valid/compound-assignment-tokens.hd`: Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
+- `lexical/physical-and-logical-lines/bracketed-suite-header-line.hd`: Header on the bracket line erased for the if and closure cases; the for header moved to its own line.
+- `lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd`: Multi-line if suite closed by a paren on its last line joined; the match case remains.
+- `lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd`: Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
+- `lexical/operators-and-delimiters/compound-assignment-tokens.hd`: Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
 - `parse/valid/embedded-copy-syntax.hd`: Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
 - `parse/valid/functions-and-closures.hd`: Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
 - `parse/valid/inline-conditions-and-headers.hd`: The negative-literal line after else joined to one line; the match arm and headers remain.
-- `parse/valid/layout.hd`: Same-line fn bodies one_line and test became indented; same-line if remains.
-- `parse/valid/leading-dot-continuation.hd`: Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
+- `lexical/whitespace-and-indentation/layout.hd`: Same-line fn bodies one_line and test became indented; same-line if remains.
+- `lexical/physical-and-logical-lines/leading-dot-continuation.hd`: Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
 - `parse/valid/let-else-same-line.hd`: Same-line let-else body became an indented body; the indented form remains.
-- `parse/valid/nested-layout.hd`: Line break after the opening paren before the closure joined; the nesting remains.
+- `lexical/physical-and-logical-lines/nested-layout.hd`: Line break after the opening paren before the closure joined; the nesting remains.
 - `parse/valid/use-declaration-forms.hd`: Trailing comma in the grouped use with an alias removed; the title names that form.
 - `runtime/valid/bang-call-and-prefix-not.hd`: Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
 - `runtime/valid/header-and-bracket-expression-positions.hd`: Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
-- `runtime/valid/implicit-continuation-in-delimiters.hd`: Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
-- `runtime/valid/indentation-levels.hd`: Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
-- `runtime/valid/leading-dot-chain.hd`: Most leading-dot method-chain lines joined; one .double() after a comment line remains.
-- `runtime/valid/leading-dot-lines-join-the-chain.hd`: Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.
-- `runtime/valid/leading-pipe-lines-join-the-chain.hd`: Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
-- `runtime/valid/operators-without-spaces.hd`: Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
-- `runtime/valid/same-line-suite-boundaries.hd`: Same-line for and while suites, including one before else, became indented blocks.
+- `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`: Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
+- `lexical/whitespace-and-indentation/indentation-levels.hd`: Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
+- `lexical/physical-and-logical-lines/leading-dot-chain.hd`: Most leading-dot method-chain lines joined; one .double() after a comment line remains.
+- `lexical/physical-and-logical-lines/leading-dot-lines-join-the-chain.hd`: Most leading-dot and match-arm continuations joined; .double() and .read() after blank and comment lines remain.
+- `lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`: Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
+- `lexical/operators-and-delimiters/operators-without-spaces.hd`: Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
+- `lexical/physical-and-logical-lines/same-line-suite-boundaries.hd`: Same-line for and while suites, including one before else, became indented blocks.
 - `runtime/valid/suite-statement-right-sides.hd`: Right-side if and closure suites joined to one line; right-side match suites remain.
 - `runtime/valid/trailing-commas-everywhere.hd`: Most trailing commas removed; those in an interpolated call and a closure header remain.
 
 Notes on the pass:
-- **`runtime/valid/crlf-line-endings.hd` was not erased by the formatter.** Its first
+- **`lexical/physical-and-logical-lines/crlf-line-endings.hd` was not erased by the formatter.** Its first
   version (`8f8f62c46`) had 18 CR bytes. They were lost in `d5a28f88e` ("Bridge
   HTTP messages through internal wire providers", 2026-10-26), an unrelated
   commit, and the fixture has had no CRLF since. It needs a `.gitattributes`

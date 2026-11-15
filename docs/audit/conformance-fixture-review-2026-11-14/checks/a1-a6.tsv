@@ -15,7 +15,7 @@ typing/valid/row-union-omitted-result.hd	A2	same code (comments/directives strip
 typing/invalid/requirement-key-unknown-binding.hd	A2	same code (comments/directives stripped) as typing/invalid/requirement-key-unknown-binding-rule.hd [reject:unknown-associated-type] [reject:unknown-associated-type]
 typing/invalid/root-file-super.hd	A2	same code (comments/directives stripped) as typing/invalid/root-file-lib-super.hd [reject:unknown-module] [reject:unknown-module]
 typing/invalid/row-parameter-unmarked.hd	A2	same code (comments/directives stripped) as typing/invalid/row-parameter-kind-not-inferred.hd [reject:generic-kind-mismatch] [reject:generic-kind-mismatch]
-parse/valid/module-documentation.hd	A2	same code (comments/directives stripped) as parse/invalid/module-documentation-second-block.hd [reject:doc-comment-without-target] [accept]
+lexical/comments/module-documentation.hd	A2	same code (comments/directives stripped) as lexical/comments/module-documentation-second-block.hd [reject:doc-comment-without-target] [accept]
 typing/invalid/module-named-pkg.hd	A2	same code (comments/directives stripped) as typing/invalid/root-mod-file.hd [reject:reserved-module-name], typing/invalid/module-path-not-identifier.hd [reject:invalid-module-path] [reject:reserved-module-name]
 runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A2	same code (comments/directives stripped) as typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd [accept] [accept]
 parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd	A3	parse/invalid/caret-is-xor-a-caret-before-a-binding-type-is-a-syntax-error.hd
@@ -1149,13 +1149,13 @@ runtime/panic/i32-add-overflow-in-function.hd	A3	runtime/panic/i32-min-divided-b
 runtime/panic/list-index-out-of-bounds.hd	A3	runtime/panic/list-set-out-of-bounds.hd
 parse/invalid/chained-comparison.hd	A3	parse/invalid/comparison-chaining-with-names.hd
 parse/invalid/logical-operators-the-word-or-is-a-syntax-error.hd	A3	parse/invalid/logical-operators-the-word-not-is-a-syntax-error.hd
-parse/invalid/invalid-escape.hd	A3	parse/invalid/brace-escape.hd
-parse/invalid/invalid-escape.hd	A3	parse/invalid/surrogate-unicode-escape.hd
-parse/invalid/invalid-escape.hd	A3	parse/invalid/out-of-range-unicode-escape.hd
-parse/invalid/brace-escape.hd	A3	parse/invalid/surrogate-unicode-escape.hd
-parse/invalid/brace-escape.hd	A3	parse/invalid/out-of-range-unicode-escape.hd
-parse/invalid/surrogate-unicode-escape.hd	A3	parse/invalid/out-of-range-unicode-escape.hd
-parse/invalid/tab-indentation.hd	A3	parse/invalid/tab-in-function-body.hd
+lexical/literals/invalid-escape.hd	A3	lexical/literals/brace-escape.hd
+lexical/literals/invalid-escape.hd	A3	lexical/literals/surrogate-unicode-escape.hd
+lexical/literals/invalid-escape.hd	A3	lexical/literals/out-of-range-unicode-escape.hd
+lexical/literals/brace-escape.hd	A3	lexical/literals/surrogate-unicode-escape.hd
+lexical/literals/brace-escape.hd	A3	lexical/literals/out-of-range-unicode-escape.hd
+lexical/literals/surrogate-unicode-escape.hd	A3	lexical/literals/out-of-range-unicode-escape.hd
+lexical/whitespace-and-indentation/tab-indentation.hd	A3	lexical/whitespace-and-indentation/tab-in-function-body.hd
 parse/invalid/positional-after-named.hd	A3	parse/invalid/positional-after-named-argument.hd
 typing/valid/variance-a-closure-widens-a-result-to-an-optional.hd	A3	typing/valid/variance-a-closure-converts-a-function-result.hd
 typing/valid/literals-a-num-suffix-marker-resolves-through-a-module-alias.hd	A3	typing/valid/literals-a-num-suffix-marker-resolves-through-an-item-alias.hd
@@ -1217,7 +1217,7 @@ typing/valid/console-error-entry.hd	A3	runtime/valid/result-entry-point-ok.hd
 runtime/valid/no-entry-point-no-tests.hd	A3	runtime/valid/result-entry-point-ok.hd
 typing/invalid/entry-result-not-termination.hd	A3	typing/invalid/entry-string-error.hd
 parse/valid/named-call-arguments.hd	A3	parse/valid/spread-before-named-argument.hd
-parse/valid/stray-dollar.hd	A3	parse/valid/stray-dollar-in-string.hd
+lexical/literals/stray-dollar.hd	A3	lexical/literals/stray-dollar-in-string.hd
 parse/invalid/same-line-let-comma.hd	A3	parse/invalid/same-line-if-in-function-body.hd
 parse/invalid/discard-binding-ends-in-suite.hd	A3	parse/invalid/return-binding-ends-in-suite.hd
 parse/invalid/discard-binding-ends-in-suite.hd	A3	parse/invalid/same-line-if-in-function-body.hd
@@ -1242,7 +1242,7 @@ typing/invalid/readonly-list-append.hd	A3	typing/invalid/readonly-map-remove.hd
 typing/warnings/unused-nested-optional-binding.hd	A3	typing/valid/contextual-some-constructor.hd
 parse/invalid/reified-generic-parameter.hd	A3	parse/invalid/generic-parameter-ellipsis.hd
 parse/valid/explicit-generic-data-arguments.hd	A3	parse/valid/copy-update-spread.hd
-parse/valid/identifier-interpolation.hd	A3	parse/valid/unicode-scalar-escape.hd
+lexical/literals/identifier-interpolation.hd	A3	lexical/literals/unicode-scalar-escape.hd
 runtime/valid/pointer-loan-bang-ref-local-write.hd	A3	runtime/valid/pointer-loan-bang-mut-local-write.hd
 runtime/valid/pointer-loan-bang-ref-ptr-drop.hd	A3	runtime/valid/pointer-loan-bang-mut-ptr-drop.hd
 typing/invalid/writable-places-a-compound-store-through-an-immutable-parameter-is-not-writable.hd	A3	typing/invalid/writable-places-a-store-through-a-shared-reference-is-not-writable.hd
@@ -1263,8 +1263,8 @@ typing/invalid/empty-list-behind-a-reference.hd	A3	typing/invalid/empty-list-clo
 typing/invalid/positional-spread-duplicates-vararg.hd	A3	typing/invalid/separate-values-then-a-spread-duplicate-a-vararg.hd
 typing/invalid/tuple-binding-non-tuple.hd	A3	typing/invalid/tuple-binding-arity.hd
 typing/invalid/match-tuple-pattern-arity.hd	A3	typing/invalid/nested-tuple-pattern-arity.hd
-parse/invalid/closure-body-absorbs-next-argument.hd	A3	parse/invalid/closure-body-followed-by-argument-line.hd
-parse/invalid/reserved-word-interpolation.hd	A3	parse/invalid/prefixed-string-reserved-dollar.hd
+lexical/physical-and-logical-lines/closure-body-absorbs-next-argument.hd	A3	lexical/physical-and-logical-lines/closure-body-followed-by-argument-line.hd
+lexical/literals/reserved-word-interpolation.hd	A3	lexical/literals/prefixed-string-reserved-dollar.hd
 typing/invalid/nested-optional-needs-some.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd
 typing/invalid/nested-optional-needs-some.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-double.hd
 typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-double.hd
@@ -1273,10 +1273,10 @@ parse/invalid/copy-assignment-inline.hd	A3	parse/invalid/copy-assignment-local.h
 parse/invalid/copy-assignment-inline.hd	A3	parse/invalid/copy-assignment-suite-rhs.hd
 parse/invalid/copy-assignment-local.hd	A3	parse/invalid/copy-assignment-suite-rhs.hd
 typing/invalid/private-own-field-beside-promoted.hd	A3	typing/invalid/private-own-field-beside-deep-promoted.hd
-parse/invalid/float-separator-before-point.hd	A3	parse/invalid/float-separator-after-exponent-marker.hd
-parse/invalid/float-separator-before-point.hd	A3	parse/invalid/float-trailing-separator.hd
-parse/invalid/float-separator-after-exponent-marker.hd	A3	parse/invalid/float-trailing-separator.hd
-parse/invalid/binary-literal-letter-suffix.hd	A3	parse/invalid/bare-hex-prefix.hd
+lexical/literals/float-separator-before-point.hd	A3	lexical/literals/float-separator-after-exponent-marker.hd
+lexical/literals/float-separator-before-point.hd	A3	lexical/literals/float-trailing-separator.hd
+lexical/literals/float-separator-after-exponent-marker.hd	A3	lexical/literals/float-trailing-separator.hd
+lexical/literals/binary-literal-letter-suffix.hd	A3	lexical/literals/bare-hex-prefix.hd
 typing/invalid/impl-method-generic-bound-dropped.hd	A3	typing/invalid/impl-method-generic-bound-changed.hd
 typing/invalid/impl-method-generic-bound-dropped.hd	A3	typing/invalid/impl-method-generic-bounds-reordered.hd
 typing/invalid/none-beside-values-needs-expected-type.hd	A3	typing/invalid/none-branch-needs-expected-type.hd
@@ -1412,10 +1412,10 @@ typing/invalid/generic-data-member-call.hd	A3	typing/invalid/generic-member-call
 typing/invalid/derivation-block-trait-without-template.hd	A3	typing/invalid/derivation-block-comparison-trait.hd
 typing/invalid/it-without-body.hd	A3	typing/invalid/it-argument-after-body.hd
 typing/invalid/primitive-suffix-integer-range.hd	A3	typing/invalid/primitive-suffix-negative-range.hd
-parse/invalid/suffix-after-separator.hd	A3	parse/invalid/prefix-separator-without-digits.hd
-parse/invalid/radix-literal-suffix-without-separator.hd	A3	parse/invalid/hex-literal-letter-suffix.hd
-parse/invalid/radix-literal-quote-suffix.hd	A3	parse/invalid/string-literal-suffix.hd
-parse/invalid/reserved-word-suffix.hd	A3	parse/invalid/reserved-word-prefix.hd
+lexical/literals/suffix-after-separator.hd	A3	lexical/literals/prefix-separator-without-digits.hd
+lexical/literals/radix-literal-suffix-without-separator.hd	A3	lexical/literals/hex-literal-letter-suffix.hd
+lexical/literals/radix-literal-quote-suffix.hd	A3	lexical/literals/string-literal-suffix.hd
+lexical/literals/reserved-word-suffix.hd	A3	lexical/literals/reserved-word-prefix.hd
 typing/invalid/unary-minus-string.hd	A3	typing/invalid/list-plus-list-names-the-spread-concatenation.hd
 typing/invalid/unknown-string-prefix.hd	A3	typing/invalid/duration-unknown-unit.hd
 typing/invalid/trait-less-block-newtype.hd	A3	typing/invalid/a-traitless-derivation-block-on-a-primitive.hd
@@ -1480,7 +1480,7 @@ runtime/panic/int-widths-a-u64-product-past-the-maximum-panics.hd	A3	runtime/pan
 runtime/panic/int-widths-negating-the-i8-minimum-panics.hd	A3	runtime/panic/int-widths-a-u8-difference-below-zero-panics.hd
 runtime/panic/int-widths-negating-the-i8-minimum-panics.hd	A3	runtime/panic/int-widths-a-u16-product-past-the-maximum-panics.hd
 runtime/panic/int-widths-a-u8-difference-below-zero-panics.hd	A3	runtime/panic/int-widths-a-u16-product-past-the-maximum-panics.hd
-parse/invalid/tab-in-string-literal.hd	A3	parse/invalid/tab-in-character-literal.hd
+lexical/whitespace-and-indentation/tab-in-string-literal.hd	A3	lexical/whitespace-and-indentation/tab-in-character-literal.hd
 parse/invalid/multi-binding-in-list.hd	A3	parse/invalid/multi-binding-nested.hd
 parse/invalid/trailing-block-same-line-body.hd	A3	parse/invalid/trailing-block-in-same-line-suite.hd
 typing/invalid/let-refutable-without-else.hd	A3	typing/invalid/top-level-refutable-let-without-else.hd
@@ -1660,8 +1660,8 @@ typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.h
 typing/invalid/duplicate-associated-binding-same-type.hd	A3	typing/invalid/duplicate-associated-binding-repeated-trait.hd
 runtime/valid/initialization-implicit-an-interpolation-reads-an-earlier-binding-through-display.hd	A3	runtime/valid/initialization-implicit-an-unrelated-display-impl-is-not-reached.hd
 typing/invalid/entry-point-parameters.hd	A3	typing/invalid/generic-entry-point.hd
-parse/invalid/non-nfc-identifier.hd	A3	parse/invalid/non-nfc-raw-identifier.hd
-parse/invalid/raw-identifier-around-other-text.hd	A3	parse/invalid/raw-identifier-unclosed.hd
+lexical/identifiers/non-nfc-identifier.hd	A3	lexical/identifiers/non-nfc-raw-identifier.hd
+lexical/identifiers/raw-identifier-around-other-text.hd	A3	lexical/identifiers/raw-identifier-unclosed.hd
 parse/invalid/placeholder-in-ordinary-type.hd	A3	parse/invalid/placeholder-in-a-declaration.hd
 typing/invalid/lct-none-before-widening-list.hd	A3	typing/invalid/lct-none-first-list.hd
 typing/invalid/for-over-integer.hd	A3	typing/invalid/for-over-a-negative-integer-literal.hd
@@ -2106,7 +2106,7 @@ parse/invalid/nesting-too-deep-in-a-dereference.hd	A3	parse/invalid/nesting-too-
 parse/invalid/provider-context-without-dot.hd	A3	parse/invalid/provider-context-without-operation.hd
 parse/invalid/provider-context-without-dot.hd	A3	parse/invalid/provider-context-without-entries.hd
 parse/invalid/provider-context-without-operation.hd	A3	parse/invalid/provider-context-without-entries.hd
-parse/invalid/unicode-escape-without-braces.hd	A3	parse/invalid/unicode-escape-without-digits.hd
+lexical/literals/unicode-escape-without-braces.hd	A3	lexical/literals/unicode-escape-without-digits.hd
 typing/invalid/union-constructor-call-under-an-unknown-annotation.hd	A3	typing/invalid/union-constructor-value-under-an-unknown-annotation.hd
 runtime/panic/host-character-rejects-lower-surrogate.hd	A3	runtime/panic/host-character-rejects-upper-surrogate.hd
 runtime/panic/host-character-rejects-lower-surrogate.hd	A3	runtime/panic/host-character-rejects-above-unicode-maximum.hd
@@ -2165,7 +2165,7 @@ typing/warnings/private-main.hd	A6	directory says otherwise; expectation accept,
 typing/warnings/private-main-suspending.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.entry.private-main.lint
 typing/warnings/unsigned-comparison-countdown.hd	A6	directory says otherwise; expectation accept, cites lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
 typing/warnings/unsigned-comparison-explicit.hd	A6	directory says otherwise; expectation accept, cites lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
-typing/warnings/mixed-script-identifier.hd	A6	directory says otherwise; expectation accept, cites lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
+lexical/identifiers/mixed-script-identifier.hd	A6	directory says otherwise; expectation accept, cites lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
 typing/warnings/unused-after-rejected-trials.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unused.lint
 typing/warnings/unused-debug-text.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.dbg.debug-lint
 typing/warnings/match-payload-binding-name-swap.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
