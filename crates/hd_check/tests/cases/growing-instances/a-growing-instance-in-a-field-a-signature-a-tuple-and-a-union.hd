@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# An instance of a struct that holds itself with growing arguments, held
+# by another struct's field, a function's parameter and result, a tuple
+# and a union, is not walked by the header or the body: the one error is
+# the declaration's (#2008).
+struct G[T]:
+    x: G[(T, T)]
+
+struct H:
+    g: G[i32]?
+
+fn take(x: G[i32]?) -> (G[u8]?, i32):
+    (.None, 0)
+
+fn main():
+    let h: H? = .None
+    let t = take(.None)
+    let u: G[i64]? | bool = ._1(true)

@@ -418,14 +418,23 @@ impl Ck<'_, '_> {
         let global = self.cx.global;
         let CopyQuery { relaxed, memo } = q;
         let closed_ty = |u: Ty| !u.is_local() && !pool.has_infer(u) && !pool.has_canon(u);
+        let lookup = self.cx.lookup;
         let b = blocker(
-            (pool, self.cx.lookup, relaxed),
+            (pool, lookup, relaxed),
             t,
             &mut |ty| self.norm_ty(ty),
             &mut |u| {
                 memo.get(&u)
                     .copied()
                     .or_else(|| closed_ty(u).then(|| global.copy_blocker(u)).flatten())
+                    // An instance of a declaration the value rule rejects
+                    // is not walked: its fields may grow without end
+                    // (`crate::value::holds_itself`), and it is reported.
+                    .or_else(|| {
+                        matches!(pool.get(u), TyData::Adt { def, .. }
+                            if crate::value::holds_itself(global, pool, lookup, def))
+                        .then_some(None)
+                    })
             },
             &mut open,
             &mut visited,

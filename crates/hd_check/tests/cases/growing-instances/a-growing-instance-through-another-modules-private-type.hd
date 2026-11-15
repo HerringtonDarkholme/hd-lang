@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# A public struct that grows through a private struct of its module is
+# reported there. `main` cannot see the private struct, so its walk of
+# `P[i32]` stops at it, and the answer it decides for `P` without seeing
+# it is not kept for the module that can (#2008).
+use pkg.a.{P}
+
+fn main():
+    let p: P[i32]? = .None
+# @file: a.hd
+pub struct P[T]:
+    q: Q[T]
+
+struct Q[T]:
+    p: P[(T, T)]
+
+fn inside():
+    let q: Q[i32]? = .None

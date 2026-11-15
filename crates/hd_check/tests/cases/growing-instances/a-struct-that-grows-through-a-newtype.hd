@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# A struct that holds itself with growing arguments through a newtype's
+# base is reported at the struct; an instance of the newtype or of the
+# struct in a body adds nothing (#2008).
+struct G[T]:
+    x: N[(T, T)]
+
+type N[T](G[T])
+
+fn main():
+    let n: N[i32]? = .None
+    let g: G[i32]? = .None

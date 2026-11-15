@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# An enum that holds itself with growing arguments is reported once, at
+# its payload (`data.enum.no-recursion`); a body that holds an instance
+# and matches on it adds nothing (#2008).
+enum G[T]:
+    More(G[(T, T)])
+    Done
+
+fn main():
+    let e: G[i32]? = .None
+    match e:
+        .Some(_) => 1
+        .None => 0

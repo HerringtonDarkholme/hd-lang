@@ -85,11 +85,16 @@ impl<'a> ProjectionCycles<'a> {
         }
     }
 
+    /// An instance of a declaration that holds itself inline
+    /// ([`holds_itself`]) is not entered: the value rule reports the
+    /// declaration, and the instance's fields may grow without end
+    /// (`struct G[T]: x: G[(T, T)]` holds `G[(i32, i32)]` in `G[i32]`).
     pub(crate) fn check(
         &mut self,
         pool: hd_types::Types<'_>,
         lookup: &hd_resolve::Lookup<'_>,
         impls: hd_types::solver::Impls<'_>,
+        global: &hd_types::solver::GlobalMemo,
         ty: Ty,
         fuel: &mut Fuel,
     ) -> Result<Option<Unsized>, ()> {
@@ -127,6 +132,7 @@ impl<'a> ProjectionCycles<'a> {
             &mut |t| {
                 let mut children = Vec::new();
                 match pool.get(t) {
+                    TyData::Adt { def, .. } if holds_itself(global, pool, lookup, def) => {}
                     TyData::Adt { def, args } => {
                         let argv = pool.list_items(args);
                         let sub = |f| {
@@ -285,6 +291,7 @@ impl<'a> ProjectionCycles<'a> {
         pool: hd_types::Types<'_>,
         lookup: &hd_resolve::Lookup<'_>,
         impls: hd_types::solver::Impls<'_>,
+        global: &hd_types::solver::GlobalMemo,
         ty: Ty,
         fuel: &mut Fuel,
     ) -> Result<Option<Unsized>, ()> {
@@ -294,7 +301,7 @@ impl<'a> ProjectionCycles<'a> {
             if !self.checked.insert(t) {
                 continue;
             }
-            let found = self.check(pool, lookup, impls, t, fuel)?;
+            let found = self.check(pool, lookup, impls, global, t, fuel)?;
             bad = bad.or(found);
             match pool.get(t) {
                 TyData::Adt { args, .. } => todo.extend(pool.list_items(args)),
@@ -577,6 +584,87 @@ impl Ck<'_, '_> {
 #[derive(Default)]
 pub(crate) struct Containment {
     finite: HashSet<Ty>,
+    /// For the run's shared set ([`holds_itself`]): a type that holds a
+    /// declaration the walk's lookup lacks is not known finite, as
+    /// another lookup may see into it. A header pass's walks share one
+    /// lookup and keep such a type as finite.
+    strict: bool,
+    /// A walk met a declaration its lookup lacks, whose values it could
+    /// not see into: an answer may differ under a lookup that holds it.
+    blind: bool,
+}
+
+/// The types a declaration's value rule covers: a struct's fields, an
+/// enum's shared and payload fields (`data.struct.no-recursion`,
+/// `data.enum.no-recursion`); `None` for any other item.
+pub(crate) fn value_fields(data: &hd_resolve::ItemData) -> Option<Vec<&hd_resolve::Field>> {
+    match data {
+        hd_resolve::ItemData::Struct(fs, _) => Some(fs.iter().collect()),
+        hd_resolve::ItemData::Enum {
+            shared, variants, ..
+        } => Some(
+            shared
+                .iter()
+                .chain(variants.iter().flat_map(|v| &v.fields))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+/// A field type `t` of `owner` with `owner`'s parameters renamed to the
+/// same parameters of no declaration. A containment walk ends at a
+/// parameter whoever owns it, so the answer is the same, but the walks of
+/// two declarations meet at the types they share: the fields of
+/// `struct C1[T]: next: C0[T]` and `struct C2[U]: next: C1[U]` both reach
+/// `C0[T']`, which the first walk keeps as finite. With each owner's own
+/// parameters, a chain of `n` generic declarations walked `n` types for
+/// each, `n²` in all.
+pub(crate) fn unowned(pool: hd_types::Types<'_>, owner: DefId, t: Ty) -> Ty {
+    pool.subst(t, &|p: ParamRef| {
+        (p.owner == owner).then(|| {
+            pool.intern_ty(&TyData::Param(ParamRef {
+                owner: DefId::NONE,
+                index: p.index,
+            }))
+        })
+    })
+}
+
+/// Whether `def` is a declaration the value rule rejects: one of its
+/// [`value_fields`] holds a value of `def` inline. Each instance of it is
+/// then unsized whatever its arguments, and a walk of an instance's
+/// fields need not end: `struct G[T]: x: G[(T, T)]` holds `G[(i32, i32)]`
+/// in `G[i32]`, and so on. rustc asks the same once per ADT
+/// (`representability`), and layout stops at an ADT it rejected.
+///
+/// Cost: one answer per declaration per run, kept in `global`; the
+/// deciding walks share the run's set of types with a finite inline
+/// closure, so each such type is walked once per run, not once per
+/// declaration that holds it. An answer decided under a lookup that
+/// lacked a declaration the walk met is not kept.
+pub(crate) fn holds_itself(
+    global: &hd_types::solver::GlobalMemo,
+    pool: hd_types::Types<'_>,
+    lookup: &hd_resolve::Lookup<'_>,
+    def: DefId,
+) -> bool {
+    global.holds_itself(def, |finite| {
+        let mut values = Containment {
+            finite: std::mem::take(finite),
+            strict: true,
+            blind: false,
+        };
+        let held = lookup
+            .item(def)
+            .and_then(|it| value_fields(&it.data))
+            .is_some_and(|fs| {
+                fs.iter()
+                    .any(|f| values.holds(pool, lookup, unowned(pool, def, f.ty), def))
+            });
+        *finite = values.finite;
+        (held, !values.blind && lookup.item(def).is_some())
+    })
 }
 
 impl Containment {
@@ -676,12 +764,17 @@ impl Containment {
             }
             crate::work::held_type();
             let start = kids.len();
+            let mut open = false;
             match pool.get(t) {
                 TyData::Adt { def, args } => {
                     if found(def) {
                         return true;
                     }
-                    field_tys(pool, lookup, def, args, &mut kids);
+                    // A declaration the lookup lacks: its values are not
+                    // seen.
+                    let blind = !field_tys(pool, lookup, def, args, &mut kids);
+                    self.blind |= blind;
+                    open = blind && self.strict;
                 }
                 // A union holds its members inline, as an enum its payloads
                 // (`types.union.representation`, `data.struct.contains`).
@@ -712,21 +805,21 @@ impl Containment {
             path.push(Frame {
                 ty: t,
                 kids: start,
-                open: false,
+                open,
             });
         }
     }
 }
 
 /// The types of the fields and payloads of `def` applied to `args`: what
-/// a value of it holds directly.
+/// a value of it holds directly. False when `lookup` lacks `def`.
 fn field_tys(
     pool: hd_types::Types<'_>,
     lookup: &hd_resolve::Lookup<'_>,
     def: DefId,
     args: hd_types::TyList,
     tys: &mut Vec<Ty>,
-) {
+) -> bool {
     let arg_tys = pool.list_items(args);
     let sub = |f: Ty| {
         pool.subst(f, &|p: ParamRef| {
@@ -736,7 +829,7 @@ fn field_tys(
         })
     };
     let Some(item) = lookup.item(def) else {
-        return;
+        return false;
     };
     match &item.data {
         hd_resolve::ItemData::Struct(fs, _) => {
@@ -765,6 +858,7 @@ fn field_tys(
         | hd_resolve::ItemData::Method { .. }
         | hd_resolve::ItemData::AssocType { .. } => {}
     }
+    true
 }
 
 #[cfg(test)]

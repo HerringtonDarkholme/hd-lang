@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# Two structs that hold each other with growing arguments are one group,
+# reported once at the first (`data.enum.no-recursion.group`); an
+# instance of either in a body adds nothing (#2008).
+struct A[T]:
+    b: B[(T, T)]
+
+struct B[T]:
+    a: A[T]
+
+fn main():
+    let a: A[i32]? = .None
+    let b: B[i32]? = .None

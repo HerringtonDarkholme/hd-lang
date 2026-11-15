@@ -406,6 +406,85 @@ fn struct_chain_containment_grows_linearly() {
     );
 }
 
+// Checker: #2008, which declarations hold themselves inline
+// (`hd_check::value::holds_itself`) is decided once per declaration per
+// run, and the deciding walks share the run's finite types: a chain of
+// generic structs, each instance used in its own body, costs its length,
+// not its length per body that asks.
+/// `struct C0[T]: x: T`, `struct C1[T]: next: C0[T]`, and so on, with
+/// `fn use{i}()` holding a `C{i}[i32]?`.
+fn generic_chain(n: u32) -> String {
+    let mut s = String::from("struct C0[T]:\n    x: T\n");
+    for i in 1..n {
+        let _ = writeln!(s, "\nstruct C{i}[T]:\n    next: C{}[T]", i - 1);
+    }
+    for i in 0..n {
+        let _ = writeln!(s, "\nfn use{i}():\n    let v: C{i}[i32]? = .None");
+    }
+    s
+}
+
+#[test]
+fn generic_chain_used_by_every_body_grows_linearly() {
+    let work = |n| {
+        let (out, types) =
+            hd_check::work::count_held_types(|| compile(&generic_chain(n), &Goal::Analyze));
+        assert!(!out.diags.has_errors(), "chain {n}: {}", out.render());
+        types
+    };
+    work(1);
+    let (small, large) = (work(500), work(5000));
+    assert!(
+        small >= 500 && large <= 10 * small + 100,
+        "types entered for 500 and 5,000 chained generic structs: {small} and {large}",
+    );
+}
+
+// Checker: #2008, a body that holds an instance of a declaration that
+// holds itself with growing arguments (`struct G[T]: x: G[(T, T)]`) does
+// not walk the instance's fields: they never end, and the walk spent the
+// body's whole fuel, then reported `item-too-complex` beside the
+// declaration's `recursive-value-type`.
+fn growing_users(n: usize) -> String {
+    let mut s = String::from("struct G[T]:\n    x: G[(T, T)]\n");
+    for i in 0..n {
+        let _ = writeln!(
+            s,
+            "\nfn use{i}():\n    let v: G[i32]? = .None\n    let w = v\n    let u = v"
+        );
+    }
+    s
+}
+
+#[test]
+fn bodies_holding_a_growing_instance_cost_one_walk_each() {
+    let work = |n| {
+        let (out, checks) =
+            hd_check::work::count_item_body_checks(|| compile(&growing_users(n), &Goal::Analyze));
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(
+            codes,
+            ["recursive-value-type"],
+            "{n} bodies: {}",
+            out.render()
+        );
+        let spent: Vec<u64> = checks
+            .iter()
+            .filter(|c| c.owner.starts_with("app/"))
+            .map(|c| c.fuel_spent)
+            .collect();
+        assert_eq!(spent.len(), n);
+        spent.into_iter().max().unwrap_or(0)
+    };
+    // Each body's fuel is its own few steps, whatever the number of
+    // bodies; the walk of `G[i32]` alone spent the default fuel before.
+    let (small, large) = (work(10), work(100));
+    assert!(
+        small < 200 && large <= small,
+        "most fuel one body spent with 10 and 100 bodies: {small} and {large}",
+    );
+}
+
 /// Checker: fuel spent entering expressions and solving body obligations.
 fn check_fuel(generate: fn(usize) -> String, small: usize, large: usize) {
     let work = |n| {

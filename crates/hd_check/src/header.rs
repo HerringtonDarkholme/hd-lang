@@ -1527,7 +1527,7 @@ impl<'a> ItemCheck<'_, 'a> {
     fn check_ty_node(&mut self, t: Ty, slot: u32, kids: &mut Vec<Work>) -> StageResult<()> {
         let pool = self.pool();
         if !self.too_complex {
-            match self.cycles.check(pool, self.cx.lookup, Impls::Owned(self.cx.impls), t, &mut self.fuel) {
+            match self.cycles.check(pool, self.cx.lookup, Impls::Owned(self.cx.impls), self.cx.global, t, &mut self.fuel) {
                 Ok(Some(crate::value::Unsized::Cycle)) => self.report(slot, Code::RecursiveValueType,
                     "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle".to_owned()),
                 Ok(Some(crate::value::Unsized::TooDeep(head))) => {
@@ -1667,25 +1667,21 @@ impl<'a> ItemCheck<'_, 'a> {
     /// with a fix-it that writes `&` before every one
     /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
     fn value_item(&mut self, it: &Item) {
-        let (fields, kind, part): (Vec<&hd_resolve::Field>, &str, &str) = match &it.data {
-            ItemData::Struct(fs, _) => (fs.iter().collect(), "struct", "field"),
-            ItemData::Enum {
-                shared, variants, ..
-            } => (
-                shared
-                    .iter()
-                    .chain(variants.iter().flat_map(|v| &v.fields))
-                    .collect(),
-                "enum",
-                "payload field",
-            ),
-            _ => return,
+        let Some(fields) = crate::value::value_fields(&it.data) else {
+            return;
+        };
+        let (kind, part) = match &it.data {
+            ItemData::Struct(..) => ("struct", "field"),
+            _ => ("enum", "payload field"),
         };
         let (pool, lookup) = (self.pool(), self.cx.lookup);
         let holding: Vec<usize> = fields
             .iter()
             .enumerate()
-            .filter(|(_, f)| self.values.holds(pool, lookup, f.ty, it.def))
+            .filter(|(_, f)| {
+                let t = crate::value::unowned(pool, it.def, f.ty);
+                self.values.holds(pool, lookup, t, it.def)
+            })
             .map(|(i, _)| i)
             .collect();
         let Some(&first) = holding.first() else {
@@ -1748,25 +1744,22 @@ impl<'a> ItemCheck<'_, 'a> {
         let mut held = Vec::new();
         let mut seen = hd_base::HashSet::default();
         for f in fields {
-            self.values.held(pool, lookup, f.ty, &mut seen, &mut held);
+            let t = crate::value::unowned(pool, def, f.ty);
+            self.values.held(pool, lookup, t, &mut seen, &mut held);
         }
         let mine = key(def);
         held.into_iter().filter(|&y| y != def).any(|y| {
-            let own: Vec<Ty> = match lookup.item(y).map(|i| &i.data) {
-                Some(ItemData::Struct(fs, _)) => fs.iter().map(|f| f.ty).collect(),
-                Some(ItemData::Enum {
-                    shared, variants, ..
-                }) => shared
-                    .iter()
-                    .chain(variants.iter().flat_map(|v| &v.fields))
-                    .map(|f| f.ty)
-                    .collect(),
-                _ => return false,
+            let Some(own) = lookup
+                .item(y)
+                .and_then(|i| crate::value::value_fields(&i.data))
+            else {
+                return false;
             };
             key(y) < mine
-                && own
-                    .into_iter()
-                    .any(|t| self.values.holds(pool, lookup, t, def))
+                && own.into_iter().any(|f| {
+                    self.values
+                        .holds(pool, lookup, crate::value::unowned(pool, y, f.ty), def)
+                })
         })
     }
 

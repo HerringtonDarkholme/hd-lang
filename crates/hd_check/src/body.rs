@@ -5235,7 +5235,7 @@ impl Ck<'_, '_> {
             if syn != hd_base::NodeIdx::NONE && !self.diags.has_errors() {
                 let node = self.cx.src.parse.tree.node(syn);
                 let view = self.cx.impls.hiding(self.unseen());
-                match cycles.check_nested(pool, self.cx.lookup, Impls::Owned(&view), z, &mut self.fuel) {
+                match cycles.check_nested(pool, self.cx.lookup, Impls::Owned(&view), self.cx.global, z, &mut self.fuel) {
                     Ok(Some(crate::value::Unsized::Cycle)) => self.err(Code::RecursiveValueType, node,
                         "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle"),
                     Ok(Some(crate::value::Unsized::TooDeep(head))) => {

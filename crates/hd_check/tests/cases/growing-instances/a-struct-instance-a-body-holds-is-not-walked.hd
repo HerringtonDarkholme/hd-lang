@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# A struct that holds itself with growing arguments is reported once, at
+# its field (`data.struct.no-recursion`). A body that holds an instance,
+# copies it twice and passes it to a generic function walks none of its
+# fields, which never end: no `item-too-complex` follows (#2008).
+struct G[T]:
+    x: G[(T, T)]
+
+fn id[T](x: G[T]?) -> G[T]?:
+    x
+
+fn main():
+    let e: G[i32]? = .None
+    let f = e
+    let g = id(e)
