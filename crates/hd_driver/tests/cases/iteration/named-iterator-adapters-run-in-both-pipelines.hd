@@ -1,0 +1,16 @@
+# @dump: stdout
+# @build: dev | release
+# Owned iterator adapters (`map`, `filter`, `fold`) over closures and a
+# named function run alike in the dev and optimized pipelines.
+fn double(x: i32) -> i32:
+    x * 2
+
+fn total(items: List[i32]) -> i32:
+    items.iter().map(fn(x): x * 3 + 1).filter(fn(x): x % 2 == 0).fold(0, fn(a, x): a + x)
+
+fn refs(items: List[i32]) -> i32:
+    items.iter().map(double).fold(0, fn(a, x): a + x)
+
+pub fn main() -> void $ Console:
+    println(total([+1, +2, +3, +4, +5]))
+    println(refs([+1, +2, +3, +4]))

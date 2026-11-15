@@ -1,0 +1,21 @@
+# @dump: tir diagnostics
+# A method call whose receiver implements one generic trait at two
+# instantiations tries each candidate and commits to the one whose trial
+# fits: `run`'s call is checked against `Pick[i32]`, and the `bool`
+# candidate leaves nothing in its TIR.
+trait Pick[T]:
+    fn pick(self, value: T) -> i32
+
+struct Item: pass
+
+impl Pick[bool] for Item:
+    fn pick(self, value: bool) -> i32:
+        0
+
+impl Pick[i32] for Item:
+    fn pick(self, value: i32) -> i32:
+        value
+
+pub fn run(n: i32) -> i32:
+    Item {}.pick(n)
+    #^^^^^^^^^^^^^^

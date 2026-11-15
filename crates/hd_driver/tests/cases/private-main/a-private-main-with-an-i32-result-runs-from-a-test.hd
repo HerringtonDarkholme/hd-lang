@@ -1,0 +1,11 @@
+# @dump: tests
+# module.entry.private-main: a `main` that is not `pub` is an ordinary
+# function in tests, whatever its result type.
+use std.testing.assert_equal
+
+fn main() -> i32:
+    7
+
+tests:
+    it("calls the ordinary function"):
+        assert_equal(main(), 7, reason="private main")

@@ -49,7 +49,6 @@ mod method_chain_depth;
 mod module_row_work;
 mod parallel_bodies;
 mod pathological;
-mod private_main;
 mod profile_handles;
 mod recursive_layouts;
 mod release_profile_run;
@@ -111,8 +110,6 @@ impl hd_cache::CacheStore for Shared {
         self.0.touch(kind, key);
     }
 }
-
-mod owned_adapter_calls;
 
 mod map_seed_runtime;
 mod trait_reference_coverage;
