@@ -7,6 +7,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
+import { duplicateFixtures, duplicateTrees, type FixtureCase } from "./tools/fixture-duplicates.ts";
+
 const specDir = process.argv[2];
 if (!specDir) {
   console.error("usage: check-fixture-index.ts SPEC_DIR");
@@ -41,6 +43,7 @@ if (header?.join("\t") !== "path\tphase\texpectation\tspecification") {
   fail("malformed conformance/cases.tsv");
 }
 const entries = new Map<string, number>();
+const indexed: FixtureCase[] = [];
 for (const row of cases) {
   if (row.length !== 4 || row.some((field) => field === "")) {
     fail("malformed conformance/cases.tsv");
@@ -53,6 +56,7 @@ for (const row of cases) {
     fail(`missing fixture ${path}`);
     continue;
   }
+  indexed.push({ path, phase, expectation, text });
   const lines = text.split("\n");
   const markers = lines.filter((line) => marker.test(line)).length;
   if (!["parse", "type", "runtime"].includes(phase)) {
@@ -127,6 +131,36 @@ for (const file of walk(conformance).sort()) {
   const count = entries.get(path) ?? 0;
   if (count !== 1) {
     fail(`fixture ${path} has ${count} manifest entries`);
+  }
+}
+
+// No two cases test one program, and no two package trees of a tier hold the
+// same files (A1, A2 and A14 of docs/audit/conformance-fixture-review-2026-11-14.md).
+// A fixture names a tree of its own tier, so trees compare within a tier.
+for (const problem of duplicateFixtures(indexed)) {
+  fail(problem);
+}
+function treeFiles(root: string, directory = root): [string, Buffer][] {
+  // cost: one listing per tree directory and one read per tree file per run.
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return treeFiles(root, path);
+    }
+    return entry.isFile() ? [[relative(root, path), readFileSync(path)] as [string, Buffer]] : [];
+  });
+}
+for (const tier of ["lang", "std"]) {
+  const trees = join(conformance, tier, "trees");
+  // cost: one listing of TIER/trees per run, then treeFiles per tree.
+  const listed = readdirSync(trees, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  for (const problem of duplicateTrees(
+    listed.map((entry) => ({
+      name: `${tier}/trees/${entry.name}`,
+      files: treeFiles(join(trees, entry.name)),
+    })),
+  )) {
+    fail(problem);
   }
 }
 

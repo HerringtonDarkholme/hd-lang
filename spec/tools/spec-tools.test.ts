@@ -32,6 +32,12 @@ import { failures, rewrite, rewriteSummary } from "./spec-rewrite.ts";
 import { run } from "./spec.ts";
 import { generateDiagnosticCodes } from "./diagnostic-codes.ts";
 import { phaseAudit, phaseAuditReport } from "./phase-audit.ts";
+import {
+  duplicateFixtures,
+  duplicateTrees,
+  fixtureProgram,
+  renamedProgram,
+} from "./fixture-duplicates.ts";
 
 /** Whether this checkout's history holds `rev`; a shallow clone may not. */
 function hasCommit(rev: string): boolean {
@@ -679,4 +685,127 @@ test("the registry preserves lint code identities beside loading errors", () => 
     "unknown-manifest-key",
     "unsigned-comparison-always",
   ]);
+});
+
+test("fixture programs drop plain comments but keep directives, docs, markers and literals", () => {
+  const text = [
+    "# test: a title is a comment",
+    "# fixture-package-tree: shared/src/main.hd",
+    "# expect-stdout: 1",
+    "",
+    "## Documents f.",
+    "fn f(x: &'a i32) -> string: # a trailing comment",
+    '    a := "#not a comment ${g("}#")} \\" # still text"',
+    "    b := '#'",
+    "    c := '\\n' # gone",
+    '    d := """first # line',
+    '# second line"""',
+    "    a # diagnostic: type-mismatch",
+  ].join("\n");
+  assert.equal(
+    fixtureProgram(text),
+    [
+      "# fixture-package-tree: shared/src/main.hd",
+      "# expect-stdout: 1",
+      "## Documents f.",
+      "fn f(x: &'a i32) -> string:",
+      '    a := "#not a comment ${g("}#")} \\" # still text"',
+      "    b := '#'",
+      "    c := '\\n'",
+      '    d := """first # line',
+      '# second line"""',
+      "    a #diagnostic:type-mismatch",
+    ].join("\n"),
+  );
+  // A brace inside an interpolation does not end it.
+  assert.equal(fixtureProgram('x := "${ {a: 1}.a } # s" # c'), 'x := "${ {a: 1}.a } # s"');
+});
+
+test("renamed programs map local and type names to their order of use", () => {
+  const one = "struct User:\n    name: string\nfn read(user: User) -> string:\n    user.name";
+  const two = "struct Person:\n    label: string\nfn get(p: Person) -> string:\n    p.label";
+  assert.equal(renamedProgram(one), renamedProgram(two));
+  assert.equal(
+    renamedProgram(one),
+    "struct T1:\n    v1: string\nfn v2(v3: T1) -> string:\n    v3.v1",
+  );
+  // A final main that prints a literal is dropped; one that prints a call is not.
+  const body = "fn f(a: i32) -> i32:\n    a";
+  assert.equal(
+    renamedProgram(`${body}\npub fn main() -> void $ Console:\n    println(1)`),
+    renamedProgram(body),
+  );
+  assert.notEqual(
+    renamedProgram(`${body}\npub fn main() -> void $ Console:\n    println(f(1))`),
+    renamedProgram(body),
+  );
+});
+
+test("duplicate fixtures share phase, expectation and program", () => {
+  const code = "fn f(a: i32) -> i32:\n    a # diagnostic: type-mismatch\n";
+  const renamed = "# test: renamed\nfn g(b: i32) -> i32:\n    b # diagnostic: type-mismatch\n";
+  const cases = (
+    text: string,
+    path: string,
+    expectation = "reject:type-mismatch",
+    phase = "type",
+  ) => ({
+    path,
+    phase,
+    expectation,
+    text,
+  });
+  assert.deepEqual(
+    duplicateFixtures([
+      cases(code, "a.hd"),
+      cases(`# test: copy\n${code}`, "b.hd"),
+      cases(renamed, "c.hd"),
+      cases(code, "d.hd", "reject:other"),
+      cases(code, "e.hd", "reject:type-mismatch", "runtime"),
+      cases(`# fixture-package-tree: t/src/main.hd\n${code}`, "f.hd"),
+      cases(
+        code.replace(
+          "    a # diagnostic: type-mismatch",
+          "    a\n    a # diagnostic: type-mismatch",
+        ),
+        "g.hd",
+      ),
+      cases(code.replaceAll("\n", "\r\n"), "h.hd"),
+      cases(`# fixture-package-tree: t/src/main.hd\r\n${code.replaceAll("\n", "\r\n")}`, "i.hd"),
+    ]),
+    [
+      "fixtures a.hd and b.hd test the same program with the same phase and expectation; delete one, or make them differ in what they test",
+      "fixtures a.hd and c.hd test the same program up to names with the same phase and expectation; delete one, or make them differ in what they test",
+    ],
+  );
+});
+
+test("duplicate trees hold the same files in any order", () => {
+  assert.deepEqual(
+    duplicateTrees([
+      {
+        name: "trees/a",
+        files: [
+          ["src/x.hd", "x"],
+          ["src/y.hd", "y"],
+        ],
+      },
+      {
+        name: "trees/b",
+        files: [
+          ["src/y.hd", "y"],
+          ["src/x.hd", "x"],
+        ],
+      },
+      {
+        name: "trees/c",
+        files: [
+          ["src/x.hd", "x"],
+          ["src/z.hd", "y"],
+        ],
+      },
+      { name: "trees/d", files: [["src/x.hd", "xy"]] },
+    ]),
+    ["package trees trees/a and trees/b hold identical files; point their fixtures at one tree"],
+  );
 });

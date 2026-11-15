@@ -7,6 +7,7 @@ source, so they serve any implementation.
 | File | Purpose |
 | --- | --- |
 | `spec.ts` | the `pnpm run spec` entry point: `counts`, `coverage`, `audit`, `phase-audit`, `refs`, `rewrite`, and `glossary` |
+| `fixture-duplicates.ts` | the duplicate checks `check-fixture-index.ts` runs: two cases with one program (up to names), two identical package trees of one tier |
 | `phase-audit.ts` | fixture phase tags checked against the diagnostic phase table |
 | `spec-corpus.ts` | every chapter with its rule inventory, read from a directory or a git revision |
 | `spec-rewrite.ts` | the before/after report of `rewrite` |
