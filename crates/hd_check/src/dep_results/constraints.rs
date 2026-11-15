@@ -67,6 +67,13 @@ struct Gen<'s, 'a> {
     lent: HashMap<u32, Region>,
     /// The binding of each region of [`Gen::lent`].
     lent_by: HashMap<Region, u32>,
+    /// The bindings that may hold a value no place holds (a box, a call's
+    /// result), stored into them or copied in from another binding: what
+    /// a read of one is lent from includes that binding's own storage.
+    fresh: HashSet<u32>,
+    /// Per binding, the bindings a whole read of it is stored into, so a
+    /// binding found [`Gen::fresh`] marks them in one pass.
+    receivers: HashMap<u32, Vec<u32>>,
 }
 
 /// What the result checks need: the function's map with what each
@@ -501,8 +508,17 @@ impl Gen<'_, '_> {
     }
 
     /// [`Gen::lend`] of each value of `todo` into its region.
+    ///
+    /// A counted reference copied from one binding into another carries
+    /// its own count, so a fresh value is lent from the binding the lend
+    /// reads, never from the binding it was first stored into: a box made
+    /// in a loop and copied into an outer binding outlives the loop's
+    /// block. Bindings are marked [`Gen::fresh`] while their stores are
+    /// traced, and each lend of a binding is seeded with that binding's
+    /// storage once its whole chain is traced, at the end.
     fn lend_all(&mut self, mut todo: Vec<(u32, Region)>) {
         let b = self.s.b;
+        let mut lent_bindings: Vec<(Region, u32)> = Vec::new();
         while let Some((a, r)) = todo.pop() {
             // A constant holds no counted reference.
             if self.s.ty(a).is_none() {
@@ -525,11 +541,10 @@ impl Gen<'_, '_> {
             // the binding it was stored into, which keeps it, or in the
             // hidden local of the argument (`ref.dep.origin.temporary`).
             if b.tags[v] != Tag::Read {
-                let o = self
-                    .lent_by
-                    .get(&r)
-                    .map_or(Origin::Hidden(w(v)), |&l| Origin::Local(l));
-                self.seed(r, o);
+                match self.lent_by.get(&r) {
+                    Some(&l) => self.mark_fresh(l),
+                    None => self.seed(r, Origin::Hidden(w(v))),
+                }
                 continue;
             }
             let word = b.data[v][0];
@@ -541,6 +556,10 @@ impl Gen<'_, '_> {
                         && let Some(lr) = self.binding_region(l.raw(), &mut todo) =>
                 {
                     self.flow(lr, r);
+                    match self.lent_by.get(&r) {
+                        Some(&into) => self.receive(l.raw(), into),
+                        None => lent_bindings.push((r, l.raw())),
+                    }
                 }
                 Some((PlaceRoot::Value(x), first))
                     if !matches!(first, Some(Proj::Deref | Proj::Elem(_)))
@@ -552,6 +571,33 @@ impl Gen<'_, '_> {
                     let at = self.place(w(v), word, 0, (false, false)).0;
                     self.lies_in(at, r);
                 }
+            }
+        }
+        for (r, l) in lent_bindings {
+            if self.fresh.contains(&l) {
+                self.seed(r, Origin::Local(l));
+            }
+        }
+    }
+
+    /// Records that a whole read of binding `from` is stored into binding
+    /// `into`: a fresh value of `from` is one of `into` too.
+    fn receive(&mut self, from: u32, into: u32) {
+        self.receivers.entry(from).or_default().push(into);
+        if self.fresh.contains(&from) {
+            self.mark_fresh(into);
+        }
+    }
+
+    /// Marks binding `l` and every binding its reads are stored into,
+    /// transitively, as [`Gen::fresh`]: each binding is marked once.
+    fn mark_fresh(&mut self, l: u32) {
+        let mut todo = vec![l];
+        while let Some(l) = todo.pop() {
+            if self.fresh.insert(l)
+                && let Some(into) = self.receivers.get(&l)
+            {
+                todo.extend(into.iter().copied());
             }
         }
     }
@@ -574,9 +620,9 @@ impl Gen<'_, '_> {
 
     /// The region of what the counted reference binding behind place
     /// `word` is lent from, for a place through a read of it (`*m`,
-    /// `m.x`), as [`Gen::lend`] lends the read (`ref.dep.origin.counted`).
-    /// `None` for another place.
-    fn counted_binding(&mut self, word: u32) -> Option<Region> {
+    /// `m.x`), as [`Gen::lend`] lends the read (`ref.dep.origin.counted`),
+    /// with the binding. `None` for another place.
+    fn counted_binding(&mut self, word: u32) -> Option<(Region, u32)> {
         let b = self.s.b;
         let p = b.decode_place(word)?;
         let (PlaceRoot::Value(v), Some(Proj::Deref)) = (p.root, p.proj.first()) else {
@@ -596,7 +642,7 @@ impl Gen<'_, '_> {
         let mut todo = Vec::new();
         let lr = self.binding_region(l.raw(), &mut todo)?;
         self.lend_all(todo);
-        Some(lr)
+        Some((lr, l.raw()))
     }
 
     /// The values stored into local `l`, whole or in part: all that it
@@ -1204,8 +1250,11 @@ impl Gen<'_, '_> {
             Tag::Ref if !me.0.is_empty() => {
                 let inv = is_mut(pool, me.1);
                 let (at, place) = self.place(i, a, usize::MAX, (true, inv));
-                if let Some(lr) = self.counted_binding(a) {
+                if let Some((lr, l)) = self.counted_binding(a) {
                     self.flow(lr, me.0[0]);
+                    if self.fresh.contains(&l) {
+                        self.seed(me.0[0], Origin::Local(l));
+                    }
                 } else if !self.path_ref(i, at, me.0[0]) {
                     self.lies_in(at, me.0[0]);
                 }
@@ -1341,6 +1390,8 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         stored: std::cell::OnceCell::new(),
         lent: HashMap::default(),
         lent_by: HashMap::default(),
+        fresh: HashSet::default(),
+        receivers: HashMap::default(),
     };
     let widths: Vec<u32> = (b.local_ty.iter().map(|&t| g.width(t)))
         .chain((0..b.tags.len()).map(|i| g.width(b.ty[i]).max(u32::from(b.tags[i] == Tag::Ref))))

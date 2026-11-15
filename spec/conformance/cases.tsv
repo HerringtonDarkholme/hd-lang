@@ -5618,6 +5618,8 @@ typing/invalid/dependent-result-counted-lend-local-list.hd	type	reject:local-ref
 typing/invalid/dependent-result-counted-lend-fresh-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/dependent-result-counted-lend-mut-borrowed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/dependent-result-counted-lend-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/valid/dependent-result-counted-copy-from-loop-box.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-counted-copy-of-box-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/suspension-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local
 typing/valid/suspension-holds-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension
 typing/invalid/suspension-forward-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local

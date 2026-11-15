@@ -1,0 +1,20 @@
+# test: a counted reference binding that may hold a box copied in from another binding is lent from its own storage, so a dependent result of it still escapes
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
+# ref.dep.origin.temporary.
+struct Node:
+    value: i32
+    next: *Node?
+
+fn last(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => last(m)
+        .None => n
+
+struct Holder:
+    node: *Node
+
+fn copied(h: &Holder) -> &Node:
+    let mut m: *Node = h.node
+    made := box(Node { value: 1, next: .None })
+    m = made
+    last(m) # diagnostic: local-reference-escapes

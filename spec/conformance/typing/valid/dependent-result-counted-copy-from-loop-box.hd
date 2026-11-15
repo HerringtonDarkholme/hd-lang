@@ -1,0 +1,35 @@
+# test: a counted reference copied from a loop's box into an outer binding carries its own count, so a lend of the outer binding after the loop is lent from that binding, not from the loop's ended block
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
+# ref.dep.origin.temporary. The shape of the regex engines' `current = next`.
+fn fill(list: &mut List[i32], n: i32) -> void:
+    list.push(n)
+
+fn count(list: &List[i32]) -> usize:
+    list.len()
+
+fn swap_each_round() -> usize:
+    let current: *mut List[i32] = box::[List[i32]]([])
+    let i = 0
+    while i < 3:
+        next := box::[List[i32]]([])
+        fill(next, i)
+        fill(current, i)
+        current = next
+        i = i + 1
+    fill(current, 9)
+    current.len() + count(current)
+
+fn through_a_chain() -> usize:
+    let outer: *mut List[i32] = box::[List[i32]]([])
+    for i in 0..2:
+        let middle: *mut List[i32] = box::[List[i32]]([])
+        for j in 0..2:
+            inner := box::[List[i32]]([j])
+            middle = inner
+        fill(middle, i)
+        outer = middle
+    fill(outer, 7)
+    outer.len()
+
+pub fn main() -> void:
+    _ := swap_each_round() + through_a_chain()
