@@ -1,0 +1,5 @@
+# test: prelude a parameter named name shadows no prelude name
+fn lookup(name: string) -> string:
+    name
+pub fn main() -> void:
+    pass

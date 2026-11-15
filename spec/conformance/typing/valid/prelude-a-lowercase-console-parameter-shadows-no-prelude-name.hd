@@ -1,0 +1,5 @@
+# test: prelude a lowercase console parameter shadows no prelude name
+fn consume(console: i32) -> i32:
+    console
+pub fn main() -> void:
+    pass

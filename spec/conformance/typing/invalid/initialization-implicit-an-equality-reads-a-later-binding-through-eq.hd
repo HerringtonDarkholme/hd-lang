@@ -1,0 +1,15 @@
+# test: initialization implicit an equality reads a later binding through eq
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+
+first := Tag { n: 1 } == Tag { n: 6 } # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Eq for Tag:
+    fn eq(&self, other: &Tag) -> bool:
+        self.n + later == other.n
+
+pub fn main() -> void $ Console:
+    println(first)

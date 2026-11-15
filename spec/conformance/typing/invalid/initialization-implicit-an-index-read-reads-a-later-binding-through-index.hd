@@ -1,0 +1,18 @@
+# test: initialization implicit an index read reads a later binding through index
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+use std.ops.Index
+
+first := Tag { n: 8 }[2] # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Index[i32] for Tag:
+    type Out = i32
+    fn index(&self, key: i32) -> &i32:
+        _ := key + later
+        &self.n
+
+pub fn main() -> void $ Console:
+    println(first)

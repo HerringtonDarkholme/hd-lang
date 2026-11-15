@@ -1,0 +1,17 @@
+# test: initialization implicit an equality reads an earlier binding through eq
+# Spec lang/10-modules.md: module.init.definite.implicit.
+# expect-stdout: true
+
+struct Tag:
+    n: i32
+
+later := +5
+
+impl Eq for Tag:
+    fn eq(&self, other: &Tag) -> bool:
+        self.n + later == other.n
+
+first := Tag { n: 1 } == Tag { n: 6 }
+
+pub fn main() -> void $ Console:
+    println(first)

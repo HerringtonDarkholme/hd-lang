@@ -1,0 +1,15 @@
+# test: initialization implicit an interpolation reads a later binding through display
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+
+first := "${Tag { n: 1 }}" # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Display for Tag:
+    fn to_string(&self) -> string:
+        "tag ${later}"
+
+pub fn main() -> void $ Console:
+    println(first)

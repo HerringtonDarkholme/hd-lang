@@ -1,9 +1,0 @@
-# test: checker inferred result of a late read reports once
-offset := +1
-x := inferred()
-
-fn inferred():
-    offset * 2
-
-pub fn main() -> void:
-    pass

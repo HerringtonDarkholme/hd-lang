@@ -1,0 +1,7 @@
+# test: module initialization a function reads an earlier binding
+count := +0
+
+fn read() -> i32:
+    count
+pub fn main() -> void:
+    pass

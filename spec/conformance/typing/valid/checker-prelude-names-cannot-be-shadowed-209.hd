@@ -1,5 +1,0 @@
-# test: checker prelude names cannot be shadowed
-fn identity[T](value: T) -> T:
-    value
-pub fn main() -> void:
-    pass

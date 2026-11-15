@@ -500,7 +500,7 @@ for p in sorted(paths):
 
 Each pair should become one tree used by both fixtures.
 
-- `trees/failed-import-24` = `trees/failed-import-25`
+- `trees/use-forms-a-group-use-from-an-unknown-module-reports-one-error` = `trees/use-forms-a-single-use-of-an-unknown-module-reports-one-error`
 - `trees/migrate-64-impl-placement` = `trees/migrate-69-impl-placement`
 - `trees/dyn-inherent-nonlocal` = `trees/migrate-71-impl-placement`
 - `trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced` = `trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced`
@@ -2151,7 +2151,7 @@ Ledger: b096 (39): 1 row. b097 (45): 1 row. A pair took 132 s.
 
 - **Depends on map order (B8)**: `runtime/valid/boundary-map-round-trip.hd` asserts
   that a `Map` iterates in insertion order.
-- Plausible B1: `typing/valid/checker-top-level-bindings-are-read-in-order-136.hd`
+- Plausible B1: `typing/valid/module-initialization-a-function-reads-an-earlier-binding.hd`
   (nothing reads `count` and `read()` is never called).
 
 #### b098, b099 (`lang/10-modules.md`)

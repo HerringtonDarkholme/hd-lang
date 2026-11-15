@@ -1,7 +1,0 @@
-# test: checker top level bindings are read in order
-count := +0
-
-fn read() -> i32:
-    count
-pub fn main() -> void:
-    pass

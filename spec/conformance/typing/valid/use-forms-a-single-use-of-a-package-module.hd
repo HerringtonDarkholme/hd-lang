@@ -1,0 +1,8 @@
+# test: use forms a single use of a package module
+# fixture-package-tree: use-forms-a-single-use-of-a-package-module/src/main.hd
+use pkg.nowhere.m
+
+pub fn main() -> void:
+    m.f()
+    m.g
+    pass
