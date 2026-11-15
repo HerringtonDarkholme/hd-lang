@@ -18,5 +18,5 @@ control-flow/match-expressions/match-a-scrutinee-called-from-an-imported-functio
 control-flow/match-expressions/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
 control-flow/match-expressions/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
 typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10c	# test: a bound naming no trait adds no second error
-typing/valid/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10c	# test: a parameter named nowhere is reported once
-typing/valid/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported
+functions/generic-functions/generic-functions-written-type-arguments-solve-every-unsolved-parameter.hd	A10c	# test: a parameter named nowhere is reported once
+functions/generic-functions/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported

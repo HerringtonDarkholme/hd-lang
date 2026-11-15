@@ -1,11 +1,11 @@
 typing/valid/inherent-impls-a-member-name-may-repeat-across-targets-that-do-not-unify.hd	A13	every code line is in runtime case runtime/valid/inherent-members-disjoint-targets.hd
 typing/valid/related-traits-derived-eq-and-hash-together-are-valid.hd	A13	every code line is in runtime case runtime/valid/map-put-keeps-its-key-copy.hd
 typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd	A13	every code line is in runtime case std/cmp/derived-ordering/readonly-comparison-parameter-lifetimes.hd
-typing/valid/local-functions.hd	A13	every code line is in runtime case runtime/valid/named-local-functions.hd
-typing/valid/closure-assigns-captured-let.hd	A13	every code line is in runtime case runtime/valid/closure-captured-let-shared.hd
+functions/declarations/local-functions.hd	A13	every code line is in runtime case functions/recursion/named-local-functions.hd
+functions/closures/closure-assigns-captured-let.hd	A13	every code line is in runtime case functions/closures/closure-captured-let-shared.hd
 requirements/requirement-rows/requirement-keys/requirement-key-any-trait.hd	A13	every code line is in runtime case requirements/requirement-rows/requirement-keys/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd
 typing/valid/literal-one-fit-left-operand.hd	A13	every code line is in runtime case runtime/valid/operator-left-primitive-converted-left-operand-selects-the-left-types-implementation.hd
-typing/valid/omitted-result-cycle-one-annotated.hd	A13	every code line is in runtime case runtime/valid/inferred-results-recursion-through-an-annotated-function-is-valid.hd
+functions/declarations/omitted-result-cycle-one-annotated.hd	A13	every code line is in runtime case functions/declarations/inferred-results-recursion-through-an-annotated-function-is-valid.hd
 typing/valid/dependent-result-receiver.hd	A13	every code line is in runtime case runtime/valid/dependent-result-caller-side.hd
-typing/valid/function-type-result-param-written-lifetime.hd	A13	every code line is in runtime case runtime/valid/function-type-result-param-written-lifetime.hd
+functions/function-types-and-values/lifetimes-in-function-types/a-dependent-function-result-fits-a-type-parameter-result.hd	A13	every code line is in runtime case functions/function-types-and-values/lifetimes-in-function-types/a-reference-holding-function-result-runs-through-a-type-parameter-result.hd
 typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd	A13	every code line is in runtime case runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd

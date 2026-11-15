@@ -1,5 +1,5 @@
 data/data-embedding/data-embedding.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#data-embedding
-parse/valid/functions-and-closures.hd	A7b	lost ',,' gained ''	lang/07-functions.md
+functions/functions-and-closures.hd	A7b	lost ',,' gained ''	lang/07-functions.md
 lexical/whitespace-and-indentation/layout.hd	A7b	lost ',' gained ''	lang/01-lexical-structure.md#whitespace-and-indentation
 grammar/expressions/literal-field-comparison-value.hd	A7b	lost ',,' gained ''	lang/02-grammar.md#primary-expressions
 lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd	A7b	lost '()' gained ''	lang/01-lexical-structure.md#physical-and-logical-lines

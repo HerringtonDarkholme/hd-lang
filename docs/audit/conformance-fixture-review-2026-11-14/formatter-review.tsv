@@ -15,7 +15,7 @@ grammar/expressions/embedded-copy-syntax.hd	WEAKENED	Copy marker in a same-line 
 lexical/operators-and-delimiters/every-operator-and-delimiter-token.hd	HARMLESS	
 lexical/literals/expression-interpolation.hd	HARMLESS	
 grammar/expressions/expressions.hd	HARMLESS	
-parse/valid/functions-and-closures.hd	WEAKENED	Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
+functions/functions-and-closures.hd	WEAKENED	Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
 grammar/expressions/grammar-disambiguation.hd	HARMLESS	
 lexical/physical-and-logical-lines/header-resumes-after-nested-suite.hd	ERASED	Closure body in the if header is now same-line, so no nested suite inside the header remains.
 grammar/declarations/impl-trait-nested-return.hd	HARMLESS	

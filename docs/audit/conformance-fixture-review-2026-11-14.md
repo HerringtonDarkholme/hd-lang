@@ -517,7 +517,7 @@ and either cite the primary rule or write a second program that isolates the
 other rule.
 
 - `data/struct-declarations/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
-- `typing/invalid/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
+- `functions/parameters/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
 - `names/module-scope/forward-module-binding.hd` = `names/module-scope/exec-binding-read-before-declared.hd`
 - `typing/invalid/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `typing/invalid/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
 - `requirements/provider-scopes/generic-requirement-key-collision.hd` = `requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd`
@@ -1394,7 +1394,7 @@ Ledger: b046 (46): 4 rows. Plausible 4 (the panic-marker owner question 1, C1 2,
 **Script check A13** (`a13_type_in_runtime.py`, output `full/a13.tsv`): a
 `type` accept case whose code lines all appear in one `runtime` accept case,
 which type-checks the same program and also runs it. 11 leads, for example
-`typing/valid/local-functions.hd` in `runtime/valid/named-local-functions.hd`.
+`functions/declarations/local-functions.hd` in `functions/recursion/named-local-functions.hd`.
 Leads only: an extra line can change the meaning.
 
 ```python
@@ -1434,7 +1434,7 @@ under test:
 - `parse/valid/use-group-trailing-comma.hd`, `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
   (17 commas), `grammar/use-declarations/use-declaration-forms.hd`, `grammar/use-declarations/single-and-grouped-use.hd`,
   `grammar/test-blocks/test-block.hd`, `grammar/patterns/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
-  `data/data-embedding/data-embedding.hd`, `parse/valid/functions-and-closures.hd`,
+  `data/data-embedding/data-embedding.hd`, `functions/functions-and-closures.hd`,
   `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
   `std/json/parsing/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
   `typing/valid/composite-ordering.hd`, `data/construction-and-access/data-types.hd`,
@@ -1672,15 +1672,15 @@ Ledger: b060 (46): 2. b061 (?): 2. b062 (42): 5. b063 (41): 3. Plausible 12.
 - **Type case claiming runtime behavior (B1)**: `control-flow/using-bindings/using-transfer.hd`
   (LIFO release order). Also b050's `tuple-element-push.hd`, b054's
   `control-flow.hd`, and b019's `checks-and-evaluates-87..89`. A recurring kind.
-- **A check that cannot fail (B3)**: `runtime/valid/a-suspending-reference-copies-its-cell-and-not-a-fresh-capture.hd`
+- **A check that cannot fail (B3)**: `functions/closures/a-suspending-reference-copies-its-cell-and-not-a-fresh-capture.hd`
   (`copied()` returns 0 whether the value is copied or shared).
-  `runtime/valid/defaults-reference-earlier-parameters.hd` (the "function values
+  `functions/parameters/defaults-reference-earlier-parameters.hd` (the "function values
   do not inherit defaults" part never tries a one-argument call).
-- Plausible C1: `typing/invalid/parameter-default-later-parameter.hd` ~
+- Plausible C1: `functions/parameters/parameter-default-later-parameter.hd` ~
   `default-later-parameter-earlier-twin.hd`. `control-flow/match-expressions/unit-pattern/unit-pattern-void-success.hd` ~
   `match-unit-pattern-ok.hd`. `control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd` ~
   `variant-binding-name-mismatch.hd` (both A6 as well).
-- Plausible B7: `typing/valid/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd`
+- Plausible B7: `functions/parameters/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd`
   (cases 115 and 116 are type-parameter defaults).
 
 #### b064 (`lang/07-functions.md`)
@@ -1690,38 +1690,38 @@ Ledger: b064 (46): 8 rows. Plausible 8 (C1 4, B7 2, B1 2).
 - Plausible C1, **numbered series repeating named fixtures again**: `…-function-value-argument-is-reported-once-60.hd`
   ~ `generic-function-value-argument-unsolved.hd`. `…-placeholder-is-reported-once-58.hd`
   ~ `cannot-infer-type.hd` (both `make::[_]()`). `…-named-nowhere-is-reported-once-57.hd`
-  ~ `unresolved-generic-return-placeholder.hd`. `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
+  ~ `unresolved-generic-return-placeholder.hd`. `functions/generic-functions/generic-suspending-associated-function-qualified-call.hd`
   ~ line 33 of `an-associated-function-takes-type-arguments-through-its-type.hd`.
 - `typing/valid/…-57-legal-type-arguments.hd`: an accept case titled "is reported
   once". It is the A10 kind under a different suffix (`-legal-type-arguments`),
   so A10 misses it.
-- Plausible B7: `runtime/valid/generic-function-value-instantiation.hd`,
-  `runtime/valid/a-mutated-copy-keeps-its-callers-value.hd` (both cite
+- Plausible B7: `functions/function-types-and-values/generic-function-value-instantiation.hd`,
+  `functions/function-types-and-values/a-mutated-copy-keeps-its-callers-value.hd` (both cite
   `#function-types-and-values`; the rules are under other headings).
-- Plausible B1: `runtime/valid/function-field-returns-mutable-data.hd`.
+- Plausible B1: `functions/function-types-and-values/function-field-returns-mutable-data.hd`.
 
 #### b068 (`lang/07-functions.md`)
 
 Ledger: b068 (41): 2 rows. Plausible 2.
 
-- Plausible B1: `runtime/valid/call-keeps-argument-usable.hd` passes `&mut items`, so
+- Plausible B1: `functions/parameters/call-keeps-argument-usable.hd` passes `&mut items`, so
   passing by value is never tested.
-- Plausible B3: `runtime/valid/unowned-parameter-cleanup-survives-every-return.hd`
+- Plausible B3: `functions/parameters/unowned-parameter-cleanup-survives-every-return.hd`
   (the output matches even if the cleanup is skipped).
 
 #### b067 (`lang/07-functions.md`)
 
 Ledger: b067 (45): 6 rows. Plausible 6.
 
-- Plausible B3: `runtime/valid/temporary-method-receivers.hd` asserts only the
+- Plausible B3: `functions/methods-and-receivers/temporary-method-receivers.hd` asserts only the
   first character, which a dropped cursor change would still return.
-  `runtime/valid/generic-local-function-constructs-an-unused-struct.hd` (the
+  `functions/declarations/generic-local-function-constructs-an-unused-struct.hd` (the
   built struct is never observed).
-- Plausible B7: `typing/invalid/a-trait-with-type-arguments-is-not-callable.hd`
+- Plausible B7: `functions/generic-functions/a-trait-with-type-arguments-is-not-callable.hd`
   (the code comes from `expr.call.apply.not-callable`).
-  `typing/invalid/a-function-value-takes-no-type-arguments.hd`
+  `functions/generic-functions/a-function-value-takes-no-type-arguments.hd`
   (`fn.generic.explicit.too-long-count`).
-- Plausible B1: `typing/invalid/row-slot-bare-explicit-argument.hd` (the argument
+- Plausible B1: `functions/generic-functions/row-slot-bare-explicit-argument.hd` (the argument
   is a type, not a key). `…-stay-clean-22-legal-rows.hd` (two forms; the spec's
   `$ AppRow` form is missing).
 
@@ -1729,9 +1729,9 @@ Ledger: b067 (45): 6 rows. Plausible 6.
 
 Ledger: b066 (44): 3 rows. Plausible 2, rejected 1.
 
-- Plausible C1: `typing/valid/omitted-result-cycle-one-annotated.hd` is covered by
-  `runtime/valid/inferred-results-recursion-through-an-annotated-function-is-valid.hd`
-  (the A13 kind). Plausible B7: `runtime/valid/mono-default-boolean-and-scalar-decisions.hd`.
+- Plausible C1: `functions/declarations/omitted-result-cycle-one-annotated.hd` is covered by
+  `functions/declarations/inferred-results-recursion-through-an-annotated-function-is-valid.hd`
+  (the A13 kind). Plausible B7: `functions/parameters/mono-default-boolean-and-scalar-decisions.hd`.
 - Rejected C1: `…/suspending-closures-a-closure-that-only-creates-another-still-captures-for-it.hd`
   vs `nested-mutable-captures.hd`. `make!` (suspending) against `make` is the point
   of the case.
@@ -1740,21 +1740,21 @@ Ledger: b066 (44): 3 rows. Plausible 2, rejected 1.
 
 Ledger: b065 (44): 6 rows. Confirmed 2, plausible 4.
 
-- **Formatter**: `runtime/valid/same-line-function-body.hd`. The same-line
+- **Formatter**: `functions/declarations/same-line-function-body.hd`. The same-line
   body was moved to the next line (it is in A7), so `fn.body.same-line` is untested.
 - **Expected output never checked (B3)**, **script check A16** (below): the
   expected output sits in a trailing `# prints: …` comment, which is not a
   directive, so the runner never compares it.
-  `runtime/valid/known-closure-consumers-preserve-captures.hd` and
-  `runtime/valid/known-consumer-mixed-loop-contexts.hd` (both are also in A4:
+  `functions/closures/known-closure-consumers-preserve-captures.hd` and
+  `functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd` (both are also in A4:
   no assert and no `expect-stdout`). `control-flow/for-loops/zero-iteration-callback-preserves-dependent-read.hd`
   (has `expect-stdout` too; check that it covers this line). Fix: turn each
   into an `# expect-stdout:` header.
-- Plausible: `runtime/valid/track-caller-temporary-arguments.hd` (B3: string
-  lengths don't show freeing). `typing/invalid/void-final-method-named-debug-is-not-prelude-debug.hd`
-  (B1). `typing/valid/function-parameter-stored-in-a-local-through-a-reference.hd`
+- Plausible: `functions/call-site-locations/track-caller-temporary-arguments.hd` (B3: string
+  lengths don't show freeing). `functions/declarations/void-final-method-named-debug-is-not-prelude-debug.hd`
+  (B1). `functions/closures/function-parameter-stored-in-a-local-through-a-reference.hd`
   (B7: an accept case citing the error-only `fn.capture.local-store`).
-  `runtime/valid/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd`
+  `functions/closures/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd`
   ~ `capture-variable-cell.hd` (C1).
 
 ```python
@@ -1778,37 +1778,37 @@ for l in list(open('cases.tsv'))[1:]:
 
 Ledger: b069 (46): 5 rows. Plausible 5.
 
-- Plausible B2, **two problems on the marked line**: `typing/invalid/bound-reference-readonly-receiver.hd`.
+- Plausible B2, **two problems on the marked line**: `functions/function-types-and-values/method-references/bound-reference-readonly-receiver.hd`.
   When the marked `not-writable` problem is fixed (a `mut counter`), `hd`
   reports `local-reference-escapes` on the same return line. An
   implementation that checks escapes first gives a different code on the
   marked line and fails. Fix: take `counter: &Counter`, so only the
   readonly write is wrong (the reviewer tried this in a scratch copy).
-- Plausible B7: `typing/invalid/a-returned-bound-reference-to-a-local-escapes.hd`,
-  `typing/invalid/bound-reference-to-an-interior-place-is-local.hd` (cite
+- Plausible B7: `functions/function-types-and-values/method-references/a-returned-bound-reference-to-a-local-escapes.hd`,
+  `functions/function-types-and-values/method-references/bound-reference-to-an-interior-place-is-local.hd` (cite
   `fn.ref.bound.address`, which has no error).
-- Plausible B1: `typing/valid/trailing-bound-takes-the-bound-row.hd` and
-  `typing/valid/bound-closure-takes-the-bound-row.hd` (the bodies use no row key,
+- Plausible B1: `functions/trailing-callback-blocks/trailing-bound-takes-the-bound-row.hd` and
+  `functions/function-types-and-values/function-type-constructors/bound-closure-takes-the-bound-row.hd` (the bodies use no row key,
   so acceptance doesn't show the row is adopted; the runtime twin covers it).
 
 #### b070, b071 (`lang/07-functions.md`)
 
 Ledger: b070 (44): 2 rows. b071 (46): 0 rows.
 
-- **Expected output never checked (A16)**: `runtime/valid/known-consumer-mixed-loop-contexts.hd`
+- **Expected output never checked (A16)**: `functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd`
   (also found by script).
-- Plausible B4: `runtime/valid/inlined-function-result-variance.hd` (no `@inline`,
+- Plausible B4: `functions/function-types-and-values/passing-function-values/inlined-function-result-variance.hd` (no `@inline`,
   so inlining is the optimizer's choice and the title's claim is not forced).
 
 #### b072 (`lang/07-functions.md`)
 
 Ledger: b072 (41): 5 rows. Plausible 5.
 
-- Plausible C1: `typing/invalid/a-tuple-vararg-given-fewer-values-than-its-arity.hd` ~ `tuple-vararg-arity.hd`.
-- Plausible B7: `typing/invalid/local-reference-escapes-function-type-result-param-type-parameter-tuple.hd`
+- Plausible C1: `functions/parameters/a-tuple-vararg-given-fewer-values-than-its-arity.hd` ~ `tuple-vararg-arity.hd`.
+- Plausible B7: `functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-type-result-param-type-parameter-tuple.hd`
   (the cited rule's code is `type-mismatch`; the case expects `local-reference-escapes`).
-  `runtime/valid/literal-suffix-default-parameter.hd`.
-- Plausible B1: `runtime/valid/tuple-bound-vararg-call.hd`, `typing/invalid/function-result-representation-change.hd`.
+  `functions/function-types-and-values/literal-suffix-default-parameter.hd`.
+- Plausible B1: `functions/parameters/tuple-bound-vararg-call.hd`, `functions/function-types-and-values/passing-function-values/function-result-representation-change.hd`.
 
 #### b073 (`lang/07`, `lang/08`)
 
@@ -1816,7 +1816,7 @@ Ledger: b073 (38): 5 rows. Plausible 4, rejected 1.
 
 - Plausible B3: `data/construction-and-access/copy-update-evaluation-order.hd` (both bang calls are
   pure, so the output can't show the order).
-- Plausible B1: `typing/invalid/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-nested.hd`
+- Plausible B1: `functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-nested.hd`
   (rejected by `List` invariance, not by the weakening rule; the wrong-reason kind).
 - Already known: `nonfinal-spread.hd` (A2 duplicate; also a B7 lead).
   `nonfinal-vararg-declaration.hd` ~ `nonfinal-vararg-then-parameter.hd` (C1).
@@ -2581,7 +2581,7 @@ WEAKENED (some of the title's forms are gone):
 - `lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd`: Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
 - `lexical/operators-and-delimiters/compound-assignment-tokens.hd`: Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
 - `grammar/expressions/embedded-copy-syntax.hd`: Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
-- `parse/valid/functions-and-closures.hd`: Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
+- `functions/functions-and-closures.hd`: Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
 - `grammar/inline-conditions-and-headers.hd`: The negative-literal line after else joined to one line; the match arm and headers remain.
 - `lexical/whitespace-and-indentation/layout.hd`: Same-line fn bodies one_line and test became indented; same-line if remains.
 - `lexical/physical-and-logical-lines/leading-dot-continuation.hd`: Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.

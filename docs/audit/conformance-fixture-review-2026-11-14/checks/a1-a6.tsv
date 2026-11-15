@@ -6,7 +6,7 @@ trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row	A1	
 trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members	A1	identical to trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show
 trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller	A1	identical to trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it
 data/struct-declarations/mutable-field-modifier.hd	A2	same code (comments/directives stripped) as grammar/declarations/grammar-mutable-field-modifier.hd [reject:mutable-field-modifier] [reject:mutable-field-modifier]
-typing/invalid/nonfinal-spread.hd	A2	same code (comments/directives stripped) as grammar/expressions/positional-after-spread.hd [reject:nonfinal-positional-spread] [reject:nonfinal-positional-spread]
+functions/parameters/nonfinal-spread.hd	A2	same code (comments/directives stripped) as grammar/expressions/positional-after-spread.hd [reject:nonfinal-positional-spread] [reject:nonfinal-positional-spread]
 names/module-scope/forward-module-binding.hd	A2	same code (comments/directives stripped) as names/module-scope/exec-binding-read-before-declared.hd [reject:binding-not-yet-visible] [reject:binding-not-yet-visible]
 typing/invalid/tuple-rest-differs-from-plain.hd	A2	same code (comments/directives stripped) as typing/invalid/tuple-rest-assign.hd [reject:type-mismatch] [reject:type-mismatch]
 requirements/provider-scopes/generic-requirement-key-collision.hd	A2	same code (comments/directives stripped) as requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd [reject:generic-requirement-key-collision] [reject:generic-requirement-key-collision]
@@ -126,7 +126,7 @@ typing/invalid/newtype-callback-cannot-capture-a-local-reference.hd	A3	typing/in
 typing/invalid/variant-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/variant-trailing-block-cannot-capture-a-local-reference.hd
 typing/invalid/impl-trait-method-dyn-mut-call.hd	A3	typing/invalid/impl-trait-method-dyn-reference.hd
 typing/invalid/impl-trait-recursive.hd	A3	typing/invalid/impl-trait-nested-recursive-only.hd
-typing/invalid/impl-trait-return-mismatch.hd	A3	typing/invalid/impl-trait-return-void-mismatch.hd
+functions/declarations/impl-trait-return-mismatch.hd	A3	functions/declarations/impl-trait-return-void-mismatch.hd
 annotations/typed-derivation/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced.hd	A3	annotations/typed-derivation/misplaced-derivation-a-member-line-in-a-template-is-misplaced.hd
 typing/invalid/literal-types-a-plus-literal-settled-by-a-method-call-is-i32.hd	A3	typing/invalid/literal-types-a-negated-literal-cannot-become-unsigned.hd
 typing/invalid/literal-types-a-minute-duration-literal-past-the-range-is-rejected.hd	A3	typing/invalid/literal-types-an-hour-duration-literal-past-the-range-is-rejected.hd
@@ -391,23 +391,23 @@ std/collections/list-methods/list-slice-negative-literal.hd	A3	std/collections/l
 typing/invalid/slicing-a-slice-is-not-a-place-list-full.hd	A3	typing/invalid/slicing-a-slice-is-not-a-place-range-value.hd
 typing/invalid/slicing-a-slice-is-not-a-place-list-full.hd	A3	typing/invalid/slicing-a-slice-is-not-a-place-string-range.hd
 typing/invalid/slicing-a-slice-is-not-a-place-range-value.hd	A3	typing/invalid/slicing-a-slice-is-not-a-place-string-range.hd
-typing/invalid/suspending-fn-weaken-the-reverse-conversion-is-a-type-mismatch-constructor-form.hd	A3	typing/invalid/suspending-fn-weaken-the-reverse-conversion-is-a-type-mismatch-returned-function.hd
-typing/invalid/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-result.hd	A3	typing/invalid/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-row.hd
+functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-reverse-conversion-is-a-type-mismatch-constructor-form.hd	A3	functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-reverse-conversion-is-a-type-mismatch-returned-function.hd
+functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-result.hd	A3	functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-row.hd
 typing/invalid/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-literal-item.hd	A3	typing/invalid/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-spread-short.hd
 typing/invalid/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-literal-item.hd	A3	typing/invalid/tuple-rest-a-tuple-spread-takes-a-list-of-the-rest-items-spread-item.hd
 typing/invalid/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-spread-short.hd	A3	typing/invalid/tuple-rest-a-tuple-spread-takes-a-list-of-the-rest-items-spread-item.hd
 typing/invalid/tuple-rest-selection-past-the-tuple-is-unknown-fixed.hd	A3	typing/invalid/tuple-rest-selection-past-the-tuple-is-unknown-rest.hd
 runtime/valid/type-name-forms-a-generic-newtype-unwraps-to-its-base-with-inferred-arguments.hd	A3	runtime/valid/type-name-forms-a-primitive-constructor-still-unwraps-a-newtype.hd
 runtime/valid/type-name-forms-a-primitive-constructor-still-unwraps-a-newtype.hd	A3	runtime/valid/type-name-forms-an-alias-unwraps-to-the-type-it-names.hd
-typing/valid/varargs-a-vararg-may-follow-a-plain-parameter-as-the-last-one.hd	A3	typing/valid/varargs-a-function-type-may-take-a-rest-list.hd
-typing/valid/varargs-a-vararg-may-follow-a-plain-parameter-as-the-last-one.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-list.hd
-typing/valid/varargs-a-vararg-may-follow-a-plain-parameter-as-the-last-one.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-tuple.hd
-typing/valid/varargs-a-function-type-may-take-a-rest-list.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-list.hd
-typing/valid/varargs-a-function-type-may-take-a-rest-list.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-tuple.hd
-typing/valid/varargs-a-function-type-may-take-a-rest-list.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-tuple-bound-type-parameter.hd
-typing/valid/varargs-a-vararg-parameter-may-take-a-list.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-tuple.hd
-typing/valid/varargs-a-vararg-parameter-may-take-a-list.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-tuple-bound-type-parameter.hd
-typing/valid/varargs-a-vararg-parameter-may-take-a-tuple.hd	A3	typing/valid/varargs-a-vararg-parameter-may-take-a-tuple-bound-type-parameter.hd
+functions/parameters/varargs-a-vararg-may-follow-a-plain-parameter-as-the-last-one.hd	A3	functions/parameters/varargs-a-function-type-may-take-a-rest-list.hd
+functions/parameters/varargs-a-vararg-may-follow-a-plain-parameter-as-the-last-one.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-list.hd
+functions/parameters/varargs-a-vararg-may-follow-a-plain-parameter-as-the-last-one.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple.hd
+functions/parameters/varargs-a-function-type-may-take-a-rest-list.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-list.hd
+functions/parameters/varargs-a-function-type-may-take-a-rest-list.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple.hd
+functions/parameters/varargs-a-function-type-may-take-a-rest-list.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple-bound-type-parameter.hd
+functions/parameters/varargs-a-vararg-parameter-may-take-a-list.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple.hd
+functions/parameters/varargs-a-vararg-parameter-may-take-a-list.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple-bound-type-parameter.hd
+functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple.hd	A3	functions/parameters/varargs-a-vararg-parameter-may-take-a-tuple-bound-type-parameter.hd
 typing/invalid/tuple-template-bounds-a-map-key-field-with-a-float-tuple-member-is-an-unmet-bound.hd	A3	typing/invalid/tuple-template-bounds-a-function-member-is-no-map-key.hd
 typing/invalid/tuple-template-bounds-a-map-key-field-with-a-float-tuple-member-is-an-unmet-bound.hd	A3	typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-map-key.hd
 typing/invalid/tuple-template-bounds-a-map-key-field-with-a-float-tuple-member-is-an-unmet-bound.hd	A3	typing/invalid/tuple-template-bounds-a-rest-list-of-floats-is-no-map-key.hd
@@ -457,12 +457,12 @@ std/collections/set/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd
 std/collections/set/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	std/collections/set/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
 std/collections/set/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	std/collections/set/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
 names/module-scope/sibling-module-type-not-imported.hd	A3	names/module-scope/sibling-module-alias-not-imported.hd
-typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd
-typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
-typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
-typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
-typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
-typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
+functions/generic-functions/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	functions/generic-functions/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd
+functions/generic-functions/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	functions/generic-functions/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
+functions/generic-functions/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	functions/generic-functions/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
+functions/generic-functions/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd	A3	functions/generic-functions/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
+functions/generic-functions/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd	A3	functions/generic-functions/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
+functions/generic-functions/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd	A3	functions/generic-functions/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
 control-flow/match-expressions/match-an-unsolved-match-scrutinee-reports-once.hd	A3	control-flow/match-expressions/match-an-unsolved-scrutinee-binds-nested-names-without-a-second-error.hd
 control-flow/blocks-and-completion/void-final-a-literal-tail-in-a-void-function-is-one-error.hd	A3	control-flow/blocks-and-completion/void-final-a-call-tail-in-a-void-function-is-one-error.hd
 typing/invalid/bare-trait-a-trait-as-a-closure-parameter-type-is-one-error.hd	A3	typing/invalid/bare-trait-a-trait-as-a-closure-result-type-is-one-error.hd
@@ -1137,10 +1137,10 @@ typing/valid/unary-minus-on-an-f32-parameter-is-valid.hd	A3	typing/valid/unary-m
 typing/valid/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	A3	typing/valid/prelude-a-function-named-identity-shadows-no-prelude-name.hd
 typing/valid/prelude-a-lowercase-console-parameter-shadows-no-prelude-name.hd	A3	typing/valid/prelude-a-parameter-named-name-shadows-no-prelude-name.hd
 typing/valid/prelude-a-function-named-identity-shadows-no-prelude-name.hd	A3	typing/valid/prelude-a-parameter-named-name-shadows-no-prelude-name.hd
-typing/valid/declarations-a-private-function-may-omit-its-result-type.hd	A3	typing/valid/declarations-a-public-function-declares-its-result-type.hd
-typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	A3	typing/valid/declarations-a-public-method-declares-its-result-type.hd
-typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	A3	typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd
-typing/valid/declarations-a-public-method-declares-its-result-type.hd	A3	typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd
+functions/declarations/declarations-a-private-function-may-omit-its-result-type.hd	A3	functions/declarations/declarations-a-public-function-declares-its-result-type.hd
+functions/declarations/declarations-a-private-method-may-omit-its-result-type.hd	A3	functions/declarations/declarations-a-public-method-declares-its-result-type.hd
+functions/declarations/declarations-a-private-method-may-omit-its-result-type.hd	A3	functions/declarations/declarations-a-trait-impl-method-declares-its-result-type.hd
+functions/declarations/declarations-a-public-method-declares-its-result-type.hd	A3	functions/declarations/declarations-a-trait-impl-method-declares-its-result-type.hd
 names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A3	names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd
 names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	A3	names/function-and-closure-scopes/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd
 annotations/typed-derivation/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd	A3	annotations/typed-derivation/misplaced-derivation-a-trait-less-block-may-give-member-and-self-lines.hd
@@ -1189,7 +1189,7 @@ typing/invalid/integer-narrowing.hd	A3	typing/invalid/implicit-narrowing-i64.hd
 typing/invalid/heterogeneous-list.hd	A3	typing/invalid/heterogeneous-list-bool-int.hd
 typing/invalid/heterogeneous-list.hd	A3	typing/invalid/heterogeneous-map-values.hd
 typing/invalid/heterogeneous-list-bool-int.hd	A3	typing/invalid/heterogeneous-map-values.hd
-typing/valid/generic-functions-a-type-parameter-solved-by-the-expected-type-is-inferred.hd	A3	typing/valid/generic-functions-a-type-parameter-with-a-default-takes-it-when-unsolved.hd
+functions/generic-functions/generic-functions-a-type-parameter-solved-by-the-expected-type-is-inferred.hd	A3	functions/generic-functions/generic-functions-a-type-parameter-with-a-default-takes-it-when-unsolved.hd
 control-flow/blocks-and-completion/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-pass.hd
 control-flow/blocks-and-completion/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-return.hd
 control-flow/blocks-and-completion/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-a-panic.hd
@@ -1235,9 +1235,9 @@ runtime/panic/assert-equal-f64-unequal.hd	A3	runtime/panic/assert-equal-string-u
 runtime/panic/assert-equal-list-unequal.hd	A3	runtime/panic/assert-equal-string-unequal.hd
 runtime/panic/assert-failure-in-main.hd	A3	runtime/panic/assert-equal-lists-in-main.hd
 typing/invalid/initialization-implicit-an-equality-reads-a-later-binding-through-eq.hd	A3	typing/invalid/optional-none-comparison-still-checks-eq-initialization.hd
-typing/invalid/nonfinal-vararg-declaration.hd	A3	typing/invalid/nonfinal-vararg-then-parameter.hd
+functions/parameters/nonfinal-vararg-declaration.hd	A3	functions/parameters/nonfinal-vararg-then-parameter.hd
 typing/invalid/function-result-type-mismatch.hd	A3	typing/invalid/top-level-let-annotation-type-mismatch.hd
-runtime/valid/inferred-results-recursion-through-an-annotated-function-is-valid.hd	A3	typing/valid/omitted-result-cycle-one-annotated.hd
+functions/declarations/inferred-results-recursion-through-an-annotated-function-is-valid.hd	A3	functions/declarations/omitted-result-cycle-one-annotated.hd
 typing/invalid/readonly-list-append.hd	A3	typing/invalid/readonly-map-remove.hd
 typing/warnings/unused-nested-optional-binding.hd	A3	typing/valid/contextual-some-constructor.hd
 grammar/generic-parameters-and-bounds/reified-generic-parameter.hd	A3	grammar/generic-parameters-and-bounds/generic-parameter-ellipsis.hd
@@ -1405,7 +1405,7 @@ typing/invalid/least-common-type-generic-arguments-of-a-trait-value-and-a-struct
 typing/invalid/least-common-type-generic-arguments-of-a-trait-value-and-a-struct-have-no-common-type.hd	A3	typing/invalid/least-common-type-named-generic-arguments-of-a-trait-value-and-a-struct-have-no-common-type.hd
 typing/invalid/least-common-type-generic-arguments-of-a-trait-value-and-a-subtrait-value-have-no-common-type.hd	A3	typing/invalid/least-common-type-named-generic-arguments-of-a-trait-value-and-a-struct-have-no-common-type.hd
 grammar/types/mut-function-type.hd	A3	grammar/types/mut-suspend-type.hd
-typing/invalid/function-type-non-tuple-inputs.hd	A3	typing/invalid/function-type-unbounded-inputs.hd
+functions/function-types-and-values/function-type-constructors/function-type-non-tuple-inputs.hd	A3	functions/function-types-and-values/function-type-constructors/function-type-unbounded-inputs.hd
 annotations/typed-derivation/the-structure-trait/structure-outside-template.hd	A3	annotations/typed-derivation/the-structure-trait/an-impl-structure-parameter-is-outside-a-template.hd
 annotations/typed-derivation/derivation-blocks/self-cannot-be-omitted-in-a-member-line.hd	A3	annotations/typed-derivation/derivation-blocks/extending-a-member-line-cannot-take-pass.hd
 annotations/typed-derivation/walkers-describers-and-sources/generic-data-member-call.hd	A3	annotations/typed-derivation/walkers-describers-and-sources/generic-member-call.hd
@@ -1454,7 +1454,7 @@ requirements/requirement-rows/row-aliases/row-alias-as-type.hd	A3	requirements/r
 requirements/requirement-rows/row-aliases/row-alias-in-use.hd	A3	requirements/requirement-rows/row-aliases/row-alias-type-argument.hd
 requirements/requirement-rows/row-aliases/row-alias-type-argument.hd	A3	requirements/requirement-rows/row-aliases/row-alias-explicit-type-argument.hd
 requirements/requirement-rows/row-aliases/row-alias-bare-target.hd	A3	requirements/requirement-rows/row-aliases/row-alias-bare-alias.hd
-typing/invalid/trait-method-missing-result-type.hd	A3	typing/invalid/trait-default-method-missing-result-type.hd
+functions/declarations/trait-method-missing-result-type.hd	A3	functions/declarations/trait-default-method-missing-result-type.hd
 typing/invalid/list-call-not-callable.hd	A3	typing/invalid/call-through-nonfunction-reference.hd
 typing/invalid/only-apply-and-update-make-a-value-callable-store.hd	A3	typing/invalid/a-function-call-is-not-a-place-stored.hd
 typing/invalid/a-local-row-default-cannot-name-itself.hd	A3	typing/invalid/a-local-row-default-cannot-name-a-later-parameter.hd
@@ -1505,7 +1505,7 @@ std/collections/list-methods/list-slice-out-of-range.hd	A3	std/collections/list-
 typing/invalid/unknown-std-name.hd	A3	typing/invalid/unknown-package-name.hd
 requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd
 requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-a-body-row-slot-is-one-kind-error.hd
-typing/invalid/row-slot-bare-explicit-key.hd	A3	typing/invalid/row-slot-bare-explicit-alias.hd
+functions/generic-functions/row-slot-bare-explicit-key.hd	A3	functions/generic-functions/row-slot-bare-explicit-alias.hd
 typing/invalid/private-std-function.hd	A3	typing/invalid/private-std-type.hd
 typing/invalid/std-only-use.hd	A3	typing/invalid/std-only-use-size-of.hd
 typing/warnings/private-main.hd	A3	typing/warnings/private-main-suspending.hd
@@ -1961,12 +1961,12 @@ typing/invalid/self-in-a-parameter-is-unavailable-through-a-key.hd	A3	typing/inv
 typing/invalid/self-in-a-result-is-unavailable-through-a-key.hd	A3	typing/invalid/self-in-a-list-is-unavailable-through-a-key.hd
 typing/invalid/self-in-a-result-is-unavailable-through-a-key.hd	A3	typing/invalid/self-in-a-function-type-is-unavailable-through-a-key.hd
 typing/invalid/self-in-a-list-is-unavailable-through-a-key.hd	A3	typing/invalid/self-in-a-function-type-is-unavailable-through-a-key.hd
-typing/invalid/too-many-type-arguments-are-an-argument-count-error-function.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd
-typing/invalid/too-many-type-arguments-are-an-argument-count-error-function.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd
-typing/invalid/too-many-type-arguments-are-an-argument-count-error-function.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
-typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd
-typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
-typing/invalid/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd	A3	typing/invalid/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
+functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-function.hd	A3	functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd
+functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-function.hd	A3	functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd
+functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-function.hd	A3	functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
+functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd	A3	functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd
+functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-associated-bang.hd	A3	functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
+functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-associated-plain.hd	A3	functions/generic-functions/too-many-type-arguments-are-an-argument-count-error-method-bang.hd
 typing/invalid/a-typed-key-without-an-implementation-is-an-error-signed.hd	A3	typing/invalid/a-typed-key-without-an-implementation-is-an-error-narrow.hd
 annotations/typed-derivation/derivation-blocks/member-line-lists-block-with-no-trait-takes-a-name-a-call-and-a-concatenation.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-derivation-block-takes-a-name-a-call-and-a-concatenation.hd
 annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-name.hd	A3	annotations/typed-derivation/derivation-blocks/member-line-lists-a-value-that-is-not-a-list-is-one-invalid-member-line-call.hd
@@ -2006,7 +2006,7 @@ typing/invalid/dependent-result-ambiguous-unused.hd	A3	typing/invalid/dependent-
 typing/invalid/dependent-result-implicit-counted-field-origin.hd	A3	typing/invalid/dependent-result-explicit-counted-field-origin.hd
 typing/invalid/dependent-result-implicit-counted-field-origin.hd	A3	typing/invalid/dependent-result-contextual-tuple-counted-field-origin.hd
 typing/invalid/dependent-result-explicit-counted-field-origin.hd	A3	typing/invalid/dependent-result-contextual-tuple-counted-field-origin.hd
-typing/invalid/opaque-named-variant-payload-keeps-its-hidden-type.hd	A3	typing/invalid/opaque-spread-variant-payload-keeps-its-hidden-type.hd
+functions/declarations/opaque-named-variant-payload-keeps-its-hidden-type.hd	A3	functions/declarations/opaque-spread-variant-payload-keeps-its-hidden-type.hd
 runtime/panic/never-call-argument.hd	A3	runtime/panic/never-binary-operand.hd
 runtime/panic/never-call-argument.hd	A3	runtime/panic/never-list-element.hd
 runtime/panic/never-call-argument.hd	A3	runtime/panic/never-interpolation-part.hd
@@ -2018,26 +2018,26 @@ typing/valid/result-path-through-reference-caller.hd	A3	typing/valid/result-path
 typing/invalid/result-path-through-reference-write.hd	A3	typing/invalid/result-path-through-reference-replace.hd
 typing/invalid/lifetime-store-other-lifetime.hd	A3	typing/invalid/lifetime-store-unnamed-lifetime.hd
 typing/invalid/lifetime-return-unshared-parameter.hd	A3	typing/invalid/lifetime-return-other-variable.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-store.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-function-result.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-store.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-function-result.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-store.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-store.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-list-element-field.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
-typing/invalid/local-reference-escapes-function-value-written-lifetime-in-tuple.hd	A3	typing/invalid/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-store.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-store.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-store.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-store.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-list-element-field.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-list-element-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-elided.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-result-field-through-reference.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-function-result.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
+functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-tuple.hd	A3	functions/function-types-and-values/lifetimes-in-function-types/local-reference-escapes-function-value-written-lifetime-in-list-element.hd
 typing/invalid/local-reference-escapes-type-parameter-whole-result.hd	A3	typing/invalid/local-reference-escapes-type-parameter-whole-function-value.hd
 typing/invalid/local-reference-escapes-whole-place-store-call.hd	A3	typing/invalid/local-reference-escapes-whole-place-function-value.hd
 typing/invalid/local-reference-escapes-whole-place-store-call.hd	A3	typing/invalid/local-reference-escapes-whole-place-assign.hd
@@ -2173,7 +2173,7 @@ runtime/valid/resource-disposed-result.hd	A4	runtime accept with no assert, stdo
 runtime/valid/resource-handle-inherits-methods.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/no-entry-point-no-tests.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/result-entry-point-ok.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/fn-trailing-bound.hd	A4	runtime accept with no assert, stdout check, or scenario
+functions/trailing-callback-blocks/fn-trailing-bound.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/test-expect-panic.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/test-body-explicit-closure.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/it-each-options.hd	A4	runtime accept with no assert, stdout check, or scenario
@@ -2208,5 +2208,5 @@ runtime/valid/field-move-after-local-borrow.hd	A4	runtime accept with no assert,
 runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	A4	runtime accept with no assert, stdout check, or scenario
 std/collections/uniqlist/uniq-list-field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/boundary-fieldless-struct-crosses.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/known-closure-consumers-preserve-captures.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/known-consumer-mixed-loop-contexts.hd	A4	runtime accept with no assert, stdout check, or scenario
+functions/closures/known-closure-consumers-preserve-captures.hd	A4	runtime accept with no assert, stdout check, or scenario
+functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd	A4	runtime accept with no assert, stdout check, or scenario
