@@ -121,7 +121,7 @@ test("editor token classes match classify on the examples and runtime fixtures",
     "examples/core.hd",
     "examples/suspension.hd",
     "spec/conformance/requirements/provider-scopes/context-values-install-providers.hd",
-    "spec/conformance/runtime/valid/propagation-from-two-domains.hd",
+    "spec/conformance/expressions/postfix-expressions/propagation/propagation-from-two-domains.hd",
     "spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd",
     "spec/conformance/modules/prelude/println-console-stdout.hd",
     ...[

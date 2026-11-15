@@ -1326,21 +1326,21 @@ Ledger: b036 (44): 7 rows. Covered by A2 1, plausible 6.
 
 Ledger: b040 (44): 4 rows. Covered by A10 1, plausible 2, spec question 1.
 
-- **Spec question**: `typing/invalid/a-compound-store-reads-through-apply-compound.hd`
+- **Spec question**: `expressions/postfix-expressions/calls/a-compound-store-reads-through-apply-compound.hd`
   expects `type-mismatch` for `sink() += 1`, and `hd` agrees. But the cited
   `#callable-values` section never states that code for a compound store; A9
   flags it too. The spec should say what a compound store through `Apply`
   reports.
 - `…-72-legal.hd`: the A10 class (the identity return touches nothing the
   title names).
-- Plausible: `typing/invalid/only-apply-and-update-make-a-value-callable-store.hd`
-  (B7). `typing/valid/a-store-and-a-compound-store-check.hd` ~ `typing/valid/callable-values.hd` (C1).
+- Plausible: `expressions/postfix-expressions/calls/only-apply-and-update-make-a-value-callable-store.hd`
+  (B7). `expressions/postfix-expressions/calls/a-store-and-a-compound-store-check.hd` ~ `expressions/postfix-expressions/calls/callable-values.hd` (C1).
 
 #### b042 (`lang/05-expressions.md`)
 
 Ledger: b042 (40): 1 row. Plausible 1. A clean batch.
 
-- Plausible B7: `runtime/valid/write-line-suspending-call-argument.hd` cites
+- Plausible B7: `expressions/primary-expressions/write-line-suspending-call-argument.hd` cites
   `#literals`; the suspending call inside the interpolation is `req.suspend.bang`.
 
 #### b041, b043 (`lang/05-expressions.md`)
@@ -1348,13 +1348,13 @@ Ledger: b042 (40): 1 row. Plausible 1. A clean batch.
 Ledger: b041 (28): 3 rows. b043 (45): 4 rows. Confirmed 3 (title class), plausible 4.
 
 - **An accept case titled as a rejection (B1)**: `typing/valid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-{96,97}.hd`
-  and `typing/valid/propagation-an-ordinary-function-may-propagate-with-a-query.hd`.
+  and `expressions/postfix-expressions/propagation/propagation-an-ordinary-function-may-propagate-with-a-query.hd`.
   The same kind as A10, without the `-legal` suffix. See A10b below.
-- Plausible: `runtime/valid/compound-assign-index-once.hd` (the title promises
-  two things it never exercises). `runtime/valid/power-and-remainder-edges.hd`
+- Plausible: `expressions/expression-categories/compound-assign-index-once.hd` (the title promises
+  two things it never exercises). `expressions/unary-and-binary-operators/exponentiation/power-and-remainder-edges.hd`
   (exact float asserts where `expr.power.float.within-ulp` allows 1 ULP; a
-  portability risk). `runtime/valid/short-circuit-and-conditional-evaluation.hd`
-  (cites `!` rules but never uses `!`). `runtime/panic/counted-index-guards-keep-out-of-range-panics.hd`
+  portability risk). `expressions/evaluation-order/short-circuit-and-conditional-evaluation.hd`
+  (cites `!` rules but never uses `!`). `expressions/postfix-expressions/indexing/counted-index-guards-keep-out-of-range-panics.hd`
   (the marker is on the caller's line; the b018 owner question).
 A10b: accept fixtures whose title equals a reject fixture's title:       87. Script inline in the log section above (a10b).
 
@@ -1362,34 +1362,34 @@ A10b: accept fixtures whose title equals a reject fixture's title:       87. Scr
 
 Ledger: b044 (36): 6 rows. Covered by A10 1, plausible 4, unverified 1.
 
-- `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd`: the A10 class,
+- `expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd`: the A10 class,
   and it also cites the error-only `expr.call.duplicate`.
-- Plausible: `runtime/valid/callable-values-run.hd` ("a child reads a copy" is
-  untested). `typing/invalid/vararg-by-name-and-positional.hd` (B7).
-  `typing/invalid/positional-spread-duplicates-vararg.hd` ~
+- Plausible: `expressions/postfix-expressions/calls/callable-values-run.hd` ("a child reads a copy" is
+  untested). `expressions/postfix-expressions/calls/vararg-by-name-and-positional.hd` (B7).
+  `expressions/postfix-expressions/calls/positional-spread-duplicates-vararg.hd` ~
   `separate-values-then-a-spread-duplicate-a-vararg.hd` (C1).
 
 #### b045 (`lang/05-expressions.md`)
 
 Ledger: b045 (45): 3 rows. Plausible 3.
 
-- Plausible B1: `typing/valid/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd`
+- Plausible B1: `expressions/unary-and-binary-operators/equality/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd`
   writes `*a == b`, which dereferences first, so a reference compared with a
   value is never tested.
-- Plausible B7: `runtime/panic/list-index-underflow.hd` (the panic is
+- Plausible B7: `expressions/postfix-expressions/indexing/list-index-underflow.hd` (the panic is
   `integer-overflow` from `i - 1`, yet it cites `expr.index.list.unsigned`).
-- Plausible C1: `typing/valid/float-remainder.hd` is covered by `runtime/valid/float-remainder-run.hd`.
+- Plausible C1: `expressions/unary-and-binary-operators/floating-point-arithmetic/float-remainder.hd` is covered by `expressions/unary-and-binary-operators/floating-point-arithmetic/float-remainder-run.hd`.
 
 #### b046 (`lang/05-expressions.md`, indexing)
 
 Ledger: b046 (46): 4 rows. Plausible 4 (the panic-marker owner question 1, C1 2, B3 1).
 
-- `runtime/panic/index-trait-map-missing.hd`: the panic marker is on the caller's
+- `expressions/postfix-expressions/indexing/index-trait-map-missing.hd`: the panic marker is on the caller's
   line (the b018 owner question).
-- Plausible C1: `typing/valid/index-trait-literal-key-default.hd` and
-  `typing/valid/index-trait-tuple-key.hd` are covered by runtime cases with
+- Plausible C1: `expressions/postfix-expressions/indexing/index-trait-literal-key-default.hd` and
+  `expressions/postfix-expressions/indexing/index-trait-tuple-key.hd` are covered by runtime cases with
   the same program plus value checks. See A13.
-- Plausible B3: `runtime/valid/index-builtin-receivers-direct.hd`.
+- Plausible B3: `expressions/postfix-expressions/indexing/index-builtin-receivers-direct.hd`.
 
 **Script check A13** (`a13_type_in_runtime.py`, output `full/a13.tsv`): a
 `type` accept case whose code lines all appear in one `runtime` accept case,
@@ -1437,10 +1437,10 @@ under test:
   `data/data-embedding/data-embedding.hd`, `functions/functions-and-closures.hd`,
   `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
   `std/json/parsing/json-number-grammar.hd`, `modules/module-initialization/module-initialization-before-main.hd`,
-  `typing/valid/composite-ordering.hd`, `data/construction-and-access/data-types.hd`,
+  `expressions/unary-and-binary-operators/composite-ordering.hd`, `data/construction-and-access/data-types.hd`,
   `data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd`,
   `data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd`: trailing commas removed.
-- `runtime/valid/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
+- `expressions/primary-expressions/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
   became `time.s`, so it is now a duplicate of `module-qualified-function-value.hd`),
   `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`, and
   **`grammar/statements/grammar-assignment-nonplace.hd`**, a reject case: parentheses removed.
@@ -1481,26 +1481,26 @@ Ledger: b047 (44): 2. b048 (40): 1. b049 (45): 8. b050 (43): 9. b051 (37): 3.
 b052 (38): 5. b053 (49): 8. Highlights below; the rest are plausible B1/B7
 rows in the TSVs.
 
-- **Formatter**: `runtime/valid/module-qualified-function-value-parenthesized.hd` (A7b).
-- **A check that cannot fail (B3)**: `runtime/valid/identity-ignores-permissions.hd`.
+- **Formatter**: `expressions/primary-expressions/module-qualified-function-value-parenthesized.hd` (A7b).
+- **A check that cannot fail (B3)**: `expressions/unary-and-binary-operators/identity-ignores-permissions.hd`.
   It only asserts `!same(...)`, so an `is` that is always false passes. It
   needs a positive case.
-- **Rejected for the wrong reason (B2), plausible**: `typing/invalid/identity-operands-a-literal-operand-has-no-identity.hd`
+- **Rejected for the wrong reason (B2), plausible**: `expressions/unary-and-binary-operators/identity-operands-a-literal-operand-has-no-identity.hd`
   (the error names `a: User`, a value, not the literal; use `a: &User`).
 - **Title doesn't match the code (B1), plausible**: `…-an-unbounded-type-parameter-has-no-identity-115.hd`
   (`T < Named` is bounded). `…-a-trait-value-needs-the-other-type-to-convert-122.hd`
-  (no trait value). `runtime/valid/logical-operators.hd`. `typing/valid/tuple-element-push.hd`
+  (no trait value). `expressions/unary-and-binary-operators/logical-operators.hd`. `expressions/expression-categories/tuple-element-push.hd`
   (a type case claiming a runtime effect). `typing/invalid/tuple-rest-…-not-assignable.hd`
   (only enum `_0` is assigned).
 - **A panic that cannot fire (B1), plausible**: `runtime/panic/power-…-panics-04.hd`.
   Base `2` defaults to `usize`, so `2 ** 32` does not overflow on a 64-bit
   `usize`. This is another target-dependent case.
-- **Warnings not checked**: `typing/warnings/unsigned-comparison-countdown.hd` and
+- **Warnings not checked**: `expressions/unary-and-binary-operators/ordering/unsigned-comparison-countdown.hd` and
   `-explicit.hd` are accept cases (A6). The spec example says they warn
   `unsigned-comparison-always`, and `hd check` gives 0 warnings, so the lint
   may be unimplemented.
 - **Exact float asserts against a 1-ULP rule (B7), plausible**:
-  `runtime/valid/floating-power.hd`, `runtime/valid/power-float-powers-follow-ieee-pow.hd`
+  `expressions/unary-and-binary-operators/floating-power.hd`, `expressions/unary-and-binary-operators/exponentiation/power-float-powers-follow-ieee-pow.hd`
   (b041's `power-and-remainder-edges.hd` too). `expr.power.float.within-ulp`
   allows 1 ULP, so exact `==` on non-special inputs ties the fixtures to one
   libm.
@@ -1531,9 +1531,9 @@ Ledger: b054 (45): 6 rows. Covered by A6 2, plausible 4.
   show "check stays silent", but in a directory that promises a warning, and
   citing the lint rule. The owner should decide whether they move to
   `typing/valid/` or become `cli/` lint cases.
-- Plausible C1: `typing/invalid/signed-exponent.hd` ~ `signed-integer-exponent.hd`.
-- Plausible B1: `typing/valid/operators-arithmetic-and-bitwise-operators-apply-to-standard-integer-types.hd`
-  (no impl targets). `typing/invalid/identity-operands-an-integer-against-another-struct-is-one-error.hd`
+- Plausible C1: `expressions/unary-and-binary-operators/signed-exponent.hd` ~ `signed-integer-exponent.hd`.
+- Plausible B1: `expressions/unary-and-binary-operators/operators-arithmetic-and-bitwise-operators-apply-to-standard-integer-types.hd`
+  (no impl targets). `expressions/unary-and-binary-operators/identity-operands-an-integer-against-another-struct-is-one-error.hd`
   (both operands are values; b053 found the same in `-103` and `-104`, so this
   series probably shares one bug). `control-flow/control-flow.hd` (a type case
   claiming laziness).
@@ -1550,9 +1550,9 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `control-flow/match-expressions/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `control-flow/match-expressions/bare-ok-call-pattern.hd` (b056)
 - `control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `control-flow/match-expressions/duplicate-data-pattern-field.hd`
 - `control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `control-flow/match-expressions/variant-pattern-unknown-field.hd` (b057)
-- `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
+- `expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
-- `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
+- `expressions/postfix-expressions/propagation/propagation-without-target.hd` = `expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd`
 - `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)
 - `typing/valid/shared-reference-disjoint-field-write.hd` = `typing/valid/dependent-result-borrow-field-instead.hd`
 
@@ -2567,7 +2567,7 @@ version fixes it:
 - `lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
 - `lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd`: The := chain with a leading .size line is now one line; no such chain remains.
 - `grammar/statements/let-after-same-line-if-keeps-else.hd`: Same-line if ... let ... else forms became indented; no same-line if with let remains.
-- `runtime/valid/module-qualified-function-value-parenthesized.hd`: Parenthesized (time.s) became time.s; the parenthesized function value is gone.
+- `expressions/primary-expressions/module-qualified-function-value-parenthesized.hd`: Parenthesized (time.s) became time.s; the parenthesized function value is gone.
 - `lexical/whitespace-and-indentation/no-final-line-ending.hd`: A final line ending was added; the file no longer ends without one.
 - `lexical/operators-and-delimiters/operators-longest-match.hd`: Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
 - `grammar/statements/same-line-suite-body-forms.hd`: Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.

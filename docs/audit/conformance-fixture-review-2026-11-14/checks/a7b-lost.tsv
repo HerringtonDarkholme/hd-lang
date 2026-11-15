@@ -12,10 +12,10 @@ lexical/processing-model/utf8-bom.hd	A7b	lost '\ufeff' gained ''	lang/01-lexical
 lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd	A7b	lost ',,,' gained ''	lang/01-lexical-structure.md#r-lex.continue.delimiters
 std/json/parsing/json-number-grammar.hd	A7b	lost ',' gained ''	std/json.md#r-std-json.parse.number.grammar
 modules/module-initialization/module-initialization-before-main.hd	A7b	lost ',' gained ''	lang/10-modules.md#module-initialization
-runtime/valid/module-qualified-function-value-parenthesized.hd	A7b	lost '()' gained ''	lang/05-expressions.md#r-expr.name.qualified
+expressions/primary-expressions/module-qualified-function-value-parenthesized.hd	A7b	lost '()' gained ''	lang/05-expressions.md#r-expr.name.qualified
 grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd	A7b	lost ',,,,,,,,,,,,,,,,,' gained ''	lang/02-grammar.md#r-grammar.generic.default.type-row
 grammar/statements/grammar-assignment-nonplace.hd	A7b	lost '()' gained ''	lang/02-grammar.md#r-grammar.stmt.assign-place
-typing/valid/composite-ordering.hd	A7b	lost ',' gained ''	lang/05-expressions.md#unary-and-binary-operators
+expressions/unary-and-binary-operators/composite-ordering.hd	A7b	lost ',' gained ''	lang/05-expressions.md#unary-and-binary-operators
 data/construction-and-access/data-types.hd	A7b	lost ',,' gained ''	lang/08-data-and-enums.md#construction-and-access
 data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#construction-and-access
 data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#data-embedding

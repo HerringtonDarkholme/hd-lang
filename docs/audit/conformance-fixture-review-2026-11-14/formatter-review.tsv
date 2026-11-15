@@ -92,7 +92,7 @@ lexical/literals/literal-suffix-calls.hd	HARMLESS
 grammar/source-files-and-suites/local-declarations-in-block-suites.hd	HARMLESS	
 grammar/source-files-and-suites/long-else-if-chain.hd	HARMLESS	
 modules/module-initialization/module-initialization-before-main.hd	HARMLESS	
-runtime/valid/module-qualified-function-value-parenthesized.hd	ERASED	Parenthesized (time.s) became time.s; the parenthesized function value is gone.
+expressions/primary-expressions/module-qualified-function-value-parenthesized.hd	ERASED	Parenthesized (time.s) became time.s; the parenthesized function value is gone.
 lexical/literals/multiline-string-literals.hd	HARMLESS	
 lexical/whitespace-and-indentation/no-final-line-ending.hd	ERASED	A final line ending was added; the file no longer ends without one.
 lexical/operators-and-delimiters/operators-longest-match.hd	ERASED	Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
@@ -124,7 +124,7 @@ grammar/statements/grammar-assignment-nonplace.hd	ERASED	Parens removed from (1 
 grammar/types/row-kind-mismatch.hd	HARMLESS	
 grammar/expressions/trailing-block-ineligible.hd	HARMLESS	
 lexical/literals/unary-plus-i32-literal-range.hd	HARMLESS	
-typing/valid/composite-ordering.hd	HARMLESS	
+expressions/unary-and-binary-operators/composite-ordering.hd	HARMLESS	
 data/construction-and-access/data-types.hd	HARMLESS	
 data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd	HARMLESS	
 grammar/types/declaration-owns-requirement-clause.hd	HARMLESS	

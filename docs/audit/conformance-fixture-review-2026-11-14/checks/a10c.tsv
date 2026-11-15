@@ -3,7 +3,7 @@ typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-vali
 typing/valid/method-resolution-a-prelude-trait-method-resolves-on-an-integer.hd	A10c	# test: checker checker errors are reported
 data/struct-declarations/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
 data/matching-enums/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10c	# test: checker checker errors are reported
-typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10c	# test: checker checker errors are reported
+expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10c	# test: checker checker errors are reported
 names/local-bindings/pattern-a-tuple-pattern-binds-distinct-names.hd	A10c	# test: checker checker errors are reported
 modules/module-initialization/module-initialization-a-call-with-an-inferred-result-reads-an-earlier-binding.hd	A10c	# test: checker inferred result of a late read reports once
 names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A10c	# test: checker self outside a trait or impl is unknown

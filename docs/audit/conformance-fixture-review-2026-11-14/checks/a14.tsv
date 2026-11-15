@@ -2,14 +2,14 @@ data/struct-declarations/mutable-field-modifier.hd	A14	reject:mutable-field-modi
 control-flow/match-expressions/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd	A14	reject:bare-variant-pattern: same code after renaming as control-flow/match-expressions/bare-ok-call-pattern.hd
 control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd	A14	reject:duplicate-data-pattern-field: same code after renaming as control-flow/match-expressions/duplicate-data-pattern-field.hd
 control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd	A14	reject:unknown-field: same code after renaming as control-flow/match-expressions/variant-pattern-unknown-field.hd
-typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A14	accept: same code after renaming as names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd
+expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A14	accept: same code after renaming as names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd
 data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd	A14	accept: same code after renaming as data/construction-and-access/field-shorthand-shorthand-fields-from-parameters-give-every-field.hd
 functions/parameters/nonfinal-spread.hd	A14	reject:nonfinal-positional-spread: same code after renaming as grammar/expressions/positional-after-spread.hd
 names/module-scope/forward-module-binding.hd	A14	reject:binding-not-yet-visible: same code after renaming as names/module-scope/exec-binding-read-before-declared.hd
 typing/invalid/tuple-rest-differs-from-plain.hd	A14	reject:type-mismatch: same code after renaming as typing/invalid/tuple-rest-assign.hd
 requirements/provider-scopes/generic-requirement-key-collision.hd	A14	reject:generic-requirement-key-collision: same code after renaming as requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd
 lexical/literals/repeated-numeric-separator.hd	A14	reject:invalid-token: same code after renaming as lexical/literals/double-numeric-separator.hd
-typing/invalid/propagation-without-target.hd	A14	reject:invalid-result-propagation: same code after renaming as typing/invalid/propagation-nearest-function-target.hd
+expressions/postfix-expressions/propagation/propagation-without-target.hd	A14	reject:invalid-result-propagation: same code after renaming as expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd
 requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd	A14	accept: same code after renaming as requirements/requirement-rows/row-subsumption/row-union-private-result.hd
 requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd	A14	reject:unknown-associated-type: same code after renaming as requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd
 requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A14	reject:generic-kind-mismatch: same code after renaming as requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd
