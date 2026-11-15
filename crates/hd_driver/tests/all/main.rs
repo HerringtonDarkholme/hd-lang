@@ -52,7 +52,6 @@ mod match_decision_tree_run;
 mod match_work;
 mod method_chain_depth;
 mod method_choice;
-mod module_case_collision;
 mod module_row_work;
 mod numeric_widen_fix;
 mod parallel_bodies;

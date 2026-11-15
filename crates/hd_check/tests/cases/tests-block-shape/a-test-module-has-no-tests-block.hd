@@ -1,0 +1,7 @@
+# @dump: diagnostics
+pub fn double(n: i32) -> i32: n * 2
+# @file: main_test.hd
+pub fn double(n: i32) -> i32: n * 2
+tests:
+    it("first"):
+        pass

@@ -1,0 +1,7 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: bar.hd
+pub fn one() -> i32: 1
+# @file: foo.hd
+pub fn one() -> i32: 1

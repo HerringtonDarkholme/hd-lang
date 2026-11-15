@@ -1,0 +1,9 @@
+# @dump: diagnostics
+pub fn double(n: i32) -> i32: n * 2
+tests:
+    it("first"):
+        pass
+
+tests:
+    it("second"):
+        pass
