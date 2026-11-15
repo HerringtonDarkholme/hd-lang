@@ -2,7 +2,7 @@ data/shared-enum-constructor-data/unnamed-shared-enum-parameters-select-as-under
 requirements/provider-scopes/context-values-a-context-argument-fixes-a-generic-key.hd	A10b	same title as reject requirements/provider-scopes/context-values-a-context-with-an-extra-key-does-not-match-a-generic-context-parameter.hd
 typing/valid/bare-trait-dyn-trait-types-in-every-body-position-are-valid.hd	A10b	same title as reject typing/invalid/bare-trait-a-trait-as-a-tuple-element-type-is-one-error.hd
 typing/valid/caret-is-xor-reference-types-and-receivers-without-a-caret-are-valid.hd	A10b	same title as reject parse/invalid/caret-is-xor-a-caret-before-a-parameter-type-is-a-syntax-error.hd
-typing/valid/match-an-enum-match-with-an-arm-per-variant-is-exhaustive.hd	A10b	same title as reject typing/invalid/match-an-optional-enum-match-missing-a-nested-variant-is-nonexhaustive.hd
+control-flow/match-expressions/match-an-enum-match-with-an-arm-per-variant-is-exhaustive.hd	A10b	same title as reject control-flow/match-expressions/match-an-optional-enum-match-missing-a-nested-variant-is-nonexhaustive.hd
 typing/valid/propagation-a-try-error-converts-through-a-from-impl.hd	A10b	same title as reject typing/invalid/propagation-an-error-type-without-an-error-impl-does-not-convert-to-a-dyn-error.hd
 typing/valid/propagation-a-try-error-with-an-error-impl-converts-to-a-dyn-error.hd	A10b	same title as reject typing/invalid/propagation-an-error-type-without-an-error-impl-does-not-convert-to-a-dyn-error.hd
 requirements/suspending-functions/direct-contexts-block-on-in-a-function-body-is-allowed.hd	A10b	same title as reject requirements/suspending-functions/direct-contexts-block-on-in-a-parameter-default-is-forbidden.hd
@@ -58,7 +58,7 @@ typing/valid/literal-types-the-largest-hour-duration-literal-is-in-range.hd	A10b
 typing/valid/sealed-traits-bounds-naming-known-traits-are-valid.hd	A10b	same title as reject typing/invalid/sealed-traits-an-unknown-bound-adds-no-error-at-an-equality-use.hd
 requirements/requirement-rows/row-aliases/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row.hd	A10b	same title as reject requirements/requirement-rows/row-aliases/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch.hd
 requirements/requirement-rows/row-aliases/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller.hd	A10b	same title as reject requirements/requirement-rows/row-aliases/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it.hd
-typing/valid/tuple-rest-a-spread-pattern-covers-every-list.hd	A10b	same title as reject typing/invalid/tuple-rest-a-spread-pattern-covers-every-list-refutable-let.hd
+control-flow/match-expressions/spread-patterns/a-spread-pattern-covers-every-list.hd	A10b	same title as reject control-flow/match-expressions/spread-patterns/tuple-rest-a-spread-pattern-covers-every-list-refutable-let.hd
 typing/valid/tuple-template-bounds-a-generic-member-meets-the-bound-through-the-environment.hd	A10b	same title as reject typing/invalid/tuple-template-bounds-an-unbounded-generic-member-is-no-map-key.hd
 typing/valid/tuple-template-bounds-a-nested-tuple-meets-the-bound-through-its-own-members.hd	A10b	same title as reject typing/invalid/tuple-template-bounds-a-nested-tuple-with-a-float-member-is-no-map-key.hd
 typing/valid/tuple-template-bounds-a-rest-list-of-integers-meets-the-map-key-bound.hd	A10b	same title as reject typing/invalid/tuple-template-bounds-a-rest-list-of-floats-is-no-map-key.hd

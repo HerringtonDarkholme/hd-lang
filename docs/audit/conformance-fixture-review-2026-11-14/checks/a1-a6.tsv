@@ -305,10 +305,10 @@ typing/invalid/a-primitive-type-takes-no-type-arguments.hd	A3	typing/invalid/a-b
 typing/invalid/a-type-parameter-takes-no-type-arguments.hd	A3	typing/invalid/self-takes-no-type-arguments.hd
 typing/invalid/a-type-parameter-takes-no-type-arguments.hd	A3	typing/invalid/a-body-annotation-on-void-takes-no-type-arguments.hd
 typing/invalid/self-takes-no-type-arguments.hd	A3	typing/invalid/a-body-annotation-on-void-takes-no-type-arguments.hd
-typing/invalid/match-a-variant-name-without-a-dot-is-a-bare-variant-pattern.hd	A3	typing/invalid/bare-variant-pattern-in-match.hd
-typing/invalid/bare-none-pattern.hd	A3	typing/invalid/bare-some-call-pattern.hd
-typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd	A3	typing/invalid/duplicate-data-pattern-field.hd
-typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd	A3	typing/invalid/variant-pattern-unknown-field.hd
+control-flow/match-expressions/match-a-variant-name-without-a-dot-is-a-bare-variant-pattern.hd	A3	control-flow/match-expressions/bare-variant-pattern-in-match.hd
+control-flow/match-expressions/bare-none-pattern.hd	A3	control-flow/match-expressions/bare-some-call-pattern.hd
+control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd	A3	control-flow/match-expressions/duplicate-data-pattern-field.hd
+control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd	A3	control-flow/match-expressions/variant-pattern-unknown-field.hd
 typing/invalid/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd	A3	typing/invalid/row-variance-a-list-argument-with-a-wider-row-is-a-mismatch.hd
 typing/invalid/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd	A3	typing/invalid/row-variance-a-list-binding-with-a-narrower-row-is-a-mismatch.hd
 typing/invalid/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd	A3	typing/invalid/row-variance-a-list-assignment-with-a-narrower-row-is-a-mismatch.hd
@@ -463,8 +463,8 @@ typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-c
 typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
 typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
 typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-placeholder-type-argument-with-nothing-to-solve-it-cannot-be-inferred.hd
-typing/invalid/match-an-unsolved-match-scrutinee-reports-once.hd	A3	typing/invalid/match-an-unsolved-scrutinee-binds-nested-names-without-a-second-error.hd
-typing/invalid/void-final-a-literal-tail-in-a-void-function-is-one-error.hd	A3	typing/invalid/void-final-a-call-tail-in-a-void-function-is-one-error.hd
+control-flow/match-expressions/match-an-unsolved-match-scrutinee-reports-once.hd	A3	control-flow/match-expressions/match-an-unsolved-scrutinee-binds-nested-names-without-a-second-error.hd
+control-flow/blocks-and-completion/void-final-a-literal-tail-in-a-void-function-is-one-error.hd	A3	control-flow/blocks-and-completion/void-final-a-call-tail-in-a-void-function-is-one-error.hd
 typing/invalid/bare-trait-a-trait-as-a-closure-parameter-type-is-one-error.hd	A3	typing/invalid/bare-trait-a-trait-as-a-closure-result-type-is-one-error.hd
 typing/invalid/bare-trait-a-trait-as-a-closure-parameter-type-is-one-error.hd	A3	typing/invalid/bare-trait-a-trait-as-an-explicit-type-argument-is-one-error.hd
 typing/invalid/bare-trait-a-trait-as-a-closure-parameter-type-is-one-error.hd	A3	typing/invalid/bare-trait-a-trait-as-a-struct-type-argument-is-one-error.hd
@@ -526,12 +526,12 @@ typing/invalid/trait-parameter-bound-bare-trait.hd	A3	typing/invalid/newtype-bou
 typing/invalid/method-bound-bare-trait.hd	A3	typing/invalid/alias-bound-bare-trait.hd
 typing/invalid/method-bound-bare-trait.hd	A3	typing/invalid/newtype-bound-bare-trait.hd
 typing/invalid/alias-bound-bare-trait.hd	A3	typing/invalid/newtype-bound-bare-trait.hd
-typing/invalid/nonexhaustive-bool-match.hd	A3	typing/invalid/integer-literal-match-without-catch-all.hd
-typing/invalid/nonexhaustive-bool-match.hd	A3	typing/invalid/guarded-catch-all-not-exhaustive.hd
-typing/invalid/nonexhaustive-bool-match.hd	A3	typing/invalid/optional-match-missing-none.hd
-typing/invalid/integer-literal-match-without-catch-all.hd	A3	typing/invalid/guarded-catch-all-not-exhaustive.hd
-typing/invalid/integer-literal-match-without-catch-all.hd	A3	typing/invalid/optional-match-missing-none.hd
-typing/invalid/guarded-catch-all-not-exhaustive.hd	A3	typing/invalid/optional-match-missing-none.hd
+control-flow/match-expressions/nonexhaustive-bool-match.hd	A3	control-flow/match-expressions/integer-literal-match-without-catch-all.hd
+control-flow/match-expressions/nonexhaustive-bool-match.hd	A3	control-flow/match-expressions/guarded-catch-all-not-exhaustive.hd
+control-flow/match-expressions/nonexhaustive-bool-match.hd	A3	control-flow/match-expressions/optional-match-missing-none.hd
+control-flow/match-expressions/integer-literal-match-without-catch-all.hd	A3	control-flow/match-expressions/guarded-catch-all-not-exhaustive.hd
+control-flow/match-expressions/integer-literal-match-without-catch-all.hd	A3	control-flow/match-expressions/optional-match-missing-none.hd
+control-flow/match-expressions/guarded-catch-all-not-exhaustive.hd	A3	control-flow/match-expressions/optional-match-missing-none.hd
 typing/invalid/power-a-signed-exponent-under-a-float-result-is-one-type-mismatch.hd	A3	typing/invalid/power-a-signed-exponent-inside-a-sum-is-one-type-mismatch.hd
 typing/invalid/power-a-signed-exponent-under-a-float-result-is-one-type-mismatch.hd	A3	typing/invalid/power-an-integer-base-with-a-float-exponent-is-a-type-mismatch.hd
 typing/invalid/power-a-signed-exponent-under-a-float-result-is-one-type-mismatch.hd	A3	typing/invalid/power-a-float-base-with-an-integer-exponent-is-a-type-mismatch.hd
@@ -691,7 +691,7 @@ names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-may-n
 typing/valid/type-argument-defaults-a-bound-takes-the-trait-argument-default.hd	A3	typing/valid/type-argument-defaults-a-bound-with-an-output-binding-takes-the-trait-argument-default.hd
 typing/valid/type-argument-defaults-a-default-may-name-an-earlier-parameter.hd	A3	typing/valid/type-argument-defaults-a-struct-parameter-may-default-to-a-concrete-type.hd
 typing/valid/propagation-a-try-error-converts-through-a-from-impl.hd	A3	typing/valid/propagation-a-try-error-with-an-error-impl-converts-to-a-dyn-error.hd
-typing/warnings/variant-binding-name-mismatch.hd	A3	typing/valid/named-variant-bindings.hd
+control-flow/match-expressions/variant-binding-name-mismatch.hd	A3	control-flow/match-expressions/named-variant-bindings.hd
 requirements/requirement-rows/requirement-row-plus-list.hd	A3	requirements/requirement-rows/requirement-row-duplicate-keys.hd
 typing/valid/associated-types-an-impl-body-calls-a-sibling-through-a-projection-binding.hd	A3	typing/valid/associated-types-an-impl-body-calls-a-sibling-with-a-written-type-argument.hd
 typing/invalid/union-type-in-a-const-slot.hd	A3	typing/invalid/a-row-in-a-const-slot.hd
@@ -1181,21 +1181,21 @@ typing/invalid/readonly-list-element-replacement.hd	A3	typing/invalid/readonly-m
 typing/valid/related-traits-derived-eq-alone-is-valid.hd	A3	typing/valid/related-traits-derived-eq-and-hash-together-are-valid.hd
 typing/valid/related-traits-derived-eq-alone-is-valid.hd	A3	typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd
 typing/valid/related-traits-derived-eq-and-hash-together-are-valid.hd	A3	typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd
-typing/invalid/top-level-return.hd	A3	typing/invalid/top-level-nested-return.hd
-typing/invalid/top-level-return.hd	A3	typing/invalid/top-level-loop-return.hd
-typing/invalid/top-level-return.hd	A3	typing/invalid/top-level-let-else-return.hd
-typing/invalid/top-level-nested-return.hd	A3	typing/invalid/top-level-let-else-return.hd
+control-flow/return/top-level-return.hd	A3	control-flow/return/top-level-nested-return.hd
+control-flow/return/top-level-return.hd	A3	control-flow/return/top-level-loop-return.hd
+control-flow/return/top-level-return.hd	A3	control-flow/return/top-level-let-else-return.hd
+control-flow/return/top-level-nested-return.hd	A3	control-flow/return/top-level-let-else-return.hd
 typing/invalid/integer-narrowing.hd	A3	typing/invalid/implicit-narrowing-i64.hd
 typing/invalid/heterogeneous-list.hd	A3	typing/invalid/heterogeneous-list-bool-int.hd
 typing/invalid/heterogeneous-list.hd	A3	typing/invalid/heterogeneous-map-values.hd
 typing/invalid/heterogeneous-list-bool-int.hd	A3	typing/invalid/heterogeneous-map-values.hd
 typing/valid/generic-functions-a-type-parameter-solved-by-the-expected-type-is-inferred.hd	A3	typing/valid/generic-functions-a-type-parameter-with-a-default-takes-it-when-unsolved.hd
-typing/valid/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	typing/valid/void-final-a-void-function-may-end-in-pass.hd
-typing/valid/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	typing/valid/void-final-a-void-function-may-end-in-return.hd
-typing/valid/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	typing/valid/void-final-a-void-function-may-end-in-a-panic.hd
-typing/valid/void-final-a-void-function-may-end-in-pass.hd	A3	typing/valid/void-final-a-void-function-may-end-in-return.hd
-typing/valid/void-final-a-void-function-may-end-in-pass.hd	A3	typing/valid/void-final-a-void-function-may-end-in-a-panic.hd
-typing/valid/void-final-a-void-function-may-end-in-return.hd	A3	typing/valid/void-final-a-void-function-may-end-in-a-panic.hd
+control-flow/blocks-and-completion/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-pass.hd
+control-flow/blocks-and-completion/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-return.hd
+control-flow/blocks-and-completion/void-final-a-function-without-a-result-type-may-end-in-a-value.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-a-panic.hd
+control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-pass.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-return.hd
+control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-pass.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-a-panic.hd
+control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-return.hd	A3	control-flow/blocks-and-completion/void-final-a-void-function-may-end-in-a-panic.hd
 runtime/panic/string-offset-inside-scalar.hd	A3	runtime/panic/string-slice-at-continuation-byte.hd
 typing/invalid/none-to-any.hd	A3	typing/invalid/none-without-expected-type.hd
 typing/invalid/prelude-shadow.hd	A3	typing/invalid/prelude-shadow-console-parameter.hd
@@ -1261,8 +1261,8 @@ typing/invalid/empty-map-without-context.hd	A3	typing/invalid/a-tuple-rest-with-
 typing/invalid/empty-list-let-without-annotation.hd	A3	typing/invalid/a-tuple-rest-with-an-untyped-empty-list-needs-context.hd
 typing/invalid/empty-list-behind-a-reference.hd	A3	typing/invalid/empty-list-closure-result.hd
 typing/invalid/positional-spread-duplicates-vararg.hd	A3	typing/invalid/separate-values-then-a-spread-duplicate-a-vararg.hd
-typing/invalid/tuple-binding-non-tuple.hd	A3	typing/invalid/tuple-binding-arity.hd
-typing/invalid/match-tuple-pattern-arity.hd	A3	typing/invalid/nested-tuple-pattern-arity.hd
+control-flow/match-expressions/nested-and-data-patterns/tuple-binding-non-tuple.hd	A3	control-flow/match-expressions/nested-and-data-patterns/tuple-binding-arity.hd
+control-flow/match-expressions/nested-and-data-patterns/match-tuple-pattern-arity.hd	A3	control-flow/match-expressions/nested-and-data-patterns/nested-tuple-pattern-arity.hd
 lexical/physical-and-logical-lines/closure-body-absorbs-next-argument.hd	A3	lexical/physical-and-logical-lines/closure-body-followed-by-argument-line.hd
 lexical/literals/reserved-word-interpolation.hd	A3	lexical/literals/prefixed-string-reserved-dollar.hd
 typing/invalid/nested-optional-needs-some.hd	A3	typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd
@@ -1483,7 +1483,7 @@ runtime/panic/int-widths-a-u8-difference-below-zero-panics.hd	A3	runtime/panic/i
 lexical/whitespace-and-indentation/tab-in-string-literal.hd	A3	lexical/whitespace-and-indentation/tab-in-character-literal.hd
 grammar/expressions/multi-binding-in-list.hd	A3	grammar/expressions/multi-binding-nested.hd
 grammar/expressions/trailing-block-same-line-body.hd	A3	grammar/expressions/trailing-block-in-same-line-suite.hd
-typing/invalid/let-refutable-without-else.hd	A3	typing/invalid/top-level-refutable-let-without-else.hd
+control-flow/let-patterns/let-refutable-without-else.hd	A3	control-flow/let-patterns/top-level-refutable-let-without-else.hd
 grammar/expressions/list-item-binding-expression.hd	A3	grammar/expressions/tuple-element-binding-expression.hd
 typing/invalid/function-type-rest-not-list.hd	A3	typing/invalid/tuple-rest-not-list.hd
 typing/invalid/function-type-rest-not-list.hd	A3	typing/invalid/a-body-function-type-rest-needs-a-list.hd
@@ -1664,9 +1664,9 @@ lexical/identifiers/non-nfc-identifier.hd	A3	lexical/identifiers/non-nfc-raw-ide
 lexical/identifiers/raw-identifier-around-other-text.hd	A3	lexical/identifiers/raw-identifier-unclosed.hd
 parse/invalid/placeholder-in-ordinary-type.hd	A3	parse/invalid/placeholder-in-a-declaration.hd
 typing/invalid/lct-none-before-widening-list.hd	A3	typing/invalid/lct-none-first-list.hd
-typing/invalid/for-over-integer.hd	A3	typing/invalid/for-over-a-negative-integer-literal.hd
-typing/invalid/for-over-integer.hd	A3	typing/invalid/for-over-a-float-literal.hd
-typing/invalid/for-over-a-negative-integer-literal.hd	A3	typing/invalid/for-over-a-float-literal.hd
+control-flow/for-loops/for-over-integer.hd	A3	control-flow/for-loops/for-over-a-negative-integer-literal.hd
+control-flow/for-loops/for-over-integer.hd	A3	control-flow/for-loops/for-over-a-float-literal.hd
+control-flow/for-loops/for-over-a-negative-integer-literal.hd	A3	control-flow/for-loops/for-over-a-float-literal.hd
 typing/invalid/cast-to-string.hd	A3	typing/invalid/a-cast-of-a-type-parameter-names-the-parameter.hd
 typing/invalid/cast-to-string.hd	A3	typing/invalid/a-cast-of-a-mutable-reference-names-the-reference.hd
 typing/invalid/cast-to-string.hd	A3	typing/invalid/a-cast-of-a-pointer-names-the-pointer.hd
@@ -1944,7 +1944,7 @@ typing/invalid/element-binding-push-while-live.hd	A3	typing/invalid/element-bind
 typing/invalid/element-binding-push-while-live.hd	A3	typing/invalid/element-binding-clear-while-live.hd
 typing/invalid/element-binding-pop-while-live.hd	A3	typing/invalid/element-binding-clear-while-live.hd
 typing/invalid/element-access-conflict-method.hd	A3	typing/invalid/element-argument-method-beside-mut-parameter-list.hd
-typing/invalid/for-cursor-item-outlives-local.hd	A3	typing/invalid/for-mut-cursor-item-outlives-local.hd
+control-flow/for-loops/for-cursor-item-outlives-local.hd	A3	control-flow/for-loops/for-mut-cursor-item-outlives-local.hd
 runtime/panic/i32-remainder-by-zero.hd	A3	runtime/panic/i64-remainder-by-zero.hd
 typing/invalid/self-in-a-list-is-unavailable-on-a-dyn-value.hd	A3	typing/invalid/self-in-a-function-type-is-unavailable-on-a-dyn-value.hd
 typing/invalid/self-in-a-list-is-unavailable-on-a-dyn-value.hd	A3	typing/invalid/self-in-a-parameter-is-unavailable-through-a-key.hd
@@ -2044,8 +2044,8 @@ typing/invalid/local-reference-escapes-whole-place-store-call.hd	A3	typing/inval
 typing/invalid/local-reference-escapes-whole-place-assign.hd	A3	typing/invalid/local-reference-escapes-whole-place-field.hd
 typing/invalid/shared-self-mut-result-path-while-live.hd	A3	typing/invalid/shared-self-mut-result-while-live.hd
 typing/valid/dependent-result-write-after-last-use.hd	A3	typing/valid/dependent-result-copy-out.hd
-typing/invalid/auto-closing-stored.hd	A3	typing/invalid/auto-closing-stored-through-a-shorthand-field.hd
-typing/invalid/auto-closing-undecorated-return.hd	A3	typing/invalid/auto-closing-explicit-return-undecorated.hd
+control-flow/auto-closing-calls/auto-closing-stored.hd	A3	control-flow/auto-closing-calls/auto-closing-stored-through-a-shorthand-field.hd
+control-flow/auto-closing-calls/auto-closing-undecorated-return.hd	A3	control-flow/auto-closing-calls/auto-closing-explicit-return-undecorated.hd
 typing/invalid/union-order-is-type-identity.hd	A3	typing/invalid/union-duplicate-arity-is-type-identity.hd
 typing/invalid/union-constructor-without-result-context.hd	A3	typing/invalid/union-constructor-with-a-non-union-result.hd
 typing/invalid/union-constructor-unknown-case.hd	A3	typing/invalid/a-union-case-past-its-arity-in-a-value-path.hd
@@ -2062,15 +2062,15 @@ typing/invalid/reference-impl-covers-only-its-kind.hd	A3	typing/invalid/local-im
 std/collections/list-methods/list-drain-reversed.hd	A3	std/collections/list-methods/list-drain-past-end.hd
 std/collections/list-methods/list-drain-reversed.hd	A3	std/collections/list-methods/list-drain-inclusive-overflow.hd
 std/collections/list-methods/list-drain-past-end.hd	A3	std/collections/list-methods/list-drain-inclusive-overflow.hd
-typing/invalid/map-loop-mutable-unused-insert.hd	A3	typing/invalid/map-loop-mutable-unused-replace.hd
-typing/invalid/map-loop-mutable-unused-insert.hd	A3	typing/invalid/map-loop-mutable-unused-read.hd
-typing/invalid/map-loop-mutable-unused-replace.hd	A3	typing/invalid/map-loop-mutable-unused-read.hd
+control-flow/for-loops/map-loop-mutable-unused-insert.hd	A3	control-flow/for-loops/map-loop-mutable-unused-replace.hd
+control-flow/for-loops/map-loop-mutable-unused-insert.hd	A3	control-flow/for-loops/map-loop-mutable-unused-read.hd
+control-flow/for-loops/map-loop-mutable-unused-replace.hd	A3	control-flow/for-loops/map-loop-mutable-unused-read.hd
 runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A3	runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-closure.hd
 runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-closure.hd	A3	typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd
-typing/invalid/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	typing/invalid/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd
-typing/invalid/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	typing/invalid/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
-typing/invalid/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	typing/invalid/a-dependent-pointer-loan-blocks-a-store-through-its-loop-binding.hd
-typing/invalid/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	typing/invalid/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
+control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd
+control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
+control-flow/for-loops/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-dependent-pointer-loan-blocks-a-store-through-its-loop-binding.hd
+control-flow/for-loops/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	control-flow/for-loops/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
 typing/invalid/a-cast-with-two-arguments-is-an-argument-count-error.hd	A3	typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd
 data/shared-enum-constructor-data/shared-initializer-enum-type-parameter-is-unknown.hd	A3	data/shared-enum-constructor-data/shared-default-enum-type-parameter-is-unknown.hd
 typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-provider-context-result.hd
@@ -2148,10 +2148,10 @@ runtime/panic/pointer-loan-bang-mut-field-write-panics.hd	A3	runtime/panic/point
 runtime/panic/pointer-loan-bang-mut-ptr2-write-panics.hd	A3	runtime/panic/pointer-loan-bang-mut-ptr2-replace-panics.hd
 runtime/panic/pointer-loan-bang-mut-list-grow-panics.hd	A3	runtime/panic/pointer-loan-bang-mut-list-replace-panics.hd
 runtime/panic/pointer-loan-bang-mut-map-grow-panics.hd	A3	runtime/panic/pointer-loan-bang-mut-map-replace-panics.hd
-typing/warnings/unreachable-code.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#unreachable-code
-typing/warnings/unused-local-binding.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#blocks-and-completion
-typing/warnings/variant-binding-name-mismatch.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#match-expressions
-typing/warnings/unreachable-after-infinite-loop.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unreachable.infinite-loop
+control-flow/unreachable-code/unreachable-code.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#unreachable-code
+control-flow/blocks-and-completion/unused-local-binding.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#blocks-and-completion
+control-flow/match-expressions/variant-binding-name-mismatch.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#match-expressions
+control-flow/unreachable-code/unreachable-after-infinite-loop.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unreachable.infinite-loop
 data/matching-enums/variant-binding-names-swapped.hd	A6	directory says otherwise; expectation accept, cites lang/08-data-and-enums.md#matching-enums
 typing/warnings/unused-nested-optional-binding.hd	A6	directory says otherwise; expectation accept, cites lang/04-type-system.md#optional-types
 annotations/typed-derivation/derivation-blocks/derivation-line-drift.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint
@@ -2166,9 +2166,9 @@ typing/warnings/private-main-suspending.hd	A6	directory says otherwise; expectat
 typing/warnings/unsigned-comparison-countdown.hd	A6	directory says otherwise; expectation accept, cites lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
 typing/warnings/unsigned-comparison-explicit.hd	A6	directory says otherwise; expectation accept, cites lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
 lexical/identifiers/mixed-script-identifier.hd	A6	directory says otherwise; expectation accept, cites lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
-typing/warnings/unused-after-rejected-trials.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unused.lint
+control-flow/blocks-and-completion/unused-after-rejected-trials.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unused.lint
 typing/warnings/unused-debug-text.hd	A6	directory says otherwise; expectation accept, cites lang/10-modules.md#r-module.dbg.debug-lint
-typing/warnings/match-payload-binding-name-swap.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
+control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
 runtime/valid/resource-disposed-result.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/resource-handle-inherits-methods.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/no-entry-point-no-tests.hd	A4	runtime accept with no assert, stdout check, or scenario

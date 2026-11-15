@@ -1512,19 +1512,19 @@ rows in the TSVs.
 
 Ledger: b055 (24): 2 rows. Confirmed 1, plausible 1.
 
-- **Depends on map order (portability)**: `runtime/valid/map-loop-reference-control-flow.hd`
+- **Depends on map order (portability)**: `control-flow/for-loops/map-loop-reference-control-flow.hd`
   asserts that a `for` loop over a map runs in the order a, b, c.
   `types.map.order.unspecified` promises only determinism, and the README
   bans depending on map order. **Brief v2.2 (from b060 on) adds B8,
   "portable"**: no dependence on map or set order, `usize` width, or exact
   floats the spec allows to vary.
-- Plausible: `runtime/valid/user-iterable-for-loop.hd` (lines 27 and 28 are the same assert).
+- Plausible: `control-flow/for-loops/user-iterable-for-loop.hd` (lines 27 and 28 are the same assert).
 
 #### b054 (`lang/05`, `lang/06`)
 
 Ledger: b054 (45): 6 rows. Covered by A6 2, plausible 4.
 
-- `typing/warnings/unused-local-binding.hd`: an accept case under `warnings/` (A6),
+- `control-flow/blocks-and-completion/unused-local-binding.hd`: an accept case under `warnings/` (A6),
   and it cites `#blocks-and-completion` rather than `flow.unused.lint`. **About the
   A6 class:** several reviewers report that `hd check` emits none of these
   lints, which run under `hd lint`. So these 21 accept cases may be meant to
@@ -1535,7 +1535,7 @@ Ledger: b054 (45): 6 rows. Covered by A6 2, plausible 4.
 - Plausible B1: `typing/valid/operators-arithmetic-and-bitwise-operators-apply-to-standard-integer-types.hd`
   (no impl targets). `typing/invalid/identity-operands-an-integer-against-another-struct-is-one-error.hd`
   (both operands are values; b053 found the same in `-103` and `-104`, so this
-  series probably shares one bug). `typing/valid/control-flow.hd` (a type case
+  series probably shares one bug). `control-flow/control-flow.hd` (a type case
   claiming laziness).
 
 #### Script check A14: copies that differ only by renaming
@@ -1547,9 +1547,9 @@ dropping a `pub fn main` that only prints. Directives (`# fixture-*`,
 `# expect-stdout`) are kept, so tree-path and scenario variants stay
 distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 6 new ones are all confirmed by `diff`:
-- `typing/invalid/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `typing/invalid/bare-ok-call-pattern.hd` (b056)
-- `typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
-- `typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
+- `control-flow/match-expressions/match-a-variant-call-pattern-without-a-dot-is-a-bare-variant-pattern.hd` = `control-flow/match-expressions/bare-ok-call-pattern.hd` (b056)
+- `control-flow/match-expressions/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `control-flow/match-expressions/duplicate-data-pattern-field.hd`
+- `control-flow/match-expressions/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `control-flow/match-expressions/variant-pattern-unknown-field.hd` (b057)
 - `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
@@ -1605,32 +1605,32 @@ for (ph, e, _), ps in g.items():
 
 Ledger: b056 (45): 7 rows. b057 (46): 14 rows (10 are the A10 class). b058 (42): 2 rows.
 
-- **Code under test never runs (B4)**: `runtime/valid/literal-patterns.hd`;
+- **Code under test never runs (B4)**: `control-flow/match-expressions/literal-patterns.hd`;
   `integer(-1)` is never called, so the `-1 => 10` arm never runs.
-- **Duplicates**: 171, 173 and 174 above (A14). Also `typing/invalid/bool-match-missing-false.hd`
+- **Duplicates**: 171, 173 and 174 above (A14). Also `control-flow/match-expressions/bool-match-missing-false.hd`
   ~ `nonexhaustive-bool-match.hd` (C1, plausible).
-- Plausible B7: `runtime/valid/owned-match-payloads-across-suspension.hd` (cites a
-  guard rule; it has no guard). `runtime/valid/negative-float-arms-split-by-value.hd`
-  (cites the error-only `flow.match.unreachable`). `typing/valid/for-over-mut-iterator.hd`.
-  `runtime/valid/iterator-single-pass.hd`.
-- Plausible B2: `typing/invalid/bare-variant-pattern-in-match.hd` (the payload-arity
+- Plausible B7: `control-flow/match-expressions/owned-match-payloads-across-suspension.hd` (cites a
+  guard rule; it has no guard). `control-flow/match-expressions/negative-float-arms-split-by-value.hd`
+  (cites the error-only `flow.match.unreachable`). `control-flow/for-loops/for-over-mut-iterator.hd`.
+  `control-flow/for-loops/iterator-single-pass.hd`.
+- Plausible B2: `control-flow/match-expressions/bare-variant-pattern-in-match.hd` (the payload-arity
   rule may also apply to the marked line).
   `…/match-an-unsolved-scrutinee-binds-nested-names-without-a-second-error.hd`.
-- `typing/warnings/variant-binding-name-mismatch.hd`: A6.
+- `control-flow/match-expressions/variant-binding-name-mismatch.hd`: A6.
 
 #### b059 (`lang/06-control-flow.md`)
 
 Ledger: b059 (45): 6 rows. Confirmed 4, plausible 2.
 
-- **A second error behind the marked one (B2)**: `typing/invalid/let-else-falls-through.hd`.
+- **A second error behind the marked one (B2)**: `control-flow/let-patterns/let-else-falls-through.hd`.
   `falls_through` has no `$ Console` row but calls `println` (std
   `println[T < Display](value: T) -> void $ Console`), which is a second
   error. **Script check A15** (below) lists 9 reject cases with this shape.
   Some are deliberate (the "pure callback" and "omitted-result row" cases test
   the missing row), so each needs a look.
-- **Depends on map order (B8)**: `runtime/valid/for-map-snapshot-insert.hd`
-  (`seen == ["a","b"]`), `runtime/valid/for-map-snapshot-rebuild.hd`
-  (`["a","b","c","d"]`), `runtime/valid/iterator-shape-versus-value-changes.hd`.
+- **Depends on map order (B8)**: `control-flow/for-loops/for-map-snapshot-insert.hd`
+  (`seen == ["a","b"]`), `control-flow/for-loops/for-map-snapshot-rebuild.hd`
+  (`["a","b","c","d"]`), `control-flow/for-loops/iterator-shape-versus-value-changes.hd`.
 - Plausible B1: `…/a-list-parameter-loop-…-shrinks-the-source.hd` (3 of 4 subtests
   use index ranges). `…/branch-joins-keep-their-values-and-cleanups.hd` (no
   release is observed).
@@ -1662,14 +1662,14 @@ for l in list(open('cases.tsv'))[1:]:
 Ledger: b060 (46): 2. b061 (?): 2. b062 (42): 5. b063 (41): 3. Plausible 12.
 
 - **Claims about message text the runner never judges** (plausible; the
-  same kind as b007's hint fixtures): `runtime/panic/sign-fallback-balance-underflow.hd`
+  same kind as b007's hint fixtures): `control-flow/runtime-panics/sign-fallback-balance-underflow.hd`
   cites `flow.panic.report.fallback`, but the runner checks only the panic
   category (README "Judging a Case").
 - **Titles from a split series that don't fit the case (B1)**: three
   `typing/invalid/tuple-rest-a-spread-pattern-*` fixtures. "Needs a rest
   element", but the pattern has one; "covers every list", but the case shows
   non-exhaustiveness. The same kind as b021's `int-widths-*`.
-- **Type case claiming runtime behavior (B1)**: `typing/valid/using-transfer.hd`
+- **Type case claiming runtime behavior (B1)**: `control-flow/using-bindings/using-transfer.hd`
   (LIFO release order). Also b050's `tuple-element-push.hd`, b054's
   `control-flow.hd`, and b019's `checks-and-evaluates-87..89`. A recurring kind.
 - **A check that cannot fail (B3)**: `runtime/valid/a-suspending-reference-copies-its-cell-and-not-a-fresh-capture.hd`
@@ -1677,8 +1677,8 @@ Ledger: b060 (46): 2. b061 (?): 2. b062 (42): 5. b063 (41): 3. Plausible 12.
   `runtime/valid/defaults-reference-earlier-parameters.hd` (the "function values
   do not inherit defaults" part never tries a one-argument call).
 - Plausible C1: `typing/invalid/parameter-default-later-parameter.hd` ~
-  `default-later-parameter-earlier-twin.hd`. `runtime/valid/unit-pattern-void-success.hd` ~
-  `match-unit-pattern-ok.hd`. `typing/warnings/match-payload-binding-name-swap.hd` ~
+  `default-later-parameter-earlier-twin.hd`. `control-flow/match-expressions/unit-pattern/unit-pattern-void-success.hd` ~
+  `match-unit-pattern-ok.hd`. `control-flow/match-expressions/payload-patterns/match-payload-binding-name-swap.hd` ~
   `variant-binding-name-mismatch.hd` (both A6 as well).
 - Plausible B7: `typing/valid/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd`
   (cases 115 and 116 are type-parameter defaults).
@@ -1747,7 +1747,7 @@ Ledger: b065 (44): 6 rows. Confirmed 2, plausible 4.
   directive, so the runner never compares it.
   `runtime/valid/known-closure-consumers-preserve-captures.hd` and
   `runtime/valid/known-consumer-mixed-loop-contexts.hd` (both are also in A4:
-  no assert and no `expect-stdout`). `runtime/valid/zero-iteration-callback-preserves-dependent-read.hd`
+  no assert and no `expect-stdout`). `control-flow/for-loops/zero-iteration-callback-preserves-dependent-read.hd`
   (has `expect-stdout` too; check that it covers this line). Fix: turn each
   into an `# expect-stdout:` header.
 - Plausible: `runtime/valid/track-caller-temporary-arguments.hd` (B3: string

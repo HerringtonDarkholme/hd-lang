@@ -20,8 +20,8 @@ runtime/panic/assert-equal-tuple-unequal.hd	A7b	lost '' gained ','	lang/10-modul
 runtime/valid/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd	A7b	lost '' gained ','	lang/07-functions.md#r-fn.capture.cell.writes
 runtime/valid/a-data-value-is-its-trait-value-conversion.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#identity
 std/error/cause-chain/a-generic-error-type-gets-derived-bounds.hd	A7b	lost '' gained ',,'	std/error.md#cause-chain
-runtime/valid/a-list-cursor-iterates-the-list-as-iter-found-it.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.cursor.snapshot
-runtime/valid/a-map-cursor-iterates-the-map-as-iter-found-it.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.cursor.snapshot
+control-flow/for-loops/a-list-cursor-iterates-the-list-as-iter-found-it.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.cursor.snapshot
+control-flow/for-loops/a-map-cursor-iterates-the-map-as-iter-found-it.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.cursor.snapshot
 requirements/cancellation/abandon-folded-cleanups.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.abandon.folded
 requirements/cancellation/abandon-kills-waiting-dispose.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.abandon.dispose
 requirements/cancellation/abandon-unwind-order.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.abandon.order.using-split
@@ -88,7 +88,7 @@ runtime/valid/copy-update-source-order-observed.hd	A7b	lost '' gained ',,'	lang/
 runtime/valid/count-elision-borrows.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.value.copy
 runtime/valid/counted-field-overwrite-preserves-copies.hd	A7b	lost '' gained ','	lang/04-type-system.md#value-types
 data/struct-declarations/field-defaults-run-per-construction-after-explicit-fields.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#field-defaults
-runtime/valid/data-patterns.hd	A7b	lost '' gained '()'	lang/06-control-flow.md#match-expressions
+control-flow/match-expressions/data-patterns-destructure-nested-fields-and-test-literals.hd	A7b	lost '' gained '()'	lang/06-control-flow.md#match-expressions
 annotations/typed-derivation/members-and-variants/data-variant-facts-empty.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.variant.data-facts
 runtime/valid/dbg-without-requirement.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.dbg.no-requirement
 std/format/debug-text/debug-string-runs.hd	A7b	lost '' gained ',,'	std/format.md#r-std-format.debug.source
@@ -175,11 +175,11 @@ runtime/valid/float-display-shortest-tie.hd	A7b	lost '' gained ','	lang/04-type-
 runtime/valid/float-display.hd	A7b	lost '' gained ','	lang/04-type-system.md#numeric-conversions
 runtime/valid/float-width-casts-round-to-nearest-even.hd	A7b	lost '' gained ',,,'	lang/04-type-system.md#numeric-conversions
 runtime/valid/fn-reference-variance.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.variance.function
-runtime/valid/for-element-references-body-reads-list.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.ref.conflict
-runtime/valid/for-loops-lists-and-maps.hd	A7b	lost '' gained ','	lang/06-control-flow.md#for-loops
-runtime/valid/for-map-snapshot-rebuild.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.snapshot.change
-runtime/valid/for-patterns.hd	A7b	lost '' gained ',,,'	lang/06-control-flow.md#r-flow.for.pattern
-runtime/valid/for-snapshot-doubled.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.snapshot
+control-flow/for-loops/for-element-references-body-reads-list.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.ref.conflict
+control-flow/for-loops/for-loops-lists-and-maps.hd	A7b	lost '' gained ','	lang/06-control-flow.md#for-loops
+control-flow/for-loops/for-map-snapshot-rebuild.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.snapshot.change
+control-flow/for-loops/for-patterns.hd	A7b	lost '' gained ',,,'	lang/06-control-flow.md#r-flow.for.pattern
+control-flow/for-loops/for-snapshot-doubled.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.snapshot
 runtime/valid/from-direct-call.hd	A7b	lost '' gained ',,'	lang/09-traits.md#conversion-trait
 runtime/valid/from-propagation-and-panic.hd	A7b	lost '' gained ',,'	lang/09-traits.md#r-trait.from.propagation
 std/fs/file-system-errors/fs-error-variant-equality.hd	A7b	lost '' gained ','	std/fs.md#r-std-fs.error.eq.variant-payload
@@ -193,7 +193,7 @@ runtime/valid/generic-associated-function-qualified-call.hd	A7b	lost '' gained '
 runtime/valid/generic-call-nested-fresh-literal.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.generic.infer
 runtime/valid/generic-call-nested-fresh-pair.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.generic.infer
 data/data-embedding/a-generic-embedded-field-keeps-its-instantiated-type-at-run-time.hd	A7b	lost '' gained ''	lang/08-data-and-enums.md#data-embedding
-runtime/valid/generic-data-pattern-nested-generic.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.match.data.generic
+control-flow/match-expressions/nested-and-data-patterns/generic-data-pattern-nested-generic.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.match.data.generic
 grammar/generic-parameters-and-bounds/generic-parameter-forms.hd	A7b	lost '' gained '()'	lang/02-grammar.md#r-grammar.generic.bound.and
 runtime/valid/generic-storage-callable-list-identity.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.generic.unobservable
 runtime/valid/generic-storage-invokes-callables.hd	A7b	lost '' gained ',,,'	lang/04-type-system.md#r-types.generic.unobservable
@@ -254,7 +254,7 @@ runtime/valid/impl-distinct-target-arguments.hd	A7b	lost '' gained ','	lang/09-t
 runtime/valid/impl-method-generics-renamed.hd	A7b	lost '' gained ','	lang/09-traits.md#implementation-declarations
 runtime/valid/impl-trait-associated-and-nested.hd	A7b	lost '' gained ','	lang/04-type-system.md#opaque-result-types
 lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd	A7b	lost ',,,' gained ''	lang/01-lexical-structure.md#r-lex.continue.delimiters
-runtime/valid/infinite-loop-nested-break.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.while.infinite.exit
+control-flow/while-loops/infinite-loop-nested-break.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.while.infinite.exit
 runtime/valid/init-group-statements-by-identity.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.init.cycle.earliest
 runtime/valid/init-read-through-trait-dispatch.hd	A7b	lost '' gained ','	lang/10-modules.md#module-initialization
 annotations/two-annotate-forms/inline-attaches-no-value.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#r-annot.inline.recognized
@@ -275,12 +275,12 @@ runtime/valid/it-each-propagation.hd	A7b	lost '' gained ','	lang/10-modules.md#r
 std/testing/table-test-rows/it-each-rows.hd	A7b	lost '' gained ','	std/testing.md#r-std-testing.it-each
 std/iter/iterator-adapters/iterator-adapters-run.hd	A7b	lost '' gained ',,,'	std/iter.md#r-std-iter.adapter.lazy
 std/iter/iterator-adapters/iterator-chain-iterable.hd	A7b	lost '' gained ','	std/iter.md#r-std-iter.adapter.chain-iterable.order
-runtime/valid/iterator-drives-loops.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.iterator.owned-source
+control-flow/for-loops/iterator-drives-loops.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.iterator.owned-source
 std/iter/iterator-adapters/iterator-flat-map-iterable.hd	A7b	lost '' gained ',,'	std/iter.md#r-std-iter.adapter.flat-map.fn-mut-noncopy
 std/iter/iterator-adapters/iterator-flat-map.hd	A7b	lost '' gained ',,,'	std/iter.md#r-std-iter.adapter.flat-map.fn-mut-noncopy
 std/iter/iterator-factory/iterator-from-fn.hd	A7b	lost '' gained ',,'	std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
 std/iter/iterator-adapters/iterator-handle-reference.hd	A7b	lost '' gained ','	std/iter.md#iterator-adapters
-runtime/valid/iterator-single-pass.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.iterator.owned-position
+control-flow/for-loops/iterator-single-pass.hd	A7b	lost '' gained ','	lang/06-control-flow.md#r-flow.for.iterator.owned-position
 std/iter/iterator-adapters/iterator-skip-take-while.hd	A7b	lost '' gained ',,'	std/iter.md#r-std-iter.adapter.take-while.borrow-fn-mut
 std/iter/iterator-adapters/iterator-trait-adapter-structs.hd	A7b	lost '' gained ',,,,,,,,,,'	std/iter.md#iterator-adapters
 std/iter/iterator-adapters/iterator-zip-iterable.hd	A7b	lost '' gained ','	std/iter.md#r-std-iter.adapter.zip-iterable.order
@@ -334,7 +334,7 @@ names/control-flow-binding-scopes/loop-iteration-cells.hd	A7b	lost '' gained ','
 runtime/valid/loop-list-cache-preserves-alias-and-cow-boundaries.hd	A7b	lost '' gained ',,,'	lang/04-type-system.md#r-types.coll.value
 std/time/clock/manual-clock.hd	A7b	lost '' gained ',,,,,,'	std/time.md#manual-clock
 std/collections/map-methods/map-entries-most-common.hd	A7b	lost '' gained ',,'	std/collections.md#r-std-collections.map.most-common.ties
-runtime/valid/map-iterator.hd	A7b	lost '' gained ','	lang/06-control-flow.md#for-loops
+control-flow/for-loops/map-iterator.hd	A7b	lost '' gained ','	lang/06-control-flow.md#for-loops
 runtime/valid/map-literal-and-comprehension-order.hd	A7b	lost '' gained ','	lang/05-expressions.md#list-and-map-expressions
 std/collections/map-methods/map-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/collections.md#r-std-collections.map.entries
 std/host/map-sys/map-sys.hd	A7b	lost '' gained ',,,'	std/host.md#map-sys
@@ -363,7 +363,7 @@ data/matching-enums/named-enum-payload-patterns.hd	A7b	lost '' gained ','	lang/0
 runtime/valid/named-local-functions.hd	A7b	lost '' gained ','	lang/07-functions.md#recursion
 runtime/valid/nan-equality-through-generics.hd	A7b	lost '' gained ','	lang/05-expressions.md#unary-and-binary-operators
 requirements/provider-scopes/nested-provider-restoration.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#provider-scopes
-runtime/valid/nested-variant-positional-bindings.hd	A7b	lost '' gained '()'	lang/06-control-flow.md#r-flow.match.payload.binding
+control-flow/match-expressions/payload-patterns/nested-variant-positional-bindings.hd	A7b	lost '' gained '()'	lang/06-control-flow.md#r-flow.match.payload.binding
 std/net/net-trait/net-connect-deadline.hd	A7b	lost '' gained ','	std/net.md#net-trait
 std/task/result-timeouts/net-connect-timeout-ready-tie.hd	A7b	lost '' gained ','	std/task.md#result-timeouts
 std/net/free-helpers/net-free-helpers.hd	A7b	lost '' gained ',,,,,,,'	std/net.md#free-helpers
@@ -401,7 +401,7 @@ runtime/valid/operator-traits-run.hd	A7b	lost '' gained ','	lang/05-expressions.
 std/option/optional-methods/option-and-then.hd	A7b	lost '' gained ',,,'	std/option.md#r-std-option.and-then
 data/option-and-result/option-result-prelude-spellings.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#option-and-result
 runtime/valid/optional-propagation.hd	A7b	lost '' gained ','	lang/04-type-system.md#optional-types
-runtime/valid/owned-temporary-match-payloads.hd	A7b	lost '' gained ',,,,,'	lang/06-control-flow.md#match-expressions
+control-flow/match-expressions/owned-temporary-match-payloads.hd	A7b	lost '' gained ',,,,,'	lang/06-control-flow.md#match-expressions
 runtime/valid/parameter-defaults-after-explicit-arguments.hd	A7b	lost '' gained ','	lang/07-functions.md#default-values
 runtime/valid/partial-equality-dispatch.hd	A7b	lost '' gained ',,,'	lang/05-expressions.md#unary-and-binary-operators
 std/path/path-operations/path-operations.hd	A7b	lost '' gained ',,,,'	std/path.md#path-operations
@@ -598,7 +598,7 @@ runtime/valid/typeid-same-name-modules.hd	A7b	lost '' gained ','	lang/09-traits.
 names/member-resolution/unavailable-trait-method-invisible.hd	A7b	lost '' gained ','	lang/03-names-and-scopes.md#member-resolution
 std/testing/unit-test-providers/unit-test-manual-clock.hd	A7b	lost '' gained ','	std/testing.md#unit-test-providers
 runtime/valid/use-module-member-beside-root-declaration.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.use.grouped
-runtime/valid/user-defined-iterator-trait.hd	A7b	lost '' gained ',,,,'	lang/06-control-flow.md#iteration-protocols
+control-flow/for-loops/user-defined-iterator-trait.hd	A7b	lost '' gained ',,,,'	lang/06-control-flow.md#iteration-protocols
 std/text/utf-8-conversion/utf8-error-traits.hd	A7b	lost '' gained ',,,,,,'	std/text.md#r-std-text.utf8.error.traits
 std/text/utf-8-conversion/utf8-invalid-bytes.hd	A7b	lost '' gained ',,,,,,,,,,'	std/text.md#r-std-text.utf8.error.invalid
 std/text/utf-8-conversion/utf8-long-inputs.hd	A7b	lost '' gained ',,,,,,,,,,,,,,'	std/text.md#r-std-text.utf8.error.first
