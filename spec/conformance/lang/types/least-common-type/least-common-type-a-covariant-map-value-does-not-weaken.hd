@@ -1,0 +1,11 @@
+# test: the least common type does not weaken a reference map value
+# Spec 04 Least Common Type: types.lct.no-combine, types.variance.map.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, owned: Map[string, *mut Cell], shared: Map[string, *Cell]) -> usize:
+    cells := match flag:
+        true => owned
+        false => shared # diagnostic: no-common-type
+    cells.len()

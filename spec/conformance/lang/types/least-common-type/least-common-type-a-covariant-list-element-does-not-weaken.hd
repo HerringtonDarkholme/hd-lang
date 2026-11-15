@@ -1,0 +1,11 @@
+# test: the least common type does not weaken a counted reference inside a covariant list
+# Spec 04 Least Common Type: types.lct.no-combine, types.variance.list.
+# `List[*mut Cell]` to `List[*Cell]` would weaken the element under a
+# variance step, so the two lists have no common type.
+
+struct Cell:
+    v: i32
+
+fn first(flag: bool, owned: List[*mut Cell], shared: List[*Cell]) -> i32:
+    cells := if flag: owned else: shared # diagnostic: no-common-type
+    cells[0].v

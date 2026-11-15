@@ -1,0 +1,9 @@
+# test: a list literal of lists does not weaken their counted reference elements
+# Spec 04 Least Common Type: types.lct.no-combine, types.lct.sites.
+
+struct Cell:
+    v: i32
+
+fn count(owned: List[*mut Cell], shared: List[*Cell]) -> usize:
+    both := [owned, shared] # diagnostic: no-common-type
+    both.len()

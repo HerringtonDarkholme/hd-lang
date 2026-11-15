@@ -1,0 +1,17 @@
+# test: the least common type weakens a counted reference element of a tuple
+# Spec 04 Least Common Type: types.lct.tuple-elements.
+# expect-stdout: 3
+# expect-stdout: 5
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, cell: *mut Cell, shared: *Cell, k: i32) -> i32:
+    pair := if flag: (cell, k) else: (shared, k)
+    let read: (*Cell, i32) = pair
+    let (c, n) = read
+    c.v + n
+
+pub fn main() -> void $ Console:
+    println(pick(true, box(Cell { v: 1 }), box(Cell { v: 3 }), 2))
+    println(pick(false, box(Cell { v: 1 }), box(Cell { v: 3 }), 2))

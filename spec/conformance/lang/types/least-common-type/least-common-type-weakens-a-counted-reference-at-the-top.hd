@@ -1,0 +1,16 @@
+# test: the least common type weakens a counted reference at the top of an if
+# Spec 04 Least Common Type: types.lct.conversions.
+# expect-stdout: 1
+# expect-stdout: 3
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, cell: *mut Cell, shared: *Cell) -> i32:
+    either := if flag: cell else: shared
+    let read: *Cell = either
+    read.v
+
+pub fn main() -> void $ Console:
+    println(pick(true, box(Cell { v: 1 }), box(Cell { v: 3 })))
+    println(pick(false, box(Cell { v: 1 }), box(Cell { v: 3 })))

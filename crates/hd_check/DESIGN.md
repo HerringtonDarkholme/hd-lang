@@ -915,13 +915,16 @@ its values are checked in order:
 3. **Rows.** Function values take the union of their rows
    ([`types.lct.row-union-every-site`](../../spec/lang/04-type-system.md#r-types.lct.row-union-every-site)).
 4. **Join.** The first value solves the variable; each later value meets
-   the type so far by permission weakening, declared readonly variance,
-   or optional injection of one layer, and only those
+   the type so far by permission weakening, at the top and in tuple
+   elements, or optional injection of one layer, and only those. A
+   generic type's arguments meet only as one type: weakening under a
+   variance step is ruled out
    ([`types.lct.no-combine`](../../spec/lang/04-type-system.md#r-types.lct.no-combine)).
    It never uses `Any`, a trait value or a supertrait.
-5. **Errors.** A value that does not join reports `no-common-type`, or
-   `no-least-common-type` when a common type exists that these rules
-   cannot reach, at that value, once per site.
+5. **Errors.** A value that does not join reports `no-common-type`, at
+   that value, once per site. Values that meet always have a least type
+   under these conversions, so the checker has no case for
+   `no-least-common-type`.
 6. **Coerce.** Each value then gets the coercion to the joined type. A
    slot is reserved after each value, and the site fills it once the type
    is final (`Ck::fill_join`): `WrapSome` for a value one optional layer

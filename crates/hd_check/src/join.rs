@@ -5,13 +5,14 @@
 //! A site checks its values in order against a join variable. The first
 //! value solves the variable; each later value meets the type so far by
 //! the conversions `types.lct.conversions` lists, and only those:
-//! permission weakening, declared readonly variance, and optional
-//! injection of one layer. A value of `never` is dropped
+//! permission weakening, at the top and in tuple elements, and optional
+//! injection of one layer. A generic type's arguments meet only as one
+//! type, since weakening under a variance step is the combination
+//! `types.lct.no-combine` rules out. A value of `never` is dropped
 //! (`types.lct.never.dropped`). Function values take the union of their
 //! rows (`types.lct.row-union-every-site`). When no unique least type
 //! exists, the value that does not meet the others reports
-//! `no-common-type`, or `no-least-common-type` when the values do have a
-//! common type that these rules cannot reach.
+//! `no-common-type`.
 
 use hd_base::{HashMap, HashSet};
 
@@ -174,23 +175,6 @@ impl Joins {
                 }
                 None => break,
             }
-        }
-    }
-}
-
-/// The direction of a meet: the least type both convert to, or, in a
-/// contravariant position, the greatest type that converts to both.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Dir {
-    Least,
-    Greatest,
-}
-
-impl Dir {
-    fn flip(self) -> Self {
-        match self {
-            Self::Least => Self::Greatest,
-            Self::Greatest => Self::Least,
         }
     }
 }
@@ -456,7 +440,7 @@ impl Ck<'_, '_> {
                 return true;
             }
             self.infer.rollback(snap);
-            self.no_common_type(var, got, false, n, what);
+            self.no_common_type(var, got, n, what);
             return false;
         }
         let cur = self.infer.resolve(pool, var);
@@ -476,7 +460,7 @@ impl Ck<'_, '_> {
                 return true;
             }
             self.infer.rollback(snap);
-            self.no_common_type(var, got, false, n, what);
+            self.no_common_type(var, got, n, what);
             return false;
         }
         // An optional value joins a plain site of its inner type: the
@@ -495,13 +479,13 @@ impl Ck<'_, '_> {
                 }
             }
             self.infer.rollback(snap);
-            self.no_common_type(var, got, false, n, what);
+            self.no_common_type(var, got, n, what);
             return false;
         }
         let snap = self.infer.snapshot();
         if !self.unify_join(var, got) {
             self.infer.rollback(snap);
-            self.no_common_type(var, got, false, n, what);
+            self.no_common_type(var, got, n, what);
             return false;
         }
         let (cur, g) = (self.infer.resolve(pool, var), self.infer.resolve(pool, got));
@@ -509,7 +493,7 @@ impl Ck<'_, '_> {
         // admitted conversion. The meet builds the type so that this value
         // does, and the earlier values reach the current type, so they are
         // compared again only when the type changes.
-        let met = self.lct_meet(cur, g, Dir::Least, true, 0).filter(|t| {
+        let met = self.lct_meet(cur, g, true, 0).filter(|t| {
             *t == cur
                 || self
                     .joined_types(var)
@@ -522,7 +506,7 @@ impl Ck<'_, '_> {
             }
             true
         } else {
-            self.no_common_type(var, got, true, n, what);
+            self.no_common_type(var, got, n, what);
             false
         }
     }
@@ -530,11 +514,13 @@ impl Ck<'_, '_> {
     /// Whether two values' types have the same shape for the join, binding
     /// variables as unification does. Reference permissions meet by
     /// weakening, and ordinary unification keeps them distinct, so a
-    /// reference's permissions are left to [`Self::lct_meet`] wherever an
-    /// assignment could weaken them: at the top, in each tuple element
-    /// (`types.lct.tuple-elements`), and in a variant type argument. A
-    /// reference's own referent, and an invariant argument, unify. Cost:
-    /// one walk of the shallower type, bounded by `DEPTH`.
+    /// reference's permissions are left to [`Self::lct_meet`] where the
+    /// least common type may weaken them: at the top and in each tuple
+    /// element (`types.lct.tuple-elements`). A generic type's arguments
+    /// unify whatever their declared variance: a variance step that
+    /// weakens a permission inside them is the combination
+    /// `types.lct.no-combine` rules out. A reference's own referent unifies
+    /// too. Cost: one walk of the tuple spine, bounded by `DEPTH`.
     fn unify_join(&mut self, a: Ty, b: Ty) -> bool {
         self.unify_join_at(a, b, 0)
     }
@@ -575,18 +561,6 @@ impl Ck<'_, '_> {
                         _ => false,
                     }
             }
-            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
-                let vs = self.declared_variances(def);
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                xs.len() == ys.len()
-                    && xs.iter().zip(ys.iter()).enumerate().all(|(j, (x, y))| {
-                        if vs.get(j).copied().unwrap_or(0) == 0 {
-                            self.infer.unify(pool, *x, *y).is_ok()
-                        } else {
-                            self.unify_join_at(*x, *y, d)
-                        }
-                    })
-            }
             _ => self.infer.unify(pool, sa, sb).is_ok(),
         }
     }
@@ -601,27 +575,18 @@ impl Ck<'_, '_> {
             .collect()
     }
 
-    /// Reports a value that does not join its site (`types.lct.fail`).
-    /// `shaped` is true when the types agree apart from permissions and
-    /// function rows: then they may have common types of which these rules
-    /// admit no least one, `no-least-common-type`
-    /// (`types.lct.no-least`). That holds when, with each value's outer
-    /// `mut` weakened first, the values meet by variance, which an
-    /// ordinary conversion allows and the least common type does not
+    /// Reports a value that does not join its site (`types.lct.fail`,
+    /// `types.lct.no-common`). The meet weakens permissions only at the
+    /// top and in tuple elements, and unions rows only at the top, so each
+    /// value reaches any type the meet builds and two values that meet
+    /// have a least type: `no-least-common-type` (`types.lct.no-least`)
+    /// has no case here. A variance step that would weaken a permission,
+    /// as `List[*mut Cell]` to `List[*Cell]`, is `no-common-type`
     /// (`types.lct.no-combine`).
-    fn no_common_type(&mut self, var: Ty, got: Ty, shaped: bool, n: NodeRef<'_>, what: &str) {
+    fn no_common_type(&mut self, var: Ty, got: Ty, n: NodeRef<'_>, what: &str) {
         let pool = self.pool();
         let cur = self.infer.resolve(pool, var);
         let g = self.infer.resolve(pool, got);
-        let least = shaped && {
-            let mut all = self.joined_types(var);
-            all.push(g);
-            let mut acc = Some(self.resolved(all[0]));
-            for t in &all[1..] {
-                acc = acc.and_then(|a| self.lct_meet(a, self.resolved(*t), Dir::Least, true, 0));
-            }
-            acc.is_some()
-        };
         let (shown_cur, shown_got) = (self.show(cur), self.show(g));
         // A row is not part of the shown type, so name what differs.
         let (shown_cur, shown_got) = if shown_cur == shown_got {
@@ -632,28 +597,24 @@ impl Ck<'_, '_> {
         } else {
             (shown_cur, shown_got)
         };
-        if least {
-            let msg = format!(
-                "in {what}: {shown_cur} and {shown_got} have no least common type; write the type you mean, as in `let x: T = ...`"
-            );
-            self.err(Code::NoLeastCommonType, n, &msg);
-        } else {
-            let msg = format!(
-                "in {what}: {shown_cur} and {shown_got} have no common type; write the type you mean, as in `let x: T = ...`"
-            );
-            self.err(Code::NoCommonType, n, &msg);
-        }
+        let msg = format!(
+            "in {what}: {shown_cur} and {shown_got} have no common type; write the type you mean, as in `let x: T = ...`"
+        );
+        self.err(Code::NoCommonType, n, &msg);
         self.joins.fail(var);
     }
 
-    /// The least type (or, `Greatest`, the greatest type) that two types
-    /// meet at by the least common type's conversions, if there is one.
-    /// The two types already unify, so they differ only in permissions and
-    /// function rows. `top` is the site's level, where function values
-    /// take the union of their rows (`types.lct.row-union-every-site`);
-    /// below it rows are invariant (`types.variance.function`,
-    /// `req.row.union.literal.direct`).
-    fn lct_meet(&self, a: Ty, b: Ty, dir: Dir, top: bool, depth: u32) -> Option<Ty> {
+    /// The least type that two types meet at by the least common type's
+    /// conversions, if there is one. The two types already unify, so they
+    /// differ only in permissions and function rows. A permission weakens
+    /// at the top and in a tuple element (`types.lct.tuple-elements`),
+    /// never under a generic type's argument or a function's parameter or
+    /// result, where weakening would ride on a variance step
+    /// (`types.lct.no-combine`). `top` is the site's level, where function
+    /// values take the union of their rows
+    /// (`types.lct.row-union-every-site`); below it rows are invariant
+    /// (`types.variance.function`, `req.row.union.literal.direct`).
+    fn lct_meet(&self, a: Ty, b: Ty, top: bool, depth: u32) -> Option<Ty> {
         let pool = self.pool();
         let (a, b) = (self.resolved(a), self.resolved(b));
         if a == b {
@@ -681,32 +642,9 @@ impl Ck<'_, '_> {
                 },
             ) if self.resolved(x) == self.resolved(y) => Some(pool.intern_ty(&TyData::Ref {
                 inner: x,
-                mutable: match dir {
-                    Dir::Least => xm && ym,
-                    Dir::Greatest => xm || ym,
-                },
-                counted: match dir {
-                    Dir::Least => xc && yc,
-                    Dir::Greatest => xc || yc,
-                },
+                mutable: xm && ym,
+                counted: xc && yc,
             })),
-            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
-                let vs = self.declared_variances(def);
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                let mut out = Vec::with_capacity(xs.len());
-                for (j, (x, y)) in xs.iter().zip(ys.iter()).enumerate() {
-                    let t = match vs.get(j).copied().unwrap_or(0) {
-                        1 => self.lct_meet(*x, *y, dir, false, d)?,
-                        -1 => self.lct_meet(*x, *y, dir.flip(), false, d)?,
-                        _ => (self.resolved(*x) == self.resolved(*y)).then_some(*x)?,
-                    };
-                    out.push(t);
-                }
-                Some(pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(&out),
-                }))
-            }
             // A tuple element keeps its permission and converts as the
             // whole tuple does, as assignment allows (`perm_fits`).
             (
@@ -722,10 +660,10 @@ impl Ck<'_, '_> {
                 let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
                 let mut out = Vec::with_capacity(xs.len());
                 for (x, y) in xs.iter().zip(ys.iter()) {
-                    out.push(self.lct_meet(*x, *y, dir, false, d)?);
+                    out.push(self.lct_meet(*x, *y, false, d)?);
                 }
                 let rest = match (xr, yr) {
-                    (Some(x), Some(y)) => Some(self.lct_meet(x, y, dir, false, d)?),
+                    (Some(x), Some(y)) => Some(self.lct_meet(x, y, false, d)?),
                     (None, None) => None,
                     _ => return None,
                 };
@@ -751,52 +689,63 @@ impl Ck<'_, '_> {
                     row: yw,
                     deps: yd,
                 },
-            ) if suspends == ys && inputs == yi && deps == yd => {
-                let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
-                if xp.len() != yp.len() {
-                    return None;
-                }
-                let mut params = Vec::with_capacity(xp.len());
-                for (x, y) in xp.iter().zip(yp.iter()) {
-                    params.push(self.lct_meet(*x, *y, dir.flip(), false, d)?);
-                }
-                let result = self.lct_meet(xr, yr, dir, false, d)?;
+            ) if top
+                && suspends == ys
+                && inputs == yi
+                && deps == yd
+                && self.same_signature(xp, xr, yp, yr) =>
+            {
                 let (xw, yw) = (
                     self.infer.resolve_row(pool, xw),
                     self.infer.resolve_row(pool, yw),
                 );
                 let row = if xw == yw {
                     xw
-                } else if top {
+                } else {
                     let mut union = pool.row_data(xw);
                     let more = pool.row_data(yw);
                     union.keys.extend(more.keys);
                     union.params.extend(more.params);
                     pool.row(&union)
-                } else {
-                    return None;
                 };
                 Some(pool.intern_ty(&TyData::Fn {
-                    params: pool.list(&params),
-                    result,
+                    params: xp,
+                    result: xr,
                     suspends,
                     inputs,
                     row,
                     deps,
                 }))
             }
-            // `types.option.invariant`, and a trait value's arguments are
-            // invariant: they meet only as one type.
+            // A generic type's arguments meet only as one type: by
+            // `types.lct.no-combine` for a covariant one, by
+            // `types.option.invariant` and invariance for the rest. Two
+            // functions that differ below the top differ in a row there.
             _ => None,
         }
     }
 
-    /// Whether `s` converts to `t` by one representation-preserving step
-    /// the least common type admits: the same type, weakening the outer
-    /// `mut` alone, or declared readonly variance, whose arguments convert
-    /// the same way (`types.lct.conversions`, `types.lct.no-combine`,
-    /// `types.variance.repr.weakening.v2`). `top` lets a function value's row
-    /// widen to the site's union row.
+    /// Whether two function types have the same parameters and result,
+    /// so they differ at most in their rows. The two types already unify,
+    /// so this compares resolved types and never recurses.
+    fn same_signature(&self, xp: hd_types::TyList, xr: Ty, yp: hd_types::TyList, yr: Ty) -> bool {
+        let pool = self.pool();
+        let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
+        xp.len() == yp.len()
+            && self.resolved(xr) == self.resolved(yr)
+            && xp
+                .iter()
+                .zip(yp.iter())
+                .all(|(x, y)| self.resolved(*x) == self.resolved(*y))
+    }
+
+    /// Whether `s` converts to `t` by one step the least common type
+    /// admits: the same type, weakening a reference's permissions, or the
+    /// same per tuple element (`types.lct.conversions`,
+    /// `types.lct.tuple-elements`). A generic type's arguments and a
+    /// function's parameters and result must already agree: a variance
+    /// step never carries a weakening (`types.lct.no-combine`). `top` lets
+    /// a function value's row widen to the site's union row.
     fn lct_converts(&self, s: Ty, t: Ty, top: bool, depth: u32) -> bool {
         let pool = self.pool();
         let (s, t) = (self.resolved(s), self.resolved(t));
@@ -820,18 +769,6 @@ impl Ck<'_, '_> {
                     counted: yc,
                 },
             ) => self.resolved(x) == self.resolved(y) && (xm || !ym) && (xc || !yc),
-            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
-                let vs = self.declared_variances(def);
-                pool.list_items(xs)
-                    .iter()
-                    .zip(pool.list_items(ys).iter())
-                    .enumerate()
-                    .all(|(j, (x, y))| match vs.get(j).copied().unwrap_or(0) {
-                        1 => self.lct_converts(*x, *y, false, d),
-                        -1 => self.lct_converts(*y, *x, false, d),
-                        _ => self.resolved(*x) == self.resolved(*y),
-                    })
-            }
             (
                 TyData::Tuple {
                     elems: xs,
@@ -860,26 +797,19 @@ impl Ck<'_, '_> {
                     result: xr,
                     suspends,
                     inputs,
-                    row: xw,
                     deps,
+                    ..
                 },
                 TyData::Fn {
                     params: yp,
                     result: yr,
                     suspends: ys,
                     inputs: yi,
-                    row: yw,
                     deps: yd,
+                    ..
                 },
             ) if suspends == ys && inputs == yi && deps == yd => {
-                let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
-                xp.len() == yp.len()
-                    && xp
-                        .iter()
-                        .zip(yp.iter())
-                        .all(|(x, y)| self.lct_converts(*y, *x, false, d))
-                    && self.lct_converts(xr, yr, false, d)
-                    && (top || self.infer.resolve_row(pool, xw) == self.infer.resolve_row(pool, yw))
+                top && self.same_signature(xp, xr, yp, yr)
             }
             _ => false,
         }

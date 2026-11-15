@@ -1,0 +1,9 @@
+# test: a tuple element weakens at the site but not under a list's variance
+# Spec 04 Least Common Type: types.lct.no-combine, types.lct.tuple-elements.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, owned: List[(*mut Cell, i32)], shared: List[(*Cell, i32)]) -> usize:
+    pairs := if flag: owned else: shared # diagnostic: no-common-type
+    pairs.len()

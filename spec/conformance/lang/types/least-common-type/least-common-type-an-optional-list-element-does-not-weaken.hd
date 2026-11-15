@@ -1,0 +1,9 @@
+# test: optional counted reference elements of two lists have no common type
+# Spec 04 Least Common Type: types.lct.no-combine, types.option.invariant.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, owned: List[*mut Cell?], shared: List[*Cell?]) -> usize:
+    cells := if flag: owned else: shared # diagnostic: no-common-type
+    cells.len()

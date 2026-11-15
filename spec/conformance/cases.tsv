@@ -6670,7 +6670,15 @@ lang/types/generics/inference-from-several-arguments/generic-inference-never-sol
 lang/types/generics/inference-from-several-arguments/generic-inference-explicit-trait-value-reference-argument.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
 lang/types/least-common-type/least-common-type-weakens-a-reference-inside-a-tuple.hd	type	accept	lang/04-type-system.md#r-types.lct.tuple-elements
 lang/types/least-common-type/least-common-type-tuple-elements-keep-a-real-mismatch.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.tuple-elements
-lang/types/least-common-type/least-common-type-weakens-a-covariant-list-element.hd	type	accept	lang/04-type-system.md#r-types.lct.conversions
+lang/types/least-common-type/least-common-type-a-covariant-list-element-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-a-list-literal-of-covariant-lists-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-a-covariant-map-value-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-a-declared-covariant-argument-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-a-function-result-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-a-tuple-inside-a-list-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-an-optional-list-element-does-not-weaken.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-combine
+lang/types/least-common-type/least-common-type-weakens-a-counted-reference-inside-a-tuple.hd	runtime	accept	lang/04-type-system.md#r-types.lct.tuple-elements
+lang/types/least-common-type/least-common-type-weakens-a-counted-reference-at-the-top.hd	runtime	accept	lang/04-type-system.md#r-types.lct.conversions
 lang/traits/dynamic-trait-values/dyn-member-names-self-inside-a-tuple-result.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 lang/traits/dynamic-trait-values/dyn-member-names-self-in-a-context-result.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 lang/functions/function-types-and-values/function-type-constructors/a-vararg-function-meets-an-fn-bound-with-a-rest-tuple.hd	runtime	accept	lang/07-functions.md#r-fn.trait.function-values-read-only

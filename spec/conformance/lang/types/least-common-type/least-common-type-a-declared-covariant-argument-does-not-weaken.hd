@@ -1,0 +1,12 @@
+# test: the least common type does not weaken a reference under a declared covariant parameter
+# Spec 04 Least Common Type: types.lct.no-combine, types.variance.markers.
+
+struct Cell:
+    v: i32
+
+struct Holder[+T]:
+    item: T
+
+fn pick(flag: bool, owned: Holder[*mut Cell], shared: Holder[*Cell]) -> i32:
+    held := if flag: owned else: shared # diagnostic: no-common-type
+    held.item.v

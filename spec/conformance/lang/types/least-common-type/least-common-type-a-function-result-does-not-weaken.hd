@@ -1,0 +1,9 @@
+# test: the least common type does not weaken a function's reference result
+# Spec 04 Least Common Type: types.lct.no-combine, types.variance.function.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, owned: fn() -> *mut Cell, shared: fn() -> *Cell) -> i32:
+    make := if flag: owned else: shared # diagnostic: no-common-type
+    make().v
