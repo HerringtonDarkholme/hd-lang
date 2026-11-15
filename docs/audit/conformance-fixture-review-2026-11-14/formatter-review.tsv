@@ -6,7 +6,7 @@ lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd	WEAKEN
 lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd	WEAKENED	Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
 lexical/operators-and-delimiters/compound-assignment-tokens.hd	WEAKENED	Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
 grammar/types/counted-reference-types.hd	HARMLESS	
-parse/valid/data-embedding.hd	HARMLESS	
+data/data-embedding/data-embedding.hd	HARMLESS	
 grammar/declaration-defaults-and-bindings.hd	HARMLESS	
 grammar/annotations/decorator-lines-on-every-target.hd	HARMLESS	
 grammar/declarations/derivation-member-lines.hd	HARMLESS	
@@ -125,12 +125,12 @@ grammar/types/row-kind-mismatch.hd	HARMLESS
 grammar/expressions/trailing-block-ineligible.hd	HARMLESS	
 lexical/literals/unary-plus-i32-literal-range.hd	HARMLESS	
 typing/valid/composite-ordering.hd	HARMLESS	
-typing/valid/data-types.hd	HARMLESS	
-typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd	HARMLESS	
+data/construction-and-access/data-types.hd	HARMLESS	
+data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd	HARMLESS	
 grammar/types/declaration-owns-requirement-clause.hd	HARMLESS	
 grammar/types/explicit-empty-row.hd	HARMLESS	
 grammar/expressions/expression-type-arguments.hd	HARMLESS	
-typing/valid/generic-data-embedding.hd	HARMLESS	
+data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd	HARMLESS	
 grammar/statements/let-else.hd	HARMLESS	
 grammar/types/row-kinded-arguments.hd	HARMLESS	
 grammar/statements/same-line-let-list-unused.hd	ERASED	The only same-line suite binding was indented, so the same-line case the title names is gone.

@@ -189,7 +189,9 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
     let store = MemoryStore::default();
     let cases = [
         (
-            include_str!("../../../../spec/conformance/runtime/valid/wide-value-field-reads.hd"),
+            include_str!(
+                "../../../../spec/conformance/data/struct-declarations/wide-value-field-reads.hd"
+            ),
             false,
         ),
         (

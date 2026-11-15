@@ -516,7 +516,7 @@ cite two different rules for one program. The fix is to keep one fixture
 and either cite the primary rule or write a second program that isolates the
 other rule.
 
-- `parse/invalid/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
+- `data/struct-declarations/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
 - `typing/invalid/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
 - `names/module-scope/forward-module-binding.hd` = `names/module-scope/exec-binding-read-before-declared.hd`
 - `typing/invalid/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `typing/invalid/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
@@ -1434,12 +1434,12 @@ under test:
 - `parse/valid/use-group-trailing-comma.hd`, `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
   (17 commas), `grammar/use-declarations/use-declaration-forms.hd`, `grammar/use-declarations/single-and-grouped-use.hd`,
   `grammar/test-blocks/test-block.hd`, `grammar/patterns/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
-  `parse/valid/data-embedding.hd`, `parse/valid/functions-and-closures.hd`,
+  `data/data-embedding/data-embedding.hd`, `parse/valid/functions-and-closures.hd`,
   `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
   `std/json/parsing/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
-  `typing/valid/composite-ordering.hd`, `typing/valid/data-types.hd`,
-  `typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd`,
-  `typing/valid/generic-data-embedding.hd`: trailing commas removed.
+  `typing/valid/composite-ordering.hd`, `data/construction-and-access/data-types.hd`,
+  `data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd`,
+  `data/data-embedding/a-generic-embedded-struct-promotes-its-fields.hd`: trailing commas removed.
 - `runtime/valid/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
   became `time.s`, so it is now a duplicate of `module-qualified-function-value.hd`),
   `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`, and
@@ -1551,7 +1551,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
 - `typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
 - `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
-- `typing/valid/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
+- `data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
 - `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)
 - `typing/valid/shared-reference-disjoint-field-write.hd` = `typing/valid/dependent-result-borrow-field-instead.hd`
@@ -1814,13 +1814,13 @@ Ledger: b072 (41): 5 rows. Plausible 5.
 
 Ledger: b073 (38): 5 rows. Plausible 4, rejected 1.
 
-- Plausible B3: `runtime/valid/copy-update-evaluation-order.hd` (both bang calls are
+- Plausible B3: `data/construction-and-access/copy-update-evaluation-order.hd` (both bang calls are
   pure, so the output can't show the order).
 - Plausible B1: `typing/invalid/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-nested.hd`
   (rejected by `List` invariance, not by the weakening rule; the wrong-reason kind).
 - Already known: `nonfinal-spread.hd` (A2 duplicate; also a B7 lead).
   `nonfinal-vararg-declaration.hd` ~ `nonfinal-vararg-then-parameter.hd` (C1).
-- Rejected B2: `typing/invalid/data-literal-unknown-field.hd` (`Point { y: 1 }` also
+- Rejected B2: `data/construction-and-access/data-literal-unknown-field.hd` (`Point { y: 1 }` also
   omits `x`). An unknown field suppresses the missing-field error by design;
   see `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`.
 
@@ -1828,11 +1828,11 @@ Ledger: b073 (38): 5 rows. Plausible 4, rejected 1.
 
 Ledger: b076 (46): 3 rows. Confirmed 1, plausible 2.
 
-- **A check that cannot fail (B3)**: `runtime/valid/count-tests-skip-no-object-in-a-garbage-cycle.hd`
+- **A check that cannot fail (B3)**: `data/representation-and-garbage-collection/count-tests-skip-no-object-in-a-garbage-cycle.hd`
   asserts `total >= 0` on an unsigned count, which is always true.
-- Plausible B3: `runtime/valid/shared-enum-generic-one-copy.hd` (the "item" label
+- Plausible B3: `data/shared-enum-constructor-data/shared-enum-generic-one-copy.hd` (the "item" label
   holds however many copies are made; it needs a side-effect counter).
-- Plausible C1: `runtime/valid/reference-cycles-are-ordinary-data.hd` ~ the first test of
+- Plausible C1: `data/representation-and-garbage-collection/reference-cycles-are-ordinary-data.hd` ~ the first test of
   `dropped-cycles-are-reclaimed.hd`.
 
 **Script check A17** (`a17_tautologies.py`, output `full/a17.tsv`): `assert(true)`,
@@ -1876,29 +1876,29 @@ Ledger: b074 (43): 6 rows. b075 (30): 8 rows. Plausible ~12.
   `…-does-not-embed-itself-352.hd` (an accept case citing an error-only rule).
 - Plausible C1: `…-a-type-embeds-at-most-three-fields-346.hd` ~ `three-embedded-fields.hd`.
   `…-an-embedding-chain-is-at-most-three-deep-348.hd` ~ `embedding-depth-three.hd`.
-  `runtime/valid/enum-payload-mut-shallow.hd` ~ `enum-value-fixed-at-construction` test 2.
-- Plausible B3: `runtime/valid/struct-derive-eq-debug.hd` (line 19 writes the value
-  already held). Plausible B1: `runtime/valid/enum-niche-partial-moves.hd`.
-- Plausible B2: `typing/invalid/variant-duplicate-argument.hd`,
-  `typing/invalid/variant-unknown-payload-field.hd` (the required `second` is never
+  `data/enum-declarations/enum-payload-mut-shallow.hd` ~ `enum-value-fixed-at-construction` test 2.
+- Plausible B3: `data/typed-derivation-of-data-and-enums/struct-derive-eq-debug.hd` (line 19 writes the value
+  already held). Plausible B1: `data/matching-enums/enum-niche-partial-moves.hd`.
+- Plausible B2: `data/enum-declarations/variant-duplicate-argument.hd`,
+  `data/enum-declarations/variant-unknown-payload-field.hd` (the required `second` is never
   given; it may be suppressed by design, as for data literals).
-- Plausible B7: `typing/invalid/promoted-mut-method-on-readonly-receiver.hd` (the rule
+- Plausible B7: `data/data-embedding/promoted-mut-method-on-readonly-receiver.hd` (the rule
   is `fn.method.auto-address.place-writable` in chapter 07).
 
 #### b077 (`lang/08-data-and-enums.md`)
 
-Ledger: b077 (43): 3 rows. Plausible 3 (all UNSURE): `typing/invalid/copy-update-private-field-other-module.hd`
-(B2), `runtime/valid/a-generic-struct-update-keeps-its-inherited-counts.hd` (B1),
-`typing/invalid/struct-embedded-field.hd` ~ `embedded-non-data.hd` (C1).
+Ledger: b077 (43): 3 rows. Plausible 3 (all UNSURE): `data/struct-declarations/copy-update-private-field-other-module.hd`
+(B2), `data/construction-and-access/a-generic-struct-update-keeps-its-inherited-counts.hd` (B1),
+`data/data-embedding/struct-embedded-field.hd` ~ `embedded-non-data.hd` (C1).
 
 #### b078 (`lang/08`, `lang/09`)
 
 Ledger: b078 (45): 4 rows. Confirmed 2 (A11), plausible 2.
 
-- The A11 class, found independently by the reviewer: `runtime/valid/shared-enum-data-computed-once.hd`
+- The A11 class, found independently by the reviewer: `data/shared-enum-constructor-data/shared-enum-data-computed-once.hd`
   and `runtime/valid/ord-supertrait-dispatch.hd` (private `main`, so nothing runs).
-- Plausible B1: `runtime/valid/derive-members-of-data-and-enums.hd` (`_1` is never
-  emitted). `typing/invalid/variant-constructors-a-generic-variant-value-without-an-expected-type-cannot-be-inferred.hd`
+- Plausible B1: `data/typed-derivation-of-data-and-enums/derive-members-of-data-and-enums.hd` (`_1` is never
+  emitted). `data/enum-declarations/variant-constructors-a-generic-variant-value-without-an-expected-type-cannot-be-inferred.hd`
   (`Either.Left` *is* a function value; the real error is an unsolved generic,
   so this is the wrong-reason kind).
 

@@ -16,7 +16,7 @@ names/use-declarations/use-declaration-position-independent.hd	A17	line 14: asse
 std/encoding/base64/encoding-base64-vectors.hd	A17	line 97: assert_equal(x, x): assert_equal(Base64.Url, Base64.Url, reason="same variant")
 runtime/valid/typeid-same-name-modules.hd	A17	line 15: assert(true): .None => assert(true, reason="different declarations")
 runtime/valid/erased-error-result.hd	A17	line 55: assert(true): .None => assert(true, reason="the default source")
-runtime/valid/count-tests-skip-no-object-in-a-garbage-cycle.hd	A17	line 43: >= 0 on a count: assert(shared.len() == 2 && total >= 0, reason="the list is still the 
+data/representation-and-garbage-collection/count-tests-skip-no-object-in-a-garbage-cycle.hd	A17	line 43: >= 0 on a count: assert(shared.len() == 2 && total >= 0, reason="the list is still the 
 runtime/valid/test-prelude-assertions.hd	A17	line 5: assert(true): assert(true, reason="the test prelude supplies assert")
 runtime/valid/test-prelude-redundant-use.hd	A17	line 7: assert_equal(x, x): assert_equal("same", "same", reason="the import names the same declara
 runtime/valid/test-prelude-test-module-assertions.hd	A17	line 4: assert(true): assert(true, reason="implicit assertion")

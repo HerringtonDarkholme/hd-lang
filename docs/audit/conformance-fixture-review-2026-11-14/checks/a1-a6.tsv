@@ -5,7 +5,7 @@ trees/impl-modules-a-trait-impl-outside-the-module-of-the-trait-or-target-is-non
 trees/row-aliases-a-context-type-naming-a-row-alias-matches-its-expanded-row	A1	identical to trees/row-aliases-a-context-type-with-fewer-keys-than-the-expanded-alias-is-a-mismatch
 trees/tuple-template-bounds-a-user-tuple-template-shows-nested-integer-members	A1	identical to trees/tuple-template-bounds-a-user-tuple-template-rejects-a-member-its-walker-cannot-show
 trees/row-aliases-a-nested-alias-flattens-into-the-keys-of-its-caller	A1	identical to trees/row-aliases-a-caller-missing-a-key-of-a-nested-alias-is-missing-it
-parse/invalid/mutable-field-modifier.hd	A2	same code (comments/directives stripped) as grammar/declarations/grammar-mutable-field-modifier.hd [reject:mutable-field-modifier] [reject:mutable-field-modifier]
+data/struct-declarations/mutable-field-modifier.hd	A2	same code (comments/directives stripped) as grammar/declarations/grammar-mutable-field-modifier.hd [reject:mutable-field-modifier] [reject:mutable-field-modifier]
 typing/invalid/nonfinal-spread.hd	A2	same code (comments/directives stripped) as grammar/expressions/positional-after-spread.hd [reject:nonfinal-positional-spread] [reject:nonfinal-positional-spread]
 names/module-scope/forward-module-binding.hd	A2	same code (comments/directives stripped) as names/module-scope/exec-binding-read-before-declared.hd [reject:binding-not-yet-visible] [reject:binding-not-yet-visible]
 typing/invalid/tuple-rest-differs-from-plain.hd	A2	same code (comments/directives stripped) as typing/invalid/tuple-rest-assign.hd [reject:type-mismatch] [reject:type-mismatch]
@@ -43,7 +43,7 @@ grammar/declarations/impl-trait-nested-parameter.hd	A3	grammar/declarations/impl
 grammar/declarations/impl-trait-nested-return.hd	A3	grammar/declarations/impl-trait-optional-return.hd
 grammar/declarations/trailing-callback-statement.hd	A3	grammar/declarations/explicit-generic-arguments-with-placeholder.hd
 grammar/declarations/explicit-generic-arguments-with-placeholder.hd	A3	grammar/declarations/parameter-defaults.hd
-typing/valid/data-embedding-an-embedding-chain-may-be-three-deep.hd	A3	typing/valid/embedding-depth-three.hd
+data/data-embedding/data-embedding-an-embedding-chain-may-be-three-deep.hd	A3	data/data-embedding/embedding-depth-three.hd
 runtime/panic/slicing-a-string-slice-inside-a-scalar-panics.hd	A3	runtime/panic/slicing-an-inclusive-end-at-the-length-panics.hd
 typing/invalid/a-body-trait-value-type-of-a-primitive.hd	A3	typing/invalid/a-body-trait-value-type-of-a-struct.hd
 typing/invalid/a-body-trait-value-type-of-a-primitive.hd	A3	typing/invalid/a-body-trait-value-type-of-a-type-parameter.hd
@@ -1284,7 +1284,7 @@ typing/invalid/from-implementation-with-requirement.hd	A3	typing/invalid/from-im
 typing/invalid/user-anyref-implementation.hd	A3	typing/invalid/user-anyval-implementation.hd
 typing/invalid/bare-none-is-unknown-name.hd	A3	typing/invalid/bare-some-is-unknown-name.hd
 typing/invalid/bare-ok-is-unknown-name.hd	A3	typing/invalid/bare-err-is-unknown-name.hd
-typing/invalid/embedded-collection-type.hd	A3	typing/invalid/embedded-type-parameter.hd
+data/data-embedding/embedded-collection-type.hd	A3	data/data-embedding/embedded-type-parameter.hd
 grammar/expressions/numeric-member-access.hd	A3	grammar/expressions/numeric-member-access-float.hd
 typing/invalid/least-common-type-a-list-of-a-trait-value-and-a-struct-has-no-common-type.hd	A3	typing/invalid/least-common-type-a-list-of-a-struct-and-a-trait-value-has-no-common-type.hd
 typing/invalid/least-common-type-a-list-of-a-trait-value-and-a-struct-has-no-common-type.hd	A3	typing/invalid/least-common-type-a-list-of-a-trait-value-and-a-subtrait-value-has-no-common-type.hd
@@ -2072,7 +2072,7 @@ typing/invalid/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3
 typing/invalid/a-dependent-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	typing/invalid/a-dependent-pointer-loan-blocks-a-store-through-its-loop-binding.hd
 typing/invalid/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-slot.hd	A3	typing/invalid/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd
 typing/invalid/a-cast-with-two-arguments-is-an-argument-count-error.hd	A3	typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd
-typing/invalid/shared-initializer-enum-type-parameter-is-unknown.hd	A3	typing/invalid/shared-default-enum-type-parameter-is-unknown.hd
+data/shared-enum-constructor-data/shared-initializer-enum-type-parameter-is-unknown.hd	A3	data/shared-enum-constructor-data/shared-default-enum-type-parameter-is-unknown.hd
 typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-provider-context-result.hd
 typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-provider-context-argument.hd
 typing/invalid/boundary-not-safe-function.hd	A3	typing/invalid/boundary-not-safe-union-case.hd
@@ -2152,7 +2152,7 @@ typing/warnings/unreachable-code.hd	A6	directory says otherwise; expectation acc
 typing/warnings/unused-local-binding.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#blocks-and-completion
 typing/warnings/variant-binding-name-mismatch.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#match-expressions
 typing/warnings/unreachable-after-infinite-loop.hd	A6	directory says otherwise; expectation accept, cites lang/06-control-flow.md#r-flow.unreachable.infinite-loop
-typing/warnings/variant-binding-names-swapped.hd	A6	directory says otherwise; expectation accept, cites lang/08-data-and-enums.md#matching-enums
+data/matching-enums/variant-binding-names-swapped.hd	A6	directory says otherwise; expectation accept, cites lang/08-data-and-enums.md#matching-enums
 typing/warnings/unused-nested-optional-binding.hd	A6	directory says otherwise; expectation accept, cites lang/04-type-system.md#optional-types
 annotations/typed-derivation/derivation-blocks/derivation-line-drift.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint
 annotations/typed-derivation/derivation-blocks/derivation-line-drift-beside-derive.hd	A6	directory says otherwise; expectation accept, cites lang/14-annotations.md#r-annot.line.drift.lint.derive
@@ -2199,7 +2199,7 @@ runtime/valid/doc-test-compile-fail.hd	A4	runtime accept with no assert, stdout 
 runtime/valid/ord-supertrait-dispatch.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/generic-inherent-box.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/i64-widening-checked.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/shared-enum-data-computed-once.hd	A4	runtime accept with no assert, stdout check, or scenario
+data/shared-enum-constructor-data/shared-enum-data-computed-once.hd	A4	runtime accept with no assert, stdout check, or scenario
 requirements/requirement-rows/closure-result-keeps-requirement-row.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/trait-default-method-instantiates-params.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/doc-test-console-row.hd	A4	runtime accept with no assert, stdout check, or scenario
