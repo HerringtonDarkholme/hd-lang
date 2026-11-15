@@ -70,9 +70,8 @@
       i32.add
       local.set $t3
     end
-    ;; 13 |     p := box(Cell { value: "a", other: "o" })
-    local.get $p
     ;; 15 |     run_plain(fn() -> void: p.value = "b")
+    local.get $p
     i32.const 4
     i32.sub
     i32.load $heap
@@ -84,9 +83,7 @@
       call $rt:panic
       unreachable
     end
-    ;; 13 |     p := box(Cell { value: "a", other: "o" })
     local.get $p
-    ;; 15 |     run_plain(fn() -> void: p.value = "b")
     i32.load $heap
     local.get $p
     i32.load $heap offset=4
@@ -105,7 +102,6 @@
     i32.load $heap offset=4
     local.tee $r
     call $rt:retain
-    ;; 13 |     p := box(Cell { value: "a", other: "o" })
     local.get $t0
     if
       local.get $t0
@@ -128,7 +124,6 @@
       i32.const 0
       local.set $t0
     end
-    ;; 16 |     (*r, p.value)
     local.get $p
     i32.load $heap
     local.get $p

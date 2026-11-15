@@ -172,7 +172,6 @@
         br 0
       end
     end
-    ;; 35 |     let mut cursor = items
     local.get $items.source.0
     if
       local.get $items.source.0

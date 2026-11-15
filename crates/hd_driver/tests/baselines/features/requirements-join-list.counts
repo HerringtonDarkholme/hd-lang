@@ -23,7 +23,6 @@ fn all!(keys: List[string]) -> usize:
 >   retain string (stored)
 >   release List[string] (last use)
 >   release List[string] (last use)
->   release List[string] (last use)
 > app/main/all
 >   release List[string] (cancelled)
 >   release counted reference (last use)
@@ -32,5 +31,6 @@ fn all!(keys: List[string]) -> usize:
 >   release counted reference (last use)
     let mut n = 0
     for r in &results:
+>   release List[string] (last use)
         n += r.len()
     n

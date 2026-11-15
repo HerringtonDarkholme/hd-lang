@@ -23,9 +23,9 @@ pub fn copied(xs: List[string]) -> usize:
     ys := (xs, xs)
 > app/main/copied
 >   copy List[string] (stored)
+    ys._0.len() + ys._1.len()
 >   release (List[string], List[string]) [0, 1] (last use)
 >   release List[string] (last use)
-    ys._0.len() + ys._1.len()
 
 pub struct Ring:
     next: *mut Ring?

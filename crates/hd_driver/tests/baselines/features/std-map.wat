@@ -51,7 +51,7 @@
     local.get $t0
     i32.store $heap
   )
-  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 18 |     m.get_or_insert(k, []).push(v)
     i32.const 80 ;; &empty-buffer
     local.set $t0
@@ -105,8 +105,9 @@
       local.set $m
     else
       local.get $k.0
+      local.tee $t4
       if
-        local.get $k.0
+        local.get $t4
         call $retain
       end
       local.get $t1

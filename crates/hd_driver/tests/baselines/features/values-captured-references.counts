@@ -15,12 +15,12 @@ fn bump(p: *mut Point) -> fn() -> void:
 fn demo(s: string) -> i32:
     origin := box(Point { name: s, x: 0 })
 > app/main/demo
->   release fn() -> () (last use)
 >   release *mut app.main.Point (last use)
     step := bump(origin)
 >   retain *mut app.main.Point (stored)
     step()
     step()
+>   release fn() -> () (last use)
     origin.x
 
 fn apply(f: fn() -> usize) -> usize:

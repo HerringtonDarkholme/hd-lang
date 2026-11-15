@@ -56,13 +56,13 @@
         i32.const 3
         i32.lt_u
         if
+    ;; 12 |             continue
           local.get $t.0
           local.tee $x.0
           if
             local.get $x.0
             call $rt:release_ref
           end
-    ;; 12 |             continue
           br 1
     ;; 11 |         if t.len() < 3:
         end
@@ -71,24 +71,23 @@
         i32.const 9
         i32.gt_u
         if
+    ;; 14 |             break
           local.get $t.0
           local.tee $x.0
           if
             local.get $x.0
             call $rt:release_ref
           end
-    ;; 14 |             break
           br 2
     ;; 13 |         if t.len() > 9:
         end
-    ;; 9 |     for x in xs:
+    ;; 15 |         n += t.len()
         local.get $t.0
         local.tee $x.0
         if
           local.get $x.0
           call $rt:release_ref
         end
-    ;; 15 |         n += t.len()
         local.get $n
         local.get $t.1
         i32.add

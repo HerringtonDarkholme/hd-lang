@@ -1247,7 +1247,6 @@
       i32.load $heap
       i64.extend_i32_u
       local.set $t57
-    ;; 12 |     let mut u = UniqList::[i32].new()
       local.get $provider1
       local.tee $t53
       if
@@ -1262,7 +1261,6 @@
           call $rt:release_ref'1
         end
       end
-    ;; 15 |     println("$a")
       local.get $t57
       call $unsigned_width
       local.tee $provider1

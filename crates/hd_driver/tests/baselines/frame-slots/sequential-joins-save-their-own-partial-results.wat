@@ -1400,7 +1400,6 @@
         local.set $t20
         br 1
       end
-    ;; 11 |     let (a, b) = join!(ready(left), ready(right))
       local.get $t9
       local.tee $t17
       if
@@ -1429,7 +1428,6 @@
           call $rt:release_ref'2
         end
       end
-    ;; 12 |     let (c, d) = join!(ready(a), ready(b))
       block
         br 0
         unreachable
@@ -1461,7 +1459,6 @@
       local.get $left.1
       local.get $right.1
       call $rt:memory_copy/0/0
-    ;; 11 |     let (a, b) = join!(ready(left), ready(right))
       local.get $left.1
       local.tee $t17
       if
@@ -1474,7 +1471,6 @@
         local.get $t17
         call $rt:release_ref'1
       end
-    ;; 13 |     a + c + d
       local.get $t1
       local.get $d.1
       i32.add

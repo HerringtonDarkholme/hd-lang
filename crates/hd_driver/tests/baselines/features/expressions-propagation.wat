@@ -38,6 +38,7 @@
     end
     local.set $path.1
     local.get $path.0
+    local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
@@ -51,12 +52,12 @@
       return
     end
     local.get $t1
+    ;; 24 |     .Ok(text.len())
     local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
     end
-    ;; 24 |     .Ok(text.len())
     i32.const 0
     local.get $t0
   )
@@ -93,6 +94,7 @@
     end
     local.set $path.1
     local.get $path.0
+    local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
@@ -106,12 +108,12 @@
       return
     end
     local.get $t1
+    ;; 28 |     .Ok(text.len())
     local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
     end
-    ;; 28 |     .Ok(text.len())
     i32.const 0
     local.get $t0
   )

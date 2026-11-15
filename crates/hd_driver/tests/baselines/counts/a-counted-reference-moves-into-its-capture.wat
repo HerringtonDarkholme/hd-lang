@@ -145,7 +145,6 @@
     i32.const 0
     local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 38 |     step := capture(value)
     local.get $t0
     if
       local.get $t0
@@ -159,7 +158,6 @@
         call $rt:release_ref
       end
     end
-    ;; 39 |     step() + value.x
     local.get $value
     i32.load $heap offset=8
     i32.add

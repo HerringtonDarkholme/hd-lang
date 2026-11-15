@@ -320,8 +320,9 @@
             return
           end
           local.get $t6
+          local.tee $t8
           if
-            local.get $t6
+            local.get $t8
             call $rt:release_ref'1
           end
           local.get $t4
@@ -444,35 +445,36 @@
           return
         end
         local.get $t6
+        local.tee $t8
         if
-          local.get $t6
+          local.get $t8
           call $rt:release_ref'1
         end
         local.get $t1
-        local.tee $t6
+        local.tee $t8
         if
-          local.get $t6
+          local.get $t8
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $t8
             call $rt:release_ref'2
           end
         end
         local.get $t2
-        local.tee $t6
+        local.tee $t8
         if
-          local.get $t6
+          local.get $t8
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $t8
             call $rt:release_ref'2
           end
         end
@@ -481,59 +483,59 @@
         br 1
       end
       local.get $t2
-      local.tee $t6
+      local.tee $t8
       if
-        local.get $t6
+        local.get $t8
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t8
           call $rt:release_ref'2
         end
       end
       local.get $t1
-      local.tee $t6
+      local.tee $t8
       if
-        local.get $t6
+        local.get $t8
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t8
           call $rt:release_ref'2
         end
       end
     end
     local.get $a
-    local.tee $t6
+    local.tee $t8
     if
-      local.get $t6
+      local.get $t8
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $t8
         call $rt:release_ref'2
       end
     end
     local.get $b
-    local.tee $t6
+    local.tee $t8
     if
-      local.get $t6
+      local.get $t8
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $t8
         call $rt:release_ref'2
       end
     end

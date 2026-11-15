@@ -167,7 +167,6 @@
     local.get $t2
     i64.load $heap offset=24
     local.set $t3
-    ;; 31 |     let mut h = histogram()
     local.get $h
     if
       local.get $h
@@ -184,7 +183,6 @@
         end
       end
     end
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t3
     local.tee $t4
     call $signed_magnitude
@@ -215,7 +213,6 @@
     local.get $t2
     i64.load $heap offset=16
     local.set $t4
-    ;; 31 |     let mut h = histogram()
     local.get $t1
     if
       local.get $t1
@@ -232,7 +229,6 @@
         end
       end
     end
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t4
     local.tee $t6
     call $signed_magnitude
@@ -299,32 +295,24 @@
     local.get $t9
     local.get $h
     call $write_signed_sized
-    ;; 31 |     let mut h = histogram()
     local.get $t9
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $h
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t4
-    ;; 31 |     let mut h = histogram()
     local.get $t9
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $i
     i32.add
     local.get $t1
     call $write_signed_sized
-    ;; 31 |     let mut h = histogram()
     local.get $t9
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t5
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t6
-    ;; 31 |     let mut h = histogram()
     local.get $t9
-    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t7
     i32.add
     local.get $t2

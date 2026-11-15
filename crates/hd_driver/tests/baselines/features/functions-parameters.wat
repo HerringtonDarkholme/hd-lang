@@ -82,14 +82,10 @@
     i32.store $heap offset=4
     ;; 18 |     t.tags.len()
     local.get $t.tags
-    ;; 17 |     t.tags.push(s)
     local.get $t.name.0
     local.get $t.name.1
-    ;; 18 |     t.tags.len()
     i32.const 0
-    ;; 17 |     t.tags.push(s)
     call $rt:release
-    ;; 18 |     t.tags.len()
     i32.load $heap offset=4
     local.get $t.tags
     ;; 17 |     t.tags.push(s)
@@ -194,12 +190,11 @@
     local.get $t.name.1
     ;; 25 |     u.tags.len() + t.tags.len()
     i32.const 0
-    ;; 24 |     u := bumped(t, s)
     call $rt:release
-    ;; 25 |     u.tags.len() + t.tags.len()
     i32.load $heap offset=4
     ;; 24 |     u := bumped(t, s)
     local.get $s.0
+    ;; 25 |     u.tags.len() + t.tags.len()
     local.tee $t1
     if
       local.get $t1
@@ -211,19 +206,13 @@
         call $rt:release_ref
       end
     end
-    ;; 25 |     u.tags.len() + t.tags.len()
     local.get $t.tags
-    ;; 24 |     u := bumped(t, s)
     local.get $t.name.0
     local.get $t.name.1
-    ;; 25 |     u.tags.len() + t.tags.len()
     i32.const 0
-    ;; 24 |     u := bumped(t, s)
     call $rt:release
-    ;; 25 |     u.tags.len() + t.tags.len()
     i32.load $heap offset=4
     local.get $t.tags
-    ;; 24 |     u := bumped(t, s)
     local.tee $t1
     if
       local.get $t1
@@ -235,7 +224,6 @@
         call $rt:release_ref
       end
     end
-    ;; 25 |     u.tags.len() + t.tags.len()
     i32.add
   )
 )

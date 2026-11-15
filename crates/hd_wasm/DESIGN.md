@@ -55,6 +55,14 @@ Instances, helpers, imports and static data have deterministic content order.
 `hd.lines` maps each function's anchored call byte offsets to TIR instruction
 numbers. `hd.names` preserves source names in release builds.
 
+A row stands for the calls after it up to the next row, so each call
+inside a branch arm, and the first call after a control instruction,
+writes its own anchor: an arm the optimizer folds away takes only its own
+calls' rows. An instruction the ownership passes add before a statement
+takes the anchor of an instruction at its source position, in that
+statement's inlined frame (`hd_tir::own::splice`), so a check it emits
+names that statement's line (#1998); one at a block's end keeps none.
+
 ## 14. Suspension Lowering
 
 ### 14.1 Functions Per Suspending Body

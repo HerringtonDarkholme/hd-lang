@@ -15,16 +15,16 @@ fn reward(player: &mut Player, points: i32) -> void:
 
 fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
     let mut out = players
+    reward(&mut out[best], 10)
 > app/main/rewarded
 >   unique List[app.main.Player] (may be shared)
-    reward(&mut out[best], 10)
     out[best].score += 1
     out.push(Player { name: s, score: 0 })
     out
 
 fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
     let mut out = m
+    reward(&mut out[k], 10)
 > app/main/by_key
 >   unique Map[string, app.main.Player] (may be shared)
-    reward(&mut out[k], 10)
     out

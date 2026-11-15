@@ -85,7 +85,6 @@
       local.set $t1
       local.set $t2
     end
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
     local.get $seen
     local.tee $t3
     if
@@ -98,7 +97,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
     block
       block
         block
@@ -125,7 +123,6 @@
     i32.const 0
     call $"impl Fast for Tree.regular#1"
     local.set $seen
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
     local.get $bump.1
     local.tee $t3
     if
@@ -138,7 +135,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
     i32.const 4
     i32.const 0
     call $rt:new/class-1
@@ -155,27 +151,23 @@
       local.get $t3
       call $retain
     end
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
     local.get $step
     local.tee $t3
     if
       local.get $t3
       call $rt:release_ref'2
     end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
     local.get $t0
     local.get $bump.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
     local.set $step
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
     local.get $t0
     local.tee $t3
     if
       local.get $t3
       call $rt:release_ref'2
     end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
     local.get $seen
     local.get $step
     i32.add

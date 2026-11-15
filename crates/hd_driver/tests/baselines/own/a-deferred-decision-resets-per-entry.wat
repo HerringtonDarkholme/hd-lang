@@ -53,7 +53,7 @@
             i32.const 128
             i32.eq
             br_if 1
-    ;; 10 |         for i in 0..xs.len():
+    ;; 13 |             xs[i] = i32(round)
             local.get $t3
             i32.eqz
             if
@@ -73,7 +73,6 @@
             i32.const -2
             i32.and
             local.set $t4
-    ;; 13 |             xs[i] = i32(round)
             local.get $i
             local.get $t4
             i32.load $heap offset=4

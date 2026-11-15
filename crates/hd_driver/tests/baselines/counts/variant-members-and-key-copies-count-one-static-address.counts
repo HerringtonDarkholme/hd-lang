@@ -16,6 +16,6 @@ fn keep(vs: &mut List[Variant[Point]], v: Variant[Point], ks: &mut List[Key[Poin
 > app/main/keep
 >   unique List[*std.structure.VariantRecord[app.main.Point]] (may be shared)
     match members.at(0):
->   unique List[*std.structure.KeyRecord[app.main.Point]] (may be shared)
         .Some(key) => ks.push(key)
+>   unique List[*std.structure.KeyRecord[app.main.Point]] (may be shared)
         .None => pass

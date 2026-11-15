@@ -27,7 +27,7 @@
           local.get $stop
           i32.eq
           br_if 2
-    ;; 17 |     for i in 0..xs.len():
+    ;; 20 |         xs[i] = +5
           local.get $t2
           i32.eqz
           if
@@ -47,7 +47,6 @@
           i32.const -2
           i32.and
           local.set $t3
-    ;; 20 |         xs[i] = +5
           local.get $i
           local.get $t3
           i32.load $heap offset=4
@@ -92,7 +91,7 @@
         local.get $stop
         i32.eq
         br_if 0
-    ;; 11 |     for i in 0..xs.len():
+    ;; 14 |         xs[i] = +5
         local.get $t2
         i32.eqz
         if
@@ -112,7 +111,6 @@
         i32.const -2
         i32.and
         local.set $t3
-    ;; 14 |         xs[i] = +5
         local.get $i
         local.get $t3
         i32.load $heap offset=4
@@ -156,7 +154,7 @@
         local.get $stop
         i32.eq
         br_if 1
-    ;; 5 |     for i in 0..xs.len():
+    ;; 8 |         xs[i] = +5
         local.get $t2
         i32.eqz
         if
@@ -176,7 +174,6 @@
         i32.const -2
         i32.and
         local.set $t3
-    ;; 8 |         xs[i] = +5
         local.get $i
         local.get $t3
         i32.load $heap offset=4

@@ -35,11 +35,11 @@ impl Shelf:
 pub fn main() -> void $ Console:
     let mut h = histogram()
 > app/main/main
->   release app.main.Histogram (last use)
->   release app.main.Shelf (last use)
 >   release string (last use)
     for i in 0..8:
         h.add(i % 4)
     let mut s = shelf()
     s.put(9)
     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
+>   release app.main.Histogram (last use)
+>   release app.main.Shelf (last use)

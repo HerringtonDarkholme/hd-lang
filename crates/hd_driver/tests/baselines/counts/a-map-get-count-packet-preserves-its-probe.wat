@@ -48,6 +48,7 @@
     else
       i32.const 0
     end
+    ;; 6 |     values[key] = value
     local.get $values
     i32.load $heap
     call $rt:map_unique
@@ -55,7 +56,6 @@
     local.get $values
     local.get $t0
     i32.store $heap
-    ;; 6 |     values[key] = value
     local.get $key.0
     local.tee $t4
     if
@@ -63,9 +63,7 @@
       call $retain
     end
     local.get $values
-    ;; 5 |     previous := values.get(key)
     local.get $t0
-    ;; 6 |     values[key] = value
     local.get $t1
     local.get $t2
     local.get $key.0

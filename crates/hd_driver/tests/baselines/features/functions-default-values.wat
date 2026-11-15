@@ -212,13 +212,13 @@
     local.get $t2
     call $reference_default
     local.tee $source
+    ;; 33 |     into.push("held")
     i32.load $heap
     call $rt:list_unique
     local.set $fresh
     local.get $source
     local.get $fresh
     i32.store $heap
-    ;; 33 |     into.push("held")
     local.get $fresh
     i32.load $heap offset=4
     local.tee $t2

@@ -26,10 +26,10 @@ fn temp(n: i32) -> usize:
 
 fn twice(n: i32) -> usize:
     let t = make(n)
-> app/main/twice
->   release app.main.Text [s.0] (last use)
     let a = t.size()
     a + t.size()
+> app/main/twice
+>   release app.main.Text [s.0] (last use)
 
 fn param(t: Text) -> usize:
     t.size()

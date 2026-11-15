@@ -81,7 +81,6 @@
         i64.load $heap offset=8
         i64.add
         local.set $sum
-    ;; 17 |     for i in 0..k:
         local.get $tally
         if
           local.get $tally
@@ -92,6 +91,7 @@
             call $rt:release_ref
           end
         end
+    ;; 17 |     for i in 0..k:
         br 0
       end
     end

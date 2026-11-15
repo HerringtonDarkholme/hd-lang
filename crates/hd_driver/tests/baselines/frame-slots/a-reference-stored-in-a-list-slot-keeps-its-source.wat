@@ -125,11 +125,10 @@
     local.get $ps
     i32.load $heap offset=16
     local.set $d
-    ;; 14 |     p := make(k)
+    ;; 18 |     ps[0] = &q
     local.get $ps
     call $rt:list_unique
     local.set $ps
-    ;; 18 |     ps[0] = &q
     i32.const 0
     local.get $ps
     i32.load $heap offset=4
@@ -211,9 +210,7 @@
     i32.const 106
     i32.store8 $heap
     local.get $t1
-    ;; 14 |     p := make(k)
     local.get $junk.0
-    ;; 19 |     junk := "j${k}"
     local.get $t3
     i32.add
     local.get $k
@@ -238,8 +235,8 @@
     i32.load $heap offset=4
     local.set $d
     drop
-    ;; 14 |     p := make(k)
     local.get $ps
+    local.tee $ps
     if
       local.get $ps
       i32.const 8
@@ -270,7 +267,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 20 |     d.len() + ps[0].name.len() + junk.len()
     local.get $k
     i64.extend_i32_u
     local.get $d
@@ -286,14 +282,12 @@
     local.get $t1
     i32.wrap_i64
     local.set $p
-    ;; 14 |     p := make(k)
     local.get $junk.0
     local.tee $ps
     if
       local.get $ps
       call $rt:release_ref'2
     end
-    ;; 20 |     d.len() + ps[0].name.len() + junk.len()
     local.get $p
     i64.extend_i32_u
     local.get $junk.1

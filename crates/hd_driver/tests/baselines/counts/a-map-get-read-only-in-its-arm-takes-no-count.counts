@@ -13,10 +13,10 @@ fn rewrite(m: &mut Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/rewrite
 >   retain string (stored)
->   unique Map[string, string] (may be shared)
 >   release string? (last use)
         .Some(v) =>
             m[k] = "x"
+>   unique Map[string, string] (may be shared)
 >   retain string (stored)
             v.len()
         .None => 0

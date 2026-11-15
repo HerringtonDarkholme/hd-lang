@@ -208,11 +208,12 @@
     local.set $t1
     ;; 25 |     let t = make(n)
     local.get $t2
+    ;; 27 |     a + t.size()
+    local.tee $t2
     if
       local.get $t2
       call $rt:release_ref
     end
-    ;; 27 |     a + t.size()
     local.get $n
     local.get $t1
     i32.add

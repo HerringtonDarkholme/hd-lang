@@ -56,6 +56,7 @@
     end
     ;; 6 |     sum := fn(n: i32) -> i32:
     local.get $t0
+    ;; 9 |     sum(limit)
     local.tee $t1
     if
       local.get $t1
@@ -67,7 +68,6 @@
         call $rt:release_ref
       end
     end
-    ;; 9 |     sum(limit)
     local.get $t0
     local.get $limit
     i32.const 0

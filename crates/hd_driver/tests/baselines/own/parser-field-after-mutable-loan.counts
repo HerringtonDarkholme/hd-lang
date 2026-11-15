@@ -38,10 +38,10 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 fn length_across_write(text: string) -> usize:
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 > app/main/length_across_write
->   unique List[char] (may be shared)
->   release app.main.Parser [chars] (last use)
 >   release List[char] (last use)
     chars := parser.chars
 >   copy List[char] (second owner)
     parser.chars.push('x')
+>   unique List[char] (may be shared)
+>   release app.main.Parser [chars] (last use)
     chars.len()

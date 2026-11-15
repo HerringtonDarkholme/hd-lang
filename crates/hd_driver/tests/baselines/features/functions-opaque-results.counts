@@ -11,12 +11,12 @@ fn names(xs: &List[string]) -> impl Iterator[string]:
 
 fn count_long(xs: List[string]) -> usize:
     let n: usize = 0
-> app/main/count_long
->   release List[string] (last use)
->   release std.iter.ListIter[string] [items] (last use)
     for x in names(&xs):
+> app/main/count_long
 >   copy List[string] (stored)
+>   release List[string] (last use)
 >   release string? (last use)
 >   release string? (last use)
+>   release std.iter.ListIter[string] [items] (last use)
         n += x.len()
     n

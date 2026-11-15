@@ -20,25 +20,24 @@
     local.get $xs
     ;; 23 |     ys._0.len() + ys._1.len()
     i32.const 0
-    ;; 22 |     ys := (xs, xs)
     call $rt:release
-    ;; 23 |     ys._0.len() + ys._1.len()
     i32.load $heap offset=4
     ;; 22 |     ys := (xs, xs)
     local.get $t0
+    ;; 23 |     ys._0.len() + ys._1.len()
+    local.tee $xs
     if
-      local.get $t0
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $xs
         call $rt:release_ref
       end
     end
-    ;; 23 |     ys._0.len() + ys._1.len()
     i32.add
   )
   (func $known (param $xs i32) (result i32)

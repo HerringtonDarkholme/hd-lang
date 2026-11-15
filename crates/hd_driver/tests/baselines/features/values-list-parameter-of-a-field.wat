@@ -135,7 +135,6 @@
     i32.load $heap offset=4
     i64.extend_i32_u
     local.set $t3
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $trail
     if
       local.get $trail
@@ -152,7 +151,6 @@
         end
       end
     end
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $t3
     call $unsigned_width
     local.set $trail
@@ -166,7 +164,6 @@
     end
     local.get $t1
     i64.load $heap offset=16
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t1
     local.tee $t4
     if
@@ -179,7 +176,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.tee $t5
     local.tee $t6
     call $signed_magnitude
@@ -210,7 +206,6 @@
     local.get $i
     i64.load $heap offset=16
     local.set $t6
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t2
     if
       local.get $t2
@@ -227,7 +222,6 @@
         end
       end
     end
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $t6
     local.tee $t8
     call $signed_magnitude
@@ -268,32 +262,24 @@
     local.get $t4
     local.get $trail
     call $write_unsigned_sized
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t4
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $trail
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t5
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t4
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $i
     i32.add
     local.get $t1
     call $write_signed_sized
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t4
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $t7
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t6
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t4
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $t9
     i32.add
     local.get $t2
@@ -343,6 +329,7 @@
     i32.load $heap offset=4
     i32.lt_u
     if
+    ;; 13 |         steps[slot] = step
       local.get $steps
       i32.load $heap
       call $rt:list_unique
@@ -350,7 +337,6 @@
       local.get $steps
       local.get $t0
       i32.store $heap
-    ;; 13 |         steps[slot] = step
       local.get $slot
       local.get $t0
       i32.load $heap offset=4
@@ -368,6 +354,7 @@
       i64.store $heap offset=16
     ;; 12 |     if slot < steps.len():
     else
+    ;; 15 |         steps.push(step)
       local.get $steps
       i32.load $heap
       call $rt:list_unique
@@ -376,7 +363,6 @@
       local.get $slot
       i32.store $heap
       local.get $slot
-    ;; 15 |         steps.push(step)
       i32.load $heap offset=4
       local.tee $t0
       local.get $slot

@@ -52,7 +52,6 @@
         local.get $self
         i32.load $heap offset=8
         local.set $t1
-    ;; 27 |         for i in 0..n:
         local.get $self
         i32.load $heap
         call $rt:list_unique
@@ -60,7 +59,6 @@
         local.get $self
         local.get $t2
         i32.store $heap
-    ;; 29 |             self.index[i] = self.held
         local.tee $t3
         local.get $t2
         i32.load $heap offset=4
@@ -140,10 +138,8 @@
         i32.add
         i32.load $heap offset=16
         local.set $t0
-    ;; 16 |         while word < held:
         local.get $self
         i32.load $heap
-    ;; 17 |             self.index.push(self.pending[word])
         local.tee $t1
         i32.load $heap offset=4
         local.tee $t2
@@ -253,10 +249,8 @@
         local.set $t2
     ;; 35 |         p.pending.push(i)
         local.set $t3
-    ;; 34 |     for i in 0..4:
         local.get $p
         i32.load $heap offset=4
-    ;; 35 |         p.pending.push(i)
         local.tee $t4
         i32.load $heap offset=4
         local.tee $t5
@@ -312,7 +306,6 @@
     i32.const 2
     call $"impl Parser.snapshot"
     local.set $t1
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     local.get $p
     if
       local.get $p
@@ -323,7 +316,6 @@
       i32.load $heap offset=8
       call $rt:release
     end
-    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
     local.get $t1
     i64.extend_i32_u
     local.tee $t7
@@ -347,17 +339,13 @@
     local.get $t3
     local.get $t2
     call $write_unsigned_sized
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     local.get $t3
-    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
     local.get $t2
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t7
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     local.get $t3
-    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
     local.get $t1
     i32.add
     local.get $p

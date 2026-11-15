@@ -29,16 +29,16 @@ fn connected(c: bool, a: string, b: string, d: string) -> usize:
 > app/main/connected
 >   retain string (stored)
 >   release string (last use)
->   release string (last use)
->   release string (last use)
->   release List[string] (last use)
->   release string (last use)
     y := if c: b else: d
 >   retain string (stored)
 >   release string (last use)
     kept := keep(d)
     x.len() + y.len() + kept[0].len()
+>   release string (last use)
+>   release string (last use)
 >   retain string (conservative: copy read)
+>   release List[string] (last use)
+>   release string (last use)
 
 fn returned(c: bool, a: string, b: string) -> string:
     selected := if c: a else: b

@@ -48,9 +48,9 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
 > app/main/run
->   release app.main.Meter (last use)
 >   release *mut app.main.Counters (last use)
     $.with(Meter=counters):
 >   retain *mut app.main.Counters (stored)
+>   release app.main.Meter (last use)
         count(n)
     counters.total

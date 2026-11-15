@@ -106,10 +106,6 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   copy List[string] (stored)
 >   retain counted reference (stored)
 > app/main/live
->   release Suspend[usize] (last use)
->   release fn!(string, List[string]) -> usize (last use)
->   release counted reference (last use)
->   release List[string] (last use)
 >   release counted reference (last use)
 >   release List[string] (last use)
 > app/main/live
@@ -122,4 +118,8 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   release counted reference (last use)
 >   release fn!(string, List[string]) -> usize (cancelled)
 >   release Suspend[usize] (cancelled)
+>   release Suspend[usize] (last use)
+>   release fn!(string, List[string]) -> usize (last use)
     size + key.len() + keys.len()
+>   release counted reference (last use)
+>   release List[string] (last use)

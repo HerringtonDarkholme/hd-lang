@@ -1,0 +1,43 @@
+# A panic raised by a run-time check names the line of the statement that
+# raised it, never the statement before it or an enclosing `for` header: a
+# `push` through a pointer after a statement that emits no code, one inside
+# a loop body, an indexed `&mut` argument, and a map `remove`. A callee
+# whose panic follows a check the optimizer folds away keeps its own frame,
+# in dev and release builds.
+run: hd push.hd
+exit: 3
+stderr: panic: borrow-conflict: a `push.Outer` a live reference borrows was written through another `*T`
+stderr:     push.hd:7 push.probe
+stderr:     push.hd:12 push.main
+
+run: hd loop.hd
+exit: 3
+stderr: panic: borrow-conflict: a `loop.Outer` a live reference borrows was written through another `*T`
+stderr:     loop.hd:7 loop.probe
+stderr:     loop.hd:12 loop.main
+
+run: hd index.hd
+exit: 3
+stderr: panic: borrow-conflict: a `index.Outer` a live reference borrows was written through another `*T`
+stderr:     index.hd:9 index.probe
+stderr:     index.hd:14 index.main
+
+run: hd shrink.hd
+exit: 3
+stderr: panic: borrow-conflict: a `shrink.Outer` a live reference borrows was written through another `*T`
+stderr:     shrink.hd:6 shrink.probe
+stderr:     shrink.hd:11 shrink.main
+
+run: hd callee.hd
+exit: 3
+stdout: start
+stderr: panic: integer-overflow: integer overflow
+stderr:     callee.hd:3 callee.overflow
+stderr:     callee.hd:7 callee.main
+
+run: hd --release callee.hd
+exit: 3
+stdout: start
+stderr: panic: integer-overflow: integer overflow
+stderr:     callee.hd:3 callee.overflow
+stderr:     callee.hd:7 callee.main

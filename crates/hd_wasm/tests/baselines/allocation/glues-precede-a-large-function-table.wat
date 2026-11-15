@@ -75,7 +75,6 @@
       i32.load $heap
       i64.extend_i32_s
       local.set $t2
-    ;; 197 |     if sum > 0:
       local.get $t0
       local.tee $t4
       if
@@ -90,7 +89,6 @@
           call $rt:release_ref
         end
       end
-    ;; 199 |         println("$sum ${target.value}")
       local.get $t2
       call $signed_magnitude
       call $unsigned_width
@@ -154,9 +152,7 @@
       local.get $g.0
       local.get $out
       call $write_signed_sized
-    ;; 197 |     if sum > 0:
       local.get $g.0
-    ;; 199 |         println("$sum ${target.value}")
       i64.extend_i32_u
       local.get $out
       i64.extend_i32_u
@@ -173,16 +169,12 @@
       i32.const 32
       i32.store8 $heap
       local.get $t2
-    ;; 197 |     if sum > 0:
       local.get $g.0
-    ;; 199 |         println("$sum ${target.value}")
       local.get $t7
       i32.add
       local.get $t0
       call $write_signed_sized
-    ;; 197 |     if sum > 0:
       local.get $g.0
-    ;; 199 |         println("$sum ${target.value}")
       local.get $g.1
       local.get $provider0
       local.get $provider0.vtable

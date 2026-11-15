@@ -286,7 +286,6 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    ;; (no span)
     local.get $s.0
     local.tee $t2
     if
@@ -298,7 +297,6 @@
     i32.load $heap
     call $rt:coll_copy
     local.set $s.0
-    ;; (no span)
     local.get $xs
     if
       local.get $xs
@@ -317,6 +315,7 @@
         end
       end
     end
+    ;; (no span)
     local.get $s.0
     i32.load $heap offset=4
     local.get $s.0

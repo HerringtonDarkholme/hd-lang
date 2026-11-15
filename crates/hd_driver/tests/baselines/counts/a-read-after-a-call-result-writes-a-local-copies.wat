@@ -125,7 +125,6 @@
     local.get $name.0
     i32.const 0
     i32.store $heap offset=8
-    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
     local.get $name.0
     if
       local.get $name.0
@@ -136,12 +135,11 @@
       i32.load $heap offset=8
       call $rt:release
     end
-    ;; 23 |     kept.len() + b.items.len()
     local.get $t1
     i32.load $heap offset=4
     local.set $name.0
-    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
     local.get $t1
+    local.tee $t1
     if
       local.get $t1
       i32.const 8
@@ -152,7 +150,6 @@
         call $rt:release_ref
       end
     end
-    ;; 23 |     kept.len() + b.items.len()
     local.get $name.1
     i64.extend_i32_u
     local.get $name.0

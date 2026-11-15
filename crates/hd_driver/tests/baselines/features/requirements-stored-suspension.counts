@@ -41,7 +41,6 @@ fn tagged!() -> usize $ Tag:
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)
 > app/main/later
->   release Suspend[string] (last use)
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/later
@@ -52,6 +51,7 @@ fn later!(key: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
+>   release Suspend[string] (last use)
 
 fn blocking(key: string) -> usize:
     match block_on(fetch(key)):

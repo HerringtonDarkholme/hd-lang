@@ -557,7 +557,6 @@
             local.set $t15
             br 3
           end
-    ;; 13 |     read := make("kept")
           local.get $t3
           local.tee $t14
           if
@@ -592,13 +591,11 @@
           local.set $t1
           i32.const 0
           local.set $t2
-    ;; 14 |     println(read!(3))
           local.get $t11
           local.get $t13
           local.get $provider0
           local.get $provider0.vtable
           call $"println[string]"
-    ;; 13 |     read := make("kept")
           local.get $t11
           local.tee $t14
           if
@@ -940,7 +937,6 @@
           local.set $t15
           br 2
         end
-    ;; 13 |     read := make("kept")
         local.get $t6
         local.tee $t14
         if
@@ -975,13 +971,11 @@
         local.set $t4
         i32.const 0
         local.set $t5
-    ;; 17 |     println(text!())
         local.get $t11
         local.get $t13
         local.get $provider0
         local.get $provider0.vtable
         call $"println[string]"
-    ;; 13 |     read := make("kept")
         local.get $t11
         local.tee $t14
         if
@@ -1319,7 +1313,6 @@
         local.set $t15
         br 1
       end
-    ;; 13 |     read := make("kept")
       local.get $t9
       local.tee $t14
       if
@@ -1348,7 +1341,6 @@
           call $rt:release_ref'2
         end
       end
-    ;; 18 |     println(number!())
       local.get $t10
       local.get $provider0
       local.get $provider0.vtable

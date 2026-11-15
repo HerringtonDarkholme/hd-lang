@@ -177,7 +177,6 @@
     i32.const 7
     i32.div_u
     local.set $b.1
-    ;; 23 |     let mut t = s
     local.get $s
     local.tee $t1
     if
@@ -190,7 +189,6 @@
         call $rt:release_ref
       end
     end
-    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
     local.get $b.0
     local.get $b.1
     i32.add
@@ -203,7 +201,6 @@
     local.tee $b.0
     i32.load $heap offset=4
     local.set $b.1
-    ;; 23 |     let mut t = s
     local.get $b.0
     local.tee $t1
     if
@@ -216,7 +213,6 @@
         call $rt:release_ref
       end
     end
-    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
     local.get $s
     local.get $b.1
     i32.add

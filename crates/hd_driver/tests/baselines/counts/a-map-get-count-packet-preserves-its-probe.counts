@@ -6,7 +6,7 @@ fn replace(values: &mut Map[string, string], key: string, value: string) -> stri
     previous := values.get(key)
 > app/main/replace
 >   retain string (stored)
->   unique Map[string, string] (may be shared)
     values[key] = value
+>   unique Map[string, string] (may be shared)
 >   retain string (stored)
     previous

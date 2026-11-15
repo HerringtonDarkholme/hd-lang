@@ -24,9 +24,9 @@
     end
     ;; 23 |     let mut out = m
     local.get $m
+    ;; 24 |     reward(&mut out[k], 10)
     call $rt:map_unique
     local.tee $m
-    ;; 24 |     reward(&mut out[k], 10)
     local.get $m
     i32.load $heap offset=12
     i32.const 14
@@ -57,9 +57,9 @@
   (func $rewarded (param $players i32) (param $best i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |     let mut out = players
     local.get $players
+    ;; 17 |     reward(&mut out[best], 10)
     call $rt:list_unique
     local.set $players
-    ;; 17 |     reward(&mut out[best], 10)
     local.get $best
     local.get $players
     i32.load $heap offset=4
@@ -94,9 +94,8 @@
     i32.add
     local.get $t0
     i32.store $heap offset=24
-    ;; 16 |     let mut out = players
-    local.get $players
     ;; 19 |     out.push(Player { name: s, score: 0 })
+    local.get $players
     local.tee $best
     i32.load $heap offset=4
     local.tee $t0

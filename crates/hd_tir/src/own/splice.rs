@@ -48,6 +48,9 @@ pub(crate) struct Tables {
     new_of: Vec<u32>,
     done: Vec<bool>,
     per_block: Vec<(u32, u32, u32)>,
+    /// The first anchor of each source position in each inlined frame
+    /// ([`frame`]), for the new instructions' anchors.
+    by_syn: hd_base::HashMap<(NodeIdx, Option<u32>), u32>,
     words: Vec<u32>,
     locs: Vec<Loc>,
     /// Added to every constant word: 0 for a pass, the caller's constant
@@ -115,6 +118,13 @@ impl Pending {
     }
 }
 
+/// The inlined copy anchor `a` names, by the anchor of the call it
+/// copied ([`Body::inlined_frame`]); `None` for the body's own
+/// instructions, and for no anchor.
+fn frame(b: &Body, a: u32) -> Option<u32> {
+    b.inlined_frame(a).map(|(_, _, call)| call)
+}
+
 /// Splices the edits into `b`, whose block structure is `topo`, and
 /// renumbers it.
 pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(), String> {
@@ -143,14 +153,42 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         t.anchor.push((at, u32_of(e)));
     }
     t.anchor.sort_stable();
+    // Each new instruction with a source position that stands before a
+    // statement takes the anchor of an instruction at its position, in
+    // that statement's inlined frame, else the statement's anchor: the
+    // code it emits runs for that position, so a panic it raises names its
+    // line and frame (`crates/hd_wasm/DESIGN.md` §15.9). With none, its
+    // calls took the anchor of the last call written before them, an
+    // earlier statement's or an enclosing loop header's (#1998). One at a
+    // block's end keeps none: it runs as the block exits, and its code
+    // takes the scope's origin (§23.33). One pass over the body indexes
+    // the anchors by position and frame, so each edit is one probe.
+    let anchored = !b.anchors.is_empty() && t.edits.iter().any(|ed| ed.syn != NodeIdx::NONE);
+    t.by_syn.clear();
+    if anchored {
+        for i in 0..n {
+            let a = b.anchors[i];
+            if a != NONE && b.syn[i] != NodeIdx::NONE {
+                t.by_syn.entry((b.syn[i], frame(b, a))).or_insert(a);
+            }
+        }
+    }
     // Append the new instructions, numbered n.. in the old numbering.
     for ed in &t.edits {
+        let members = b.record(b.data[ed.blk as usize][0]);
+        let anchor = match members.get(ed.pos as usize) {
+            Some(&m) if anchored && ed.syn != NodeIdx::NONE => {
+                let next = b.anchors[m as usize];
+                (t.by_syn.get(&(ed.syn, frame(b, next))).copied()).unwrap_or(next)
+            }
+            _ => NONE,
+        };
         b.tags.push(ed.tag);
         b.data.push(ed.data);
         b.ty.push(ed.ty);
         b.syn.push(ed.syn);
         if !b.anchors.is_empty() {
-            b.anchors.push(NONE);
+            b.anchors.push(anchor);
         }
     }
     // The blocks that gain or lose members get new records.
@@ -347,4 +385,97 @@ fn remap_extra(b: &mut Body, t: &mut Tables, p: u32, map: &dyn Fn(&Tables, u32) 
     }
     t.done[p] = true;
     b.extra[p] = map(t, b.extra[p]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{BodyKind, Callee, INLINED, Providers, TirBuilder, TirSink};
+    use hd_base::DefId;
+    use hd_types::TyList;
+
+    /// One block of calls at source positions 10, 20 and 10, the third in
+    /// an inlined copy (whose syntax node numbers are its callee's), each
+    /// anchored at itself.
+    fn body() -> Body {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = b.open_block();
+        let callee = Callee::Item {
+            def: DefId::from_raw(7),
+            targs: TyList::EMPTY,
+        };
+        for syn in [10, 20, 10] {
+            b.call(
+                &callee,
+                &[],
+                Providers::None,
+                Ty::VOID,
+                NodeIdx::from_raw(syn),
+            );
+        }
+        let root = b.close_block(root, None, Ty::VOID, NodeIdx::from_raw(30));
+        let mut b = b.finish(root, &[]).unwrap();
+        b.anchors = (0..u32_of(b.len())).collect();
+        // The third call is instruction 0 of a copy made at anchor 1.
+        let third = b.tags.iter().rposition(|&t| t == Tag::Call).unwrap();
+        b.anchors[third] = INLINED;
+        b.inlined = vec![[0, 1, 7, 1]];
+        b
+    }
+
+    /// The anchor of the instruction each edit `(position, syntax node)`
+    /// added, in edit order.
+    fn added(edits: &[(u32, u32)]) -> Vec<u32> {
+        let mut b = body();
+        let topo = Topology::new(&b);
+        let root = b.sub_root[0];
+        let mut t = Tables::default();
+        for &(pos, syn) in edits {
+            let syn = if syn == 0 {
+                NodeIdx::NONE
+            } else {
+                NodeIdx::from_raw(syn)
+            };
+            t.insert(root, pos, Tag::IsUnique, [0, 0], Ty::VOID, syn);
+        }
+        let n = b.len();
+        let old = b.anchors.clone();
+        apply(&mut b, &topo, &mut t).unwrap();
+        // The kept instructions keep their anchors; the rest are new.
+        let mut kept = old.clone();
+        let mut out = Vec::new();
+        for &a in &b.anchors {
+            if let Some(k) = kept.iter().position(|&x| x == a) {
+                kept.remove(k);
+            } else {
+                out.push(a);
+            }
+        }
+        assert_eq!(b.len(), n + edits.len());
+        out
+    }
+
+    #[test]
+    fn a_new_instruction_takes_the_anchor_of_its_source_position_in_its_frame() {
+        let body = body();
+        let calls: Vec<u32> = (0..body.len())
+            .filter(|&i| body.tags[i] == Tag::Call)
+            .map(|i| body.anchors[i])
+            .collect();
+        // Before the second call, at position 10: the first call's anchor,
+        // not the second's (#1998).
+        assert_eq!(added(&[(1, 10)]), [calls[0]]);
+        // Before the third call, in the inlined copy, at position 10: the
+        // copy's own instruction, not the caller's call at that number.
+        assert_eq!(added(&[(2, 10)]), [calls[2]]);
+        // A position no instruction of that frame has: the statement it
+        // stands before.
+        assert_eq!(added(&[(1, 99)]), [calls[1]]);
+        // At the block's end: none, as the block's exit takes the scope's
+        // origin.
+        assert_eq!(added(&[(3, 20)]), [NONE]);
+        // No source position: no anchor, as the emitter writes no row for
+        // it.
+        assert_eq!(added(&[(1, 0)]), [NONE]);
+    }
 }

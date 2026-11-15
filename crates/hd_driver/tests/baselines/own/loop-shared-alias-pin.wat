@@ -116,7 +116,6 @@
         local.get $c
         i32.load $heap
         local.set $c
-    ;; 7 |     for c in &a:
         local.get $b
         i32.const 4
         i32.sub
@@ -135,7 +134,6 @@
         local.get $t4
         i32.store $heap
         local.get $t4
-    ;; 8 |         b.push(*c) # panic: borrow-conflict
         i32.load $heap offset=4
         local.tee $t5
         local.get $t4

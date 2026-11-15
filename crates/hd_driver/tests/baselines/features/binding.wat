@@ -4,7 +4,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $bind_kept (param $xs i32) (param $all i32) (local $t0 i32) (local $t1 i32)
-    ;; 17 |     ys := xs
+    ;; 18 |     all.push(ys)
     local.get $all
     i32.load $heap
     call $rt:list_unique
@@ -13,7 +13,6 @@
     local.get $t0
     i32.store $heap
     local.get $t0
-    ;; 18 |     all.push(ys)
     i32.load $heap offset=4
     local.tee $t1
     local.get $t0

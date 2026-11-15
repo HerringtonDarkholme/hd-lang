@@ -43,7 +43,6 @@
         i32.store $heap
         local.get $step.1
         call $rt:retain_fields
-    ;; 9 |     for i in +0..n:
         local.get $total
         local.tee $total
         if
@@ -58,7 +57,6 @@
             call $rt:release_ref
           end
         end
-    ;; 11 |         step := fn() -> i32:
         local.set $total
     ;; 14 |         if i == 0:
         local.get $i

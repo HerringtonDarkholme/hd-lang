@@ -281,6 +281,7 @@
     end
     local.get $t3
     local.set $t2
+    ;; 18 |     counts[other] = 0
     local.get $counts
     i32.load $heap
     call $rt:map_unique'1
@@ -288,7 +289,6 @@
     local.get $counts
     local.get $t0
     i32.store $heap
-    ;; 18 |     counts[other] = 0
     local.get $other.0
     local.get $other.1
     local.get $t0
@@ -324,10 +324,8 @@
     i64.const 1
     i64.add
     local.set $t2
-    ;; 17 |     seen := counts.get(word).unwrap_or(0)
     local.get $counts
     i32.load $heap
-    ;; 19 |     counts[word] = seen + 1
     local.set $other.0
     local.get $word.0
     local.get $word.1
@@ -429,9 +427,8 @@
     local.get $t0
     i32.store $heap
     local.get $word.0
-    local.tee $t3
     if
-      local.get $t3
+      local.get $word.0
       call $retain
     end
     local.get $counts
@@ -498,7 +495,7 @@
     local.get $t1
     i64.store $heap offset=8
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
     local.get $counts
     i32.load $heap
@@ -564,9 +561,8 @@
     local.get $t0
     i32.store $heap
     local.get $word.0
-    local.tee $t5
     if
-      local.get $t5
+      local.get $word.0
       call $retain
     end
     local.get $counts

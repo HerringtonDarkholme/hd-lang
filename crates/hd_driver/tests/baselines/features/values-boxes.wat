@@ -48,7 +48,6 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
-    ;; 15 |     let mut p = Point { name: s }
     local.get $copy
     local.tee $t0
     if
@@ -61,15 +60,12 @@
         call $rt:release_ref'2
       end
     end
-    ;; 18 |     copy.name.len() + p.name.len()
     local.get $s.0
-    ;; 15 |     let mut p = Point { name: s }
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref'1
     end
-    ;; 18 |     copy.name.len() + p.name.len()
     local.get $s.1
     local.get $t.1
     i32.add
@@ -129,7 +125,6 @@
     local.get $t.1
     i32.store $heap offset=4
     call $rt:release
-    ;; 25 |     b := box(Point { name: s })
     local.get $b
     local.tee $t0
     if

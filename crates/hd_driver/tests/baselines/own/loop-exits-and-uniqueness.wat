@@ -40,9 +40,9 @@
           br 0
           unreachable
         end
+    ;; 20 |         xs.push(i)
         local.get $xs
         i32.load $heap
-    ;; 20 |         xs.push(i)
         local.tee $t2
         i32.load $heap offset=4
         local.tee $t3
@@ -89,6 +89,7 @@
       local.get $n
       i32.lt_u
       if
+    ;; 29 |             xs.push(i)
         local.get $xs
         i32.load $heap
         call $rt:list_unique
@@ -97,7 +98,6 @@
         local.get $t0
         i32.store $heap
         local.get $t0
-    ;; 29 |             xs.push(i)
         i32.load $heap offset=4
         local.tee $t1
         local.get $t0
@@ -178,10 +178,8 @@
         local.set $t0
     ;; 16 |         xs.push(i)
         local.set $t1
-    ;; 15 |     for i in 0..n:
         local.get $xs
         i32.load $heap
-    ;; 16 |         xs.push(i)
         local.tee $t2
         i32.load $heap offset=4
         local.tee $t3
@@ -232,9 +230,9 @@
       local.get $n
       i32.lt_u
       if
+    ;; 8 |         xs.push(i)
         local.get $xs
         i32.load $heap
-    ;; 8 |         xs.push(i)
         local.tee $t0
         i32.load $heap offset=4
         local.tee $t1

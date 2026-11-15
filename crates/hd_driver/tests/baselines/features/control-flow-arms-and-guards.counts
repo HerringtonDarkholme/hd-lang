@@ -26,7 +26,7 @@ fn whole(o: string?) -> usize:
 >   release string? (last use)
 >   release string? (last use)
         .Some(s) if s.len() > 0 => s.len()
->   retain string? (conservative: copy read)
->   retain string? (conservative: copy read)
         other =>
+>   retain string? (conservative: copy read)
+>   retain string? (conservative: copy read)
             if other.is_some(): 1 else: 0

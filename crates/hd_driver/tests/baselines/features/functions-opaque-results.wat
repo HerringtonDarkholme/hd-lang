@@ -59,7 +59,6 @@
     i32.load $heap
     call $rt:coll_copy
     local.set $t1
-    ;; 10 |     let n: usize = 0
     local.get $xs
     if
       local.get $xs
@@ -76,7 +75,6 @@
         end
       end
     end
-    ;; 11 |     for x in names(&xs):
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -126,7 +124,6 @@
         br 0
       end
     end
-    ;; 10 |     let n: usize = 0
     local.get $t1
     if
       local.get $t1

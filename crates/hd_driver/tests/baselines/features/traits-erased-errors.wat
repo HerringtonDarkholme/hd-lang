@@ -79,6 +79,7 @@
     end
     local.set $path.1
     local.get $path.0
+    local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref

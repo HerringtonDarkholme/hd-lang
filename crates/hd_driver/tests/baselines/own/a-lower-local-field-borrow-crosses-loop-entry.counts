@@ -9,7 +9,6 @@ struct Bag:
 fn fill(mut bag: Bag, other: Bag, n: usize) -> usize:
     match other.label:
 > app/main/fill
->   release app.main.Bag [label.0, items] (last use)
 >   release List[i32] (last use)
 >   release app.main.Bag [label.0, items] (last use)
         "first" => pass
@@ -17,7 +16,8 @@ fn fill(mut bag: Bag, other: Bag, n: usize) -> usize:
     match bag.label:
         "keep" =>
             for _ in 0..n:
->   unique List[i32] (may be shared)
                 bag.items.push(1)
+>   unique List[i32] (may be shared)
         _ => pass
     bag.items.len()
+>   release app.main.Bag [label.0, items] (last use)

@@ -47,7 +47,6 @@
     call $count
     ;; 31 |     $.with(Meter=counters):
     local.get $t0
-    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
     local.tee $t1
     if
       local.get $t1

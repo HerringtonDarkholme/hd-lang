@@ -77,7 +77,6 @@
     local.get $s.0
     call_indirect $table0 (param i32 i32)
     local.get $s.1
-    ;; 15 |     origin := box(Point { name: s, x: 0 })
     if
       local.get $s.1
       i32.const 8

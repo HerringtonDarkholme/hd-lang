@@ -1,0 +1,11 @@
+struct Outer:
+    map: Map[string, string]
+
+fn probe(p: *mut Outer, alias: *mut Outer) -> string:
+    r := &p.map["a"]
+    _ := alias.map.remove("a")
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Outer { map: { "a": "x", "b": "y" } })
+    println(probe(p, p))

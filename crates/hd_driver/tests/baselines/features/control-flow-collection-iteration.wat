@@ -53,9 +53,7 @@
         i32.load $heap offset=4
         local.tee $k
         call $rt:retain
-    ;; 20 |     for (k, _) in m:
         local.get $out
-    ;; 21 |         out.push(*k)
         local.tee $t3
         i32.load $heap offset=4
         local.tee $t4

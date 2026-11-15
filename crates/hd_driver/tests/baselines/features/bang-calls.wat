@@ -220,8 +220,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t6
+            local.tee $s.1
             if
-              local.get $t6
+              local.get $s.1
               call $rt:release_ref'1
             end
           end
@@ -311,9 +312,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t5
-          local.tee $t6
+          local.tee $s.1
           if
-            local.get $t6
+            local.get $s.1
             call $rt:release_ref'1
           end
         end
@@ -347,25 +348,24 @@
       local.get $s.1
       call $"impl string.len"
       local.get $s.1
-      local.tee $t6
       if
-        local.get $t6
+        local.get $s.1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $s.1
           call $rt:release_ref'2
         end
       end
       local.set $t10
     end
     local.get $s.0
-    local.tee $t6
+    local.tee $s.1
     if
-      local.get $t6
+      local.get $s.1
       call $rt:release_ref'1
     end
     local.get $t10
@@ -747,8 +747,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t7
+            local.tee $a.1
             if
-              local.get $t7
+              local.get $a.1
               call $rt:release_ref'1
             end
           end
@@ -841,9 +842,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t4
-          local.tee $t7
+          local.tee $a.1
           if
-            local.get $t7
+            local.get $a.1
             call $rt:release_ref'1
           end
         end
@@ -877,31 +878,30 @@
       local.get $a.1
       call $"impl string.len"
       local.get $a.1
-      local.tee $t7
       if
-        local.get $t7
+        local.get $a.1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t7
+          local.get $a.1
           call $rt:release_ref'2
         end
       end
       local.set $t9
     end
     local.get $a.0
-    local.tee $t7
+    local.tee $a.1
     if
-      local.get $t7
+      local.get $a.1
       call $rt:release_ref'1
     end
     local.get $b.0
-    local.tee $t7
+    local.tee $a.1
     if
-      local.get $t7
+      local.get $a.1
       call $rt:release_ref'1
     end
     local.get $t9
@@ -1745,7 +1745,6 @@
       local.get $a.1
       call $"impl string.len"
       local.set $t14
-    ;; 15 |     let (x, y) = join!(label(a), label(b))
       local.get $a.1
       local.tee $t17
       if
@@ -1760,7 +1759,6 @@
           call $rt:release_ref'2
         end
       end
-    ;; 16 |     x.len() + y.len()
       local.get $b.1
       i32.eqz
       if
@@ -1777,7 +1775,6 @@
       local.get $b.1
       call $"impl string.len"
       local.set $a.1
-    ;; 15 |     let (x, y) = join!(label(a), label(b))
       local.get $b.1
       local.tee $t17
       if
@@ -1792,7 +1789,6 @@
           call $rt:release_ref'2
         end
       end
-    ;; 16 |     x.len() + y.len()
       local.get $t14
       local.get $a.1
       i32.add

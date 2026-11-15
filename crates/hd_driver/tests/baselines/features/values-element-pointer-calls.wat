@@ -165,8 +165,8 @@
     i32.const 0
     i32.store $heap
     i32.load $heap offset=4
-    ;; 39 |     let mut total = Total { sum: 0 }
     local.get $root
+    local.tee $root
     if
       local.get $root
       i32.const 8
@@ -177,7 +177,6 @@
         call $rt:release_ref
       end
     end
-    ;; 43 |     total.sum + i64(keeper.saved.len())
     i64.extend_i32_u
     i64.add
     ;; 39 |     let mut total = Total { sum: 0 }

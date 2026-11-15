@@ -64,7 +64,6 @@
     local.get $u.name.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $u.name.0
-    ;; 33 |     kept := keep(u)
     local.get $u.name.1
     local.tee $t1
     if
@@ -79,7 +78,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 34 |     later(kept)().name.len()
     local.tee $u.name.1
     i32.load $heap
     local.get $u.name.1
@@ -91,7 +89,6 @@
       local.get $t1
       call $retain
     end
-    ;; 33 |     kept := keep(u)
     local.get $u.name.0
     local.tee $t1
     if
@@ -106,7 +103,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 34 |     later(kept)().name.len()
     local.get $u.name.1
     ;; 33 |     kept := keep(u)
     local.tee $t1

@@ -22,7 +22,7 @@
     ;; 10 |         grow(xs)
         local.get $xs
         call $grow
-    ;; 9 |     for i in 0..n:
+    ;; 11 |         xs[i] = i
         local.get $xs
         i32.load $heap
         call $rt:list_unique
@@ -30,7 +30,6 @@
         local.get $xs
         local.get $t1
         i32.store $heap
-    ;; 11 |         xs[i] = i
         local.get $t1
         i32.load $heap offset=4
         i32.ge_u

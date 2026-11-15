@@ -20,9 +20,9 @@ fn bump_only(mut t: Tagged, s: string) -> usize:
     t.tags.push(s)
 > app/main/bump_only
 >   unique List[string] (may be shared)
->   release app.main.Tagged [name.0, tags] (last use)
 >   release List[string] (last use)
     t.tags.len()
+>   release app.main.Tagged [name.0, tags] (last use)
 
 fn last_use(t: Tagged, s: string) -> Tagged:
     bumped(t, s)
@@ -34,8 +34,8 @@ fn kept_after(t: Tagged, s: string) -> usize:
 > app/main/kept_after
 >   copy app.main.Tagged [name.0, tags] (stored)
 >   unique List[string] (may be shared)
->   release app.main.Tagged [name.0, tags] (last use)
->   release List[string] (last use)
->   release app.main.Tagged [name.0, tags] (last use)
->   release List[string] (last use)
     u.tags.len() + t.tags.len()
+>   release app.main.Tagged [name.0, tags] (last use)
+>   release List[string] (last use)
+>   release app.main.Tagged [name.0, tags] (last use)
+>   release List[string] (last use)

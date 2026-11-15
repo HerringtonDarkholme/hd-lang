@@ -90,8 +90,6 @@ fn keep(value: Resource) -> Resource:
 fn plain_controls() -> void:
     seen := box(+0)
 > std/rt_tests.stage_case/plain_controls
->   release counted reference (last use)
->   release *mut std.rt_tests.stage_case.Resource (last use)
 >   release *mut i32 (last use)
     assert_equal(read(size, Resource { seen: seen, owned: UniqList::new() }), 0)
 >   retain *mut i32 (stored)
@@ -107,6 +105,7 @@ fn plain_controls() -> void:
 >   retain *mut i32 (stored)
     assert_equal(*seen, +2, reason="returning callback transfers the native Drop hook")
     assert_equal(returned.owned.len(), 0)
+>   release counted reference (last use)
     assert_equal(*seen, +3, reason="the returned native owner drops at its last use")
     assert_equal(read(ignore, Resource { seen: seen, owned: UniqList::new() }), 0)
 >   retain *mut i32 (stored)
@@ -130,6 +129,7 @@ fn plain_controls() -> void:
         reason="a borrowed boxed alias does not transfer the payload's native hook",
     )
     assert_equal(alias.owned.len(), 0)
+>   release *mut std.rt_tests.stage_case.Resource (last use)
     assert_equal(*seen, +6, reason="the shared box retains its native payload until the last alias")
 
 struct EmptyResource: pass
@@ -176,9 +176,6 @@ fn mixed_size(
 
 fn empty_controls() -> void:
     assert_equal(read_empty(empty_size, EmptyResource {}), 0)
-> std/rt_tests.stage_case/empty_controls
->   release List[string] (last use)
->   release *mut i32 (last use)
     assert_equal(empty_drops, 1, reason="a named callback drops its zero-leaf owner once")
     inspect := fn(value: EmptyResource) -> usize: 0
 > std/rt_tests.stage_case/empty_controls
@@ -188,6 +185,8 @@ fn empty_controls() -> void:
     assert_equal(empty_drops, 2, reason="a literal callback drops its zero-leaf owner once")
     seen := box(+0)
     label := ["ke", "pt"].join("")
+> std/rt_tests.stage_case/empty_controls
+>   release List[string] (last use)
     let mut owned: UniqList[usize] = UniqList::new()
     owned.push(23)
     assert_equal(
@@ -201,6 +200,7 @@ fn empty_controls() -> void:
     )
     assert_equal(empty_drops, 4, reason="both zero-leaf spread owners drop once")
     assert_equal(*seen, +1, reason="the mixed spread transfers its unique resource once")
+>   release *mut i32 (last use)
     assert_equal(label, "kept", reason="the Copy spread field keeps its caller's count")
 
 fn delayed_size!(value: Resource) -> usize $ Clock:
@@ -256,7 +256,6 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 pub fn main!() -> void $ Clock:
     plain_controls()
 > std/rt_tests.stage_case/main
->   release List[bool] (last use)
 >   release *mut i32 (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -271,8 +270,7 @@ pub fn main!() -> void $ Clock:
     seen := box(+0)
 >   retain *mut i32 (stored)
     for literal in [false, true]:
->   release Suspend[usize] (last use)
->   release Suspend[usize] (last use)
+>   release List[bool] (last use)
         before := *seen
         started := cold_starts
         pending := prepared_native(literal, seen)
@@ -292,6 +290,7 @@ pub fn main!() -> void $ Clock:
 >   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
+>   release Suspend[usize] (last use)
             1,
             reason="the suspended callback reads its unique input after awaiting",
         )
@@ -300,6 +299,7 @@ pub fn main!() -> void $ Clock:
         assert_equal(cold_starts, started + 1)
         _ := prepared_native(literal, seen)
 >   retain *mut i32 (stored)
+>   release Suspend[usize] (last use)
         assert_equal(
 >   release string (overwritten)
             *seen,

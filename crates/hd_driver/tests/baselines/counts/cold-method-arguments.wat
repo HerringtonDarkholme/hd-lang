@@ -719,8 +719,8 @@
     global.get $rewake
     i32.or
     global.set $rewake
-    ;; 25 |     reader := Reader { padding: 0 }
     local.get $t1
+    local.tee $t1
     if
       local.get $t1
       i32.const 8

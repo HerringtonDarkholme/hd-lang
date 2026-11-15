@@ -109,7 +109,6 @@
       i32.const 0
       local.set $t4
     end
-    ;; 28 |     first := box(Count { n: 0 })
     local.get $t0
     local.tee $t1
     if

@@ -1081,7 +1081,6 @@
         local.set $t8
         br 1
       end
-    ;; 29 |     let mut pending = fetch(key)
       local.get $t1
       local.tee $t5
       if
@@ -1096,7 +1095,6 @@
           call $rt:release_ref'2
         end
       end
-    ;; 30 |     pending!().len()
       i32.const 8
       i32.const 1
       call $rt:new/class-1
@@ -1508,6 +1506,7 @@
     local.set $t1
     local.set $key.1
     local.get $key.0
+    local.tee $key.0
     if
       local.get $key.0
       i32.const 8

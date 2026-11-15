@@ -91,9 +91,7 @@
     ;; 20 |         panic("negative: $t")
       i32.const 10
       local.tee $s.0
-    ;; 19 |     if n < 0:
       local.get $t.1
-    ;; 20 |         panic("negative: $t")
       i32.add
       local.tee $n
       i32.const 16
@@ -110,15 +108,11 @@
       local.get $t1
       i64.const 7311146993653867886
       i64.store $heap align=1
-    ;; 19 |     if n < 0:
       local.get $s.1
-    ;; 20 |         panic("negative: $t")
       local.get $s.0
       i32.add
-    ;; 19 |     if n < 0:
       local.get $t.0
       local.get $t.1
-    ;; 20 |         panic("negative: $t")
       call $rt:memory_copy/0/0
       local.get $s.1
       local.get $n

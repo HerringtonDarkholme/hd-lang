@@ -1,0 +1,7 @@
+fn overflow() -> i32:
+    let minimum: i32 = -2147483648
+    minimum / -1
+
+pub fn main() -> void $ Console:
+    println("start")
+    println(overflow())

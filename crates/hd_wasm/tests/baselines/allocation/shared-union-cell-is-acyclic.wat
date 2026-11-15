@@ -58,7 +58,6 @@
     i32.const 7
     i32.store $heap offset=4
     call $rt:release
-    ;; 9 |     let value: Choice = ._0(seed)
     local.get $seed
     if
       local.get $seed

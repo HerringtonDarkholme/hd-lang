@@ -594,7 +594,6 @@
           br 0
         end
       end
-    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
       local.get $results
       local.tee $t5
       if
@@ -609,6 +608,7 @@
           call $rt:release_ref'2
         end
       end
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     end
     local.get $keys
     local.tee $t5

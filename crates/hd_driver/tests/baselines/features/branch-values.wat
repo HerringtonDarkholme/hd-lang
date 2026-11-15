@@ -131,6 +131,7 @@
     local.get $b.0
     ;; 14 |     match k:
     local.get $a.0
+    local.tee $a.0
     if
       local.get $a.0
       call $rt:release_ref
@@ -145,16 +146,17 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $a.0
+      local.tee $c
       if
-        local.get $a.0
+        local.get $c
         call $rt:release_ref
       end
     else
       local.get $b.0
       local.get $a.0
+      local.tee $c
       if
-        local.get $a.0
+        local.get $c
         call $rt:release_ref
       end
       local.get $b.1

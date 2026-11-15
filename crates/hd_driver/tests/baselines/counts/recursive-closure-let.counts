@@ -7,12 +7,12 @@ fn sum_to(limit: i32) -> i32:
 > app/main/sum_to
 >   retain counted reference (stored)
 >   release fn(i32) -> i32 (overwritten)
->   release counted reference (last use)
 >   release fn(i32) -> i32 (last use)
         if n == 0: 0
-> app/main/sum_to
->   release fn(i32) -> i32 (last use)
         else: n + sum(n - 1)
+> app/main/sum_to
 >   retain fn(i32) -> i32 (second owner)
+>   release fn(i32) -> i32 (last use)
     sum(limit)
 >   retain fn(i32) -> i32 (second owner)
+>   release counted reference (last use)

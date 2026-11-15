@@ -26,9 +26,9 @@
         i32.const 1
         i32.add
         local.set $t1
+    ;; 8 |         write.push(i)
         local.get $write
         i32.load $heap
-    ;; 8 |         write.push(i)
         local.tee $t2
         i32.load $heap offset=4
         local.tee $t3

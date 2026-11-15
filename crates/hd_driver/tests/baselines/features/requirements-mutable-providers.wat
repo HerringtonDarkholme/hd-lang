@@ -81,7 +81,6 @@
     drop
     ;; 29 |     $.with(Recorder=tally):
     local.get $t0
-    ;; 28 |     tally := box(Log { lines: [] })
     local.tee $t1
     if
       local.get $t1

@@ -89,10 +89,10 @@
             drop
             local.get $s.1
             br_if 1
+    ;; 21 |         other =>
             local.get $o.0
             local.get $o.1
             call $rt:retain
-    ;; 21 |         other =>
             local.get $o.0
             local.get $o.1
             local.set $other.1
@@ -100,12 +100,14 @@
     ;; 20 |         .Some(s) if s.len() > 0 => s.len()
             br 2
           else
+    ;; 21 |         other =>
             local.get $o.0
             local.get $o.1
             local.set $other.1
             local.tee $s.1
             local.get $other.1
             call $rt:retain
+    ;; 20 |         .Some(s) if s.len() > 0 => s.len()
             br 2
           end
     ;; 19 |     match o:

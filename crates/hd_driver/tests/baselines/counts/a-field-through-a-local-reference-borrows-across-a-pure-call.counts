@@ -33,17 +33,17 @@ impl Reader:
 
     fn name(&mut self, m: &Member) -> string:
         frame := self.top()
-> app/main/impl Reader.name
->   release *mut app.main.Frame (last use)
         name := member_name(m, frame.facts)
         frame.next = frame.next + 1
+> app/main/impl Reader.name
+>   release *mut app.main.Frame (last use)
         name
 
     fn count(&mut self) -> usize:
         frame := self.top()
 > app/main/impl Reader.count
->   release std.structure.Facts (last use)
 >   release *mut app.main.Frame (last use)
         self.tally(frame.facts)
 >   copy std.structure.Facts (second owner)
+>   release std.structure.Facts (last use)
         frame.next

@@ -140,6 +140,7 @@
     local.set $label.1
     i32.const 1
     local.set $label.0
+    ;; 25 |     log.push("work")
     local.get $log
     i32.load $heap
     call $rt:list_unique
@@ -147,7 +148,6 @@
     local.get $log
     local.get $t1
     i32.store $heap
-    ;; 25 |     log.push("work")
     local.get $t1
     i32.load $heap offset=4
     local.tee $t2

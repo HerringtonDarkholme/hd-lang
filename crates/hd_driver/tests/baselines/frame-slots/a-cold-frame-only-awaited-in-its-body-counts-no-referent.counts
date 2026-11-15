@@ -54,10 +54,6 @@ fn later!(n: usize) -> usize $ Clock:
 fn both!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
 > app/main/both
->   release Suspend[usize] (last use)
->   release Suspend[usize] (last use)
->   release counted reference (last use)
->   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/both
@@ -73,6 +69,10 @@ fn both!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)
+>   release Suspend[usize] (last use)
+>   release Suspend[usize] (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
     x + y
 
 fn first!(n: usize) -> usize $ Clock:
@@ -81,12 +81,12 @@ fn first!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/first
->   release counted reference (last use)
->   release counted reference (last use)
-> app/main/first
 >   retain counted reference (stored)
     let b = "b".repeat(n)
     race!(size(&a), size(&b))
+> app/main/first
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
 >   release counted reference (last use)

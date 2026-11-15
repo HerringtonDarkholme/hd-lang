@@ -186,7 +186,6 @@
     local.set $value.1
     call $"impl string.len"
     local.set $t1
-    ;; 47 |         borrowed := &(value + "!")
     local.get $value.0
     if
       local.get $value.0
@@ -197,7 +196,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 49 |         borrowed.len() + copy.len()
     local.get $value.1
     local.get $t1
     i32.add

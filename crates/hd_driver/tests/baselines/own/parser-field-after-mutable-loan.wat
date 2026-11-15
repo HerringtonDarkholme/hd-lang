@@ -200,9 +200,9 @@
     local.set $text.1
     ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     local.get $text.0
+    ;; 36 |     parser.chars.push('x')
     call $rt:list_unique
     local.tee $text.0
-    ;; 36 |     parser.chars.push('x')
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t1
@@ -228,8 +228,8 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     local.get $text.0
+    local.tee $text.0
     if
       local.get $text.0
       i32.const 8

@@ -37,14 +37,14 @@ fn both!(a: string, b: string) -> usize:
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (last use)
 >   release Suspend[string] (last use)
->   release counted reference (last use)
->   release counted reference (last use)
 >   release string (last use)
 >   release string (last use)
 > app/main/both
 >   release string (cancelled)
 >   release string (cancelled)
     x.len() + y.len()
+>   release counted reference (last use)
+>   release counted reference (last use)
 
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()

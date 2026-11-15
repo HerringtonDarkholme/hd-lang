@@ -65,10 +65,8 @@
           local.get $t2
           call $retain
         end
-    ;; 11 |     while index < frame.keys.len():
         local.get $frame
         i32.load $heap offset=4
-    ;; 12 |         frame.entries[frame.keys[index]] = index
         local.set $t3
         local.get $t0
         local.get $t1
@@ -99,7 +97,6 @@
         local.get $frame
         local.get $t3
         i32.store $heap offset=4
-    ;; 11 |     while index < frame.keys.len():
         local.get $t0
         local.tee $t2
         if

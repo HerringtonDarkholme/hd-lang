@@ -131,7 +131,6 @@
     end
     local.get $t0
     local.get $t1
-    ;; 14 |     _ := save(s)
     call $rt:release
     local.get $s.0
     local.tee $t0

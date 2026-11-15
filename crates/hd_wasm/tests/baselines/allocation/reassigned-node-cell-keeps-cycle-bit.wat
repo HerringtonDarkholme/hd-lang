@@ -44,7 +44,6 @@
     ;; 11 |     node = box(Node { next: .Some(parent) })
     i32.store $heap
     local.get $t0
-    ;; 9 |     let node = box(Node { next: .None })
     if
       local.get $t0
       i32.const 8

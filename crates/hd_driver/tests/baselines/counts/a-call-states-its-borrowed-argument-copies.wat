@@ -349,9 +349,9 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
+    ;; 14 |     into.push(second)
     local.get $into
     i32.load $heap
-    ;; 14 |     into.push(second)
     local.tee $first.0
     i32.load $heap offset=4
     local.tee $first.1

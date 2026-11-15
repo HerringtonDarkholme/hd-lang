@@ -49,7 +49,6 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 23 |     store := $.use(Store)
     local.get $t0
     local.tee $t1
     if
@@ -62,7 +61,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 24 |     println("${store.tally({"a": +1})}")
     i64.extend_i32_s
     local.tee $t3
     local.tee $t4
@@ -130,7 +128,6 @@
     local.get $provider0.vtable
     i32.load $heap offset=4
     call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-    ;; 23 |     store := $.use(Store)
     call $rt:release
     local.get $t0
     local.get $t1
@@ -202,26 +199,22 @@
       local.get $t1
       call $retain
     end
-    ;; 23 |     store := $.use(Store)
     local.get $provider0
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref'2
     end
-    ;; 27 |     println("${store.open().read()}")
     local.get $t0
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    ;; 23 |     store := $.use(Store)
     local.get $t0
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref'2
     end
-    ;; 27 |     println("${store.open().read()}")
     i64.extend_i32_s
     local.tee $t3
     local.tee $t4

@@ -53,8 +53,8 @@
         br 0
       end
     end
-    ;; 17 |     let mut n = 0
     local.get $line.0
+    local.tee $line.0
     if
       local.get $line.0
       i32.const 8
@@ -151,8 +151,8 @@
         br 0
       end
     end
-    ;; 10 |     sb := StringBuilder::new()
     local.get $parts
+    local.tee $parts
     if
       local.get $parts
       i32.const 8

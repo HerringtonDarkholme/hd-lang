@@ -12,8 +12,8 @@ fn fill(frame: &mut Frame) -> void:
     while index < frame.keys.len():
 > app/main/fill
 >   unique Map[string, usize] (may be shared)
->   release string (last use)
         frame.entries[frame.keys[index]] = index
 >   retain string (second owner)
 >   retain string (stored)
+>   release string (last use)
         index += 1

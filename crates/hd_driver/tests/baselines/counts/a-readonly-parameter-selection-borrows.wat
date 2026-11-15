@@ -167,7 +167,7 @@
     local.get $d.1
     call $keep
     local.set $b.0
-    ;; 27 |     x := if c: a else: b
+    ;; 30 |     x.len() + y.len() + kept[0].len()
     local.get $a.0
     local.tee $t0
     if
@@ -180,7 +180,6 @@
       local.get $t0
       call $rt:release_ref'1
     end
-    ;; 30 |     x.len() + y.len() + kept[0].len()
     local.get $a.1
     local.get $b.1
     i32.add
@@ -204,7 +203,6 @@
       local.get $t0
       call $retain
     end
-    ;; 27 |     x := if c: a else: b
     local.get $b.0
     local.tee $t0
     if
@@ -217,15 +215,12 @@
         call $rt:release_ref'2
       end
     end
-    ;; 30 |     x.len() + y.len() + kept[0].len()
     local.get $a.0
-    ;; 27 |     x := if c: a else: b
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref'1
     end
-    ;; 30 |     x.len() + y.len() + kept[0].len()
     local.get $c
     local.get $a.1
     i32.add
@@ -256,16 +251,17 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $a.0
+      local.tee $c
       if
-        local.get $a.0
+        local.get $c
         call $rt:release_ref'1
       end
     else
       local.get $b.0
       local.get $a.0
+      local.tee $c
       if
-        local.get $a.0
+        local.get $c
         call $rt:release_ref'1
       end
       local.get $b.1

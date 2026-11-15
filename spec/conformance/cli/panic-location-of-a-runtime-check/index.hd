@@ -1,0 +1,14 @@
+struct Outer:
+    items: List[string]
+
+fn set(slot: &mut string, value: string) -> void:
+    *slot = value
+
+fn probe(p: *mut Outer, alias: *mut Outer) -> string:
+    r := &p.items[1]
+    set(&mut alias.items[1], "w")
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: ["a", "b"] })
+    println(probe(p, p))

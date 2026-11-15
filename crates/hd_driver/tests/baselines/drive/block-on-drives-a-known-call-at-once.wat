@@ -222,6 +222,7 @@
     local.set $t1
     local.set $key.1
     local.get $key.0
+    local.tee $key.0
     if
       local.get $key.0
       i32.const 8
@@ -263,6 +264,7 @@
     local.get $key.1
     call $fetch'2
     local.set $key.0
+    ;; 26 |     log.push("constructed")
     local.get $log
     i32.load $heap
     call $rt:list_unique
@@ -270,7 +272,6 @@
     local.get $log
     local.get $key.1
     i32.store $heap
-    ;; 26 |     log.push("constructed")
     local.get $key.1
     i32.load $heap offset=4
     local.tee $t0
@@ -338,8 +339,8 @@
     local.set $t0
     local.set $log
     local.set $key.1
-    ;; 25 |     let pending: Suspend[string] = fetch(key)
     local.get $key.0
+    local.tee $key.0
     if
       local.get $key.0
       i32.const 8
@@ -352,7 +353,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 27 |     match block_on(pending):
     block
       block
         block
@@ -393,6 +393,8 @@
     local.set $key.1
     ;; 19 |     let pending: Suspend[string] = fetch(key)
     local.get $key.0
+    ;; 20 |     match block_on(pending):
+    local.tee $key.0
     if
       local.get $key.0
       i32.const 8
@@ -405,7 +407,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 20 |     match block_on(pending):
     block
       block
         block

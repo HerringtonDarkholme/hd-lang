@@ -127,7 +127,6 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 39 |     original := word(7)
     local.get $shared
     local.tee $t2
     if
@@ -160,7 +159,6 @@
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t3
     local.tee $shared
-    ;; 39 |     original := word(7)
     local.get $t1
     local.tee $t2
     if
@@ -175,12 +173,10 @@
         call $rt:release_ref'2
       end
     end
-    ;; 42 |     println(keep(original)())
     local.get $t3
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 39 |     original := word(7)
     local.get $shared
     local.tee $t2
     if
@@ -201,7 +197,6 @@
     call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32)
     local.set $t3
     local.tee $shared
-    ;; 39 |     original := word(7)
     local.get $t1
     local.tee $t2
     if
@@ -216,12 +211,10 @@
         call $rt:release_ref'2
       end
     end
-    ;; 44 |     println(call(original))
     local.get $t3
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 39 |     original := word(7)
     local.get $shared
     local.tee $t2
     if
@@ -279,7 +272,6 @@
       local.get $t2
       call $retain
     end
-    ;; 39 |     original := word(7)
     local.get $t1
     local.tee $t2
     if
@@ -294,13 +286,11 @@
         call $rt:release_ref'2
       end
     end
-    ;; 47 |     println(same(shared).text)
     local.get $t3
     local.get $t4
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 39 |     original := word(7)
     local.get $t3
     local.tee $t2
     if
@@ -330,7 +320,6 @@
     local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $t1
-    ;; 39 |     original := word(7)
     local.get $t3
     local.tee $t2
     if
@@ -345,7 +334,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 48 |     println(keep(shared)().text)
     local.tee $t3
     i32.load $heap
     local.get $t3
@@ -357,7 +345,6 @@
       local.get $t2
       call $retain
     end
-    ;; 39 |     original := word(7)
     local.get $t1
     local.tee $t2
     if
@@ -372,13 +359,11 @@
         call $rt:release_ref'2
       end
     end
-    ;; 48 |     println(keep(shared)().text)
     local.get $t3
     local.get $t4
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 39 |     original := word(7)
     local.get $t3
     local.tee $t2
     if
@@ -395,7 +380,6 @@
     i32.const 0
     local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 39 |     original := word(7)
     local.get $t3
     local.tee $t2
     if
@@ -410,7 +394,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 49 |     println(keep(+7)())
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -431,7 +414,7 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 39 |     original := word(7)
+    ;; 51 |     let mut items = UniqList::[i32].new()
     local.get $t1
     local.tee $t2
     if
@@ -452,7 +435,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 51 |     let mut items = UniqList::[i32].new()
     i32.const 0
     i32.const 4
     call $room
@@ -574,7 +556,6 @@
     local.tee $shared
     i32.load $heap offset=8
     local.set $t1
-    ;; 39 |     original := word(7)
     local.get $shared
     if
       local.get $shared
@@ -595,7 +576,6 @@
       i32.const 0
       i32.store $heap offset=28
     end
-    ;; 53 |     println(unique(items).len())
     local.get $t1
     local.get $provider0
     local.get $provider0.vtable

@@ -421,8 +421,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t3
+            local.tee $key.1
             if
-              local.get $t3
+              local.get $key.1
               call $rt:release_ref'1
             end
           end
@@ -501,9 +502,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t2
-          local.tee $t3
+          local.tee $key.1
           if
-            local.get $t3
+            local.get $key.1
             call $rt:release_ref'1
           end
         end
@@ -530,9 +531,9 @@
     ;; 13 |     let mut job = fetch(key)
     end
     local.get $key.0
-    local.tee $t3
+    local.tee $key.1
     if
-      local.get $t3
+      local.get $key.1
       call $rt:release_ref'1
     end
     local.get $t6

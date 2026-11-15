@@ -43,8 +43,8 @@ fn live(value: *mut Point) -> i32:
     step := capture(value)
 > app/main/live
 >   retain *mut app.main.Point (stored)
->   release fn() -> i32 (last use)
     step() + value.x
+>   release fn() -> i32 (last use)
 
 fn borrowed(value: &Point) -> i32:
     value.x

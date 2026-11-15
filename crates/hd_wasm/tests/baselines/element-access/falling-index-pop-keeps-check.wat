@@ -39,7 +39,6 @@
         i32.add
         i32.load $heap offset=16
         local.set $t0
-    ;; 9 |     while j > 0:
         local.get $items
         i32.load $heap
         call $rt:list_unique
@@ -47,7 +46,6 @@
         local.get $items
         local.get $t1
         i32.store $heap
-    ;; 11 |         items[j] = items[j - 1]
         local.get $start
         local.get $t1
         i32.load $heap offset=4

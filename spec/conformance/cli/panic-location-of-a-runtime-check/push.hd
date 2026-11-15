@@ -1,0 +1,12 @@
+struct Outer:
+    items: List[string]
+
+fn probe(p: *mut Outer, alias: *mut Outer) -> string:
+    r := &p.items[0]
+    x := 1
+    alias.items.push("v")
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Outer { items: ["a"] })
+    println(probe(p, p))

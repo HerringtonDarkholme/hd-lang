@@ -193,7 +193,6 @@
     i32.mul
     i32.add
     i32.load $heap offset=8
-    ;; 19 |     let mut items = { "a": +1 }
     local.get $saved
     local.tee $t1
     if
@@ -206,7 +205,6 @@
         call $rt:release_ref
       end
     end
-    ;; 25 |     println(saved["a"])
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -243,7 +241,6 @@
     i32.const 5
     call_indirect $table0 (param i32) (result i32)
     local.set $saved
-    ;; 19 |     let mut items = { "a": +1 }
     local.get $items
     if
       local.get $items
@@ -260,7 +257,6 @@
         end
       end
     end
-    ;; 26 |     println(read(&items["a"]))
     local.get $saved
     local.get $provider0
     local.get $provider0.vtable
@@ -367,7 +363,6 @@
     i32.add
     i32.load $heap offset=4
     local.set $saved
-    ;; 19 |     let mut items = { "a": +1 }
     local.get $items
     if
       local.get $items
@@ -384,7 +379,6 @@
         end
       end
     end
-    ;; 31 |     println(numbers[2])
     local.get $saved
     local.get $provider0
     local.get $provider0.vtable
@@ -486,7 +480,7 @@
     local.get $value
     i32.load $heap
   )
-  (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 8 |     *items.get_or_insert(key, +0) += 1
     local.get $items
     i32.load $heap
@@ -538,8 +532,9 @@
       local.set $items
     else
       local.get $key.0
+      local.tee $t3
       if
-        local.get $key.0
+        local.get $t3
         call $retain
       end
       local.get $t0

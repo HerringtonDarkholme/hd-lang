@@ -107,8 +107,8 @@
         call_indirect $table0 (param i32)
       end
     end
-    ;; 11 |     let call: Suspend[i32] = s.put(text)
     local.get $s.1
+    local.tee $s.1
     if
       local.get $s.1
       i32.const 8
@@ -119,7 +119,6 @@
         call $rt:release_ref
       end
     end
-    ;; 12 |     match block_on(call):
     block
       block
         block

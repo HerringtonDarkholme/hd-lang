@@ -17,6 +17,7 @@
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.set $s.0
+    ;; 11 |     log.push("started")
     local.get $log
     i32.load $heap
     call $rt:list_unique
@@ -24,7 +25,6 @@
     local.get $log
     local.get $s.1
     i32.store $heap
-    ;; 11 |     log.push("started")
     local.get $s.1
     i32.load $heap offset=4
     local.tee $text.0
@@ -89,8 +89,8 @@
     local.get $s.1
     local.set $text.0
     local.set $s.1
-    ;; 10 |     let call: Suspend[i32] = s.put(text)
     local.get $s.0
+    local.tee $s.0
     if
       local.get $s.0
       i32.const 8
@@ -101,7 +101,6 @@
         call $rt:release_ref
       end
     end
-    ;; 12 |     match block_on(call):
     block
       block
         block

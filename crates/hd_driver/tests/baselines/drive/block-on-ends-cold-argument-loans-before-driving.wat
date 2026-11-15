@@ -43,6 +43,7 @@
     local.set $value
     local.set $alias
     local.get $log
+    local.tee $log
     if
       local.get $log
       i32.const 8

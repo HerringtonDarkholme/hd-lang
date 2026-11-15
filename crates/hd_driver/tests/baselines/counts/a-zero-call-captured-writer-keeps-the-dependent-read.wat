@@ -224,7 +224,7 @@
     local.get $change.0
     local.set $change.1
     local.set $change.0
-    ;; 24 |     let mut ps = [box(P { name: "a" })]
+    ;; 26 |     d := name_of(ps[0])
     local.get $ps
     i32.const 4
     i32.sub
@@ -240,7 +240,6 @@
     i32.load $heap
     call $rt:list_unique
     i32.store $heap
-    ;; 26 |     d := name_of(ps[0])
     local.get $ps
     i32.const 4
     i32.sub

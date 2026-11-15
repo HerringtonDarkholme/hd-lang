@@ -837,6 +837,23 @@ impl Func {
         if let Some(edge) = Self::edge(ins) {
             self.callees.push(edge);
         }
+        // A row names the calls after it in byte order, so an anchor written
+        // in one arm of a branch would stand for the calls after the branch
+        // too, and an optimizer that folds the arm away takes it with it:
+        // their frame then had no row and was dropped (#1998). A control
+        // instruction ends an anchor's reach; the next call writes its own.
+        if matches!(
+            ins,
+            Ins::Op(
+                Instruction::Block(_)
+                    | Instruction::Loop(_)
+                    | Instruction::If(_)
+                    | Instruction::Else
+                    | Instruction::End
+            )
+        ) {
+            self.anchored = None;
+        }
         self.body.push(ins);
         // Label raw emitter helper calls too. Typed counting overwrites this
         // fallback with its source type; inlining preserves the same site.

@@ -60,7 +60,6 @@
         br 0
       end
     end
-    ;; 15 |     let n: usize = 0
     local.get $head
     call $rt:release
     ;; 23 |     n

@@ -26,12 +26,12 @@ fn result_try(path: string) -> Result[usize, ReadError]:
     text := read(path)?
 > app/main/result_try
 >   release string (last use)
->   release string (last use)
     .Ok(text.len())
+>   release string (last use)
 
 fn converted(path: string) -> Result[usize, AppError]:
     text := read(path)?
 > app/main/converted
 >   release string (last use)
->   release string (last use)
     .Ok(text.len())
+>   release string (last use)

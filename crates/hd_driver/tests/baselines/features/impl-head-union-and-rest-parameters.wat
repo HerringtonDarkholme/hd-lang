@@ -115,7 +115,6 @@
     ;; 25 |     println("${wrapped.size()} ${rest.size()}")
     call $"impl[A, B] Size for Wrap[A | B].size[i32, string]"
     local.set $t1
-    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $wrapped
     if
       local.get $wrapped
@@ -124,7 +123,6 @@
       i32.load $heap offset=4
       call $rt:release
     end
-    ;; 25 |     println("${wrapped.size()} ${rest.size()}")
     local.get $t1
     i64.extend_i32_u
     local.tee $t2
@@ -133,7 +131,6 @@
     local.get $rest
     call $"impl[T] Size for (i32, List[T] ...).size[string]"
     local.set $t1
-    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $rest
     if
       local.get $rest
@@ -150,7 +147,6 @@
         end
       end
     end
-    ;; 25 |     println("${wrapped.size()} ${rest.size()}")
     local.get $t1
     i64.extend_i32_u
     local.tee $t3
@@ -193,9 +189,7 @@
     local.get $t6
     local.get $wrapped
     call $write_unsigned_sized
-    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $t6
-    ;; 25 |     println("${wrapped.size()} ${rest.size()}")
     i64.extend_i32_u
     local.get $wrapped
     i64.extend_i32_u
@@ -212,16 +206,12 @@
     i32.const 32
     i32.store8 $heap
     local.get $t3
-    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $t6
-    ;; 25 |     println("${wrapped.size()} ${rest.size()}")
     local.get $t1
     i32.add
     local.get $rest
     call $write_unsigned_sized
-    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $t6
-    ;; 25 |     println("${wrapped.size()} ${rest.size()}")
     local.get $t5
     local.get $provider0
     local.get $provider0.vtable

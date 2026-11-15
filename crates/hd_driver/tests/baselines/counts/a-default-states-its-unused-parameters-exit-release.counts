@@ -27,10 +27,10 @@ fn join(
 
 pub fn main() -> void $ Console:
     log := box::[List[string]]([])
-> app/main/main
->   release string (last use)
->   release *mut List[string] (last use)
     println(join(log, "first"))
+> app/main/main
 >   retain *mut List[string] (conservative: DefaultCall)
 >   retain *mut List[string] (stored)
 >   retain string (stored)
+>   release string (last use)
+>   release *mut List[string] (last use)

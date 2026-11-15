@@ -96,7 +96,7 @@
     i32.add
     i32.store $heap
   )
-  (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 5 |     *items.get_or_insert(key, +0) += 1
     local.get $items
     i32.load $heap
@@ -148,8 +148,9 @@
       local.set $items
     else
       local.get $key.0
+      local.tee $t3
       if
-        local.get $key.0
+        local.get $t3
         call $retain
       end
       local.get $t0

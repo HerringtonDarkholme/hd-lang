@@ -109,8 +109,8 @@
         call_indirect $table0 (param i32)
       end
     end
-    ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     local.get $provider0.vtable
+    local.tee $provider0.vtable
     if
       local.get $provider0.vtable
       i32.const 8
@@ -123,7 +123,6 @@
         call $rt:release_ref
       end
     end
-    ;; 10 |     match block_on(call):
     block
       block
         block

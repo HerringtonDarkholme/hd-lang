@@ -103,7 +103,6 @@
         br 0
       end
     end
-    ;; 29 |     let s: i64 = 0
     local.get $h
     if
       local.get $h
@@ -261,18 +260,19 @@
         br 0
       end
     end
-    ;; 35 |     h := Holder { store: box(u) }
     local.get $h
+    local.tee $n
     if
-      local.get $h
+      local.get $n
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $h
+        local.get $n
         call $rt:release_ref
       end
     end
+    ;; 35 |     h := Holder { store: box(u) }
     local.get $u.buffer.address
     local.get $u.buffer.capacity
     local.get $u.len

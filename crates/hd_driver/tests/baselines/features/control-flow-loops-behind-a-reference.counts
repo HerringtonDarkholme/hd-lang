@@ -32,17 +32,16 @@ impl Parser:
 > app/main/impl Parser.snapshot
 >   release List[usize] (last use)
         for i in 0..n:
->   unique List[usize] (may be shared)
             last = self.index
 >   copy List[usize] (stored)
 >   release List[usize] (overwritten)
             self.index[i] = self.held
+>   unique List[usize] (may be shared)
         last.len()
 
 pub fn main() -> void $ Console:
     let mut p = Parser { index: [], pending: [], held: 0 }
 > app/main/main
->   release app.main.Parser [index, pending] (last use)
 >   release string (last use)
     for i in 0..4:
 >   unique List[usize] (may be shared)
@@ -51,3 +50,4 @@ pub fn main() -> void $ Console:
     p.drain_into(0)
     p.refill(2)
     println("${p.index.len()} ${p.snapshot(2)}")
+>   release app.main.Parser [index, pending] (last use)

@@ -172,7 +172,6 @@
     ;; 21 |     let (a, _) = join!(change(n), other())
         call $change'1
         local.set $t3
-    ;; 20 |     n := box::[Note](Note { text: "n" })
         local.get $t4
         local.tee $t11
         if
@@ -187,7 +186,6 @@
             call $rt:release_ref'1
           end
         end
-    ;; 21 |     let (a, _) = join!(change(n), other())
         call $other'1
         local.set $t4
     ;; 20 |     n := box::[Note](Note { text: "n" })
@@ -600,7 +598,6 @@
         local.set $t14
         br 1
       end
-    ;; 20 |     n := box::[Note](Note { text: "n" })
       local.get $t4
       local.tee $t11
       if
@@ -629,7 +626,6 @@
           call $rt:release_ref'1
         end
       end
-    ;; 21 |     let (a, _) = join!(change(n), other())
       block
         i32.const 4
         i32.const 0
@@ -657,7 +653,6 @@
       i32.load $heap
       i64.extend_i32_u
       local.set $t15
-    ;; 20 |     n := box::[Note](Note { text: "n" })
       local.get $a
       local.tee $t11
       if
@@ -672,7 +667,6 @@
           call $rt:release_ref'1
         end
       end
-    ;; 22 |     println("$a")
       local.get $t15
       call $unsigned_width
       local.tee $a

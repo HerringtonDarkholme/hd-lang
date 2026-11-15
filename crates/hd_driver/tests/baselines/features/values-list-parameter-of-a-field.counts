@@ -11,12 +11,12 @@ struct Trail:
 
 fn record_step(steps: &mut List[i64], slot: usize, step: i64) -> void:
     if slot < steps.len():
+        steps[slot] = step
 > app/main/record_step
 >   unique List[i64] (may be shared)
->   unique List[i64] (may be shared)
-        steps[slot] = step
     else:
         steps.push(step)
+>   unique List[i64] (may be shared)
 
 fn set_first(xs: &mut List[i64], v: i64) -> void:
     xs[0] = v
@@ -31,9 +31,6 @@ impl Trail:
 pub fn main() -> void $ Console:
     let mut trail = Trail { steps: [], depth: 0 }
 > app/main/main
->   release app.main.Trail [steps] (last use)
->   release List[i64] (last use)
->   release List[i64] (last use)
 >   release string (last use)
     for i in 0..4:
         trail.enter(i64(i))
@@ -42,3 +39,6 @@ pub fn main() -> void $ Console:
 >   copy List[i64] (second owner)
     set_first(&mut local, 9)
     println("${trail.depth} ${saved[0]} ${local[0]}")
+>   release app.main.Trail [steps] (last use)
+>   release List[i64] (last use)
+>   release List[i64] (last use)

@@ -153,20 +153,18 @@
       local.get $t0
       call $rt:release_ref
     end
+    ;; 46 |     w.name.len() + v.name.len()
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref
     end
-    ;; 46 |     w.name.len() + v.name.len()
     local.get $v.name.0
-    ;; 45 |     w := v.renamed(n)
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref
     end
-    ;; 46 |     w.name.len() + v.name.len()
     local.get $n.1
     local.get $v.name.1
     i32.add

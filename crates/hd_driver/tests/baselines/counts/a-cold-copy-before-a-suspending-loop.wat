@@ -347,7 +347,6 @@
             local.set $t7
             br 3
           end
-    ;; 9 |     while true:
           local.get $t1
           local.tee $t5
           if

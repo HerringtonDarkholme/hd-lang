@@ -94,7 +94,6 @@
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t1
     local.tee $shared
-    ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
     if
@@ -109,12 +108,10 @@
         call $rt:release_ref'1
       end
     end
-    ;; 23 |     println(keep(original)())
     local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 22 |     original := word(7)
     local.get $shared
     local.tee $t0
     if
@@ -131,7 +128,6 @@
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
     if
@@ -146,7 +142,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 24 |     println(keep(+7)())
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -167,7 +162,6 @@
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
     if
@@ -182,7 +176,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 25 |     println(lend(original)())
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
@@ -226,7 +219,6 @@
     local.get $items
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $items
-    ;; 22 |     original := word(7)
     local.get $t1
     local.tee $t0
     if
@@ -241,7 +233,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 27 |     println(keep(shared)().text)
     local.tee $t1
     i32.load $heap
     local.get $t1
@@ -253,7 +244,6 @@
       local.get $t0
       call $retain
     end
-    ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
     if
@@ -268,13 +258,11 @@
         call $rt:release_ref'1
       end
     end
-    ;; 27 |     println(keep(shared)().text)
     local.get $t1
     local.get $t2
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 22 |     original := word(7)
     local.get $t1
     local.tee $t0
     if
@@ -311,7 +299,6 @@
     local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $t1
-    ;; 22 |     original := word(7)
     local.get $t2
     local.tee $t0
     if
@@ -326,9 +313,7 @@
         call $rt:release_ref'1
       end
     end
-    ;; 29 |     println(keep(items)().len())
     i32.load $heap offset=4
-    ;; 22 |     original := word(7)
     local.get $t1
     local.tee $t0
     if
@@ -343,7 +328,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 29 |     println(keep(items)().len())
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
@@ -367,7 +351,6 @@
       local.get $t0
       call $retain
     end
-    ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
     if
@@ -382,13 +365,11 @@
         call $rt:release_ref'1
       end
     end
-    ;; 30 |     println(items[0])
     local.get $t1
     local.get $t2
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 22 |     original := word(7)
     local.get $t1
     local.tee $t0
     if
@@ -412,7 +393,6 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    ;; 22 |     original := word(7)
     local.get $items
     local.tee $t0
     if

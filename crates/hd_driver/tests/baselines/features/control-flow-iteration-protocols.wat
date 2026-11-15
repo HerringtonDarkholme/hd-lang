@@ -93,7 +93,7 @@
         br 0
       end
     end
-    ;; 26 |     let n: usize = 0
+    ;; 29 |     for x in xs.iter():
     local.get $t1
     if
       local.get $t1
@@ -110,7 +110,6 @@
         end
       end
     end
-    ;; 29 |     for x in xs.iter():
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -160,7 +159,6 @@
         br 0
       end
     end
-    ;; 26 |     let n: usize = 0
     local.get $xs
     if
       local.get $xs
@@ -266,7 +264,6 @@
         br 0
       end
     end
-    ;; 20 |     let n: usize = 0
     local.get $words.items
     if
       local.get $words.items

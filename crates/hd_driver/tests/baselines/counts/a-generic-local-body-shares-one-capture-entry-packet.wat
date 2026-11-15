@@ -331,13 +331,11 @@
     local.get $t1
     call $rt:retain_fields'1
     local.set $captured.1
-    ;; 7 |     fn pair[T](value: T) -> (string, T):
     local.get $captured.0
     if
       local.get $captured.0
       call $rt:release_ref'2
     end
-    ;; 9 |     (pair::[i32], pair::[string])
     local.get $t0
     local.get $captured.1
     local.get $t1

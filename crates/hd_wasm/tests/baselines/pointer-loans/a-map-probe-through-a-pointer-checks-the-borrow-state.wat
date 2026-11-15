@@ -85,7 +85,6 @@
       call $rt:panic'2
       unreachable
     end
-    ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
     local.get $stock
     i32.const 4
     i32.sub
@@ -101,7 +100,6 @@
     i32.load $heap
     call $rt:map_unique
     i32.store $heap
-    ;; 13 |     insert(alias, &mut stock["apple"])
     local.get $stock
     i32.const 4
     i32.sub

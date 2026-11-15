@@ -55,9 +55,9 @@ fn mut_self(v: Vec2, n: string) -> usize:
 > app/main/mut_self
 >   retain app.main.Vec2 [name.0] (stored)
 >   release string (overwritten)
->   release string (last use)
->   release string (last use)
     w.name.len() + v.name.len()
+>   release string (last use)
+>   release string (last use)
 
 fn counted(b: *Vec2) -> usize:
     b.keep().name.len()

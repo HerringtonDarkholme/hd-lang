@@ -13,12 +13,12 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
     if actual != expected:
 > std/rt_tests.stage_case/check_equal
 >   release string (last use)
->   release string (last use)
->   release string (last use)
 >   release List[i32] (last use)
 >   release List[i32] (last use)
 >   release string (last use)
         details := "actual ${debug(actual)}, expected ${debug(expected)}"
+>   release string (last use)
+>   release string (last use)
         message := if reason == "": details else: "${reason}: ${details}"
 >   release string (last use)
         panic_with("assertion-failed", message)

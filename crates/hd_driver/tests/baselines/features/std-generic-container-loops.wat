@@ -229,7 +229,6 @@
         i32.add
         i64.load $heap offset=16
         local.set $t2
-    ;; 21 |         while parent < size / 2:
         local.get $t4
         i32.eqz
         if
@@ -249,7 +248,6 @@
         i32.const -2
         i32.and
         local.set $left
-    ;; 31 |             self.items[parent] = self.items[larger]
         local.get $start
         local.get $left
         i32.load $heap offset=4
@@ -272,7 +270,7 @@
         br 0
       end
     end
-    ;; 19 |         size := self.items.len()
+    ;; 33 |         self.items[parent] = value
     local.get $self
     i32.load $heap
     call $rt:list_unique'2
@@ -280,7 +278,6 @@
     local.get $self
     local.get $size
     i32.store $heap
-    ;; 33 |         self.items[parent] = value
     local.get $start
     local.get $size
     i32.load $heap offset=4
@@ -381,7 +378,6 @@
       local.get $t1
       call $retain
     end
-    ;; 45 |     let mut q = Queue::[string].new()
     local.get $q
     if
       local.get $q
@@ -398,15 +394,12 @@
         end
       end
     end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
     local.get $a.1
-    ;; 45 |     let mut q = Queue::[string].new()
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref'2
     end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
     i32.const 0
     local.get $a.0
     i32.load $heap offset=4
@@ -426,7 +419,6 @@
       local.get $t1
       call $retain
     end
-    ;; 45 |     let mut q = Queue::[string].new()
     local.get $a.0
     local.tee $t1
     if
@@ -439,15 +431,12 @@
         call $rt:release_ref'1
       end
     end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
     local.get $a.1
-    ;; 45 |     let mut q = Queue::[string].new()
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref'2
     end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
     local.get $b.0
     local.get $b.1
     i32.add
@@ -654,7 +643,6 @@
         i32.load $heap offset=24
         local.set $left
         local.set $t1
-    ;; 21 |         while parent < size / 2:
         local.get $t4
         i32.eqz
         if
@@ -674,7 +662,6 @@
         i32.const -2
         i32.and
         local.set $t2
-    ;; 31 |             self.items[parent] = self.items[larger]
         local.get $start
         local.get $t2
         i32.load $heap offset=4
@@ -708,7 +695,6 @@
     i32.load $heap offset=8
     local.set $size
     local.set $t1
-    ;; 19 |         size := self.items.len()
     local.get $self
     i32.load $heap
     call $rt:list_unique'3
@@ -716,7 +702,6 @@
     local.get $self
     local.get $value
     i32.store $heap
-    ;; 33 |         self.items[parent] = value
     local.get $start
     local.get $value
     i32.load $heap offset=4
@@ -856,7 +841,6 @@
     local.get $t1
     i64.load $heap offset=16
     local.set $a
-    ;; 36 |     let mut q = Queue::[i64].new()
     local.get $q
     if
       local.get $q
@@ -873,7 +857,6 @@
         end
       end
     end
-    ;; 42 |     q.items[0] + saved.items[0]
     i32.const 0
     local.get $saved
     i32.load $heap offset=4
@@ -885,7 +868,6 @@
     local.get $saved
     i64.load $heap offset=16
     local.set $b
-    ;; 36 |     let mut q = Queue::[i64].new()
     local.get $saved
     local.tee $q
     if
@@ -898,7 +880,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 42 |     q.items[0] + saved.items[0]
     local.get $a
     local.get $b
     i64.add
@@ -1025,7 +1006,6 @@
     local.get $t1
     i64.load $heap offset=16
     local.set $a
-    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
     local.get $q
     if
       local.get $q
@@ -1042,7 +1022,6 @@
         end
       end
     end
-    ;; 58 |     q.items[0]._0 + saved.items[0]._0
     i32.const 0
     local.get $saved
     i32.load $heap offset=4
@@ -1054,7 +1033,6 @@
     local.get $saved
     i64.load $heap offset=16
     local.set $b
-    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
     local.get $saved
     local.tee $q
     if
@@ -1067,7 +1045,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 58 |     q.items[0]._0 + saved.items[0]._0
     local.get $a
     local.get $b
     i64.add
@@ -1241,7 +1218,6 @@
           local.get $t1
           call $retain
         end
-    ;; 21 |         while parent < size / 2:
         local.get $t2
         i32.eqz
         if
@@ -1261,7 +1237,6 @@
         i32.const -2
         i32.and
         local.set $t1
-    ;; 31 |             self.items[parent] = self.items[larger]
         local.get $start
         local.get $t1
         i32.load $heap offset=4
@@ -1295,7 +1270,7 @@
         br 0
       end
     end
-    ;; 19 |         size := self.items.len()
+    ;; 33 |         self.items[parent] = value
     local.get $self
     i32.load $heap
     call $rt:list_unique'1
@@ -1303,7 +1278,6 @@
     local.get $self
     local.get $size
     i32.store $heap
-    ;; 33 |         self.items[parent] = value
     local.get $start
     local.get $size
     i32.load $heap offset=4

@@ -36,9 +36,7 @@
     i32.const 1819043176
     i32.store $heap align=1
     local.get $t0
-    ;; (no span)
     local.get $t4
-    ;; 6 | greeting := "hello ${1}"
     local.get $t2
     i32.add
     local.get $t1
@@ -46,9 +44,7 @@
     i32.const 24 ;; &greeting
     i32.load $heap
     i32.const 24 ;; &greeting
-    ;; (no span)
     local.get $t4
-    ;; 6 | greeting := "hello ${1}"
     i32.store $heap
     i32.const 24 ;; &greeting
     local.get $t3
@@ -79,9 +75,7 @@
     i32.const 97
     i32.store8 $heap
     local.get $t0
-    ;; (no span)
     local.get $t4
-    ;; 8 | names := ["a${1}", "b"]
     local.get $t2
     i32.add
     local.get $t1
@@ -93,9 +87,7 @@
     i32.store $heap offset=4
     local.get $t1
     local.tee $t2
-    ;; (no span)
     local.get $t4
-    ;; 8 | names := ["a${1}", "b"]
     i32.store $heap offset=16
     local.get $t2
     local.get $t3

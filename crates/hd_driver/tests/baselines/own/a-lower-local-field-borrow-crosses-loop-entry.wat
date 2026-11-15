@@ -62,10 +62,10 @@
             i32.const 1
             i32.add
             local.set $t0
+    ;; 15 |                 bag.items.push(1)
             local.get $bag.items
             call $rt:list_unique
             local.tee $bag.items
-    ;; 15 |                 bag.items.push(1)
             local.tee $t1
             i32.load $heap offset=4
             local.tee $t2
@@ -101,14 +101,10 @@
     end
     ;; 17 |     bag.items.len()
     local.get $bag.items
-    ;; 9 |     match other.label:
     local.get $bag.label.0
     local.get $bag.label.1
-    ;; 17 |     bag.items.len()
     i32.const 0
-    ;; 9 |     match other.label:
     call $rt:release
-    ;; 17 |     bag.items.len()
     i32.load $heap offset=4
     local.get $bag.items
     ;; 9 |     match other.label:

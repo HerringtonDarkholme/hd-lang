@@ -1639,8 +1639,9 @@
             i32.eqz
             if
               local.get $t7
+              local.tee $t8
               if
-                local.get $t7
+                local.get $t8
                 call $retain
               end
             end
@@ -1738,8 +1739,9 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t7
+              local.tee $t8
               if
-                local.get $t7
+                local.get $t8
                 call $rt:release_ref'1
               end
             end
@@ -1837,56 +1839,57 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t7
+          local.tee $t8
           if
-            local.get $t7
+            local.get $t8
             call $rt:release_ref'1
           end
         end
         local.get $t2
-        local.tee $t7
+        local.tee $t8
         if
-          local.get $t7
+          local.get $t8
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t7
+            local.get $t8
             call $rt:release_ref'2
           end
         end
         local.get $t3
-        local.tee $t7
+        local.tee $t8
         if
-          local.get $t7
+          local.get $t8
           call $rt:release_ref'1
         end
         local.get $t5
-        local.tee $t7
+        local.tee $t8
         if
-          local.get $t7
+          local.get $t8
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t7
+            local.get $t8
             call $rt:release_ref'2
           end
         end
         local.get $t6
-        local.tee $t7
+        local.tee $t8
         if
-          local.get $t7
+          local.get $t8
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t7
+            local.get $t8
             call $rt:release_ref'2
           end
         end
@@ -1896,71 +1899,71 @@
       end
     ;; 9 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
       local.get $t6
-      local.tee $t7
+      local.tee $t8
       if
-        local.get $t7
+        local.get $t8
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t7
+          local.get $t8
           call $rt:release_ref'2
         end
       end
       local.get $t5
-      local.tee $t7
+      local.tee $t8
       if
-        local.get $t7
+        local.get $t8
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t7
+          local.get $t8
           call $rt:release_ref'2
         end
       end
       local.get $t3
-      local.tee $t7
+      local.tee $t8
       if
-        local.get $t7
+        local.get $t8
         call $rt:release_ref'1
       end
       local.get $t2
-      local.tee $t7
+      local.tee $t8
       if
-        local.get $t7
+        local.get $t8
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t7
+          local.get $t8
           call $rt:release_ref'2
         end
       end
     end
     local.get $key.0
-    local.tee $t7
+    local.tee $t8
     if
-      local.get $t7
+      local.get $t8
       call $rt:release_ref'1
     end
     local.get $keys
-    local.tee $t7
+    local.tee $t8
     if
-      local.get $t7
+      local.get $t8
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t7
+        local.get $t8
         call $rt:release_ref'2
       end
     end
@@ -3145,7 +3148,6 @@
         local.set $t8
         br 1
       end
-    ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
       local.get $t3
       local.tee $t4
       if
@@ -3178,7 +3180,6 @@
       local.get $key
       call $"impl string.len"
       local.set $t6
-    ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
       local.get $key
       local.tee $t4
       if
@@ -3205,7 +3206,6 @@
       i32.const 0
       local.set $keys
       i32.load $heap offset=4
-    ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
       local.get $t5
       local.tee $t4
       if
@@ -3220,7 +3220,6 @@
           call $rt:release_ref'2
         end
       end
-    ;; 19 |     size + key.len() + keys.len()
       i32.add
     ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
       local.set $t9

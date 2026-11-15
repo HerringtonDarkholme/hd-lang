@@ -77,7 +77,6 @@
     local.get $t2
     i32.const 64
     call $join
-    ;; 18 |     log := box::[List[string]]([])
     local.get $t3
     local.tee $t1
     if
@@ -96,7 +95,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 19 |     println(join(log, "first"))
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"

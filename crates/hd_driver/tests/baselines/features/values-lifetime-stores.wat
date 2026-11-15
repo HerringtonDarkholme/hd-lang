@@ -238,7 +238,6 @@
     i32.load $heap offset=4
     local.set $t2
     drop
-    ;; 17 |     let mut seen: List[&User] = []
     local.get $seen
     if
       local.get $seen
@@ -265,7 +264,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
     local.get $t1
     local.get $t2
     i32.add
@@ -278,8 +276,8 @@
     local.tee $seen
     i32.load $heap
     local.set $by
-    ;; 17 |     let mut seen: List[&User] = []
     local.get $seen
+    local.tee $seen
     if
       local.get $seen
       i32.const 8
@@ -300,7 +298,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
     local.get $b
     local.get $by
     i32.add

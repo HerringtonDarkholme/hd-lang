@@ -17,22 +17,22 @@ fn touch(xs: &mut List[u32]) -> void:
 
 fn fill(n: usize) -> u64:
     let mut xs: List[u32] = []
-> app/main/fill
->   release List[u32] (last use)
     let state = u32(0xC0FFEE)
     for _ in 0..n:
+> app/main/fill
 >   unique List[u32] (may be shared)
         state = state * 1664525 + 1013904223
         xs.push(state)
     touch(&mut xs)
     u64(xs.len()) + u64(xs[n / 2])
+>   release List[u32] (last use)
 
 fn touch_each(n: usize) -> usize:
     let mut xs: List[u32] = []
 > app/main/touch_each
 >   release List[u32] (last use)
     for i in 0..n:
->   unique List[u32] (may be shared)
         xs.push(u32(i))
+>   unique List[u32] (may be shared)
         touch(&mut xs)
     xs.len()

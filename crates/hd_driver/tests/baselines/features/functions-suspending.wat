@@ -31,6 +31,7 @@
     local.get $key.0
     local.get $key.1
     call $fetch'1
+    ;; 12 |     key.len()
     local.tee $t0
     if
       local.get $t0
@@ -44,7 +45,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 12 |     key.len()
     local.get $key.1
   )
   (func $fetch'2 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
@@ -956,8 +956,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t4
+            local.tee $key.1
             if
-              local.get $t4
+              local.get $key.1
               call $rt:release_ref'2
             end
           end
@@ -1039,9 +1040,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t3
-          local.tee $t4
+          local.tee $key.1
           if
-            local.get $t4
+            local.get $key.1
             call $rt:release_ref'2
           end
         end
@@ -1051,9 +1052,9 @@
       end
     end
     local.get $key.0
-    local.tee $t4
+    local.tee $key.1
     if
-      local.get $t4
+      local.get $key.1
       call $rt:release_ref'2
     end
     local.get $t6
@@ -2634,7 +2635,6 @@
         local.set $t12
         br 1
       end
-    ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)
       local.get $t5
       local.tee $t9
       if
@@ -2669,7 +2669,6 @@
           call $rt:release_ref'1
         end
       end
-    ;; 23 |     loader!(key).len()
       i32.const 8
       i32.const 1
       call $rt:new/class-1

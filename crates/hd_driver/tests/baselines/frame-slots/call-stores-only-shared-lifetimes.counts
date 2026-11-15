@@ -12,11 +12,11 @@ fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
 
 fn non_storing(xs: List[string]) -> usize:
     let mut out: List[&string] = []
+    size := push_len(&mut out, &xs)
 > app/main/non_storing
 >   release List[string] (last use)
->   release List[&string] (last use)
-    size := push_len(&mut out, &xs)
     size + out.len()
+>   release List[&string] (last use)
 
 @inline(.Never)
 fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
@@ -27,8 +27,8 @@ fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
 fn storing(xs: List[string]) -> usize:
     let mut out: List[&string] = []
 > app/main/storing
->   unique List[string] (may be shared)
->   release List[&string] (last use)
 >   release List[string] (last use)
     remember(&mut out, &xs[0])
+>   unique List[string] (may be shared)
     out[0].len()
+>   release List[&string] (last use)

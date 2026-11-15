@@ -224,14 +224,15 @@
     local.get $t2
     call $rt:memory_copy/0/0
     local.get $t3
+    local.tee $t1
     if
-      local.get $t3
+      local.get $t1
       call $rt:release_ref
     end
     local.get $t0
-    local.tee $t3
+    local.tee $t1
     if
-      local.get $t3
+      local.get $t1
       call $rt:release_ref
     end
     local.get $text

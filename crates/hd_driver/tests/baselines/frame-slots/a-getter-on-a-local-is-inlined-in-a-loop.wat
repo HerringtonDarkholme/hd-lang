@@ -74,7 +74,6 @@
         br 0
       end
     end
-    ;; 18 |     user := User { name: "ada", age: 36 }
     local.get $user
     if
       local.get $user

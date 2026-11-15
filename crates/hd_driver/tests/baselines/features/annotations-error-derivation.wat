@@ -99,7 +99,7 @@
       else
     ;; 40 |         @from
         local.get $t3
-        if (result i32)
+        if
           local.get $t3
           local.tee $t4
           if
@@ -131,16 +131,15 @@
             local.get $t4
             call $rt:release_ref
           end
-          local.get $self
           local.get $t1
           local.set $t2
         else
           i32.const 49 ;; &"Busy"
           i32.const 4
           local.set $t2
+          local.set $self
         end
     ;; 33 |     @error("bad config")
-        local.set $self
       end
     ;; 27 |     @error("cannot read $path")
       local.get $self
@@ -411,7 +410,7 @@
     local.set $t0
     local.tee $self
     ;; 21 |     @error("not found: $path")
-    if (result i32)
+    if
     ;; 22 |     NotFound(path: string)
       local.get $self
       local.tee $t1
@@ -454,13 +453,14 @@
         local.get $t1
         call $rt:release_ref
       end
-      local.get $t3
     else
       i32.const 49 ;; &"Busy"
       i32.const 4
       local.set $t2
+      local.set $t3
     end
     ;; 19 | @error
+    local.get $t3
     local.get $t2
   )
 )

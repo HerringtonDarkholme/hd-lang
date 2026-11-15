@@ -19,9 +19,9 @@ impl[S] Handle[S]:
     fn keep(self, all: &mut List[Handle[S]]) -> void:
         if (self.n + 1) * (self.n + 2) * (self.n + 3) * (self.n + 4) > 0:
 > app/main/impl[S] Handle[S].keep
->   unique List[app.main.Handle[i32]] (may be shared)
 >   release app.main.Handle[i32] [get.1, names] (last use)
             all.push(self)
+>   unique List[app.main.Handle[i32]] (may be shared)
 
 fn total(h: Handle[i32], times: i64) -> i64:
     let sum: i64 = 0

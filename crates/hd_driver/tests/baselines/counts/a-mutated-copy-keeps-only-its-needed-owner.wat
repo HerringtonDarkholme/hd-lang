@@ -12,9 +12,9 @@
     ;; 22 |     let mut t = a
     local.get $a
     call $rt:coll_copy
+    ;; 23 |     t.push(3)
     call $rt:list_unique
     local.tee $t
-    ;; 23 |     t.push(3)
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t1
@@ -44,7 +44,7 @@
     local.get $t
     i32.load $heap offset=4
     local.get $t
-    ;; 22 |     let mut t = a
+    local.tee $t
     if
       local.get $t
       i32.const 8
@@ -55,7 +55,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 24 |     t.len() + a.len()
     local.get $a
     i32.load $heap offset=4
     i32.add
@@ -112,13 +111,11 @@
     call $rt:str_append
     ;; 12 |     t.len() + a.len() + b.len()
     local.set $a.0
-    ;; 10 |     let t = a
     local.tee $b.0
     if
       local.get $b.0
       call $rt:release_ref'2
     end
-    ;; 12 |     t.len() + a.len() + b.len()
     local.get $a.0
     local.get $a.1
     i32.add
@@ -133,7 +130,7 @@
     local.get $a
     i32.load $heap offset=4
     local.get $a
-    ;; 35 |     let mut t = a
+    local.tee $a
     if
       local.get $a
       i32.const 8
@@ -144,12 +141,10 @@
         call $rt:release_ref'1
       end
     end
-    ;; 36 |     n := a.len()
     local.set $n
-    ;; 35 |     let mut t = a
+    ;; 37 |     t.push(3)
     call $rt:list_unique
     local.tee $a
-    ;; 37 |     t.push(3)
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t1
@@ -180,7 +175,7 @@
     i32.load $heap offset=4
     local.set $t0
     local.get $a
-    ;; 35 |     let mut t = a
+    local.tee $a
     if
       local.get $a
       i32.const 8
@@ -191,7 +186,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 38 |     n + t.len()
     local.get $n
     local.get $t0
     i32.add
@@ -207,7 +201,6 @@
     ;; 29 |     n := a.len()
     local.get $a.1
     local.set $t1
-    ;; 28 |     let t = a
     local.get $a.0
     local.tee $t0
     if
@@ -222,13 +215,11 @@
     call $rt:str_append
     ;; 31 |     n + t.len()
     local.set $a.0
-    ;; 28 |     let t = a
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref'2
     end
-    ;; 31 |     n + t.len()
     local.get $t1
     local.get $a.0
     i32.add

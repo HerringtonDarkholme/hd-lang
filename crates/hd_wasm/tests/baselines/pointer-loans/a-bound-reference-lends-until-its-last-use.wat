@@ -69,7 +69,6 @@
     i32.load $heap offset=4
     local.tee $t1
     call $rt:retain
-    ;; 11 |     r := &mut p.value
     local.get $t2
     if
       local.get $t2

@@ -18,9 +18,9 @@ struct Outer:
 
 fn element(items: &mut List[Item], i: usize) -> void:
     previous := items[i]
+    items[i] = Item { ...previous, r: previous.r + 1 }
 > app/main/element
 >   unique List[app.main.Item] (may be shared)
-    items[i] = Item { ...previous, r: previous.r + 1 }
 
 fn through_reference(p: &mut Item) -> void:
     *p = Item { ...*p, r: p.r + 1 }
@@ -37,8 +37,8 @@ fn used_after(items: &mut List[Item], i: usize) -> usize:
     previous := items[i]
 > app/main/used_after
 >   copy app.main.Item [batches, depots] (stored)
->   unique List[app.main.Item] (may be shared)
     items[i] = Item { ...previous, r: 1 }
+>   unique List[app.main.Item] (may be shared)
 >   release app.main.Item [batches, depots] (overwritten)
     previous.r
 
@@ -59,18 +59,18 @@ fn call_between(items: &mut List[Item], i: usize) -> void:
 
 pub fn main() -> void $ Console:
     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
-> app/main/main
->   unique List[app.main.Item] (may be shared)
->   unique List[app.main.Item] (may be shared)
->   release List[app.main.Item] (last use)
->   release app.main.Outer [item.batches, item.depots, tag.0] (last use)
->   release List[app.main.Item] (last use)
     shared := items
+> app/main/main
 >   copy List[app.main.Item] (second owner)
     element(&mut items, 0)
     through_reference(&mut items[0])
+>   unique List[app.main.Item] (may be shared)
     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
     field(&mut o)
     replaced(&mut items[0])
+>   unique List[app.main.Item] (may be shared)
     call_between(&mut items, 0)
     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+>   release List[app.main.Item] (last use)
+>   release app.main.Outer [item.batches, item.depots, tag.0] (last use)
+>   release List[app.main.Item] (last use)

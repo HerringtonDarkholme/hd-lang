@@ -46,10 +46,9 @@
     call $rt:coll_copy
     local.get $t0
     call $rt:coll_copy
-    local.set $t0
     ;; 33 |     items[i] = Item { ...previous, r: 1 }
+    local.set $t0
     local.set $t2
-    ;; 32 |     previous := items[i]
     local.get $items
     i32.load $heap
     call $rt:list_unique
@@ -57,7 +56,6 @@
     local.get $items
     local.get $t3
     i32.store $heap
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
     local.get $i
     local.get $t3
     i32.load $heap offset=4
@@ -185,13 +183,12 @@
     local.get $items
     i32.const 0
     call $element
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+    ;; 47 |     through_reference(&mut items[0])
     local.get $items
     local.get $items
     i32.load $heap
     call $rt:list_unique
     i32.store $heap
-    ;; 47 |     through_reference(&mut items[0])
     local.get $items
     i32.load $heap
     local.set $o
@@ -270,13 +267,12 @@
     i32.const 1
     i32.add
     i32.store $heap offset=8
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+    ;; 50 |     replaced(&mut items[0])
     local.get $items
     local.get $items
     i32.load $heap
     call $rt:list_unique
     i32.store $heap
-    ;; 50 |     replaced(&mut items[0])
     local.get $items
     i32.load $heap
     local.set $t1
@@ -301,7 +297,6 @@
     i32.const 0
     call $used_after
     local.set $t1
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $items
     if
       local.get $items
@@ -318,11 +313,9 @@
         end
       end
     end
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
     local.get $o
     i32.load $heap offset=8
     local.set $items
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $o
     if
       local.get $o
@@ -337,7 +330,6 @@
       i32.load $heap offset=16
       call $rt:release'2
     end
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
     local.get $t1
     local.get $items
     i32.add
@@ -351,7 +343,6 @@
     end
     local.get $shared
     i32.load $heap offset=24
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $shared
     local.tee $items
     if
@@ -364,7 +355,6 @@
         call $rt:release_ref
       end
     end
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
     i32.add
     local.get $provider0
     local.get $provider0.vtable
@@ -560,7 +550,6 @@
     i32.const 1
     i32.add
     local.set $previous.r
-    ;; 19 |     previous := items[i]
     local.get $items
     i32.load $heap
     call $rt:list_unique
@@ -568,7 +557,6 @@
     local.get $items
     local.get $t0
     i32.store $heap
-    ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
     local.get $i
     local.get $t0
     i32.load $heap offset=4

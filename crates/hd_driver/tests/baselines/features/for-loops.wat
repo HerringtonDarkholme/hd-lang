@@ -94,9 +94,7 @@
           local.get $t2
           call $retain
         end
-    ;; 25 |     for x in xs:
         local.get $out
-    ;; 26 |         out.push(x)
         local.tee $t2
         i32.load $heap offset=4
         local.tee $t3

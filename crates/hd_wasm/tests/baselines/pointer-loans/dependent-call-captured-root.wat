@@ -91,7 +91,7 @@
     local.get $change.0
     local.set $change.1
     local.set $change.0
-    ;; 10 |     let mut ps = [box(P { name: "a" })]
+    ;; 13 |     d := name_of(ps[0])
     local.get $ps
     i32.const 4
     i32.sub
@@ -107,7 +107,6 @@
     i32.load $heap
     call $rt:list_unique
     i32.store $heap
-    ;; 13 |     d := name_of(ps[0])
     local.get $ps
     i32.const 4
     i32.sub
@@ -166,7 +165,6 @@
     local.get $change.0
     call_indirect $table0 (param i32 i32)
     local.get $change.1
-    ;; 10 |     let mut ps = [box(P { name: "a" })]
     local.tee $t2
     if
       local.get $t2
@@ -297,7 +295,6 @@
     local.get $ctx
     i32.const 1
     i32.store $heap offset=4
-    ;; 11 |     change := fn() -> void:
     i32.const 4
     i32.sub
     i32.load $heap
@@ -314,7 +311,6 @@
     local.get $env
     local.get $t0
     i32.store $heap
-    ;; 12 |         ps[0] = box(P { name: "b" })
     local.get $env
     i32.const 4
     i32.sub

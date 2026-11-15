@@ -27,8 +27,6 @@ pub fn main!() -> void $ Console + Clock:
     let mut u = UniqList::[i32].new()
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
-> std/rt_tests.stage_case/main
->   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main
@@ -36,6 +34,7 @@ pub fn main!() -> void $ Console + Clock:
 >   retain counted reference (stored)
     u.push(1)
     a := sized!(u)
+> std/rt_tests.stage_case/main
 >   release counted reference (last use)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
@@ -46,3 +45,4 @@ pub fn main!() -> void $ Console + Clock:
 >   retain counted reference (stored)
 >   release counted reference (last use)
     println("$a")
+>   release counted reference (last use)

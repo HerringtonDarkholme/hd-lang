@@ -51,11 +51,9 @@
           local.get $t3
           call $retain
         end
-    ;; 10 |     for v in out:
         local.get $values
         call $rt:list_unique
         local.tee $values
-    ;; 11 |         out.push(v)
         local.tee $t3
         i32.load $heap offset=4
         local.tee $t4
@@ -89,7 +87,6 @@
         br 0
       end
     end
-    ;; 9 |     let mut out = values
     local.get $t0
     local.tee $t3
     if
@@ -156,9 +153,9 @@
     local.set $cursor
     ;; 15 |     let mut items = values
     local.get $values
+    ;; 17 |     items.push(s)
     call $rt:list_unique
     local.tee $values
-    ;; 17 |     items.push(s)
     local.tee $t1
     i32.load $heap offset=4
     local.tee $t2
@@ -193,7 +190,6 @@
     call $"impl[T] Iterator[T] for ListIter[T].next[string]"
     local.set $s.1
     local.set $s.0
-    ;; 15 |     let mut items = values
     local.get $cursor
     if
       local.get $cursor
@@ -210,7 +206,6 @@
         end
       end
     end
-    ;; 18 |     match cursor.next():
     block
       block
         block

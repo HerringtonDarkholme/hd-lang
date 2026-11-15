@@ -208,14 +208,12 @@
     local.get $s.0
     local.get $s.1
     call $by_ref'2
-    ;; 22 |     let mut t = s
     local.get $s.0
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref
     end
-    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
     i32.add
     local.get $t
     i32.load $heap
@@ -231,14 +229,12 @@
     local.tee $s.1
     local.get $s.0
     call $by_value
-    ;; 22 |     let mut t = s
     local.get $s.1
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref
     end
-    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
     i32.add
     local.get $n
     call $by_ptr

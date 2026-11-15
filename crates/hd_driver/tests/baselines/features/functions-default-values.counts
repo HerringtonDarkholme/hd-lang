@@ -36,7 +36,7 @@ fn reference_default['a](
 fn returned_default(source: &mut List[string], fresh: bool) -> usize:
     into := reference_default(source, fresh)
 > app/main/returned_default
->   unique List[string] (may be shared)
 >   release List[string] (last use)
     into.push("held")
+>   unique List[string] (may be shared)
     into.len()

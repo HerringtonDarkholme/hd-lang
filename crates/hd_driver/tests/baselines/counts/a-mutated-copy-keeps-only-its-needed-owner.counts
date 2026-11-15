@@ -11,9 +11,9 @@ fn target(a: string, b: string) -> usize:
     let t = a
 > app/main/target
 >   retain string (stored)
->   release string (last use)
     t += "x"
     t.len() + a.len() + b.len()
+>   release string (last use)
 
 @inline(.Never)
 fn only_copy(a: string) -> usize:
@@ -28,33 +28,33 @@ fn list_copy(a: List[usize]) -> usize:
     let mut t = a
 > app/main/list_copy
 >   copy List[usize] (conservative: copy read)
->   unique List[usize] (may be shared)
->   release List[usize] (last use)
     t.push(3)
+>   unique List[usize] (may be shared)
     t.len() + a.len()
+>   release List[usize] (last use)
 
 @inline(.Never)
 fn early_copy(a: string) -> usize:
     let t = a
 > app/main/early_copy
 >   retain string (stored)
->   release string (last use)
->   release string (last use)
     n := a.len()
+>   release string (last use)
     t += "x"
     n + t.len()
+>   release string (last use)
 
 @inline(.Never)
 fn early_list_copy(a: List[usize]) -> usize:
     let mut t = a
 > app/main/early_list_copy
 >   copy List[usize] (conservative: copy read)
->   release List[usize] (last use)
->   unique List[usize] (may be shared)
->   release List[usize] (last use)
     n := a.len()
+>   release List[usize] (last use)
     t.push(3)
+>   unique List[usize] (may be shared)
     n + t.len()
+>   release List[usize] (last use)
 
 enum Answer:
     Good(value: string)

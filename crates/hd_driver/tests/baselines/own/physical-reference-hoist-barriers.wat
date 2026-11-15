@@ -36,7 +36,6 @@
         i32.const 1
         i32.add
         local.set $t0
-    ;; 30 |         while i < 2:
         local.get $items
         i32.load $heap
         call $rt:list_unique
@@ -44,7 +43,6 @@
         local.get $items
         local.get $t1
         i32.store $heap
-    ;; 32 |             items[0] += 1
         i32.const 0
         local.get $t1
         i32.load $heap offset=4
@@ -112,7 +110,6 @@
         i32.const 1
         i32.add
         local.set $t0
-    ;; 38 |         while i < 2:
         local.get $items
         i32.load $heap
         call $rt:list_unique
@@ -120,7 +117,6 @@
         local.get $items
         local.get $t1
         i32.store $heap
-    ;; 40 |             items[0] += 1
         i32.const 0
         local.get $t1
         i32.load $heap offset=4
@@ -261,7 +257,6 @@
         i32.const 1
         i32.add
         local.set $t0
-    ;; 47 |         while i < 2:
         local.get $items
         i32.load $heap
         call $rt:list_unique
@@ -269,7 +264,6 @@
         local.get $items
         local.get $t1
         i32.store $heap
-    ;; 49 |             items[0] += 1
         i32.const 0
         local.get $t1
         i32.load $heap offset=4
@@ -293,7 +287,6 @@
         local.get $snapshot
         i32.load $heap offset=16
         local.set $t0
-    ;; 47 |         while i < 2:
         local.get $snapshot
         local.tee $snapshot
         if
@@ -306,7 +299,6 @@
             call $rt:release_ref
           end
         end
-    ;; 50 |             total += snapshot[0]
         local.get $total
         local.get $t0
         i32.add

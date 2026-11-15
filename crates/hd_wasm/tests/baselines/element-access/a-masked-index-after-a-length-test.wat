@@ -113,7 +113,6 @@
           i32.add
           i32.load $heap offset=16
           local.set $i
-    ;; 56 |         for i in 0..n:
           local.get $t1
           local.tee $t1
           if
@@ -126,7 +125,6 @@
               call $rt:release_ref
             end
           end
-    ;; 57 |             sum += xs[(head + i) & xs.len().wrapping_sub(1)]
           local.get $sum
           local.get $i
           i32.add

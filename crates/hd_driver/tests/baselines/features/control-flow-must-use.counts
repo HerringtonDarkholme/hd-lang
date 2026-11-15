@@ -17,10 +17,10 @@ fn discard(s: string) -> usize:
 >   retain string (stored)
 >   release Result[string, app.main.SaveError] (last use)
 >   release string (last use)
->   release Result[string, app.main.SaveError] (last use)
->   release string (last use)
     let _ = save(s)
 >   retain string (stored)
+>   release Result[string, app.main.SaveError] (last use)
+>   release string (last use)
     s.len()
 
 fn unused(s: string) -> usize:
