@@ -1,4 +1,4 @@
-runtime/valid/index-then-call-element.hd	A11	accept; private main, no tests: nothing runs
+grammar/expressions/index-then-call-element.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/result-ok-unit.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/ord-supertrait-dispatch.hd	A11	accept; private main, no tests: nothing runs
 runtime/valid/generic-inherent-box.hd	A11	accept; private main, no tests: nothing runs

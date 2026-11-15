@@ -516,8 +516,8 @@ cite two different rules for one program. The fix is to keep one fixture
 and either cite the primary rule or write a second program that isolates the
 other rule.
 
-- `parse/invalid/mutable-field-modifier.hd` (cites 08 `#fields`) = `typing/invalid/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
-- `typing/invalid/nonfinal-spread.hd` (07 `#varargs`) = `typing/invalid/positional-after-spread.hd` (02 `#calls-and-arguments`)
+- `parse/invalid/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
+- `typing/invalid/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
 - `typing/invalid/forward-module-binding.hd` = `typing/invalid/exec-binding-read-before-declared.hd`
 - `typing/invalid/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `typing/invalid/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
 - `typing/invalid/generic-requirement-key-collision.hd` = `typing/invalid/generic-provider-key-collision-nested.hd`
@@ -724,9 +724,9 @@ Ledger: b005 (44): 8 rows. Confirmed 3, plausible 2, rejected 3.
   The `else:` on the next physical line was joined onto the `if` line, so
   `lex.suite-end.else-next-line` is untested.
 - **Duplicates (C1)**: `lexical/whitespace-and-indentation/tab-indentation.hd` = `lexical/whitespace-and-indentation/tab-in-function-body.hd`
-  (a tab before a body line); `parse/invalid/positional-after-named.hd` =
-  `parse/invalid/positional-after-named-argument.hd` (`resize(width=640, 480)`).
-- Plausible: `parse/valid/while-else.hd` (the title says the loop produces a
+  (a tab before a body line); `grammar/expressions/positional-after-named.hd` =
+  `grammar/expressions/positional-after-named-argument.hd` (`resize(width=640, 480)`).
+- Plausible: `grammar/control-flow-expressions/while-else.hd` (the title says the loop produces a
   value; none is used). `lexical/identifiers/raw-identifiers-name-fields-members-labels-parameters-and-bindings.hd` ~
   `lexical/identifiers/raw-identifiers-are-ordinary-names-at-run-time.hd`.
 - Rejected: two B7 flags claimed `#control-flow-expressions` is missing; the
@@ -741,17 +741,17 @@ so B7 flags of the "anchor does not exist" kind are always wrong.
 
 Ledger: b006 (45): 8 rows. Confirmed 7, plausible 1.
 
-- **Formatter**: `parse/valid/embedded-copy-syntax.hd`. Its same-line suite
+- **Formatter**: `grammar/expressions/embedded-copy-syntax.hd`. Its same-line suite
   `if post.id == "p": post.Timestamps = stamps` was split over two lines.
 - **Wrong citation (B7)**: each cites a section that does not hold the rule.
-  - `parse/valid/trailing-callback-statement.hd` cites `#declarations`; the rule is `grammar.call.trailing-block` (Trailing Blocks).
-  - `parse/valid/copy-update-spread.hd` cites `#data-types`; the rule is `grammar.primary.update-spread`.
-  - `parse/invalid/copy-update-spread-not-first.hd` cites `#data-types`; the rule is `grammar.primary.prefix-elsewhere`.
-  - `parse/valid/explicit-generic-data-arguments.hd` cites `#data-types`; the rule is `grammar.expr.type-arguments.type-name`.
-  - `parse/valid/explicit-generic-arguments-with-placeholder.hd` cites `#declarations`; the rule is `grammar.primary.function-type-argument`.
-- **Duplicate (C1)**: `parse/invalid/comparison-chaining-with-names.hd` =
-  `parse/invalid/chained-comparison.hd` (`0 < x < 10`; only the names differ).
-- Plausible: `parse/valid/reserved-receiver-names.hd` (no reserved word appears).
+  - `grammar/declarations/trailing-callback-statement.hd` cites `#declarations`; the rule is `grammar.call.trailing-block` (Trailing Blocks).
+  - `grammar/declarations/copy-update-spread.hd` cites `#data-types`; the rule is `grammar.primary.update-spread`.
+  - `grammar/declarations/copy-update-spread-not-first.hd` cites `#data-types`; the rule is `grammar.primary.prefix-elsewhere`.
+  - `grammar/declarations/explicit-generic-data-arguments.hd` cites `#data-types`; the rule is `grammar.expr.type-arguments.type-name`.
+  - `grammar/declarations/explicit-generic-arguments-with-placeholder.hd` cites `#declarations`; the rule is `grammar.primary.function-type-argument`.
+- **Duplicate (C1)**: `grammar/expressions/comparison-chaining-with-names.hd` =
+  `grammar/expressions/chained-comparison.hd` (`0 < x < 10`; only the names differ).
+- Plausible: `grammar/expressions/reserved-receiver-names.hd` (no reserved word appears).
 
 **Script check A9** (`a9_cited_code.py`, output `full/a9.tsv`): a reject,
 warn or panic case whose expected code does not appear in the text it cites.
@@ -765,10 +765,10 @@ Ledger: b007 (44): 6 rows. Confirmed 2, plausible 4. Reviewed on the stale
 binary, but no row rests on `hd check`.
 
 - **Code under test never runs (B4)**:
-  - `runtime/valid/header-and-bracket-expression-positions.hd`: the guard
+  - `grammar/statements/header-and-bracket-expression-positions.hd`: the guard
     closure on line 14 is never evaluated, since `classify(.Some(+12))` takes
     the first arm.
-  - `runtime/valid/nested-control-flow-as-expressions.hd`: the middle `else if`
+  - `grammar/control-flow-expressions/nested-control-flow-as-expressions.hd`: the middle `else if`
     branch (line 38) is never taken.
 - Plausible, **fixtures that differ only in hint text**:
   `parse/invalid/a-colon-in-parentheses-{after-a-long-operand,before-a-comma,before-no-type}-gives-the-schematic-hint.hd`
@@ -776,39 +776,39 @@ binary, but no row rests on `hd check`.
   rule. The runner never judges message text, so as conformance cases they
   add nothing. They are used only in `cases.tsv`. To keep the hint coverage,
   move them to `cli/` cases, which compare text.
-- Plausible: `typing/valid/expression-type-arguments.hd` is a strict subset of
-  `runtime/valid/type-arguments-in-expressions.hd`.
+- Plausible: `grammar/expressions/expression-type-arguments.hd` is a strict subset of
+  `grammar/expressions/type-arguments-in-expressions.hd`.
 
 #### b008 (`lang/02-grammar.md`)
 
 Ledger: b008 (44): 9 rows. Confirmed 4, plausible 2, spec question 2, covered by A6 1.
 
-- **Formatter**: `parse/valid/same-line-for-list.hd`,
-  `runtime/valid/same-line-suite-body-forms.hd` (their same-line suites were
-  split), and `runtime/valid/trailing-commas-everywhere.hd` (its trailing commas
+- **Formatter**: `grammar/statements/same-line-for-list.hd`,
+  `grammar/statements/same-line-suite-body-forms.hd` (their same-line suites were
+  split), and `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd` (its trailing commas
   in declarations and patterns were removed).
-- **Wrong citation (B7)**: `runtime/valid/trailing-commas-everywhere.hd` cites
+- **Wrong citation (B7)**: `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd` cites
   `grammar.generic.default.type-row`; the fixture has no type default.
-- **Spec question, limits**: `parse/invalid/nesting-too-deep-in-a-dereference.hd`
-  (170 prefix `*`) and `parse/invalid/nesting-too-deep-in-a-power.hd` (169 `**`)
+- **Spec question, limits**: `grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd`
+  (170 prefix `*`) and `grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd` (169 `**`)
   expect `nesting-too-deep`. But `grammar.limit.nesting` covers only brackets,
   suites, closures and interpolations. `grammar.limit.chain` covers binary and
   postfix operators, with a limit of 10,001 in `hd`. Read literally, the spec
   sets no limit on prefix `*` and must accept 169 `**`. Either the spec's
   limits should cover prefix operators and right-nested chains, or these
   fixtures test `hd`'s recursion limit, not the language.
-- Plausible: `parse/valid/trait-value-bindings.hd` (the title says a named type
-  takes bindings, which the rule forbids). `typing/valid/a-parameter-bound-by-two-instantiations-of-one-trait-meets-each.hd`
+- Plausible: `grammar/generic-parameters-and-bounds/trait-value-bindings.hd` (the title says a named type
+  takes bindings, which the rule forbids). `grammar/generic-parameters-and-bounds/a-parameter-bound-by-two-instantiations-of-one-trait-meets-each.hd`
   (only one instantiation is required).
-- `typing/warnings/same-line-let-list-unused.hd`: an accept case in
+- `grammar/statements/same-line-let-list-unused.hd`: an accept case in
   `warnings/`, already in A6.
 
 #### b009 (`lang/02-grammar.md`)
 
 Ledger: b009 (43): 6 rows. Confirmed 2, plausible 4.
 
-- **Formatter**: `parse/valid/let-else-same-line.hd` and
-  `runtime/valid/let-after-same-line-if-keeps-else.hd`. Their same-line
+- **Formatter**: `grammar/statements/let-else-same-line.hd` and
+  `grammar/statements/let-after-same-line-if-keeps-else.hd`. Their same-line
   `let … else:` and `if` suites were split, so `grammar.stmt.let-else.same-line`
   and `.not-inline` are untested.
 - Plausible, B7: `typing/invalid/a-chain-may-not-redeclare-a-name-{1,2}.hd`
@@ -822,35 +822,35 @@ Ledger: b009 (43): 6 rows. Confirmed 2, plausible 4.
 
 Ledger: b010 (43): 4 rows. Confirmed 1, plausible 1, rejected 2.
 
-- **A second error behind the marked one (B2)**: `parse/invalid/tests-as-identifier.hd`.
+- **A second error behind the marked one (B2)**: `grammar/test-blocks/tests-as-identifier.hd`.
   Line 5 `tests := 3` is the marked `syntax-error`, but line 6 `tests` uses the
   reserved word again. A parser that recovers reports line 6 too, and fails
   the "no other located error" rule. Fix: make line 6 `0`.
-- Plausible: `parse/invalid/optional-function-type-after-requirement-row.hd`.
+- Plausible: `grammar/types/optional-function-type-after-requirement-row.hd`.
   Its helper trait method `fn line(self)` has no result type. `hd check`
   reports `missing-result-type`, but the case is `parse` phase, so this
   matters only if the missing result type is a parse error.
-- Rejected: `parse/valid/binding-list.hd` (B7 wanted several citations; the
-  index allows one). `parse/valid/counted-reference-types.hd` (B6 type error in
+- Rejected: `grammar/statements/binding-list.hd` (B7 wanted several citations; the
+  index allows one). `grammar/types/counted-reference-types.hd` (B6 type error in
   a parse-only case).
 
 #### b011 (`lang/02-grammar.md`)
 
 Ledger: b011 (50): 15 rows. Confirmed 2, plausible 6, rejected 7.
 
-- **Title out of date after a spec change (B1)**: `parse/valid/requirement-row-lists.hd`
+- **Title out of date after a spec change (B1)**: `grammar/types/requirement-row-lists.hd`
   ("rows are comma lists … parenthesized inside types") and
-  `parse/invalid/bare-row-list-in-type.hd` ("several keys inside a type must be
+  `grammar/types/bare-row-list-in-type.hd` ("several keys inside a type must be
   parenthesized"). Today `+` joins keys, and `grammar.type.row.no-parentheses`
   forbids parentheses around a row. The code follows the new rule; the titles
   describe the old one.
-- Plausible: `parse/valid/use-declaration-forms.hd` (the title promises a group
+- Plausible: `grammar/use-declarations/use-declaration-forms.hd` (the title promises a group
   with a trailing comma, but none has one; the format commit touched it).
-  `parse/valid/single-and-grouped-use.hd` ~ `use-declaration-forms.hd` (merge?).
-  `parse/invalid/same-line-let-comma.hd` (the title blames a multi-name `let`,
+  `grammar/use-declarations/single-and-grouped-use.hd` ~ `use-declaration-forms.hd` (merge?).
+  `grammar/statements/same-line-let-comma.hd` (the title blames a multi-name `let`,
   but a single same-line `let` is also rejected there).
-  `typing/valid/explicit-empty-row.hd` (the title says "normalization", which
-  is never tested). `parse/valid/mutable-list-parameter-index-assignment.hd` and
+  `grammar/types/explicit-empty-row.hd` (the title says "normalization", which
+  is never tested). `grammar/types/mutable-list-parameter-index-assignment.hd` and
   `…/mutable-parameter-field-assignment.hd` (cite `#types`; the rule is
   `grammar.stmt.assign-place`).
 - Rejected: 7 B2 and B6 flags for check-only errors inside parse-phase cases.
@@ -1431,11 +1431,11 @@ only *gained* trailing commas, which is harmless. **21 lost tokens**
 (`full/a7b-lost.tsv`), and for these the formatter rewrote the very form
 under test:
 - `lexical/processing-model/utf8-bom.hd`: **its leading U+FEFF was stripped**, the one thing it tests.
-- `parse/valid/use-group-trailing-comma.hd`, `runtime/valid/trailing-commas-everywhere.hd`
-  (17 commas), `parse/valid/use-declaration-forms.hd`, `parse/valid/single-and-grouped-use.hd`,
-  `parse/valid/test-block.hd`, `parse/valid/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
+- `parse/valid/use-group-trailing-comma.hd`, `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`
+  (17 commas), `grammar/use-declarations/use-declaration-forms.hd`, `grammar/use-declarations/single-and-grouped-use.hd`,
+  `grammar/test-blocks/test-block.hd`, `grammar/patterns/spread-pattern-syntax.hd`, `lexical/whitespace-and-indentation/layout.hd`,
   `parse/valid/data-embedding.hd`, `parse/valid/functions-and-closures.hd`,
-  `parse/valid/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
+  `grammar/expressions/literal-field-comparison-value.hd`, `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`,
   `runtime/valid/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
   `typing/valid/composite-ordering.hd`, `typing/valid/data-types.hd`,
   `typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd`,
@@ -1443,7 +1443,7 @@ under test:
 - `runtime/valid/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
   became `time.s`, so it is now a duplicate of `module-qualified-function-value.hd`),
   `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`, and
-  **`typing/invalid/grammar-assignment-nonplace.hd`**, a reject case: parentheses removed.
+  **`grammar/statements/grammar-assignment-nonplace.hd`**, a reject case: parentheses removed.
 
 Fix: restore all 21 from `edea876ae^` together with the A7 layout cases.
 Then exclude fixtures from the formatter, or have the formatter keep
@@ -2556,9 +2556,9 @@ version fixes it:
 - `lexical/physical-and-logical-lines/nested-suite-body-deeper-than-statement.hd`: Nested suite inside run( joined to one line; the deeper-body form is gone.
 - `lexical/physical-and-logical-lines/next-line-else-after-same-line-if.hd`: Else on its own line after a same-line if joined onto the if line.
 - `lexical/physical-and-logical-lines/operator-and-member-lines-continue-in-brackets.hd`: Bracketed expression collapsed to one line; no line starts with a dot or operator.
-- `parse/valid/same-line-for-list.hd`: Same-line for suites and same-line bodies became indented; no same-line for remains.
+- `grammar/statements/same-line-for-list.hd`: Same-line for suites and same-line bodies became indented; no same-line for remains.
 - `lexical/physical-and-logical-lines/same-line-loop-else.hd`: Same-line for and while suites with else became indented blocks; no same-line loop else remains.
-- `parse/valid/same-line-suite-let-list.hd`: Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
+- `grammar/statements/same-line-suite-let-list.hd`: Both same-line if suites holding a let list became indented; no same-line let-list suite remains.
 - `parse/valid/use-group-trailing-comma.hd`: All three grouped-use trailing commas removed.
 - `lexical/processing-model/utf8-bom.hd`: Leading BOM bytes stripped.
 - `lexical/physical-and-logical-lines/contextual-variant-after-same-line-if.hd`: Same-line if body became indented, so the .Variant line no longer follows a same-line if.
@@ -2566,13 +2566,13 @@ version fixes it:
 - `lexical/physical-and-logical-lines/crlf-line-endings.hd`: Current file has zero CR bytes; the CRLF line endings the title requires are gone.
 - `lexical/physical-and-logical-lines/leading-dot-deeper-continues.hd`: Deeper leading .grow() and .size lines joined onto the step name; no leading-dot continuation remains.
 - `lexical/physical-and-logical-lines/leading-dot-statement-indent-tail.hd`: The := chain with a leading .size line is now one line; no such chain remains.
-- `runtime/valid/let-after-same-line-if-keeps-else.hd`: Same-line if ... let ... else forms became indented; no same-line if with let remains.
+- `grammar/statements/let-after-same-line-if-keeps-else.hd`: Same-line if ... let ... else forms became indented; no same-line if with let remains.
 - `runtime/valid/module-qualified-function-value-parenthesized.hd`: Parenthesized (time.s) became time.s; the parenthesized function value is gone.
 - `lexical/whitespace-and-indentation/no-final-line-ending.hd`: A final line ending was added; the file no longer ends without one.
 - `lexical/operators-and-delimiters/operators-longest-match.hd`: Glued operators such as f!=g, shifted<<=1, a-=b and m*=2 spaced out throughout.
-- `runtime/valid/same-line-suite-body-forms.hd`: Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
-- `typing/invalid/grammar-assignment-nonplace.hd`: Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
-- `typing/warnings/same-line-let-list-unused.hd`: The only same-line suite binding was indented, so the same-line case the title names is gone.
+- `grammar/statements/same-line-suite-body-forms.hd`: Every same-line suite became indented, including the else-if continuation, loop, let and parenthesized-if bodies.
+- `grammar/statements/grammar-assignment-nonplace.hd`: Parens removed from (1 + 2) = 3; a binary left side is a syntax error, not invalid-assignment-target.
+- `grammar/statements/same-line-let-list-unused.hd`: The only same-line suite binding was indented, so the same-line case the title names is gone.
 
 WEAKENED (some of the title's forms are gone):
 
@@ -2580,16 +2580,16 @@ WEAKENED (some of the title's forms are gone):
 - `lexical/physical-and-logical-lines/closing-delimiter-ends-nested-suite.hd`: Multi-line if suite closed by a paren on its last line joined; the match case remains.
 - `lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd`: Closure bodies ending at a comma line or a closing paren line joined; only a formatter-added comma line remains.
 - `lexical/operators-and-delimiters/compound-assignment-tokens.hd`: Glued x-=1 spaced to x -= 1, so the glued longest-match case is gone.
-- `parse/valid/embedded-copy-syntax.hd`: Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
+- `grammar/expressions/embedded-copy-syntax.hd`: Copy marker in a same-line suite became a multi-line suite; the field-label and assignment forms remain.
 - `parse/valid/functions-and-closures.hd`: Multi-line parameter list joined; parenthesized multi-line closure bodies became same-line; single-line closures remain.
-- `parse/valid/inline-conditions-and-headers.hd`: The negative-literal line after else joined to one line; the match arm and headers remain.
+- `grammar/inline-conditions-and-headers.hd`: The negative-literal line after else joined to one line; the match arm and headers remain.
 - `lexical/whitespace-and-indentation/layout.hd`: Same-line fn bodies one_line and test became indented; same-line if remains.
 - `lexical/physical-and-logical-lines/leading-dot-continuation.hd`: Leading .len and .slice lines under a head or match arm joined; one deeper .slice line remains.
-- `parse/valid/let-else-same-line.hd`: Same-line let-else body became an indented body; the indented form remains.
+- `grammar/statements/let-else-same-line.hd`: Same-line let-else body became an indented body; the indented form remains.
 - `lexical/physical-and-logical-lines/nested-layout.hd`: Line break after the opening paren before the closure joined; the nesting remains.
-- `parse/valid/use-declaration-forms.hd`: Trailing comma in the grouped use with an alias removed; the title names that form.
-- `runtime/valid/bang-call-and-prefix-not.hd`: Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
-- `runtime/valid/header-and-bracket-expression-positions.hd`: Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
+- `grammar/use-declarations/use-declaration-forms.hd`: Trailing comma in the grouped use with an alias removed; the title names that form.
+- `grammar/expressions/bang-call-and-prefix-not.hd`: Glued left!=right spaced to left != right; the != one-token case is gone, bang calls remain.
+- `grammar/statements/header-and-bracket-expression-positions.hd`: Multi-line if inside a list ending in an indented suite joined; the match inside parens remains.
 - `lexical/physical-and-logical-lines/implicit-continuation-in-delimiters.hd`: Call, nested-list, map and index-bracket continuations joined; the struct literal and roles list remain.
 - `lexical/whitespace-and-indentation/indentation-levels.hd`: Comment lines at off-block indentation re-indented; nested if and else flattened to one line.
 - `lexical/physical-and-logical-lines/leading-dot-chain.hd`: Most leading-dot method-chain lines joined; one .double() after a comment line remains.
@@ -2597,8 +2597,8 @@ WEAKENED (some of the title's forms are gone):
 - `lexical/physical-and-logical-lines/leading-pipe-lines-join-the-chain.hd`: Pipe lines after a raw head or a leading .len joined; pipes after comment and blank lines remain.
 - `lexical/operators-and-delimiters/operators-without-spaces.hd`: Glued operators in statements such as x:=-b, y=-b and z%=3 spaced; glued ones in interpolations remain.
 - `lexical/physical-and-logical-lines/same-line-suite-boundaries.hd`: Same-line for and while suites, including one before else, became indented blocks.
-- `runtime/valid/suite-statement-right-sides.hd`: Right-side if and closure suites joined to one line; right-side match suites remain.
-- `runtime/valid/trailing-commas-everywhere.hd`: Most trailing commas removed; those in an interpolated call and a closure header remain.
+- `grammar/statements/suite-statement-right-sides.hd`: Right-side if and closure suites joined to one line; right-side match suites remain.
+- `grammar/generic-parameters-and-bounds/trailing-commas-everywhere.hd`: Most trailing commas removed; those in an interpolated call and a closure header remain.
 
 Notes on the pass:
 - **`lexical/physical-and-logical-lines/crlf-line-endings.hd` was not erased by the formatter.** Its first
@@ -2606,7 +2606,7 @@ Notes on the pass:
   HTTP messages through internal wire providers", 2026-10-26), an unrelated
   commit, and the fixture has had no CRLF since. It needs a `.gitattributes`
   entry (`-text`) so git can't normalize it again, and so does `utf8-bom.hd`.
-- `typing/invalid/grammar-assignment-nonplace.hd`: with its parentheses removed,
+- `grammar/statements/grammar-assignment-nonplace.hd`: with its parentheses removed,
   `1 + 2 = 3` becomes a parse error under `grammar.assignment_target`, not the
   expected `invalid-assignment-target`. The case may now pass for the wrong
   reason, or fail.
