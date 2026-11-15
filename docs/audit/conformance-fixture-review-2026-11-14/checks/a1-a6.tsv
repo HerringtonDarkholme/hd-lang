@@ -2053,7 +2053,7 @@ typing/invalid/mut-reference-use-after-tuple-element.hd	A3	typing/invalid/mut-re
 typing/invalid/move-field-out-of-counted-reference.hd	A3	typing/invalid/move-field-out-of-counted-mut-reference.hd
 typing/invalid/copy-relaxed-parameter-moves.hd	A3	typing/invalid/copy-relaxed-local-fn-parameter-moves.hd
 typing/invalid/copy-negative-impl-other-trait.hd	A3	typing/invalid/copy-negative-impl-primitive.hd
-typing/invalid/collect-without-a-target.hd	A3	typing/invalid/a-method-name-does-not-choose-a-collect-target.hd
+std/iter/what-collect-builds/collect-without-a-target.hd	A3	std/iter/what-collect-builds/a-method-name-does-not-choose-a-collect-target.hd
 std/collections/uniqlist/uniq-list-drain-reversed.hd	A3	std/collections/uniqlist/uniq-list-drain-past-end.hd
 std/collections/uniqlist/uniq-list-drain-reversed.hd	A3	std/collections/uniqlist/uniq-list-drain-inclusive-overflow.hd
 std/collections/uniqlist/uniq-list-drain-past-end.hd	A3	std/collections/uniqlist/uniq-list-drain-inclusive-overflow.hd

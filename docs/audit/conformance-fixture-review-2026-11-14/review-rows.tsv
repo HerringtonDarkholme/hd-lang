@@ -811,8 +811,8 @@ b158	runtime/valid/json-typed-round-trip.hd	FIX	B8	Lines 53 and 108 expect map o
 b158	runtime/valid/json-model-round-trips.hd	FIX	B8	Sets round trip expects encoding in first-occurrence order (line 253); set iteration order is unspecified (std-collections.set.iter).
 b158	runtime/valid/json-adversarial-inputs.hd	FIX	B8	Line 424 expects Set[i32] encoded as [3,1,2]; set iteration order is unspecified (std-collections.set.iter).
 b158	runtime/valid/union-serde.hd	FIX	B3	Only asserts a round trip; the positional single-payload wire form named in the title is never checked.
-b158	typing/invalid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	FIX	B7	Cites std-iter.from-fn, but the top-level-read-before-initialization error is governed by module.init.definite in lang/10-modules.md.
-b158	runtime/valid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	UNSURE	B7	Cites std-iter.from-fn; the accepted ordering is governed by module.init.definite (lang/10-modules.md), so the citation may be off.
+b158	std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	FIX	B7	Cites std-iter.from-fn, but the top-level-read-before-initialization error is governed by module.init.definite in lang/10-modules.md.
+b158	std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	UNSURE	B7	Cites std-iter.from-fn; the accepted ordering is governed by module.init.definite (lang/10-modules.md), so the citation may be off.
 b159	runtime/valid/num-intrinsic-boundaries.hd	FIX	B8	The usize block uses 4294967295 as its maximum; usize is the target pointer width (types.usize.width), so 64-bit targets fail.
 b159	runtime/valid/num-bit-count-widths.hd	FIX	B8	The usize block passes 4294967295 with width 32; usize is the target pointer width (types.usize.width).
 b159	runtime/valid/num-bit-counts.hd	FIX	B8	Line asserting 1.leading_zeros() == 31 assumes a 32-bit fallback usize; it is 63 on 64-bit (types.usize.width).

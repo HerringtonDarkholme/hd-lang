@@ -183,7 +183,7 @@ runtime/panic/assert-equal-without-reason.hd	A9	panic:assertion-failed not menti
 typing/invalid/init-read-through-generic-bound.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/init-read-through-trait-value.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/initialization-implicit-a-derived-eq-reads-a-later-binding-through-a-field-impl.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
-typing/invalid/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
+std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-before-it-is-set.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
 typing/invalid/initialization-implicit-a-missing-impl-adds-no-initialization-error.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-question-mark-reads-a-later-binding-through-from.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#r-module.init.definite.implicit
 std/cmp/min-and-max/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-before-it-is-set.hd	A9	reject:top-level-read-before-initialization not mentioned in cited std/cmp.md#r-std-cmp.min-max.result
@@ -341,10 +341,10 @@ typing/invalid/compound-assign-index-no-read.hd	A9	reject:not-writable not menti
 typing/invalid/let-mut-pattern-readonly-name.hd	A9	reject:not-writable not mentioned in cited lang/04-type-system.md#r-types.bind.let-pattern-mut
 parse/invalid/pipe-step-trailing-block.hd	A9	reject:syntax-error not mentioned in cited lang/05-expressions.md#r-expr.pipe.no-trailing-block
 typing/invalid/pipe-brackets-after-bare-step.hd	A9	reject:pipe-step-needs-placeholder not mentioned in cited lang/05-expressions.md#r-expr.pipe.bare.needs-placeholder.forms
-typing/invalid/iterator-map-callback-row.hd	A9	reject:type-mismatch not mentioned in cited std/iter.md#r-std-iter.adapter.callback-row.map
+std/iter/iterator-adapters/iterator-map-callback-row.hd	A9	reject:type-mismatch not mentioned in cited std/iter.md#r-std-iter.adapter.callback-row.map
 typing/invalid/mut-self-reference-readonly-callback.hd	A9	reject:type-mismatch not mentioned in cited lang/07-functions.md#r-fn.ref.unbound.ref-self
 typing/invalid/iterator-step-private.hd	A9	reject:private-member not mentioned in cited lang/06-control-flow.md#r-flow.for.collection-cursor.private
-typing/invalid/from-iterator-not-prelude.hd	A9	reject:unknown-trait not mentioned in cited std/iter.md#r-std-iter.prelude.from-iterator
+std/iter/what-collect-builds/from-iterator-not-prelude.hd	A9	reject:unknown-trait not mentioned in cited std/iter.md#r-std-iter.prelude.from-iterator
 typing/invalid/type-default-impl-mismatch.hd	A9	reject:trait-method-signature not mentioned in cited lang/09-traits.md#r-trait.impl.generics.default
 typing/invalid/operator-rhs-default-mismatch.hd	A9	reject:type-mismatch not mentioned in cited lang/05-expressions.md#r-expr.op.trait.rhs-self
 requirements/requirement-rows/requirement-keys/requirement-key-binding-missing.hd	A9	reject:missing-requirement not mentioned in cited lang/11-requirements-and-suspension.md#r-req.key.binding.rows
@@ -470,7 +470,7 @@ std/collections/list-methods/list-slice-signed-bound.hd	A9	reject:type-mismatch 
 typing/invalid/string-slice-negative-offset.hd	A9	reject:type-mismatch not mentioned in cited lang/10-modules.md#r-module.method.usize-sizes
 runtime/panic/usize-len-underflow.hd	A9	panic:integer-overflow not mentioned in cited lang/04-type-system.md#r-types.usize.sizes
 std/collections/list-methods/list-view-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/collections.md#list-methods
-typing/invalid/iterator-take-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/iter.md#r-std-iter.adapter.take.value
+std/iter/iterator-adapters/iterator-take-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/iter.md#r-std-iter.adapter.take.value
 typing/invalid/string-repeat-negative-literal.hd	A9	reject:type-mismatch not mentioned in cited std/text.md#r-std-text.string.repeat
 typing/invalid/string-pad-signed-width.hd	A9	reject:type-mismatch not mentioned in cited std/text.md#r-std-text.pad.start
 typing/invalid/test-registration-renamed-misplaced.hd	A9	reject:misplaced-test-case not mentioned in cited lang/10-modules.md#r-module.testing.reg.identity
