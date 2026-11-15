@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main() -> i32:
+    let f = fn(Debug: i32) -> i32: Debug
+    f(+1)

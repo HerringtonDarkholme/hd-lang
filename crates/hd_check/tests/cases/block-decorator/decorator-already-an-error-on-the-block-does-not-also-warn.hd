@@ -1,0 +1,9 @@
+# @dump: diagnostics
+use std.structure.Structure
+
+struct Hidden:
+    id: i64
+
+@derive(Structure)
+impl Hidden by Structure:
+    id += ["key"]

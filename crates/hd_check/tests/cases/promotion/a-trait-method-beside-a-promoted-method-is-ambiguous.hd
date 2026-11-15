@@ -1,0 +1,23 @@
+# @dump: diagnostics
+trait Describe:
+    fn describe(self) -> i32
+
+struct Base:
+    n: i32
+
+impl Base:
+    pub fn describe(self) -> i32:
+        self.n
+
+struct Page:
+    Base
+
+impl Describe for Page:
+    fn describe(self) -> i32:
+        0
+
+fn invalid(page: Page) -> i32:
+    page.describe()
+
+pub fn main() -> void:
+    pass

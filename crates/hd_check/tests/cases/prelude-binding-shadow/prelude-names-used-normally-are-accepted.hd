@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn main() -> i32:
+    let x: Option[i32] = .Some(+1)
+    match x:
+        .Some(v) => v
+        .None => +0

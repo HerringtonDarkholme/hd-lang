@@ -1,0 +1,7 @@
+# @dump: diagnostics
+pub fn main() -> void:
+    pass
+# @file: main_test.hd
+fn run() -> i32:
+    it := +1
+    it

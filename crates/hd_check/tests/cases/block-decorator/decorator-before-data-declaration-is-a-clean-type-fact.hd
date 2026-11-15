@@ -1,0 +1,10 @@
+# @dump: diagnostics
+struct Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+@style(prefix="p_")
+struct Plain:
+    id: i64

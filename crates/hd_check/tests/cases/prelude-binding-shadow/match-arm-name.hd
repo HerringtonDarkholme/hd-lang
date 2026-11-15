@@ -1,0 +1,9 @@
+# @dump: diagnostics
+enum Shape:
+    Circle(i32)
+    Empty
+
+fn area(s: Shape) -> i32:
+    match s:
+        .Circle(Ord) => Ord
+        .Empty => +0

@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main() -> i32:
+    let Hash: i32 = 42
+    Hash

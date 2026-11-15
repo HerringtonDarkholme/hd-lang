@@ -1,0 +1,10 @@
+# @dump: diagnostics
+use std.ops.Add
+
+struct Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    @intrinsic
+    fn add(self, rhs: Money) -> Money

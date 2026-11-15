@@ -1,0 +1,8 @@
+# @dump: diagnostics
+@error
+enum ReadError:
+    @error("closed")
+    Closed
+
+enum Plain:
+    Wrap(@from error: ReadError)

@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main() -> void:
+    let mut debug = [+1]
+    debug.push(+2)

@@ -1,0 +1,8 @@
+# @dump: diagnostics
+fn from(value: i32) -> i32: value
+
+enum Plain:
+    Wrap(@from error: i32)
+
+pub fn main() -> void:
+    pass

@@ -9,7 +9,6 @@ use std::process::Command;
 
 use hd_testkit::Scratch;
 
-use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -26,15 +25,6 @@ fn build_main(main: &str, goal: &Goal) -> Output {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     build(&host, "app", goal)
-}
-
-fn errors(src: &str) -> Vec<Code> {
-    let out = build_main(src, &Goal::Analyze);
-    out.diags
-        .content_order()
-        .into_iter()
-        .map(|i| out.diags.code[i])
-        .collect()
 }
 
 /// Runs the program's `tests:` block on the Node host; every test must pass.
@@ -158,94 +148,4 @@ tests:
 "
         ),
     );
-}
-
-#[test]
-fn a_promoted_mut_method_needs_a_mutable_root() {
-    let src = format!(
-        "{PARTS}
-fn invalid(device: &Device) -> void:
-    device.advance(1)
-
-fn also_invalid(device: &Device) -> void:
-    device.ticks = 1
-
-pub fn main() -> void:
-    pass
-"
-    );
-    let found = errors(&src);
-    assert!(found.contains(&Code::NotWritable), "{found:?}");
-    assert!(found.contains(&Code::NotWritable), "{found:?}");
-}
-
-#[test]
-fn two_parts_with_one_promoted_name_conflict_at_the_declaration() {
-    let field = "\
-struct Left:
-    pub id: i32
-
-struct Right:
-    pub id: i32
-
-struct Both:
-    Left
-    Right
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(errors(field), vec![Code::AmbiguousPromotedMember]);
-    let method = "\
-struct Left:
-    x: i32
-
-impl Left:
-    pub fn name(self) -> i32:
-        1
-
-struct Right:
-    y: i32
-
-impl Right:
-    pub fn name(self) -> i32:
-        2
-
-struct Both:
-    Left
-    Right
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(errors(method), vec![Code::AmbiguousPromotedMember]);
-}
-
-#[test]
-fn a_trait_method_beside_a_promoted_method_is_ambiguous() {
-    let src = "\
-trait Describe:
-    fn describe(self) -> i32
-
-struct Base:
-    n: i32
-
-impl Base:
-    pub fn describe(self) -> i32:
-        self.n
-
-struct Page:
-    Base
-
-impl Describe for Page:
-    fn describe(self) -> i32:
-        0
-
-fn invalid(page: Page) -> i32:
-    page.describe()
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(errors(src), vec![Code::AmbiguousMethod]);
 }

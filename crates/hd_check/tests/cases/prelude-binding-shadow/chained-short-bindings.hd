@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main() -> i32:
+    a := Option := +1
+    a + Option

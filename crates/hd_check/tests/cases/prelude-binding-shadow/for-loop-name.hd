@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn total(xs: List[i32]) -> i32:
+    total := +0
+    for Display in xs:
+        _ := Display
+    total

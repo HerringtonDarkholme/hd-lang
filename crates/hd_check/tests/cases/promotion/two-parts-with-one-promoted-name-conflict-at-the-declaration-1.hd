@@ -1,0 +1,13 @@
+# @dump: diagnostics
+struct Left:
+    pub id: i32
+
+struct Right:
+    pub id: i32
+
+struct Both:
+    Left
+    Right
+
+pub fn main() -> void:
+    pass

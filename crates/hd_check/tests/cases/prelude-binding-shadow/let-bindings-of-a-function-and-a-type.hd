@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn main() -> i32:
+    let panic = +1
+    let Option = +2
+    panic + Option

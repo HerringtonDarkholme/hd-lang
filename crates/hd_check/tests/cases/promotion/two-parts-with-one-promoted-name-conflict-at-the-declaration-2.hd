@@ -1,0 +1,21 @@
+# @dump: diagnostics
+struct Left:
+    x: i32
+
+impl Left:
+    pub fn name(self) -> i32:
+        1
+
+struct Right:
+    y: i32
+
+impl Right:
+    pub fn name(self) -> i32:
+        2
+
+struct Both:
+    Left
+    Right
+
+pub fn main() -> void:
+    pass

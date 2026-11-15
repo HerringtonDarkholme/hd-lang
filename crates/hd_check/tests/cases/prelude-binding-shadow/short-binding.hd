@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main() -> i32:
+    debug := +1
+    debug

@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn main() -> i32:
+    let hash = +1
+    option := +2
+    let f = fn(debugging: i32) -> i32: debugging
+    f(hash + option)

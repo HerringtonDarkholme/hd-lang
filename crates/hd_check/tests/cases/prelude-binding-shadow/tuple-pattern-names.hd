@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn main() -> i32:
+    let (Eq, y) = (+1, +2)
+    Eq + y

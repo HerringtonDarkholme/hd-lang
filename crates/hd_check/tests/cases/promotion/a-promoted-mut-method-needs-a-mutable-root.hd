@@ -1,0 +1,28 @@
+# @dump: diagnostics
+struct Clock:
+    pub ticks: i32
+    pub label: i32
+
+impl Clock:
+    pub fn read(self) -> i32:
+        self.ticks
+
+    pub fn advance(&mut self, by: i32) -> void:
+        self.ticks = self.ticks + by
+
+struct Device:
+    Clock
+    id: i32
+
+struct Rack:
+    Device
+    slot: i32
+
+fn invalid(device: &Device) -> void:
+    device.advance(1)
+
+fn also_invalid(device: &Device) -> void:
+    device.ticks = 1
+
+pub fn main() -> void:
+    pass
