@@ -1,0 +1,11 @@
+# @dump: diagnostics
+type Both[A, B] = (A, B)
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+fn id[T](x: T) -> T: x
+
+fn h() -> Nope:
+    id(5)

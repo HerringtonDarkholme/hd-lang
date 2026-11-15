@@ -1,0 +1,8 @@
+# @dump: diagnostics
+struct Pair[T, T]:
+    a: i32
+
+struct Sized[N < const usize, N < const usize]:
+    a: i32
+
+pub fn main() -> void: pass
