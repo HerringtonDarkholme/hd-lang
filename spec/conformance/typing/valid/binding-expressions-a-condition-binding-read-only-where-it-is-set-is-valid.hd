@@ -1,4 +1,4 @@
-# test: checker restarted joins keep skipped bindings
+# test: binding expressions a condition binding read only where it is set is valid
 fn case_176(flag: bool, found: i32?) -> i32?:
     r := if flag && (n := 3) > 0: n else: found
     r

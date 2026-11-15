@@ -662,12 +662,12 @@ typing/valid/declarations-a-public-function-declares-its-result-type.hd	type	acc
 typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	type	accept	lang/07-functions.md#declarations
 typing/valid/declarations-a-public-method-declares-its-result-type.hd	type	accept	lang/07-functions.md#declarations
 typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd	type	accept	lang/07-functions.md#declarations
-typing/valid/checker-restarted-joins-keep-skipped-bindings-legal-forms.hd	type	accept	lang/03-names-and-scopes.md#binding-expressions
+typing/valid/binding-expressions-a-condition-binding-read-only-where-it-is-set-is-valid.hd	type	accept	lang/03-names-and-scopes.md#binding-expressions
 typing/valid/type-argument-defaults-trait-defaults-declared-after-their-use-fill-in.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/type-argument-defaults-trait-defaults-from-another-module-fill-in.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	type	accept	lang/03-names-and-scopes.md#r-names.self-type.outside
 typing/valid/self-type-a-struct-field-names-a-concrete-type.hd	type	accept	lang/03-names-and-scopes.md#r-names.self-type.outside
-typing/valid/checker-skipped-bindings-are-not-initialized-legal-forms.hd	type	accept	lang/03-names-and-scopes.md#binding-expressions
+typing/valid/binding-expressions-condition-bindings-read-where-their-condition-holds-are-valid.hd	type	accept	lang/03-names-and-scopes.md#binding-expressions
 typing/valid/supertraits-a-one-step-supertrait-chain-has-no-cycle.hd	type	accept	lang/09-traits.md#supertraits
 typing/valid/module-initialization-a-function-reads-an-earlier-binding.hd	type	accept	lang/10-modules.md#module-initialization
 typing/valid/module-initialization-a-bounded-generic-call-reads-an-earlier-binding-through-its-impl.hd	type	accept	lang/10-modules.md#module-initialization
@@ -919,7 +919,7 @@ typing/valid/data-types.hd	type	accept	lang/08-data-and-enums.md#construction-an
 typing/valid/data-field-defaults.hd	type	accept	lang/08-data-and-enums.md#field-defaults
 typing/valid/data-default-calls-function-value.hd	type	accept	lang/08-data-and-enums.md#field-defaults
 typing/invalid/missing-required-data-field.hd	type	reject:missing-required-field	lang/08-data-and-enums.md#construction-and-access
-typing/valid/stored-fn-call-embedded-function-field-is-not-called-by-method-syntax-6-legal-promoted-field.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
+typing/valid/stored-fn-call-an-embedded-function-field-is-called-through-parentheses.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
 typing/valid/stored-fn-call-a-method-sharing-a-field-name-wins-and-the-field-stays-callable.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
 typing/valid/stored-fn-call-a-parenthesized-field-call-calls-the-stored-function.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
 typing/valid/suspending-fn-weaken-a-suspending-function-weakens-at-each-expected-type-site.hd	type	accept	lang/07-functions.md#suspending-function-values

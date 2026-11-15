@@ -1,4 +1,4 @@
-# test: checker skipped bindings are not initialized
+# test: binding expressions condition bindings read where their condition holds are valid
 fn case_169(flag: bool) -> string:
     if flag && (name := "Ada") != "": name else: "none"
 

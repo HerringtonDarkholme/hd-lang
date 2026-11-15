@@ -24,8 +24,8 @@ typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding
 typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd	A10b	same title as reject typing/invalid/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd
 typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd	A10b	same title as reject typing/invalid/module-initialization-a-generic-impl-method-call-reads-a-later-binding.hd
 typing/valid/module-initialization-pattern-bindings-are-read-after-their-lets.hd	A10b	same title as reject typing/invalid/module-initialization-a-call-reads-later-pattern-bindings.hd
-typing/valid/checker-restarted-joins-keep-skipped-bindings-legal-forms.hd	A10b	same title as reject typing/invalid/binding-expressions-an-and-condition-binding-is-uninitialized-after-an-if-expression.hd
-typing/valid/checker-skipped-bindings-are-not-initialized-legal-forms.hd	A10b	same title as reject typing/invalid/binding-expressions-an-or-condition-binding-is-uninitialized-in-the-then-branch.hd
+typing/valid/binding-expressions-a-condition-binding-read-only-where-it-is-set-is-valid.hd	A10b	same title as reject typing/invalid/binding-expressions-an-and-condition-binding-is-uninitialized-after-an-if-expression.hd
+typing/valid/binding-expressions-condition-bindings-read-where-their-condition-holds-are-valid.hd	A10b	same title as reject typing/invalid/binding-expressions-an-or-condition-binding-is-uninitialized-in-the-then-branch.hd
 typing/valid/checker-written-types-may-omit-only-defaulted-slots-legal-forms.hd	A10b	same title as reject typing/invalid/type-argument-defaults-a-struct-written-without-its-required-argument-is-partial.hd
 typing/valid/parameter-names-a-closure-parameter-named-apart-from-a-type-parameter-is-valid.hd	A10b	same title as reject typing/invalid/parameter-names-a-closure-parameter-may-not-reuse-a-type-parameter-name.hd
 typing/valid/parameter-names-a-local-function-parameter-named-apart-from-a-type-parameter-is-valid.hd	A10b	same title as reject typing/invalid/parameter-names-a-local-function-parameter-may-not-reuse-a-type-parameter-name.hd

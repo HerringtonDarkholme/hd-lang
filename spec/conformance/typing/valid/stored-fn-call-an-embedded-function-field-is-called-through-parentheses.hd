@@ -1,4 +1,4 @@
-# test: embedded function field is not called by method syntax
+# test: stored fn call an embedded function field is called through parentheses
 struct Base:
     pub run: fn() -> i32
 

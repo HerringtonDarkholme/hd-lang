@@ -122,8 +122,8 @@ typing/valid/explicit-empty-row.hd	accept	lang/02-grammar.md#types	-1
 typing/valid/row-kinded-arguments.hd	accept	lang/02-grammar.md#types	-2	
 runtime/valid/binding-expressions.hd	accept	lang/03-names-and-scopes.md#binding-expressions	-2	
 typing/invalid/binding-expressions-an-and-condition-binding-is-uninitialized-after-an-if-expression.hd	reject:possibly-uninitialized-binding	lang/03-names-and-scopes.md#binding-expressions	3	
-typing/valid/checker-restarted-joins-keep-skipped-bindings-legal-forms.hd	accept	lang/03-names-and-scopes.md#binding-expressions	6	
-typing/valid/checker-skipped-bindings-are-not-initialized-legal-forms.hd	accept	lang/03-names-and-scopes.md#binding-expressions	6	
+typing/valid/binding-expressions-a-condition-binding-read-only-where-it-is-set-is-valid.hd	accept	lang/03-names-and-scopes.md#binding-expressions	6	
+typing/valid/binding-expressions-condition-bindings-read-where-their-condition-holds-are-valid.hd	accept	lang/03-names-and-scopes.md#binding-expressions	6	
 typing/valid/local-types.hd	accept	lang/03-names-and-scopes.md#function-and-closure-scopes	-2	
 typing/invalid/unknown-value-name.hd	reject:unknown-name	lang/03-names-and-scopes.md#lexical-scopes	-1	
 typing/valid/names-and-scopes.hd	accept	lang/03-names-and-scopes.md#lexical-scopes	-1	
