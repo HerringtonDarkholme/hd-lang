@@ -3,7 +3,14 @@
 // x path x lifetime x alias action, each with the verdict the accepted design
 // gives (runs, or panics `borrow-conflict`).
 // Run: node spec/tools/generate-pointer-loan-matrix.ts [--check]
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extraColumns, extras as extraSources } from "./pointer-loan-extras.ts";
