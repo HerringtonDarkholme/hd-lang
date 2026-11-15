@@ -1,0 +1,21 @@
+# test: a compound store needs the operator on the value it reads
+# Spec 05 Compound Assignment: expr.assign.compound.operator.
+use std.ops.{Apply, Update}
+
+struct Label:
+    text: i32
+
+struct Cell:
+    label: Label
+
+impl Apply for Cell:
+    type Out = Label
+    fn apply(self) -> Label:
+        self.label
+
+impl Update[Label] for Cell:
+    fn update(&mut self, value: Label) -> void:
+        self.label = value
+
+fn run(cell: &mut Cell) -> void:
+    cell() += Label { text: 1 } # diagnostic: type-mismatch

@@ -119,9 +119,14 @@ impl Ck<'_, '_> {
         let (vr, vt) = match compound {
             None => self.expr(rhs, None)?,
             Some(k) => {
+                // `expr.assign.compound.call-read-apply`: the read `v()` is
+                // a call, so a callee without `Apply` is not callable.
                 if !self.is_applicable(ct)? {
-                    let msg = format!("{} does not implement `Apply`", self.show(ct));
-                    self.err(Code::TypeMismatch, lhs, &msg);
+                    let msg = format!(
+                        "{} does not implement `Apply`, so this compound assignment cannot read the call place",
+                        self.show(ct)
+                    );
+                    self.err(Code::NotCallable, lhs, &msg);
                     return Ok(());
                 }
                 let apply = self.cx.names.known.apply;

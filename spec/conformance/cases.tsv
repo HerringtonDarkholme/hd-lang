@@ -3767,7 +3767,10 @@ lang/grammar/statements/a-chain-may-not-redeclare-a-name-in-its-last-link.hd	typ
 lang/grammar/statements/a-chain-may-not-redeclare-a-name-in-its-first-link.hd	type	reject:duplicate-binding	lang/02-grammar.md#r-grammar.stmt.chain
 lang/grammar/statements/a-chained-name-is-not-reassignable-in-its-last-link.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
 lang/grammar/statements/a-chained-name-is-not-reassignable-in-its-first-link.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
-lang/expressions/postfix-expressions/calls/a-compound-store-reads-through-apply-compound.hd	type	reject:type-mismatch	lang/05-expressions.md#callable-values
+lang/expressions/postfix-expressions/calls/a-compound-store-reads-through-apply-compound.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.assign.compound.call-read-apply
+lang/expressions/postfix-expressions/calls/a-compound-store-reads-a-local-through-apply.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.assign.compound.call-read-apply
+lang/expressions/postfix-expressions/calls/a-compound-store-reads-a-field-through-apply.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.assign.compound.call-read-apply
+lang/expressions/postfix-expressions/calls/a-compound-store-needs-the-operator-on-the-read.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.operator
 lang/expressions/postfix-expressions/calls/a-function-call-is-not-a-place-plain.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 lang/expressions/postfix-expressions/calls/a-function-call-is-not-a-place-stored.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 lang/expressions/postfix-expressions/calls/a-method-call-is-not-a-place.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values

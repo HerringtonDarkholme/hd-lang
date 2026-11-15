@@ -1,0 +1,15 @@
+# test: a compound store on a local callee reads through apply
+# Spec 05 Compound Assignment: expr.assign.compound.call-read-apply.
+use std.ops.Update
+
+struct Sink:
+    last: i32
+
+impl Update[i32] for Sink:
+    fn update(&mut self, value: i32) -> void:
+        self.last = value
+
+fn run() -> i32:
+    let mut sink = Sink { last: 0 }
+    sink() -= 2 # diagnostic: not-callable
+    sink.last

@@ -1,5 +1,5 @@
 # test: a compound store reads through apply
-# Spec 05 Compound Assignment: expr.assign.compound.call-once.
+# Spec 05 Compound Assignment: expr.assign.compound.call-read-apply.
 use std.ops.Update
 
 struct Sink:
@@ -10,4 +10,4 @@ impl Update[i32] for Sink:
         self.last = value
 
 fn run(sink: &mut Sink) -> void:
-    sink() += 1 # diagnostic: type-mismatch
+    sink() += 1 # diagnostic: not-callable

@@ -122,10 +122,11 @@ fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
 9. r[expr.assign.compound.index-place] `List` and `Map` use their built-in places for a compound indexed assignment; another type reads and writes through the reference returned by `IndexMut`, as [Index Traits](#index-traits) defines.
 10. r[expr.assign.compound.call-once] On a call place `v() op= e`, the callee `v` is evaluated once, then `e`.
 11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`. So the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
-12. r[expr.assign.compound.fresh-value] On a struct value, the store replaces the place's whole value with the operator's result. A copy made from the place before the store keeps the old value.
-13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
-14. r[expr.assign.compound.ref-read] A right side of type `&T` or `&mut T` reads its `T` by [`expr.op.ref-read`](#r-expr.op.ref-read), so `total += x` with `x: &i32` adds the value `x` refers to.
-15. r[expr.assign.compound.ref-place] The place is not read through, so with `r: &mut i32`, `r += 1` applies `+` to the reference itself. That is an error; `*r += 1` changes the value. Error: `type-mismatch`.
+12. r[expr.assign.compound.call-read-apply] A call place must also be readable through `Apply`. When the callee's type implements `Update` but not `Apply`, the read `v()` is an error, as in [`expr.call.apply.not-callable`](#r-expr.call.apply.not-callable). Error: `not-callable`.
+13. r[expr.assign.compound.fresh-value] On a struct value, the store replaces the place's whole value with the operator's result. A copy made from the place before the store keeps the old value.
+14. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
+15. r[expr.assign.compound.ref-read] A right side of type `&T` or `&mut T` reads its `T` by [`expr.op.ref-read`](#r-expr.op.ref-read), so `total += x` with `x: &i32` adds the value `x` refers to.
+16. r[expr.assign.compound.ref-place] The place is not read through, so with `r: &mut i32`, `r += 1` applies `+` to the reference itself. That is an error; `*r += 1` changes the value. Error: `type-mismatch`.
 
 ```text
 struct Tally:
