@@ -1,0 +1,22 @@
+# @dump: stdout wat
+# Newtypes that name themselves only past a counted reference, a list or
+# a function value are no cycle (`data.struct.contains.ends`,
+# `data.struct.contains.reference`), and a repeated generic newtype
+# strips to its base: each builds and runs.
+type Link(*Link)
+type Forest(List[Forest])
+type Thunk(fn() -> Thunk)
+type Wrap[T](T)
+
+fn seven() -> Thunk:
+    Thunk(seven)
+
+fn count(forest: Forest) -> usize:
+    List(forest).len()
+
+pub fn main() -> void $ Console:
+    let maybe: Link? = .None
+    forest := Forest([Forest([]), Forest([Forest([])])])
+    _thunk := seven()
+    let wrapped: List[Wrap[Wrap[i32]]] = [Wrap(Wrap(5))]
+    println("${maybe.is_none()} ${count(forest)} ${wrapped.len()}")

@@ -1,0 +1,49 @@
+# @dump: diagnostics
+# Newtypes that hold themselves (`types.newtype.no-recursion`), each used
+# by `main`: one error per cycle, at a struct or enum in it when there is
+# one (`types.newtype.no-recursion.group`), so the build never lays out a
+# type with no finite size.
+struct Box[T]:
+    value: T
+
+type Wrap[T](T)
+
+# Itself, a pair, a generic struct instance, a generic newtype instance,
+# a growing instance, a tuple, a union, an optional.
+type Loop(Loop)
+type Left(Right)
+type Right(Left)
+type Boxed(Box[Boxed])
+type Wrapped(Wrap[Wrapped])
+type Grow[T](Grow[(T, T)])
+type Pair((Pair, i32))
+type Either(Either | i32)
+type Maybe(Maybe?)
+
+# Through a struct field and an enum payload: the struct or enum reports.
+struct Holder:
+    held: Held
+
+type Held(Holder)
+
+enum Choice:
+    Some(inner: Chosen)
+    Empty
+
+type Chosen(Choice)
+
+pub fn main() -> void $ Console:
+    # A local newtype too.
+    type Local(Local)
+    let a: Loop? = .None
+    let b: Left? = .None
+    let c: Boxed? = .None
+    let d: Wrapped? = .None
+    let e: Grow[i32]? = .None
+    let f: Pair? = .None
+    let g: Either? = .None
+    let h: Maybe? = .None
+    let i: Held? = .None
+    let j: Chosen? = .None
+    let k: Local? = .None
+    println("unreachable")

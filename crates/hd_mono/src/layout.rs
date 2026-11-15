@@ -43,7 +43,10 @@ pub fn inline_map_key(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> bool {
 /// Follows nominal newtypes to their bases, substituting arguments: a
 /// newtype erases to its base at run time (`types.newtype.construct-ref`,
 /// `types.newtype.construct-value`), so value layouts see the base. Type
-/// identity stays nominal; only layouts strip.
+/// identity stays nominal; only layouts strip. The checker rejects a
+/// newtype that contains itself (`types.newtype.no-recursion`), so each
+/// step strips one declaration of a finite chain or one layer of the
+/// type's own arguments, and the walk ends: O(the newtypes stripped).
 #[must_use]
 pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
     let Some((mut def, mut args)) = pool.adt(t) else {
@@ -52,28 +55,23 @@ pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
     let Some(mut base) = env.newtype_base(def) else {
         return t;
     };
-    let mut t = t;
-    // Cyclic newtype declarations have no values. Bound their traversal
-    // far above real nesting, without stopping valid repeated wrappers
-    // such as `Foo[Foo[i32]]` at a repeated declaration.
-    for _ in 0..1_000 {
+    loop {
         let substitutions = pool.list_items(args);
-        t = pool.subst(base, &|p: ParamRef| {
+        let t = pool.subst(base, &|p: ParamRef| {
             (p.owner == def)
                 .then(|| substitutions.get(usize::from(p.index)).copied())
                 .flatten()
         });
         let Some((next_def, next_args)) = pool.adt(t) else {
-            break;
+            return t;
         };
         let Some(next_base) = env.newtype_base(next_def) else {
-            break;
+            return t;
         };
         def = next_def;
         args = next_args;
         base = next_base;
     }
-    t
 }
 
 /// What layouts need to know about declared types (enum shapes).
@@ -868,22 +866,6 @@ mod tests {
             assert_eq!(strip_newtype(&p, &env, wrapped), scalar);
             assert!(inline_map_key(&p, &env, wrapped));
         }
-    }
-
-    #[test]
-    fn strip_newtype_bounds_cyclic_declarations() {
-        let p = InternPool::new();
-        let adt = |raw| {
-            p.intern_ty(&TyData::Adt {
-                def: DefId::from_raw(raw),
-                args: TyList::EMPTY,
-            })
-        };
-        let (a, b) = (adt(1), adt(2));
-        let direct = Newtypes(vec![(DefId::from_raw(1), a)]);
-        assert_eq!(strip_newtype(&p, &direct, a), a);
-        let mutual = Newtypes(vec![(DefId::from_raw(1), b), (DefId::from_raw(2), a)]);
-        assert_eq!(strip_newtype(&p, &mutual, a), a);
     }
 
     // Retired contextual walker: independent oracle for the shared type graph.

@@ -1,0 +1,35 @@
+# @dump: diagnostics
+# The newtype cycles of reached.hd, none of them used: each is the same
+# one error (`types.newtype.no-recursion`), whether or not code reaches it.
+struct Box[T]:
+    value: T
+
+type Wrap[T](T)
+
+# Itself, a pair, a generic struct instance, a generic newtype instance,
+# a growing instance, a tuple, a union, an optional.
+type Loop(Loop)
+type Left(Right)
+type Right(Left)
+type Boxed(Box[Boxed])
+type Wrapped(Wrap[Wrapped])
+type Grow[T](Grow[(T, T)])
+type Pair((Pair, i32))
+type Either(Either | i32)
+type Maybe(Maybe?)
+
+# Through a struct field and an enum payload: the struct or enum reports.
+struct Holder:
+    held: Held
+
+type Held(Holder)
+
+enum Choice:
+    Some(inner: Chosen)
+    Empty
+
+type Chosen(Choice)
+
+pub fn main() -> void $ Console:
+    type Local(Local)
+    println("unreachable")

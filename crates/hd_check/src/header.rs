@@ -76,8 +76,9 @@ pub struct Finding {
     pub code: Code,
     pub message: String,
     /// The slots of the item's type positions a fix-it writes `*` before:
-    /// `recursive-value-type` on each field that holds its own type
-    /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
+    /// `recursive-value-type` on each field or newtype base that holds its
+    /// own type (`data.struct.no-recursion.fix`,
+    /// `data.enum.no-recursion.fix`, `types.newtype.no-recursion.fix`).
     /// Empty for every other finding.
     pub ref_fix: Vec<u32>,
 }
@@ -1672,18 +1673,16 @@ impl<'a> ItemCheck<'_, 'a> {
         Ok(())
     }
 
-    /// The value rule of a declaration: a struct or enum that holds itself
-    /// through its value fields or payloads (`data.struct.no-recursion`,
-    /// `data.enum.no-recursion`), reported once, at the first such field,
-    /// with a fix-it that writes `&` before every one
-    /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
+    /// The value rule of a declaration: a struct, enum or newtype that
+    /// holds itself through its value fields, payloads or base type
+    /// (`data.struct.no-recursion`, `data.enum.no-recursion`,
+    /// `types.newtype.no-recursion`), reported once, at the first such
+    /// position, with a fix-it that writes `*` before every one
+    /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`,
+    /// `types.newtype.no-recursion.fix`).
     fn value_item(&mut self, it: &Item) {
         let Some(fields) = crate::value::value_fields(&it.data) else {
             return;
-        };
-        let (kind, part) = match &it.data {
-            ItemData::Struct(..) => ("struct", "field"),
-            _ => ("enum", "payload field"),
         };
         let (pool, lookup, global) = (self.pool(), self.cx.lookup, self.cx.global);
         let def = it.def;
@@ -1693,7 +1692,7 @@ impl<'a> ItemCheck<'_, 'a> {
             let holding: Vec<usize> = fields
                 .iter()
                 .enumerate()
-                .filter(|(_, f)| d.holds_group(pool, f.ty, head))
+                .filter(|&(_, &t)| d.holds_group(pool, t, head))
                 .map(|(i, _)| i)
                 .collect();
             Some((holding, me.group.clone()))
@@ -1714,10 +1713,27 @@ impl<'a> ItemCheck<'_, 'a> {
         if self.values.reporter(lookup, &group, key) != Some(def) || self.embeds_itself(def) {
             return;
         }
+        let name = names.display_name(it.def);
+        let field = |f: &hd_resolve::Field| names.text(f.name);
+        let through = match &it.data {
+            ItemData::Struct(fs, _) => format!(
+                "the struct `{name}` holds itself through the field `{}`",
+                field(&fs[first])
+            ),
+            ItemData::Enum {
+                shared, variants, ..
+            } => format!(
+                "the enum `{name}` holds itself through the payload field `{}`",
+                shared
+                    .iter()
+                    .chain(variants.iter().flat_map(|v| &v.fields))
+                    .nth(first)
+                    .map_or("", field)
+            ),
+            _ => format!("the newtype `{name}` holds itself through its base type"),
+        };
         let message = format!(
-            "the {kind} `{}` holds itself through the {part} `{}`; a value cannot contain itself, so hold it through a counted reference (`*`), an optional reference, or a collection",
-            self.cx.names.display_name(it.def),
-            self.cx.names.text(fields[first].name)
+            "{through}; a value cannot contain itself, so hold it through a counted reference (`*`), an optional reference, or a collection"
         );
         let slot = |i: usize| u32::try_from(i + 1).unwrap_or(0);
         self.out.push(Finding {

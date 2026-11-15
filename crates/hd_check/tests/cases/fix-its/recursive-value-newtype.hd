@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# A newtype that holds itself through a tuple (`types.newtype.no-recursion`)
+# has a fix-it that writes `*` before its base type
+# (`types.newtype.no-recursion.fix`); the fixed program checks clean.
+type Ring((Ring, i32))

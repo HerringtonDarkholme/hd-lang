@@ -612,7 +612,9 @@ impl InlinePass {
 
     /// The member of `group` that reports it: of its structs and enums,
     /// the one whose `key` (module path, then name) sorts first
-    /// (`data.enum.no-recursion.group`). Chosen once per group per pass.
+    /// (`data.enum.no-recursion.group`); in a group of newtypes alone, the
+    /// newtype whose `key` sorts first (`types.newtype.no-recursion.group`).
+    /// Chosen once per group per pass, in one pass over the group.
     pub(crate) fn reporter<K: Ord>(
         &mut self,
         lookup: &hd_resolve::Lookup<'_>,
@@ -627,30 +629,39 @@ impl InlinePass {
                 .filter(|&d| {
                     matches!(
                         lookup.item(d).map(|i| &i.data),
-                        Some(hd_resolve::ItemData::Struct(..) | hd_resolve::ItemData::Enum { .. })
+                        Some(
+                            hd_resolve::ItemData::Struct(..)
+                                | hd_resolve::ItemData::Enum { .. }
+                                | hd_resolve::ItemData::Newtype(..)
+                        )
                     )
                 })
-                .min_by_key(|&d| key(d))
+                .min_by_key(|&d| {
+                    let newtype = matches!(
+                        lookup.item(d).map(|i| &i.data),
+                        Some(hd_resolve::ItemData::Newtype(..))
+                    );
+                    (newtype, key(d))
+                })
         })
     }
 }
 
-/// The fields a declaration's value rule covers: a struct's fields, an
-/// enum's shared and payload fields (`data.struct.no-recursion`,
-/// `data.enum.no-recursion`); `None` for any other item.
-pub(crate) fn value_fields(data: &hd_resolve::ItemData) -> Option<Vec<&hd_resolve::Field>> {
+/// The types a declaration's value rule covers, in written order: a
+/// struct's fields, an enum's shared and payload fields, a newtype's base
+/// (`data.struct.no-recursion`, `data.enum.no-recursion`,
+/// `types.newtype.no-recursion`); `None` for any other item. They are
+/// the ones [`inline_tys`] gives, so a declaration the value rule reports
+/// is one its decision finds cyclic.
+pub(crate) fn value_fields(data: &hd_resolve::ItemData) -> Option<Vec<Ty>> {
+    let mut out = Vec::new();
     match data {
-        hd_resolve::ItemData::Struct(fs, _) => Some(fs.iter().collect()),
-        hd_resolve::ItemData::Enum {
-            shared, variants, ..
-        } => Some(
-            shared
-                .iter()
-                .chain(variants.iter().flat_map(|v| &v.fields))
-                .collect(),
-        ),
-        _ => None,
+        hd_resolve::ItemData::Struct(..)
+        | hd_resolve::ItemData::Enum { .. }
+        | hd_resolve::ItemData::Newtype(..) => inline_tys(data, &mut out),
+        _ => return None,
     }
+    Some(out)
 }
 
 /// The types a value of a declaration holds directly: a struct's fields,
@@ -778,11 +789,13 @@ pub(crate) fn with_decided<R>(
     })
 }
 
-/// Whether `def` is a struct or enum the value rule rejects: a value of it
-/// holds a value of it inline. Each instance of it is then unsized
-/// whatever its arguments, and a walk of an instance's fields need not
-/// end. A newtype that holds itself is not a value rule error (#2004), so
-/// it is not one of these.
+/// Whether `def` is a struct, enum or newtype the value rule rejects: a
+/// value of it holds a value of it inline (`data.struct.no-recursion`,
+/// `data.enum.no-recursion`, `types.newtype.no-recursion`). Each
+/// instance of it is then unsized whatever its arguments, and a walk of
+/// an instance's members need not end (`type G[T](G[(T, T)])` holds
+/// `G[(i32, i32)]` in `G[i32]`), so the containment and `Copy` walks stop
+/// there. One probe of the run's decisions, each decided once per run.
 pub(crate) fn holds_itself(
     global: &hd_types::solver::GlobalMemo,
     local: &mut InlineDecls,
@@ -792,29 +805,18 @@ pub(crate) fn holds_itself(
 ) -> bool {
     matches!(
         lookup.item(def).map(|i| &i.data),
-        Some(hd_resolve::ItemData::Struct(..) | hd_resolve::ItemData::Enum { .. })
-    ) && holds_itself_inline(global, local, pool, lookup, def)
-}
-
-/// Whether a value of the struct, enum or newtype `def` holds a value of
-/// it inline, so a walk of an instance's members need not end: the `Copy`
-/// walks stop there. A newtype's members are its base
-/// (`types.newtype.holds`), so `type G[T](G[(T, T)])` grows as a struct
-/// does. One probe of the run's decisions, each decided once per run.
-pub(crate) fn holds_itself_inline(
-    global: &hd_types::solver::GlobalMemo,
-    local: &mut InlineDecls,
-    pool: hd_types::Types<'_>,
-    lookup: &hd_resolve::Lookup<'_>,
-    def: DefId,
-) -> bool {
-    with_decided(global, local, pool, lookup, def, |d| {
+        Some(
+            hd_resolve::ItemData::Struct(..)
+                | hd_resolve::ItemData::Enum { .. }
+                | hd_resolve::ItemData::Newtype(..)
+        )
+    ) && with_decided(global, local, pool, lookup, def, |d| {
         d.get(def).is_some_and(|d| d.cyclic)
     })
 }
 
 /// The declarations the checker's solver reads: its lookup's, except that
-/// a declaration that holds itself ([`holds_itself_inline`]) has no members
+/// a declaration the value rule rejects ([`holds_itself`]) has no members
 /// for the `Copy` row, so the row's walk stops at its instance, as the
 /// ownership walk does (`crate::moves`). Its fields may grow without end
 /// (`struct G[T]: x: G[(T, T)]` holds `G[(i32, i32)]` in `G[i32]`, #2013),
@@ -852,7 +854,7 @@ impl hd_types::solver::Declarations for SolverDecls<'_, '_> {
     fn copy_decl(&self, def: DefId) -> hd_types::solver::CopyDecl {
         match self.decls.copy_decl(def) {
             hd_types::solver::CopyDecl::Members(_)
-                if holds_itself_inline(
+                if holds_itself(
                     self.global,
                     &mut self.local.borrow_mut(),
                     self.decls.pool.types(),

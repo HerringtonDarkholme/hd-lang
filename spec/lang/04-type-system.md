@@ -657,9 +657,23 @@ n := i32(m)
 7. r[types.newtype.construct-ref] Constructing a newtype over an `AnyRef` base creates no new object: the newtype value wraps the base value.
 8. r[types.newtype.construct-value] A newtype construction over an `AnyVal` base, such as `Mile(10)`, is a value, as its base is.
 9. r[types.newtype.holds] A newtype holds its base by value for [`ref.move.holds`](13-values-and-references.md#r-ref.move.holds): a newtype over a type that is not `Copy` is not `Copy`, and its values move.
+10. r[types.newtype.no-recursion] A newtype that contains itself by value, as [`data.struct.contains`](08-data-and-enums.md#r-data.struct.contains) defines containment, is an error. Error: `recursive-value-type`.
+11. r[types.newtype.no-recursion.group] Newtypes, structs, and enums that contain one another, each through the next, are one `recursive-value-type` error. It is reported at a struct or enum among them, as [`data.enum.no-recursion.group`](08-data-and-enums.md#r-data.enum.no-recursion.group) says. With no struct or enum among them, it is reported at one of the newtypes.
+12. r[types.newtype.no-recursion.fix] The error at a newtype has a fix-it that writes `*` before its base type.
 
-> **Why.** Rust's rule for its newtypes: a copy of a wrapper would
-> give two owners of a base value that moves, and each would release it.
+```text
+type Loop(Loop)  # error: recursive-value-type
+
+type Left(Right)  # error: recursive-value-type
+type Right(Left)
+
+type Link(*Link)  # valid: a counted reference ends containment
+```
+
+> **Why.** Rust's rule for its newtypes: a newtype holds its base value
+> inline, as a struct holds its fields. A copy of a wrapper would give two
+> owners of a base value that moves, and a newtype that contained itself
+> would have no finite size.
 
 See also: [Map Key Types](#map-key-types).
 

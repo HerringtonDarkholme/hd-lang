@@ -1,0 +1,8 @@
+# types.newtype.no-recursion: a newtype whose base is itself has no finite size, even where only `.None` of it is built.
+type Loop(Loop) # diagnostic: recursive-value-type
+
+pub fn main() -> void $ Console:
+    let maybe: Loop? = .None
+    match maybe:
+        .Some(_) => println("some")
+        .None => println("none")

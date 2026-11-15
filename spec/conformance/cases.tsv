@@ -4549,6 +4549,8 @@ lang/types/transparent-aliases-and-newtypes/an-enum-alias-names-its-variants.hd	
 lang/types/transparent-aliases-and-newtypes/alias-names-row.hd	type	accept	lang/04-type-system.md#r-types.alias.row
 lang/types/transparent-aliases-and-newtypes/alias-cycle-reported-once.hd	type	reject:alias-cycle	lang/04-type-system.md#r-types.alias.cycle.reported
 lang/types/transparent-aliases-and-newtypes/newtype-map-key-without-hash.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.newtype.map-key
+lang/types/transparent-aliases-and-newtypes/a-newtype-that-holds-itself-is-recursive.hd	type	reject:recursive-value-type	lang/04-type-system.md#r-types.newtype.no-recursion
+lang/types/transparent-aliases-and-newtypes/newtypes-that-hold-each-other-are-one-error.hd	type	reject:recursive-value-type	lang/04-type-system.md#r-types.newtype.no-recursion.group
 lang/types/optional-types/option-qualified-and-bare-patterns.hd	runtime	accept	lang/04-type-system.md#r-types.option.patterns
 lang/types/optional-types/option-nest-keeps-layers.hd	runtime	accept	lang/04-type-system.md#r-types.option.nest
 lang/types/optional-types/option-nest-plain-value.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.nest.accept

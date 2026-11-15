@@ -1,0 +1,4 @@
+# types.newtype.no-recursion.group: two newtypes that hold each other are one error, at one of them.
+type Left(Right) # diagnostic: recursive-value-type
+
+type Right(Left)

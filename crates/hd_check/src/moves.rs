@@ -356,7 +356,7 @@ pub(crate) struct CopyQuery {
     relaxed: Vec<Ty>,
     memo: HashMap<Ty, Option<Ty>>,
     /// The value rule's decisions under this body's lookup alone
-    /// (`crate::value::holds_itself_inline`).
+    /// (`crate::value::holds_itself`).
     inline: crate::value::InlineDecls,
 }
 
@@ -435,12 +435,12 @@ impl Ck<'_, '_> {
                 memo.get(&u)
                     .copied()
                     .or_else(|| closed_ty(u).then(|| global.copy_blocker(u)).flatten())
-                    // An instance of a declaration that holds itself is
-                    // not walked: its members may grow without end
-                    // (`crate::value::holds_itself_inline`).
+                    // An instance of a declaration the value rule rejects
+                    // is not walked: its members may grow without end
+                    // (`crate::value::holds_itself`), and it is reported.
                     .or_else(|| {
                         matches!(pool.get(u), TyData::Adt { def, .. }
-                            if crate::value::holds_itself_inline(global, inline, pool, lookup, def))
+                            if crate::value::holds_itself(global, inline, pool, lookup, def))
                         .then_some(None)
                     })
             },
