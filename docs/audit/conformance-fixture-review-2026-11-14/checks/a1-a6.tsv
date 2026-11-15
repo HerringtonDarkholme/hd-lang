@@ -1511,7 +1511,7 @@ typing/invalid/std-only-use.hd	A3	typing/invalid/std-only-use-size-of.hd
 typing/warnings/private-main.hd	A3	typing/warnings/private-main-suspending.hd
 typing/invalid/option-invariant.hd	A3	typing/invalid/fn-reference-optional-invariant.hd
 typing/invalid/optional-payload-weakening.hd	A3	typing/invalid/optional-generic-payload-weakening.hd
-runtime/panic/contract-require-custom-message.hd	A3	runtime/panic/contract-require-default-message.hd
+std/contract/require/contract-require-custom-message.hd	A3	std/contract/require/contract-require-default-message.hd
 typing/invalid/no-widening-operator.hd	A3	typing/invalid/no-widening-float.hd
 typing/invalid/test-prelude-assert-outside.hd	A3	typing/invalid/test-prelude-assert-equal-outside.hd
 typing/invalid/shift-count-signed.hd	A3	typing/invalid/shift-count-negated-literal-is-a-mismatch.hd
@@ -2190,9 +2190,9 @@ runtime/valid/primitive-float-cmp-method-direct.hd	A4	runtime accept with no ass
 runtime/valid/primitive-char-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/primitive-string-cmp-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/primitive-bool-eq-method-direct.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/contract-require-pass.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/contract-require-trailing-block.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/contract-require-reads-self.hd	A4	runtime accept with no assert, stdout check, or scenario
+std/contract/require/contract-require-pass.hd	A4	runtime accept with no assert, stdout check, or scenario
+std/contract/require/contract-require-trailing-block.hd	A4	runtime accept with no assert, stdout check, or scenario
+std/contract/require/contract-require-reads-self.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/property-body-discard-message-fails.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/discarded-host-error-payload.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/doc-test-compile-fail.hd	A4	runtime accept with no assert, stdout check, or scenario

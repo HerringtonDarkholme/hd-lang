@@ -1040,7 +1040,7 @@ std/console.md	7	complete	std/console/console-input/console-read-all.hd
 std/console.md	8	complete	std/console/console-errors/console-error-traits.hd
 std/console.md	9	complete	std/console/buffer-console/buffer-console.hd
 std/console.md	10	complete	std/console/scripted-input/scripted-input.hd
-std/contract.md	1	complete	runtime/valid/contract-require-trailing-block.hd
+std/contract.md	1	complete	std/contract/require/contract-require-trailing-block.hd
 std/digest.md	1	complete	runtime/valid/digest-sha256-vectors.hd
 std/digest.md	2	type-fragment	-
 std/digest.md	3	complete	runtime/valid/digest-eq.hd
