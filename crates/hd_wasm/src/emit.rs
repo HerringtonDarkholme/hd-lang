@@ -30,7 +30,9 @@ use crate::layout::{Enc, Is, Pass, Test, num, vals};
 use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
 use crate::rt::Helper;
 
+mod body_facts;
 mod borrow;
+pub(crate) use body_facts::{BodyFactCell, prepare as prepare_body_facts};
 mod loan_facts;
 pub(crate) use borrow::{StorageRoots, global_root};
 pub(crate) use hd_tir::own::pointer::LoanSite;
@@ -181,11 +183,36 @@ fn body_func<'a>(
     b: &'a Body,
 ) -> StageResult<Func> {
     let (item, args) = (own.item, own.args);
+    let inst = m.inst_of.get(&own.key).copied();
+    // Each collected instance emits once. Consume its cell reference so
+    // the shared body facts end after the last sibling emitter, rather
+    // than retaining every body's analysis until the module links.
+    let body_cell = inst
+        .and_then(|id| m.body_facts.get_mut(id.idx()))
+        .and_then(Option::take)
+        .unwrap_or_default();
+    let facts = body_cell.get_or_init(|| {
+        body_facts::BodyFacts::new(
+            b,
+            input.own_cx,
+            m.track_origins,
+            input.runtime.checked.is_some(),
+        )
+    });
+
     // A suspending body is a state machine over a frame (`susp.rs`), but
     // a root that only the entry calls and that never suspends runs as a
     // plain function: it ends on its first poll.
     let plan = susp::plan(b, b.sub_root[sub as usize]);
-    let closure = (sub != 0).then(|| closure::closure_of(input, b, args, sub));
+    let closure = (sub != 0).then(|| {
+        closure::closure_of(
+            input,
+            b,
+            args,
+            // ruled out: verified non-root sub-bodies have a defining closure.
+            facts.closures[sub as usize].expect("a sub-body's closure"),
+        )
+    });
     let suspending = match closure {
         None => {
             own.cold.is_none()
@@ -198,9 +225,18 @@ fn body_func<'a>(
     // where its declaration takes a reference. A plain function picks
     // its own for primitive comparisons in the optimized pipeline.
     let pick = input.promote_args && sub == 0 && !suspending && own.cold.is_none();
-    let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick);
+    let promoted = promote::promoted_refs(
+        input,
+        m,
+        b,
+        (item, args),
+        targets,
+        pick,
+        &facts.rows[sub as usize],
+    );
     // Where each local lives (`Body::storage`).
-    let (stored, mut slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
+    let (stored, mut slots) =
+        closure::stored_locals(input, b, (item, args), (sub, facts), &promoted);
     // A root with a suspension point keeps its slots in its frame object
     // (#1707): none in the plain function that only makes its cold call,
     // and none for a local an await of no known body takes, which counts
@@ -211,8 +247,13 @@ fn body_func<'a>(
     } else if framed_slots {
         closure::keep_awaited_slots(b, targets, &mut slots);
     }
-    let cells = closure::cell_locals(b, &stored);
-    let inst = m.inst_of.get(&own.key).copied();
+    let cells = stored
+        .iter()
+        .map(|&l| {
+            crate::work::use_facts(1);
+            (l, facts.cell_stores[&l])
+        })
+        .collect();
     let loan_uses = inst
         .and_then(|id| m.loan_uses.get(id.idx()))
         .and_then(Clone::clone)
@@ -224,7 +265,7 @@ fn body_func<'a>(
         (item, args),
         targets,
         cells,
-        (sub, inst, loan_uses),
+        (sub, inst, loan_uses, facts),
     );
     em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
     em.type_promoted(promoted);
@@ -233,7 +274,6 @@ fn body_func<'a>(
     if sub == 0 {
         em.lends = own.lends;
     }
-    em.own_consumers();
     if own.cold.is_none() {
         em.find_borrows(closure.map(|(ci, _, _)| ci));
     }
@@ -614,7 +654,8 @@ fn body_func<'a>(
     }
     em.prepare_own_loans()?;
     {
-        let short_loans = hd_tir::own::short::mark(b, &em.topo, &em);
+        let short_loans =
+            hd_tir::own::short::mark_indexed(b, &em.topo, &em, &em.rows, &facts.short_uses);
         em.prepare_short_loans(short_loans);
     }
     let root = b.sub_root[sub as usize];
@@ -1255,9 +1296,11 @@ struct Em<'i, 'a, 'm> {
     boundary_counts: BoundaryCell,
     parameter_positions: HashMap<usize, usize>,
     argument_loans: std::cell::RefCell<HashMap<u32, hd_base::HashSet<u32>>>,
-    recursive_bindings: hd_tir::own::RecursiveBindings,
+    recursive_bindings: std::sync::Arc<hd_tir::own::RecursiveBindings>,
     /// This final body's instruction types at the instance's arguments.
-    inst_ty: Vec<Ty>,
+    // Only instructions queried by this emitted sub-body are substituted.
+    // Local promotion and builtin overrides stay private to the emitter.
+    inst_ty: std::cell::RefCell<HashMap<u32, Ty>>,
     item: DefId,
     origin_root: u32,
     args: TyList,
@@ -1293,7 +1336,10 @@ struct Em<'i, 'a, 'm> {
     /// Scoped provider locals whose final owner may move to a tail context.
     provider_owners: HashMap<[u32; 2], (u32, u32)>,
     /// Exact tail call for each verified scoped provider candidate.
-    provider_transfer_calls: HashMap<(u32, u32), u32>,
+    provider_transfer_calls: std::sync::Arc<HashMap<(u32, u32), u32>>,
+    rows: std::sync::Arc<[usize]>,
+    root_params: std::sync::Arc<[usize]>,
+    borrow_facts: std::sync::Arc<std::sync::OnceLock<borrow::BorrowFacts>>,
     /// Original scope drops replaced by a selected context entry's owner.
     transferred_providers: hd_base::HashSet<u32>,
     /// The local of the context this body takes, when its row lists an
@@ -1338,7 +1384,6 @@ struct Em<'i, 'a, 'm> {
     variant_tys: std::cell::RefCell<HashMap<Ty, std::rc::Rc<Vec<Vec<Ty>>>>>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
-    projs: Vec<shape::Projected>,
     /// Each capture a closure's code copied out of its environment, by
     /// local: the Wasm local holding the environment's address and the
     /// capture's offset there, where a reference to it points
@@ -1427,35 +1472,14 @@ struct Em<'i, 'a, 'm> {
     /// One reusable caller-local host leaf, after ordinary addressable locals.
     drive_buffer: Option<(u32, u32)>,
     sub_id: u16,
-    /// In an owned body, the instruction or block that consumes each
-    /// value, or `NONE`, by the passes' rule (`hd_tir::own::consumers`).
-    /// A consumer moves the count in ([`Em::take_from`]); a value whose
-    /// consumer's lowering takes no count is one the passes lend, and its
-    /// own `Drop` releases it.
-    consumer: Vec<u32>,
+    /// One immutable final-body census shared across emitted closures.
+    uses: std::sync::Arc<body_facts::UseFacts>,
     /// One local-use census shared by parameter and capture loan queries.
     loan_uses: LoanCell,
-    /// With origins, in an owned body: each `copy` read's reason
-    /// (`hd_tir::own::copy_reasons`), for the counts view.
-    copy_reasons: Vec<Option<Reason>>,
-    /// Whether each value appears as any operand, including an explicit
-    /// ownership `Drop`. Custom `Drop` values with no counted leaves are
-    /// invisible to the ownership pass, so an otherwise-unused one is
-    /// released directly after its instruction.
-    used: Vec<bool>,
-    /// Non-drop uses, for lowerings that retire a copied operand early.
-    value_uses: Vec<u32>,
-    /// Whether each value is used only to decide on its tag or to reach a
-    /// part of it: every instruction that has it as an operand is one
-    /// whose [`refs::part_use`] it is. An enum read through `&` that
-    /// holds this matches in place ([`Em::lazy_borrow`]).
-    part_only: Vec<bool>,
-    /// The body's block structure.
-    topo: hd_tir::ir::Topology,
-    /// Its block tree in preorder, built on the first loop or statement
-    /// question ([`shape::Tree`]).
-    tree: std::cell::OnceCell<shape::Tree>,
-    own_ops: Vec<hd_tir::own::Operand>,
+    /// The final body's shared block structure.
+    topo: std::sync::Arc<hd_tir::ir::Topology>,
+    /// Its preorder, shared lazily with sibling closure instances.
+    tree: std::sync::Arc<std::sync::OnceLock<shape::Tree>>,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
@@ -1536,7 +1560,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         (item, args): (DefId, TyList),
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
-        (sub, inst, loan_uses): (u16, Option<InstId>, LoanCell),
+        (sub, inst, loan_uses, facts): (u16, Option<InstId>, LoanCell, &body_facts::BodyFacts),
     ) -> Self {
         let boundary_counts = inst
             .and_then(|id| m.boundary_counts.get(id.idx()))
@@ -1550,8 +1574,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             boundary_counts,
             parameter_positions: HashMap::default(),
             argument_loans: std::cell::RefCell::new(HashMap::default()),
-            recursive_bindings: hd_tir::own::RecursiveBindings::new(b),
-            inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
+            recursive_bindings: std::sync::Arc::clone(&facts.recursive),
+            inst_ty: std::cell::RefCell::default(),
             item,
             origin_root: b.anchor(b.sub_root[0]),
             args,
@@ -1568,7 +1592,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             locals: HashMap::default(),
             providers: Vec::new(),
             provider_owners: HashMap::default(),
-            provider_transfer_calls: HashMap::default(),
+            provider_transfer_calls: std::sync::Arc::clone(&facts.transfers),
+            rows: std::sync::Arc::clone(&facts.rows[sub as usize]),
+            root_params: std::sync::Arc::clone(&facts.root_params),
+            borrow_facts: std::sync::Arc::clone(&facts.borrow),
             transferred_providers: hd_base::HashSet::default(),
             open_ctx: None,
             open_base: 0,
@@ -1586,7 +1613,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             inst: InstId::from_raw(u32::MAX),
             flats: std::cell::RefCell::default(),
             variant_tys: std::cell::RefCell::default(),
-            projs: Vec::new(),
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
             lazy: HashMap::default(),
@@ -1616,26 +1642,16 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             susp_slots: 0,
             drive_buffer: None,
             sub_id: sub,
-            consumer: Vec::new(),
             loan_uses,
-            copy_reasons: Vec::new(),
-            used: Vec::new(),
-            value_uses: Vec::new(),
-            part_only: Vec::new(),
-            topo: hd_tir::ir::Topology::new(b),
-            tree: std::cell::OnceCell::new(),
-            own_ops: Vec::new(),
+            uses: std::sync::Arc::clone(&facts.uses),
+            topo: std::sync::Arc::clone(&facts.topo),
+            tree: std::sync::Arc::clone(&facts.tree),
             hoisted: Vec::new(),
             deferred_uniques: HashMap::default(),
             walked: None,
             walked_store: None,
             driven: HashMap::default(),
         };
-        em.provider_transfer_calls = hd_tir::own::scoped_provider_transfers(b, &em.topo)
-            .into_iter()
-            .map(|(scope, operand, call)| ((scope, operand), call))
-            .collect();
-        em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em.headers = em.header_facts();
         em
     }
@@ -1701,12 +1717,12 @@ impl Em<'_, '_, '_> {
 
     /// The value projection read `i` reads from, and what it reads.
     fn projection(&self, i: usize) -> Option<(u32, shape::Projected)> {
-        shape::projection(self.b, i, &self.projs)
+        shape::projection(self.b, i, self.projected(i))
     }
 
     /// [`shape::read_through`] of instruction `i`.
     fn read_through(&self, i: usize) -> Option<(shape::Through, bool)> {
-        shape::read_through(self.b, i, &self.projs)
+        shape::read_through(self.b, i, self.projected(i))
     }
 
     fn ty_of(&self, r: u32) -> Ty {
@@ -1714,14 +1730,20 @@ impl Em<'_, '_, '_> {
             return Ty::VOID;
         }
         match Ref(r).as_inst() {
-            Some(i) => self.inst_ty[i.0 as usize],
+            Some(i) => self.ty(i.0),
             None => self.sub(self.b.consts[(r & !Ref::CONST_BIT) as usize].0),
         }
     }
 
     /// The type of instruction `i`, substituted.
     fn ty(&self, i: u32) -> Ty {
-        self.inst_ty[i as usize]
+        if let Some(&t) = self.inst_ty.borrow().get(&i) {
+            return t;
+        }
+        crate::work::use_facts(1);
+        let t = self.sub(self.b.ty[i as usize]);
+        self.inst_ty.borrow_mut().insert(i, t);
+        t
     }
 
     /// The position of the first of `items`, a block's, that has type
@@ -2313,6 +2335,7 @@ impl Em<'_, '_, '_> {
         let was = self.f.reason;
         if self.f.names_counts {
             self.f.reason = self
+                .uses
                 .copy_reasons
                 .get(i as usize)
                 .copied()
@@ -2338,7 +2361,7 @@ impl Em<'_, '_, '_> {
         // Its value, when nothing uses it, ends here.
         self.f.reason = Some(Reason::LastUse);
         if r.is_ok()
-            && !self.used.get(i as usize).copied().unwrap_or(false)
+            && !self.uses.used.get(i as usize).copied().unwrap_or(false)
             && self.needs_drop(self.ty(i))
         {
             r = self.release_value(i);
@@ -4255,11 +4278,13 @@ impl Em<'_, '_, '_> {
             self.f.set(addr);
             let loaded = crate::rt::ref_load(&mut self.f, addr, &layout);
             let old = self.vals.insert(a, loaded);
-            saved.push((a, at, old, std::mem::replace(&mut self.inst_ty[at], target)));
+            let ty = self.ty(a);
+            self.inst_ty.get_mut().insert(a, target);
+            saved.push((a, at, old, ty));
         }
         let done = self.builtin_values(i, name, self_ty, args);
-        for (a, at, old, t) in saved {
-            self.inst_ty[at] = t;
+        for (a, _, old, t) in saved {
+            self.inst_ty.get_mut().insert(a, t);
             match old {
                 Some(ls) => self.vals.insert(a, ls),
                 None => self.vals.remove(&a),

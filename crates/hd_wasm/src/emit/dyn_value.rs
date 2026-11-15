@@ -285,6 +285,7 @@ impl Em<'_, '_, '_> {
         if self.fat_local_ref(self.ty(i))
             && hd_tir::ir::Ref(tail).as_inst().is_some()
             && self
+                .uses
                 .consumer
                 .get(tail as usize)
                 .is_some_and(|&c| c == user || c == i)

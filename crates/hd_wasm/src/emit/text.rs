@@ -111,11 +111,11 @@ impl Em<'_, '_, '_> {
         let Some(read) = Ref(left).as_inst().map(|r| r.0 as usize) else {
             return Ok(None);
         };
-        let store = self.consumer.get(i as usize).copied().unwrap_or(NONE);
+        let store = self.uses.consumer.get(i as usize).copied().unwrap_or(NONE);
         if store == NONE
             || self.b.tags[read] != Tag::Read
             || self.b.data[read][1] == ReadMode::Move as u32
-            || self.value_uses.get(read) != Some(&1)
+            || self.uses.value_uses.get(read) != Some(&1)
             || self.b.tags[store as usize] != Tag::Store
         {
             return Ok(None);
@@ -211,7 +211,7 @@ impl Em<'_, '_, '_> {
         let Some(local) = super::shape::read_local(self.b, left) else {
             return Ok(None);
         };
-        let Some(&store) = self.consumer.get(i as usize) else {
+        let Some(&store) = self.uses.consumer.get(i as usize) else {
             return Ok(None);
         };
         if store == NONE {

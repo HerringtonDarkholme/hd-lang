@@ -16,12 +16,14 @@ use crate::layout::{self, Kind};
 use crate::module::Module;
 
 struct LocalRoots {
-    shared: HashSet<usize>,
+    shared: Arc<HashSet<usize>>,
     pointers: HashSet<usize>,
     storage: Arc<borrow::StorageRoots>,
 }
 
 struct PreparedBody {
+    rows: Vec<Arc<[usize]>>,
+    shared: Arc<HashSet<usize>>,
     origins: Arc<excl::OriginIndex>,
     stores: Vec<Arc<[usize]>>,
     storage: Arc<borrow::StorageRoots>,
@@ -33,6 +35,7 @@ struct Facts<'a, 'b> {
     roots: HashMap<InstId, LocalRoots>,
     /// Each instance's body, by instance number, which every fact reads.
     bodies: Vec<Option<&'a Body>>,
+    rows: Vec<Arc<[usize]>>,
     carried: RefCell<HashMap<InstId, excl::OriginGraph>>,
 }
 
@@ -45,6 +48,7 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
     // preparation; no pointer key survives in Module. A generic body's
     // instruction groups are built once, shared by all its instances.
     let mut grouped: HashMap<*const Body, PreparedBody> = HashMap::default();
+    let mut rows: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
     let mut stores: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
     for &id in input.order {
         let Some(b) = (input.body)(id) else {
@@ -54,6 +58,15 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         let groups = grouped
             .entry(std::ptr::from_ref(b))
             .or_insert_with(|| PreparedBody {
+                rows: {
+                    let mut rows = vec![Vec::new(); b.sub_root.len()];
+                    for (i, sub) in b.inst_subs().into_iter().enumerate() {
+                        rows[sub as usize].push(i);
+                    }
+                    crate::work::use_facts(b.len());
+                    rows.into_iter().map(Arc::from).collect()
+                },
+                shared: Arc::new(super::closure::shared_locals(b)),
                 origins: Arc::new(excl::OriginIndex::new(b)),
                 stores: excl::binding_stores(b),
                 storage: Arc::new(borrow::StorageRoots::new(b)),
@@ -62,6 +75,7 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
             continue;
         };
+        rows[id.idx()] = Arc::clone(&groups.rows[usize::from(scope)]);
         let sites = Arc::clone(&groups.stores[usize::from(scope)]);
         stores[id.idx()] = Arc::clone(&sites);
         let t = &input.collected.table;
@@ -78,7 +92,7 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
             id,
             LocalRoots {
                 storage: Arc::clone(&groups.storage),
-                shared: super::closure::shared_locals(b),
+                shared: Arc::clone(&groups.shared),
                 pointers: borrow::pointer_locals(input.pool, input.env, b, &sub, &sites),
             },
         );
@@ -90,6 +104,7 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         module,
         roots,
         bodies,
+        rows,
         carried: RefCell::default(),
     })
 }
@@ -112,6 +127,11 @@ impl Context for Facts<'_, '_> {
 
     fn body(&self, id: InstId) -> Option<&Body> {
         self.bodies[id.idx()].or_else(|| (self.input.body)(id))
+    }
+
+    fn instructions(&self, id: InstId) -> &[usize] {
+        crate::work::use_facts(self.rows[id.idx()].len());
+        &self.rows[id.idx()]
     }
 
     fn source(&self, id: InstId) -> Option<(DefId, TyList, u16)> {

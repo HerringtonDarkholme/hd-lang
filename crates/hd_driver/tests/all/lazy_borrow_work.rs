@@ -30,8 +30,12 @@ fn matches(n: usize) -> String {
 
 /// The use-fact work of building `matches(n)` to Wasm.
 fn work(n: usize) -> u64 {
+    source_work(&matches(n))
+}
+
+fn source_work(source: &str) -> u64 {
     let mut src = MemorySources::default();
-    src.insert("main.hd", &matches(n));
+    src.insert("main.hd", source);
     let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
@@ -62,4 +66,71 @@ fn matches_through_a_reference_cost_linear_use_fact_work() {
         large - small <= 10 * (small - base),
         "n=0: {base}, n=100: {small}, n=1000: {large}"
     );
+}
+
+/// All nested functions belong to one TIR body. Width adds sibling
+/// captures/calls; depth adds wrappers without multiplying their source.
+fn closures(width: usize, depth: usize, loops: bool) -> String {
+    let mut source = String::from("fn run() -> i32:\n");
+    let mut indent = "    ".to_owned();
+    for level in 0..depth {
+        writeln!(source, "{indent}nested{level} := fn() -> i32:").expect("string");
+        indent.push_str("    ");
+    }
+    writeln!(source, "{indent}let total = +0").expect("string");
+    for index in 0..width {
+        if loops {
+            writeln!(source, "{indent}c{index} := fn(x: i32) -> i32:").expect("string");
+            writeln!(source, "{indent}    xs := [x, total]").expect("string");
+            writeln!(source, "{indent}    let result = +0").expect("string");
+            writeln!(source, "{indent}    for i in 0..xs.len():").expect("string");
+            writeln!(source, "{indent}        result += xs[i]").expect("string");
+            writeln!(source, "{indent}    result").expect("string");
+        } else {
+            writeln!(source, "{indent}c{index} := fn(x: i32) -> i32: x + total").expect("string");
+        }
+        writeln!(source, "{indent}total = c{index}(+1)").expect("string");
+    }
+    writeln!(source, "{indent}total").expect("string");
+    for level in (0..depth).rev() {
+        indent.truncate(indent.len() - 4);
+        writeln!(source, "{indent}nested{level}()").expect("string");
+    }
+    source.push_str("\npub fn main() -> void $ Console:\n    println(run())\n");
+    source
+}
+
+#[test]
+fn closures_share_one_use_census_at_width_1000_and_depth_20() {
+    for depth in [1, 20] {
+        let base = source_work(&closures(0, depth, false));
+        let small = source_work(&closures(100, depth, false));
+        let large = source_work(&closures(1000, depth, false));
+        eprintln!("closure use work depth={depth}: zero={base}, n100={small}, n1000={large}");
+        assert!(small > base, "the actual census must run");
+        assert!(
+            large - base <= 11 * (small - base),
+            "depth={depth}: {base}, {small}, {large}"
+        );
+    }
+}
+
+/// The preorder added by #1916 is another immutable body analysis: loop
+/// queries in sibling closures must share it too, including deep wrappers.
+#[test]
+fn closures_share_the_loop_preorder_at_width_1000_and_depth_20() {
+    for depth in [1, 20] {
+        let work = |width| {
+            let (_, loops) =
+                hd_wasm::work::count_loop_scans(|| source_work(&closures(width, depth, true)));
+            loops
+        };
+        let (base, small, large) = (work(0), work(100), work(1000));
+        eprintln!("closure loop work depth={depth}: zero={base}, n100={small}, n1000={large}");
+        assert!(small > base, "the real loop proofs must run");
+        assert!(
+            large - base <= 11 * (small - base),
+            "depth={depth}: {base}, {small}, {large}"
+        );
+    }
 }

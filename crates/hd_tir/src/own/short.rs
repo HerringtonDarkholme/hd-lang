@@ -86,7 +86,27 @@ pub fn mark(b: &Body, topo: &Topology, cx: &dyn Context) -> Vec<Mark> {
         cx,
         loans: HashSet::default(),
     }
-    .run()
+    .run(0..b.len(), None)
+}
+
+/// Decide origins belonging to one emitted sub-body. The immutable use
+/// census is shared by all its sibling instances; layout queries remain
+/// specific to `cx`. Instruction indices retain original body order.
+#[must_use]
+pub fn mark_indexed(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn Context,
+    rows: &[usize],
+    uses: &std::sync::OnceLock<Uses>,
+) -> Vec<Mark> {
+    Pass {
+        b,
+        topo,
+        cx,
+        loans: HashSet::default(),
+    }
+    .run(rows.iter().copied(), Some(uses))
 }
 
 struct Pass<'a> {
@@ -97,7 +117,8 @@ struct Pass<'a> {
 }
 
 /// The uses of each value and each local, for [`mark`].
-struct Uses {
+pub struct Uses {
+    retains: hd_base::HashMap<u32, Vec<u32>>,
     of_value: Vec<Vec<u32>>,
     of_local: Vec<Vec<u32>>,
     stores: Vec<u32>,
@@ -112,17 +133,22 @@ struct Found {
 }
 
 impl Pass<'_> {
-    fn run(&mut self) -> Vec<Mark> {
-        let origins: Vec<_> = (0..self.b.len())
+    fn run(
+        &mut self,
+        rows: impl Iterator<Item = usize>,
+        cache: Option<&std::sync::OnceLock<Uses>>,
+    ) -> Vec<Mark> {
+        let origins: Vec<_> = rows
             .filter_map(|i| self.loan_origin(u32::try_from(i).expect("insts")))
             .collect();
         if origins.is_empty() {
             return Vec::new();
         }
-        let uses = self.loan_uses();
+        let local = std::sync::OnceLock::new();
+        let uses = cache.unwrap_or(&local).get_or_init(|| self.loan_uses());
         let mut marks = Vec::new();
         for (origin, mutable, skips) in origins {
-            let Some(found) = self.short_loan(&uses, origin, mutable) else {
+            let Some(found) = self.short_loan(uses, origin, mutable) else {
                 continue;
             };
             self.loans.extend(found.values.iter().copied());
@@ -239,6 +265,7 @@ impl Pass<'_> {
     fn loan_uses(&self) -> Uses {
         let (n, locals) = (self.b.len(), self.b.local_ty.len());
         let mut u = Uses {
+            retains: hd_base::HashMap::default(),
             of_value: vec![Vec::new(); n],
             of_local: vec![Vec::new(); locals],
             stores: vec![0; locals],
@@ -247,6 +274,9 @@ impl Pass<'_> {
         let mut ops = Vec::new();
         for j in 0..n {
             let x = u32::try_from(j).expect("insts");
+            if self.b.tags[j] == Tag::Retain {
+                u.retains.entry(self.b.data[j][0]).or_default().push(x);
+            }
             crate::own::operands(self.b, j, &mut ops);
             for op in &ops {
                 let uses = &mut u.of_value[op.value as usize];
@@ -311,13 +341,7 @@ impl Pass<'_> {
         }
         let roots = self.loan_roots(o);
         // A lookup's copy of its value is the loan's own: it goes with it.
-        own.extend(
-            (0..self.b.len())
-                .map(|j| u32::try_from(j).expect("insts"))
-                .filter(|&j| {
-                    self.b.tags[j as usize] == Tag::Retain && self.b.data[j as usize][0] == o
-                }),
-        );
+        own.extend(u.retains.get(&o).into_iter().flatten().copied());
         if let [end] = ends[..]
             && self.topo.loop_of[o as usize] == self.topo.loop_of[end as usize]
             && self.quiet_span(o, end, &roots, &own)

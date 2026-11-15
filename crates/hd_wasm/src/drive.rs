@@ -185,6 +185,13 @@ fn raw_cold_call(input: &Input<'_>, id: InstId, body: &Body, i: usize) -> bool {
 /// Classifies the async and blocking drive slots before any vtable is built.
 /// Each set contains exactly the methods whose corresponding call form appears.
 pub fn collect(input: &Input<'_>, m: &mut Module) {
+    struct BodyFacts {
+        topo: std::sync::OnceLock<Topology>,
+        raw: Vec<Vec<usize>>,
+    }
+    // Bodies remain borrowed by Input for this preparation. Cache only
+    // immutable topology and original-order raw calls, never call targets.
+    let mut bodies: hd_base::HashMap<*const Body, BodyFacts> = hd_base::HashMap::default();
     let env = input.env;
     let mut immediate = hd_base::HashSet::default();
     let mut cold = hd_base::HashSet::default();
@@ -195,30 +202,37 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
             unknown |= calls.values().any(|target| matches!(target, Target::Dyn));
             continue;
         };
-        let mut topo = None;
-        if b.tags
-            .iter()
-            .any(|tag| matches!(tag, Tag::CallValue | Tag::AwaitValue))
-        {
-            let sub = input.collected.table.sub[id.idx()];
-            let topology = topo.get_or_insert_with(|| Topology::new(b));
-            unknown |= b.tags.iter().enumerate().any(|(i, tag)| {
-                let emitted = match sub {
-                    Sub::Body(k) => topology.sub[i] == u32::from(k),
-                    Sub::Adapter => false, // its explicit target is checked below
-                };
-                emitted
-                    && match tag {
-                        Tag::AwaitValue => true,
-                        Tag::CallValue => {
-                            !matches!(
-                                calls.get(&u32::try_from(i).expect("instructions")),
-                                Some(Target::KnownClosure(_))
-                            ) && raw_cold_call(input, *id, b, i)
-                        }
-                        _ => false,
+        let facts = bodies.entry(std::ptr::from_ref(b)).or_insert_with(|| {
+            let topo = std::sync::OnceLock::new();
+            let mut raw = vec![Vec::new(); b.sub_root.len()];
+            if b.tags
+                .iter()
+                .any(|tag| matches!(tag, Tag::CallValue | Tag::AwaitValue))
+            {
+                let topology = topo.get_or_init(|| Topology::new(b));
+                for (i, tag) in b.tags.iter().enumerate() {
+                    if matches!(tag, Tag::CallValue | Tag::AwaitValue) {
+                        raw[topology.sub[i] as usize].push(i);
                     }
-            });
+                }
+            }
+            crate::work::use_facts(b.len());
+            BodyFacts { topo, raw }
+        });
+        if let Sub::Body(sub) = input.collected.table.sub[id.idx()] {
+            unknown |= facts.raw[usize::from(sub)]
+                .iter()
+                .any(|&i| match b.tags[i] {
+                    Tag::AwaitValue => true,
+                    Tag::CallValue => {
+                        // ruled out: verified TIR instruction indices fit u32.
+                        !matches!(
+                            calls.get(&u32::try_from(i).expect("instructions")),
+                            Some(Target::KnownClosure(_))
+                        ) && raw_cold_call(input, *id, b, i)
+                    }
+                    _ => false, // ruled out: only the two raw call tags are indexed.
+                });
         }
         for (&x, target) in calls {
             if !matches!(target, Target::Dyn) {
@@ -245,7 +259,7 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
                 // Retain it conservatively for every asynchronous invocation.
                 cold.insert(method);
             } else {
-                let t = topo.get_or_insert_with(|| Topology::new(b));
+                let t = facts.topo.get_or_init(|| Topology::new(b));
                 if block_on_of(b, t, calls, x).is_some() {
                     m.blocking_driven.insert(method);
                     immediate.insert(method);

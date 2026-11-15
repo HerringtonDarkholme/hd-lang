@@ -969,7 +969,7 @@ impl Em<'_, '_, '_> {
     /// `borrow`, or a copy through `&` of a value that counts nothing,
     /// which nothing can change while the shared reference lives; of a
     /// flat enum every use of which decides on its tag or reaches a part
-    /// of it ([`Em::part_only`]), in a body that does not suspend. Then
+    /// of it ([`Em::uses`]), in a body that does not suspend. Then
     /// the tag loads once and each arm's fields where they are read, as
     /// Rust's match through `&` does, not all its values first. O(1): the
     /// use fact is the body's, computed once.
@@ -982,7 +982,7 @@ impl Em<'_, '_, '_> {
             && (self.loans.contains(&i) || shared_copy)
             && matches!(self.kind(target), Kind::Value)
             && crate::layout::variants(self.pool(), self.env(), target).is_some()
-            && self.part_only[i as usize]
+            && self.uses.part_only[i as usize]
     }
 
     /// `Read move` `i` of a field path of a local whose value lives in
@@ -1696,7 +1696,7 @@ fn counts(arm: &Walk, k: u32) -> bool {
 }
 
 /// The one value instruction `k` of `b` uses only to decide on its tag
-/// or to reach a part of it, if any ([`Em::part_only`]): a `SwitchTag`'s
+/// or to reach a part of it, if any ([`Em::uses`]): a `SwitchTag`'s
 /// scrutinee; the root of a `Read` or `Ref` whose first step is a
 /// variant's payload; the root of a `LoanEnd` or `Drop`. Every other
 /// operand of `k` is a use of another kind.

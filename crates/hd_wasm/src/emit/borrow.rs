@@ -388,11 +388,29 @@ fn frames_of(b: &Body) -> Vec<u32> {
     out
 }
 
+/// Immutable storage and capture facts shared by sibling emitters.
+pub(super) struct BorrowFacts {
+    storage_roots: std::sync::Arc<StorageRoots>,
+    shared: std::sync::Arc<hd_base::HashSet<usize>>,
+    frames: std::sync::Arc<[u32]>,
+}
+
+impl BorrowFacts {
+    fn new(b: &Body, recursive: &hd_tir::own::RecursiveBindings) -> Self {
+        crate::work::use_facts(b.len() + b.local_ty.len() + b.cap_local.len());
+        Self {
+            storage_roots: std::sync::Arc::new(StorageRoots::new(b)),
+            shared: std::sync::Arc::new(super::closure::shared_locals_with(b, recursive)),
+            frames: frames_of(b).into(),
+        }
+    }
+}
+
 /// The per-body state of the loans its holders take.
 #[derive(Default)]
 pub(super) struct Borrows {
     capture_origins: CaptureOrigins,
-    storage_roots: StorageRoots,
+    storage_roots: std::sync::Arc<StorageRoots>,
     /// The holder bindings each `Store` makes.
     binds: HashMap<u32, Vec<(Held, Bind)>>,
     /// The `Ref`s whose loans a holder takes, and the objects each one
@@ -450,9 +468,9 @@ pub(super) struct Borrows {
     abandoned: bool,
     /// The locals a closure shares: each lives in a cell, an object its
     /// places cross at their root ([`ROOT`]).
-    shared: hd_base::HashSet<usize>,
+    shared: std::sync::Arc<hd_base::HashSet<usize>>,
     /// The inlined copy each instruction came from ([`frames_of`]).
-    frames: Vec<u32>,
+    frames: std::sync::Arc<[u32]>,
     /// The local references that hold only `*T` values
     /// ([`pointer_locals`]).
     pointers: hd_base::HashSet<usize>,
@@ -928,11 +946,14 @@ impl Em<'_, '_, '_> {
         let mut carried_graph = super::excl::OriginGraph::default();
         let sub = |t| self.sub(t);
         let found = binds(self.pool(), self.env(), self.b, &origin_index, &sub, &sites);
+        let immutable = self
+            .borrow_facts
+            .get_or_init(|| BorrowFacts::new(self.b, &self.recursive_bindings));
         let mut st = Borrows {
             capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
-            storage_roots: StorageRoots::new(self.b),
-            shared: super::closure::shared_locals(self.b),
-            frames: frames_of(self.b),
+            storage_roots: std::sync::Arc::clone(&immutable.storage_roots),
+            shared: std::sync::Arc::clone(&immutable.shared),
+            frames: std::sync::Arc::clone(&immutable.frames),
             pointers: pointer_locals(self.pool(), self.env(), self.b, &sub, &sites),
             ..Borrows::default()
         };

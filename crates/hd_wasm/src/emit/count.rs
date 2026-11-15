@@ -297,7 +297,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn prepare_own_loans(&mut self) -> StageResult<()> {
         use hd_tir::ir::place;
         self.prepare_string_slice_comparisons();
-        for i in 0..self.b.len() {
+        for i in std::sync::Arc::clone(&self.rows).iter().copied() {
             let [a, w] = self.b.data[i];
             let x = u32::try_from(i).expect("insts");
             if self.b.tags[i] == Tag::CallValue
@@ -466,8 +466,8 @@ impl Em<'_, '_, '_> {
     /// for the body. Count preparation and emission then do constant-time
     /// lookups instead of rescanning the body for every instruction.
     fn prepare_string_slice_comparisons(&mut self) {
-        for (equal, tag) in self.b.tags.iter().enumerate() {
-            if *tag != Tag::Intrinsic
+        for &equal in self.rows.iter() {
+            if self.b.tags[equal] != Tag::Intrinsic
                 || IntrinsicOp::from_u32(self.b.data[equal][0]) != Some(IntrinsicOp::StrEq)
             {
                 continue;
@@ -1029,14 +1029,13 @@ impl Em<'_, '_, '_> {
         // Exit release descriptors are lowered here on every return, but
         // for a parameter this instance receives lent: the whole-program
         // pass lends it, or its type here is no owned one.
-        let params = super::param_locals(self.b);
+        let params = &self.root_params;
         let mut exits: Vec<(usize, Reason)> = self
-            .b
-            .tags
+            .rows
             .iter()
-            .enumerate()
-            .filter_map(|(i, &tag)| {
-                if tag != Tag::Release {
+            .copied()
+            .filter_map(|i| {
+                if self.b.tags[i] != Tag::Release {
                     return None;
                 }
                 let c = Info::read(self.b, i)?;
@@ -1094,65 +1093,6 @@ impl Em<'_, '_, '_> {
 }
 
 impl Em<'_, '_, '_> {
-    /// The consumer of each value of an owned body, by the passes' rule
-    /// (`hd_tir::own::consumers`), and the body's per-value use facts
-    /// ([`Em::used`], [`Em::value_uses`], [`Em::part_only`]) in one pass
-    /// over its operands: O(instructions + operands).
-    pub(super) fn own_consumers(&mut self) {
-        hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
-        let verify = cfg!(not(target_arch = "wasm32")) && self.input.runtime.checked.is_some();
-        if self.m.track_origins || verify {
-            hd_tir::own::copy_reasons(
-                self.b,
-                &self.topo,
-                self.input.own_cx,
-                &mut self.copy_reasons,
-            );
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        if verify {
-            let bad = hd_tir::own::check_copy_reasons(
-                self.b,
-                &self.topo,
-                self.input.own_cx,
-                &self.copy_reasons,
-            );
-            assert!(
-                bad.is_empty(),
-                "the reason verifier rejects a body of item {:?}:\n{}",
-                self.b.item,
-                bad.join("\n")
-            );
-        }
-        self.used.clear();
-        self.used.resize(self.b.len(), false);
-        self.value_uses.clear();
-        self.value_uses.resize(self.b.len(), 0);
-        self.part_only.clear();
-        self.part_only.resize(self.b.len(), true);
-        let mut ops = std::mem::take(&mut self.own_ops);
-        for i in 0..self.b.len() {
-            if self.b.tags[i] == Tag::Retain
-                && Info::read(self.b, i).is_some_and(|c| c.at == At::Value)
-            {
-                self.used[self.b.data[i][0] as usize] = true;
-            }
-            hd_tir::own::operands(self.b, i, &mut ops);
-            let part = super::refs::part_use(self.b, i);
-            for op in &ops {
-                self.used[op.value as usize] = true;
-                if op.role != hd_tir::ir::Role::Dropped {
-                    self.value_uses[op.value as usize] += 1;
-                }
-                if part != Some(op.value) {
-                    self.part_only[op.value as usize] = false;
-                }
-            }
-        }
-        crate::work::use_facts(self.b.len());
-        self.own_ops = ops;
-    }
-
     /// In an owned body, at an instance that receives some of the
     /// function's parameters `plocals` borrowed (a type parameter's made a
     /// reference, or a reference the passes own): the parameters that take
@@ -1211,7 +1151,7 @@ impl Em<'_, '_, '_> {
             let mut loans = Vec::new();
             for &i in uses.reads(l) {
                 let x = u32::try_from(i).expect("insts");
-                let consumer = self.consumer.get(i).copied().unwrap_or(NONE);
+                let consumer = self.uses.consumer.get(i).copied().unwrap_or(NONE);
                 if !uses.moved(x) && (consumer == NONE || self.borrowed_arg(consumer, x)) {
                     loans.push(x);
                 } else {
@@ -1274,7 +1214,7 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
                 let x = u32::try_from(i).expect("insts");
-                let consumer = self.consumer.get(i).copied().unwrap_or(NONE);
+                let consumer = self.uses.consumer.get(i).copied().unwrap_or(NONE);
                 if !uses.moved.contains(&x) && (consumer == NONE || self.borrowed_arg(consumer, x))
                 {
                     loans.push(x);
@@ -1423,7 +1363,7 @@ impl Em<'_, '_, '_> {
         if !self.counting
             || r == NONE
             || Ref(r).as_inst().is_none()
-            || self.consumer.get(r as usize) != Some(&user)
+            || self.uses.consumer.get(r as usize) != Some(&user)
             || !self.vals.contains_key(&r)
             || !self.needs_drop(self.ty_of(r))
             || self.moving.contains(&(user, r))

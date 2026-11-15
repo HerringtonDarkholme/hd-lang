@@ -66,9 +66,16 @@ pub(super) fn cell_locals(b: &Body, stored: &[usize]) -> HashMap<usize, u32> {
 /// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
 pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
     let recursive = hd_tir::own::RecursiveBindings::new(b);
+    shared_locals_with(b, &recursive)
+}
+
+pub(super) fn shared_locals_with(
+    b: &Body,
+    recursive: &hd_tir::own::RecursiveBindings,
+) -> hd_base::HashSet<usize> {
     (0..b.len())
         .filter(|&ci| b.tags[ci] == Tag::Closure)
-        .flat_map(|ci| hd_tir::own::closure_captures(b, ci, &recursive))
+        .flat_map(|ci| hd_tir::own::closure_captures(b, ci, recursive))
         .filter_map(|(l, shared)| shared.then_some(l))
         .chain(
             b.inlined_shared
@@ -87,19 +94,16 @@ pub(super) fn stored_locals(
     input: &crate::Input<'_>,
     b: &Body,
     (item, args): (hd_base::DefId, hd_types::TyList),
-    sub: u16,
+    (sub, facts): (u16, &super::body_facts::BodyFacts),
     promoted: &HashSet<u32>,
 ) -> (Vec<usize>, Vec<usize>) {
     let (pool, env) = (input.pool, input.env);
-    let shared = if promoted.is_empty() {
-        HashSet::default()
-    } else {
-        shared_locals(b)
-    };
+    let shared = &facts.shared;
     let reached = |l: usize| {
         promoted.is_empty()
             || shared.contains(&l)
-            || (0..b.len()).any(|i| {
+            || facts.refs.get(&l).into_iter().flatten().copied().any(|i| {
+                crate::work::use_facts(1);
                 super::shape::ref_local(b, i) == Some(l)
                     && !promoted.contains(&u32::try_from(i).expect("insts"))
                     && matches!(
@@ -113,8 +117,9 @@ pub(super) fn stored_locals(
             })
     };
     let (mut cells, mut slots) = (Vec::new(), Vec::new());
-    for &(s, l, k) in &b.storage {
-        if s.idx() == usize::from(sub) && reached(l.idx()) {
+    for &(l, k) in &facts.storage[usize::from(sub)] {
+        crate::work::use_facts(1);
+        if reached(l.idx()) {
             cells.push(l.idx());
             if k == hd_tir::ir::Storage::Slot {
                 slots.push(l.idx());
@@ -157,14 +162,8 @@ pub(super) fn closure_of(
     input: &crate::Input<'_>,
     b: &Body,
     args: hd_types::TyList,
-    sub: u16,
+    ci: usize,
 ) -> (usize, bool, Ty) {
-    let defining = |i: usize| {
-        b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub) && !b.is_instantiation(i)
-    };
-    let ci = (0..b.len())
-        .find(|&i| defining(i))
-        .expect("a sub-body's closure");
     let (pool, env) = (input.pool, input.env);
     let t = hd_mono::subst(pool, env, b.item, args, b.ty[ci]);
     let TyData::Fn {

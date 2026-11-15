@@ -97,10 +97,11 @@ pub(super) fn promoted_refs(
     (item, args): (DefId, TyList),
     targets: &HashMap<u32, Target>,
     own: bool,
+    rows: &[usize],
 ) -> HashSet<u32> {
     let (pool, env) = (input.pool, input.env);
     let mut out = HashSet::default();
-    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Call) {
+    for i in rows.iter().copied().filter(|&i| b.tags[i] == Tag::Call) {
         let Some(Target::Call(ct)) = targets.get(&u32::try_from(i).expect("insts")) else {
             continue;
         };
@@ -168,8 +169,8 @@ impl Em<'_, '_, '_> {
         for &a in &promoted {
             // ruled out: promoted copies select only lent_referent types;
             // primitive comparisons use promotable_referent. Both are thin.
-            if let Some((target, false)) = self.ref_target(self.inst_ty[a as usize]) {
-                self.inst_ty[a as usize] = target;
+            if let Some((target, false)) = self.ref_target(self.ty(a)) {
+                self.inst_ty.get_mut().insert(a, target);
                 let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
                 if self.tracked(target) && !takes {
                     self.loans.insert(a);

@@ -82,16 +82,13 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
 export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["dyn-values build", "#1908"],
   ["row-chain build", "#1920"],
-  ["closures build", "#1907"],
   ["matches build", "#1917"],
   ["enum-arms build", "#1909"],
   ["interpolation build", "#1914"],
-  ["closure-nest build", "#1906"],
   ["option-nest build", "#1918"],
   ["generic-nest check", "#1912"],
   ["generic-nest build", "#1912"],
   ["tuple-nest build", "#1924"],
-  ["fn-nest build", "#1911"],
 ]);
 
 /** Each counter's total in one run. */

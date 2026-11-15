@@ -51,6 +51,8 @@ pub struct Conversion {
 pub trait Context {
     fn order(&self) -> &[InstId];
     fn body(&self, id: InstId) -> Option<&Body>;
+    /// Original-order instructions belonging to this instance's sub-body.
+    fn instructions(&self, id: InstId) -> &[usize];
     fn source(&self, id: InstId) -> Option<(DefId, TyList, u16)>;
     fn substitute(&self, id: InstId, ty: Ty) -> Ty;
     fn reference(&self, ty: Ty) -> Option<Reference>;
@@ -251,7 +253,7 @@ fn accesses(
     b: &Body,
 ) -> HashMap<u32, Acc> {
     let mut out: HashMap<u32, Acc> = HashMap::default();
-    for i in 0..b.tags.len() {
+    for &i in cx.instructions(id) {
         let iu = u32::try_from(i).expect("insts");
         match b.tags[i] {
             Tag::Store | Tag::IsUnique | Tag::Ref | Tag::Read => {
@@ -540,7 +542,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
             }
         }
         // Call loans: from the argument to the call, and the callee.
-        for i in 0..b.tags.len() {
+        for &i in cx.instructions(*id) {
             let iu = u32::try_from(i).expect("insts");
             let Some(receiver) = cx.receiver(*id, i) else {
                 continue;
@@ -702,7 +704,7 @@ fn returned_inner(cx: &impl Context, callee: InstId, k: usize) -> Vec<Ty> {
     let param = cx.substitute(callee, b.local_ty[l]);
     let counted = cx.reference(param).is_some_and(|r| r.whole && !r.fat);
     let mut out = Vec::new();
-    for i in 0..b.tags.len() {
+    for &i in cx.instructions(callee) {
         if b.tags[i] != Tag::Ref {
             continue;
         }

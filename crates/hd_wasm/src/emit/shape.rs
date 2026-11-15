@@ -131,7 +131,7 @@ pub(super) struct Tree {
 }
 
 impl Tree {
-    fn new(b: &Body, topo: &hd_tir::ir::Topology) -> Self {
+    pub(super) fn new(b: &Body, topo: &hd_tir::ir::Topology) -> Self {
         let n = b.len();
         let parent = |i: usize| -> u32 {
             if b.tags[i] == Tag::Block {
@@ -292,8 +292,8 @@ pub(super) fn ref_local(b: &Body, i: usize) -> Option<usize> {
 }
 
 /// What a projection read of one step from a value reads, by the type
-/// of that value (`Em::projected`): one fact per instruction, in a table
-/// indexed by instruction. A read through a reference is `None`.
+/// of that value (`Em::projected`), queried from its instantiated type.
+/// A read through a reference is `None`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum Projected {
     /// No projection read.
@@ -309,8 +309,8 @@ pub(super) enum Projected {
 
 /// The value projection read `i` reads from, and what it reads
 /// ([`Projected`]); `None` for any other instruction.
-pub(super) fn projection(b: &Body, i: usize, projs: &[Projected]) -> Option<(u32, Projected)> {
-    match projs.get(i).copied().unwrap_or_default() {
+pub(super) fn projection(b: &Body, i: usize, projected: Projected) -> Option<(u32, Projected)> {
+    match projected {
         Projected::None => None,
         p => b.read_step(i).map(|(v, _)| (v, p)),
     }
@@ -328,9 +328,9 @@ pub(super) enum Through {
 /// What a `Read` `i` whose place starts with a dereference reads
 /// through, and whether it reads the whole referenced value. A data
 /// object's field ([`Projected`]) is no read through a reference.
-pub(super) fn read_through(b: &Body, i: usize, projs: &[Projected]) -> Option<(Through, bool)> {
+pub(super) fn read_through(b: &Body, i: usize, projected: Projected) -> Option<(Through, bool)> {
     match b.tags[i] {
-        Tag::Read if projection(b, i, projs).is_none() => {
+        Tag::Read if projection(b, i, projected).is_none() => {
             let p = b.decode_place(b.data[i][0])?;
             if p.proj.first() != Some(&Proj::Deref) {
                 return None;
@@ -444,7 +444,10 @@ mod tests {
         let new = reference_body();
         assert_eq!(local_store(&new, 1), Some((0, 0)));
         assert_eq!(ref_local(&new, 2), Some(0));
-        assert_eq!(read_through(&new, 3, &[]), Some((Through::Value(2), true)));
+        assert_eq!(
+            read_through(&new, 3, Projected::None),
+            Some((Through::Value(2), true))
+        );
         assert_eq!(local_part_store(&new, 4), None);
     }
 }
