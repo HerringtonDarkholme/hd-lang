@@ -3246,7 +3246,7 @@ requirements/requirement-rows/row-slots/row-slot-empty.hd	runtime	accept	lang/11
 requirements/provider-scopes/row-slot-bare-context.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
 typing/invalid/row-slot-bare-function-type.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.row.dollar
 typing/invalid/row-slot-bare-explicit-argument.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
-runtime/valid/process-output-ok.hd	runtime	accept	std/process.md#r-std-process.output.ok
+std/process/checking-output/process-output-ok.hd	runtime	accept	std/process.md#r-std-process.output.ok
 runtime/valid/process-scripted-provider.hd	runtime	accept	lang/10-modules.md#r-module.process.not-found-program
 runtime/valid/process-error-results.hd	runtime	accept	lang/10-modules.md#r-module.process.nonzero-ok
 runtime/valid/process-command-defaults.hd	runtime	accept	lang/10-modules.md#r-module.process.named-output-defaults
@@ -3329,10 +3329,10 @@ std/contract/ensure/contract-ensure-pass.hd	runtime	accept	std/contract.md#r-std
 std/contract/ensure/contract-ensure-custom-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.ensure.fail
 std/contract/ensure/contract-ensure-changes-capture.hd	type	reject:not-writable	std/contract.md#r-std-contract.ensure.read-only
 std/contract/require/contract-require-changes-capture.hd	type	reject:not-writable	std/contract.md#r-std-contract.require.read-only
-runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
-runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
-runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer-program
-runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received-ref
+std/process/process-errors/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
+std/process/exit-data/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
+std/process/scripted-process/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer-program
+std/process/scripted-process/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received-ref
 std/ops/range-equality/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 std/collections/list-access-and-building/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
 std/collections/map-methods/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
@@ -4757,9 +4757,9 @@ names/member-resolution/unknown-method-before-diverging-matches.hd	type	reject:u
 grammar/statements/top-level-pattern-binding.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.let-pattern
 typing/invalid/top-level-refutable-let-without-else.hd	type	reject:refutable-let-pattern	lang/06-control-flow.md#r-flow.let.refutable.else
 std/fs/file-helpers/fs-helpers-all.hd	runtime	accept	std/fs.md#r-std-fs.helper.stat
-runtime/valid/process-command-run.hd	runtime	accept	std/process.md#r-std-process.command.run
-runtime/valid/process-command-handle-shared.hd	runtime	accept	std/process.md#r-std-process.command.new-ref
-typing/invalid/command-reference-equality.hd	type	reject:reference-equality	std/process.md#r-std-process.command.compare-ref
+std/process/command/process-command-run.hd	runtime	accept	std/process.md#r-std-process.command.run
+std/process/command/process-command-handle-shared.hd	runtime	accept	std/process.md#r-std-process.command.new-ref
+std/process/command/command-reference-equality.hd	type	reject:reference-equality	std/process.md#r-std-process.command.compare-ref
 std/error/one-off-errors/error-message.hd	runtime	accept	std/error.md#r-std-error.message.display
 std/fs/walking-and-globbing/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
 std/fs/walking-and-globbing/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep
@@ -4828,7 +4828,7 @@ annotations/two-annotate-forms/facts-of-compiler-decorators.hd	runtime	accept	la
 runtime/valid/lct-unsolved-parameter-joins-first.hd	runtime	accept	lang/04-type-system.md#r-types.lct.sites
 grammar/source-files-and-suites/long-else-if-chain.hd	runtime	accept	lang/02-grammar.md#r-grammar.limit.nesting
 typing/invalid/else-if-chain-missing-return-value.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.if.else-if
-runtime/valid/process-exited-data.hd	runtime	accept	std/process.md#r-std-process.error.equal
+std/process/process-errors/process-exited-data.hd	runtime	accept	std/process.md#r-std-process.error.equal
 typing/invalid/match-variant-duplicate-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#r-flow.match.data.fields.duplicate
 typing/invalid/enum-header-duplicate-parameter.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.field.unique
 typing/invalid/variant-duplicate-payload-name.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.shared.payload-names

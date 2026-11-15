@@ -1197,10 +1197,10 @@ std/option.md	3	complete	std/option/borrowed-payloads/option-copied.hd
 std/option.md	4	complete	std/error/one-off-errors/error-message.hd
 std/path.md	1	complete	std/path/paths/path-newtype.hd
 std/path.md	2	complete	std/path/path-operations/path-operations.hd
-std/process.md	1	complete	runtime/valid/process-error-display.hd
-std/process.md	2	complete	runtime/valid/process-exit-data-eq.hd
+std/process.md	1	complete	std/process/process-errors/process-error-display.hd
+std/process.md	2	complete	std/process/exit-data/process-exit-data-eq.hd
 std/process.md	3	type-fragment	-
-std/process.md	4	complete	runtime/valid/scripted-process.hd|runtime/valid/process-scripted-received.hd
+std/process.md	4	complete	std/process/scripted-process/scripted-process.hd|std/process/scripted-process/process-scripted-received.hd
 std/process.md	5	complete	-
 std/random.md	1	type-fragment	-
 std/random.md	2	complete	typing/valid/random-trait.hd

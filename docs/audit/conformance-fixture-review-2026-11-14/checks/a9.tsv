@@ -697,7 +697,7 @@ names/control-flow-binding-scopes/while-body-binding-not-in-else.hd	A9	reject:un
 names/member-resolution/associated-function-dot-call.hd	A9	reject:unknown-method not mentioned in cited lang/03-names-and-scopes.md#r-names.member.associated
 names/member-resolution/members-same-for-every-module.hd	A9	reject:private-member not mentioned in cited lang/03-names-and-scopes.md#r-names.members.uniform
 typing/invalid/cast-to-string.hd	A9	reject:not-callable not mentioned in cited lang/04-type-system.md#r-types.cast.nonnumeric
-typing/invalid/command-reference-equality.hd	A9	reject:reference-equality not mentioned in cited std/process.md#r-std-process.command.compare-ref
+std/process/command/command-reference-equality.hd	A9	reject:reference-equality not mentioned in cited std/process.md#r-std-process.command.compare-ref
 typing/invalid/else-if-chain-missing-return-value.hd	A9	reject:missing-return-value not mentioned in cited lang/06-control-flow.md#r-flow.if.else-if
 typing/invalid/polymorphic-recursion-mutual.hd	A9	reject:instantiation-too-deep not mentioned in cited lang/04-type-system.md#r-types.generic.call-cycle
 typing/invalid/polymorphic-recursion-tuple.hd	A9	reject:instantiation-too-deep not mentioned in cited lang/04-type-system.md#r-types.generic.call-cycle.grows
