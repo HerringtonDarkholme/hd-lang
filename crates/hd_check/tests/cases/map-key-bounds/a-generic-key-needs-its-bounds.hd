@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn good[K < Eq & Hash](m: Map[K, i32]) -> i32:
+    0
+
+fn bad[K](m: Map[K, i32]) -> i32:
+    0

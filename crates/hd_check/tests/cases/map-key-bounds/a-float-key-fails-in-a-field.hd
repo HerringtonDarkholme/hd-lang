@@ -1,0 +1,3 @@
+# @dump: diagnostics
+struct Holder:
+    pub m: Map[f64, i32]

@@ -1,0 +1,16 @@
+# @dump: diagnostics
+@derive(Eq, Hash)
+struct Id:
+    value: string
+
+struct Holder:
+    pub by_id: Map[Id, i32]
+    pub by_pair: Map[List[string], Map[u8, bool]]
+    pub by_option: Map[i32?, string]
+
+fn lookup(m: Map[(i32, string), i32], k: Map[char, Result[bool, string]]) -> Map[Id, List[Id]]:
+    {}
+
+fn local() -> void:
+    let m: Map[bool, Map[usize, string]] = {}
+    pass

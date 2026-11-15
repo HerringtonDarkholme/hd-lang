@@ -1,0 +1,9 @@
+# @dump: diagnostics
+fn pick[T](left: T, right: T) -> T:
+    left
+
+fn first(shared: List[*User], owned: List[*mut User]) -> List[*User]:
+    pick(shared, owned)
+
+struct User:
+    name: string

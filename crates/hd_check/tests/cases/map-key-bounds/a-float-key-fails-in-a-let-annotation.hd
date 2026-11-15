@@ -1,0 +1,2 @@
+# @dump: diagnostics
+let m: Map[f64, string] = {}

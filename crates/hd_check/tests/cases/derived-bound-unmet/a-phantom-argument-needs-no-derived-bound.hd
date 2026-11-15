@@ -1,0 +1,12 @@
+# @dump: diagnostics
+use std.format.debug
+
+struct Opaque: pass
+
+@derive(Debug, Eq)
+struct Phantom[T]:
+    value: usize
+
+fn probe(value: Phantom[Opaque]) -> bool:
+    _ := debug(value)
+    value == value

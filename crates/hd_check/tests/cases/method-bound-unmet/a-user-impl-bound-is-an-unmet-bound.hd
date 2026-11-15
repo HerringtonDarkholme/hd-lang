@@ -1,0 +1,10 @@
+# @dump: diagnostics
+struct Box[T]:
+    value: T
+
+impl[T < Display] Box[T]:
+    fn show(self) -> string:
+        self.value.to_string()
+
+fn f(b: Box[fn() -> void]) -> string:
+    b.show()

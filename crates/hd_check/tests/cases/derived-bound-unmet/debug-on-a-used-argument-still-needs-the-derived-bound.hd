@@ -1,0 +1,11 @@
+# @dump: diagnostics
+use std.format.debug
+
+struct Opaque: pass
+
+@derive(Debug)
+struct Box[T]:
+    value: T
+
+fn probe(value: Box[Opaque]) -> void:
+    _ := debug(value)

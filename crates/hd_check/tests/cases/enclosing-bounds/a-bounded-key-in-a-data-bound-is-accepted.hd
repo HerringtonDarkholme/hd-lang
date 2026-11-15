@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Holds[T]:
+    fn get(self) -> T
+
+struct Box[K < Eq & Hash, V, H < Holds[Map[K, V]]]:
+    pub h: H

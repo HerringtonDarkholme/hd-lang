@@ -1,0 +1,3 @@
+# @dump: diagnostics
+fn f(values: List[i32]) -> i32:
+    values.no_such_method()

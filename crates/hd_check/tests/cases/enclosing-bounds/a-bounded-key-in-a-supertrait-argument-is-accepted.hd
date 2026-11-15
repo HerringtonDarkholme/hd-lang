@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Holds[T]:
+    fn get(self) -> T
+
+trait Keyed[K < Eq & Hash, V] < Holds[Map[K, V]]:
+    fn size(self) -> i32

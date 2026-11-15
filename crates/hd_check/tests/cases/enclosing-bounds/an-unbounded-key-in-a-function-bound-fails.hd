@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Holds[T]:
+    fn get(self) -> T
+
+fn use_it[K, V, H < Holds[Map[K, V]]](h: H) -> i32:
+    0

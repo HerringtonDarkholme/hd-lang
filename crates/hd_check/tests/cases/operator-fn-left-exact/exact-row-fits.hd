@@ -1,0 +1,22 @@
+# @dump: diagnostics
+use std.ops.Shr
+
+trait Db
+
+struct Layer:
+    depth: i32
+
+impl Shr[Layer] for fn(i32) -> i32 $ Db:
+    type Out = i32
+    fn shr(self, rhs: Layer) -> i32:
+        rhs.depth
+
+fn get(n: i32) -> i32:
+    n
+
+fn wire_typed(layer: Layer) -> i32:
+    let handler: fn(i32) -> i32 $ Db = get
+    handler >> layer
+
+pub fn main() -> void:
+    pass

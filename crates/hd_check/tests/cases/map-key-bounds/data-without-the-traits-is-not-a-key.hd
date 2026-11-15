@@ -1,0 +1,6 @@
+# @dump: diagnostics
+struct Plain:
+    n: i32
+
+fn f(m: Map[Plain, i32]) -> i32:
+    0

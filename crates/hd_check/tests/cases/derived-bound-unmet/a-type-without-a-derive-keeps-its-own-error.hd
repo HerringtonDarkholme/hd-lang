@@ -1,0 +1,10 @@
+# @dump: diagnostics
+@derive(Eq)
+struct Box[T]:
+    value: T
+
+struct Socket:
+    port: i32
+
+fn same(a: Socket, b: Socket) -> bool:
+    a == b

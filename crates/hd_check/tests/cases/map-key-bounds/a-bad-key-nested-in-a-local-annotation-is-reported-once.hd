@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn f() -> void:
+    let m: List[Map[f64, i32]] = []
+    pass

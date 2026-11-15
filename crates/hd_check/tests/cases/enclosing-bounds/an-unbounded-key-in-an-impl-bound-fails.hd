@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Holds[T]:
+    fn get(self) -> T
+
+struct Wrap[K, V, H]:
+    pub h: H
+
+impl[K, V, H < Holds[Map[K, V]]] Wrap[K, V, H]:
+    fn id(self) -> i32:
+        0

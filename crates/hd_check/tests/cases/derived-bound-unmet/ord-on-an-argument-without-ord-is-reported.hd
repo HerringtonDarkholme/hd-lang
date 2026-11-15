@@ -1,0 +1,10 @@
+# @dump: diagnostics
+@derive(Eq, PartialOrd)
+struct Box[T]:
+    value: T
+
+struct Socket:
+    port: i32
+
+fn less(a: Box[Socket], b: Box[Socket]) -> bool:
+    a < b
