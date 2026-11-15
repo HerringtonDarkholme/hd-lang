@@ -402,6 +402,10 @@ pub(super) fn call_info(
             };
             Some(env.local_ref_receiver(method))
         }
+        // A map probe, `Map.get_or_insert(&mut self, key, default)`: its
+        // target keeps only the key's hash and equality, not the item, and
+        // collection gives a `Call` such a target for no other callee.
+        Target::MapKey { .. } | Target::MapInline(_) => Some(Some(true)),
         _ => None,
     }
 }

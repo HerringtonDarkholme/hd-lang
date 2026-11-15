@@ -1,0 +1,13 @@
+# @dump: wat
+# `Map.get_or_insert` through a `*mut` lends the map as its `&mut self`
+# receiver: before the probe hashes the key, `insert` tests the map's
+# borrow state and panics `borrow-conflict` when a loan holds it, here the
+# element reference `main` passes while `alias` reaches the same map.
+fn insert(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert("pear", 1)
+    *apples += 1
+
+pub fn main() -> void:
+    stock := box::[Map[string, i32]]({ "apple": 3 })
+    alias := stock
+    insert(alias, &mut stock["apple"])

@@ -1,0 +1,290 @@
+# @dump: tests
+# A `&mut self` receiver through a `*mut` writes the object it reaches
+# (ref.excl.alias.call-loan), so each changing List and Map method called
+# through another alias of a boxed collection panics `borrow-conflict` while
+# an element loan holds it. `Map.get_or_insert`'s call keeps only its key
+# operations as its target; its receiver lends the map as every other
+# method's does, with an inline key, a structural key, and a loan held by
+# a binding or by an earlier `get_or_insert`'s result. Every case panics.
+@derive(Eq, Hash)
+struct Key:
+    id: i32
+    tag: string
+
+fn list_push(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.push(4)
+    *first += 1
+
+fn list_pop(stock: *mut List[i32], first: &mut i32) -> void:
+    _ := stock.pop()
+    *first += 1
+
+fn list_insert(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.insert(0, 9)
+    *first += 1
+
+fn list_remove_at(stock: *mut List[i32], first: &mut i32) -> void:
+    _ := stock.remove_at(2)
+    *first += 1
+
+fn list_clear(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.clear()
+    *first += 1
+
+fn list_reserve(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.reserve(10)
+    *first += 1
+
+fn list_truncate(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.truncate(2)
+    *first += 1
+
+fn list_split_off(stock: *mut List[i32], first: &mut i32) -> void:
+    _ := stock.split_off(2)
+    *first += 1
+
+fn list_append(stock: *mut List[i32], first: &mut i32, more: &mut List[i32]) -> void:
+    stock.append(more)
+    *first += 1
+
+fn list_drain(stock: *mut List[i32], first: &mut i32) -> void:
+    _ := stock.drain(1..2)
+    *first += 1
+
+fn list_resize(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.resize(5, 0)
+    *first += 1
+
+fn list_fill(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.fill(0)
+    *first += 1
+
+fn list_reverse(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.reverse()
+    *first += 1
+
+fn list_span_mut(stock: *mut List[i32], first: &mut i32) -> void:
+    _ := stock.span_mut()
+    *first += 1
+
+fn list_extend(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.extend([5])
+    *first += 1
+
+fn list_sort_by(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.sort_by(fn(a: &i32, b: &i32) -> Ordering: a.cmp(b))
+    *first += 1
+
+fn list_sort_by_key(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.sort_by_key(fn(a: &i32) -> i32: *a)
+    *first += 1
+
+fn list_retain(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.retain(fn(a: &i32) -> bool: *a > 0)
+    *first += 1
+
+fn list_swap(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.swap(1, 2)
+    *first += 1
+
+fn list_sort(stock: *mut List[i32], first: &mut i32) -> void:
+    stock.sort()
+    *first += 1
+
+fn list_index_set(stock: *mut List[i32], first: &mut i32) -> void:
+    stock[1] = 5
+    *first += 1
+
+fn list_index_mut(stock: *mut List[i32], first: &mut i32) -> void:
+    stock[1] += 1
+    *first += 1
+
+fn map_get_or_insert_miss(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert("pear", 1)
+    *apples += 1
+
+fn map_get_or_insert_hit(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert("kiwi", 1)
+    *apples += 1
+
+fn map_remove(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.remove("kiwi")
+    *apples += 1
+
+fn map_retain(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    stock.retain(fn(k: &string, v: &mut i32) -> bool: *v > 0)
+    *apples += 1
+
+fn map_extend(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    stock.extend([("fig", 2)])
+    *apples += 1
+
+fn map_drain(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.drain()
+    *apples += 1
+
+fn map_index_set(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    stock["pear"] = 1
+    *apples += 1
+
+fn map_index_mut(stock: *mut Map[string, i32], apples: &mut i32) -> void:
+    stock["kiwi"] += 1
+    *apples += 1
+
+fn map_int_key(stock: *mut Map[i64, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert(2, 1)
+    *apples += 1
+
+fn map_struct_key(stock: *mut Map[Key, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert(Key { id: 2, tag: "b" }, 1)
+    *apples += 1
+
+fn map_through_result(stock: *mut Map[string, i32], alias: *mut Map[string, i32]) -> void:
+    apples := stock.get_or_insert("apple", 0)
+    map_get_or_insert_miss(alias, apples)
+
+fn list_box() -> *mut List[i32]:
+    box::[List[i32]]([3, 1, 2])
+
+fn map_box() -> *mut Map[string, i32]:
+    box::[Map[string, i32]]({ "apple": 3, "kiwi": 1 })
+
+tests:
+    it("List.push"):
+        stock := list_box()
+        alias := stock
+        list_push(alias, &mut stock[0])
+    it("List.pop"):
+        stock := list_box()
+        alias := stock
+        list_pop(alias, &mut stock[0])
+    it("List.insert"):
+        stock := list_box()
+        alias := stock
+        list_insert(alias, &mut stock[0])
+    it("List.remove_at"):
+        stock := list_box()
+        alias := stock
+        list_remove_at(alias, &mut stock[0])
+    it("List.clear"):
+        stock := list_box()
+        alias := stock
+        list_clear(alias, &mut stock[0])
+    it("List.reserve"):
+        stock := list_box()
+        alias := stock
+        list_reserve(alias, &mut stock[0])
+    it("List.truncate"):
+        stock := list_box()
+        alias := stock
+        list_truncate(alias, &mut stock[0])
+    it("List.split_off"):
+        stock := list_box()
+        alias := stock
+        list_split_off(alias, &mut stock[0])
+    it("List.append"):
+        stock := list_box()
+        alias := stock
+        let mut more: List[i32] = [7]
+        list_append(alias, &mut stock[0], &mut more)
+    it("List.drain"):
+        stock := list_box()
+        alias := stock
+        list_drain(alias, &mut stock[0])
+    it("List.resize"):
+        stock := list_box()
+        alias := stock
+        list_resize(alias, &mut stock[0])
+    it("List.fill"):
+        stock := list_box()
+        alias := stock
+        list_fill(alias, &mut stock[0])
+    it("List.reverse"):
+        stock := list_box()
+        alias := stock
+        list_reverse(alias, &mut stock[0])
+    it("List.span_mut"):
+        stock := list_box()
+        alias := stock
+        list_span_mut(alias, &mut stock[0])
+    it("List.extend"):
+        stock := list_box()
+        alias := stock
+        list_extend(alias, &mut stock[0])
+    it("List.sort_by"):
+        stock := list_box()
+        alias := stock
+        list_sort_by(alias, &mut stock[0])
+    it("List.sort_by_key"):
+        stock := list_box()
+        alias := stock
+        list_sort_by_key(alias, &mut stock[0])
+    it("List.retain"):
+        stock := list_box()
+        alias := stock
+        list_retain(alias, &mut stock[0])
+    it("List.swap"):
+        stock := list_box()
+        alias := stock
+        list_swap(alias, &mut stock[0])
+    it("List.sort"):
+        stock := list_box()
+        alias := stock
+        list_sort(alias, &mut stock[0])
+    it("List.index_set"):
+        stock := list_box()
+        alias := stock
+        list_index_set(alias, &mut stock[0])
+    it("List.index_mut"):
+        stock := list_box()
+        alias := stock
+        list_index_mut(alias, &mut stock[0])
+    it("Map.get_or_insert_miss"):
+        stock := map_box()
+        alias := stock
+        map_get_or_insert_miss(alias, &mut stock["apple"])
+    it("Map.get_or_insert_hit"):
+        stock := map_box()
+        alias := stock
+        map_get_or_insert_hit(alias, &mut stock["apple"])
+    it("Map.remove"):
+        stock := map_box()
+        alias := stock
+        map_remove(alias, &mut stock["apple"])
+    it("Map.retain"):
+        stock := map_box()
+        alias := stock
+        map_retain(alias, &mut stock["apple"])
+    it("Map.extend"):
+        stock := map_box()
+        alias := stock
+        map_extend(alias, &mut stock["apple"])
+    it("Map.drain"):
+        stock := map_box()
+        alias := stock
+        map_drain(alias, &mut stock["apple"])
+    it("Map.index_set"):
+        stock := map_box()
+        alias := stock
+        map_index_set(alias, &mut stock["apple"])
+    it("Map.index_mut"):
+        stock := map_box()
+        alias := stock
+        map_index_mut(alias, &mut stock["apple"])
+    it("Map.get_or_insert at an integer key"):
+        stock := box::[Map[i64, i32]]({ 1: 3 })
+        alias := stock
+        map_int_key(alias, &mut stock[1])
+    it("Map.get_or_insert at a structural key"):
+        stock := box::[Map[Key, i32]]({ Key { id: 1, tag: "a" }: 3 })
+        alias := stock
+        map_struct_key(alias, &mut stock[Key { id: 1, tag: "a" }])
+    it("Map.get_or_insert while a binding holds the loan"):
+        stock := map_box()
+        alias := stock
+        apples := &mut stock["apple"]
+        map_get_or_insert_miss(alias, apples)
+    it("Map.get_or_insert while an earlier get_or_insert's result holds the loan"):
+        stock := map_box()
+        alias := stock
+        map_through_result(stock, alias)
