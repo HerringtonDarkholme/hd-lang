@@ -84,7 +84,7 @@ which kind of row it rests on.
 - **Hand findings, sampled:**
   - B2 `traits/trait-implementations/comparison-traits/derived-hash-field-not-hash.hd`: confirmed. The error
     names `Eq`, not `Hash`.
-  - B4 `runtime/valid/pointer-loan-extra-deep-shared-loans-kept.hd`: **wrong**.
+  - B4 `references/pointer-loans/adversarial/pointer-loan-extra-deep-shared-loans-kept.hd`: **wrong**.
     Its `if n > 1000` never runs on purpose. The write that exists statically
     is what keeps the loans, so its verdict line says "loan needed" against the
     plain twin's "elided".
@@ -2289,7 +2289,7 @@ Ledger: b118 (11): 3 rows. b119 (45): 0 rows (the generated pointer-loan matrix 
 #### b120, b121 (`lang/13-values-and-references.md`, alias conflicts)
 
 Ledger: b120 (45): 1 row. b121 (45): 0 rows. Clean except a plausible spec
-question: `runtime/panic/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd`
+question: `references/pointer-loans/adversarial/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd`
 claims that a bare `*mut` argument converted to `&mut` takes a loan, but rule 7
 covers only paths that dereference a `*mut`, and `ref.convert.lend` doesn't say
 a loan is taken.
@@ -2298,7 +2298,7 @@ a loan is taken.
 
 Ledger: b122 (45): 0 rows. b123 (45): 4 rows.
 
-- **Code under test never runs (B4), plausible-strong**: `runtime/valid/pointer-loan-extra-deep-shared-loans-kept.hd`
+- **Code under test never runs (B4), plausible-strong**: `references/pointer-loans/adversarial/pointer-loan-extra-deep-shared-loans-kept.hd`
   (`if n > 1000` with `n <= 70`, so the `&mut` that should keep the loans never
   runs) and `…-deep-shared-loans-many-objects.hd` (`if k > 100000` with `k <= 70`).
 - Plausible C1: `…-deep-shared-loans.hd` ~ `-kept` (depths 40 and 70 are both under
@@ -2498,7 +2498,7 @@ Ledger: b168 (36): 2. b169 (45): 5. b170 (18): 2.
   `std/time/clock/provider-keys-a-suspension-binds-both-providers-at-construction.hd` cites the same anchor
   for a requirement-row rule.
 - The `pointer-loan-bang-{ref,mut}-local-write.hd` title (the b124 kind).
-- Plausible B2: `runtime/panic/pointer-loan-extra-other-task-field-write-panics.hd` (writes
+- Plausible B2: `references/pointer-loans/adversarial/pointer-loan-extra-other-task-field-write-panics.hd` (writes
   `alias.other` while holding `&p.value`, which looks disjoint; its accept sibling runs
   disjoint writes; check the panic claim).
 
