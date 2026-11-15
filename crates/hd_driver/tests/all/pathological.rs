@@ -2612,6 +2612,43 @@ fn zero_fact_work_is_linear_in_interpolations() {
     });
 }
 
+/// One body of `n` calls, each lending a part of one local to a callee
+/// that only reads it: `n` argument promotion sites.
+fn promoted_calls(n: usize) -> String {
+    let mut s = String::from(
+        "use std.annotation.inline\n\nstruct Wrap:\n    name: string\n\n@inline(.Never)\nfn label(w: &Wrap) -> usize:\n    w.name.len() + 1\n\npub fn main() -> void $ Console:\n    let w = Wrap { name: \"x\" }\n    let t = +0\n",
+    );
+    for _ in 0..n {
+        s.push_str("    t = t + label(&w)\n");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+// Mono: #1914, argument promotion scanned the whole caller body for each
+// call site (`promotable_args`), so `n` calls cost `n²`; the body's
+// census is made once now and each argument is one lookup.
+#[test]
+fn promotion_census_work_is_linear_in_call_sites() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |source: String| {
+            let (out, work) = hd_tir::own::promote::count_census(|| compile(&source, &goal));
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            work
+        };
+        // The census reads each instruction once and each argument is one
+        // lookup: 5,102 and 21,302 measured, the std bodies a constant.
+        let (a, b) = (build(promoted_calls(200)), build(promoted_calls(2_000)));
+        assert!(
+            a > 0 && b <= a * 10,
+            "census work for 200 and 2,000 calls: {a} and {b}"
+        );
+    });
+}
+
 /// One function whose row names `n` traits, each declaring a method of
 /// one name, and uses each with `$.use`: the scale check's `row-traits`
 /// shape, plus a caller under the same keys in reverse order.

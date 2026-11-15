@@ -1750,7 +1750,7 @@ impl Cx<'_> {
     /// instance body.
     fn promoted_target(
         &mut self,
-        body: &Body,
+        (body, facts): (&Body, &std::cell::OnceCell<hd_tir::own::promote::Promotion>),
         at: usize,
         t: &CallTarget,
         caller: InstId,
@@ -1779,7 +1779,9 @@ impl Cx<'_> {
                 };
                 hd_tir::own::exclusive_call(body, at, relies, own)
             });
-        let want = hd_tir::own::promote::promotable_args(body, at);
+        // The body's facts, made at its first call site that gets here.
+        let facts = facts.get_or_init(|| hd_tir::own::promote::Promotion::new(body));
+        let want = hd_tir::own::promote::promotable_args_in(body, at, facts);
         let held = want & hd_tir::own::promote::held_args(body, at);
         let Some((by_value, copy)) = (want != 0)
             .then(|| {
@@ -1790,7 +1792,7 @@ impl Cx<'_> {
         else {
             return Ok(None);
         };
-        if !hd_tir::own::promote::promoted_call(body, at, by_value) {
+        if !hd_tir::own::promote::promoted_call_in(body, at, by_value, facts) {
             return Ok(None);
         }
         let marks = [defaults::promoted(by_value), defaults::EXCLUSIVE];
@@ -3200,6 +3202,8 @@ impl Cx<'_> {
         let mut calls = HashMap::default();
         let mut reps = StableHasher::new("callee-reps");
         let mut seen = hd_base::HashSet::default();
+        // Argument promotion's facts of `body`, made once for its calls.
+        let promotion = std::cell::OnceCell::new();
         let s = |t: Ty| subst(pool, env, item, args, t);
         let mut signature = env.params(item).unwrap_or_default();
         signature.extend(env.ret(item));
@@ -3412,7 +3416,7 @@ impl Cx<'_> {
                         calls.insert(ix, target);
                         continue;
                     }
-                    let t = match self.promoted_target(body, i, &t, id)? {
+                    let t = match self.promoted_target((body, &promotion), i, &t, id)? {
                         Some(p) => p,
                         None => self.exclusive_target(body, i, t, id)?,
                     };

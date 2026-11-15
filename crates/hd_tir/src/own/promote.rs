@@ -196,7 +196,13 @@ pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
 /// suspension point keeps the plain callee.
 #[must_use]
 pub fn promoted_call(b: &Body, call: usize, mask: u64) -> bool {
-    mask != 0 && promotable_args(b, call) & mask == mask
+    promoted_call_in(b, call, mask, &Promotion::new(b))
+}
+
+/// [`promoted_call`] with `b`'s facts made once ([`Promotion`]).
+#[must_use]
+pub fn promoted_call_in(b: &Body, call: usize, mask: u64, facts: &Promotion) -> bool {
+    mask != 0 && promotable_args_in(b, call, facts) & mask == mask
 }
 
 /// The arguments of `Call` `call` of `b` whose values the passes keep
@@ -231,17 +237,43 @@ pub fn held_args(b: &Body, call: usize) -> u64 {
 /// body with a suspension point.
 #[must_use]
 pub fn promotable_args(b: &Body, call: usize) -> u64 {
-    if !matches!(b.tags[call], Tag::Call | Tag::DefaultCall)
-        || b.tags.iter().any(|&t| crate::ir::is_suspension(t))
-    {
+    promotable_args_in(b, call, &Promotion::new(b))
+}
+
+/// What [`promotable_args`] reads of a whole body, made once for all its
+/// call sites: whether it has a suspension point, and the [`Census`] of
+/// its `Ref`s' uses. A caller that asks per call site of an unchanging
+/// body makes one, so `n` calls cost one pass over the body, not `n`.
+pub struct Promotion {
+    suspends: bool,
+    census: Census,
+}
+
+impl Promotion {
+    #[must_use]
+    pub fn new(b: &Body) -> Self {
+        Self {
+            suspends: b.tags.iter().any(|&t| crate::ir::is_suspension(t)),
+            census: Census::new(b),
+        }
+    }
+}
+
+/// [`promotable_args`] with `b`'s facts made once ([`Promotion`]): each
+/// argument is one census lookup.
+#[must_use]
+pub fn promotable_args_in(b: &Body, call: usize, facts: &Promotion) -> u64 {
+    if !matches!(b.tags[call], Tag::Call | Tag::DefaultCall) || facts.suspends {
         return 0;
     }
     let args = crate::inline::arguments(b, call);
     (args.iter().enumerate().take(64))
         .filter(|&(_, &v)| {
-            Ref(v)
-                .as_inst()
-                .is_some_and(|i| promotable_ref(b, i.0 as usize, call))
+            census_work(1);
+            Ref(v).as_inst().is_some_and(|i| {
+                lent_ref_with(b, i.0 as usize, call, Some(&facts.census))
+                    .is_some_and(|steps| steps == Steps::InPlace)
+            })
         })
         .fold(0, |mask, (k, _)| mask | 1 << k)
 }
@@ -277,8 +309,33 @@ pub(super) struct Census {
     counts: Vec<(u32, usize)>,
 }
 
+thread_local! {
+    static CENSUS_WORK: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Counts, on this thread while `run` runs, each instruction and operand
+/// a [`Census`] reads and each argument a promotion check looks up.
+pub fn count_census<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let outer = CENSUS_WORK.with(|w| w.replace(Some(0)));
+    let out = run();
+    let work = CENSUS_WORK.with(|w| w.replace(outer)).unwrap_or(0);
+    if let Some(outer) = outer {
+        CENSUS_WORK.with(|w| w.set(Some(outer + work)));
+    }
+    (out, work)
+}
+
+fn census_work(n: usize) {
+    CENSUS_WORK.with(|w| {
+        if let Some(k) = w.get() {
+            w.set(Some(k + n as u64));
+        }
+    });
+}
+
 impl Census {
     pub(super) fn new(b: &Body) -> Self {
+        census_work(b.len());
         let mut out = Self {
             captured: vec![false; b.local_ty.len()],
             addresses: vec![0; b.local_ty.len()],
