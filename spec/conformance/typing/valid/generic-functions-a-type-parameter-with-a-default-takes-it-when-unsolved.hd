@@ -1,4 +1,4 @@
-# test: a parameter named nowhere is reported once
+# test: generic functions a type parameter with a default takes it when unsolved
 fn make[T]() -> T:
     panic("no")
 
@@ -22,4 +22,4 @@ impl Reader:
         self.id
 
 pub fn main() -> void:
-    _ := missing() # diagnostic: cannot-infer-type
+    _ := dflt()

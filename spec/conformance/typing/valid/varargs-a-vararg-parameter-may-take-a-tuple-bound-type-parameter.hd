@@ -1,4 +1,4 @@
-# test: valid rest and vararg forms stay clean
+# test: varargs a vararg parameter may take a tuple bound type parameter
 use std.function.Tuple
 
 fn count[Args < Tuple](values...: Args) -> i32:

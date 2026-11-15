@@ -1,4 +1,4 @@
-# test: duplicate on method
+# test: named arguments a method parameter given positionally and by name is a duplicate
 enum Pair:
     Value(first: i32, second: i32)
 

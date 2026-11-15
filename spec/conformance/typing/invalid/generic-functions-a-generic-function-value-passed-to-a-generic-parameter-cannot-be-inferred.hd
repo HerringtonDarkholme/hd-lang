@@ -1,4 +1,4 @@
-# test: a parameter solved by the expected type is fine
+# test: generic functions a generic function value passed to a generic parameter cannot be inferred
 fn make[T]() -> T:
     panic("no")
 
@@ -22,5 +22,4 @@ impl Reader:
         self.id
 
 pub fn main() -> void:
-    let x: i32 = make()
-    _ := x
+    _ := once(ident) # diagnostic: cannot-infer-type

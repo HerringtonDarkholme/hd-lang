@@ -1,4 +1,4 @@
-# test: a vararg value differs from a list taking one
+# test: varargs a vararg function value checks each argument against the element type
 fn sum(values...: List[i32]) -> i32:
     values[0]
 

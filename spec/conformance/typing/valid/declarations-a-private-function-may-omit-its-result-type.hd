@@ -1,4 +1,4 @@
-# test: checker public callables declare their result type
+# test: declarations a private function may omit its result type
 trait Sized:
     fn size(self) -> i32
 struct Box:

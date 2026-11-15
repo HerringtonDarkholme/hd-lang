@@ -1,4 +1,4 @@
-# test: valid rest and vararg forms stay clean
+# test: varargs a vararg parameter may take a list
 fn sum(values...: List[i32]) -> i32:
     0
 

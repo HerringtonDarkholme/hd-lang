@@ -1,11 +1,11 @@
-# test: checker public callables declare their result type
+# test: declarations a public method declares its result type
 trait Sized:
     fn size(self) -> i32
 struct Box:
     width: i32
 
 impl Box:
-    fn width_of(self):
+    pub fn width_of(self) -> i32:
         self.width
 
 pub fn main() -> void:

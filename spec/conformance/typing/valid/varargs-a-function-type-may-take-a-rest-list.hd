@@ -1,4 +1,4 @@
-# test: valid rest and vararg forms stay clean
+# test: varargs a function type may take a rest list
 fn apply(callback: fn(List[i32]...) -> i32) -> i32:
     0
 

@@ -1,4 +1,4 @@
-# test: checker a vararg must be the last parameter
+# test: varargs a vararg may follow a plain parameter as the last one
 fn f(first: i32, values...: List[i32]) -> i32:
     first
 pub fn main() -> void:

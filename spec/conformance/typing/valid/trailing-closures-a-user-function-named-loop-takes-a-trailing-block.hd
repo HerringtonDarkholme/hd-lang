@@ -1,4 +1,4 @@
-# test: checker foreign loop hint does not reject a defined loop
+# test: trailing closures a user function named loop takes a trailing block
 fn loop(body: fn() -> void) -> void:
     body()
 

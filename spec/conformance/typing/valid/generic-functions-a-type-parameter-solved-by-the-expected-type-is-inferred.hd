@@ -1,4 +1,4 @@
-# test: an unsolved method parameter is reported once
+# test: generic functions a type parameter solved by the expected type is inferred
 fn make[T]() -> T:
     panic("no")
 
@@ -22,5 +22,5 @@ impl Reader:
         self.id
 
 pub fn main() -> void:
-    r := Reader { id: 1 }
-    _ := r.size() # diagnostic: cannot-infer-type
+    let x: i32 = make()
+    _ := x

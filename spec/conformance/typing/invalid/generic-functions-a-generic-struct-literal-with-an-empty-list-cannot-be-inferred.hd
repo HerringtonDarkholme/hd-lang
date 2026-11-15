@@ -1,4 +1,4 @@
-# test: an unsolved data literal parameter is reported
+# test: generic functions a generic struct literal with an empty list cannot be inferred
 struct Batch[T]:
     items: List[T]
 

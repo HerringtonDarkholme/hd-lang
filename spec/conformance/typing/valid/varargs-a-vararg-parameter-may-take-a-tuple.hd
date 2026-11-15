@@ -1,4 +1,4 @@
-# test: valid rest and vararg forms stay clean
+# test: varargs a vararg parameter may take a tuple
 fn first(values...: (i32, string)) -> i32:
     0
 

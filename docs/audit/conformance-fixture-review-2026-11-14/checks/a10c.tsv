@@ -19,4 +19,4 @@ typing/valid/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# tes
 typing/valid/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
 typing/valid/sealed-user-impls-a-bound-naming-no-trait-adds-no-second-error-169-legal-bounds.hd	A10c	# test: a bound naming no trait adds no second error
 typing/valid/unsolved-call-parameter-a-parameter-named-nowhere-is-reported-once-57-legal-type-arguments.hd	A10c	# test: a parameter named nowhere is reported once
-typing/valid/unsolved-call-parameter-an-unsolved-data-literal-parameter-is-reported-61-legal.hd	A10c	# test: an unsolved data literal parameter is reported
+typing/valid/generic-functions-a-generic-struct-literal-with-a-written-type-argument-is-solved.hd	A10c	# test: an unsolved data literal parameter is reported
