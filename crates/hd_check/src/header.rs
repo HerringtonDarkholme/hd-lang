@@ -694,6 +694,9 @@ impl<'a> ItemCheck<'_, 'a> {
         {
             return Ok(());
         }
+        if *trait_ == self.cx.names.known.drop_trait {
+            self.drop_on_copy(*self_ty);
+        }
         if *trait_ == self.cx.names.known.auto_closing {
             let sync = self.holds_protocol(*self_ty, self.cx.names.known.disposable)?;
             let asynchronous =
@@ -723,6 +726,48 @@ impl<'a> ItemCheck<'_, 'a> {
             self.delegation(*self_ty, (*trait_, tv), *by)?;
         }
         Ok(())
+    }
+
+    /// `module.rt.drop.not-copy`: the declaration a `Drop` impl targets
+    /// is not `Copy` for any type arguments. It is judged once, on its
+    /// identity instance `D[P..]`, as Rust's `Drop` impl check judges the
+    /// item rather than an instance: the `Copy` row's walk leaves the
+    /// parameters, so `Wrap[T]` holding a `T` can be `Copy` whatever `T`
+    /// is declared. Cost: one walk of the declaration's member types per
+    /// `Drop` impl.
+    fn drop_on_copy(&mut self, self_ty: Ty) {
+        let pool = self.pool();
+        let TyData::Adt { def, .. } = pool.get(self_ty) else {
+            return;
+        };
+        let Some(decl) = self.cx.lookup.item(def) else {
+            return;
+        };
+        let args: Vec<Ty> = (decl.generics.iter().enumerate())
+            .map(|(i, g)| {
+                let index = u16::try_from(i).unwrap_or(u16::MAX);
+                if g.row {
+                    pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
+                        keys: Vec::new(),
+                        params: vec![hd_types::RowParamRef { owner: def, index }],
+                    })))
+                } else {
+                    pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }))
+                }
+            })
+            .collect();
+        let identity = pool.intern_ty(&TyData::Adt {
+            def,
+            args: pool.list(&args),
+        });
+        let decls = self.cx.decls(&mut self.values.local);
+        if hd_types::sealed::may_copy(pool, &decls, identity) {
+            let name = self.cx.names.display_name(def);
+            let message = format!(
+                "`{name}` implements `Drop` but can be `Copy`, and a copy would run the hook again; declare `impl !Copy for {name}`"
+            );
+            self.report(0, Code::DropOnCopyType, message);
+        }
     }
 
     /// Whether the item is part of what other modules see: a `pub`

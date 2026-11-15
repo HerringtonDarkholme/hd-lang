@@ -358,6 +358,11 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .to_owned(),
         );
     }
+    // A `std` build checks the case as std's `rt_tests/stage_case.hd`;
+    // the `fixed` view applies its edits to the case's own file names.
+    if builds.iter().any(|(_, b)| b.std) && dumps.iter().any(|d| d == "fixed") {
+        return Err("a `std` build shows no `fixed` view".to_owned());
+    }
     if builds.is_empty() {
         builds.push(("dev".to_owned(), Build::default()));
     }
@@ -710,21 +715,34 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
 
 /// The `diagnostics` view's build of `p` as `build`, from `src`: the
 /// case's own sources, or the `fixed` view's edited ones.
+/// A `std` build checks the case as std's module `rt_tests.stage_case`,
+/// beside the embedded std sources, so it may use the runtime modules
+/// (`module.rt.std-only`).
 fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_driver::Output {
+    let in_std;
+    let (sources, package) = if build.std {
+        let mut std = hd_driver::std_sources();
+        std.insert(own::STD_CASE, &p.text);
+        in_std = std;
+        (&in_std, "std")
+    } else {
+        (src, "app")
+    };
     let host = Host {
         render_tir: &[],
-        sources: src,
+        sources,
         store: shared_store(),
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let packages = packages(p, build);
+    let mut packages = packages(p, build);
+    packages.std_leaf = build.std.then_some(own::STD_CASE);
     let goal = if build.tests {
         Goal::CheckTests
     } else {
         Goal::Analyze
     };
-    hd_driver::build_packages(&host, "app", &packages, &goal)
+    hd_driver::build_packages(&host, package, &packages, &goal)
 }
 
 /// The tests view: the `tests:` blocks built as `hd test` builds them
@@ -1277,6 +1295,7 @@ mod tests {
             "# @dump: tir\n# @build: dev\n# @build: release\n",
             "# @dump: tests\nx := 1\n# @filter: name\n",
             "# @dump: tests diagnostics\n# @filter: name\n",
+            "# @dump: diagnostics fixed\n# @build: std\n",
         ] {
             assert!(parse(bad).is_err(), "{bad}");
         }

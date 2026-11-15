@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32)))
   (func $release (param $item.name.0 i32) (param $item.name.1 i32)
-    ;; 16 |     pass
+    ;; 18 |     pass
     local.get $item.name.0
     local.get $item.name.1
     i32.const 1

@@ -1,0 +1,72 @@
+# @dump: diagnostics
+# @build: std
+# module.rt.drop.not-copy: `impl Drop for T` is an error unless T's
+# declaration is not `Copy` for any type arguments. Each rejected form
+# below has an accepted twin: a `!Copy` field, base or payload, or
+# `impl !Copy`. (A `&mut` field, the rule's other form, is no struct's:
+# `local-reference-escapes`.)
+use std.rt.Drop
+
+struct Handle:
+    id: i32
+
+impl !Copy for Handle
+
+# A struct of plain fields copies: rejected.
+struct Plain:
+    id: i32
+    name: string
+
+impl Drop for Plain:
+    fn drop(&mut self) -> void:
+        pass
+
+# A struct with a `!Copy` field never copies: accepted.
+struct Holder:
+    id: i32
+    handle: Handle
+
+impl Drop for Holder:
+    fn drop(&mut self) -> void:
+        pass
+
+# A newtype over `i32` copies: rejected; over a `!Copy` base: accepted.
+type Mile(i32)
+
+impl Drop for Mile:
+    fn drop(&mut self) -> void:
+        pass
+
+type Owned(Handle)
+
+impl Drop for Owned:
+    fn drop(&mut self) -> void:
+        pass
+
+# An enum of plain payloads copies: rejected; with a `!Copy` payload in
+# one variant: accepted.
+enum Signal:
+    Off
+    On(i32)
+
+impl Drop for Signal:
+    fn drop(&mut self) -> void:
+        pass
+
+enum Slot:
+    Empty
+    Full(Handle)
+
+impl Drop for Slot:
+    fn drop(&mut self) -> void:
+        pass
+
+# Declared `!Copy`: accepted, plain fields and all.
+struct Marked:
+    id: i32
+
+impl !Copy for Marked
+
+impl Drop for Marked:
+    fn drop(&mut self) -> void:
+        pass

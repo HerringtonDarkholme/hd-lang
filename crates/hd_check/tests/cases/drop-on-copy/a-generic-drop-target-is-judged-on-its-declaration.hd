@@ -1,0 +1,39 @@
+# @dump: diagnostics spans
+# @build: std
+# module.rt.drop.not-copy.declaration: a generic declaration is judged
+# once, not per instance. `Wrap[T]` holding a `T` is `Copy` at a `Copy`
+# argument, so its `Drop` impl is rejected, even though `Wrap[Handle]`
+# never copies and even when the impl or the parameter says `?Copy`.
+# `Guard[T]` also holds a `!Copy` field, so no instance copies: accepted.
+use std.rt.Drop
+
+struct Handle:
+    id: i32
+
+impl !Copy for Handle
+
+struct Wrap[T < ?Copy]:
+    value: T
+
+impl[T < ?Copy] Drop for Wrap[T]:
+    fn drop(&mut self) -> void:
+        pass
+
+struct Guard[T < ?Copy]:
+    value: T
+    handle: Handle
+
+impl[T < ?Copy] Drop for Guard[T]:
+    fn drop(&mut self) -> void:
+        pass
+
+struct Pair[T]:
+    left: T
+    right: T
+
+impl[T] Drop for Pair[T]:
+    fn drop(&mut self) -> void:
+        pass
+
+fn instances(a: Wrap[i32], b: Wrap[Handle], c: Guard[i32]) -> void:
+    pass

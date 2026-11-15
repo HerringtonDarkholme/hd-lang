@@ -597,6 +597,24 @@ fn copy_parts(
     true
 }
 
+/// Whether some instance of a declaration may be `Copy`
+/// (`module.rt.drop.not-copy.declaration`): the `Copy` row's own walk
+/// ([`copy_parts`]) over the declaration's identity type `D[P..]`. The
+/// walk leaves each parameter for an environment and judges none, so no
+/// parameter counts, `?Copy` or not: only a part held by value that is a
+/// `&mut`, a declaration declared `!Copy`, or one holding either, fails.
+/// Cost: the identity type's distinct nodes, once per asked declaration.
+#[must_use]
+pub fn may_copy(pool: Types<'_>, decls: &dyn Declarations, identity: Ty) -> bool {
+    copy_parts(
+        pool,
+        decls,
+        identity,
+        &mut Vec::new(),
+        &mut CopyMemo::default(),
+    )
+}
+
 /// [`copy_parts`]'s answer for a type with a part that does not copy:
 /// only the asked type is kept, since the walk stopped before its other
 /// parts were answered.

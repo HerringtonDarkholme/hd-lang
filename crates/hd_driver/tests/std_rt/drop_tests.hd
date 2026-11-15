@@ -19,6 +19,8 @@ let cursor_cycle_drops: usize = 0
 struct Inner:
     name: string
 
+impl !Copy for Inner
+
 impl Drop for Inner:
     fn drop(&mut self) -> void:
         log = log + self.name
@@ -130,6 +132,8 @@ fn release_empty_cursor(taken: usize) -> void:
 
 struct CycleToken:
     next: (*mut CycleToken)?
+
+impl !Copy for CycleToken
 
 # A trace runs `drop` in every pass; the count changes only outside one
 # that marks or scans (`module.rt.drop.trace`).
