@@ -45,6 +45,28 @@ pub struct HeaderCx<'a> {
     pub fuel: u64,
 }
 
+impl HeaderCx<'_> {
+    /// The declarations the solver's compiler-supplied rows read, with the
+    /// value rule's decisions under this lookup alone kept in `local`
+    /// ([`crate::value::SolverDecls`]).
+    fn decls<'m>(
+        &self,
+        local: &'m mut crate::value::InlineDecls,
+    ) -> crate::value::SolverDecls<'_, 'm> {
+        crate::value::SolverDecls {
+            decls: LookupDecls {
+                lookup: self.lookup,
+                pool: self.names.pool,
+                sealed: self.names.known.sealed(),
+                paths: self.names.paths,
+                syms: self.names.syms,
+            },
+            global: self.global,
+            local: std::cell::RefCell::new(local),
+        }
+    }
+}
+
 /// One problem stage B found: the item, a code and a message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Finding {
@@ -1343,13 +1365,7 @@ impl<'a> ItemCheck<'_, 'a> {
             bindings: vec![],
             mut_: false,
         };
-        let decls = LookupDecls {
-            lookup: self.cx.lookup,
-            pool: self.cx.names.pool,
-            sealed: self.cx.names.known.sealed(),
-            paths: self.cx.names.paths,
-            syms: self.cx.names.syms,
-        };
+        let decls = self.cx.decls(&mut self.values.local);
         let mut scx = SolveCx {
             pool,
             env: &self.env,
@@ -1399,13 +1415,7 @@ impl<'a> ItemCheck<'_, 'a> {
             bindings: vec![],
             mut_: false,
         };
-        let decls = LookupDecls {
-            lookup: self.cx.lookup,
-            pool: self.cx.names.pool,
-            sealed: self.cx.names.known.sealed(),
-            paths: self.cx.names.paths,
-            syms: self.cx.names.syms,
-        };
+        let decls = self.cx.decls(&mut self.values.local);
         let mut scx = SolveCx {
             pool,
             env: &self.env,

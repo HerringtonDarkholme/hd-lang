@@ -1,0 +1,30 @@
+# @dump: diagnostics
+# A generic call proves its argument `Copy`. On an instance of a struct
+# that holds itself with one or two growing fields, or of a struct that
+# holds one, the proof stops at the instance, as the ownership walk does:
+# one `recursive-value-type` per declaration, at once (#2013).
+struct G[T]:
+    x: G[(T, T)]
+
+struct G2[T]:
+    x: G2[(T, T)]
+    y: G2[(T, bool)]
+
+struct H:
+    g: G[i32]
+
+struct H2:
+    g: G2[i32]
+
+fn keep[T](t: T) -> T:
+    t
+
+fn main():
+    let g: G[i32]? = .None
+    let g2: G2[i32]? = .None
+    let h: H? = .None
+    let h2: H2? = .None
+    let a = keep(g)
+    let b = keep(g2)
+    let c = keep(h)
+    let d = keep(h2)

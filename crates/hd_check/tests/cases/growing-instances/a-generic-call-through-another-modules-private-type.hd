@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# A public struct that grows through a private struct of its module,
+# passed to a generic function in a module that cannot see the private
+# struct, and in its own module: each proof stops at the instance (#2013).
+use pkg.a.{P}
+
+fn keep[T](t: T) -> T:
+    t
+
+fn main():
+    let p: P[i32]? = .None
+    let u = keep(p)
+# @file: a.hd
+pub struct P[T]:
+    q: Q[T]
+
+struct Q[T]:
+    p: P[(T, T)]
+
+fn hold[T](t: T) -> T:
+    t
+
+fn inside():
+    let q: Q[i32]? = .None
+    let u = hold(q)

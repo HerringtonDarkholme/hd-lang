@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# A generic struct's literal and a `< Copy` bound in a field's type each
+# prove an instance of a struct that holds itself `Copy`: the header's
+# proof and the body's stop at it (#2013).
+struct G[T]:
+    x: G[(T, T)]
+
+struct Box[T]:
+    v: T
+
+struct Need[T < Copy]:
+    v: T
+
+struct K:
+    n: Need[G[i32]?]
+
+fn main():
+    let g: G[i32]? = .None
+    let b = Box { v: g }
+    let c = b
+    let d = b

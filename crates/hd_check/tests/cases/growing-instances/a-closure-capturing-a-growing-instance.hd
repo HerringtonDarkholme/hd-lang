@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# A closure that captures an instance of a struct that holds itself, and
+# passes it to a generic function, adds nothing to the declaration's
+# error (#2013).
+struct G[T]:
+    x: G[(T, T)]
+
+fn keep[T](t: T) -> T:
+    t
+
+fn main():
+    let g: G[i32]? = .None
+    let f = fn() -> G[i32]?: keep(g)
+    let u = f()
+    let v = f()

@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# A generic method's argument is proved `Copy` as a function's is: the
+# proof stops at an instance of a struct that holds itself (#2013).
+struct G[T]:
+    x: G[(T, T)]
+    y: G[(T, bool)]
+
+struct W:
+    n: i32
+
+impl W:
+    fn hold[T](self, t: T) -> T:
+        t
+
+fn main():
+    let g: G[i32]? = .None
+    let w = W { n: 1 }
+    let u = w.hold(g)

@@ -485,6 +485,53 @@ fn bodies_holding_a_growing_instance_cost_one_walk_each() {
     );
 }
 
+// Solver: #2013, a generic call whose argument is an instance of a
+// declaration that holds itself (`keep(h)` with `h: G[i32]?`) asks `Copy`
+// of it, and the row's walk of the instance's fields never ended. The row
+// stops at such an instance (`hd_check::value::SolverDecls`), as the
+// ownership walk does: the proof costs a few types once per run.
+/// `struct G[T]` with two fields that grow its argument, `struct H`
+/// holding `G[i32]`, and `n` bodies passing a `G[i32]?` and an `H?` to a
+/// generic function.
+fn growing_generic_calls(n: usize) -> String {
+    let mut s = String::from(
+        "struct G[T]:\n    x: G[(T, T)]\n    y: G[(T, bool)]\n\nstruct H:\n    g: G[i32]\n\
+         \nfn keep[T](t: T) -> T:\n    t\n",
+    );
+    for i in 0..n {
+        let _ = writeln!(
+            s,
+            "\nfn use{i}():\n    let g: G[i32]? = .None\n    let h: H? = .None\n    \
+             let u = keep(g)\n    let v = keep(h)"
+        );
+    }
+    s
+}
+
+#[test]
+fn generic_calls_on_a_growing_instance_prove_copy_once_per_run() {
+    let work = |n| {
+        let (out, nodes) =
+            hd_types::work::count_type_nodes(|| compile(&growing_generic_calls(n), &Goal::Analyze));
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(
+            codes,
+            ["recursive-value-type"],
+            "{n} bodies: {}",
+            out.render()
+        );
+        nodes
+    };
+    work(1);
+    // The run's memo keeps each closed proof, so the bodies after the
+    // first add nothing: the walk entered `G[i32]`'s fields without end.
+    let (small, large) = (work(100), work(1000));
+    assert!(
+        small > 0 && large <= small + 100,
+        "type nodes for 100 and 1,000 bodies with generic calls: {small} and {large}",
+    );
+}
+
 // Checker: #2011, the value rule decides each declaration from its
 // written fields (`hd_check::value::InlineDecls`), never from its
 // instances: `k` fields that grow a struct's argument `k` ways give `k^d`

@@ -593,7 +593,7 @@ pub(crate) type InlineDecls = hd_types::solver::InlineDecls;
 /// (`data.enum.no-recursion.group`), by the group's first member.
 #[derive(Default)]
 pub(crate) struct InlinePass {
-    local: InlineDecls,
+    pub(crate) local: InlineDecls,
     reporters: HashMap<DefId, Option<DefId>>,
 }
 
@@ -796,6 +796,63 @@ pub(crate) fn holds_itself(
     ) && with_decided(global, local, pool, lookup, def, |d| {
         d.get(def).is_some_and(|d| d.cyclic)
     })
+}
+
+/// The declarations the checker's solver reads: its lookup's, except that
+/// a declaration the value rule rejects ([`holds_itself`]) has no members
+/// for the `Copy` row, so the row's walk stops at its instance, as the
+/// ownership walk does (`crate::moves`). Its fields may grow without end
+/// (`struct G[T]: x: G[(T, T)]` holds `G[(i32, i32)]` in `G[i32]`, #2013),
+/// and the declaration is reported. Cost: one lock and probe of the run's
+/// decisions per declaration the row meets, each decided once per run.
+pub(crate) struct SolverDecls<'d, 'm> {
+    pub(crate) decls: hd_resolve::LookupDecls<'d>,
+    pub(crate) global: &'d hd_types::solver::GlobalMemo,
+    /// The asker's own decisions ([`with_decided`]).
+    pub(crate) local: std::cell::RefCell<&'m mut InlineDecls>,
+}
+
+impl hd_types::solver::Declarations for SolverDecls<'_, '_> {
+    fn sealed(&self) -> &hd_types::solver::SealedTraits {
+        self.decls.sealed()
+    }
+    fn type_decl(&self, def: DefId) -> hd_types::solver::TypeDecl {
+        self.decls.type_decl(def)
+    }
+    fn supertraits(&self, trait_: DefId) -> &[Ty] {
+        self.decls.supertraits(trait_)
+    }
+    fn has_unavailable_member(&self, trait_: DefId) -> bool {
+        self.decls.has_unavailable_member(trait_)
+    }
+    fn has_unavailable_reference_member(&self, trait_: DefId, mutable: bool) -> bool {
+        self.decls.has_unavailable_reference_member(trait_, mutable)
+    }
+    fn is_local(&self, def: DefId) -> bool {
+        self.decls.is_local(def)
+    }
+    fn is_const_slot(&self, def: DefId, index: usize) -> bool {
+        self.decls.is_const_slot(def, index)
+    }
+    fn copy_decl(&self, def: DefId) -> hd_types::solver::CopyDecl {
+        match self.decls.copy_decl(def) {
+            hd_types::solver::CopyDecl::Members(_)
+                if holds_itself(
+                    self.global,
+                    &mut self.local.borrow_mut(),
+                    self.decls.pool.types(),
+                    self.decls.lookup,
+                    def,
+                ) =>
+            {
+                hd_types::solver::CopyDecl::Copies
+            }
+            d => d,
+        }
+    }
+    fn trait_requires_copy(&self, trait_: DefId) -> bool {
+        self.decls.trait_requires_copy(trait_)
+    }
 }
 
 /// Decides `root` and every undecided declaration a value of it may hold.

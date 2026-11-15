@@ -1,0 +1,27 @@
+# @dump: diagnostics
+# A parameter bounded by `Inspectable` or by a user trait is still `Copy`
+# by default: each call's proof stops at an instance of an enum that
+# holds itself, and the impl for its optional adds nothing (#2013).
+use std.inspect.Inspectable
+
+enum G[T]:
+    More(G[(T, T)])
+    Done
+
+trait Tr:
+    fn n(self) -> i32
+
+impl[T] Tr for G[T]?:
+    fn n(self) -> i32:
+        1
+
+fn show[T < Inspectable](t: T) -> T:
+    t
+
+fn count[T < Tr](t: T) -> i32:
+    t.n()
+
+fn main():
+    let g: G[i32]? = .None
+    let u = show(g)
+    let n = count(g)

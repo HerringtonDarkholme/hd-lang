@@ -129,6 +129,10 @@ pub trait Declarations {
         false
     }
     /// What the `Copy` row reads of a nominal type (`ref.copy.structure`).
+    /// The checker's answers [`CopyDecl::Copies`] for a declaration the
+    /// value rule rejects (`hd_check::value::SolverDecls`): an instance's
+    /// members may grow without end (#2013), and the declaration is
+    /// reported. Codegen never meets one.
     fn copy_decl(&self, def: DefId) -> CopyDecl;
     /// Whether trait `trait_`'s `Self` is `Copy`: it is not declared
     /// `< ?Copy` (`ref.copy.trait.default`).
@@ -138,7 +142,8 @@ pub trait Declarations {
 /// A nominal type's part in the `Copy` row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CopyDecl {
-    /// No members the row reads: a std type with no declaration.
+    /// No members the row reads: a std type with no declaration, or a
+    /// declaration that holds itself, which the checker reports.
     Copies,
     /// Declared `impl !Copy` (`ref.copy.opt-out`).
     NotCopy,

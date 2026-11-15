@@ -121,14 +121,23 @@ impl<'a> BodyCx<'a> {
 
 impl BodyCx<'_> {
     /// The declarations the solver's compiler-supplied rows read
-    /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
-    pub(crate) fn decls(&self) -> LookupDecls<'_> {
-        LookupDecls {
-            lookup: self.lookup,
-            pool: self.names.pool,
-            sealed: self.names.known.sealed(),
-            paths: self.names.paths,
-            syms: self.names.syms,
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9), with the value
+    /// rule's decisions under this lookup alone kept in `local`
+    /// ([`crate::value::SolverDecls`]).
+    pub(crate) fn decls<'m>(
+        &self,
+        local: &'m mut crate::value::InlineDecls,
+    ) -> crate::value::SolverDecls<'_, 'm> {
+        crate::value::SolverDecls {
+            decls: LookupDecls {
+                lookup: self.lookup,
+                pool: self.names.pool,
+                sealed: self.names.known.sealed(),
+                paths: self.names.paths,
+                syms: self.names.syms,
+            },
+            global: self.global,
+            local: std::cell::RefCell::new(local),
         }
     }
 
@@ -301,6 +310,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub diags: &'c mut DiagBuf,
     pub fuel: Fuel,
     pub memo: BodyMemo,
+    /// The value rule's decisions the solver made under this body's
+    /// lookup alone ([`crate::value::SolverDecls`]).
+    pub inline: crate::value::InlineDecls,
     /// The result type of the body or closure being checked.
     pub rets: Vec<Ty>,
     /// Opaque result inference is invariant; it never joins or inserts coercions.
@@ -738,6 +750,7 @@ pub(crate) fn new_ck<'a, 'c>(
         diags,
         fuel: Fuel::new(cx.fuel),
         memo: BodyMemo::default(),
+        inline: crate::value::InlineDecls::default(),
         rets: vec![ret],
         strict_rets: vec![],
         opaque_rets: vec![],
@@ -3422,10 +3435,11 @@ impl Ck<'_, '_> {
             Goal::Instantiations { self_ty, .. } => self.add_projection_clauses(*self_ty),
             Goal::Methods { receiver, .. } => self.add_projection_clauses(*receiver),
         }
-        let decls = self.cx.decls();
         let view = self.cx.impls.hiding(self.unseen());
+        let pool = self.pool();
+        let decls = self.cx.decls(&mut self.inline);
         let mut scx = SolveCx {
-            pool: self.pool(),
+            pool,
             env: &self.env,
             universe: self.cx.impls.universe,
             impls: Impls::Owned(&view),
