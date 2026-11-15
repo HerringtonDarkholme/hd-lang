@@ -83,6 +83,11 @@ const SPEC_CONFLICTS: &[&str] = &[
     // A lint case whose identifier is deliberately not NFC, to show that
     // lint reports compiler errors first.
     "cli/lint-mixed-script-prerequisites/src/main.hd",
+    // A text case whose casts are rejected, to check the cast hint's text.
+    "cli/hint-and-fix-texts/cast-before-comma.hd",
+    "cli/hint-and-fix-texts/cast-bracketed-type.hd",
+    "cli/hint-and-fix-texts/cast-long-operand.hd",
+    "cli/hint-and-fix-texts/cast-no-type.hd",
 ];
 
 /// The cases `KNOWN_FAILURES.tsv` lists: a fixture path, or a CLI case
