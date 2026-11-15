@@ -5,7 +5,7 @@ sloppy-catchall-empty	hd_check	18
 sloppy-catchall-empty	hd_driver	1
 sloppy-catchall-empty	hd_mono	7
 sloppy-catchall-empty	hd_opt	3
-sloppy-catchall-empty	hd_resolve	9
+sloppy-catchall-empty	hd_resolve	8
 sloppy-catchall-empty	hd_syntax	5
 sloppy-catchall-empty	hd_tir	51
 sloppy-catchall-empty	hd_wasm	31
