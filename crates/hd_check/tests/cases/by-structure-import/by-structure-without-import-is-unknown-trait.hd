@@ -1,0 +1,8 @@
+# @dump: diagnostics
+trait Show:
+    fn show(self) -> string
+
+struct Point:
+    x: i64
+
+impl Show for Point by Structure

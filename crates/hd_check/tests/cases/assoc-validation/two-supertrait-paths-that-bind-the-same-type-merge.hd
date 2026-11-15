@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Numbers < Source[Item = i32]
+
+trait Counts < Source[Item = i32]
+
+trait Both < Numbers & Counts

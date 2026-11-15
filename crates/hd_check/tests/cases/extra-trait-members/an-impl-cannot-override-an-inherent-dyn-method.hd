@@ -1,0 +1,14 @@
+# @dump: diagnostics
+trait Shape:
+    fn area(self) -> f64
+
+impl dyn Shape:
+    fn double(self) -> f64:
+        self.area() * 2.0
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(self) -> f64: self.side
+    fn double(self) -> f64: 0.0

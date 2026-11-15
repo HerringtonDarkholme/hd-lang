@@ -1,0 +1,7 @@
+# @dump: diagnostics
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count(id: string) -> i32 $ Store:
+    0

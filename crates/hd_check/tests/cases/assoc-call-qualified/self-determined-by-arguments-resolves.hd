@@ -1,0 +1,11 @@
+# @dump: diagnostics
+trait Dup:
+    fn dup(x: Self) -> Self
+
+struct Widget: pass
+
+impl Dup for Widget:
+    fn dup(x: Self) -> Self: x
+
+fn run(w: Widget) -> Widget:
+    Dup::dup(w)

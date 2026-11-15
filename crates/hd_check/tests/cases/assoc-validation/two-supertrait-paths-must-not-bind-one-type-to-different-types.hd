@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Numbers < Source[Item = i32]
+
+trait Words < Source[Item = string]
+
+trait Both < Numbers & Words

@@ -1,0 +1,7 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn bound(source: &dyn Supplier[Item = i32]) -> void:
+    pass

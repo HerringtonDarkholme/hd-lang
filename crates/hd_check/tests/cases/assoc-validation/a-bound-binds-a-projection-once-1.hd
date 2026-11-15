@@ -1,0 +1,7 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn first[T, I < Supplier[Item = T, Item = T]](source: I) -> T:
+    source.get()

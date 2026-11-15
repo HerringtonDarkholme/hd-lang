@@ -1,0 +1,13 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Named < Supplier:
+    fn name(self) -> string
+
+fn bad(source: &dyn Named) -> void:
+    pass
+
+fn good(source: &dyn Named[Item = i32]) -> void:
+    pass

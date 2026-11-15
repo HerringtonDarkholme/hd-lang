@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Greet:
+    fn name(self) -> string
+    fn hello(self) -> string: self.name()
+
+struct P: pass
+
+impl Greet for P:
+    fn name(self) -> string: "p"
+    fn hello(self) -> string: "hi"

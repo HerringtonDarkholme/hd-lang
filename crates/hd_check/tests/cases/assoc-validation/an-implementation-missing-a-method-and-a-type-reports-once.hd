@@ -1,0 +1,9 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Names: pass
+
+impl Supplier for Names:
+    pass

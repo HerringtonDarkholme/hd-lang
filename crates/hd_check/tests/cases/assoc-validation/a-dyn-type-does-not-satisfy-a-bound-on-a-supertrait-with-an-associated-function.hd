@@ -1,0 +1,13 @@
+# @dump: diagnostics
+trait Factory:
+    type Item
+    fn count() -> i32
+
+fn total[F < Factory[Item = i32]]() -> i32:
+    F::count()
+
+trait Named < Factory:
+    fn name(self) -> string
+
+fn with_named(source: &dyn Named[Item = i32]) -> i32:
+    total::[*dyn Named[Item = i32]]()

@@ -1,0 +1,11 @@
+# @dump: diagnostics
+trait Make:
+    fn make() -> i32
+
+struct Widget: pass
+
+impl Make for Widget:
+    fn make() -> i32: 1
+
+fn run() -> i32:
+    Make::make()

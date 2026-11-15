@@ -1,0 +1,14 @@
+# @dump: diagnostics
+use std.ops.Add
+
+trait Summable < Add[Out = Self]
+
+struct Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        self
+
+impl Summable for Money

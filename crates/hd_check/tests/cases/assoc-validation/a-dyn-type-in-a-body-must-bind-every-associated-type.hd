@@ -1,0 +1,8 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn run() -> void:
+    let f = fn(source: &dyn Supplier) -> void: pass
+    f

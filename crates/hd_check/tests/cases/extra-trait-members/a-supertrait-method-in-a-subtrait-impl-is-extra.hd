@@ -1,0 +1,15 @@
+# @dump: diagnostics
+trait Parent:
+    fn up(self) -> i32
+
+trait Child < Parent:
+    fn down(self) -> i32
+
+struct D: pass
+
+impl Parent for D:
+    fn up(self) -> i32: 1
+
+impl Child for D:
+    fn up(self) -> i32: 2
+    fn down(self) -> i32: 3

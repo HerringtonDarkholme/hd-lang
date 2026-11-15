@@ -1,0 +1,27 @@
+# @dump: diagnostics
+# One report at the value, with no error after it.
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn serve_all(handlers: List[fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire(handlers: List[fn() -> void $ Db]) -> void:
+    serve_all(handlers)
+    serve_all(handlers)

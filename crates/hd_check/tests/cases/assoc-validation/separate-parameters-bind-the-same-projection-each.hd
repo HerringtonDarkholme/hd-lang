@@ -1,0 +1,7 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn pair[A < Supplier[Item = i32], B < Supplier[Item = i32]](a: A, b: B) -> i32:
+    a.get() + b.get()

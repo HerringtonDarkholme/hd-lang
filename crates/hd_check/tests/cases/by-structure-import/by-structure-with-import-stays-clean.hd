@@ -1,0 +1,10 @@
+# @dump: diagnostics
+use std.structure.Structure
+
+trait Show:
+    fn show(self) -> string
+
+struct Point:
+    x: i64
+
+impl Debug for Point by Structure

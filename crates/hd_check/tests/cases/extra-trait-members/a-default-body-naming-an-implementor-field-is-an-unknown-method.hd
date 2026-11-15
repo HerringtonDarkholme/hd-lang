@@ -1,0 +1,12 @@
+# @dump: diagnostics
+trait Greeter:
+    fn name(self) -> string
+
+    fn tag(self) -> string:
+        self.email
+
+struct User:
+    email: string
+
+impl Greeter for User:
+    fn name(self) -> string: self.email

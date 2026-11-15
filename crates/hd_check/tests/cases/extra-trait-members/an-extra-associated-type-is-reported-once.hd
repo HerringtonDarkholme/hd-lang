@@ -1,0 +1,9 @@
+# @dump: diagnostics
+trait Named:
+    fn name(self) -> string
+
+struct Admin: pass
+
+impl Named for Admin:
+    type Key = i32
+    fn name(self) -> string: "a"

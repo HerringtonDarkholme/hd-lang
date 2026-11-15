@@ -1,0 +1,8 @@
+# @dump: diagnostics
+impl Display for i32:
+    fn to_string(&self) -> string:
+        "a"
+
+impl Display for i32:
+    fn to_string(&self) -> string:
+        "b"

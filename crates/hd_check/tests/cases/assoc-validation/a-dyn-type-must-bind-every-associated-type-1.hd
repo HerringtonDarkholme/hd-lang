@@ -1,0 +1,7 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn unbound(source: &dyn Supplier) -> void:
+    pass

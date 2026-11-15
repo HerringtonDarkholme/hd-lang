@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Factory:
+    fn create() -> Self
+
+fn fresh[T < Factory]() -> T:
+    T::create()

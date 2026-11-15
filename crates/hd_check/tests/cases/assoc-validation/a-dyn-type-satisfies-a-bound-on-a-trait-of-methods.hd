@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Sized:
+    type Item
+    fn size(self) -> i32
+
+fn measure[S < Sized[Item = i32]](value: S) -> i32:
+    value.size()
+
+fn with_value(value: &dyn Sized[Item = i32]) -> i32:
+    measure(value)

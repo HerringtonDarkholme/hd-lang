@@ -1,0 +1,9 @@
+# @dump: diagnostics
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Prices < Supplier[Item = i32]
+
+fn first[S < Supplier[Item = string] & Prices](source: S) -> void:
+    pass

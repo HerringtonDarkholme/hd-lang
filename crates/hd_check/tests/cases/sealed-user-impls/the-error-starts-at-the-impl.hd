@@ -1,0 +1,6 @@
+# @dump: diagnostics
+use std.num.Num
+
+type Count(i64)
+
+impl Num for Count

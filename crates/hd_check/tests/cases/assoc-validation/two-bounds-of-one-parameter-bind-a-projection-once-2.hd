@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Feed:
+    type Item
+    fn next(&mut self) -> Self::Item?
+
+trait NamedFeed < Feed:
+    fn name(self) -> string
+
+fn drain[T, F < Feed[Item = T] & NamedFeed](feed: &mut F) -> T?:
+    feed.next()

@@ -1,0 +1,11 @@
+# @dump: diagnostics
+use std.error.Error
+
+enum E:
+    Bad
+
+impl Display for E:
+    fn to_string(&self) -> string: "bad"
+
+impl Error for E:
+    fn chain(self) -> string: "x"

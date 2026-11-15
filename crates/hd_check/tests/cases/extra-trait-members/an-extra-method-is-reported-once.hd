@@ -1,0 +1,10 @@
+# @dump: diagnostics
+trait Shape:
+    fn area(self) -> f64
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(self) -> f64: self.side
+    fn extra(self) -> f64: 0.0
