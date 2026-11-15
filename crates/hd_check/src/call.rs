@@ -187,13 +187,15 @@ impl MethodIndex {
 }
 
 /// One bounded type's clauses by method name ([`Ck::bound_clause`]): for
-/// each name a clause's trait declares, the first such clause; how many
-/// of the type's clauses are indexed, and at which environment epoch.
+/// each name a clause's trait declares, the first such clause, and the
+/// later ones for a name two or more declare; how many of the type's
+/// clauses are indexed, and at which environment epoch.
 #[derive(Default)]
 pub(crate) struct BoundMethods {
     epoch: u64,
     scanned: usize,
     by_name: HashMap<Symbol, u32>,
+    more: HashMap<Symbol, Vec<u32>>,
 }
 
 /// A resolved method.
@@ -4019,12 +4021,7 @@ impl Ck<'_, '_> {
         // (`trait.assoc-call.parameter`, `trait.assoc-call.parameter.one`).
         // Every call through a type returned above, so `T` is a parameter.
         let bound_hits: Vec<(DefId, DefId)> = {
-            let env = &self.env;
-            let bounds: Vec<DefId> = env
-                .clauses_of(t)
-                .iter()
-                .map(|&i| env.clause_trait()[i as usize])
-                .collect();
+            let bounds = self.bound_traits(t, sym);
             self.declaring_among(bounds, sym)
         };
         match bound_hits.as_slice() {
@@ -4770,6 +4767,30 @@ impl Ck<'_, '_> {
     /// epoch, at one step per method of its trait, where every call walked
     /// the clauses in order.
     fn bound_clause(&mut self, t: Ty, sym: Symbol) -> Option<usize> {
+        let entry = self.bound_methods_of(t);
+        crate::work::trait_lookup(1);
+        entry.by_name.get(&sym).map(|&i| i as usize)
+    }
+
+    /// The traits of every clause on `t` whose trait declares the method
+    /// `sym`, in the environment's order, from the same index as
+    /// [`Ck::bound_clause`]: one probe and one step per declaring clause.
+    fn bound_traits(&mut self, t: Ty, sym: Symbol) -> Vec<DefId> {
+        let entry = self.bound_methods_of(t);
+        crate::work::trait_lookup(1);
+        let first = entry.by_name.get(&sym).copied();
+        let more = entry.more.get(&sym).map_or(&[][..], Vec::as_slice);
+        let clauses: Vec<u32> = first.into_iter().chain(more.iter().copied()).collect();
+        let traits = self.env.clause_trait();
+        clauses.iter().map(|&i| traits[i as usize]).collect()
+    }
+
+    /// The body's index of `t`'s clauses by method name, brought up to
+    /// date: it covers the clauses up to the count it last saw and takes
+    /// the ones pushed since; a truncation that dropped clauses
+    /// ([`ParamEnv::epoch`]) rebuilds it. Each clause is indexed once per
+    /// epoch, at one step per method of its trait.
+    fn bound_methods_of(&mut self, t: Ty) -> &BoundMethods {
         let epoch = self.env.epoch();
         let list = self.env.clauses_of(t);
         let index = &self.cx.methods;
@@ -4784,12 +4805,18 @@ impl Ck<'_, '_> {
             let tr = self.env.clause_trait()[i as usize];
             for &name in index.names_of(tr) {
                 crate::work::trait_lookup(1);
-                entry.by_name.entry(name).or_insert(i);
+                match entry.by_name.entry(name) {
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert(i);
+                    }
+                    std::collections::hash_map::Entry::Occupied(_) => {
+                        entry.more.entry(name).or_default().push(i);
+                    }
+                }
             }
         }
         entry.scanned = list.len();
-        crate::work::trait_lookup(1);
-        entry.by_name.get(&sym).map(|&i| i as usize)
+        entry
     }
 
     /// The candidates of `trait_` for the receiver `t`, indexed by their

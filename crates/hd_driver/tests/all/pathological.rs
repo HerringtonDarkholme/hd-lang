@@ -2431,6 +2431,46 @@ fn bounded_parameter_calls_find_their_clause_by_one_probe() {
     });
 }
 
+/// One type parameter bounded by `n` traits, each declaring one function
+/// with no receiver, and one `T::s{i}()` call of each.
+fn param_assoc_calls(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = write!(s, "trait S{i}:\n    fn s{i}() -> i32\n\n");
+    }
+    let bounds: Vec<String> = (0..n).map(|i| format!("S{i}")).collect();
+    let _ = writeln!(s, "fn bounded[T < {}]() -> i32:", bounds.join(" & "));
+    s.push_str("    let t = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    t = t + T::s{i}()");
+    }
+    s.push_str("    t\n\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker: #1970, `T::f()` on a type parameter reads the traits of the
+// clauses that declare `f` from the body's index of the type's clauses
+// by method name: each call asked every bound's trait.
+#[test]
+fn parameter_associated_calls_find_their_bounds_by_one_probe() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) = hd_check::work::count_trait_lookup_work(|| {
+                compile(&param_assoc_calls(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        // Per bound: its function name indexed once; per call: one probe
+        // and one step for the one declaring trait.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "trait lookups for 100 and 1,000 bounds: {small} and {large}"
+        );
+    });
+}
+
 /// A list type and literal nested `n` deep in one binding: the scale
 /// check's `list-type-nest` shape.
 fn list_type_nest(n: usize) -> String {
