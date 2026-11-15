@@ -19,7 +19,7 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $ret_new (param $n i64) (result i32 i32) (local $t1 i32) (local $t0 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $ret_new (param $n i64) (result i32 i32) (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 16 |     "n=${n}"
     local.get $n
     local.tee $t0
@@ -36,10 +36,10 @@
     local.get $t1
     local.get $t2
     i32.add
-    local.set $t1
+    local.set $t2
     i32.const 2
-    local.tee $t2
-    local.get $t1
+    local.tee $t1
+    local.get $t2
     i32.add
     local.tee $t3
     i32.const 16
@@ -54,9 +54,9 @@
     i32.store16 $heap align=1
     local.get $n
     local.get $t4
-    local.get $t2
-    i32.add
     local.get $t1
+    i32.add
+    local.get $t2
     call $write_signed_sized
     local.get $t4
     local.get $t3

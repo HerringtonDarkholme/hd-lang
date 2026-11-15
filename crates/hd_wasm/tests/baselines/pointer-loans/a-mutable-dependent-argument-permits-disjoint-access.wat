@@ -11,7 +11,7 @@
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 27 |     observe(p.items.at(0), later(alias))
     local.get $p
     i32.const 4
@@ -126,8 +126,8 @@
     local.get $alias
     call $later
     call $observe
-    local.set $t2
     local.set $alias
+    local.set $t1
     local.get $t4
     if
       local.get $t4
@@ -148,8 +148,8 @@
         call $rt:release_ref
       end
     end
+    local.get $t1
     local.get $alias
-    local.get $t2
   )
 )
 == @build: release
@@ -246,8 +246,8 @@
     local.get $p
     local.get $alias
     call $observe
-    local.set $t2
     local.set $p
+    local.set $t1
     local.get $t3
     if
       local.get $t3
@@ -268,8 +268,6 @@
         call $rt:release_ref
       end
     end
-    local.get $t2
-    local.set $alias
     local.get $t0
     if
       local.get $t0
@@ -279,7 +277,7 @@
       i32.sub
       i32.store $heap
     end
+    local.get $t1
     local.get $p
-    local.get $alias
   )
 )

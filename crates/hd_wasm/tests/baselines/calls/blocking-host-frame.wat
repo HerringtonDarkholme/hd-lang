@@ -54,9 +54,9 @@
     local.get $provider0.vtable
     i32.load $heap offset=20
     call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32 i32)
-    local.set $provider0
-    local.set $path.1
     local.set $path.0
+    local.set $path.1
+    local.set $provider0
     local.tee $provider0.vtable
     ;; 10 |     match block_on(call):
     local.tee $t2
@@ -80,9 +80,9 @@
         local.get $t2
         i32.load $heap
         call_indirect $table0 (param i32) (result i32 i32 i32 i32)
-        local.set $provider0
-        local.set $path.1
         local.set $path.0
+        local.set $path.1
+        local.set $provider0
         local.set $t3
         br 0
       end
@@ -97,7 +97,7 @@
     if
       local.get $t2
       i32.load $heap offset=20
-      local.tee $t1
+      local.tee $t4
       i32.const 0
       i32.ge_s
       if
@@ -105,7 +105,7 @@
         i32.const -1
         i32.store $heap offset=20
         local.get $t2
-        local.get $t1
+        local.get $t4
         call_indirect $table0 (param i32)
       end
     end
@@ -127,7 +127,7 @@
       block
         block
     ;; 11 |         .Completed(.Ok(_)) => true
-          local.get $path.0
+          local.get $provider0
           i32.const 8
           i32.eq
           br_if 0
@@ -141,9 +141,9 @@
       end
     end
     ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
-    local.get $path.0
-    local.get $path.1
     local.get $provider0
+    local.get $path.1
+    local.get $path.0
     call $rt:release
     local.get $t5
     local.get $t0

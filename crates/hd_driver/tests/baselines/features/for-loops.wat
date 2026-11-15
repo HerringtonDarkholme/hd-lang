@@ -8,7 +8,7 @@
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $over_ref (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
+  (func $over_ref (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32)
     ;; 15 |     for x in xs:
     local.get $xs
     i32.load $heap
@@ -27,9 +27,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $t2
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         drop
@@ -53,7 +53,7 @@
     ;; 17 |     n
     local.get $n
   )
-  (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
     ;; 24 |     let mut out: List[string] = []
     i32.const 80 ;; &empty-buffer
     local.set $out
@@ -73,9 +73,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $x.0
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $x.0
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         local.set $x.0
@@ -196,17 +196,17 @@
         i32.const 104 ;; &"!"
         i32.const 1
         call $rt:str_append
-        local.set $t3
         local.set $t2
+        local.set $t3
         local.get $x
         i32.load $heap
         local.get $x
         i32.load $heap offset=4
         local.get $x
-        local.get $t2
+        local.get $t3
         i32.store $heap
         local.get $x
-        local.get $t3
+        local.get $t2
         i32.store $heap offset=4
         call $rt:release
     ;; 20 |     for x in &mut *xs:
@@ -214,7 +214,7 @@
       end
     end
   )
-  (func $over_value (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
+  (func $over_value (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32)
     ;; 9 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -231,9 +231,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $t2
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         drop
@@ -257,68 +257,68 @@
     ;; 11 |     n
     local.get $n
   )
-  (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $x.1 i32) (local $t4 i32)
+  (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 30 |     [for x in xs => x.len()]
     i32.const 80 ;; &empty-buffer
     local.set $t0
     local.get $xs
     i32.load $heap offset=4
     local.tee $t1
-    local.tee $t2
+    local.tee $x.1
     if
       local.get $t0
-      local.get $t2
+      local.get $x.1
       call $rt:list_reserve
       local.set $t0
     end
     block
       loop
-        local.get $t3
+        local.get $t2
         local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
         local.get $xs
-        local.get $t3
+        local.get $t2
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $t2
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         drop
-        local.get $t3
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t3
+        local.set $t2
         block
           br 0
           unreachable
         end
         local.get $t0
-        local.tee $t2
+        local.tee $t3
         i32.load $heap offset=4
         local.tee $t4
-        local.get $t2
+        local.get $t3
         i32.load $heap
         i32.eq
         if
-          local.get $t2
+          local.get $t3
           i32.const 3
           call_indirect $table0 (param i32) (result i32)
-          local.tee $t2
+          local.tee $t3
           local.set $t0
         end
-        local.get $t2
+        local.get $t3
         local.get $t4
         i32.const 4
         i32.mul
         i32.add
         local.get $x.1
         i32.store $heap offset=16
-        local.get $t2
+        local.get $t3
         local.get $t4
         i32.const 1
         i32.add

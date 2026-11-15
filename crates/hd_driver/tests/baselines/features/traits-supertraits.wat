@@ -103,15 +103,15 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $self
+    local.set $self
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $self
     local.get $t0
+    local.get $self
   )
   (func $"impl Dog for Pup.bark" (param $self i32) (result i32 i32)
     ;; 23 |         "woof"

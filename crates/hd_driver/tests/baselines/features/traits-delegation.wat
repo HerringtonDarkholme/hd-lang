@@ -9,15 +9,15 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $self
+    local.set $self
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $self
     local.get $t0
+    local.get $self
   )
   (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 21 | impl Describe for Service by Logger
@@ -25,15 +25,15 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $self
+    local.set $self
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $self
     local.get $t0
+    local.get $self
   )
   (func $delegated (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     ;; 24 |     s.describe().len()

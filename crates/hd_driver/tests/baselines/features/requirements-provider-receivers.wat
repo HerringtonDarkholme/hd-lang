@@ -113,7 +113,7 @@
     i64.add
     i64.store $heap
   )
-  (func $count_later'1 (param $frame i32) (param $n i64) (param $wait i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t5 i32) (local $t7 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t0 i32)
+  (func $count_later'1 (param $frame i32) (param $n i64) (param $wait i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t5 i32) (local $t8 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t7 i32) (local $t0 i32) (local $t6 i32)
     ;; 25 |     for i in 0..n:
     local.get $frame
     if
@@ -512,7 +512,7 @@
               end
             end
             i32.const 1
-            local.set $t7
+            local.set $t8
             br 3
           end
     ;; 25 |     for i in 0..n:
@@ -575,7 +575,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t7
+    local.get $t8
     if (result i32)
       local.get $frame
       local.get $frame

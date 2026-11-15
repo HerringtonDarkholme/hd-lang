@@ -183,9 +183,9 @@
       i32.const 20
       i32.mul
       i32.add
-      local.tee $m
+      local.tee $v.1
       i32.load $heap offset=12
-      local.get $m
+      local.get $v.1
       i32.load $heap offset=16
       local.set $v.1
       local.set $t0

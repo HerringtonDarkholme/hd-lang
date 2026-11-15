@@ -147,7 +147,7 @@
     ;; 16 |     n
     local.get $n
   )
-  (func $by_value (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $v i32)
+  (func $by_value (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $v i32) (local $k i32)
     ;; 8 |     for (k, v) in m:
     local.get $m
     i32.load $heap offset=4
@@ -175,8 +175,8 @@
         i32.const 16
         i32.mul
         i32.add
-        local.tee $k
-        local.get $k
+        local.tee $v
+        local.get $v
         i32.const 8
         i32.add
         local.set $v

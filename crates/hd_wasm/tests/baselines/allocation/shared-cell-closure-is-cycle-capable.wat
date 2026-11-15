@@ -9,19 +9,19 @@
     i32.load $heap
     i32.load $heap
   )
-  (func $shared (param $seed i32) (result i32 i32) (local $t0 i32)
+  (func $shared (param $seed i32) (result i32 i32) (local $count i32)
     ;; ...
     ;; 8 |     read := fn() -> i32: count
     i32.const 2
     i32.const 4
     i32.const -2147483647
     call $rt:new/class-1
-    local.tee $t0
-    local.get $seed
+    local.tee $seed
+    local.get $count
     i32.store $heap
-    local.get $t0
+    local.get $seed
     call $rt:retain_fields
     ;; ...
-    local.get $t0
+    local.get $seed
   )
 )

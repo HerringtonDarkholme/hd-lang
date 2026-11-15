@@ -28,10 +28,10 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
     local.set $self
+    local.set $t0
     i32.const 3
-    local.get $t0
+    local.get $self
     i32.add
     local.tee $t1
     call $rt:str
@@ -46,8 +46,8 @@
     local.get $t3
     i32.const 3
     i32.add
-    local.get $self
     local.get $t0
+    local.get $self
     call $rt:memory_copy/0/0
     local.get $t2
     local.get $t1
@@ -82,7 +82,7 @@
     local.get $t0
     i32.const 196 ;; &vtable[func44, func45]
   )
-  (func $local_mut (param $u.name.0 i32) (param $u.name.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $local_mut (param $u.name.0 i32) (param $u.name.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32) (local $v i32) (local $t0 i32)
     ;; 34 |     let mut v = u
     global.get $locals
     global.get $locals_base
@@ -119,32 +119,31 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $v
     local.get $u.name.0
     i32.store $heap
-    local.get $t1
+    local.get $v
     local.get $u.name.1
     i32.store $heap offset=4
-    local.get $t1
-    local.tee $u.name.0
+    local.get $v
     ;; 35 |     through_mut(&mut v, n)
     i32.const 196 ;; &vtable[func44, func45]
     local.get $n.0
     local.get $n.1
     call $through_mut
-    local.set $u.name.1
+    local.set $u.name.0
     ;; 34 |     let mut v = u
-    local.get $u.name.0
+    local.get $v
     if
-      local.get $u.name.0
+      local.get $v
       i32.load $heap
-      local.tee $u.name.0
+      local.tee $u.name.1
       if
-        local.get $u.name.0
+        local.get $u.name.1
         call $rt:release_ref
       end
     end
-    local.get $u.name.1
+    local.get $u.name.0
     local.get $t0
     i32.const 16
     i32.add

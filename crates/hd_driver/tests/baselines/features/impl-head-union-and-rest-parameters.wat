@@ -27,7 +27,7 @@
     local.get $self
     i32.add
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $rest i32) (local $wrapped i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t6 i32) (local $t5 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $wrapped i32) (local $rest i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t6 i32) (local $t5 i32)
     ;; 22 |     let union: i32 | string = ._1("a")
     global.get $locals
     global.get $locals_base
@@ -61,23 +61,23 @@
     ;; 23 |     let rest: (i32, List[string]...) = (+1, "a", "b")
     i32.const 2
     call $rt:list_buf
-    local.tee $rest
+    local.tee $wrapped
     i32.const 2
     i32.store $heap offset=4
-    local.get $rest
-    local.tee $wrapped
+    local.get $wrapped
+    local.tee $rest
     i32.const 113 ;; &"a"
     i32.store $heap offset=16
-    local.get $wrapped
+    local.get $rest
     i32.const 1
     i32.store $heap offset=20
-    local.get $wrapped
+    local.get $rest
     i32.const 8
     i32.add
-    local.tee $wrapped
+    local.tee $rest
     i32.const 114 ;; &"b"
     i32.store $heap offset=16
-    local.get $wrapped
+    local.get $rest
     i32.const 1
     i32.store $heap offset=20
     local.get $t0
@@ -86,14 +86,12 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $wrapped
+    local.tee $rest
     i32.const 1
     i32.store $heap offset=4
-    local.get $wrapped
     local.get $rest
-    i32.store $heap
     local.get $wrapped
-    local.set $rest
+    i32.store $heap
     ;; 24 |     wrapped := Wrap { value: union }
     local.get $t0
     i64.const 0

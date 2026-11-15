@@ -24,7 +24,7 @@
     i32.store $heap offset=4
     call $rt:release
   )
-  (func $adapter (param $us i32) (result i32) (local $u i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $adapter (param $us i32) (result i32) (local $u i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 33 |     for u in us:
     local.get $us
     i32.load $heap offset=4
@@ -45,7 +45,7 @@
         i32.load $heap offset=16
         local.get $t2
         i32.load $heap offset=20
-        local.set $t3
+        local.set $t2
         drop
         local.get $t1
         i32.const 1
@@ -57,7 +57,7 @@
         end
     ;; 34 |         n += g(u)
         local.get $u
-        local.get $t3
+        local.get $t2
         i32.add
         local.set $u
     ;; 33 |     for u in us:

@@ -11,7 +11,7 @@
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
     ;; 15 |         self.log.push(self.name)
     local.get $self
     i32.load $heap
@@ -93,34 +93,34 @@
       local.tee $s.0
       local.get $t.1
       i32.add
-      local.tee $n
+      local.tee $s.1
       i32.const 16
-      local.set $s.1
+      local.set $n
       if
-        local.get $n
+        local.get $s.1
         call $rt:str
-        local.set $s.1
+        local.set $n
       end
-      local.get $s.1
+      local.get $n
       local.tee $t1
       i32.const 8250
       i32.store16 $heap offset=8 align=1
       local.get $t1
       i64.const 7311146993653867886
       i64.store $heap align=1
-      local.get $s.1
+      local.get $n
       local.get $s.0
       i32.add
       local.get $t.0
       local.get $t.1
       call $rt:memory_copy/0/0
-      local.get $s.1
       local.get $n
+      local.get $s.1
       i32.const 3
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 19 |     if n < 0:
-      local.get $s.1
+      local.get $n
       local.tee $s.0
       if
         local.get $s.0
@@ -188,13 +188,13 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $s.1
+    local.tee $s.0
     local.get $t2
     i32.store $heap
-    local.get $s.1
+    local.get $s.0
     local.get $t1
     i32.store $heap offset=4
-    local.get $s.1
+    local.get $s.0
     local.get $log
     i32.store $heap offset=8
     i32.const 1
@@ -213,11 +213,11 @@
     ;; 25 |     if n < 0:
     end
     ;; 27 |     r.name.len()
-    local.get $s.1
+    local.get $s.0
     i32.load $heap
-    local.get $s.1
+    local.get $s.0
     i32.load $heap offset=4
-    local.set $s.0
+    local.set $s.1
     drop
     ;; 24 |     using r = Res { name: s + "?", log: log }
     local.get $log
@@ -226,7 +226,7 @@
       i32.const 1
       i32.add
       global.set $forbid
-      local.get $s.1
+      local.get $s.0
       i32.eqz
       if
         local.get $t0
@@ -235,34 +235,34 @@
         local.get $t0
         i32.const 8
         i32.add
-        local.tee $s.1
+        local.tee $s.0
         i32.const 0
         i32.store $heap
-        local.get $s.1
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=4
-        local.get $s.1
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=8
       end
-      local.get $s.1
+      local.get $s.0
       call $"impl Disposable for Res.dispose"
       global.get $forbid
       i32.const -1
       i32.add
       global.set $forbid
     end
-    local.get $s.1
+    local.get $s.0
     if
-      local.get $s.1
+      local.get $s.0
       i32.load $heap
-      local.get $s.1
+      local.get $s.0
       i32.load $heap offset=4
-      local.get $s.1
+      local.get $s.0
       i32.load $heap offset=8
       call $rt:release
     end
-    local.get $s.0
+    local.get $s.1
     local.get $t0
     i32.const 24
     i32.add

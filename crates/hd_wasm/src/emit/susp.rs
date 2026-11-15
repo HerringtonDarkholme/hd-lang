@@ -1522,7 +1522,7 @@ pub(super) fn finish(
             Some(live) => area
                 .iter()
                 .map(|x| x.0)
-                .filter(|w| !owners.contains_key(w) && !live.contains(w))
+                .filter(|w| !owners.contains_key(w) && live.binary_search(w).is_err())
                 .collect(),
             None => hd_base::HashSet::default(),
         };

@@ -10,7 +10,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $tagged'1 (param $frame i32) (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32) (local $t1 i32) (local $text.1 i32) (local $t0 i32)
+  (func $tagged'1 (param $frame i32) (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32) (local $text.1 i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     match value:
     local.get $frame
     if
@@ -82,8 +82,6 @@
     local.get $value.1
     local.get $value.2
     call $rt:release
-    local.get $text.1
-    local.set $value.0
     local.get $t1
     if
       local.get $t1
@@ -92,7 +90,7 @@
         call $rt:release_ref
       end
     end
-    local.get $value.0
+    local.get $text.1
     local.get $frame
     if
       local.get $frame

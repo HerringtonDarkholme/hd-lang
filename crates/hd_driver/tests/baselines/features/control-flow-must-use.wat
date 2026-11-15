@@ -11,7 +11,7 @@
     ;; 20 |     s.len()
     local.get $s.1
   )
-  (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 11 |     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
     local.get $s.1
     if (result i32)
@@ -31,21 +31,17 @@
       i32.const 33
       i32.store8 $heap
       i32.const 0
-      local.get $t1
-      local.get $t0
-      local.set $s.1
-      local.set $s.0
     else
       i32.const 1
       i32.const 66 ;; &"empty"
       i32.const 5
-      local.set $s.1
-      local.set $s.0
+      local.set $t0
+      local.set $t1
     end
-    local.get $s.0
-    local.get $s.1
+    local.get $t1
+    local.get $t0
   )
-  (func $discard (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $discard (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 14 |     _ := save(s)
     local.get $s.0
     local.tee $t0
@@ -58,33 +54,30 @@
     call $"impl string.len"
     if (result i32)
       local.get $s.1
-      local.tee $t0
       i32.const 1
       i32.add
-      local.tee $t1
+      local.tee $t0
       call $rt:str
+      local.tee $t1
       local.tee $t2
-      local.tee $t3
       local.get $s.0
-      local.get $t0
+      local.get $s.1
       call $rt:memory_copy/0/0
-      local.get $t3
-      local.get $t0
+      local.get $t2
+      local.get $s.1
       i32.add
       i32.const 33
       i32.store8 $heap
       i32.const 0
-      local.get $t2
-      local.set $t0
     else
       i32.const 1
       i32.const 66 ;; &"empty"
       i32.const 5
-      local.set $t1
       local.set $t0
+      local.set $t1
     end
-    local.get $t0
     local.get $t1
+    local.get $t0
     call $rt:release
     local.get $s.0
     local.tee $t0
@@ -104,33 +97,30 @@
     call $"impl string.len"
     if (result i32)
       local.get $s.1
-      local.tee $t0
       i32.const 1
       i32.add
-      local.tee $t1
+      local.tee $t0
       call $rt:str
+      local.tee $t1
       local.tee $t2
-      local.tee $t3
       local.get $s.0
-      local.get $t0
+      local.get $s.1
       call $rt:memory_copy/0/0
-      local.get $t3
-      local.get $t0
+      local.get $t2
+      local.get $s.1
       i32.add
       i32.const 33
       i32.store8 $heap
       i32.const 0
-      local.get $t2
-      local.set $t0
     else
       i32.const 1
       i32.const 66 ;; &"empty"
       i32.const 5
-      local.set $t1
       local.set $t0
+      local.set $t1
     end
-    local.get $t0
     local.get $t1
+    local.get $t0
     call $rt:release
     local.get $s.0
     local.tee $t0

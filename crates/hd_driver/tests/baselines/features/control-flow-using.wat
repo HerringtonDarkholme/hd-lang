@@ -11,7 +11,7 @@
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
     ;; 16 |         self.log.push(self.name)
     local.get $self
     i32.load $heap
@@ -66,7 +66,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $first i32)
     ;; 19 |     using first = Res { name: a, log: log }
     global.get $locals
     global.get $locals_base
@@ -98,14 +98,14 @@
     local.tee $t0
     global.set $locals
     local.get $log
-    local.tee $t1
+    local.tee $first
     if
-      local.get $t1
+      local.get $first
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $first
         call $rt:retain_known
       end
     end
@@ -115,17 +115,16 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $first
     local.get $a.0
     i32.store $heap
-    local.get $t1
+    local.get $first
     local.get $a.1
     i32.store $heap offset=4
-    local.get $t1
+    local.get $first
     local.get $log
     i32.store $heap offset=8
-    local.get $t1
-    local.tee $a.1
+    local.get $first
     i32.const 1
     local.set $a.0
     ;; 20 |     using second = Res { name: b, log: log }
@@ -135,31 +134,29 @@
     local.get $t0
     i32.const 32
     i32.add
-    local.tee $t1
+    local.tee $a.1
     local.get $b.0
     i32.store $heap
-    local.get $t1
+    local.get $a.1
     local.get $b.1
     i32.store $heap offset=4
-    local.get $t1
+    local.get $a.1
     local.get $log
     i32.store $heap offset=8
-    local.get $t1
-    local.set $b.0
     ;; 21 |     first.name.len() + second.name.len()
     i32.load $heap
-    local.get $a.1
+    local.get $first
     i32.load $heap offset=4
     local.set $log
     drop
-    local.get $b.0
+    local.get $a.1
     i32.load $heap
-    local.get $b.0
+    local.get $a.1
     i32.load $heap offset=4
-    local.set $b.1
+    local.set $b.0
     drop
     local.get $log
-    local.get $b.1
+    local.get $b.0
     i32.add
     ;; 19 |     using first = Res { name: a, log: log }
     local.set $log
@@ -168,7 +165,7 @@
     i32.add
     global.set $forbid
     ;; 20 |     using second = Res { name: b, log: log }
-    local.get $b.0
+    local.get $a.1
     i32.eqz
     if
       local.get $t0
@@ -177,17 +174,17 @@
       local.get $t0
       i32.const 32
       i32.add
-      local.tee $b.0
+      local.tee $a.1
       i32.const 0
       i32.store $heap
-      local.get $b.0
+      local.get $a.1
       i32.const 0
       i32.store $heap offset=4
-      local.get $b.0
+      local.get $a.1
       i32.const 0
       i32.store $heap offset=8
     end
-    local.get $b.0
+    local.get $a.1
     call $"impl Disposable for Res.dispose"
     ;; 19 |     using first = Res { name: a, log: log }
     global.get $forbid
@@ -200,7 +197,7 @@
       i32.const 1
       i32.add
       global.set $forbid
-      local.get $a.1
+      local.get $first
       i32.eqz
       if
         local.get $t0
@@ -209,32 +206,22 @@
         local.get $t0
         i32.const 8
         i32.add
-        local.tee $a.1
+        local.tee $first
         i32.const 0
         i32.store $heap
-        local.get $a.1
+        local.get $first
         i32.const 0
         i32.store $heap offset=4
-        local.get $a.1
+        local.get $first
         i32.const 0
         i32.store $heap offset=8
       end
-      local.get $a.1
+      local.get $first
       call $"impl Disposable for Res.dispose"
       global.get $forbid
       i32.const -1
       i32.add
       global.set $forbid
-    end
-    local.get $b.0
-    if
-      local.get $b.0
-      i32.load $heap
-      local.get $b.0
-      i32.load $heap offset=4
-      local.get $b.0
-      i32.load $heap offset=8
-      call $rt:release
     end
     local.get $a.1
     if
@@ -243,6 +230,16 @@
       local.get $a.1
       i32.load $heap offset=4
       local.get $a.1
+      i32.load $heap offset=8
+      call $rt:release
+    end
+    local.get $first
+    if
+      local.get $first
+      i32.load $heap
+      local.get $first
+      i32.load $heap offset=4
+      local.get $first
       i32.load $heap offset=8
       call $rt:release
     end
@@ -277,7 +274,7 @@
     ;; 30 |     held.name.len()
     local.get $t0
   )
-  (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.0 i32) (local $x.1 i32) (local $t0 i32) (local $t3 i32)
+  (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $t0 i32) (local $r i32)
     ;; 24 |     for x in xs:
     global.get $locals
     global.get $locals_base
@@ -331,9 +328,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $x.0
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $x.0
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         local.set $x.0
@@ -347,20 +344,20 @@
         end
     ;; 25 |         using r = Res { name: x, log: log }
         local.get $x.0
-        local.tee $t3
+        local.tee $r
         if
-          local.get $t3
+          local.get $r
           call $retain
         end
         local.get $log
-        local.tee $t3
+        local.tee $r
         if
-          local.get $t3
+          local.get $r
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t3
+            local.get $r
             call $rt:retain_known
           end
         end
@@ -370,17 +367,16 @@
         local.get $t0
         i32.const 8
         i32.add
-        local.tee $t3
+        local.tee $r
         local.get $x.0
         i32.store $heap
-        local.get $t3
+        local.get $r
         local.get $x.1
         i32.store $heap offset=4
-        local.get $t3
+        local.get $r
         local.get $log
         i32.store $heap offset=8
-        local.get $t3
-        local.tee $x.0
+        local.get $r
         global.get $forbid
         i32.const 1
         i32.add
@@ -393,30 +389,30 @@
           local.get $t0
           i32.const 8
           i32.add
-          local.tee $x.0
+          local.tee $r
           i32.const 0
           i32.store $heap
-          local.get $x.0
+          local.get $r
           i32.const 0
           i32.store $heap offset=4
-          local.get $x.0
+          local.get $r
           i32.const 0
           i32.store $heap offset=8
         end
-        local.get $x.0
+        local.get $r
         call $"impl Disposable for Res.dispose"
         global.get $forbid
         i32.const -1
         i32.add
         global.set $forbid
     ;; 24 |     for x in xs:
-        local.get $x.0
+        local.get $r
         if
-          local.get $x.0
+          local.get $r
           i32.load $heap
-          local.get $x.0
+          local.get $r
           i32.load $heap offset=4
-          local.get $x.0
+          local.get $r
           i32.load $heap offset=8
           call $rt:release
         end
@@ -424,14 +420,14 @@
       end
     end
     local.get $log
-    local.tee $t3
+    local.tee $r
     if
-      local.get $t3
+      local.get $r
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $r
         call $rt:release_ref
       end
     end

@@ -20,7 +20,7 @@
     end
     local.get $s.1
   )
-  (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
+  (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t1 i64) (local $p i32) (local $t0 i32)
     ;; 40 |     let mut p = make(s)
     global.get $locals
     global.get $locals_base
@@ -57,32 +57,31 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $p
     local.get $s.0
     i32.store $heap
-    local.get $t1
+    local.get $p
     local.get $s.1
     i32.store $heap offset=4
+    local.get $p
     local.get $t1
-    local.get $t2
     i64.store $heap offset=8
-    local.get $t1
-    local.tee $s.0
+    local.get $p
     ;; 41 |     p.shift(2)
-    local.tee $s.1
-    local.get $s.1
+    local.tee $s.0
+    local.get $s.0
     i64.load $heap offset=8
     i64.const 2
     i64.add
     i64.store $heap offset=8
     ;; 42 |     p.x
-    local.get $s.0
+    local.get $p
     i64.load $heap offset=8
-    local.set $t2
+    local.set $t1
     ;; 40 |     let mut p = make(s)
-    local.get $s.0
+    local.get $p
     if
-      local.get $s.0
+      local.get $p
       i32.load $heap
       local.tee $s.0
       if
@@ -90,7 +89,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 24
     i32.add
@@ -123,20 +122,20 @@
     i32.load $heap
     local.get $b
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $b
+    local.set $b
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $b
+    local.get $t0
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref
     end
-    local.get $t0
+    local.get $b
   )
   (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
     ;; 45 |     w := v.renamed(n)

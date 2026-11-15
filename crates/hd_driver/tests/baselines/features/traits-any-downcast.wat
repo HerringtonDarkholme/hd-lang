@@ -49,16 +49,16 @@
       i32.load $heap
       local.get $user
       i32.load $heap offset=4
-      local.set $value.1
-      local.tee $value.0
+      local.set $value.0
+      local.tee $value.1
       local.tee $user
       if
         local.get $user
         call $retain
       end
     ;; 13 |     match value.downcast_ref::[User]():
-      local.get $value.0
       local.get $value.1
+      local.get $value.0
       return
     end
     i32.const 104 ;; &"not a user"

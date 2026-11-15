@@ -233,7 +233,7 @@
         i32.add
         local.set $t3
     ;; 38 |         s = s + h.store[i]
-        local.tee $t2
+        local.tee $t0
         local.get $h
         i32.load $heap offset=8
         i32.ge_u
@@ -249,7 +249,7 @@
         local.get $s
         local.get $h
         i32.load $heap
-        local.get $t2
+        local.get $t0
         i32.const 8
         i32.mul
         i32.add

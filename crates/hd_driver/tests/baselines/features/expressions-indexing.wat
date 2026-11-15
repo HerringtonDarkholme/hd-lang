@@ -74,15 +74,15 @@
     i32.load $heap
     local.get $m
     i32.load $heap offset=4
-    local.set $k.0
-    local.tee $m
+    local.set $m
+    local.tee $k.0
     local.tee $k.1
     if
       local.get $k.1
       call $retain
     end
-    local.get $m
     local.get $k.0
+    local.get $m
   )
   (func $string_byte (param $s.0 i32) (param $s.1 i32) (param $i i32) (result i32)
     ;; 13 |     s[i]

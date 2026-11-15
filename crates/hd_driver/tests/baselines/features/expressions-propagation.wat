@@ -12,17 +12,18 @@
     call $"impl string.len"
     if (result i32)
       local.get $path.1
+      local.tee $t0
       i32.const 1
       i32.add
-      local.tee $t0
+      local.tee $path.1
       call $rt:str
       local.tee $t1
       local.tee $t2
       local.get $path.0
-      local.get $path.1
+      local.get $t0
       call $rt:memory_copy/0/0
       local.get $t2
-      local.get $path.1
+      local.get $t0
       i32.add
       i32.const 47
       i32.store8 $heap
@@ -33,22 +34,20 @@
       i32.const 0
       local.set $path.0
       i32.const 1
-      local.get $path.1
-      local.set $t0
     end
-    local.set $path.1
+    local.set $t0
     local.get $path.0
     local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
     end
-    local.get $path.1
+    local.get $t0
     i32.eqz
     if
     else
       local.get $t1
-      local.get $t0
+      local.get $path.1
       return
     end
     local.get $t1
@@ -59,7 +58,7 @@
       call $rt:release_ref
     end
     i32.const 0
-    local.get $t0
+    local.get $path.1
   )
   (func $converted (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 27 |     text := read(path)?
@@ -68,17 +67,18 @@
     call $"impl string.len"
     if (result i32)
       local.get $path.1
+      local.tee $t0
       i32.const 1
       i32.add
-      local.tee $t0
+      local.tee $path.1
       call $rt:str
       local.tee $t1
       local.tee $t2
       local.get $path.0
-      local.get $path.1
+      local.get $t0
       call $rt:memory_copy/0/0
       local.get $t2
-      local.get $path.1
+      local.get $t0
       i32.add
       i32.const 47
       i32.store8 $heap
@@ -89,22 +89,20 @@
       i32.const 0
       local.set $path.0
       i32.const 1
-      local.get $path.1
-      local.set $t0
     end
-    local.set $path.1
+    local.set $t0
     local.get $path.0
     local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
     end
-    local.get $path.1
+    local.get $t0
     i32.eqz
     if
     else
       local.get $t1
-      local.get $t0
+      local.get $path.1
       return
     end
     local.get $t1
@@ -115,24 +113,25 @@
       call $rt:release_ref
     end
     i32.const 0
-    local.get $t0
+    local.get $path.1
   )
   (func $read (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
     local.get $path.1
     if (result i32)
       local.get $path.1
+      local.tee $t0
       i32.const 1
       i32.add
-      local.tee $t0
+      local.tee $path.1
       call $rt:str
       local.tee $t1
       local.tee $t2
       local.get $path.0
-      local.get $path.1
+      local.get $t0
       call $rt:memory_copy/0/0
       local.get $t2
-      local.get $path.1
+      local.get $t0
       i32.add
       i32.const 47
       i32.store8 $heap
@@ -144,8 +143,6 @@
       end
       i32.const 0
       local.get $t1
-      local.get $t0
-      local.set $path.1
       local.set $path.0
     else
       i32.const 1

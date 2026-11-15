@@ -14,10 +14,6 @@
     ;; 23 |         .Line(start = _, end = User { name }) => name
           local.get $s.0
           if
-            local.get $s.3
-            local.get $s.4
-            local.set $s.1
-            local.set $s.0
             br 3
           else
             unreachable
@@ -29,9 +25,9 @@
       end
     ;; 22 |         .Dot(User { name }) => name
       local.get $s.1
-      local.tee $s.3
+      local.tee $s.5
       if
-        local.get $s.3
+        local.get $s.5
         call $retain
       end
       local.get $s.1
@@ -40,15 +36,15 @@
       return
     end
     ;; 23 |         .Line(start = _, end = User { name }) => name
-    local.get $s.0
-    local.tee $s.3
+    local.get $s.3
+    local.tee $s.5
     if
-      local.get $s.3
+      local.get $s.5
       call $retain
     end
     ;; 21 |     match s:
-    local.get $s.0
-    local.get $s.1
+    local.get $s.3
+    local.get $s.4
   )
   (func $read_nested (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (param $s.5 i32) (result i32)
     ;; 15 |     match s:
@@ -89,7 +85,7 @@
     local.get $s.4
     i32.add
     ;; 15 |     match s:
-    local.set $s.0
-    local.get $s.0
+    local.set $s.2
+    local.get $s.2
   )
 )

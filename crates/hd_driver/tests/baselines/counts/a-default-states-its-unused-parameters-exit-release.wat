@@ -105,17 +105,17 @@
     i32.const 157 ;; &"second"
     i32.const 6
     call $note
-    local.set $t1
     local.set $t0
+    local.set $t1
     local.get $t2
     if
       local.get $t2
       call $rt:release_ref'1
     end
-    local.get $t0
     local.get $t1
+    local.get $t0
   )
-  (func $note (param $log i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $note (param $log i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 6 |     log.push(text)
     local.get $text.0
     local.tee $t0
@@ -176,7 +176,7 @@
     local.get $text.0
     local.get $text.1
   )
-  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t0 i32) (local $limit i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32)
+  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t7 i32) (local $t6 i32) (local $t0 i32) (local $limit i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     ;; 15 |     "$first $second $limit"
     global.get $locals
     global.get $locals_base
@@ -351,10 +351,6 @@
     i32.add
     local.get $t1
     call $write_unsigned_sized
-    local.get $t7
-    local.get $t6
-    local.set $second.1
-    local.set $first.1
     local.get $log
     if
       local.get $log
@@ -378,8 +374,8 @@
       local.get $log
       call $rt:release_ref'1
     end
-    local.get $first.1
-    local.get $second.1
+    local.get $t7
+    local.get $t6
     local.get $t0
     i32.const 16
     i32.add

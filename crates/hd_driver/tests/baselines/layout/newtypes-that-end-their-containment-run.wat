@@ -15,7 +15,7 @@
     i32.const 2
     i32.const 0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $forest i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i32) (local $t9 i32) (local $t11 i32) (local $t10 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $forest i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i32) (local $t10 i32) (local $t9 i32)
     ;; 19 |     forest := Forest([Forest([]), Forest([Forest([])])])
     i32.const 1
     call $rt:list_buf'1
@@ -79,13 +79,13 @@
     if
       i32.const 152 ;; &"true"
       i32.const 4
-      local.set $t2
       local.set $t1
+      local.set $t2
     else
       i32.const 156 ;; &"false"
       i32.const 5
-      local.set $t2
       local.set $t1
+      local.set $t2
     end
     local.get $forest
     call $count
@@ -111,106 +111,105 @@
     local.tee $t4
     call $unsigned_width
     local.set $t0
-    local.get $t2
+    local.get $t1
     local.tee $t5
-    local.tee $t6
     i32.const -2
     i32.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t6
+    local.get $t5
     i32.const 1
     i32.add
-    local.tee $t6
+    local.tee $t5
     i64.extend_i32_u
     local.get $forest
     i64.extend_i32_u
     i64.add
-    local.tee $t7
+    local.tee $t6
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t7
+    local.get $t6
     i32.wrap_i64
+    local.tee $t7
     local.tee $t8
-    local.tee $t9
     i32.const -2
     i32.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t9
+    local.get $t8
     i32.const 1
     i32.add
-    local.tee $t9
+    local.tee $t8
     i64.extend_i32_u
     local.get $t0
     i64.extend_i32_u
     i64.add
-    local.tee $t7
+    local.tee $t6
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t7
+    local.get $t6
     i32.wrap_i64
-    local.tee $t10
+    local.tee $t9
     i32.const 16
-    local.set $t11
+    local.set $t10
     if
-      local.get $t10
+      local.get $t9
       call $rt:str
-      local.set $t11
+      local.set $t10
     end
-    local.get $t11
+    local.get $t10
     i64.extend_i32_u
     i64.const 0
     i64.add
-    local.tee $t7
+    local.tee $t6
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t7
+    local.get $t6
     i32.wrap_i64
-    local.get $t1
     local.get $t2
+    local.get $t1
     call $rt:memory_copy/0/0
-    local.get $t11
+    local.get $t10
     i64.extend_i32_u
-    local.get $t5
+    local.get $t1
     i64.extend_i32_u
     i64.add
-    local.tee $t7
+    local.tee $t6
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t7
+    local.get $t6
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
     local.get $t3
-    local.get $t11
-    local.get $t6
+    local.get $t10
+    local.get $t5
     i32.add
     local.get $forest
     call $write_unsigned_sized
-    local.get $t11
+    local.get $t10
     i64.extend_i32_u
-    local.get $t8
+    local.get $t7
     i64.extend_i32_u
     i64.add
     local.tee $t3
@@ -225,13 +224,13 @@
     i32.const 32
     i32.store8 $heap
     local.get $t4
-    local.get $t11
-    local.get $t9
+    local.get $t10
+    local.get $t8
     i32.add
     local.get $t0
     call $write_unsigned_sized
-    local.get $t11
     local.get $t10
+    local.get $t9
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"

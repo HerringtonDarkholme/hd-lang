@@ -5,7 +5,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $field_ref (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $field_ref (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $p i32) (local $t0 i32)
     ;; 23 |     let mut p = Named { name: s }
     global.get $locals
     global.get $locals_base
@@ -42,35 +42,34 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $p
     local.get $s.0
     i32.store $heap
-    local.get $t1
+    local.get $p
     local.get $s.1
     i32.store $heap offset=4
-    local.get $t1
-    local.tee $s.0
+    local.get $p
     ;; 25 |     *q = t
-    local.tee $s.1
+    local.tee $s.0
     i32.load $heap
-    local.get $s.1
+    local.get $s.0
     i32.load $heap offset=4
-    local.get $s.1
+    local.get $s.0
     local.get $t.0
     i32.store $heap
-    local.get $s.1
+    local.get $s.0
     local.get $t.1
     i32.store $heap offset=4
     call $rt:release
     ;; 26 |     p.name.len()
-    local.get $s.0
+    local.get $p
     i32.load $heap
-    local.get $s.0
+    local.get $p
     i32.load $heap offset=4
-    local.get $s.0
+    local.get $p
     i32.const 0
     i32.store $heap
-    local.get $s.0
+    local.get $p
     i32.const 0
     i32.store $heap offset=4
     local.set $s.0
@@ -86,7 +85,7 @@
     i32.add
     global.set $locals
   )
-  (func $new_mut (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $new_mut (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 18 |     m := &mut Named { name: s }
     global.get $locals
     global.get $locals_base
@@ -131,38 +130,37 @@
     i32.store $heap offset=4
     local.get $t1
     local.tee $s.0
-    local.tee $s.1
     ;; 19 |     m.name = t
-    local.tee $t1
+    local.tee $s.1
     i32.load $heap
-    local.get $t1
+    local.get $s.1
     i32.load $heap offset=4
-    local.get $t1
+    local.get $s.1
     local.get $t.0
     i32.store $heap
-    local.get $t1
+    local.get $s.1
     local.get $t.1
     i32.store $heap offset=4
     call $rt:release
     ;; 20 |     m.name.len()
-    local.get $s.1
+    local.get $s.0
     i32.load $heap
-    local.get $s.1
+    local.get $s.0
     i32.load $heap offset=4
-    local.set $s.1
+    local.set $s.0
     drop
     ;; 18 |     m := &mut Named { name: s }
-    local.get $s.0
+    local.get $t1
     if
-      local.get $s.0
+      local.get $t1
       i32.load $heap
-      local.tee $s.0
+      local.tee $s.1
       if
-        local.get $s.0
+        local.get $s.1
         call $rt:release_ref
       end
     end
-    local.get $s.1
+    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add
@@ -173,7 +171,7 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $temp_ref (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $temp_ref (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     n := &make(s)
     global.get $locals
     global.get $locals_base
@@ -217,26 +215,25 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t1
-    local.tee $s.0
     ;; 15 |     n.name.len()
-    local.tee $s.1
+    local.tee $s.0
     i32.load $heap
-    local.get $s.1
+    local.get $s.0
     i32.load $heap offset=4
-    local.set $s.1
+    local.set $s.0
     drop
     ;; 14 |     n := &make(s)
-    local.get $s.0
+    local.get $t1
     if
-      local.get $s.0
+      local.get $t1
       i32.load $heap
-      local.tee $s.0
+      local.tee $s.1
       if
-        local.get $s.0
+        local.get $s.1
         call $rt:release_ref
       end
     end
-    local.get $s.1
+    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add

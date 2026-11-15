@@ -196,8 +196,8 @@
     i32.load $heap offset=16
     local.get $b.0
     i32.load $heap offset=20
-    local.set $a.1
-    local.tee $a.0
+    local.set $a.0
+    local.tee $d.0
     local.tee $t0
     if
       local.get $t0
@@ -215,14 +215,14 @@
         call $rt:release_ref'2
       end
     end
-    local.get $a.0
+    local.get $d.0
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref'1
     end
     local.get $c
-    local.get $a.1
+    local.get $a.0
     i32.add
   )
   (func $nested (param $c i32) (param $d i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $e.0 i32) (param $e.1 i32) (result i32)

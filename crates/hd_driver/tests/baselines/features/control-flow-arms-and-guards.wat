@@ -75,7 +75,7 @@
     i32.const 65 ;; &"short"
     i32.const 5
   )
-  (func $whole (param $o.0 i32) (param $o.1 i32) (result i32) (local $s.1 i32) (local $other.1 i32) (local $t0 i32) (local $t1 i32)
+  (func $whole (param $o.0 i32) (param $o.1 i32) (result i32) (local $s.1 i32) (local $other.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     match o:
     block
       block
@@ -95,17 +95,17 @@
             call $rt:retain
             local.get $o.0
             local.get $o.1
-            local.set $other.1
             local.set $s.1
+            local.set $other.0
     ;; 20 |         .Some(s) if s.len() > 0 => s.len()
             br 2
           else
     ;; 21 |         other =>
             local.get $o.0
             local.get $o.1
-            local.set $other.1
-            local.tee $s.1
-            local.get $other.1
+            local.set $s.1
+            local.tee $other.0
+            local.get $s.1
             call $rt:retain
     ;; 20 |         .Some(s) if s.len() > 0 => s.len()
             br 2
@@ -119,7 +119,7 @@
       block
         block
           block
-            local.get $s.1
+            local.get $other.0
             br_if 0
             br 1
             unreachable
@@ -135,8 +135,8 @@
         local.set $t1
       end
     ;; 19 |     match o:
+      local.get $other.0
       local.get $s.1
-      local.get $other.1
       call $rt:release
       local.get $t1
       local.set $s.1

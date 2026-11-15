@@ -14,7 +14,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $both'1 (param $frame i32) (param $a i32) (param $b i32) (result i32 i32 i32) (local $t8 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t11 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t9 i32) (local $t10 i32) (local $t7 i32) (local $t0 i32)
+  (func $both'1 (param $frame i32) (param $a i32) (param $b i32) (result i32 i32 i32) (local $t8 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t11 i32) (local $t10 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t9 i32) (local $t7 i32) (local $t15 i32) (local $t0 i32)
     ;; 7 |     join!(a, b)
     local.get $frame
     if
@@ -137,9 +137,9 @@
           local.get $t6
           call $rt:waker_parent
           global.get $waker
-          local.set $t9
+          local.set $t8
           global.get $wake_bit
-          local.set $t10
+          local.set $t9
           local.get $t3
           i32.const 1
           i32.and
@@ -163,14 +163,14 @@
             i32.const 1
             global.set $wake_bit
             local.get $t1
-            local.tee $t8
-            local.get $t8
+            local.tee $t10
+            local.get $t10
             i32.load $heap
             call_indirect $table0 (param i32) (result i32 i32)
             local.set $t4
-            local.get $t9
+            local.get $t8
             global.set $waker
-            local.get $t10
+            local.get $t9
             global.set $wake_bit
             if
               local.get $t3
@@ -179,7 +179,7 @@
               local.set $t3
             else
               local.get $t11
-              local.get $t8
+              local.get $t10
               i32.load $heap offset=12
               i32.const 8
               i32.and
@@ -210,14 +210,14 @@
             i32.const 2
             global.set $wake_bit
             local.get $t2
-            local.tee $t8
-            local.get $t8
+            local.tee $t10
+            local.get $t10
             i32.load $heap
             call_indirect $table0 (param i32) (result i32 i32)
             local.set $t5
-            local.get $t9
+            local.get $t8
             global.set $waker
-            local.get $t10
+            local.get $t9
             global.set $wake_bit
             if
               local.get $t3
@@ -226,7 +226,7 @@
               local.set $t3
             else
               local.get $t11
-              local.get $t8
+              local.get $t10
               i32.load $heap offset=12
               i32.const 8
               i32.and
@@ -332,26 +332,26 @@
           br 1
         end
         call $rt:cancel_enter
-        local.set $t11
+        local.set $t8
         local.get $t3
         i32.const 1
         i32.and
         i32.eqz
         if
           local.get $t1
-          local.tee $t8
+          local.tee $t14
           if
-            local.get $t8
-            local.get $t8
+            local.get $t14
+            local.get $t14
             i32.load $heap offset=4
             call_indirect $table0 (param i32)
-            local.get $t8
+            local.get $t14
             i32.load $heap offset=12
             i32.const 16
             i32.and
             if
               i32.const 1
-              local.set $t14
+              local.set $t15
             end
           end
         end
@@ -361,28 +361,28 @@
         i32.eqz
         if
           local.get $t2
-          local.tee $t8
+          local.tee $t14
           if
-            local.get $t8
-            local.get $t8
+            local.get $t14
+            local.get $t14
             i32.load $heap offset=4
             call_indirect $table0 (param i32)
-            local.get $t8
+            local.get $t14
             i32.load $heap offset=12
             i32.const 16
             i32.and
             if
               i32.const 1
-              local.set $t14
+              local.set $t15
             end
           end
         end
         i32.const 0
-        local.set $t8
+        local.set $t14
         local.get $frame
-        local.get $t11
+        local.get $t8
         call $rt:cancel_leave
-        local.get $t14
+        local.get $t15
         if
           local.get $frame
           i32.eqz
@@ -423,7 +423,7 @@
           local.get $t7
           i32.store $heap offset=92
           local.get $frame
-          local.get $t8
+          local.get $t14
           i32.store $heap offset=16
           local.get $frame
           i32.const 1

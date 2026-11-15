@@ -82,15 +82,15 @@
     local.get $s.0
     local.get $s.1
     call $ident
-    local.set $s.1
-    local.tee $s.0
+    local.set $s.0
+    local.tee $s.1
     local.tee $t0
     if
       local.get $t0
       call $retain
     end
-    local.get $s.0
     local.get $s.1
+    local.get $s.0
   )
   (func $reads_field (param $value.name.0 i32) (param $value.name.1 i32) (result i32)
     ;; 58 |     ident(value.name).len()
@@ -137,8 +137,8 @@
     local.get $value
     i32.load $heap offset=4
     call $ident
-    local.set $t0
-    local.tee $value
+    local.set $value
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
@@ -150,13 +150,13 @@
     local.get $action.0
     call_indirect $table0 (param i32 i32)
     ;; 64 |     result := ident(value.name)
-    local.get $value
+    local.get $t0
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref'2
     end
-    local.get $t0
+    local.get $value
   )
   (func $adapter (result i32 i32)
     ;; 25 |     ident

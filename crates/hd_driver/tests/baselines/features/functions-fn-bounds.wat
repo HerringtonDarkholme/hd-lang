@@ -16,7 +16,7 @@
     ;; 11 |     s.len()
     local.get $s.1
   )
-  (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 24 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -84,7 +84,7 @@
         i32.load $heap offset=16
         local.get $t3
         i32.load $heap offset=20
-        local.set $t4
+        local.set $t3
         drop
         local.get $t2
         i32.const 1
@@ -97,7 +97,7 @@
         local.get $n
         local.get $n
         i32.load $heap
-        local.get $t4
+        local.get $t3
         i32.add
         i32.store $heap
         br 0

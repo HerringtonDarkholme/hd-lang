@@ -252,7 +252,7 @@
       end
     end
   )
-  (func $stop'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t2 i32) (local $t5 i32) (local $t6 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
+  (func $stop'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t2 i32) (local $t5 i32) (local $t7 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32) (local $t0 i32)
     ;; 13 |     let mut job = fetch(key)
     local.get $frame
     if
@@ -341,13 +341,13 @@
           local.get $t3
           local.get $t1
           call $"impl[T] Suspend[T].cancel[string]"
-          local.set $t4
           local.set $t2
+          local.set $t4
           i32.const 0
           local.set $t1
-          local.get $t4
+          local.get $t2
           if
-            local.get $t4
+            local.get $t2
             i32.load $heap offset=12
             i32.const 8
             i32.and
@@ -364,7 +364,7 @@
                 i32.store $heap offset=12
               end
               local.get $frame
-              local.get $t4
+              local.get $t2
               i32.store $heap offset=16
               local.get $frame
               local.get $frame
@@ -395,7 +395,7 @@
             local.get $t1
             i32.store $heap offset=52
             local.get $frame
-            local.get $t4
+            local.get $t2
             i32.store $heap offset=16
             local.get $frame
             i32.const 1
@@ -421,39 +421,37 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t3
-            local.tee $key.1
+            local.tee $t2
             if
-              local.get $key.1
+              local.get $t2
               call $rt:release_ref'1
             end
           end
-          local.get $t2
-          local.set $key.1
           br 1
         end
         call $rt:cancel_enter
-        local.set $t3
+        local.set $t2
         local.get $frame
         i32.load $heap offset=16
-        local.tee $t2
+        local.tee $t5
         if
-          local.get $t2
-          local.get $t2
+          local.get $t5
+          local.get $t5
           i32.load $heap offset=4
           call_indirect $table0 (param i32)
-          local.get $t2
+          local.get $t5
           i32.load $heap offset=12
           i32.const 16
           i32.and
           if
             i32.const 1
-            local.set $t5
+            local.set $t6
           end
         end
         local.get $frame
-        local.get $t3
+        local.get $t2
         call $rt:cancel_leave
-        local.get $t5
+        local.get $t6
         if
           local.get $frame
           i32.eqz
@@ -476,7 +474,7 @@
           local.get $t1
           i32.store $heap offset=52
           local.get $frame
-          local.get $t2
+          local.get $t5
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -496,15 +494,15 @@
           end
           return
         end
-        local.get $t2
+        local.get $t5
         if
           local.get $frame
           i32.const 0
           i32.store $heap offset=16
-          local.get $t2
-          local.tee $key.1
+          local.get $t5
+          local.tee $t2
           if
-            local.get $key.1
+            local.get $t2
             call $rt:release_ref'1
           end
         end
@@ -517,26 +515,26 @@
         block
           block
     ;; 16 |         .Finished => true
-            local.get $key.1
+            local.get $t4
             br_if 1
             br 0
     ;; 15 |     match end:
             unreachable
           end
           i32.const 1
-          local.set $t6
+          local.set $t7
           br 1
         end
       end
     ;; 13 |     let mut job = fetch(key)
     end
     local.get $key.0
-    local.tee $key.1
+    local.tee $t2
     if
-      local.get $key.1
+      local.get $t2
       call $rt:release_ref'1
     end
-    local.get $t6
+    local.get $t7
     local.get $frame
     if
       local.get $frame

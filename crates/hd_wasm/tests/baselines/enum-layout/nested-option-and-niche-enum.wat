@@ -14,7 +14,7 @@
     i32.const 1
     local.get $x
   )
-  (func $read_a_ref (param $a i32) (result i32) (local $t0 i32)
+  (func $read_a_ref (param $a i32) (result i32) (local $y i32)
     ;; 28 |     match a:
     block
       block
@@ -22,37 +22,37 @@
     ;; 29 |         .Maybe(.Some(x)) => x
           local.get $a
           i32.load $heap
-          local.set $t0
+          local.set $y
           block
             block
               block
-                local.get $t0
+                local.get $y
                 br_table 4 1 0 1
               end
     ;; 31 |         .Must(y) => y
               local.get $a
               i32.load $heap offset=4
-              local.set $a
+              local.set $y
     ;; 29 |         .Maybe(.Some(x)) => x
               br 4
             end
             local.get $a
             i32.load $heap offset=4
-            local.set $a
+            local.set $y
             br 1
           end
     ;; 28 |     match a:
           unreachable
         end
     ;; 29 |         .Maybe(.Some(x)) => x
-        local.get $a
+        local.get $y
     ;; 28 |     match a:
         return
       end
       i32.const 1
       return
     end
-    local.get $a
+    local.get $y
   )
   (func $load (param $slot i32) (result i32 i32)
     ;; 40 |     slot[0]

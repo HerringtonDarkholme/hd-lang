@@ -31,20 +31,18 @@
       i32.const 16
       i32.mul
       i32.add
-      local.tee $t0
-      i32.load $heap offset=8
       local.tee $t3
-      local.get $t0
+      i32.load $heap offset=8
+      local.tee $t0
+      local.get $t3
       i32.load $heap offset=12
-      local.set $t0
+      local.set $t3
       local.tee $t4
       if
         local.get $t4
         call $retain
       end
-      local.get $t3
       local.get $t0
-      local.set $t3
     else
       i32.const 0
     end

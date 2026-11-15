@@ -159,30 +159,30 @@
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $a.0
-    local.tee $t1
+    local.tee $a.1
     if
-      local.get $t1
+      local.get $a.1
       call $rt:release_ref
     end
     ;; 29 |         $.with(Tag=Named { label: b }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
-    local.tee $a.1
+    local.tee $t1
     local.get $b.0
     i32.store $heap
-    local.get $a.1
+    local.get $t1
     local.get $b.1
     i32.store $heap offset=4
-    local.get $a.1
+    local.get $t1
     i32.const 192 ;; &vtable[func42]
     ;; 30 |             outer + read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $b.0
-    local.tee $t1
+    local.tee $a.1
     if
-      local.get $t1
+      local.get $a.1
       call $rt:release_ref
     end
     local.get $a.0
@@ -191,16 +191,16 @@
     ;; 29 |         $.with(Tag=Named { label: b }):
     local.set $a.0
     ;; 27 |     $.with(Tag=Named { label: a }):
-    local.get $a.1
-    local.tee $t1
+    local.get $t1
+    local.tee $a.1
     if
-      local.get $t1
+      local.get $a.1
       call $rt:release_ref
     end
     local.get $t0
-    local.tee $t1
+    local.tee $a.1
     if
-      local.get $t1
+      local.get $a.1
       call $rt:release_ref
     end
     local.get $a.0

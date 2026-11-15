@@ -13,18 +13,18 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $self
+    local.set $self
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $self
     local.get $t0
+    local.get $self
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i64)
-    local.get $self
+    local.get $t0
     local.tee $t1
     if
       local.get $t1
@@ -83,7 +83,7 @@
     i32.const 192 ;; &vtable[func38]
     call $total
   )
-  (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $t0 i32) (local $t1 i32) (local $sum i64) (local $x i64)
+  (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $x i64)
     ;; 35 |     let mut cursor = items
     global.get $locals
     global.get $locals_base
@@ -120,34 +120,32 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $cursor
     local.get $items.source.0
     i32.store $heap
-    local.get $t1
+    local.get $cursor
     local.get $items.source.1
     i32.store $heap offset=4
-    local.get $t1
-    local.set $items.source.0
     ;; 37 |     while true:
     block
       loop
     ;; 38 |         match cursor.step():
-        local.get $items.source.0
+        local.get $cursor
         call $"impl Step for Erased.step'2"
         local.set $x
-        local.set $items.source.1
+        local.set $items.source.0
         block
           block
             block
     ;; 39 |             .Some(x) => sum = sum + x
-              local.get $items.source.1
+              local.get $items.source.0
               i32.const 1
               i32.eq
               if
                 br 1
               else
     ;; 40 |             .None => break
-                local.get $items.source.1
+                local.get $items.source.0
                 i32.eqz
                 br_if 2
                 unreachable
@@ -172,9 +170,9 @@
         br 0
       end
     end
-    local.get $items.source.0
+    local.get $cursor
     if
-      local.get $items.source.0
+      local.get $cursor
       i32.load $heap
       local.tee $items.source.0
       if

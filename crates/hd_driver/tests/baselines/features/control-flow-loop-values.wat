@@ -5,7 +5,7 @@
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $first_long (param $xs i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32)
+  (func $first_long (param $xs i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32)
     ;; 8 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -21,9 +21,9 @@
           i32.const 8
           i32.mul
           i32.add
-          local.tee $x.0
+          local.tee $x.1
           i32.load $heap offset=16
-          local.get $x.0
+          local.get $x.1
           i32.load $heap offset=20
           local.set $x.1
           local.set $x.0
@@ -42,9 +42,9 @@
           if
     ;; 10 |             break x
             local.get $x.0
-            local.tee $xs
+            local.tee $t1
             if
-              local.get $xs
+              local.get $t1
               call $retain
             end
             local.get $x.0
@@ -56,15 +56,15 @@
         else
           i32.const 65 ;; &"none"
           i32.const 4
-          local.set $t0
-          local.set $xs
+          local.set $x.1
+          local.set $x.0
           br 2
         end
         br 0
       end
     end
-    local.get $xs
-    local.get $t0
+    local.get $x.0
+    local.get $x.1
   )
   (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
     ;; 16 |     while i < xs.len():

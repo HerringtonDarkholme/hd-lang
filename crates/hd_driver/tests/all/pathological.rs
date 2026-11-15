@@ -2511,6 +2511,75 @@ fn wide_struct_reads_cost_one_probe_per_field() {
     });
 }
 
+/// One string of `n` interpolations of one local, its length read back:
+/// the scale check's `interpolation` shape (#1914).
+fn interpolated_local(n: usize) -> String {
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +0\n    s := \"start{}\"\n    t = i32(s.len())\n    println(\"$t\")\n",
+        " $t".repeat(n)
+    )
+}
+
+/// `n` values, then an else-if chain of `n` arms whose last arm reads all
+/// of them: each value is live past every arm but not in it, so a range
+/// per local with a hole per arm it skips would be `n²` pieces.
+fn else_if_reads_past_arms(n: usize) -> String {
+    let mut s = String::from("fn pick(k: i32) -> i32:\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    v{i} := k * {i} + 1");
+    }
+    for i in 0..n {
+        let head = if i == 0 { "if" } else { "else if" };
+        let _ = writeln!(s, "    {head} k == {i}:\n        k + {i}");
+    }
+    let sum: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
+    let _ = writeln!(s, "    else:\n        {}", sum.join(" + "));
+    s.push_str("\npub fn main() -> void $ Console:\n    r := pick(+7)\n    println(\"$r\")\n");
+    s
+}
+
+// Emitter: #1935 and #1914, the backend's liveness keeps each block's live
+// set as a persistent set that shares what the block leaves alone, and
+// local coalescing is a linear scan over live ranges with holes: each block
+// kept its own copy of every live local, and coalescing built a locals by
+// locals conflict matrix, so `n` values live across `n` blocks cost `n²`.
+#[test]
+fn liveness_and_coalescing_work_is_linear_in_live_values() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |source: String| {
+            let (out, work) = hd_wasm::work::count_liveness(|| compile(&source, &goal));
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            work
+        };
+        // #1914's smallest size, #1935's largest, and an else-if chain
+        // whose `n` arms all skip `n` live values, each with the size 10x
+        // from it. A persistent set's insert copies one path of about
+        // `log2 n` nodes, so work grows by 10x times the growth of `log2 n`
+        // (12.1x, 10.0x and 10.1x measured), within 14x; the quadratic
+        // sets grew 100x, and a hole per value per arm passed 8 GB at
+        // 2,000 arms.
+        for (shape, generate, small) in [
+            (
+                "interpolation",
+                interpolated_local as fn(usize) -> String,
+                500,
+            ),
+            ("wide-struct", wide_struct, 800),
+            ("else-if", else_if_reads_past_arms, 200),
+        ] {
+            let (a, b) = (build(generate(small)), build(generate(small * 10)));
+            assert!(
+                a > 0 && b <= a * 14,
+                "{shape}: liveness work for {small} and {}: {a} and {b}",
+                small * 10
+            );
+        }
+    });
+}
+
 /// One function whose row names `n` traits, each declaring a method of
 /// one name, and uses each with `$.use`: the scale check's `row-traits`
 /// shape, plus a caller under the same keys in reverse order.

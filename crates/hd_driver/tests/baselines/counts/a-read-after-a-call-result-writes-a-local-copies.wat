@@ -35,7 +35,7 @@
     i32.const 16
     i32.add
   )
-  (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
+  (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $t1 i32) (local $b i32) (local $t0 i32) (local $t2 i64)
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
     global.get $locals
     global.get $locals_base
@@ -80,89 +80,88 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t2
+    local.tee $b
     local.get $name.0
     i32.store $heap
-    local.get $t2
+    local.get $b
     local.get $name.1
     i32.store $heap offset=4
-    local.get $t2
+    local.get $b
     local.get $t1
     i32.store $heap offset=8
-    local.get $t2
-    local.tee $name.0
+    local.get $b
     ;; 21 |     b.item_mut(0).qty = +7
-    local.tee $name.1
-    local.get $name.1
+    local.tee $name.0
+    local.get $name.0
     i32.load $heap offset=8
     call $rt:list_unique
     i32.store $heap offset=8
-    local.get $name.1
+    local.get $name.0
     i32.load $heap offset=8
-    local.set $name.1
+    local.set $name.0
     i32.const 0
-    local.get $name.1
+    local.get $name.0
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $name.1
+    local.get $name.0
     i32.const 7
     i32.store $heap offset=16
     ;; 22 |     kept := b.label
-    local.get $name.0
+    local.get $b
     i32.load $heap
-    local.get $name.0
+    local.get $b
     i32.load $heap offset=4
-    local.set $name.1
+    local.set $name.0
     drop
     ;; 23 |     kept.len() + b.items.len()
-    local.get $name.0
+    local.get $b
     i32.load $heap offset=8
-    local.set $t1
-    local.get $name.0
+    local.set $name.1
+    local.get $b
     i32.const 0
     i32.store $heap offset=8
-    local.get $name.0
+    local.get $b
     if
-      local.get $name.0
+      local.get $b
       i32.load $heap
-      local.get $name.0
+      local.get $b
       i32.load $heap offset=4
-      local.get $name.0
+      local.get $b
       i32.load $heap offset=8
       call $rt:release
     end
-    local.get $t1
+    local.get $name.1
     i32.load $heap offset=4
-    local.set $name.0
-    local.get $t1
-    local.tee $t1
+    local.set $t1
+    local.get $name.1
+    local.tee $name.1
     if
-      local.get $t1
+      local.get $name.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $name.1
         call $rt:release_ref
       end
     end
-    local.get $name.1
-    i64.extend_i32_u
     local.get $name.0
     i64.extend_i32_u
+    local.get $t1
+    i64.extend_i32_u
     i64.add
-    local.tee $t3
+    local.tee $t2
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t3
+    local.get $t2
     i32.wrap_i64
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
     local.get $t0

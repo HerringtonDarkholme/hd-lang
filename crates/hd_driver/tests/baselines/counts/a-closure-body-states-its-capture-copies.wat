@@ -68,7 +68,7 @@
     local.get $t4
     local.get $t3
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $items i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $t0 i32) (local $items i32) (local $t2 i32) (local $t1 i32)
     ;; 22 |     original := word(7)
     i32.const 7
     i32.const 7
@@ -86,16 +86,15 @@
     local.get $original.1
     i32.const 8
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $items
+    local.set $t0
     local.set $shared
-    local.get $items
+    local.get $t0
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $t1
-    local.tee $shared
-    local.get $items
-    local.tee $t0
+    local.set $shared
+    local.tee $items
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -108,11 +107,11 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t1
+    local.get $shared
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $shared
+    local.get $items
     local.tee $t0
     if
       local.get $t0
@@ -122,14 +121,13 @@
     i32.const 7
     i32.const 9
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $items
+    local.set $t0
     local.set $shared
-    local.get $items
+    local.get $t0
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $items
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -156,14 +154,13 @@
     local.get $original.1
     i32.const 10
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $items
+    local.set $t0
     local.set $shared
-    local.get $items
+    local.get $t0
     i32.const 0
     local.get $shared
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $items
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -212,15 +209,14 @@
     local.get $items
     i32.const 11
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t1
+    local.set $t0
     local.set $items
-    local.get $t1
+    local.get $t0
     i32.const 0
     local.get $items
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $items
-    local.get $t1
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -233,12 +229,12 @@
         call $rt:release_ref'1
       end
     end
-    local.tee $t1
+    local.tee $t0
     i32.load $heap
-    local.get $t1
+    local.get $t0
     i32.load $heap offset=4
-    local.set $t2
-    local.tee $t1
+    local.set $t1
+    local.tee $t2
     local.tee $t0
     if
       local.get $t0
@@ -258,12 +254,12 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t1
     local.get $t2
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t1
+    local.get $t2
     local.tee $t0
     if
       local.get $t0
@@ -292,15 +288,14 @@
     call $rt:coll_copy
     i32.const 12
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t2
+    local.set $t0
     local.set $t1
-    local.get $t2
+    local.get $t0
     i32.const 0
     local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $t1
-    local.get $t2
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -344,8 +339,8 @@
     i32.load $heap offset=16
     local.get $items
     i32.load $heap offset=20
-    local.set $t2
-    local.tee $t1
+    local.set $t1
+    local.tee $t2
     local.tee $t0
     if
       local.get $t0
@@ -365,12 +360,12 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t1
     local.get $t2
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t1
+    local.get $t2
     local.tee $t0
     if
       local.get $t0
@@ -381,19 +376,19 @@
     i32.load $heap
     local.get $shared
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $items
+    local.set $items
+    local.tee $t1
     local.tee $t0
     if
       local.get $t0
       call $retain
     end
-    local.get $items
     local.get $t1
+    local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $items
+    local.get $t1
     local.tee $t0
     if
       local.get $t0

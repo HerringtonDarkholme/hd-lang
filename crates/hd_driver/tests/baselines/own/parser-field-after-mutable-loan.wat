@@ -99,7 +99,7 @@
             else
               i32.const 1
             end
-            local.set $t0
+            local.set $t1
             br 1
           end
           local.get $t0
@@ -125,7 +125,7 @@
             else
               i32.const 1
             end
-            local.set $t0
+            local.set $t1
             br 1
           end
           local.get $t0
@@ -171,9 +171,9 @@
           else
             i32.const 1
           end
-          local.set $t0
+          local.set $t1
         end
-        local.get $t0
+        local.get $t1
         i32.eqz
         br_if 1
     ;; 15 |             self.at += 1
@@ -257,7 +257,7 @@
       end
     end
   )
-  (func $length_after_loan (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $parser i32) (local $root i32)
+  (func $length_after_loan (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $root i32)
     ;; 26 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     block
       local.get $text.0
@@ -268,31 +268,31 @@
       i32.const 8
       i32.const 1
       call $rt:new/class-1'2
-      local.tee $parser
+      local.tee $text.1
       local.get $text.0
       i32.store $heap
-      local.get $parser
+      local.get $text.1
       i32.const 0
       i32.store $heap offset=4
-      local.get $parser
+      local.get $text.1
     ;; 27 |     root := parser.expression()?
       call $"impl Parser.expression"
-      local.set $text.1
-      local.tee $text.0
+      local.set $text.0
+      local.tee $t0
       i32.eqz
       if
       else
         br 1
       end
-      local.get $text.1
+      local.get $text.0
       local.set $root
     ;; 28 |     parser.whitespace()
-      local.get $parser
+      local.get $text.1
       call $"impl Parser.whitespace"
     ;; 29 |     if parser.at != parser.chars.len():
-      local.get $parser
+      local.get $text.1
       i32.load $heap offset=4
-      local.get $parser
+      local.get $text.1
       i32.load $heap
       i32.load $heap offset=4
       i32.ne
@@ -300,59 +300,59 @@
     ;; 30 |         return .Err("trailing input")
         i32.const 104 ;; &"trailing input"
         i32.const 14
-        local.set $text.1
         local.set $text.0
+        local.set $t0
         br 1
     ;; 29 |     if parser.at != parser.chars.len():
       end
     ;; 31 |     .Ok(root)
       local.get $root
-      local.set $text.1
+      local.set $text.0
       i32.const 0
       local.set $root
     ;; 26 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-      local.get $parser
+      local.get $text.1
       if
-        local.get $parser
+        local.get $text.1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $parser
+          local.get $text.1
           call $rt:release_ref
         end
       end
       i32.const 0
-      local.set $parser
+      local.set $text.1
     ;; 31 |     .Ok(root)
       i32.const 0
     ;; 26 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-      local.set $text.0
+      local.set $t0
     end
-    local.get $parser
+    local.get $text.1
     if
-      local.get $parser
+      local.get $text.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $parser
+        local.get $text.1
         call $rt:release_ref
       end
     end
     local.get $root
-    local.tee $parser
+    local.tee $text.1
     if
-      local.get $parser
+      local.get $text.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $parser
+        local.get $text.1
         call $rt:release_ref
       end
     end
+    local.get $t0
     local.get $text.0
-    local.get $text.1
   )
 )

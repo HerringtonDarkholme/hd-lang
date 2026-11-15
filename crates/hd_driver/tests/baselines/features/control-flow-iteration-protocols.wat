@@ -9,7 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $x.1'2 i32) (local $x.1'1 i32)
+  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32) (local $x.1 i32)
     ;; 26 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -57,18 +57,17 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $t2
-    local.tee $t1
-    local.set $t2
+    local.set $t1
     block
       loop
-        local.get $t2
+        local.get $t1
         call $"impl[T] Iterator[T] for ListIter[T].next[string]"
-        local.set $x.1'1
-        local.set $x.1'2
+        local.set $x.1
+        local.set $t3
         block
           block
             block
-              local.get $x.1'2
+              local.get $t3
               i32.eqz
               br_if 1
               br 0
@@ -76,27 +75,27 @@
             end
     ;; 28 |         n += x.len()
             local.get $n
-            local.get $x.1'1
+            local.get $x.1
             i32.add
             local.set $n
     ;; 27 |     for x in xs.iter():
             br 1
           end
-          local.get $x.1'2
-          local.get $x.1'1
+          local.get $t3
+          local.get $x.1
           call $rt:release
           br 2
         end
-        local.get $x.1'2
-        local.get $x.1'1
+        local.get $t3
+        local.get $x.1
         call $rt:release
         br 0
       end
     end
     ;; 29 |     for x in xs.iter():
-    local.get $t1
+    local.get $t2
     if
-      local.get $t1
+      local.get $t2
       i32.load $heap
       local.tee $t1
       if
@@ -123,18 +122,17 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $t1
-    local.tee $xs
-    local.set $t1
+    local.set $xs
     block
       loop
-        local.get $t1
+        local.get $xs
         call $"impl[T] Iterator[T] for ListIter[T].next[string]"
-        local.set $x.1'2
         local.set $t2
+        local.set $x.1
         block
           block
             block
-              local.get $t2
+              local.get $x.1
               i32.eqz
               br_if 1
               br 0
@@ -142,26 +140,26 @@
             end
     ;; 30 |         n += x.len()
             local.get $n
-            local.get $x.1'2
+            local.get $t2
             i32.add
             local.set $n
     ;; 29 |     for x in xs.iter():
             br 1
           end
+          local.get $x.1
           local.get $t2
-          local.get $x.1'2
           call $rt:release
           br 2
         end
+        local.get $x.1
         local.get $t2
-        local.get $x.1'2
         call $rt:release
         br 0
       end
     end
-    local.get $xs
+    local.get $t1
     if
-      local.get $xs
+      local.get $t1
       i32.load $heap
       local.tee $t1
       if
@@ -183,7 +181,7 @@
     i32.add
     global.set $locals
   )
-  (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $w.1 i32)
+  (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 20 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -228,18 +226,17 @@
     local.get $words.at
     i32.store $heap offset=4
     local.get $t1
-    local.tee $words.items
-    local.set $words.at
+    local.set $words.items
     block
       loop
-        local.get $words.at
+        local.get $words.items
         call $"impl Iterator[string] for Words.next"
-        local.set $w.1
-        local.set $t1
+        local.set $words.at
+        local.set $t2
         block
           block
             block
-              local.get $t1
+              local.get $t2
               i32.eqz
               br_if 1
               br 0
@@ -247,26 +244,26 @@
             end
     ;; 22 |         n += w.len()
             local.get $n
-            local.get $w.1
+            local.get $words.at
             i32.add
             local.set $n
     ;; 21 |     for w in words:
             br 1
           end
-          local.get $t1
-          local.get $w.1
+          local.get $t2
+          local.get $words.at
           call $rt:release
           br 2
         end
-        local.get $t1
-        local.get $w.1
+        local.get $t2
+        local.get $words.at
         call $rt:release
         br 0
       end
     end
-    local.get $words.items
+    local.get $t1
     if
-      local.get $words.items
+      local.get $t1
       i32.load $heap
       local.tee $words.items
       if
@@ -335,14 +332,14 @@
     i32.load $heap offset=16
     local.get $self
     i32.load $heap offset=20
-    local.set $t0
-    local.tee $self
+    local.set $self
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $self
     local.get $t0
+    local.get $self
   )
 )

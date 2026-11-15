@@ -6,12 +6,12 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $drive (param $log i32) (param $alias i32) (result i32) (local $value i32)
+  (func $drive (param $log i32) (param $alias i32) (result i32) (local $t0 i32)
     ;; 13 |     match block_on(append(log, alias)):
     local.get $log
     i32.const 4
     i32.sub
-    local.tee $value
+    local.tee $t0
     i32.load $heap
     i32.const 4128768
     i32.and
@@ -19,15 +19,15 @@
       call $rt:panic
       unreachable
     end
-    local.get $value
-    local.get $value
+    local.get $t0
+    local.get $t0
     i32.load $heap
     i32.const 2097152
     i32.add
     i32.store $heap
     i32.const 2097152
-    local.get $value
-    local.get $value
+    local.get $t0
+    local.get $t0
     i32.load $heap
     i32.const 2097152
     i32.sub
@@ -40,8 +40,8 @@
     local.get $alias
     call $append
     local.set $log
-    local.set $value
     local.set $alias
+    local.set $t0
     local.get $log
     local.tee $log
     if
@@ -59,14 +59,14 @@
     block
       block
     ;; 14 |         .Completed(value) => value
-        local.get $alias
+        local.get $t0
         br_if 1
         br 0
     ;; 13 |     match block_on(append(log, alias)):
         unreachable
       end
     ;; 14 |         .Completed(value) => value
-      local.get $value
+      local.get $alias
     ;; 13 |     match block_on(append(log, alias)):
       return
     end

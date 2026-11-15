@@ -12,6 +12,7 @@ thread_local! {
     static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOOP_SCANS: Cell<Option<u64>> = const { Cell::new(None) };
     static STATIC_LOOKS: Cell<Option<u64>> = const { Cell::new(None) };
+    static LIVENESS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -77,6 +78,18 @@ pub fn count_static_looks<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn static_looks(n: usize) {
     add(&STATIC_LOOKS, n);
+}
+
+/// Counts the liveness and local coalescing work on this thread: each
+/// basic block a liveness pass makes and each node of its persistent
+/// sets, and each local, loop and class heap step of the coalescing scan
+/// ([`crate::opt::coalesce`]).
+pub fn count_liveness<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&LIVENESS, run)
+}
+
+pub(crate) fn liveness(n: usize) {
+    add(&LIVENESS, n);
 }
 
 fn count<R>(

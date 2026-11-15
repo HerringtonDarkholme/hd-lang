@@ -187,16 +187,16 @@
         br 1
       end
       call $rt:cancel_enter
-      local.set $t3
+      local.set $t2
       local.get $frame
       i32.load $heap offset=16
-      local.tee $t2
+      local.tee $t3
       if
-        local.get $t2
-        local.get $t2
+        local.get $t3
+        local.get $t3
         i32.load $heap offset=4
         call_indirect $table0 (param i32)
-        local.get $t2
+        local.get $t3
         i32.load $heap offset=12
         i32.const 16
         i32.and
@@ -206,7 +206,7 @@
         end
       end
       local.get $frame
-      local.get $t3
+      local.get $t2
       call $rt:cancel_leave
       local.get $t4
       if
@@ -236,7 +236,7 @@
         local.get $t1
         i64.store $heap offset=40
         local.get $frame
-        local.get $t2
+        local.get $t3
         i32.store $heap offset=16
         local.get $frame
         i32.const 1
@@ -255,12 +255,12 @@
         end
         return
       end
-      local.get $t2
+      local.get $t3
       if
         local.get $frame
         i32.const 0
         i32.store $heap offset=16
-        local.get $t2
+        local.get $t3
         local.tee $provider0
         if
           local.get $provider0

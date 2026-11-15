@@ -4,7 +4,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $until_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t.1 i32) (local $t.0 i32) (local $t2 i32)
+  (func $until_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t.1 i32) (local $t.0 i32) (local $t2 i32)
     ;; 9 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -21,9 +21,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $x.0
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $x.0
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         local.set $x.0
@@ -58,9 +58,9 @@
         if
     ;; 12 |             continue
           local.get $t.0
-          local.tee $x.0
+          local.tee $x.1
           if
-            local.get $x.0
+            local.get $x.1
             call $rt:release_ref
           end
           br 1
@@ -73,9 +73,9 @@
         if
     ;; 14 |             break
           local.get $t.0
-          local.tee $x.0
+          local.tee $x.1
           if
-            local.get $x.0
+            local.get $x.1
             call $rt:release_ref
           end
           br 2
@@ -83,9 +83,9 @@
         end
     ;; 15 |         n += t.len()
         local.get $t.0
-        local.tee $x.0
+        local.tee $x.1
         if
-          local.get $x.0
+          local.get $x.1
           call $rt:release_ref
         end
         local.get $n

@@ -7,7 +7,7 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $t2 i32) (local $t1 i64) (local $t3 i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 14 |     number := make(+7)
     i32.const 0
     i32.const 7
@@ -42,21 +42,21 @@
     end
     local.get $t1
     i32.wrap_i64
-    local.tee $t2
     local.tee $t3
+    local.tee $t2
     i32.const 16
     local.set $t4
     if
-      local.get $t3
+      local.get $t2
       call $rt:str
       local.set $t4
     end
     local.get $t0
     local.get $t4
-    local.get $t2
+    local.get $t3
     call $write_signed_sized
     local.get $t4
-    local.get $t3
+    local.get $t2
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"

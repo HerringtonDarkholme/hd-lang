@@ -41,7 +41,7 @@
       call $rt:release_ref
     end
   )
-  (func $awaited'1 (param $frame i32) (param $work.0 i32) (param $work.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t9 i32) (local $t8 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t7 i32)
+  (func $awaited'1 (param $frame i32) (param $work.0 i32) (param $work.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t8 i32) (local $t10 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t6 i32) (local $t5 i32) (local $t9 i32) (local $t0 i32) (local $t7 i32)
     ;; 18 |     work.later!()
     local.get $frame
     if
@@ -154,13 +154,13 @@
             i32.const 1
             i32.const 0
             call $rt:ctx_new
-            local.tee $t4
+            local.tee $t6
             i64.const -8941934570327064298
             i64.store $heap offset=16
-            local.get $t4
+            local.get $t6
             local.get $provider0
             i32.store $heap offset=24
-            local.get $t4
+            local.get $t6
             local.get $provider0.vtable
             i32.store $heap offset=28
             local.get $provider0
@@ -169,11 +169,11 @@
               local.get $t7
               call $retain
             end
-            local.get $t4
+            local.get $t6
             local.get $t3
             i32.load $heap offset=8
             call_indirect $table0 (param i32 i32) (result i32 i32)
-            local.get $t4
+            local.get $t6
             local.tee $t7
             if
               local.get $t7
@@ -292,21 +292,19 @@
               end
             end
           end
-          local.get $t6
-          local.set $t8
           br 1
         end
         call $rt:cancel_enter
-        local.set $t5
+        local.set $t7
         local.get $frame
         i32.load $heap offset=16
-        local.tee $t4
+        local.tee $t8
         if
-          local.get $t4
-          local.get $t4
+          local.get $t8
+          local.get $t8
           i32.load $heap offset=4
           call_indirect $table0 (param i32)
-          local.get $t4
+          local.get $t8
           i32.load $heap offset=12
           i32.const 16
           i32.and
@@ -316,7 +314,7 @@
           end
         end
         local.get $frame
-        local.get $t5
+        local.get $t7
         call $rt:cancel_leave
         local.get $t9
         if
@@ -359,7 +357,7 @@
           local.get $t3
           i32.store $heap offset=52
           local.get $frame
-          local.get $t4
+          local.get $t8
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -379,12 +377,12 @@
           end
           return
         end
-        local.get $t4
+        local.get $t8
         if
           local.get $frame
           i32.const 0
           i32.store $heap offset=16
-          local.get $t4
+          local.get $t8
           local.tee $t7
           if
             local.get $t7
@@ -392,9 +390,11 @@
           end
         end
         i32.const 1
-        local.set $t9
+        local.set $t8
         br 1
       end
+      local.get $t6
+      local.set $t10
     end
     local.get $t1
     local.tee $t7
@@ -402,7 +402,7 @@
       local.get $t7
       call $rt:release_ref
     end
-    local.get $t8
+    local.get $t10
     local.get $frame
     if
       local.get $frame
@@ -412,7 +412,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t9
+    local.get $t8
     if (result i32)
       local.get $frame
       local.get $frame

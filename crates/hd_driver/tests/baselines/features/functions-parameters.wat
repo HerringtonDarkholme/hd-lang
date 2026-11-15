@@ -138,7 +138,7 @@
     local.get $t.name.1
     local.get $t.tags
   )
-  (func $kept_after (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $kept_after (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
     ;; 24 |     u := bumped(t, s)
     local.get $t.name.0
     local.get $t.tags
@@ -149,13 +149,9 @@
       local.get $t1
       call $retain
     end
-    local.get $s.0
-    local.get $s.1
-    local.set $t1
-    local.set $s.1
     local.get $t0
     call $rt:list_unique
-    local.tee $s.0
+    local.tee $t1
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t2
@@ -167,7 +163,7 @@
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.tee $t0
-      local.set $s.0
+      local.set $t1
     end
     local.get $t0
     local.get $t2
@@ -175,17 +171,17 @@
     i32.mul
     i32.add
     local.tee $t3
-    local.get $s.1
+    local.get $s.0
     i32.store $heap offset=16
     local.get $t3
-    local.get $t1
+    local.get $s.1
     i32.store $heap offset=20
     local.get $t0
     local.get $t2
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    local.get $s.0
+    local.get $t1
     local.get $t.name.0
     local.get $t.name.1
     ;; 25 |     u.tags.len() + t.tags.len()
@@ -193,7 +189,7 @@
     call $rt:release
     i32.load $heap offset=4
     ;; 24 |     u := bumped(t, s)
-    local.get $s.0
+    local.get $t1
     ;; 25 |     u.tags.len() + t.tags.len()
     local.tee $t1
     if

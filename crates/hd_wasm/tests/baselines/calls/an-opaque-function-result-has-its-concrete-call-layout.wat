@@ -34,13 +34,13 @@
     local.get $t3
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $t0
     local.get $t2
     i64.store $heap
     i32.const 0
     i32.const 1
     call $room
-    local.set $t0
+    local.set $t1
     local.get $t3
     i64.const 0
     i64.store $heap offset=16
@@ -48,7 +48,7 @@
     i32.const 24
     i32.add
     local.tee $t4
-    local.get $t0
+    local.get $t1
     i32.store $heap
     local.get $t4
     i32.const 0
@@ -74,34 +74,33 @@
     local.get $t4
     i32.const 1
     i32.store $heap offset=32
-    local.get $t1
+    local.get $t0
     local.get $t4
-    local.tee $t1
     call $"impl Display for i64.write"
-    local.get $t1
+    local.get $t4
     call $"impl StringBuilder.build"
-    local.set $t4
     local.set $t0
-    local.get $t1
+    local.set $t1
+    local.get $t4
     if
-      local.get $t1
+      local.get $t4
       call $rt:drop
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap offset=12
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap offset=16
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap offset=20
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap offset=24
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap offset=28
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap offset=32
     end

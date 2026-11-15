@@ -115,10 +115,6 @@
     i32.load $heap offset=4
     local.tee $h
     call $rt:retain
-    local.get $alias
-    local.get $h
-    local.set $alias
-    local.set $h
     ;; 14 |     d := name_of(h.p)
     local.get $t1
     if
@@ -182,8 +178,8 @@
         i32.store $heap
       end
     end
-    local.get $h
     local.get $alias
+    local.get $h
   )
   (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 25 |     d := name_mut(h.p)
@@ -289,10 +285,6 @@
     i32.load $heap offset=4
     local.tee $h
     call $rt:retain
-    local.get $alias
-    local.get $h
-    local.set $alias
-    local.set $h
     ;; 25 |     d := name_mut(h.p)
     local.get $t1
     if
@@ -356,8 +348,8 @@
         i32.store $heap
       end
     end
-    local.get $h
     local.get $alias
+    local.get $h
   )
   (func $name_of (param $p i32) (result i32)
     ;; 11 |     &p.name

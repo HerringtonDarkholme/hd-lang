@@ -93,7 +93,7 @@
     ;; 20 |         self.books
     local.get $self
   )
-  (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
+  (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t1 i32) (local $t i32) (local $t0 i32)
     ;; 23 |     let mut t = s
     global.get $locals
     global.get $locals_base
@@ -126,18 +126,17 @@
     global.set $locals
     local.get $s
     call $rt:coll_copy
-    local.set $t
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
-    local.get $t
-    i32.store $heap
-    local.get $t1
     local.tee $t
+    local.get $t1
+    i32.store $heap
+    local.get $t
     ;; 24 |     t.by_mut(b)
     local.get $b.0
     local.get $b.1
@@ -178,42 +177,42 @@
     i32.div_u
     local.set $b.1
     local.get $s
-    local.tee $t1
+    local.tee $s
     if
-      local.get $t1
+      local.get $s
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $s
         call $rt:release_ref
       end
     end
     local.get $b.0
     local.get $b.1
     i32.add
-    local.set $s
+    local.set $b.0
     local.get $t
     i32.load $heap
     local.get $t
     i32.const 0
     i32.store $heap
-    local.tee $b.0
+    local.tee $s
     i32.load $heap offset=4
     local.set $b.1
-    local.get $b.0
-    local.tee $t1
+    local.get $s
+    local.tee $s
     if
-      local.get $t1
+      local.get $s
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $s
         call $rt:release_ref
       end
     end
-    local.get $s
+    local.get $b.0
     local.get $b.1
     i32.add
     ;; 23 |     let mut t = s

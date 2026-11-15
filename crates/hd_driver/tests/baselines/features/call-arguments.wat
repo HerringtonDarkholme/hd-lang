@@ -226,11 +226,10 @@
     local.get $t
     i32.const 0
     i32.store $heap offset=4
-    local.tee $s.1
+    local.tee $t1
     local.get $s.0
     call $by_value
-    local.get $s.1
-    local.tee $t1
+    local.get $t1
     if
       local.get $t1
       call $rt:release_ref

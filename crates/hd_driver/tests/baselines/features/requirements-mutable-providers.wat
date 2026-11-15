@@ -28,7 +28,7 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; 28 |     tally := box(Log { lines: [] })
     i32.const 4
     i32.const 1

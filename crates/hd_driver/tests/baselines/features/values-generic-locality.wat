@@ -57,57 +57,56 @@
     local.get $t0
     ;; 34 |     later(kept)().name.len()
     call $"later[*User]"
-    local.set $u.name.1
     local.set $u.name.0
-    local.get $u.name.1
-    i32.const 0
+    local.set $u.name.1
     local.get $u.name.0
-    call_indirect $table0 (param i32 i32) (result i32)
-    local.tee $u.name.0
+    i32.const 0
     local.get $u.name.1
-    local.tee $t1
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $u.name.1
+    local.get $u.name.0
     if
-      local.get $t1
+      local.get $u.name.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $u.name.0
         call $rt:release_ref'1
       end
     end
-    local.tee $u.name.1
+    local.tee $u.name.0
     i32.load $heap
-    local.get $u.name.1
+    local.get $u.name.0
     i32.load $heap offset=4
     local.set $t0
-    local.tee $u.name.1
     local.tee $t1
+    local.tee $u.name.0
     if
-      local.get $t1
+      local.get $u.name.0
       call $retain
     end
-    local.get $u.name.0
-    local.tee $t1
+    local.get $u.name.1
+    local.tee $u.name.0
     if
-      local.get $t1
+      local.get $u.name.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $u.name.0
         call $rt:release_ref'1
       end
     end
-    local.get $u.name.1
+    local.get $t1
     ;; 33 |     kept := keep(u)
-    local.tee $t1
+    local.tee $u.name.0
     if
-      local.get $t1
+      local.get $u.name.0
       call $rt:release_ref'2
     end
     local.get $t0

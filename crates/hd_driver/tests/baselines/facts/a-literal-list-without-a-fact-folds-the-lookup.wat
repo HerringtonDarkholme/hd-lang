@@ -44,8 +44,6 @@
         br 1
       end
     end
-    local.get $t3
-    local.set $t2
     local.get $t1
     if
       local.get $t1
@@ -60,7 +58,7 @@
       i32.load $heap offset=16
       call $rt:release
     end
-    local.get $t2
+    local.get $t3
     if (result i64)
     ;; 14 |         value + 1
       local.get $value

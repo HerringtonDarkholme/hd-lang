@@ -218,9 +218,9 @@
     local.get $key.1
     call $fetch'1
     local.set $key.0
+    local.set $key.1
     local.set $t0
     local.set $t1
-    local.set $key.1
     local.get $key.0
     local.tee $key.0
     if
@@ -239,10 +239,10 @@
       block
         block
     ;; 15 |         .Completed(value) => value.len()
-          local.get $key.1
-          br_if 1
           local.get $t1
+          br_if 1
           local.get $t0
+          local.get $key.1
           local.set $value.1
           drop
           br 0
@@ -252,9 +252,9 @@
         br 1
       end
     end
-    local.get $key.1
     local.get $t1
     local.get $t0
+    local.get $key.1
     call $rt:release
     local.get $value.1
   )
@@ -311,8 +311,8 @@
         local.get $key.0
         i32.load $heap
         call_indirect $table0 (param i32) (result i32 i32 i32)
-        local.set $log
         local.set $key.1
+        local.set $log
         br_if 1
         global.get $rewake
         if
@@ -334,11 +334,7 @@
     i32.or
     global.set $rewake
     i32.const 0
-    local.get $key.1
-    local.get $log
-    local.set $t0
-    local.set $log
-    local.set $key.1
+    local.set $t1
     local.get $key.0
     local.tee $key.0
     if
@@ -357,10 +353,10 @@
       block
         block
     ;; 28 |         .Completed(value) => value.len()
-          local.get $key.1
+          local.get $t1
           br_if 1
           local.get $log
-          local.get $t0
+          local.get $key.1
           local.set $value.1
           drop
           br 0
@@ -371,9 +367,9 @@
       end
     end
     ;; 25 |     let pending: Suspend[string] = fetch(key)
-    local.get $key.1
+    local.get $t1
     local.get $log
-    local.get $t0
+    local.get $key.1
     call $rt:release
     local.get $value.1
   )
@@ -388,9 +384,9 @@
     call $fetch'1
     local.set $key.0
     ;; 20 |     match block_on(pending):
+    local.set $key.1
     local.set $t0
     local.set $t1
-    local.set $key.1
     ;; 19 |     let pending: Suspend[string] = fetch(key)
     local.get $key.0
     ;; 20 |     match block_on(pending):
@@ -411,10 +407,10 @@
       block
         block
     ;; 21 |         .Completed(value) => value.len()
-          local.get $key.1
-          br_if 1
           local.get $t1
+          br_if 1
           local.get $t0
+          local.get $key.1
           local.set $value.1
           drop
           br 0
@@ -425,9 +421,9 @@
       end
     end
     ;; 19 |     let pending: Suspend[string] = fetch(key)
-    local.get $key.1
     local.get $t1
     local.get $t0
+    local.get $key.1
     call $rt:release
     local.get $value.1
   )

@@ -153,9 +153,9 @@
       i32.const 16
       i32.mul
       i32.add
-      local.tee $m
+      local.tee $v.1
       i32.load $heap offset=8
-      local.get $m
+      local.get $v.1
       i32.load $heap offset=12
       local.set $v.1
       local.set $t0
@@ -258,15 +258,15 @@
     i32.load $heap offset=16
     local.get $xs
     i32.load $heap offset=20
-    local.set $i
-    local.tee $xs
+    local.set $xs
+    local.tee $i
     local.tee $t0
     if
       local.get $t0
       call $retain
     end
-    local.get $xs
     local.get $i
+    local.get $xs
   )
   (func $list_read (param $xs i32) (param $i i32) (result i32)
     ;; 11 |     xs[i].len()

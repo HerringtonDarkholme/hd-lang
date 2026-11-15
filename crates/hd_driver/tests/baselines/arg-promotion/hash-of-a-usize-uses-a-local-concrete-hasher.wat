@@ -58,7 +58,7 @@
     local.get $t2
     i64.store $heap offset=8
     local.get $value
-    local.get $t2
+    local.get $t3
     i64.store $heap offset=16
     local.get $value
     i32.const 0
@@ -68,14 +68,13 @@
     i64.extend_i32_u
     local.set $t2
     local.get $value
-    local.tee $t1
     i64.load $heap
-    local.get $t1
+    local.get $value
     i64.load $heap offset=8
-    local.get $t1
+    local.get $value
     i64.load $heap offset=16
     local.set $t3
-    local.get $t1
+    local.get $value
     i32.load $heap offset=24
     local.set $t1
     local.set $t4
@@ -207,22 +206,22 @@
       local.get $t4
       local.get $t5
       i64.xor
-      local.set $t3
+      local.set $t5
       i64.const -4563226453097033507
       i64.xor
       local.set $t4
-      local.get $t3
+      local.get $t5
       i64.const 4294967295
       i64.and
-      local.tee $t5
+      local.tee $t3
       local.get $t4
       i64.const 4294967295
       i64.and
       local.set $t6
-      local.get $t3
+      local.get $t5
       i64.const 32
       i64.shr_u
-      local.set $t3
+      local.set $t5
       local.get $t4
       i64.const 32
       i64.shr_u
@@ -261,11 +260,11 @@
         call $rt:panic'1
         unreachable
       end
-      local.get $t5
+      local.get $t3
       local.get $t4
       i64.mul
       local.set $t9
-      local.get $t5
+      local.get $t3
       local.get $t4
       i64.or
       i64.const 32
@@ -274,81 +273,13 @@
       if (result i32)
         i32.const 0
       else
-        local.get $t5
+        local.get $t3
         i64.const 32
         i64.shr_u
         i64.eqz
         local.set $t8
         local.get $t9
         local.get $t4
-        local.get $t5
-        local.get $t8
-        select
-        i64.div_u
-        local.get $t5
-        local.get $t4
-        local.get $t8
-        select
-        i64.ne
-      end
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t3
-      local.get $t6
-      i64.mul
-      local.set $t5
-      local.get $t3
-      local.get $t6
-      i64.or
-      i64.const 32
-      i64.shr_u
-      i64.eqz
-      if (result i32)
-        i32.const 0
-      else
-        local.get $t3
-        i64.const 32
-        i64.shr_u
-        i64.eqz
-        local.set $t8
-        local.get $t5
-        local.get $t6
-        local.get $t3
-        local.get $t8
-        select
-        i64.div_u
-        local.get $t3
-        local.get $t6
-        local.get $t8
-        select
-        i64.ne
-      end
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t3
-      local.get $t4
-      i64.mul
-      local.set $t6
-      local.get $t3
-      local.get $t4
-      i64.or
-      i64.const 32
-      i64.shr_u
-      i64.eqz
-      if (result i32)
-        i32.const 0
-      else
-        local.get $t3
-        i64.const 32
-        i64.shr_u
-        i64.eqz
-        local.set $t8
-        local.get $t6
-        local.get $t4
         local.get $t3
         local.get $t8
         select
@@ -364,23 +295,91 @@
         unreachable
       end
       local.get $t5
+      local.get $t6
+      i64.mul
+      local.set $t3
+      local.get $t5
+      local.get $t6
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $t5
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $t8
+        local.get $t3
+        local.get $t6
+        local.get $t5
+        local.get $t8
+        select
+        i64.div_u
+        local.get $t5
+        local.get $t6
+        local.get $t8
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      local.get $t5
+      local.get $t4
+      i64.mul
+      local.set $t6
+      local.get $t5
+      local.get $t4
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $t5
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $t8
+        local.get $t6
+        local.get $t4
+        local.get $t5
+        local.get $t8
+        select
+        i64.div_u
+        local.get $t5
+        local.get $t4
+        local.get $t8
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      local.get $t3
       local.get $t9
       i64.xor
-      local.tee $t3
+      local.tee $t5
       local.get $t6
       local.get $t10
       i64.xor
       local.set $t4
       i64.const 32
       i64.shr_u
-      local.set $t5
-      local.get $t3
+      local.set $t3
+      local.get $t5
       i64.const 32
       i64.shl
-      local.set $t3
+      local.set $t5
       local.get $t4
-      local.get $t5
       local.get $t3
+      local.get $t5
       i64.or
       i64.xor
       local.set $t5
@@ -426,16 +425,15 @@
       local.set $t3
     end
     local.get $value
-    local.tee $t1
     local.get $t5
     i64.store $heap
-    local.get $t1
+    local.get $value
     local.get $t4
     i64.store $heap offset=8
-    local.get $t1
+    local.get $value
     local.get $t3
     i64.store $heap offset=16
-    local.get $t1
+    local.get $value
     local.get $t8
     i32.store $heap offset=24
     local.get $value
@@ -447,38 +445,38 @@
     local.get $value
     i32.load $heap offset=24
     local.set $value
-    local.set $t4
-    local.set $t3
     local.set $t2
+    local.set $t3
+    local.set $t4
     local.get $value
     i32.eqz
     if (result i64)
-      local.get $t2
+      local.get $t4
     else
       local.get $t3
-      local.get $t2
-      i64.xor
-      local.set $t2
       local.get $t4
-      i64.const -4563226453097033507
       i64.xor
       local.set $t3
       local.get $t2
+      i64.const -4563226453097033507
+      i64.xor
+      local.set $t2
+      local.get $t3
       i64.const 4294967295
       i64.and
       local.tee $t4
-      local.get $t3
+      local.get $t2
       i64.const 4294967295
       i64.and
       local.set $t5
-      local.get $t2
-      i64.const 32
-      i64.shr_u
-      local.set $t2
       local.get $t3
       i64.const 32
       i64.shr_u
       local.set $t3
+      local.get $t2
+      i64.const 32
+      i64.shr_u
+      local.set $t2
       local.tee $t6
       local.get $t5
       i64.mul
@@ -514,11 +512,11 @@
         unreachable
       end
       local.get $t4
-      local.get $t3
+      local.get $t2
       i64.mul
       local.set $t6
       local.get $t4
-      local.get $t3
+      local.get $t2
       i64.or
       i64.const 32
       i64.shr_u
@@ -532,13 +530,13 @@
         i64.eqz
         local.set $value
         local.get $t6
-        local.get $t3
+        local.get $t2
         local.get $t4
         local.get $value
         select
         i64.div_u
         local.get $t4
-        local.get $t3
+        local.get $t2
         local.get $value
         select
         i64.ne
@@ -547,11 +545,11 @@
         call $rt:panic'1
         unreachable
       end
-      local.get $t2
+      local.get $t3
       local.get $t5
       i64.mul
       local.set $t4
-      local.get $t2
+      local.get $t3
       local.get $t5
       i64.or
       i64.const 32
@@ -560,18 +558,18 @@
       if (result i32)
         i32.const 0
       else
-        local.get $t2
+        local.get $t3
         i64.const 32
         i64.shr_u
         i64.eqz
         local.set $value
         local.get $t4
         local.get $t5
-        local.get $t2
+        local.get $t3
         local.get $value
         select
         i64.div_u
-        local.get $t2
+        local.get $t3
         local.get $t5
         local.get $value
         select
@@ -581,12 +579,12 @@
         call $rt:panic'1
         unreachable
       end
-      local.get $t2
       local.get $t3
+      local.get $t2
       i64.mul
       local.set $t5
-      local.get $t2
       local.get $t3
+      local.get $t2
       i64.or
       i64.const 32
       i64.shr_u
@@ -594,19 +592,19 @@
       if (result i32)
         i32.const 0
       else
-        local.get $t2
+        local.get $t3
         i64.const 32
         i64.shr_u
         i64.eqz
         local.set $value
         local.get $t5
-        local.get $t3
         local.get $t2
+        local.get $t3
         local.get $value
         select
         i64.div_u
-        local.get $t2
         local.get $t3
+        local.get $t2
         local.get $value
         select
         i64.ne

@@ -17,22 +17,22 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0.vtable
-    local.tee $provider0
+    local.set $provider0
+    local.tee $provider0.vtable
     local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $provider0
+    local.get $provider0.vtable
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref
     end
     local.get $t0
-    local.get $provider0.vtable
+    local.get $provider0
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     drop

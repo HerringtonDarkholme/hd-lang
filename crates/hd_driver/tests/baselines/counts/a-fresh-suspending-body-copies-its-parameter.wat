@@ -15,7 +15,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 13 funcref))
-  (func $after'1 (param $frame i32) (param $t3 i32) (param $t4 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t2 i32) (local $t6 i32) (local $t7 i32) (local $text i32) (local $t1 i64) (local $t5 i32) (local $t0 i32)
+  (func $after'1 (param $frame i32) (param $t3 i32) (param $t4 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t2 i32) (local $t6 i32) (local $t8 i32) (local $text i32) (local $t1 i64) (local $t5 i32) (local $t7 i32) (local $t0 i32)
     ;; 7 |     sleep!(ms(1))
     local.get $frame
     if
@@ -212,7 +212,7 @@
           br 1
         end
         call $rt:cancel_enter
-        local.set $t4
+        local.set $t6
         local.get $frame
         i32.load $heap offset=16
         local.tee $t3
@@ -227,13 +227,13 @@
           i32.and
           if
             i32.const 1
-            local.set $t6
+            local.set $t7
           end
         end
         local.get $frame
-        local.get $t4
-        call $rt:cancel_leave
         local.get $t6
+        call $rt:cancel_leave
+        local.get $t7
         if
           local.get $frame
           i32.eqz
@@ -320,7 +320,7 @@
       end
       i32.const 0
       local.set $text
-      local.set $t7
+      local.set $t8
     end
     local.get $text
     local.tee $provider0
@@ -336,7 +336,7 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t7
+    local.get $t8
     local.get $frame
     if
       local.get $frame

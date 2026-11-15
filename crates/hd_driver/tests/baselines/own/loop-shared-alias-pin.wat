@@ -192,7 +192,7 @@
     if
       local.get $t3
       i32.load $heap
-      local.tee $b
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -202,7 +202,7 @@
         call $rt:loan_unshare
       else
         local.get $t3
-        local.get $b
+        local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap

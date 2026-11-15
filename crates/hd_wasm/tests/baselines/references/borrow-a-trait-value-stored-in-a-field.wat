@@ -16,19 +16,19 @@
     local.get $holder
     i32.load $heap offset=4
     ;; 20 |     borrowed.read()
-    local.set $t0
-    local.tee $holder
+    local.set $holder
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $holder
     local.get $t0
+    local.get $holder
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
     ;; 19 |     let borrowed: &dyn Reader = &*holder.value
-    local.get $holder
+    local.get $t0
     local.tee $t1
     if
       local.get $t1

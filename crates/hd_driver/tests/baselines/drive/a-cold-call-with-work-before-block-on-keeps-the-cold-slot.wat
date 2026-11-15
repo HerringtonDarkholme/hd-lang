@@ -86,9 +86,7 @@
     i32.or
     global.set $rewake
     i32.const 0
-    local.get $s.1
     local.set $text.0
-    local.set $s.1
     local.get $s.0
     local.tee $s.0
     if
@@ -108,7 +106,7 @@
     ;; 13 |         .Completed(n) => n
             block
               block
-                local.get $s.1
+                local.get $text.0
                 br_table 0 3 4 4
               end
               br 1
@@ -117,7 +115,7 @@
             unreachable
           end
     ;; 13 |         .Completed(n) => n
-          local.get $text.0
+          local.get $s.1
     ;; 12 |     match block_on(call):
           return
         end

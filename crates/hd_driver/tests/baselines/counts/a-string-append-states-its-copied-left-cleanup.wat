@@ -25,21 +25,21 @@
     local.get $suffix.0
     local.get $suffix.1
     call $rt:str_append
-    local.set $suffix.1
     local.set $suffix.0
+    local.set $suffix.1
     local.get $text
     i32.load $heap
     local.get $text
     i32.load $heap offset=4
     local.get $text
-    local.get $suffix.0
+    local.get $suffix.1
     i32.store $heap
     local.get $text
-    local.get $suffix.1
+    local.get $suffix.0
     i32.store $heap offset=4
     call $rt:release
   )
-  (func $dynamic (param $text.0 i32) (param $text.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $dynamic (param $text.0 i32) (param $text.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $current i32) (local $t0 i32)
     ;; 11 |     let current = text
     global.get $locals
     global.get $locals_base
@@ -76,23 +76,22 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $current
     local.get $text.0
     i32.store $heap
-    local.get $t1
+    local.get $current
     local.get $text.1
     i32.store $heap offset=4
-    local.get $t1
-    local.tee $text.0
+    local.get $current
     ;; 13 |     append(suffix)
     i32.load $heap
+    local.tee $text.0
     local.tee $text.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $text.1
       call $retain
     end
-    local.get $text.0
+    local.get $current
     i32.eqz
     if
       local.get $t0
@@ -101,72 +100,72 @@
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $text.0
+      local.tee $current
       i32.const 0
       i32.store $heap
-      local.get $text.0
+      local.get $current
       i32.const 0
       i32.store $heap offset=4
     end
-    local.get $text.1
-    local.tee $t1
+    local.get $text.0
+    local.tee $text.1
     if
-      local.get $t1
+      local.get $text.1
       call $rt:release_ref
     end
-    local.get $text.0
+    local.get $current
     i32.load $heap
-    local.get $text.0
+    local.get $current
     i32.const 0
     i32.store $heap
-    local.get $text.0
+    local.get $current
     i32.load $heap offset=4
-    local.get $text.0
+    local.get $current
     i32.const 0
     i32.store $heap offset=4
     local.get $suffix.0
     local.get $suffix.1
     call $rt:str_append
-    local.set $suffix.0
     local.set $text.1
-    local.get $text.0
+    local.set $text.0
+    local.get $current
     i32.load $heap
+    local.get $current
     local.get $text.0
-    local.get $text.1
     i32.store $heap
-    local.get $text.0
-    local.get $suffix.0
+    local.get $current
+    local.get $text.1
     i32.store $heap offset=4
-    local.tee $t1
+    local.tee $text.1
     if
-      local.get $t1
+      local.get $text.1
       call $rt:release_ref
     end
     ;; 14 |     current
-    local.get $text.0
+    local.get $current
     i32.load $heap
-    local.get $text.0
+    local.get $current
     i32.load $heap offset=4
-    local.set $suffix.0
+    local.set $text.0
+    local.tee $suffix.0
     local.tee $text.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $text.1
       call $retain
     end
     ;; 11 |     let current = text
-    local.get $text.0
+    local.get $current
     if
-      local.get $text.0
+      local.get $current
       i32.load $heap
-      local.tee $t1
+      local.tee $text.1
       if
-        local.get $t1
+        local.get $text.1
         call $rt:release_ref
       end
     end
-    local.get $text.1
     local.get $suffix.0
+    local.get $text.0
     local.get $t0
     i32.const 16
     i32.add
@@ -247,7 +246,7 @@
     i32.store $heap offset=4
     call $rt:release
   )
-  (func $captured (param $text.0 i32) (param $text.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $captured (param $text.0 i32) (param $text.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $current i32) (local $t0 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -285,22 +284,21 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $current
     local.get $text.0
     i32.store $heap
-    local.get $t1
+    local.get $current
     local.get $text.1
     i32.store $heap offset=4
-    local.get $t1
-    local.tee $text.0
+    local.get $current
     i32.load $heap
+    local.tee $text.0
     local.tee $text.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $text.1
       call $retain
     end
-    local.get $text.0
+    local.get $current
     i32.eqz
     if
       local.get $t0
@@ -309,71 +307,71 @@
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $text.0
+      local.tee $current
       i32.const 0
       i32.store $heap
-      local.get $text.0
+      local.get $current
       i32.const 0
       i32.store $heap offset=4
     end
-    local.get $text.1
-    local.tee $t1
+    local.get $text.0
+    local.tee $text.1
     if
-      local.get $t1
+      local.get $text.1
       call $rt:release_ref
     end
-    local.get $text.0
+    local.get $current
     i32.load $heap
-    local.get $text.0
+    local.get $current
     i32.const 0
     i32.store $heap
-    local.get $text.0
+    local.get $current
     i32.load $heap offset=4
-    local.get $text.0
+    local.get $current
     i32.const 0
     i32.store $heap offset=4
     local.get $suffix.0
     local.get $suffix.1
     call $rt:str_append
-    local.set $suffix.0
     local.set $text.1
-    local.get $text.0
+    local.set $text.0
+    local.get $current
     i32.load $heap
+    local.get $current
     local.get $text.0
-    local.get $text.1
     i32.store $heap
-    local.get $text.0
-    local.get $suffix.0
+    local.get $current
+    local.get $text.1
     i32.store $heap offset=4
-    local.tee $t1
+    local.tee $text.1
     if
-      local.get $t1
+      local.get $text.1
       call $rt:release_ref
     end
     ;; (no span)
-    local.get $text.0
+    local.get $current
     i32.load $heap
-    local.get $text.0
+    local.get $current
     i32.load $heap offset=4
-    local.set $suffix.0
+    local.set $text.0
+    local.tee $suffix.0
     local.tee $text.1
-    local.tee $t1
     if
-      local.get $t1
+      local.get $text.1
       call $retain
     end
-    local.get $text.0
+    local.get $current
     if
-      local.get $text.0
+      local.get $current
       i32.load $heap
-      local.tee $t1
+      local.tee $text.1
       if
-        local.get $t1
+        local.get $text.1
         call $rt:release_ref
       end
     end
-    local.get $text.1
     local.get $suffix.0
+    local.get $text.0
     local.get $t0
     i32.const 16
     i32.add

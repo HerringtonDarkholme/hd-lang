@@ -10,23 +10,21 @@
     i64.or
     local.set $t1
     i64.const 589684135938649225
-    local.get $t1
     local.set $t0
-    local.set $t1
     block (result i64)
-      local.get $t0
       local.get $t1
+      local.get $t0
       i64.xor
       local.set $t1
       local.get $t2
       i64.const -4563226453097033507
       i64.xor
-      local.set $t0
+      local.set $t2
       local.get $t1
       i64.const 4294967295
       i64.and
-      local.tee $t2
-      local.get $t0
+      local.tee $t0
+      local.get $t2
       i64.const 4294967295
       i64.and
       local.tee $t3
@@ -34,36 +32,36 @@
       i64.const 32
       i64.shr_u
       local.set $t1
-      local.get $t0
+      local.get $t2
       i64.const 32
       i64.shr_u
-      local.set $t0
+      local.set $t2
       i64.mul
       local.set $t4
-      local.get $t2
       local.get $t0
+      local.get $t2
       i64.mul
-      local.set $t2
+      local.set $t0
       local.get $t1
       local.get $t3
       i64.mul
       local.get $t1
-      local.get $t0
+      local.get $t2
       i64.mul
       local.set $t1
-      local.get $t2
+      local.get $t0
       i64.xor
-      local.tee $t0
+      local.tee $t2
       local.get $t1
       local.get $t4
       i64.xor
       local.set $t1
       i64.const 32
       i64.shr_u
-      local.set $t2
+      local.set $t0
       local.get $t1
-      local.get $t2
       local.get $t0
+      local.get $t2
       i64.const 32
       i64.shl
       i64.or

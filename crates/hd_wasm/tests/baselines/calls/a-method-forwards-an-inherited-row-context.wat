@@ -11,9 +11,9 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
     local.set $self
-    local.get $t0
+    local.set $t0
+    local.get $self
     local.tee $t1
     if
       local.get $t1
@@ -25,12 +25,12 @@
         call $rt:retain_known
       end
     end
-    local.get $t0
+    local.get $self
     local.get $n
     local.get $ctx
-    local.get $self
-    call_indirect $table0 (param i32 i32 i32)
     local.get $t0
+    call_indirect $table0 (param i32 i32 i32)
+    local.get $self
     local.tee $t1
     if
       local.get $t1

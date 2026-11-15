@@ -58,8 +58,8 @@
         i32.load $heap offset=16
         local.get $t0
         i32.load $heap offset=20
-        local.set $t1
-        local.tee $t0
+        local.set $t0
+        local.tee $t1
         local.tee $t2
         if
           local.get $t2
@@ -68,19 +68,19 @@
         local.get $frame
         i32.load $heap offset=4
         local.set $t3
-        local.get $t0
         local.get $t1
+        local.get $t0
         local.get $t3
         i64.load $heap offset=24
         call $rt:map_hash
         local.set $t4
         local.get $t3
         local.get $t4
-        local.get $t0
         local.get $t1
+        local.get $t0
         call $rt:map_find
         local.set $t5
-        local.get $t0
+        local.get $t1
         local.tee $t2
         if
           local.get $t2
@@ -89,15 +89,15 @@
         local.get $t3
         local.get $t4
         local.get $t5
-        local.get $t0
         local.get $t1
+        local.get $t0
         local.get $index
         call $rt:map_put
         local.set $t3
         local.get $frame
         local.get $t3
         i32.store $heap offset=4
-        local.get $t0
+        local.get $t1
         local.tee $t2
         if
           local.get $t2

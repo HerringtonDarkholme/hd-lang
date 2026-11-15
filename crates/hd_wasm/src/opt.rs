@@ -92,6 +92,7 @@ pub(crate) fn version_loop_bounds(f: &mut Func) -> bool {
 }
 mod constant;
 mod empty_loops;
+mod live_set;
 
 /// Delete finite induction loops whose counters are unobserved.
 pub fn delete_empty_loops(f: &mut Func) -> bool {
@@ -104,7 +105,9 @@ pub fn fold_local_constants(f: &mut crate::module::Func) -> bool {
 }
 
 use hd_base::SliceSort as _;
-use std::collections::BTreeMap;
+use live_set::{Set, Sets};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
 use crate::op::{LabelListId, Op as I};
 use hd_base::Hash128;
@@ -1105,82 +1108,52 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
     (point_at, starts)
 }
 
-/// A set of locals that costs its members, not the function's locals, to
-/// clear, copy or visit: `at[l]` is `l`'s index in `members`, or
-/// `u32::MAX` when `l` is not in the set. A function of thousands of
-/// temporaries keeps few of them live at once, so dense bit rows per block
-/// or per local would grow with the square of its length.
-struct LiveSet {
-    at: Vec<u32>,
-    members: Vec<u32>,
-}
-
-impl LiveSet {
-    fn new(n: usize) -> Self {
-        Self {
-            at: vec![u32::MAX; n],
-            members: Vec::new(),
-        }
-    }
-
-    fn contains(&self, l: u32) -> bool {
-        self.at[l as usize] != u32::MAX
-    }
-
-    fn insert(&mut self, l: u32) {
-        if !self.contains(l) {
-            self.at[l as usize] = u32::try_from(self.members.len()).expect("locals");
-            self.members.push(l);
-        }
-    }
-
-    fn remove(&mut self, l: u32) {
-        let i = self.at[l as usize];
-        if i == u32::MAX {
-            return;
-        }
-        self.at[l as usize] = u32::MAX;
-        self.members.swap_remove(i as usize);
-        if let Some(&moved) = self.members.get(i as usize) {
-            self.at[moved as usize] = i;
-        }
-    }
-
-    fn clear(&mut self) {
-        for l in self.members.drain(..) {
-            self.at[l as usize] = u32::MAX;
-        }
-    }
-}
-
 /// The locals live into each basic block of a body, by a backward pass
-/// to a fixed point (loop backedges included), each block's set sorted.
+/// to a fixed point (loop backedges included). Each block's set is a
+/// persistent set ([`live_set`]) that shares every subtree its block's
+/// instructions leave alone with the sets it was built from: `n` locals
+/// live across `n` blocks take about `n log n` nodes, not `n²` entries.
 struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
     starts: Vec<usize>,
     /// Every edge leads to a later block, so one backward pass settles.
     forward: bool,
-    locals: usize,
-    into: Vec<Vec<u32>>,
+    sets: Sets,
+    into: Vec<Set>,
+}
+
+/// The locals live at one point of [`Live::walk_back`].
+struct After<'a> {
+    sets: &'a Sets,
+    set: Set,
+}
+
+impl After<'_> {
+    fn contains(&self, l: u32) -> bool {
+        self.sets.contains(self.set, l)
+    }
+}
+
+impl Drop for Live {
+    fn drop(&mut self) {
+        crate::work::liveness(self.starts.len() + self.sets.work());
+    }
 }
 
 impl Live {
     fn new(f: &Func) -> Option<Self> {
         let mut me = Self::blocks(f)?;
         me.settle(f);
-        for row in &mut me.into {
-            row.sort_stable();
-        }
         Some(me)
     }
 
-    /// Runs the backward pass to its fixed point, each block's set in any
-    /// order. Blocks go last to first, so in a body that only branches
-    /// forward each block's successors are final when it is visited, and
-    /// one pass settles. A backedge can grow its target's set after the
-    /// target's predecessors were visited; then only those predecessors go
-    /// again, from a worklist, not every block of the body once more.
+    /// Runs the backward pass to its fixed point. Blocks go last to
+    /// first, so in a body that only branches forward each block's
+    /// successors are final when it is visited, and one pass settles. A
+    /// backedge can grow its target's set after the target's
+    /// predecessors were visited; then only those predecessors go again,
+    /// from a worklist, not every block of the body once more.
     fn settle(&mut self, f: &Func) {
         self.settle_with(f, || {});
     }
@@ -1190,22 +1163,21 @@ impl Live {
         let len = f.body.len();
         let blocks = self.starts.len();
         let preds = (!self.forward).then(|| self.predecessors(len));
-        let mut live = LiveSet::new(self.locals);
         // Popped last first; `queued[p]`: `p` is in `pending`.
         let mut pending: Vec<usize> = (0..blocks).collect();
         let mut queued = vec![true; blocks];
         while let Some(p) = pending.pop() {
             visit();
             queued[p] = false;
-            self.out(p, len, &mut live);
+            let mut live = self.out(p, len);
             for ins in f.body[self.starts[p]..self.end(p, len)].iter().rev() {
-                Self::step(ins, &mut live);
+                live = Self::step(&mut self.sets, ins, live);
             }
             // Sets only grow from empty here, so a new size is a change.
-            if self.into[p].len() == live.members.len() {
+            if self.sets.len(self.into[p]) == self.sets.len(live) {
                 continue;
             }
-            self.into[p].clone_from(&live.members);
+            self.into[p] = live;
             if let Some((first, list)) = &preds {
                 for &q in &list[first[p]..first[p + 1]] {
                     if !queued[q] {
@@ -1247,19 +1219,18 @@ impl Live {
 
     /// A body's basic blocks, with nothing live into any of them yet.
     fn blocks(f: &Func) -> Option<Self> {
-        let locals = f.params.len() + f.locals.len();
-        if locals == 0 || f.body.is_empty() {
+        if f.params.len() + f.locals.len() == 0 || f.body.is_empty() {
             return None;
         }
         let edges = zero_edges(&f.body, &f.labels)?;
         let (point_at, starts) = basic_blocks(&edges, f.body.len());
         Some(Self {
-            into: vec![Vec::new(); starts.len()],
+            into: vec![Set::EMPTY; starts.len()],
             forward: forward_only(&edges, &point_at, &starts, f.body.len()),
             edges,
             point_at,
             starts,
-            locals,
+            sets: Sets::default(),
         })
     }
 
@@ -1269,24 +1240,28 @@ impl Live {
     fn dead_accesses(f: &Func) -> Option<Vec<bool>> {
         let body = &f.body;
         let mut dead = vec![false; body.len()];
-        let mut mark = |at: usize, after: &LiveSet| {
+        let mut mark = |at: usize, after: &After| {
             if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
                 dead[at] = !after.contains(*l);
             }
         };
         let mut me = Self::blocks(f)?;
         if me.forward {
-            let mut live = LiveSet::new(me.locals);
             for p in (0..me.starts.len()).rev() {
-                me.out(p, body.len(), &mut live);
+                let mut live = me.out(p, body.len());
                 for at in (me.starts[p]..me.end(p, body.len())).rev() {
-                    mark(at, &live);
-                    Live::step(&body[at], &mut live);
+                    mark(
+                        at,
+                        &After {
+                            sets: &me.sets,
+                            set: live,
+                        },
+                    );
+                    live = Self::step(&mut me.sets, &body[at], live);
                 }
-                me.into[p].clone_from(&live.members);
+                me.into[p] = live;
             }
         } else {
-            // Only membership matters here, so the sets need no sorting.
             me.settle(f);
             me.walk_back(body, mark);
         }
@@ -1297,151 +1272,305 @@ impl Live {
         self.starts.get(p + 1).copied().unwrap_or(len)
     }
 
-    /// The locals live after block `p`: those live into its successors.
-    fn out(&self, p: usize, len: usize, live: &mut LiveSet) {
-        live.clear();
+    /// The locals live after block `p`: the union of those live into its
+    /// successors, which costs where they differ, not their size.
+    fn out(&mut self, p: usize, len: usize) -> Set {
         let end = self.end(p, len);
+        let (point_at, into, sets) = (&self.point_at, &self.into, &mut self.sets);
+        let mut live = Set::EMPTY;
         self.edges[end - 1].each(end, |to| {
-            if let Some(&q) = self.point_at.get(to) {
-                for &l in &self.into[q] {
-                    live.insert(l);
-                }
+            if let Some(&q) = point_at.get(to) {
+                live = sets.union(live, into[q]);
             }
         });
+        live
     }
 
-    fn step(ins: &Ins, live: &mut LiveSet) {
+    fn step(sets: &mut Sets, ins: &Ins, live: Set) -> Set {
         match ins {
-            Ins::Op(I::LocalGet(l)) => live.insert(*l),
-            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => live.remove(*l),
-            _ => {}
+            Ins::Op(I::LocalGet(l)) => sets.insert(live, *l),
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => sets.remove(live, *l),
+            _ => live,
         }
     }
 
     /// Visits each instruction of `body`, last to first within each
     /// block, with the locals live just after it.
-    fn walk_back(&self, body: &[Ins], mut visit: impl FnMut(usize, &LiveSet)) {
-        let mut live = LiveSet::new(self.locals);
+    fn walk_back(&mut self, body: &[Ins], mut visit: impl FnMut(usize, &After)) {
         for p in 0..self.starts.len() {
-            self.out(p, body.len(), &mut live);
+            let mut live = self.out(p, body.len());
             for at in (self.starts[p]..self.end(p, body.len())).rev() {
-                visit(at, &live);
-                Self::step(&body[at], &mut live);
+                visit(
+                    at,
+                    &After {
+                        sets: &self.sets,
+                        set: live,
+                    },
+                );
+                live = Self::step(&mut self.sets, &body[at], live);
             }
         }
-    }
-
-    /// The locals live at the function's entry.
-    fn entry(&self) -> &[u32] {
-        &self.into[0]
     }
 }
 
 /// The locals of suspending body `f` live just after its instruction at
-/// `at`, where a `Save`, which returns at once, reads none: what a run
-/// from there may read before it writes. `None` when the body's
-/// branches are not analysed.
+/// `at`, ascending, where a `Save`, which returns at once, reads none:
+/// what a run from there may read before it writes. `None` when the
+/// body's branches are not analysed.
 pub(crate) fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
-    let mut me = Live::blocks(f)?;
-    me.settle(f);
+    let mut me = Live::new(f)?;
     let mut out = None;
     me.walk_back(&f.body, |p, live| {
         if p == at {
-            out = Some(live.members.clone());
+            let mut members = Vec::new();
+            live.sets.members(live.set, &mut members);
+            out = Some(members);
         }
     });
     out
 }
 
-/// The distinct undirected local conflicts and each local's neighbors.
-/// A flat bit matrix makes repeated conflicts from wide value copies a
-/// constant-time membership check without storing the pair again.
-struct Conflicts {
-    neighbors: Vec<Vec<u32>>,
-    bits: Vec<u64>,
-    words: usize,
+/// How a local is defined at a position, for [`coalesce`]'s bundles: a
+/// write, a copy of a local read at a position, or at the entry, a
+/// parameter or the zero every other local starts with.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Def {
+    Write,
+    Copy(u32, u32),
+    Param,
+    Zero,
 }
 
-impl Conflicts {
-    fn new(locals: usize) -> Self {
-        let words = locals.checked_add(63).expect("locals") / 64;
-        Self {
-            neighbors: vec![Vec::new(); locals],
-            bits: vec![0; locals.checked_mul(words).expect("local conflicts")],
-            words,
+/// A class of locals that share one: its first local, their type, the
+/// pieces of its members' ranges from the scan's position on, in order,
+/// its key in its type's pool while no piece holds the scan's position
+/// (the next piece's start, or `u32::MAX` when none is left), and a stamp
+/// that changes with each change of state, so a heap entry of an older
+/// state is skipped when it comes up.
+struct Class {
+    local: u32,
+    ty: crate::module::Val,
+    pieces: BTreeMap<u32, u32>,
+    pooled: Option<u32>,
+    stamp: u32,
+}
+
+/// The classes, each type's pool of classes no piece holds at the scan's
+/// position, by the start of their next piece, and the positions where a
+/// class's state changes next.
+struct Scan {
+    classes: Vec<Class>,
+    pools: BTreeMap<crate::module::Val, BTreeSet<(u32, usize)>>,
+    events: BinaryHeap<Reverse<(u32, usize, u32)>>,
+    steps: usize,
+}
+
+impl Scan {
+    /// Brings class `c` to position `at`: drops its pieces that end
+    /// before, pools it when no piece holds `at`, and queues its next
+    /// change.
+    fn refresh(&mut self, c: usize, at: u32) {
+        self.steps += 1;
+        let class = &mut self.classes[c];
+        while class.pieces.first_key_value().is_some_and(|p| *p.1 < at) {
+            class.pieces.pop_first();
+        }
+        let front = class.pieces.first_key_value().map(|(&s, &e)| (s, e));
+        let key = match front {
+            Some(p) if p.0 <= at => None,
+            Some(p) => Some(p.0),
+            None => Some(u32::MAX),
+        };
+        if class.pooled != key {
+            let pool = self.pools.entry(class.ty).or_default();
+            if let Some(old) = class.pooled {
+                pool.remove(&(old, c));
+            }
+            if let Some(new) = key {
+                pool.insert((new, c));
+            }
+            class.pooled = key;
+        }
+        class.stamp += 1;
+        let next = match front {
+            Some(p) if p.0 <= at => Some(p.1 + 1),
+            Some(p) => Some(p.0),
+            None => None,
+        };
+        if let Some(next) = next {
+            self.events.push(Reverse((next, c, class.stamp)));
         }
     }
 
-    fn insert(&mut self, x: u32, y: u32) {
-        debug_assert_ne!(x, y);
-        let (a, b) = if x < y { (x, y) } else { (y, x) };
-        let ai = a as usize;
-        let bi = b as usize;
-        let word = ai * self.words + bi / 64;
-        let bit = 1 << (bi % 64);
-        if self.bits[word] & bit != 0 {
-            return;
+    /// Brings every class whose state changes at or before `at` to `at`.
+    fn advance(&mut self, at: u32) {
+        while let Some(&Reverse((when, c, stamp))) = self.events.peek()
+            && when <= at
+        {
+            self.events.pop();
+            if self.classes[c].stamp == stamp {
+                self.refresh(c, at);
+            }
         }
-        self.bits[word] |= bit;
-        self.neighbors[ai].push(b);
-        self.neighbors[bi].push(a);
     }
 }
 
-/// Rule 15: locals of one type whose values are never live at once share
-/// one local, as a register allocator colors its interference graph. A
-/// write conflicts with each local live just after it, except with the
-/// source of a copy ([`copy_source`]), which holds the same value;
-/// parameters are written at entry, where every local live there holds
-/// its parameter or its initial zero. Each local in turn joins a class of
-/// its type (parameters first) it conflicts with no member of: one that
-/// holds a local it copies or is copied from when there is one, else the
-/// first. A copy between two locals of one class then goes, a pair of a
+/// Rule 14: locals of one type whose values are never live at once share
+/// one local. Binaryen's `CoalesceLocals` decides this from a pairwise
+/// interference matrix, which costs the square of the locals live at once;
+/// this is the linear scan with lifetime holes of regalloc2 and of Traub,
+/// Holloway and Smith ("Quality and Speed in Linear-scan Register
+/// Allocation", 1998), which keeps the same gaps without the pairs.
+///
+/// Positions: 0 is the entry, where the parameters are written and every
+/// other local holds zero, and instruction `at` is at `at + 1`. A local's
+/// ranges cover each position where it is written or live just after.
+/// One backward walk over the basic blocks ([`Live`]) builds them: a read
+/// opens a range, a write closes it, and at a block's end the locals open
+/// and not live after it may close (a hole), and those live after it and
+/// not open open. A block's end closes at most as many holes as the block
+/// has local accesses, since a range fits a hole only if it begins or ends
+/// at an access inside it; what it leaves open stays open until a block
+/// that pays for its hole or a write. So `m` values read past the `n` arms
+/// of an else-if chain make holes only where an arm has accesses, not
+/// `m n`, and a panic guard's arm with no access makes none.
+/// The sets are hash-consed persistent sets, so each difference costs the
+/// locals it finds.
+///
+/// Each range carries a value number ([`value_numbers`]): a copy's range
+/// holds its source's value. Then, as regalloc2 does before it allocates,
+/// copies join their two locals' bundles, the most repeated copy first,
+/// when wherever the bundles' ranges overlap they hold one value, which
+/// is Binaryen's rule that a copy does not interfere with its source:
+/// the smaller bundle's ranges are probed in the larger's ordered map and
+/// moved into it. Two parameters hold different values at the entry, so
+/// they never join.
+///
+/// Last, bundles go in order of their first position, parameters first,
+/// each into a class of its type whose pieces leave a hole holding all of
+/// it, the one whose next piece starts soonest after it, else a class of
+/// its own. A copy between two locals of one class then goes, a pair of a
 /// multi-value copy too ([`same_local_copies`]).
+///
+/// Cost, for a body of `B` instructions, `n` locals, `c` copies and `R`
+/// ranges (at most the writes, the reads, `n`, and two per access a hole
+/// is paid by): the liveness pass and the walk, `O((B + R) log n)`; a
+/// probe of the smaller bundle per copy and each range moved `log R`
+/// times, `O((c + R log R) log R)`; and a pool and heap step per piece,
+/// `O(R log n)`.
 pub fn coalesce(f: &mut Func) {
     if f.raw.is_some() {
         return;
     }
-    let Some(live) = Live::new(f) else {
+    let Some(mut live) = Live::new(f) else {
         return;
     };
     let np = f.params.len();
     let n = np + f.locals.len();
     let body = &f.body;
-    // Each conflict: a local written while another is live just after.
-    let mut conflicts = Conflicts::new(n);
-    let mut used = vec![false; n];
+    let len = body.len();
+    // ruled out: a body past `u32::MAX` instructions or locals; Wasm
+    // counts both in u32, so no function reaches here larger.
+    let n32 = u32::try_from(n).expect("locals");
+    let pos = |at: usize| u32::try_from(at + 1).expect("body");
+    let sources = copy_sources(body, n);
     // Each copy's two locals, the copied one second.
     let mut copies: Vec<(u32, u32)> = Vec::new();
-    live.walk_back(body, |at, after| {
-        let Ins::Op(I::LocalSet(x) | I::LocalTee(x) | I::LocalGet(x)) = &body[at] else {
-            return;
-        };
-        let x = *x;
-        used[x as usize] = true;
-        if matches!(body[at], Ins::Op(I::LocalGet(_))) {
-            return;
-        }
-        let source = copy_source(body, at);
-        if let Some(y) = source
+    for (at, ins) in body.iter().enumerate() {
+        if let (Ins::Op(I::LocalSet(x) | I::LocalTee(x)), Some((y, _))) = (*ins, sources[at])
             && y != x
         {
             copies.push((x, y));
         }
-        for &y in &after.members {
-            if y != x && Some(y) != source {
-                conflicts.insert(x, y);
-            }
+    }
+    // The ranges: each local's, and the end of the one open in the walk,
+    // or `NONE`.
+    let mut ranges: Vec<(u32, u32, u32)> = Vec::new();
+    let mut open = vec![NONE; n];
+    let mut found = Vec::new();
+    // The open ranges' locals, as a persistent set: those live, and those
+    // not live whose hole no access paid for yet.
+    let mut now = Set::EMPTY;
+    for p in (0..live.starts.len()).rev() {
+        let (start, end) = (live.starts[p], live.end(p, len));
+        // What is open and not live after this block has a hole from here
+        // back to where it is live again, as many of them as the block
+        // has local accesses: a range that fits a hole begins or ends at
+        // an access in it, so more holes than accesses hold no range. So
+        // `m` values read past `n` arms of an else-if chain make no `m n`
+        // holes, and a panic guard `if ... unreachable end` with no
+        // access makes none. The others stay open, and an earlier block's
+        // accesses may pay for theirs. What is live after it and not open
+        // opens.
+        let out = live.out(p, len);
+        let accesses = body[start..end]
+            .iter()
+            .filter(|i| matches!(i, Ins::Op(I::LocalGet(_) | I::LocalSet(_) | I::LocalTee(_))))
+            .count();
+        found.clear();
+        live.sets.difference_upto(now, out, &mut found, accesses);
+        for &x in &found {
+            let e = std::mem::replace(&mut open[x as usize], NONE);
+            ranges.push((x, pos(end), e));
+            now = live.sets.remove(now, x);
         }
-    });
-    for p in 0..u32::try_from(np).expect("locals") {
-        for &y in live.entry() {
-            if y != p {
-                conflicts.insert(p, y);
+        found.clear();
+        live.sets.difference(out, now, &mut found);
+        for &x in &found {
+            open[x as usize] = pos(end - 1);
+            now = live.sets.insert(now, x);
+        }
+        for at in (start..end).rev() {
+            match body[at] {
+                Ins::Op(I::LocalGet(x)) if open[x as usize] == NONE => {
+                    open[x as usize] = pos(at);
+                }
+                Ins::Op(I::LocalSet(x) | I::LocalTee(x)) => {
+                    let e = std::mem::replace(&mut open[x as usize], NONE);
+                    ranges.push((x, pos(at), if e == NONE { pos(at) } else { e }));
+                }
+                _ => {}
             }
+            now = Live::step(&mut live.sets, &body[at], now);
         }
     }
-    let neighbors = conflicts.neighbors;
+    // What is open at the entry holds a parameter or a zero there, and
+    // a parameter is written there whether it is read or not.
+    for (x, e) in (0..n32).zip(&open) {
+        if *e != NONE || (x as usize) < np {
+            ranges.push((x, 0, if *e == NONE { 0 } else { *e }));
+        }
+    }
+    // Each local's ranges, by start, and its definitions: its writes, by
+    // position and local, each with the local and get it copies when it
+    // copies one, and its value at the entry, a parameter's or a zero.
+    let mut occ: Vec<BTreeMap<u32, u32>> = vec![BTreeMap::new(); n];
+    let mut defs: Vec<BTreeMap<(u32, u32), Def>> = vec![BTreeMap::new(); n];
+    for &(x, s, e) in &ranges {
+        occ[x as usize].insert(s, e);
+        if s == 0 && x as usize >= np {
+            defs[x as usize].insert((0, x), Def::Zero);
+        }
+    }
+    for p in 0..u32::try_from(np).expect("locals") {
+        defs[p as usize].insert((0, p), Def::Param);
+    }
+    for (at, ins) in body.iter().enumerate() {
+        if let Ins::Op(I::LocalSet(x) | I::LocalTee(x)) = *ins {
+            let def = match sources[at] {
+                Some((y, get)) if y != x => Def::Copy(y, pos(get)),
+                _ => Def::Write,
+            };
+            defs[x as usize].insert((pos(at), x), def);
+        }
+    }
+    let mut steps = ranges.len() + defs.iter().map(BTreeMap::len).sum::<usize>();
+    // Bundles, as regalloc2 makes them before it allocates: locals joined
+    // by copies that never hold two values at once. Each local's bundle is
+    // found through `root`; a bundle's ranges, merged where they overlap,
+    // and its definitions are kept at its root.
+    let mut root: Vec<u32> = (0..n32).collect();
+    let mut members: Vec<Vec<u32>> = root.iter().map(|&x| vec![x]).collect();
     let ty = |l: usize| {
         if l < np {
             f.params[l]
@@ -1449,47 +1578,164 @@ pub fn coalesce(f: &mut Func) {
             f.locals[l - np]
         }
     };
-    // Each class: its local and its type.
-    let mut classes: Vec<(u32, crate::module::Val)> = Vec::new();
-    let mut to: Vec<u32> = (0..u32::try_from(n).expect("locals")).collect();
-    // Each local's class, once it has one.
-    let mut class_of: Vec<Option<usize>> = vec![None; n];
+    // Each copy once, the most repeated first, as Binaryen ranks them.
     copies.sort_stable();
-    copies.dedup();
-    // Each local's copy partners, in the order of `copies`.
-    let mut partners: Vec<Vec<u32>> = vec![Vec::new(); n];
-    for &(a, b) in &copies {
-        partners[a as usize].push(b);
-        partners[b as usize].push(a);
+    let mut ranked: Vec<(u32, u32, usize)> = Vec::new();
+    for &(x, y) in &copies {
+        match ranked.last_mut() {
+            Some((a, b, k)) if (*a, *b) == (x, y) => *k += 1,
+            _ => ranked.push((x, y, 1)),
+        }
     }
-    // The current local's blocked classes. Stamps avoid rebuilding and
-    // sorting a list when several neighbors already share one class.
-    let mut blocked_at = vec![usize::MAX; n];
-    for x in 0..n {
-        if x >= np && !used[x] {
+    ranked.sort_stable_by_key(|&(.., k)| Reverse(k));
+    let find = |root: &mut [u32], mut x: u32| {
+        while root[x as usize] != x {
+            let up = root[root[x as usize] as usize];
+            root[x as usize] = up;
+            x = up;
+        }
+        x
+    };
+    for &(x, y, _) in &ranked {
+        let (a, b) = (find(&mut root, x), find(&mut root, y));
+        if a == b || ty(x as usize) != ty(y as usize) {
             continue;
         }
-        // The classes holding a local that conflicts with `x`.
-        for c in neighbors[x].iter().filter_map(|&y| class_of[y as usize]) {
-            blocked_at[c] = x;
+        let size = |c: u32| occ[c as usize].len() + defs[c as usize].len();
+        let (small, big) = if size(a) <= size(b) { (a, b) } else { (b, a) };
+        // Two values live at once means one's definition lies where the
+        // other is live (Chaitin; Budimlić et al., "Fast Copy Coalescing
+        // and Live-Range Identification", 2002), so each side's
+        // definitions are probed where the other is live: the small
+        // side's by a lookup each, the big side's by a range query per
+        // small range.
+        let clash = |def: (u32, Def), other: u32, root: &mut [u32]| {
+            let (at, kind) = def;
+            match kind {
+                Def::Param => true,
+                Def::Zero => defs[other as usize]
+                    .values()
+                    .next()
+                    .is_some_and(|d| *d == Def::Param),
+                Def::Write => true,
+                Def::Copy(src, get) => {
+                    find(root, src) != other
+                        || defs[other as usize]
+                            .range((get + 1, 0)..(at, 0))
+                            .next()
+                            .is_some()
+                }
+            }
+        };
+        let mut apart = true;
+        'probe: {
+            for (&(at, _), &kind) in &defs[small as usize] {
+                steps += 1;
+                let live = occ[big as usize]
+                    .range(..=at)
+                    .next_back()
+                    .is_some_and(|(_, &e)| e >= at);
+                if live && clash((at, kind), big, &mut root) {
+                    apart = false;
+                    break 'probe;
+                }
+            }
+            for (&s, &e) in &occ[small as usize] {
+                for (&(at, _), &kind) in defs[big as usize].range((s, 0)..=(e, u32::MAX)) {
+                    steps += 1;
+                    if clash((at, kind), small, &mut root) {
+                        apart = false;
+                        break 'probe;
+                    }
+                }
+            }
         }
-        let fits = |c: usize| classes[c].1 == ty(x) && blocked_at[c] != x;
-        let found = if x < np {
+        if !apart {
+            continue;
+        }
+        let (si, bi) = (small as usize, big as usize);
+        // Ranges that overlap become one.
+        for (s, e) in std::mem::take(&mut occ[si]) {
+            let theirs = &mut occ[bi];
+            let (mut lo, mut hi) = (s, e);
+            while let Some((&bs, &be)) = theirs.range(..=e).next_back()
+                && be >= s
+            {
+                steps += 1;
+                theirs.remove(&bs);
+                (lo, hi) = (lo.min(bs), hi.max(be));
+            }
+            theirs.insert(lo, hi);
+        }
+        let moved = std::mem::take(&mut defs[si]);
+        defs[bi].extend(moved);
+        let moved = std::mem::take(&mut members[si]);
+        members[bi].extend(moved);
+        root[si] = big;
+    }
+    // The bundles, by their first position, parameters first.
+    let mut order: Vec<u32> = (0..n32)
+        .filter(|&x| root[x as usize] == x && !occ[x as usize].is_empty())
+        .collect();
+    order.sort_stable_by_key(|&x| occ[x as usize].first_key_value().map(|(&s, _)| s));
+    let mut scan = Scan {
+        classes: Vec::new(),
+        pools: BTreeMap::new(),
+        events: BinaryHeap::new(),
+        steps,
+    };
+    let mut to: Vec<u32> = (0..n32).collect();
+    for &b in &order {
+        let bi = b as usize;
+        let mine = &occ[bi];
+        let (Some((&s, _)), Some((_, &e))) = (mine.first_key_value(), mine.last_key_value()) else {
+            continue;
+        };
+        // A root's members hold the root itself.
+        let local = members[bi].iter().copied().min().unwrap_or(b);
+        let t = ty(local as usize);
+        scan.advance(s);
+        // A parameter keeps its own local; another bundle takes the class
+        // whose next piece starts soonest after its last position, else,
+        // as Traub et al.'s binpacking fills a lifetime hole, the free
+        // class whose next piece starts latest when the bundle's ranges
+        // fit between its pieces: one probe per range of the bundle.
+        let found = if (local as usize) < np {
             None
         } else {
-            (partners[x].iter())
-                .filter_map(|&y| class_of[y as usize])
-                .find(|&c| fits(c))
-                .or_else(|| (0..classes.len()).find(|&c| fits(c)))
+            scan.pools.get(&t).and_then(|pool| {
+                if let Some(&(_, c)) = pool.range((e + 1, 0)..).next() {
+                    return Some(c);
+                }
+                let &(_, c) = pool.last()?;
+                let theirs = &scan.classes[c].pieces;
+                scan.steps += mine.len();
+                mine.iter()
+                    .all(|(&s, &e)| theirs.range(..=e).next_back().is_none_or(|(_, &te)| te < s))
+                    .then_some(c)
+            })
         };
-        if let Some(c) = found {
-            class_of[x] = Some(c);
-            to[x] = classes[c].0;
+        let pieces = mine.iter().map(|(&start, &end)| (start, end));
+        let c = if let Some(c) = found {
+            scan.classes[c].pieces.extend(pieces);
+            c
         } else {
-            class_of[x] = Some(classes.len());
-            classes.push((u32::try_from(x).expect("locals"), ty(x)));
+            scan.classes.push(Class {
+                local,
+                ty: t,
+                pieces: pieces.collect(),
+                pooled: None,
+                stamp: 0,
+            });
+            scan.classes.len() - 1
+        };
+        scan.steps += mine.len();
+        scan.refresh(c, s);
+        for &m in &members[bi] {
+            to[m as usize] = scan.classes[c].local;
         }
     }
+    crate::work::liveness(scan.steps);
     if to.iter().enumerate().all(|(x, t)| *t as usize == x) {
         return;
     }
@@ -1529,26 +1775,48 @@ pub fn coalesce(f: &mut Func) {
     renumber(f);
 }
 
-/// The local whose value the `local.set` or `local.tee` at `at` writes,
-/// when a `local.get` pushed it: the get just before it, or, for the
-/// `j`th set of a run of sets, the `j`th get back from the end of the
-/// run of gets before them, a multi-value copy, so long as no set of
-/// the run before `at` writes that local.
-fn copy_source(body: &[Ins], at: usize) -> Option<u32> {
-    let mut start = at;
-    while start > 0 && matches!(body[start - 1], Ins::Op(I::LocalSet(_))) {
-        start -= 1;
+/// For each `local.set` or `local.tee`, the local whose value it writes
+/// when a `local.get` pushed it, and that get's index: the get just
+/// before it, or, for the `j`th set of a run of sets, the `j`th get back
+/// from the end of the run of gets before them, a multi-value copy, so
+/// long as no set of the run before it writes that local. One pass: each
+/// run's sets stamp the locals they write with the run's start, so the
+/// check is one probe, not a rescan of the run per set.
+fn copy_sources(body: &[Ins], locals: usize) -> Vec<Option<(u32, usize)>> {
+    let mut out = vec![None; body.len()];
+    // Where the run of gets, and of sets, ending at each index began.
+    let mut gets_from = 0;
+    let mut sets_from = 0;
+    let mut stamp = vec![usize::MAX; locals];
+    for (at, ins) in body.iter().enumerate() {
+        let get = matches!(ins, Ins::Op(I::LocalGet(_)));
+        let after_get = at > 0 && matches!(body[at - 1], Ins::Op(I::LocalGet(_)));
+        let after_set = at > 0 && matches!(body[at - 1], Ins::Op(I::LocalSet(_)));
+        if get && !after_get {
+            gets_from = at;
+        }
+        let Ins::Op(I::LocalSet(x) | I::LocalTee(x)) = *ins else {
+            continue;
+        };
+        let start = if after_set { sets_from } else { at };
+        let gets_end = start;
+        if let Some(first) = start.checked_sub(1 + at - start)
+            && gets_end > 0
+            && matches!(body[gets_end - 1], Ins::Op(I::LocalGet(_)))
+            && gets_from <= first
+            && let Ins::Op(I::LocalGet(y)) = body[first]
+            && stamp[y as usize] != start
+        {
+            out[at] = Some((y, first));
+        }
+        if matches!(ins, Ins::Op(I::LocalSet(_))) {
+            if !after_set {
+                sets_from = at;
+            }
+            stamp[x as usize] = start;
+        }
     }
-    let first = start.checked_sub(1 + at - start)?;
-    let Ins::Op(I::LocalGet(y)) = body[first] else {
-        return None;
-    };
-    let gets = &body[first..start];
-    let all_gets = gets.iter().all(|i| matches!(i, Ins::Op(I::LocalGet(_))));
-    let overwritten = body[start..at]
-        .iter()
-        .any(|i| matches!(i, Ins::Op(I::LocalSet(z)) if *z == y));
-    (all_gets && !overwritten).then_some(y)
+    out
 }
 
 /// The pairs of multi-value copies `local.get a ...; ... local.set a`
@@ -1589,16 +1857,16 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
     gone
 }
 
-/// Rules 13 and 14, from one backward liveness pass over the basic blocks
+/// Rules 12 and 13, from one backward liveness pass over the basic blocks
 /// (loop backedges to a fixed point).
 ///
-/// Rule 13 deletes a `local.set` or `local.tee` of a local that no path
+/// Rule 12 deletes a `local.set` or `local.tee` of a local that no path
 /// reads before its next write, dropping a set's value, or the pure push
 /// that made it. A zero left in a moved-from local stays exactly when
 /// some path still releases it (the one exit, a loop's next drop, a
 /// suspension's saved frame).
 ///
-/// Rule 14 keeps a value on the stack. In `local.set t; R; local.get t`,
+/// Rule 13 keeps a value on the stack. In `local.set t; R; local.get t`,
 /// where that get is the first access of `t` after the set and `R` is a
 /// straight-line run (panic guards `if ... unreachable end` included):
 ///
@@ -2131,7 +2399,7 @@ fn fold(f: &mut Func) -> bool {
     changed
 }
 
-/// Rule 16: each `drop` takes back what pushed its value while that has
+/// Rule 15: each `drop` takes back what pushed its value while that has
 /// no other effect, so a discarded read leaves no code.
 pub(crate) fn drops(f: &mut Func) -> bool {
     let mut origins = Remap::new(f.origins.as_deref());
@@ -2338,7 +2606,7 @@ fn pure_operands(i: &I) -> Option<usize> {
     })
 }
 
-/// Rules 9 and 10 operate on straight-line stack effects. Schedule the
+/// Rules 8 and 9 operate on straight-line stack effects. Schedule the
 /// single-use locals first so the store walk sees the resulting stack order.
 fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
     schedule_with(f, np, arity, || {})
@@ -2766,7 +3034,7 @@ fn block_end(b: &[Ins], at: usize) -> Option<usize> {
     None
 }
 
-/// Rule 18: each `br` to the function's exit block, after the sets of the
+/// Rule 17: each `br` to the function's exit block, after the sets of the
 /// locals the exit pushes, returns those values from the stack.
 fn exits(f: &mut Func) -> bool {
     let b = &f.body;
@@ -2921,7 +3189,7 @@ enum LabelKind {
     If,
 }
 
-/// Rule 19: control instructions that only fall through.
+/// Rule 18: control instructions that only fall through.
 ///
 /// A `br 0` straight before the `end` or `else` of a block or an `if`
 /// jumps where falling through goes. It goes when the stack holds no more
@@ -3161,9 +3429,9 @@ fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
     true
 }
 
-/// Rules 5, 6 and 20: rewrites each `if` of those shapes. Each round reads
+/// Rules 5, 6 and 19: rewrites each `if` of those shapes. Each round reads
 /// the body's `if`s once and rewrites every site of one rule in one
-/// rebuild: rule 5's branch-only arms, then rule 6, then rule 20
+/// rebuild: rule 5's branch-only arms, then rule 6, then rule 19
 /// ([`chains::run`]). A rewrite can make a new site (the inner `&&` of `a
 /// && b && c` feeds the branch once the outer one does), so rounds repeat
 /// until none rewrites.
@@ -3410,7 +3678,7 @@ pub(crate) fn renumber(f: &mut Func) {
     f.locals = kept;
 }
 
-/// Rule 17: removes a count whose every operand is a constant (#910). A
+/// Rule 16: removes a count whose every operand is a constant (#910). A
 /// constant address is null or static data, which has no count: neither
 /// the page-table path (`address < heap`) nor the known path (a count of
 /// 0) changes it, in any runtime. An operand is a constant when it comes
@@ -4400,7 +4668,7 @@ mod origin_tests {
                 assert!(schedule(f, 0, &Arity::new()));
             },
         );
-        // Rule 10 takes precedence here, moving the second value before its producer.
+        // Rule 9 takes precedence here, moving the second value before its producer.
         assert_eq!(spans(&f), [10, 11, 14, 12, 16]);
         let f = run(
             tracked(
@@ -4622,7 +4890,7 @@ mod origin_tests {
         }
     }
 
-    /// Rule 19: a `br 0` that only falls through goes, and a void block it
+    /// Rule 18: a `br 0` that only falls through goes, and a void block it
     /// alone targeted goes with it, as does a void `if`'s empty `else`; a
     /// loop's back edge, a branch that leaves values under its label's,
     /// and a typed block stay.
@@ -5817,22 +6085,199 @@ mod origin_tests {
             assert!(visits <= blocks + 4, "{visits} visits of {blocks} blocks");
             // Local 1 is live into every block before the loop: its
             // first read is of the zero it starts with.
-            assert!(live.into[..blocks - 2].iter().all(|row| row.contains(&1)));
-            assert!(live.entry().contains(&0));
+            assert!(
+                live.into[..blocks - 2]
+                    .iter()
+                    .all(|&row| live.sets.contains(row, 1))
+            );
+            assert!(live.sets.contains(live.into[0], 0));
         }
     }
 
+    /// A copy shares its source's local only where no other value of the
+    /// copy reaches: a branch around the copy brings the copy's older
+    /// value to the join, so the two stay apart. Without the branch they
+    /// share and the copy goes.
     #[test]
-    fn repeated_local_conflicts_are_recorded_once() {
-        let mut conflicts = Conflicts::new(5);
-        conflicts.insert(1, 4);
-        conflicts.insert(1, 4);
-        conflicts.insert(4, 1);
-        conflicts.insert(1, 3);
-        assert_eq!(conflicts.neighbors[0], []);
-        assert_eq!(conflicts.neighbors[1], [4, 3]);
-        assert_eq!(conflicts.neighbors[3], [1]);
-        assert_eq!(conflicts.neighbors[4], [1]);
+    fn a_copy_joined_by_a_branch_around_it_keeps_its_own_local() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
+        for branch in [true, false] {
+            let mut body = vec![
+                op(I::I32Const(7)),
+                op(I::LocalSet(1)),
+                op(I::I32Const(1)),
+                op(I::LocalSet(2)),
+                op(I::Block(BlockType::Empty)),
+            ];
+            if branch {
+                body.extend([op(I::LocalGet(0)), op(I::BrIf(0))]);
+            }
+            body.extend([
+                op(I::LocalGet(1)),
+                op(I::LocalSet(2)),
+                op(I::End),
+                op(I::LocalGet(2)),
+                release,
+                op(I::LocalGet(1)),
+                release,
+            ]);
+            let f = run(tracked(&symbols, 1, 2, body), coalesce);
+            assert_eq!(f.locals.len(), if branch { 2 } else { 1 }, "{:?}", f.body);
+        }
+    }
+
+    /// Each set of a multi-value copy pairs with its get from the end of
+    /// the run of gets, a tee ends the run, and a set whose source an
+    /// earlier set of the run wrote copies nothing.
+    #[test]
+    fn copy_sources_pair_each_set_of_a_run_with_its_get() {
+        let op = Ins::Op;
+        let body = [
+            op(I::LocalGet(1)),
+            op(I::LocalGet(2)),
+            op(I::LocalSet(1)),
+            op(I::LocalSet(2)),
+            op(I::LocalGet(3)),
+            op(I::LocalTee(4)),
+            op(I::I32Const(0)),
+            op(I::LocalSet(5)),
+            op(I::LocalGet(4)),
+            op(I::LocalGet(3)),
+            op(I::LocalSet(6)),
+            op(I::LocalTee(7)),
+        ];
+        assert_eq!(
+            copy_sources(&body, 8),
+            [
+                None,
+                None,
+                Some((2, 1)),
+                None,
+                None,
+                Some((3, 4)),
+                None,
+                None,
+                None,
+                None,
+                Some((3, 9)),
+                Some((4, 8)),
+            ]
+        );
+    }
+
+    #[test]
+    fn coalescing_keeps_apart_locals_live_over_a_backedge_or_from_entry() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
+        let locals = |f: &Func| f.locals.len();
+        // Local 1 is read in the loop before local 2 is written there, but
+        // the backedge reads 1 again: they never share.
+        let looped = vec![
+            op(I::I32Const(5)),
+            op(I::LocalSet(1)),
+            op(I::Loop(BlockType::Empty)),
+            op(I::LocalGet(1)),
+            release,
+            op(I::I32Const(7)),
+            op(I::LocalSet(2)),
+            op(I::LocalGet(2)),
+            release,
+            op(I::LocalGet(0)),
+            op(I::BrIf(0)),
+            op(I::End),
+        ];
+        assert_eq!(locals(&run(tracked(&symbols, 1, 2, looped), coalesce)), 2);
+        // Local 2 is written in one arm only, so the read after the `if`
+        // may read its zero: it is live from the entry, and does not take
+        // local 1's, whose value is dead by then.
+        let one_arm = vec![
+            op(I::I32Const(9)),
+            op(I::LocalSet(1)),
+            op(I::LocalGet(1)),
+            release,
+            op(I::LocalGet(0)),
+            op(I::If(BlockType::Empty)),
+            op(I::I32Const(3)),
+            op(I::LocalSet(2)),
+            op(I::End),
+            op(I::LocalGet(2)),
+            release,
+        ];
+        assert_eq!(locals(&run(tracked(&symbols, 1, 2, one_arm), coalesce)), 2);
+        // With both arms writing it, local 2 is not live at entry and
+        // shares a local with 1 or the parameter, both dead by then.
+        let both_arms = vec![
+            op(I::I32Const(9)),
+            op(I::LocalSet(1)),
+            op(I::LocalGet(1)),
+            release,
+            op(I::LocalGet(0)),
+            op(I::If(BlockType::Empty)),
+            op(I::I32Const(3)),
+            op(I::LocalSet(2)),
+            op(I::Else),
+            op(I::I32Const(4)),
+            op(I::LocalSet(2)),
+            op(I::End),
+            op(I::LocalGet(2)),
+            release,
+        ];
+        assert_eq!(
+            locals(&run(tracked(&symbols, 1, 2, both_arms), coalesce)),
+            1
+        );
+        // A copy of a running total whose source is written again only
+        // after the copy's last read shares the total's local, and the
+        // copy goes, in and out of a loop.
+        for looping in [false, true] {
+            let mut body = vec![op(I::I32Const(1)), op(I::LocalSet(1))];
+            if looping {
+                body.push(op(I::Loop(BlockType::Empty)));
+            }
+            body.extend([
+                op(I::LocalGet(1)),
+                op(I::LocalSet(2)),
+                op(I::LocalGet(0)),
+                release,
+                op(I::LocalGet(2)),
+                op(I::I32Const(1)),
+                op(I::I32Add),
+                op(I::LocalSet(1)),
+            ]);
+            if looping {
+                body.extend([op(I::LocalGet(0)), op(I::BrIf(0)), op(I::End)]);
+            }
+            body.extend([op(I::LocalGet(1)), release]);
+            let f = run(tracked(&symbols, 1, 2, body), coalesce);
+            assert_eq!(locals(&f), 1, "{looping}: {:?}", f.body);
+            let copies = f.body.windows(2).filter(
+                |w| matches!(w, [Ins::Op(I::LocalGet(a)), Ins::Op(I::LocalSet(b))] if a == b),
+            );
+            assert_eq!(copies.count(), 0, "{:?}", f.body);
+        }
+        // A copy whose source is written while the copy is still live
+        // keeps a local of its own (the parameter, read last, keeps its).
+        let clobbered = vec![
+            op(I::I32Const(1)),
+            op(I::LocalSet(1)),
+            op(I::LocalGet(1)),
+            op(I::LocalSet(2)),
+            op(I::I32Const(2)),
+            op(I::LocalSet(1)),
+            op(I::LocalGet(2)),
+            op(I::LocalGet(1)),
+            op(I::I32Add),
+            release,
+            op(I::LocalGet(0)),
+            release,
+        ];
+        assert_eq!(
+            locals(&run(tracked(&symbols, 1, 2, clobbered), coalesce)),
+            2
+        );
     }
 
     #[test]
@@ -6160,7 +6605,7 @@ mod origin_tests {
         assert_eq!(f.body.len(), 4);
     }
 
-    /// Rule 20 where its forms do not apply: a branch that carries a
+    /// Rule 19 where its forms do not apply: a branch that carries a
     /// value, a value that branches to its own `if`, a test with two
     /// empty arms, and a test whose operand has no start in reach.
     #[test]

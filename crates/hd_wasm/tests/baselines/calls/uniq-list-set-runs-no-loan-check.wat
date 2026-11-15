@@ -6,7 +6,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $fill (param $n i32) (result i32 i32 i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 i32)
+  (func $fill (param $n i32) (result i32 i32 i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 i32)
     ;; 7 |     let mut xs = UniqList::[f64].with_capacity(n)
     global.get $locals
     global.get $locals_base
@@ -40,39 +40,37 @@
     local.get $n
     i32.const 8
     call $room
-    local.set $xs
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
-    local.get $xs
-    i32.store $heap
+    local.tee $xs
     local.get $t1
+    i32.store $heap
+    local.get $xs
     local.get $n
     i32.store $heap offset=4
-    local.get $t1
+    local.get $xs
     i32.const 0
     i32.store $heap offset=8
-    local.get $t1
+    local.get $xs
     i32.const 1
     i32.store $heap offset=12
-    local.get $t1
+    local.get $xs
     i32.const 1
     i32.store $heap offset=16
-    local.get $t1
+    local.get $xs
     i32.const 1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $xs
     i32.const 1
     i32.store $heap offset=24
-    local.get $t1
+    local.get $xs
     i32.const 1
     i32.store $heap offset=28
-    local.get $t1
-    local.set $xs
     ;; 8 |     for i in 0..n:
     block
       loop
@@ -120,10 +118,10 @@
     ;; 10 |     for i in 0..n:
     local.get $xs
     i32.load $heap offset=8
-    local.set $t1
+    local.set $t2
     local.get $xs
     i32.load $heap
-    local.set $t2
+    local.set $t1
     block
       loop
         local.get $t4
@@ -140,7 +138,7 @@
         local.tee $t5
         f64.const 0x1p+0
         local.set $t3
-        local.get $t1
+        local.get $t2
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -151,7 +149,7 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $t2
+        local.get $t1
         local.get $t5
         i32.const 8
         i32.mul

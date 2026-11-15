@@ -37,10 +37,8 @@
         call $rt:retain_known
       end
     end
-    local.get $t0
     local.set $t2
-    local.set $t0
-    local.get $t2
+    local.get $t0
     local.get $t3
     i32.const 1
     i32.const 0
@@ -61,7 +59,7 @@
       call $retain
     end
     local.get $t3
-    local.get $t0
+    local.get $t2
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $t3
     local.tee $t1
@@ -69,7 +67,7 @@
       local.get $t1
       call $rt:release_ref'1
     end
-    local.get $t2
+    local.get $t0
     local.tee $t1
     if
       local.get $t1

@@ -5,7 +5,7 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 11 |     r := &mut p.value
     local.get $p
     i32.const 4
@@ -21,8 +21,7 @@
       unreachable
     end
     local.get $t0
-    local.tee $t2
-    local.get $t2
+    local.get $t0
     i32.load $heap
     i32.const 2097152
     i32.add
@@ -48,37 +47,37 @@
     local.get $p
     i32.const 8
     i32.add
-    local.set $t0
+    local.set $t1
     drop
-    local.get $t0
+    local.get $t1
     i32.load $heap
-    local.get $t0
+    local.get $t1
     i32.load $heap offset=4
-    local.get $t0
+    local.get $t1
     i32.const 65 ;; &"b"
     i32.store $heap
-    local.get $t0
+    local.get $t1
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
     ;; 13 |     seen := *r
     local.get $p
     i32.load $heap
-    local.tee $t0
+    local.tee $t1
     local.get $p
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $t2
     call $rt:retain
-    local.get $t2
+    local.get $t0
     if
-      local.get $t2
-      local.get $t2
+      local.get $t0
+      local.get $t0
       i32.load $heap
       i32.const 2097152
       i32.sub
       i32.store $heap
       i32.const 0
-      local.set $t2
+      local.set $t0
     end
     ;; 14 |     alias.other = "c"
     local.get $alias
@@ -109,10 +108,10 @@
     i32.store $heap offset=4
     call $rt:release
     ;; 11 |     r := &mut p.value
-    local.get $t2
+    local.get $t0
     if
-      local.get $t2
-      local.get $t2
+      local.get $t0
+      local.get $t0
       i32.load $heap
       i32.const 2097152
       i32.sub
@@ -141,7 +140,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
     local.get $t1
+    local.get $t2
   )
 )

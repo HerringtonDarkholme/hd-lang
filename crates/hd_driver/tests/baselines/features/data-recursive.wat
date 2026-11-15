@@ -4,7 +4,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $head i32) (result i32) (local $n i32) (local $c i32) (local $t0 i32)
+  (func $total (param $head i32) (result i32) (local $n i32) (local $t0 i32)
     ;; 17 |     while true:
     block
       loop
@@ -15,8 +15,6 @@
     ;; 19 |             .Some(c) =>
               local.get $head
               if
-                local.get $head
-                local.set $c
                 br 1
               else
     ;; 22 |             .None => break
@@ -30,9 +28,9 @@
               unreachable
             end
     ;; 20 |                 n += c.name.len()
-            local.get $c
+            local.get $head
             i32.load $heap
-            local.get $c
+            local.get $head
             i32.load $heap offset=4
             local.set $t0
             drop
@@ -41,13 +39,13 @@
             i32.add
             local.set $n
     ;; 21 |                 cur = c.next
-            local.get $c
+            local.get $head
             i32.load $heap offset=8
-            local.tee $c
+            local.tee $t0
             call $rt:retain
             local.get $head
             call $rt:release
-            local.get $c
+            local.get $t0
             local.set $head
     ;; 18 |         match cur:
             br 1

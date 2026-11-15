@@ -55,7 +55,7 @@
       i32.add
       i32.const 8
       i32.add
-      local.set $counts
+      local.set $t2
     else
       local.get $word.0
       local.tee $t3
@@ -74,7 +74,7 @@
       i32.load $heap offset=4
       i32.const 1
       i32.sub
-      local.set $word.0
+      local.set $t2
       local.get $counts
       local.get $t0
       i32.store $heap
@@ -86,16 +86,16 @@
       i32.add
       i32.const 32
       i32.add
-      local.get $word.0
+      local.get $t2
       i32.const 16
       i32.mul
       i32.add
       i32.const 8
       i32.add
-      local.set $counts
+      local.set $t2
     end
-    local.get $counts
-    local.get $counts
+    local.get $t2
+    local.get $t2
     i64.load $heap
     i64.const 1
     i64.add

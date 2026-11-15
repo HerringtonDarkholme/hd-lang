@@ -40,7 +40,6 @@
           end
         end
         local.get $key
-        local.tee $t3
         local.get $t0
         i32.ge_u
         if
@@ -54,7 +53,7 @@
         end
         local.get $t2
         local.get $items
-        local.get $t3
+        local.get $key
         i32.const 4
         i32.mul
         i32.add

@@ -180,7 +180,7 @@
         i32.load $heap offset=16
         local.get $t1
         i32.load $heap offset=20
-        local.set $t3
+        local.set $t1
         drop
         local.get $t4
         i32.const 1
@@ -193,7 +193,7 @@
         local.get $total
         local.get $total
         i32.load $heap
-        local.get $t3
+        local.get $t1
         i32.add
         i32.store $heap
         br 0
@@ -208,7 +208,7 @@
     i32.add
     global.set $locals
   )
-  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.0 i32) (local $x.1 i32) (local $t1 i32)
+  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.1 i32) (local $x.0 i32) (local $t1 i32)
     ;; 8 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -225,9 +225,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $x.0
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $x.0
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         local.set $x.0

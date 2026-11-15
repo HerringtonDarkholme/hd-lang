@@ -16,7 +16,7 @@
     local.get $label.0
     local.get $label.1
   )
-  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
     ;; 14 |         self.log.push(self.label)
     local.get $self
     i32.load $heap offset=4
@@ -71,7 +71,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32)
     ;; 24 |     guard(log, label)
     global.get $locals
     global.get $locals_base
@@ -119,8 +119,8 @@
     local.get $label.1
     call $guard
     local.set $t1
-    local.set $label.1
     local.set $label.0
+    local.set $label.1
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -128,43 +128,41 @@
     i32.const 8
     i32.add
     local.tee $t2
-    local.get $label.0
+    local.get $label.1
     i32.store $heap
     local.get $t2
-    local.get $label.1
+    local.get $label.0
     i32.store $heap offset=4
     local.get $t2
     local.get $t1
     i32.store $heap offset=8
-    local.get $t2
-    local.set $label.1
     i32.const 1
-    local.set $label.0
+    local.set $t1
     ;; 25 |     log.push("work")
     local.get $log
     i32.load $heap
     call $rt:list_unique
-    local.set $t1
+    local.set $label.0
     local.get $log
-    local.get $t1
+    local.get $label.0
     i32.store $heap
-    local.get $t1
+    local.get $label.0
     i32.load $heap offset=4
-    local.tee $t2
-    local.get $t1
+    local.tee $label.1
+    local.get $label.0
     i32.load $heap
     i32.eq
     if
-      local.get $t1
+      local.get $label.0
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $t1
+      local.set $label.0
       local.get $log
-      local.get $t1
+      local.get $label.0
       i32.store $heap
     end
-    local.get $t1
-    local.get $t2
+    local.get $label.0
+    local.get $label.1
     i32.const 8
     i32.mul
     i32.add
@@ -174,19 +172,19 @@
     local.get $t3
     i32.const 4
     i32.store $heap offset=20
-    local.get $t1
-    local.get $t2
+    local.get $label.0
+    local.get $label.1
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 24 |     guard(log, label)
-    local.get $label.0
+    local.get $t1
     if
       global.get $forbid
       i32.const 1
       i32.add
       global.set $forbid
-      local.get $label.1
+      local.get $t2
       i32.eqz
       if
         local.get $t0
@@ -195,30 +193,30 @@
         local.get $t0
         i32.const 8
         i32.add
-        local.tee $label.1
+        local.tee $t2
         i32.const 0
         i32.store $heap
-        local.get $label.1
+        local.get $t2
         i32.const 0
         i32.store $heap offset=4
-        local.get $label.1
+        local.get $t2
         i32.const 0
         i32.store $heap offset=8
       end
-      local.get $label.1
+      local.get $t2
       call $"impl Disposable for Guard.dispose"
       global.get $forbid
       i32.const -1
       i32.add
       global.set $forbid
     end
-    local.get $label.1
+    local.get $t2
     if
-      local.get $label.1
+      local.get $t2
       i32.load $heap
-      local.get $label.1
+      local.get $t2
       i32.load $heap offset=4
-      local.get $label.1
+      local.get $t2
       i32.load $heap offset=8
       call $rt:release
     end

@@ -28,7 +28,7 @@
     i32.store $heap offset=8
     local.get $t0
   )
-  (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
+  (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 30 |     fn() -> void: items.push(s)
     local.get $env
     i32.load $heap
@@ -153,7 +153,7 @@
     i32.add
     global.set $locals
   )
-  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -255,23 +255,23 @@
     i32.store $heap
     local.get $xs
     i32.load $heap
-    local.tee $t1
-    i32.load $heap offset=4
     local.tee $t2
-    local.get $t1
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t2
     i32.load $heap
     i32.eq
     if
-      local.get $t1
+      local.get $t2
       i32.const 4
       call_indirect $table0 (param i32) (result i32)
-      local.set $t1
+      local.set $t2
       local.get $xs
-      local.get $t1
+      local.get $t2
       i32.store $heap
     end
-    local.get $t1
     local.get $t2
+    local.get $t1
     i32.const 8
     i32.mul
     i32.add
@@ -281,8 +281,8 @@
     local.get $t3
     local.get $s.1
     i32.store $heap offset=20
-    local.get $t1
     local.get $t2
+    local.get $t1
     i32.const 1
     i32.add
     i32.store $heap offset=4

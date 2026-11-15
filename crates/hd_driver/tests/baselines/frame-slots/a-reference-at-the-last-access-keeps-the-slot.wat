@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $run (param $steps i64) (result f64) (local $bodies i32) (local $t1 i32) (local $t0 i32) (local $t2 i64) (local $t3 f64)
+  (func $run (param $steps i64) (result f64) (local $t1 i32) (local $bodies i32) (local $t0 i32) (local $t2 i64) (local $t3 f64)
     ;; 21 |     let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
     global.get $locals
     global.get $locals_base
@@ -40,23 +40,23 @@
     global.set $locals
     i32.const 2
     call $rt:list_buf
-    local.tee $bodies
+    local.tee $t1
     i32.const 2
     i32.store $heap offset=4
-    local.get $bodies
-    local.tee $t1
+    local.get $t1
+    local.tee $bodies
     f64.const 0x1p+0
     f64.store $heap offset=16
-    local.get $t1
+    local.get $bodies
     f64.const 0x1p+1
     f64.store $heap offset=24
-    local.get $t1
+    local.get $bodies
     i32.const 16
     i32.add
-    local.tee $t1
+    local.tee $bodies
     f64.const 0x1.8p+1
     f64.store $heap offset=16
-    local.get $t1
+    local.get $bodies
     f64.const 0x1p+2
     f64.store $heap offset=24
     local.get $t0
@@ -65,11 +65,9 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
-    local.get $bodies
-    i32.store $heap
+    local.tee $bodies
     local.get $t1
-    local.set $bodies
+    i32.store $heap
     ;; 22 |     for _ in 0..steps:
     block
       loop
@@ -99,14 +97,14 @@
     if
       local.get $bodies
       i32.load $heap
-      local.tee $bodies
+      local.tee $t1
       if
-        local.get $bodies
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $bodies
+          local.get $t1
           call $rt:release_ref
         end
       end

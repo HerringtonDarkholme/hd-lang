@@ -32,7 +32,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $message.0 i32) (local $message.1 i32) (local $t0 i32)
     ;; 12 |     match save(s):
     block
       local.get $s.1
@@ -40,32 +40,28 @@
       local.get $s.1
       i32.const 1
       i32.add
-      local.tee $t0
+      local.tee $message.1
       call $rt:str
-      local.tee $t1
-      local.tee $t2
+      local.tee $message.0
+      local.tee $t0
       local.get $s.0
       local.get $s.1
       call $rt:memory_copy/0/0
-      local.get $t2
+      local.get $t0
       local.get $s.1
       i32.add
       i32.const 63
       i32.store8 $heap
     end
-    local.get $t1
-    local.get $t0
-    local.set $s.1
-    local.set $s.0
     block
       block
         block
     ;; 13 |         .Ok(()) => "saved"
-          local.get $s.0
+          local.get $message.0
           i32.eqz
           br_if 0
     ;; 14 |         .Err(message) => message
-          local.get $s.0
+          local.get $message.0
           if
             br 2
           else
@@ -76,12 +72,12 @@
         end
         i32.const 104 ;; &"saved"
         i32.const 5
-        local.set $s.1
-        local.set $s.0
+        local.set $message.1
+        local.set $message.0
         br 1
       end
     end
-    local.get $s.0
-    local.get $s.1
+    local.get $message.0
+    local.get $message.1
   )
 )

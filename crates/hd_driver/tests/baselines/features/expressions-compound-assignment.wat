@@ -75,20 +75,20 @@
     i32.load $heap offset=16
     local.get $t0
     i32.load $heap offset=20
-    local.set $t1
     local.set $t0
-    local.get $t1
+    local.set $t1
+    local.get $t0
     i32.const 1
     i32.add
     local.tee $t2
     call $rt:str
     local.tee $t3
     local.tee $t4
-    local.get $t0
     local.get $t1
+    local.get $t0
     call $rt:memory_copy/0/0
     local.get $t4
-    local.get $t1
+    local.get $t0
     i32.add
     i32.const 33
     i32.store8 $heap

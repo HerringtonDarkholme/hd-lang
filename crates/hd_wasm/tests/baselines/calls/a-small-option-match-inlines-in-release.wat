@@ -38,7 +38,7 @@
     end
     local.get $v
   )
-  (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
+  (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32)
     ;; 58 |     slot := Slot.Occupied(1, +3)
     global.get $locals
     global.get $locals_base
@@ -111,17 +111,15 @@
         br 1
       end
     end
-    local.get $t3
-    local.set $t1
     block
       block
         block
           local.get $slot
           i32.load $heap
-          local.tee $t3
+          local.tee $t1
           i32.eqz
           br_if 0
-          local.get $t3
+          local.get $t1
           i32.const 1
           i32.eq
           if
@@ -137,7 +135,7 @@
         br 1
       end
     end
-    local.get $t1
+    local.get $t3
     local.get $t4
     i32.add
     ;; 58 |     slot := Slot.Occupied(1, +3)

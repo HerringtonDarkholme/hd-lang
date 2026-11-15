@@ -139,7 +139,7 @@
     local.get $env
     i32.load $heap
   )
-  (func $fresh (param $n i32) (result i32) (local $out i32) (local $t1 i32) (local $i i32) (local $t0 i32) (local $t2 i32)
+  (func $fresh (param $n i32) (result i32) (local $out i32) (local $t1 i32) (local $i i32) (local $total i32) (local $t0 i32)
     ;; 19 |     let mut out = +0
     global.get $locals
     global.get $locals_base
@@ -191,19 +191,18 @@
         local.get $t0
         i32.const 8
         i32.add
-        local.tee $t2
+        local.tee $total
         local.get $i
         i32.store $heap
-        local.get $t2
-        local.tee $i
+        local.get $total
     ;; 25 |         out += step()
-        local.get $i
+        local.get $total
         i32.load $heap
         i32.const 1
         i32.add
         i32.store $heap
         local.get $out
-        local.get $i
+        local.get $total
         i32.load $heap
         i32.add
         local.set $out

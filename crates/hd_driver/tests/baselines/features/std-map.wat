@@ -102,7 +102,7 @@
       i32.add
       i32.const 8
       i32.add
-      local.set $m
+      local.set $t2
     else
       local.get $k.0
       local.tee $t4
@@ -121,7 +121,7 @@
       i32.load $heap offset=4
       i32.const 1
       i32.sub
-      local.set $k.0
+      local.set $t2
       local.get $m
       local.get $t1
       i32.store $heap
@@ -133,49 +133,49 @@
       i32.add
       i32.const 32
       i32.add
-      local.get $k.0
+      local.get $t2
       i32.const 12
       i32.mul
       i32.add
       i32.const 8
       i32.add
-      local.set $m
+      local.set $t2
     end
-    local.get $m
+    local.get $t2
     i32.load $heap
     call $rt:list_unique
-    local.set $k.0
+    local.set $m
+    local.get $t2
     local.get $m
-    local.get $k.0
     i32.store $heap
-    local.get $k.0
+    local.get $m
     i32.load $heap offset=4
-    local.tee $k.1
-    local.get $k.0
+    local.tee $k.0
+    local.get $m
     i32.load $heap
     i32.eq
     if
-      local.get $k.0
+      local.get $m
       i32.const 4
       call_indirect $table0 (param i32) (result i32)
-      local.set $k.0
+      local.set $m
+      local.get $t2
       local.get $m
-      local.get $k.0
       i32.store $heap
     end
+    local.get $m
     local.get $k.0
-    local.get $k.1
     i32.const 8
     i32.mul
     i32.add
-    local.tee $m
+    local.tee $k.1
     local.get $v.0
     i32.store $heap offset=16
-    local.get $m
+    local.get $k.1
     local.get $v.1
     i32.store $heap offset=20
+    local.get $m
     local.get $k.0
-    local.get $k.1
     i32.const 1
     i32.add
     i32.store $heap offset=4
@@ -205,9 +205,9 @@
       i32.const 16
       i32.mul
       i32.add
-      local.tee $m
+      local.tee $v.1
       i32.load $heap offset=8
-      local.get $m
+      local.get $v.1
       i32.load $heap offset=12
       local.set $v.1
       local.set $t0

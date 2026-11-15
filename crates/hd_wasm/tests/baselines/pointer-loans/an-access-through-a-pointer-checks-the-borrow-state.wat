@@ -292,19 +292,18 @@
     i32.load $heap
     local.set $held
     local.get $t0
-    local.tee $t1
     i32.load $heap
-    local.tee $t0
+    local.tee $t1
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t1
+      local.get $t0
       call $rt:loan_share
     else
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 65536
       i32.add
       i32.store $heap
@@ -334,15 +333,15 @@
     ;; 22 |     *held
     local.get $held
     i32.load $heap
-    local.tee $t0
+    local.tee $t1
     local.get $held
     i32.load $heap offset=4
     local.tee $held
     call $rt:retain
     ;; 20 |     held := &t.lead.name
-    local.get $t1
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       i32.load $heap
       local.tee $t2
       i32.const 2031616
@@ -350,21 +349,21 @@
       i32.const 2031616
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         call $rt:loan_unshare
       else
-        local.get $t1
+        local.get $t0
         local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap
       end
       i32.const 0
-      local.set $t1
+      local.set $t0
     end
-    local.get $t1
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       i32.load $heap
       local.tee $t2
       i32.const 2031616
@@ -372,10 +371,10 @@
       i32.const 2031616
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         call $rt:loan_unshare
       else
-        local.get $t1
+        local.get $t0
         local.get $t2
         i32.const 65536
         i32.sub
@@ -405,7 +404,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
+    local.get $t1
     local.get $held
   )
   (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32)

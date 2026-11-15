@@ -116,18 +116,18 @@
     local.set $t1
     local.get $t0
     i32.load $heap offset=12
-    local.tee $t2
+    local.tee $t4
     i32.eqz
     if
       i32.const -1
       return
     end
-    local.get $t2
+    local.get $t4
     i32.const 2
     i32.shr_u
     i32.const 1
     i32.sub
-    local.set $t3
+    local.set $t2
     local.get $t1
     i32.const 127
     i32.and
@@ -138,12 +138,12 @@
     local.get $t1
     i32.const 7
     i32.shr_u
-    local.get $t3
+    local.get $t2
     i32.and
-    local.set $t4
+    local.set $t3
     loop
       local.get $t0
-      local.get $t4
+      local.get $t3
       i32.const 40
       i32.mul
       i32.add
@@ -179,7 +179,7 @@
           i32.load $heap offset=40
           local.set $t10
           local.get $t0
-          local.get $t2
+          local.get $t4
           i32.const 10
           i32.mul
           i32.add
@@ -194,7 +194,7 @@
           i32.eq
           if
             local.get $t0
-            local.get $t2
+            local.get $t4
             i32.const 14
             i32.mul
             i32.add
@@ -228,7 +228,7 @@
       i64.eqz
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         i32.const 3
         i32.shl
         local.get $t9
@@ -241,12 +241,12 @@
         i32.xor
         return
       end
-      local.get $t4
+      local.get $t3
       i32.const 1
       i32.add
-      local.get $t3
+      local.get $t2
       i32.and
-      local.set $t4
+      local.set $t3
       br 0
     end
     i32.const -1

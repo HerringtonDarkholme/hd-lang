@@ -8,7 +8,7 @@
   (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $f.1 i32)
+  (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $f.1 i32)
     ;; 18 |     for f in line.split(","):
     local.get $line.0
     local.get $line.1
@@ -30,9 +30,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t1
+        local.tee $f.1
         i32.load $heap offset=16
-        local.get $t1
+        local.get $f.1
         i32.load $heap offset=20
         local.set $f.1
         drop
@@ -68,23 +68,23 @@
     ;; 20 |     n
     local.get $n
   )
-  (func $build (param $parts i32) (result i32 i32) (local $t0 i32) (local $p.0 i32) (local $p.1 i32) (local $sb i32) (local $t1 i32)
+  (func $build (param $parts i32) (result i32 i32) (local $p.0 i32) (local $p.1 i32) (local $t0 i32) (local $sb i32) (local $t1 i32)
     ;; 10 |     sb := StringBuilder::new()
     call $"impl[T < ?Copy] UniqList[T].new[u8]"
+    local.set $t0
     local.set $p.1
     local.set $p.0
-    local.set $t0
     i32.const 36
     i32.const 1
     call $rt:new/class-3
     local.tee $sb
-    local.get $t0
+    local.get $p.0
     i32.store $heap
     local.get $sb
-    local.get $p.0
+    local.get $p.1
     i32.store $heap offset=4
     local.get $sb
-    local.get $p.1
+    local.get $t0
     i32.store $heap offset=8
     local.get $sb
     i32.const 1
@@ -123,9 +123,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $p.0
+        local.tee $p.1
         i32.load $heap offset=16
-        local.get $p.0
+        local.get $p.1
         i32.load $heap offset=20
         local.set $p.1
         local.set $p.0

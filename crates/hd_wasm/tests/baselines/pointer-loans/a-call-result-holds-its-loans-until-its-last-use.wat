@@ -23,7 +23,7 @@
     local.get $self
     i32.load $heap
   )
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $r i32) (local $t1 i32) (local $t0 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t1 i32) (local $r i32) (local $t0 i32)
     ;; 17 |     r := p.slot()
     local.get $p
     call $"impl Outer.slot"
@@ -79,10 +79,6 @@
     i32.load $heap offset=4
     local.tee $r
     call $rt:retain
-    local.get $t1
-    local.get $r
-    local.set $t1
-    local.set $r
     ;; 17 |     r := p.slot()
     local.get $t0
     if
@@ -138,7 +134,7 @@
         call $rt:release_ref
       end
     end
-    local.get $r
     local.get $t1
+    local.get $r
   )
 )

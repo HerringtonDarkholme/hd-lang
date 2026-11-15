@@ -6,24 +6,24 @@
     local.get $values
     i32.const 0
     call $"impl[T] List[T].get[i32]"
-    local.set $t0
     local.set $values
+    local.set $t0
     block
       block
-        local.get $values
+        local.get $t0
         i32.const 1
         i32.eq
         if
           br 1
         else
-          local.get $values
+          local.get $t0
           i32.eqz
           br_if 2
           unreachable
         end
         unreachable
       end
-      local.get $t0
+      local.get $values
       return
     end
     i32.const 0

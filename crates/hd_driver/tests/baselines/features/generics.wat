@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t4 i32)
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base
@@ -144,40 +144,40 @@
     i32.add
     local.set $t1
     i32.const 80 ;; &empty-buffer
-    local.tee $xs
-    local.tee $t3
-    i32.load $heap offset=4
+    local.tee $t4
     local.tee $t2
-    local.get $t3
+    i32.load $heap offset=4
+    local.tee $t5
+    local.get $t2
     i32.load $heap
     i32.eq
     if
-      local.get $t3
+      local.get $t2
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.tee $t3
-      local.set $xs
+      local.tee $t2
+      local.set $t4
     end
-    local.get $t3
     local.get $t2
+    local.get $t5
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t4
+    local.tee $xs
     local.get $s.0
     i32.store $heap offset=16
-    local.get $t4
+    local.get $xs
     local.get $s.1
     i32.store $heap offset=20
-    local.get $t3
     local.get $t2
+    local.get $t5
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    local.get $xs
+    local.get $t4
     i32.load $heap offset=4
     local.set $s.0
-    local.get $xs
+    local.get $t4
     local.tee $t4
     if
       local.get $t4

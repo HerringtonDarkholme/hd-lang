@@ -52,35 +52,35 @@
     i32.store $heap
     local.get $j
     call $"impl Joiner.join.sep"
-    local.set $t2
     local.set $t1
-    local.get $j
-    local.get $t1
-    local.get $t2
-    call $"impl Joiner.join"
     local.set $t2
+    local.get $j
+    local.get $t2
     local.get $t1
+    call $"impl Joiner.join"
+    local.set $t1
+    local.get $t2
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref'1
     end
     local.get $j
     if
       local.get $j
       i32.load $heap
-      local.tee $t1
+      local.tee $t2
       if
-        local.get $t1
+        local.get $t2
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $t2
           call $rt:release_ref'2
         end
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 16
     i32.add

@@ -17,7 +17,7 @@
     local.get $f.0
     call_indirect $table0 (param i32 i32)
   )
-  (func $probe (result i32 i32 i32 i32) (local $p i32) (local $r i32) (local $t1 i32) (local $t3 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32)
+  (func $probe (result i32 i32 i32 i32) (local $p i32) (local $r i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
     i32.const 16
     i32.const 1
@@ -97,7 +97,7 @@
     ;; 16 |     (*r, p.value)
     local.get $r
     i32.load $heap
-    local.tee $t1
+    local.tee $t3
     local.get $r
     i32.load $heap offset=4
     local.tee $r
@@ -106,7 +106,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $t3
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -116,7 +116,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $t3
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -128,8 +128,8 @@
     i32.load $heap
     local.get $p
     i32.load $heap offset=4
-    local.set $t2
-    local.tee $t3
+    local.set $t1
+    local.tee $t2
     local.tee $t4
     if
       local.get $t4
@@ -148,19 +148,11 @@
         call $rt:release_ref
       end
     end
-    ;; 16 |     (*r, p.value)
-    local.get $t1
-    local.get $t3
-    local.get $t2
-    ;; 13 |     p := box(Cell { value: "a", other: "o" })
-    local.set $t3
-    local.set $t1
-    local.set $p
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $t2
+      local.tee $p
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -170,15 +162,15 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $t2
+        local.get $p
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
-    local.get $p
-    local.get $r
-    local.get $t1
     local.get $t3
+    local.get $r
+    local.get $t2
+    local.get $t1
   )
 )

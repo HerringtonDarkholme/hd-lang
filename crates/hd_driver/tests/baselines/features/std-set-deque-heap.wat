@@ -29,22 +29,22 @@
     ;; 16 |     match q.pop_front():
     local.get $q
     call $"impl[T] Deque[T].pop_front[string]"
-    local.set $a.0
     local.set $q
+    local.set $a.0
     block
       block
         block
     ;; 17 |         .Some(x) => x.len()
-          local.get $q
+          local.get $a.0
           if
-            local.get $q
             local.get $a.0
+            local.get $q
             local.set $x.1
             drop
             br 1
           else
     ;; 18 |         .None => 0
-            local.get $q
+            local.get $a.0
             i32.eqz
             br_if 2
             unreachable
@@ -57,8 +57,8 @@
       end
     end
     ;; 15 |     q.push_back(a)
-    local.get $q
     local.get $a.0
+    local.get $q
     call $rt:release
     local.get $x.1
   )
@@ -71,22 +71,22 @@
     ;; 22 |     match h.pop():
     local.get $h
     call $"impl[T < Ord] Heap[T].pop[string]"
-    local.set $a.0
     local.set $h
+    local.set $a.0
     block
       block
         block
     ;; 23 |         .Some(x) => x.len()
-          local.get $h
+          local.get $a.0
           if
-            local.get $h
             local.get $a.0
+            local.get $h
             local.set $x.1
             drop
             br 1
           else
     ;; 24 |         .None => 0
-            local.get $h
+            local.get $a.0
             i32.eqz
             br_if 2
             unreachable
@@ -99,8 +99,8 @@
       end
     end
     ;; 21 |     h.push(a)
-    local.get $h
     local.get $a.0
+    local.get $h
     call $rt:release
     local.get $x.1
   )

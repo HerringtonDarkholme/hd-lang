@@ -12,7 +12,7 @@
   (import "fixture" "impl Fast for Tree.regular#evaluating" (global $"impl Fast for Tree.regular#evaluating" (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32)
+  (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 39 |         let mut seen: Map[Key, i32] = {}
     global.get $"impl Fast for Tree.regular#evaluating"
     if
@@ -86,14 +86,14 @@
       local.set $t2
     end
     local.get $seen
-    local.tee $t3
+    local.tee $seen
     if
-      local.get $t3
+      local.get $seen
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $seen
         call $rt:release_ref'1
       end
     end
@@ -105,7 +105,7 @@
           i32.eq
           if
             local.get $t1
-            local.set $t4
+            local.set $t3
             br 1
           else
             local.get $t2
@@ -119,57 +119,57 @@
       end
     end
     local.get $bump.1
-    local.get $t4
+    local.get $t3
     i32.const 0
     call $"impl Fast for Tree.regular#1"
-    local.set $seen
+    local.set $t2
     local.get $bump.1
-    local.tee $t3
+    local.tee $seen
     if
-      local.get $t3
+      local.get $seen
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $seen
         call $rt:release_ref'1
       end
     end
     i32.const 4
     i32.const 0
     call $rt:new/class-1
-    local.tee $step
+    local.tee $seen
     i32.const 1
     i32.store $heap
-    local.get $step
+    local.get $seen
     i32.const 412 ;; &vtable[func60]
-    local.set $bump.1
-    local.tee $step
-    local.tee $t0
+    local.set $t1
     local.tee $t3
+    local.tee $step
+    local.tee $seen
     if
-      local.get $t3
+      local.get $seen
       call $retain
     end
-    local.get $step
-    local.tee $t3
+    local.get $t3
+    local.tee $seen
     if
-      local.get $t3
+      local.get $seen
       call $rt:release_ref'2
     end
-    local.get $t0
-    local.get $bump.1
+    local.get $step
+    local.get $t1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.set $step
-    local.get $t0
-    local.tee $t3
+    local.set $t1
+    local.get $step
+    local.tee $seen
     if
-      local.get $t3
+      local.get $seen
       call $rt:release_ref'2
     end
-    local.get $seen
-    local.get $step
+    local.get $t2
+    local.get $t1
     i32.add
     i32.const 0
     i32.gt_s

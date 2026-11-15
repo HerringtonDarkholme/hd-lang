@@ -5,7 +5,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $mutated (param $value i64) (result i64) (local $facts i32) (local $t4 i32) (local $t5 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t6 i32)
+  (func $mutated (param $value i64) (result i64) (local $facts i32) (local $t0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t6 i32)
     ;; ...
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
     local.get $facts
@@ -55,11 +55,11 @@
     local.get $t0
     i32.store $heap offset=16
     local.get $facts
-    local.set $t4
+    local.set $t0
     block
       block
         block
-          local.get $t4
+          local.get $t0
           i32.load $heap
           i32.const 3
           i32.ne
@@ -72,8 +72,6 @@
         br 1
       end
     end
-    local.get $t6
-    local.set $t4
     local.get $facts
     if
       local.get $facts
@@ -88,7 +86,7 @@
       i32.load $heap offset=16
       call $rt:release
     end
-    local.get $t4
+    local.get $t6
     if (result i64)
     ;; 18 |         value + 1
       local.get $value

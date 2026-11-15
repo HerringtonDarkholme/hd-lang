@@ -274,19 +274,19 @@
     local.get $self
     i32.load $heap
     call $rt:list_unique'2
-    local.set $size
+    local.set $t4
     local.get $self
-    local.get $size
+    local.get $t4
     i32.store $heap
     local.get $start
-    local.get $size
+    local.get $t4
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $size
+    local.get $t4
     local.get $start
     i32.const 8
     i32.mul
@@ -294,7 +294,7 @@
     local.get $value
     i64.store $heap offset=16
   )
-  (func $names (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $q i32) (local $t0 i32) (local $t1 i32)
+  (func $names (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $q i32) (local $t0 i32)
     ;; 45 |     let mut q = Queue::[string].new()
     global.get $locals
     global.get $locals_base
@@ -371,33 +371,33 @@
     i32.load $heap offset=16
     local.get $a.1
     i32.load $heap offset=20
-    local.set $b.0
-    local.tee $a.1
-    local.tee $t1
+    local.set $a.1
+    local.tee $b.0
+    local.tee $b.1
     if
-      local.get $t1
+      local.get $b.1
       call $retain
     end
     local.get $q
     if
       local.get $q
       i32.load $heap
-      local.tee $t1
+      local.tee $b.1
       if
-        local.get $t1
+        local.get $b.1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $b.1
           call $rt:release_ref'1
         end
       end
     end
-    local.get $a.1
-    local.tee $t1
+    local.get $b.0
+    local.tee $b.1
     if
-      local.get $t1
+      local.get $b.1
       call $rt:release_ref'2
     end
     i32.const 0
@@ -412,33 +412,33 @@
     i32.load $heap offset=16
     local.get $a.0
     i32.load $heap offset=20
-    local.set $b.1
-    local.tee $a.1
-    local.tee $t1
+    local.set $b.0
+    local.tee $q
+    local.tee $b.1
     if
-      local.get $t1
+      local.get $b.1
       call $retain
     end
     local.get $a.0
-    local.tee $t1
+    local.tee $b.1
     if
-      local.get $t1
+      local.get $b.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $b.1
         call $rt:release_ref'1
       end
     end
-    local.get $a.1
-    local.tee $t1
+    local.get $q
+    local.tee $b.1
     if
-      local.get $t1
+      local.get $b.1
       call $rt:release_ref'2
     end
+    local.get $a.1
     local.get $b.0
-    local.get $b.1
     i32.add
     ;; 45 |     let mut q = Queue::[string].new()
     local.get $t0
@@ -698,19 +698,19 @@
     local.get $self
     i32.load $heap
     call $rt:list_unique'3
-    local.set $value
+    local.set $t4
     local.get $self
-    local.get $value
+    local.get $t4
     i32.store $heap
     local.get $start
-    local.get $value
+    local.get $t4
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $value
+    local.get $t4
     local.get $start
     i32.const 16
     i32.mul
@@ -1211,8 +1211,8 @@
         i32.load $heap offset=16
         local.get $left
         i32.load $heap offset=20
-        local.set $t0
-        local.tee $left
+        local.set $left
+        local.tee $t0
         local.tee $t1
         if
           local.get $t1
@@ -1258,10 +1258,10 @@
           call $rt:release_ref'2
         end
         local.get $start
-        local.get $left
+        local.get $t0
         i32.store $heap offset=16
         local.get $start
-        local.get $t0
+        local.get $left
         i32.store $heap offset=20
     ;; 32 |             parent = larger
         local.get $larger
@@ -1274,19 +1274,19 @@
     local.get $self
     i32.load $heap
     call $rt:list_unique'1
-    local.set $size
+    local.set $t1
     local.get $self
-    local.get $size
+    local.get $t1
     i32.store $heap
     local.get $start
-    local.get $size
+    local.get $t1
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $size
+    local.get $t1
     local.get $start
     i32.const 8
     i32.mul

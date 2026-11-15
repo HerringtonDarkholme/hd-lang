@@ -91,9 +91,7 @@
     i32.or
     global.set $rewake
     i32.const 0
-    local.get $value.0
-    local.set $t3
-    local.set $value.0
+    local.set $t4
     local.get $t2
     local.get $t1
     i32.eq
@@ -128,9 +126,9 @@
       block
         block
     ;; 16 |         .Completed(n) => n
-          local.get $value.0
+          local.get $t4
           br_if 1
-          local.get $t3
+          local.get $value.0
           local.set $n
           br 0
     ;; 15 |     match block_on(value.child()):

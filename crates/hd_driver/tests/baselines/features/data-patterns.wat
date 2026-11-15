@@ -6,8 +6,8 @@
     ;; 16 |     match u:
     local.get $u.name.0
     local.get $u.name.1
-    local.set $u.name.1
     local.set $u.name.0
+    local.set $u.name.1
     block
       block
         block
@@ -21,12 +21,12 @@
         end
         i32.const 65 ;; &"none"
         i32.const 4
-        local.set $u.name.1
         local.set $u.name.0
+        local.set $u.name.1
         br 1
       end
     ;; 18 |         User { name } => name
-      local.get $u.name.0
+      local.get $u.name.1
       local.tee $u.tags
       if
         local.get $u.tags
@@ -34,8 +34,8 @@
       end
     ;; 16 |     match u:
     end
-    local.get $u.name.0
     local.get $u.name.1
+    local.get $u.name.0
   )
   (func $sizes (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (param $u.age i32) (result i32)
     ;; 12 |     match u:

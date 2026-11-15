@@ -8,7 +8,7 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $names (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $u.active i32) (local $t3 i32) (local $t4 i32)
+  (func $names (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.active i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $t3 i32) (local $t4 i32)
     ;; 16 |     [for u in users if u.active => u.name]
     i32.const 80 ;; &empty-buffer
     local.set $t0
@@ -27,13 +27,13 @@
         i32.const 24
         i32.mul
         i32.add
-        local.tee $u.name.0
+        local.tee $u.active
         i64.load $heap offset=24
-        local.get $u.name.0
+        local.get $u.active
         i32.load $heap offset=16
-        local.get $u.name.0
+        local.get $u.active
         i32.load $heap offset=20
-        local.get $u.name.0
+        local.get $u.active
         i32.load8_u $heap offset=32
         local.set $u.active
         local.set $u.name.1
@@ -91,7 +91,7 @@
     end
     local.get $t0
   )
-  (func $by_name (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.id i64) (local $u.name.1 i32) (local $u.active i32) (local $t3 i32)
+  (func $by_name (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.active i32) (local $u.id i64) (local $u.name.0 i32) (local $u.name.1 i32) (local $t3 i32)
     ;; 19 |     {for u in users if u.active => u.name: u.id}
     i32.const 0
     call $rt:map_seed
@@ -112,13 +112,13 @@
         i32.const 24
         i32.mul
         i32.add
-        local.tee $u.name.0
+        local.tee $u.active
         i64.load $heap offset=24
-        local.get $u.name.0
+        local.get $u.active
         i32.load $heap offset=16
-        local.get $u.name.0
+        local.get $u.active
         i32.load $heap offset=20
-        local.get $u.name.0
+        local.get $u.active
         i32.load8_u $heap offset=32
         local.set $u.active
         local.set $u.name.1
@@ -165,7 +165,7 @@
     end
     local.get $t0
   )
-  (func $sizes (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $u.name.1 i32) (local $t4 i32)
+  (func $sizes (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.1 i32) (local $t3 i32) (local $t4 i32)
     ;; 22 |     [for u in users if (n := u.name.len()) > 0 => n]
     i32.const 80 ;; &empty-buffer
     local.set $t0
@@ -184,11 +184,11 @@
         i32.const 24
         i32.mul
         i32.add
-        local.tee $t3
+        local.tee $u.name.1
         i64.load $heap offset=24
-        local.get $t3
+        local.get $u.name.1
         i32.load $heap offset=16
-        local.get $t3
+        local.get $u.name.1
         i32.load $heap offset=20
         local.set $u.name.1
         drop
@@ -235,7 +235,7 @@
     end
     local.get $t0
   )
-  (func $pairs (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.0 i32) (local $x.1 i32) (local $t3 i32) (local $t4 i32) (local $y.0 i32) (local $y.1 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $pairs (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $t3 i32) (local $t4 i32) (local $y.1 i32) (local $y.0 i32) (local $t6 i32) (local $t7 i32) (local $t5 i32)
     ;; 13 |     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
     i32.const 80 ;; &empty-buffer
     local.set $t0
@@ -254,9 +254,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $x.0
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $x.0
+        local.get $x.1
         i32.load $heap offset=20
         local.set $x.1
         local.set $x.0
@@ -285,9 +285,9 @@
             i32.const 8
             i32.mul
             i32.add
-            local.tee $y.0
+            local.tee $y.1
             i32.load $heap offset=16
-            local.get $y.0
+            local.get $y.1
             i32.load $heap offset=20
             local.set $y.1
             local.set $y.0

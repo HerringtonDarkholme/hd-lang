@@ -86,16 +86,14 @@
     i32.or
     global.set $rewake
     i32.const 0
-    local.get $s.0
     local.set $text.1
-    local.set $s.0
     local.get $text.0
     local.get $t1
     i32.eq
     if
       local.get $text.0
       i32.load $heap offset=20
-      local.tee $t1
+      local.tee $t2
       i32.const 0
       i32.ge_s
       if
@@ -103,7 +101,7 @@
         i32.const -1
         i32.store $heap offset=20
         local.get $text.0
-        local.get $t1
+        local.get $t2
         call_indirect $table0 (param i32)
       end
     end
@@ -126,10 +124,10 @@
     ;; 13 |         .Completed(n) => n
             block
               block
-                local.get $s.0
+                local.get $text.1
                 br_table 0 3 4 4
               end
-              local.get $text.1
+              local.get $s.0
               local.set $n
               br 1
             end

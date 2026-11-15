@@ -58,8 +58,8 @@
     ;; 29 |     xs[i] = make(k)
     local.get $k
     call $make
-    local.set $t0
     local.set $k
+    local.set $t0
     local.get $xs
     i32.load $heap
     call $rt:list_unique
@@ -88,27 +88,27 @@
       call $rt:release_ref
     end
     local.get $xs
-    local.get $k
+    local.get $t0
     i32.store $heap offset=16
     local.get $xs
-    local.get $t0
+    local.get $k
     i32.store $heap offset=20
   )
   (func $field_over (param $r i32) (param $k i32) (local $t0 i32)
     ;; 32 |     r.name = make(k)
     local.get $k
     call $make
-    local.set $t0
     local.set $k
+    local.set $t0
     local.get $r
     i32.load $heap
     local.get $r
     i32.load $heap offset=4
     local.get $r
-    local.get $k
+    local.get $t0
     i32.store $heap
     local.get $r
-    local.get $t0
+    local.get $k
     i32.store $heap offset=4
     call $rt:release
   )
@@ -164,7 +164,7 @@
     local.get $t4
     local.get $t3
   )
-  (func $declared (param $c i32) (result i32) (local $t4 i32) (local $u i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $declared (param $c i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $u i32) (local $t0 i32)
     ;; 39 |     u := fresh()
     global.get $locals
     global.get $locals_base
@@ -199,39 +199,37 @@
       call $fresh
       local.set $t1
       local.set $t2
-      local.set $u
+      local.set $t3
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t3
-      local.get $u
-      i32.store $heap
+      local.tee $u
       local.get $t3
+      i32.store $heap
+      local.get $u
       local.get $t2
       i32.store $heap offset=4
-      local.get $t3
+      local.get $u
       local.get $t1
       i32.store $heap offset=8
-      local.get $t3
+      local.get $u
       i32.const 1
       i32.store $heap offset=12
-      local.get $t3
+      local.get $u
       i32.const 1
       i32.store $heap offset=16
-      local.get $t3
+      local.get $u
       i32.const 1
       i32.store $heap offset=20
-      local.get $t3
+      local.get $u
       i32.const 1
       i32.store $heap offset=24
-      local.get $t3
+      local.get $u
       i32.const 1
       i32.store $heap offset=28
-      local.get $t3
-      local.set $u
     ;; 40 |     if c:
       local.get $c
       if

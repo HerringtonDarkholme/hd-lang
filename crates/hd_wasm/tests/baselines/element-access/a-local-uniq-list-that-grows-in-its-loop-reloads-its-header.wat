@@ -4,7 +4,7 @@
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $grow (param $n i32) (result i64) (local $xs i32) (local $t1 i32) (local $sum i64) (local $t0 i32)
+  (func $grow (param $n i32) (result i64) (local $t1 i32) (local $xs i32) (local $sum i64) (local $t0 i32)
     ;; ...
     ;; 13 |     for i in 0..n:
     block

@@ -1,4 +1,4 @@
-//! Rule 20 at every independent site in one rebuild (#1978): a
+//! Rule 19 at every independent site in one rebuild (#1978): a
 //! short-circuit value `T; if (result i32) X else i32.const K end` (`&&`
 //! for K = 0, `||` for K = 1) whose result only feeds a branch becomes a
 //! chain of branches. The value form makes a backend join the two arms and
@@ -364,7 +364,7 @@ impl Out<'_> {
     }
 }
 
-/// Rule 20 at every site of `sites` whose instructions overlap no other
+/// Rule 19 at every site of `sites` whose instructions overlap no other
 /// taken site's, outermost first, in one rebuild. Whether it rewrote one.
 pub(super) fn run(f: &mut Func, sites: &[(usize, Option<usize>, usize)], arity: &Arity) -> bool {
     // Name the targets only for a body with a short-circuit value.

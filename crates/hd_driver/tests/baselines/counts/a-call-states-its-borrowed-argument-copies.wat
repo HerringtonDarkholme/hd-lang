@@ -162,7 +162,7 @@
     i32.add
     global.set $locals
   )
-  (func $scalar (param $value i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $scalar (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 30 |     store(value)
     global.get $locals
     global.get $locals_base
@@ -204,27 +204,26 @@
     i32.store $heap
     local.get $value
     local.get $t1
-    local.tee $value
     i32.const 6
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $t1
-    local.get $value
+    local.set $value
+    local.get $t1
     if
-      local.get $value
+      local.get $t1
       i32.load $heap
-      local.tee $value
+      local.tee $t1
       if
-        local.get $value
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $value
+          local.get $t1
           call $rt:release_ref
         end
       end
     end
-    local.get $t1
+    local.get $value
     local.get $t0
     i32.const 16
     i32.add
@@ -433,7 +432,7 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $collection (param $values i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $collection (param $values i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 21 |     store(values)
     global.get $locals
     global.get $locals_base
@@ -475,27 +474,26 @@
     i32.store $heap
     local.get $values
     local.get $t1
-    local.tee $values
     i32.const 10
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $t1
-    local.get $values
+    local.set $values
+    local.get $t1
     if
-      local.get $values
+      local.get $t1
       i32.load $heap
-      local.tee $values
+      local.tee $t1
       if
-        local.get $values
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $values
+          local.get $t1
           call $rt:release_ref
         end
       end
     end
-    local.get $t1
+    local.get $values
     local.get $t0
     i32.const 16
     i32.add

@@ -4,7 +4,7 @@
   (import "fixture" "borders[u8]" (func $"borders[u8]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl[T < Eq, 'a] Span[T, 'a].index_of_span[u8]" (param $t0 i32) (param $t7 i32) (param $t4 i32) (param $t3 i32) (result i32 i32) (local $t6 i32) (local $t14 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32)
+  (func $"impl[T < Eq, 'a] Span[T, 'a].index_of_span[u8]" (param $t0 i32) (param $t7 i32) (param $t4 i32) (param $t3 i32) (result i32 i32) (local $t6 i32) (local $t14 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t9 i32) (local $t8 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32)
     block
     ;; (no span)
       local.get $t0
@@ -47,7 +47,7 @@
       local.get $t4
       i32.add
       i32.load8_u $heap offset=16
-      local.set $t8
+      local.set $t9
       local.get $t2
       local.get $t5
       i32.sub
@@ -55,7 +55,7 @@
       i32.add
       local.set $t2
       i32.const 80 ;; &empty-buffer
-      local.set $t9
+      local.set $t8
       local.get $t1
       local.set $t10
       loop
@@ -92,7 +92,7 @@
                 local.get $t10
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 br_if 1
                 local.get $t10
@@ -103,7 +103,7 @@
                 local.get $t13
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 if
                   local.get $t10
@@ -120,7 +120,7 @@
                 local.get $t13
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 if
                   local.get $t10
@@ -137,7 +137,7 @@
                 local.get $t13
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 if
                   local.get $t10
@@ -174,7 +174,7 @@
                 local.get $t10
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 br_if 1
                 local.get $t10
@@ -191,7 +191,7 @@
                 local.get $t13
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 if
                   local.get $t10
@@ -214,7 +214,7 @@
                 local.get $t13
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 if
                   local.get $t10
@@ -237,7 +237,7 @@
                 local.get $t13
                 i32.add
                 i32.load8_u $heap offset=16
-                local.get $t8
+                local.get $t9
                 i32.eq
                 if
                   local.get $t10
@@ -277,7 +277,7 @@
               local.get $t10
               i32.add
               i32.load8_u $heap offset=16
-              local.get $t8
+              local.get $t9
               i32.eq
               br_if 1
               local.get $t10
@@ -356,7 +356,7 @@
               local.set $t11
               br 3
             else
-              local.get $t9
+              local.get $t8
               i32.load $heap offset=4
               i32.eqz
               if
@@ -364,32 +364,32 @@
                 local.get $t4
                 local.get $t3
                 call $"borders[u8]"
-                local.get $t9
-                local.tee $t9
+                local.get $t8
+                local.tee $t8
                 if
-                  local.get $t9
+                  local.get $t8
                   i32.const 8
                   i32.sub
                   i32.load $heap
                   if
-                    local.get $t9
+                    local.get $t8
                     call $rt:release_ref
                   end
                 end
-                local.set $t9
+                local.set $t8
               end
               local.get $t11
               i32.const 1
               i32.sub
               local.tee $t11
-              local.get $t9
+              local.get $t8
               i32.load $heap offset=4
               i32.ge_u
               if
                 call $rt:panic
                 unreachable
               end
-              local.get $t9
+              local.get $t8
               local.get $t11
               i32.const 4
               i32.mul
@@ -418,14 +418,14 @@
       end
       unreachable
     end
-    local.get $t9
+    local.get $t8
     if
-      local.get $t9
+      local.get $t8
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t9
+        local.get $t8
         call $rt:release_ref
       end
     end

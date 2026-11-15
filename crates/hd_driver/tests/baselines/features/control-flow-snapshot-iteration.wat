@@ -10,7 +10,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.0 i32) (local $v.1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.1 i32) (local $v.0 i32) (local $t4 i32) (local $t5 i32) (local $t3 i32)
     ;; 9 |     let mut out = values
     local.get $values
     ;; 10 |     for v in out:
@@ -30,9 +30,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $v.0
+        local.tee $v.1
         i32.load $heap offset=16
-        local.get $v.0
+        local.get $v.1
         i32.load $heap offset=20
         local.set $v.1
         local.set $v.0
@@ -102,7 +102,7 @@
     ;; 12 |     out
     local.get $values
   )
-  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $cursor i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 15 |     let mut items = values
     global.get $locals
     global.get $locals_base
@@ -136,21 +136,19 @@
     local.get $values
     ;; 16 |     let mut cursor = items.iter()
     call $rt:coll_copy
-    local.set $cursor
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
-    local.get $cursor
-    i32.store $heap
+    local.tee $cursor
     local.get $t1
+    i32.store $heap
+    local.get $cursor
     i32.const 0
     i32.store $heap offset=4
-    local.get $t1
-    local.set $cursor
     ;; 15 |     let mut items = values
     local.get $values
     ;; 17 |     items.push(s)
@@ -188,8 +186,8 @@
     ;; 18 |     match cursor.next():
     local.get $cursor
     call $"impl[T] Iterator[T] for ListIter[T].next[string]"
-    local.set $s.1
     local.set $s.0
+    local.set $s.1
     local.get $cursor
     if
       local.get $cursor
@@ -210,10 +208,10 @@
       block
         block
     ;; 19 |         .Some(first) => first.len() + items.len()
-          local.get $s.0
+          local.get $s.1
           br_if 0
     ;; 20 |         .None => items.len()
-          local.get $s.0
+          local.get $s.1
           i32.eqz
           br_if 1
           unreachable
@@ -221,7 +219,7 @@
           unreachable
         end
     ;; 19 |         .Some(first) => first.len() + items.len()
-        local.get $s.1
+        local.get $s.0
         local.get $values
         i32.load $heap offset=4
         i32.add
@@ -236,8 +234,8 @@
       local.set $cursor
     end
     ;; 15 |     let mut items = values
-    local.get $s.0
     local.get $s.1
+    local.get $s.0
     call $rt:release
     local.get $values
     local.tee $t1

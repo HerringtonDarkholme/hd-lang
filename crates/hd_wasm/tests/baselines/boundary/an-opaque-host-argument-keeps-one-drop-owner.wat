@@ -97,14 +97,14 @@
     i32.store $heap offset=12
     local.get $t1
     call $"package_encode[&Payload]"
-    local.set $t3
     local.set $t2
+    local.set $t3
     local.get $t6
-    local.get $t2
     local.get $t3
+    local.get $t2
     call $rt:enc'1
-    local.get $t2
     local.get $t3
+    local.get $t2
     call $rt:release
     local.get $t0
     i32.const 24

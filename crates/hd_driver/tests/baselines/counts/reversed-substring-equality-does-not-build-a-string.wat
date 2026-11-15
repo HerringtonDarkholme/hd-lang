@@ -68,16 +68,16 @@
     local.get $end
     local.get $start
     i32.sub
-    local.set $t0
     local.set $start
+    local.set $t0
     local.get $needle.1
-    local.get $t0
+    local.get $start
     i32.eq
     if (result i32)
       local.get $needle.0
       local.get $needle.1
-      local.get $start
       local.get $t0
+      local.get $start
       call $rt:bytes_mismatch
       local.get $needle.1
       i32.eq

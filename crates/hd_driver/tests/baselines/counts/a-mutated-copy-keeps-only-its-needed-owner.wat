@@ -91,8 +91,8 @@
       return
     end
     i32.const 65 ;; &"no answer"
-    local.set $answer.0
-    local.get $answer.0
+    local.set $answer.1
+    local.get $answer.1
     i32.const 9
   )
   (func $target (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
@@ -190,7 +190,7 @@
     local.get $t0
     i32.add
   )
-  (func $early_copy (param $a.0 i32) (param $a.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $early_copy (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
     ;; 28 |     let t = a
     local.get $a.0
     local.tee $t0
@@ -199,8 +199,6 @@
       call $retain
     end
     ;; 29 |     n := a.len()
-    local.get $a.1
-    local.set $t1
     local.get $a.0
     local.tee $t0
     if
@@ -220,7 +218,7 @@
       local.get $t0
       call $rt:release_ref'2
     end
-    local.get $t1
+    local.get $a.1
     local.get $a.0
     i32.add
   )

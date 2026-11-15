@@ -281,49 +281,48 @@
       call $rt:release_ref
     end
   )
-  (func $cold_capture#1'2 (param $t3 i32) (param $t1 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $t2 i32)
+  (func $cold_capture#1'2 (param $t2 i32) (param $t1 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
     ;; 9 |     fn!(value: string) -> (string, string): (captured, value)
     call $rt:frame
     local.tee $t0
     local.get $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
-    local.get $t3
+    local.get $t2
     i32.store $heap offset=24
     local.get $t0
     local.get $t1
     i32.store $heap offset=28
     local.get $t0
-    local.get $t4
+    local.get $t3
     i32.store $heap offset=32
     local.get $t0
-    local.get $t5
+    local.get $t4
     i32.store $heap offset=36
-    local.get $t5
-    local.tee $t2
+    local.get $t4
+    local.tee $t1
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
-    local.get $t3
+    local.get $t2
     i32.load $heap
-    local.tee $t1
-    local.get $t3
+    local.tee $t3
+    local.get $t2
     i32.load $heap offset=4
-    local.set $t3
-    local.tee $t2
+    local.set $t2
+    local.tee $t1
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $t0
-    local.get $t1
+    local.get $t3
     i32.store $heap offset=40
     local.get $t0
-    local.get $t3
+    local.get $t2
     i32.store $heap offset=44
     local.get $t0
   )

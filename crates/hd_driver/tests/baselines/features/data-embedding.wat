@@ -8,15 +8,15 @@
     i32.load $heap
     local.get $p
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $p
+    local.set $p
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $p
     local.get $t0
+    local.get $p
   )
   (func $promoted (param $p.Stamp.by.0 i32) (param $p.Stamp.by.1 i32) (param $p.title.0 i32) (param $p.title.1 i32) (result i32)
     ;; 23 |     p.by.len() + p.by_len() + p.title.len()

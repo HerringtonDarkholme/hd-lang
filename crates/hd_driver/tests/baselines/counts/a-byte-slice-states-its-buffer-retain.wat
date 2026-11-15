@@ -18,8 +18,8 @@
     ;; 15 |     slice_fn(text, 0, 1)
     call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
     ;; 14 |     slice_fn := bytes_slice
-    local.set $t0
     local.set $text.1
+    local.set $t0
     local.get $text.0
     if
       local.get $text.0
@@ -27,8 +27,8 @@
     else
       call $skipped_test
     end
-    local.get $text.1
     local.get $t0
+    local.get $text.1
   )
   (func $slice (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (result i32 i32)
     ;; 8 |     bytes_slice(text, start, end)
@@ -54,8 +54,8 @@
     local.get $end
     local.get $start
     i32.sub
-    local.set $start
-    local.tee $text.1
+    local.set $text.1
+    local.tee $start
     local.tee $end
     if
       local.get $end
@@ -71,8 +71,8 @@
     else
       call $skipped_test
     end
-    local.get $text.1
     local.get $start
+    local.get $text.1
   )
   (func $discard_empty (param $text.0 i32) (param $text.1 i32)
     ;; 11 |     _ := bytes_slice(text, 0, 0)

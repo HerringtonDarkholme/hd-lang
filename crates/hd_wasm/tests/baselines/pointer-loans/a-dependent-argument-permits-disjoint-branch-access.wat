@@ -12,7 +12,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $other i32) (local $t3 i32) (local $t7 i32) (local $t1 i32) (local $t0 i32) (local $pick i32) (local $alias i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
+  (func $probe (param $p i32) (param $other i32) (local $t3 i32) (local $t7 i32) (local $t1 i32) (local $t0 i32) (local $pick i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $alias i32)
     ;; 26 |     for round in 0..4:
     i32.const 4
     local.set $t0
@@ -262,12 +262,12 @@
         call $later
         call $observe
         drop
-        local.set $pick
+        local.set $alias
         local.get $t10
         if
           local.get $t10
           i32.load $heap
-          local.tee $alias
+          local.tee $pick
           i32.const 2031616
           i32.and
           i32.const 2031616
@@ -277,7 +277,7 @@
             call $rt:loan_unshare
           else
             local.get $t10
-            local.get $alias
+            local.get $pick
             i32.const 65536
             i32.sub
             i32.store $heap
@@ -293,7 +293,7 @@
         if
           local.get $t9
           i32.load $heap
-          local.tee $alias
+          local.tee $pick
           i32.const 2031616
           i32.and
           i32.const 2031616
@@ -303,7 +303,7 @@
             call $rt:loan_unshare
           else
             local.get $t9
-            local.get $alias
+            local.get $pick
             i32.const 65536
             i32.sub
             i32.store $heap
@@ -316,7 +316,7 @@
           local.set $t9
         end
     ;; 26 |     for round in 0..4:
-        local.get $pick
+        local.get $alias
         local.tee $alias
         if
           local.get $alias
@@ -363,7 +363,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $other i32) (local $t3 i32) (local $t10 i32) (local $t1 i32) (local $t0 i32) (local $pick i32) (local $alias i32) (local $t2 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32)
+  (func $probe (param $p i32) (param $other i32) (local $t3 i32) (local $t10 i32) (local $t1 i32) (local $t0 i32) (local $pick i32) (local $t2 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $alias i32)
     ;; 26 |     for round in 0..4:
     i32.const 4
     local.set $t0
@@ -517,8 +517,6 @@
                 i32.const 0
                 local.set $t4
               end
-              local.get $t5
-              local.set $pick
             else
               local.get $other
               i32.const 4
@@ -618,8 +616,6 @@
                 i32.const 0
                 local.set $t11
               end
-              local.get $t5
-              local.set $pick
             end
             local.get $t3
             if
@@ -698,16 +694,16 @@
             local.get $alias
             call $later
             local.set $t3
-            local.get $pick
+            local.get $t5
             local.get $t3
             call $observe
             drop
-            local.set $t10
+            local.set $alias
             local.get $t13
             if
               local.get $t13
               i32.load $heap
-              local.tee $pick
+              local.tee $t10
               i32.const 2031616
               i32.and
               i32.const 2031616
@@ -717,7 +713,7 @@
                 call $rt:loan_unshare
               else
                 local.get $t13
-                local.get $pick
+                local.get $t10
                 i32.const 65536
                 i32.sub
                 i32.store $heap
@@ -733,7 +729,7 @@
             if
               local.get $t12
               i32.load $heap
-              local.tee $pick
+              local.tee $t10
               i32.const 2031616
               i32.and
               i32.const 2031616
@@ -743,7 +739,7 @@
                 call $rt:loan_unshare
               else
                 local.get $t12
-                local.get $pick
+                local.get $t10
                 i32.const 65536
                 i32.sub
                 i32.store $heap
@@ -756,7 +752,7 @@
               local.set $t12
             end
     ;; 26 |     for round in 0..4:
-            local.get $t10
+            local.get $alias
             local.tee $alias
             if
               local.get $alias
@@ -776,17 +772,17 @@
             end
           else
             i32.const 1
-            local.set $pick
+            local.set $alias
             br 1
           end
           i32.const 0
-          local.set $pick
+          local.set $alias
         end
         i32.const 0
         local.set $t3
         i32.const 0
         local.set $t10
-        local.get $pick
+        local.get $alias
         i32.const 1
         i32.eq
         br_if 1

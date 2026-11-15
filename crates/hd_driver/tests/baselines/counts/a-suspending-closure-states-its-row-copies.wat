@@ -17,7 +17,7 @@
     i32.const 4
     i32.const 0
   )
-  (func $make#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t2 i32) (local $t5 i32) (local $t3 i32) (local $t1 i64) (local $t4 i32) (local $t0 i32)
+  (func $make#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t2 i32) (local $t5 i32) (local $t3 i32) (local $t1 i64) (local $t4 i32) (local $t6 i32) (local $t0 i32)
     ;; 7 |     fn!() -> void $ Clock: sleep!(ms(1))
     local.get $frame
     if
@@ -194,7 +194,7 @@
           br 1
         end
         call $rt:cancel_enter
-        local.set $t2
+        local.set $t5
         local.get $frame
         i32.load $heap offset=16
         local.tee $env
@@ -209,13 +209,13 @@
           i32.and
           if
             i32.const 1
-            local.set $t5
+            local.set $t6
           end
         end
         local.get $frame
-        local.get $t2
-        call $rt:cancel_leave
         local.get $t5
+        call $rt:cancel_leave
+        local.get $t6
         if
           local.get $frame
           i32.eqz

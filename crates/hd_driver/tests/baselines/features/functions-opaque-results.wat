@@ -88,11 +88,10 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $xs
-    local.tee $t1
-    local.set $xs
+    local.set $t1
     block
       loop
-        local.get $xs
+        local.get $t1
         call $"impl[T] Iterator[T] for ListIter[T].next[string]"
         local.set $x.1
         local.set $t2
@@ -124,9 +123,9 @@
         br 0
       end
     end
-    local.get $t1
+    local.get $xs
     if
-      local.get $t1
+      local.get $xs
       i32.load $heap
       local.tee $xs
       if

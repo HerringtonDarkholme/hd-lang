@@ -14,10 +14,10 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
     local.set $self
+    local.set $t0
     i32.const 2
-    local.get $t0
+    local.get $self
     i32.add
     local.tee $t1
     call $rt:str
@@ -28,8 +28,8 @@
     local.get $t3
     i32.const 2
     i32.add
-    local.get $self
     local.get $t0
+    local.get $self
     call $rt:memory_copy/0/0
     local.get $t2
     local.get $t1
@@ -54,7 +54,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $qualified (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $l i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $qualified (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $l i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 31 |     Describe::headline(&l).len()
     global.get $locals
     global.get $locals_base
@@ -101,10 +101,10 @@
     i32.load $heap
     local.get $l
     i32.load $heap offset=4
-    local.set $t2
     local.set $t1
+    local.set $t2
     i32.const 2
-    local.get $t2
+    local.get $t1
     i32.add
     local.tee $t3
     call $rt:str
@@ -115,30 +115,26 @@
     local.get $t5
     i32.const 2
     i32.add
-    local.get $t1
     local.get $t2
+    local.get $t1
     call $rt:memory_copy/0/0
-    local.get $t4
-    local.get $t3
-    local.set $t2
-    local.set $t1
     local.get $l
     if
       local.get $l
       i32.load $heap
-      local.tee $l
+      local.tee $t1
       if
-        local.get $l
+        local.get $t1
         call $rt:release_ref
       end
     end
-    local.get $t1
-    local.tee $l
+    local.get $t4
+    local.tee $t1
     if
-      local.get $l
+      local.get $t1
       call $rt:release_ref
     end
-    local.get $t2
+    local.get $t3
     local.get $t0
     i32.const 16 ;; &"* "
     i32.add
@@ -174,15 +170,15 @@
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $self
+    local.set $self
+    local.tee $t0
     local.tee $t1
     if
       local.get $t1
       call $retain
     end
-    local.get $self
     local.get $t0
+    local.get $self
   )
   (func $use_generic (param $l.name.0 i32) (param $l.name.1 i32) (result i32) (local $t0 i32)
     ;; 28 |     generic(l)
@@ -194,18 +190,18 @@
     local.get $l.name.1
     call $"impl string.len"
     local.get $t0
-    local.tee $t0
+    local.tee $l.name.1
     if
-      local.get $t0
+      local.get $l.name.1
       call $rt:release_ref
     end
-    local.set $l.name.1
+    local.set $t0
     local.get $l.name.0
-    local.tee $t0
+    local.tee $l.name.1
     if
-      local.get $t0
+      local.get $l.name.1
       call $rt:release_ref
     end
-    local.get $l.name.1
+    local.get $t0
   )
 )

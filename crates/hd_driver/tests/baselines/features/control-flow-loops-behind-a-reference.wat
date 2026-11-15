@@ -327,38 +327,38 @@
     local.tee $t1
     local.get $p
     i32.add
-    local.tee $t4
+    local.tee $t3
     i32.const 16
-    local.set $t3
+    local.set $t4
     if
-      local.get $t4
+      local.get $t3
       call $rt:str
-      local.set $t3
+      local.set $t4
     end
     local.get $t6
-    local.get $t3
+    local.get $t4
     local.get $t2
     call $write_unsigned_sized
-    local.get $t3
+    local.get $t4
     local.get $t2
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t7
-    local.get $t3
+    local.get $t4
     local.get $t1
     i32.add
     local.get $p
     call $write_unsigned_sized
-    local.get $t3
     local.get $t4
+    local.get $t3
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
-    local.get $t3
+    local.get $t4
     if
-      local.get $t3
+      local.get $t4
       call $rt:release_ref'2
     end
     local.get $t0

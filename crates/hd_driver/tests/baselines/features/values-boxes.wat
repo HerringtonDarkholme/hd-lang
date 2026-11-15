@@ -42,9 +42,9 @@
     end
     local.set $s.0
     ;; 18 |     copy.name.len() + p.name.len()
-    local.tee $s.1
+    local.tee $t0
     i32.load $heap
-    local.get $s.1
+    local.get $t0
     i32.load $heap offset=4
     local.set $s.1
     drop
@@ -87,7 +87,7 @@
     i32.store $heap offset=4
     local.get $t0
   )
-  (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32) (local $t0 i32)
+  (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32)
     ;; 25 |     b := box(Point { name: s })
     i32.const 8
     i32.const 1
@@ -101,14 +101,14 @@
     local.get $b
     ;; 26 |     h := Holder { point: b }
     local.tee $s.0
-    local.tee $t0
+    local.tee $s.1
     if
-      local.get $t0
+      local.get $s.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $s.1
         call $rt:retain_known
       end
     end
@@ -126,14 +126,14 @@
     i32.store $heap offset=4
     call $rt:release
     local.get $b
-    local.tee $t0
+    local.tee $s.1
     if
-      local.get $t0
+      local.get $s.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $s.1
         call $rt:release_ref'2
       end
     end
@@ -141,21 +141,21 @@
     i32.load $heap
     local.get $s.0
     i32.load $heap offset=4
-    local.set $s.1
+    local.set $t.0
     drop
     ;; 25 |     b := box(Point { name: s })
     local.get $s.0
-    local.tee $t0
+    local.tee $s.1
     if
-      local.get $t0
+      local.get $s.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $s.1
         call $rt:release_ref'2
       end
     end
-    local.get $s.1
+    local.get $t.0
   )
 )

@@ -59,10 +59,6 @@
     i32.load $heap offset=4
     local.tee $p
     call $rt:retain
-    local.get $alias
-    local.get $p
-    local.set $alias
-    local.set $p
     ;; 132 |     view := View40 {
     local.get $t0
     if
@@ -106,7 +102,7 @@
         i32.store $heap
       end
     end
-    local.get $p
     local.get $alias
+    local.get $p
   )
 )

@@ -13,7 +13,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 13 funcref))
-  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
     ;; 16 |         self.log.push(self.name)
     local.get $self
     i32.load $heap
@@ -116,7 +116,7 @@
     end
     local.get $log
   )
-  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32)
+  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 19 |     defer(fn() -> void: log.push(s))
     global.get $locals
     global.get $locals_base
@@ -176,7 +176,6 @@
     local.get $t1
     i32.store $heap offset=4
     local.get $t3
-    local.tee $t1
     global.get $forbid
     i32.const 1
     i32.add
@@ -189,23 +188,23 @@
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t1
+      local.tee $t3
       i32.const 0
       i32.store $heap
-      local.get $t1
+      local.get $t3
       i32.const 0
       i32.store $heap offset=4
     end
-    local.get $t1
+    local.get $t3
     i32.const 0
     call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]"
     global.get $forbid
     i32.const -1
     i32.add
     global.set $forbid
-    local.get $t1
+    local.get $t3
     if
-      local.get $t1
+      local.get $t3
       i32.load $heap offset=4
       local.tee $t1
       if
@@ -247,7 +246,7 @@
     i32.add
     global.set $locals
   )
-  (func $with_defer#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
+  (func $with_defer#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 19 |     defer(fn() -> void: log.push(s))
     local.get $env
     i32.load $heap

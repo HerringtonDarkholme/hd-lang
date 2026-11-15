@@ -50,14 +50,13 @@
     i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -89,20 +88,20 @@
     local.get $t4
     i32.wrap_i64
     local.tee $t0
-    local.tee $t1
+    local.tee $t5
     i32.const 16
-    local.set $t2
+    local.set $t1
     if
-      local.get $t1
+      local.get $t5
       call $rt:str
-      local.set $t2
+      local.set $t1
     end
     local.get $t3
-    local.get $t2
+    local.get $t1
     local.get $t0
     call $write_signed_sized
-    local.get $t2
     local.get $t1
+    local.get $t5
     local.get $provider1
     local.get $provider1.vtable
     call $"println[string]"
@@ -119,18 +118,16 @@
     i32.const 1
     i32.store $heap offset=20
     i32.const 1
-    local.get $t0
-    local.set $t1
-    local.set $t0
+    local.set $t5
     local.get $provider0
+    local.get $t5
     local.get $t0
-    local.get $t1
     local.get $provider0.vtable
     i32.load $heap offset=4
     call_indirect $table0 (param i32 i32 i32) (result i32 i32)
     call $rt:release
+    local.get $t5
     local.get $t0
-    local.get $t1
     call $rt:release
     ;; 26 |     println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
     local.get $provider0
@@ -169,20 +166,20 @@
     local.get $t4
     i32.wrap_i64
     local.tee $t0
-    local.tee $t1
+    local.tee $t5
     i32.const 16
-    local.set $t2
+    local.set $t6
     if
-      local.get $t1
+      local.get $t5
       call $rt:str
-      local.set $t2
+      local.set $t6
     end
     local.get $t3
-    local.get $t2
+    local.get $t6
     local.get $t0
     call $write_signed_sized
-    local.get $t2
-    local.get $t1
+    local.get $t6
+    local.get $t5
     local.get $provider1
     local.get $provider1.vtable
     call $"println[string]"
@@ -191,28 +188,28 @@
     local.get $provider0.vtable
     i32.load $heap offset=12
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0.vtable
-    local.tee $provider0
+    local.set $provider0
+    local.tee $provider0.vtable
+    local.tee $t5
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
-    local.get $provider0
-    local.tee $t1
+    local.get $provider0.vtable
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'2
     end
-    local.get $t0
-    local.get $provider0.vtable
+    local.get $t5
+    local.get $provider0
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.get $t0
-    local.tee $t1
+    local.get $t5
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'2
     end
     i64.extend_i32_s
@@ -245,17 +242,17 @@
     local.tee $provider0
     local.tee $provider0.vtable
     i32.const 16
-    local.set $t0
+    local.set $t5
     if
       local.get $provider0.vtable
       call $rt:str
-      local.set $t0
+      local.set $t5
     end
     local.get $t3
-    local.get $t0
+    local.get $t5
     local.get $provider0
     call $write_signed_sized
-    local.get $t0
+    local.get $t5
     local.get $provider0.vtable
     local.get $provider1
     local.get $provider1.vtable

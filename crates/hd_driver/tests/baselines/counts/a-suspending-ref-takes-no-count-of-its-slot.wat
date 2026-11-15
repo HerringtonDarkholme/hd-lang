@@ -11,7 +11,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 11 funcref))
-  (func $direct'1 (param $frame i32) (result i64 i32) (local $t4 i32) (local $t8 i32) (local $t5 i32) (local $t6 i64) (local $tally i32) (local $t1 i64) (local $t2 i32) (local $t7 i32) (local $t3 i64) (local $t0 i32)
+  (func $direct'1 (param $frame i32) (result i64 i32) (local $t4 i32) (local $t8 i32) (local $t5 i32) (local $t10 i64) (local $t6 i64) (local $tally i32) (local $t1 i64) (local $t2 i32) (local $t7 i32) (local $t9 i32) (local $t3 i64) (local $t0 i32)
     ;; 12 |     let mut tally = Tally { n: 0 }
     local.get $frame
     if
@@ -242,28 +242,28 @@
           br 1
         end
         call $rt:cancel_enter
-        local.set $t7
+        local.set $t4
         local.get $frame
         i32.load $heap offset=16
-        local.tee $t4
+        local.tee $t8
         if
-          local.get $t4
-          local.get $t4
+          local.get $t8
+          local.get $t8
           i32.load $heap offset=4
           call_indirect $table0 (param i32)
-          local.get $t4
+          local.get $t8
           i32.load $heap offset=12
           i32.const 16
           i32.and
           if
             i32.const 1
-            local.set $t8
+            local.set $t9
           end
         end
         local.get $frame
-        local.get $t7
+        local.get $t4
         call $rt:cancel_leave
-        local.get $t8
+        local.get $t9
         if
           local.get $frame
           i32.eqz
@@ -289,7 +289,7 @@
           local.get $t3
           i64.store $heap offset=104
           local.get $frame
-          local.get $t4
+          local.get $t8
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -309,12 +309,12 @@
           end
           return
         end
-        local.get $t4
+        local.get $t8
         if
           local.get $frame
           i32.const 0
           i32.store $heap offset=16
-          local.get $t4
+          local.get $t8
           local.tee $t4
           if
             local.get $t4
@@ -355,9 +355,9 @@
       local.get $tally
       i64.load $heap
     ;; 12 |     let mut tally = Tally { n: 0 }
-      local.set $t6
+      local.set $t10
     end
-    local.get $t6
+    local.get $t10
     local.get $frame
     if
       local.get $frame

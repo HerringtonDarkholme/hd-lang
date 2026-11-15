@@ -3,7 +3,7 @@
   (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $sum (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $key i32) (local $value i32)
+  (func $sum (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $value i32) (local $key i32)
     ;; 10 |     for (key, value) in &mut items:
     local.get $items
     i32.load $heap
@@ -24,12 +24,12 @@
         local.get $items
         i32.load $heap
         call $rt:map_unique
-        local.set $key
+        local.set $value
         local.get $items
-        local.get $key
+        local.get $value
         i32.store $heap
-        local.get $key
-        local.get $key
+        local.get $value
+        local.get $value
         i32.load $heap offset=12
         i32.const 14
         i32.mul
@@ -40,8 +40,8 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $key
-        local.get $key
+        local.tee $value
+        local.get $value
         i32.const 4
         i32.add
         local.set $value

@@ -30,19 +30,19 @@
       i32.load $heap
       local.get $slot
       i32.load $heap offset=4
-      local.set $t0
-      local.tee $slot
+      local.set $slot
+      local.tee $t0
       local.tee $t1
       if
         local.get $t1
         call $retain
       end
-      local.get $slot
       local.get $t0
+      local.get $slot
       i32.load $heap
       call_indirect $table0 (param i32)
     ;; 13 |     match slot:
-      local.get $slot
+      local.get $t0
       local.tee $t1
       if
         local.get $t1

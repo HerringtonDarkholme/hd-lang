@@ -92,7 +92,7 @@
       end
     end
   )
-  (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $p.1 i32)
+  (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p.1 i32)
     ;; 10 |     for p in parts:
     local.get $parts
     i32.load $heap offset=4
@@ -109,9 +109,9 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $p.1
         i32.load $heap offset=16
-        local.get $t2
+        local.get $p.1
         i32.load $heap offset=20
         local.set $p.1
         drop

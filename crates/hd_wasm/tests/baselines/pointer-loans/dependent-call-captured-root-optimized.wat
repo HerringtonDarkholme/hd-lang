@@ -244,7 +244,7 @@
     if
       local.get $t2
       i32.load $heap
-      local.tee $t4
+      local.tee $t5
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -254,7 +254,7 @@
         call $rt:loan_unshare
       else
         local.get $t2
-        local.get $t4
+        local.get $t5
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -280,13 +280,11 @@
         end
       end
     end
-    local.get $t3
-    local.set $ps
     local.get $t2
     if
       local.get $t2
       i32.load $heap
-      local.tee $t3
+      local.tee $ps
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -296,7 +294,7 @@
         call $rt:loan_unshare
       else
         local.get $t2
-        local.get $t3
+        local.get $ps
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -306,7 +304,7 @@
     if
       local.get $t1
       i32.load $heap
-      local.tee $t2
+      local.tee $ps
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -316,13 +314,13 @@
         call $rt:loan_unshare
       else
         local.get $t1
-        local.get $t2
+        local.get $ps
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
-    local.get $ps
+    local.get $t3
     local.get $d
     local.get $t0
     i32.const 16

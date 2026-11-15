@@ -9,7 +9,7 @@
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (param $fail i32) (result i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $probe (param $p i32) (param $alias i32) (param $fail i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 29 |     .Ok(observe(p.items.at(0), later_maybe(alias, fail)?))
     block
       local.get $p
@@ -80,7 +80,7 @@
         end
         local.get $t5
         i32.load $heap
-        local.tee $t1
+        local.tee $t2
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -90,7 +90,7 @@
           call $rt:loan_share
         else
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.const 65536
           i32.add
           i32.store $heap
@@ -99,25 +99,25 @@
       local.get $alias
       local.get $fail
       call $later_maybe
-      local.set $t1
+      local.set $alias
       local.tee $fail
       i32.eqz
       if
       else
         i32.const 1
-        local.set $alias
+        local.set $t2
         br 1
       end
       local.get $t3
-      local.get $t1
+      local.get $alias
       call $observe
-      local.set $t1
+      local.set $alias
       local.set $fail
       local.get $t5
       if
         local.get $t5
         i32.load $heap
-        local.tee $alias
+        local.tee $t2
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -127,7 +127,7 @@
           call $rt:loan_unshare
         else
           local.get $t5
-          local.get $alias
+          local.get $t2
           i32.const 65536
           i32.sub
           i32.store $heap
@@ -136,7 +136,7 @@
         local.set $t5
       end
       i32.const 0
-      local.set $alias
+      local.set $t2
     end
     local.get $t5
     if
@@ -169,9 +169,9 @@
         call $rt:release_ref
       end
     end
-    local.get $alias
+    local.get $t2
     local.get $fail
-    local.get $t1
+    local.get $alias
   )
 )
 == @build: release
@@ -253,7 +253,7 @@
         end
         local.get $t6
         i32.load $heap
-        local.tee $t1
+        local.tee $t5
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -263,7 +263,7 @@
           call $rt:loan_share
         else
           local.get $t6
-          local.get $t1
+          local.get $t5
           i32.const 65536
           i32.add
           i32.store $heap
@@ -273,7 +273,7 @@
       if
         local.get $t2
         i32.load $heap
-        local.tee $t1
+        local.tee $t5
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -283,7 +283,7 @@
           call $rt:loan_unshare
         else
           local.get $t2
-          local.get $t1
+          local.get $t5
           i32.const 65536
           i32.sub
           i32.store $heap
@@ -294,25 +294,27 @@
       local.get $alias
       local.get $fail
       call $later_maybe
-      local.set $fail
-      local.tee $alias
+      local.set $alias
+      local.tee $fail
       i32.eqz
       if
+        local.get $alias
+        local.set $t5
       else
         i32.const 1
-        local.set $p
+        local.set $t0
         br 1
       end
       local.get $p
-      local.get $fail
+      local.get $t5
       call $observe
-      local.set $p
       local.set $alias
+      local.set $fail
       local.get $t6
       if
         local.get $t6
         i32.load $heap
-        local.tee $t1
+        local.tee $t0
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -322,7 +324,7 @@
           call $rt:loan_unshare
         else
           local.get $t6
-          local.get $t1
+          local.get $t0
           i32.const 65536
           i32.sub
           i32.store $heap
@@ -330,28 +332,26 @@
         i32.const 0
         local.set $t6
       end
-      local.get $fail
-      local.tee $fail
+      local.get $t5
+      local.tee $t0
       if
-        local.get $fail
+        local.get $t0
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $fail
+          local.get $t0
           call $rt:release_ref
         end
       end
       i32.const 0
-      local.get $p
-      local.set $fail
-      local.set $p
+      local.set $t0
     end
     local.get $t6
     if
       local.get $t6
       i32.load $heap
-      local.tee $t1
+      local.tee $p
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -361,7 +361,7 @@
         call $rt:loan_unshare
       else
         local.get $t6
-        local.get $t1
+        local.get $p
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -371,7 +371,7 @@
     if
       local.get $t2
       i32.load $heap
-      local.tee $t1
+      local.tee $p
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -381,14 +381,14 @@
         call $rt:loan_unshare
       else
         local.get $t2
-        local.get $t1
+        local.get $p
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
-    local.get $p
-    local.get $alias
+    local.get $t0
     local.get $fail
+    local.get $alias
   )
 )

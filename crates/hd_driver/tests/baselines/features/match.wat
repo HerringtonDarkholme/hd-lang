@@ -2,7 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $ref_match (param $s i32) (result i32) (local $b.1 i32) (local $a.1 i32)
+  (func $ref_match (param $s i32) (result i32) (local $n.1 i32) (local $a.1 i32)
     ;; 24 |     match s:
     block
       block
@@ -10,18 +10,18 @@
     ;; 25 |         .Named(n) => n.len()
           local.get $s
           i32.load $heap
-          local.set $b.1
+          local.set $n.1
           block
             block
               block
-                local.get $b.1
+                local.get $n.1
                 br_table 0 1 5 5
               end
               local.get $s
               i32.load $heap offset=4
               local.get $s
               i32.load $heap offset=8
-              local.set $s
+              local.set $n.1
               drop
               br 2
             end
@@ -34,7 +34,7 @@
             i32.load $heap offset=12
             local.get $s
             i32.load $heap offset=16
-            local.set $b.1
+            local.set $s
             drop
             local.set $a.1
             drop
@@ -45,13 +45,13 @@
           unreachable
         end
     ;; 25 |         .Named(n) => n.len()
-        local.get $s
+        local.get $n.1
     ;; 24 |     match s:
         return
       end
     ;; 26 |         .Pair(a, b) => a.len() + b.len()
       local.get $a.1
-      local.get $b.1
+      local.get $s
       i32.add
     ;; 24 |     match s:
       return

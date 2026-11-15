@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $"println[string]" (param $t2 i32) (param $t3 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i32) (local $t4 i32)
+  (func $"println[string]" (param $t2 i32) (param $t3 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t5 i32) (local $t4 i32) (local $t6 i64) (local $t7 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -54,35 +54,33 @@
     i32.store $heap offset=4
     local.get $t1
     call $"impl Display for string.to_string"
-    local.set $t3
     local.set $t2
+    local.set $t3
     local.get $t1
     if
       local.get $t1
       i32.load $heap
-      local.tee $t4
+      local.tee $t1
       if
-        local.get $t4
+        local.get $t1
         call $rt:release_ref
       end
     end
-    local.get $t3
-    local.tee $t1
-    local.tee $t5
+    local.get $t2
     i32.const -2
     i32.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t5
+    local.get $t2
     i32.const 1
     i32.add
-    local.tee $t6
+    local.tee $t4
     i32.const 16 ;; &"\n"
     local.set $t5
     if
-      local.get $t6
+      local.get $t4
       call $rt:str
       local.set $t5
     end
@@ -90,50 +88,50 @@
     i64.extend_i32_u
     i64.const 0
     i64.add
-    local.tee $t7
+    local.tee $t6
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t7
+    local.get $t6
     i32.wrap_i64
-    local.get $t2
     local.get $t3
-    call $rt:memory_copy/0/0
     local.get $t2
-    local.tee $t4
+    call $rt:memory_copy/0/0
+    local.get $t3
+    local.tee $t1
     if
-      local.get $t4
+      local.get $t1
       call $rt:release_ref
     end
     local.get $t5
     i64.extend_i32_u
-    local.get $t1
+    local.get $t2
     i64.extend_i32_u
     i64.add
-    local.tee $t7
+    local.tee $t6
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t7
+    local.get $t6
     i32.wrap_i64
     i32.const 10
     i32.store8 $heap
     local.get $provider0
     local.get $t5
-    local.get $t6
+    local.get $t4
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
     local.get $t5
-    local.tee $t4
+    local.tee $t1
     if
-      local.get $t4
+      local.get $t1
       call $rt:release_ref
     end
     drop
@@ -152,9 +150,9 @@
         br 1
       end
       i32.const 1
-      local.set $t8
+      local.set $t7
     end
-    local.get $t8
+    local.get $t7
     if
       i32.const 17 ;; &"println: write_sync returned .Err(ConsoleError)"
       i32.const 47
