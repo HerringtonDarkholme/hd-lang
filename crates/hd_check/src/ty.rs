@@ -1165,7 +1165,7 @@ impl Ck<'_, '_> {
             names: &self.cx.names,
         };
         if let Some(msg) = hd_resolve::assoc::incomplete_message(&self.cx.names, &view, t) {
-            self.err(Code::TraitNotDynamicallySafe, at, &msg);
+            self.err(Code::InvalidDynType, at, &msg);
         }
     }
 
@@ -1410,7 +1410,7 @@ impl Ck<'_, '_> {
                     let msg = format!(
                         "`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"
                     );
-                    self.err(Code::TraitNotDynamicallySafe, n, &msg);
+                    self.err(Code::InvalidDynType, n, &msg);
                     return Ok(Ty::POISON);
                 }
                 let view = hd_resolve::assoc::LookupView {

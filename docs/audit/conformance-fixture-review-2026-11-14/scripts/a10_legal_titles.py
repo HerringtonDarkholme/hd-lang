@@ -1,12 +1,18 @@
-# A10: an accept fixture named NAME-legal.hd that keeps the `# test:` title of
-# its reject twin NAME.hd, so its title describes a rejection it never makes.
-import os, glob
-os.chdir('spec/conformance')
-rows = [l.split('\t') for l in open('cases.tsv')][1:]
-paths = {r[0] for r in rows}
-by_base = {os.path.basename(p): p for p in paths}
-for p in sorted(paths):
-    if not p.endswith('-legal.hd'): continue
-    twin = by_base.get(os.path.basename(p)[:-len('-legal.hd')] + '.hd')
-    if twin and open(p).readline() == open(twin).readline():
-        print(f'{p}\tA10\tsame title as {twin}: {open(p).readline().strip()}')
+# A10: an accept fixture whose `# test:` title is the title of a reject
+# fixture in the same folder, its twin: the accept case keeps a title that
+# describes a rejection it never makes. Twins pair by folder and title, one
+# pass over cases.tsv with a (folder, title) index.
+import os
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../../spec/conformance'))
+rows = [l.rstrip('\n').split('\t') for l in list(open('cases.tsv'))[1:]]
+title = lambda p: open(p).readline().strip()
+rejects = {}
+for p, ph, e, s in rows:
+    if e.startswith('reject'):
+        rejects.setdefault((os.path.dirname(p), title(p)), p)
+for p, ph, e, s in sorted(rows):
+    if e != 'accept':
+        continue
+    twin = rejects.get((os.path.dirname(p), title(p)))
+    if twin:
+        print(f'{p}\tA10\tsame title as {twin}: {title(p)}')

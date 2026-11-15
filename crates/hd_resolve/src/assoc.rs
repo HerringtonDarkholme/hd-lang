@@ -285,7 +285,7 @@ pub fn incomplete_message(names: &Names<'_>, view: &dyn TraitView, t: Ty) -> Opt
     }
     let list: Vec<&str> = unbound.iter().map(|a| names.display_name(*a)).collect();
     Some(format!(
-        "`{}` leaves `{}` unbound, so it is not dynamically safe",
+        "`{}` leaves `{}` unbound, so it is not a valid `dyn` type",
         show_ty(names, t),
         list.join("`, `")
     ))

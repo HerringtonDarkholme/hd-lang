@@ -1993,7 +1993,7 @@ fn run() -> i32:
 ```
 
 1. r[trait.dyn.binding.form.reference-values] A trait value type may bind associated types after its positional arguments, as in `&dyn Supplier[Item = i32]`.
-2. r[trait.dyn.binding.complete.reference-values] It must bind every associated type of the trait and of its supertraits. A binding that a supertrait list fixes counts as bound, so under `trait Sub < Super[Item = T]` the types `&dyn Sub` and `&dyn Sub[Item = T]` are one type. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
+2. r[trait.dyn.binding.complete.reference-values] It must bind every associated type of the trait and of its supertraits. A binding that a supertrait list fixes counts as bound, so under `trait Sub < Super[Item = T]` the types `&dyn Sub` and `&dyn Sub[Item = T]` are one type. A trait value type that leaves one unbound is an error. Error: `invalid-dyn-type`.
 3. r[trait.dyn.binding.self-fixed] A binding to `Self` that a supertrait list fixes, as in `trait Summable < Add[Out = Self]`, counts as bound. The trait value does not carry it, so `Out` stays a projection.
 4. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
 5. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
@@ -2010,7 +2010,7 @@ trait Factory:
     type Item
     fn count() -> i32
 
-fn unbound(source: &dyn Supplier) -> void:  # error: trait-not-dynamically-safe
+fn unbound(source: &dyn Supplier) -> void:  # error: invalid-dyn-type
     pass
 
 fn total[F < Factory[Item = i32]]() -> i32:
@@ -2233,7 +2233,7 @@ compiler and the standard library supply.
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.
-3. r[trait.sealed.use-positions-structure] User code may name a sealed trait in a bound, as a supertrait, and, where the trait is dynamically safe, as a value type. `Structure` is the exception: it may be named only where [`annot.structure.named-positions`](14-annotations.md#r-annot.structure.named-positions) allows.
+3. r[trait.sealed.use-positions-structure] User code may name a sealed trait in a bound, as a supertrait, and as a `dyn` type that [`trait.dyn.except-fn`](#r-trait.dyn.except-fn) allows. `Structure` is the exception: it may be named only where [`annot.structure.named-positions`](14-annotations.md#r-annot.structure.named-positions) allows.
 4. r[trait.sealed.no-user-impl] User code cannot implement a sealed trait.
 5. r[trait.sealed.user-impl] An `impl` of a sealed trait outside the standard library is an error, reported on the `impl` line, whatever its target. Error: `sealed-trait-implementation`.
 
@@ -2414,7 +2414,7 @@ impl TypeId:
 ### `Inspectable` And `TypeId`
 
 1. r[trait.inspect.sealed] `Inspectable` is a sealed trait.
-2. r[trait.inspect.reference-safe] `Inspectable` is dynamically safe; its only trait member is `runtime_type`.
+2. r[trait.inspect.reference-safe] `Inspectable` may be used as a `dyn` type, as every trait but `Fn` and `FnMut` may; its only trait member is `runtime_type`.
 3. r[trait.inspect.supplied] The compiler supplies its implementation for every [inspectable type](#inspectable-types).
 4. r[trait.inspect.supplied.reference-methods] The implementation provides `runtime_type`; inherent recovery methods add no vtable requirement.
 5. r[trait.inspect.runtime-type] `value.runtime_type()` returns the `TypeId` of the value's recorded type.

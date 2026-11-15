@@ -641,14 +641,14 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 6. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
 7. r[req.key.binding.value.reference-values] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `&dyn Store[Item = User]` and its `load` returns `User`.
 8. r[req.key.binding.complete] A requirement key must bind every associated type of its trait, including those that its supertraits declare.
-9. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `trait-not-dynamically-safe`.
+9. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `invalid-dyn-type`.
 
 ```text
 trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-fn count(id: string) -> i32 $ Store:  # error: trait-not-dynamically-safe
+fn count(id: string) -> i32 $ Store:  # error: invalid-dyn-type
     0
 ```
 
@@ -1870,7 +1870,7 @@ fn page!(id: i64) -> string:
 5. r[req.combinator.join-cold-tuple] A plain call `join(e_1, ..., e_n)`, with each `e_i: Suspend[X_i]`, has type `Suspend[(X_1, ..., X_n)]`.
 6. r[req.combinator.join-cold-list] A plain call `join(tasks...)`, with `tasks: List[Suspend[T]]`, has type `Suspend[List[T]]`.
 7. r[req.combinator.join-cold-arguments] Both plain forms follow the corresponding bang form's argument rules and capture their arguments without polling their children.
-8. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
+8. r[req.combinator.join-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
 9. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
 10. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
 11. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.

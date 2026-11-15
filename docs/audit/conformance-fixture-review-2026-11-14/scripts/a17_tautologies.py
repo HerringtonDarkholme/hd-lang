@@ -2,10 +2,10 @@
 # same expression on both sides, or a `>= 0` comparison (always true for an
 # unsigned count such as len() or a usize/u* total).
 import re, os
-os.chdir('/Users/hd/code/test/hd-lang/spec/conformance')
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../../spec/conformance'))
 for l in list(open('cases.tsv'))[1:]:
-    p = l.split('\t')[0]
-    if not p.startswith('runtime/'): continue
+    p, phase = l.split('\t')[:2]
+    if phase != 'runtime': continue
     for i, ln in enumerate(open(p), 1):
         s = ln.strip()
         why = None

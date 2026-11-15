@@ -49,8 +49,8 @@ fn each(f: fn(&Point) -> *mut Point, pending: *Point?) -> void: pass
 16. r[ref.type.any-ref] A reference type implements `AnyRef`.
 17. r[ref.type.dyn] `&dyn Tr` and `&mut dyn Tr` are trait value references, whose conversions and members [Trait Value References](09-traits.md#trait-value-references) states.
 18. r[ref.type.dyn-counted] `*dyn Tr` and `*mut dyn Tr` are counted trait value references. They take the same conversions and members, with `*` in place of `&` on both sides of each conversion.
-19. r[ref.type.dyn.no-fn] `Fn` has no trait-value reference form, so local and counted `dyn Fn` references are errors. Error: `trait-not-dynamically-safe`.
-20. r[ref.type.dyn.no-fn-mut] `FnMut` has no trait-value reference form either. Error: `trait-not-dynamically-safe`.
+19. r[ref.type.dyn.no-fn] `Fn` has no trait-value reference form, so local and counted `dyn Fn` references are errors. Error: `invalid-dyn-type`.
+20. r[ref.type.dyn.no-fn-mut] `FnMut` has no trait-value reference form either. Error: `invalid-dyn-type`.
 
 > **Note.** [`ref.type.kinds.elsewhere`](#r-ref.type.kinds.elsewhere)
 > bridges the chapters until the respelling slices of
@@ -78,8 +78,8 @@ fn bad_and(p: &&Point) -> void: pass  # error: syntax-error
 fn bad_mut(p: mut &Point) -> void: pass  # error: syntax-error
 fn bad_fn(f: &fn() -> i32) -> void: pass  # error: syntax-error
 fn bad_power(p: **Point) -> void: pass  # error: syntax-error
-fn bad_dyn(f: &dyn Fn(i32) -> i32) -> void: pass  # error: trait-not-dynamically-safe
-fn bad_dyn_mut(f: &mut dyn FnMut(i32) -> i32) -> void: pass  # error: trait-not-dynamically-safe
+fn bad_dyn(f: &dyn Fn(i32) -> i32) -> void: pass  # error: invalid-dyn-type
+fn bad_dyn_mut(f: &mut dyn FnMut(i32) -> i32) -> void: pass  # error: invalid-dyn-type
 ```
 
 See also: [Modifiers, Optionality, And Grouping](02-grammar.md#modifiers-optionality-and-grouping).

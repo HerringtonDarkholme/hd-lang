@@ -1,6 +1,6 @@
 # The fix-it of trait-used-as-type inserts dyn, but dyn Supplier leaves
-# Item unbound, which is the new diagnostic trait-not-dynamically-safe
-# (trait.dyn.safe.assoc-type). So the fix-it is not safe, hd check --fix leaves the
+# Item unbound, which is the new diagnostic invalid-dyn-type
+# (trait.dyn.binding.complete.reference-values). So the fix-it is not safe, hd check --fix leaves the
 # file as it is and exits 101, and the check after it still reports
 # trait-used-as-type with its fix-it.
 run: hd check --fix

@@ -79,7 +79,7 @@ fn applies_a_safe_fix_and_reports_it() {
 }
 
 /// `cli.check.fix.safe`: `dyn Supplier` leaves `Item` unbound, a new
-/// `trait-not-dynamically-safe`, so the fix-it is not applied and the
+/// `invalid-dyn-type`, so the fix-it is not applied and the
 /// file is not written. A private trait would bring `private-type-leak`.
 #[test]
 fn a_fix_that_adds_a_diagnostic_is_not_applied() {

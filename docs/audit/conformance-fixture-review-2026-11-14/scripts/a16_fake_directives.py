@@ -2,7 +2,7 @@
 # directive the runner reads (# prints:, # output:, # expected:, # stdout:,
 # # expect-output:, ...). Its expectation is never checked.
 import os, re, collections
-os.chdir('/Users/hd/code/test/hd-lang/spec/conformance')
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../../spec/conformance'))
 REAL = {'test','expect','expect-stdout','expect-empty-stdout','fixture-runtime-profile','fixture-runtime-scenario',
         'fixture-runtime-pending-function','fixture-package-role','fixture-test-layout','fixture-package-tree'}
 pat = re.compile(r'(?:^|\s)#\s*(prints?|output|outputs|expected|expects?|stdout|expect-[a-z-]+|result|returns)\s*:', re.I)

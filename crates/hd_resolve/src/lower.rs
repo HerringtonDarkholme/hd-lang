@@ -3072,7 +3072,7 @@ impl Lower<'_, '_, '_> {
     /// supertraits (trait.dyn.binding.complete.reference-values, req.key.binding.complete).
     fn require_complete(&mut self, t: Ty, span: Span) {
         if let Some(msg) = crate::assoc::incomplete_message(&self.names, self.r, t) {
-            self.diags.error(Code::TraitNotDynamicallySafe, span, &msg);
+            self.diags.error(Code::InvalidDynType, span, &msg);
         }
     }
 
@@ -4116,7 +4116,7 @@ impl Lower<'_, '_, '_> {
                     && let Some(name) = self.names.known.fn_trait_name(def)
                 {
                     self.diags.error(
-                        Code::TraitNotDynamicallySafe,
+                        Code::InvalidDynType,
                         self.src.span(n),
                         &format!("`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"),
                     );

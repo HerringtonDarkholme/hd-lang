@@ -75,7 +75,7 @@ export const EFFECT_STEPS: readonly Feature[] = [
   {
     title: "Suspend",
     blurb:
-      "`page!` suspends, so its name says so. `all!` runs both fetches at once and joins them.",
+      "`page!` suspends, so its name says so. `join!` runs both fetches at once and joins them.",
     contrast:
       "JavaScript: `async` spreads to every caller, and a forgotten `await` still compiles.",
     example: "concurrency",
