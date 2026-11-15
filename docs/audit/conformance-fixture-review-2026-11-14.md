@@ -2491,7 +2491,7 @@ Ledger: b168 (36): 2. b169 (45): 5. b170 (18): 2.
   `Timestamp` written has zero milliseconds, so a writer that drops milliseconds
   still passes). `std/time/clock/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd`
   (output `11` either way).
-- **Title doesn't match the code (B1)**: `typing/valid/validation-phantom-derive-no-bound.hd`
+- **Title doesn't match the code (B1)**: `std/validate/rule-facts/validation-phantom-derive-no-bound.hd`
   (names std's `Length` fact; tests a local `Phantom`). `std/time/clock/a-moved-cell-releases-storage-after-transferring-its-payload.hd`
   (no `# test:` title; the `same()` results are discarded).
 - The tier-forced citation (b148): 36 `pointer-loan-*` cite `std/time.md#r-std-time.helper.sleep`.
