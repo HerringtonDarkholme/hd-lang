@@ -1,0 +1,28 @@
+# @dump: diagnostics
+use pkg.cart
+
+fn shout(text: string) -> string:
+    cart.squish(text)
+# @file: cart.hd
+pub struct Cart:
+    pub owner: string
+    total: i32
+
+impl Cart:
+    pub fn open(owner: string, total: i32) -> Cart:
+        Cart { owner: owner, total: total }
+
+    pub fn summary(self) -> string:
+        "${self.owner}: ${self.audit()}"
+
+    fn audit(self) -> string:
+        "${self.total} cents"
+
+pub fn make(owner: string) -> Cart:
+    Cart { owner: owner, total: 0 }
+
+fn squash(text: string) -> string:
+    text
+
+pub fn total_of(cart: Cart) -> i32:
+    cart.total

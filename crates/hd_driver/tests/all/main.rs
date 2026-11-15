@@ -96,7 +96,6 @@ mod pipe_bare_steps;
 mod pipe_placeholder;
 mod poisoned_expectation;
 mod prelude_binding_shadow;
-mod privacy;
 mod private_main;
 mod profile_handles;
 mod promotion;

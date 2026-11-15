@@ -1,0 +1,3 @@
+# @dump: stdout
+pub  fn  main ( ) -> void:
+    pass
