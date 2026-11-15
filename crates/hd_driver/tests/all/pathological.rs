@@ -1744,6 +1744,50 @@ fn a_doubled_tuple_of_strings_lays_out_in_linear_steps() {
     }
 }
 
+/// #1887's program: a tuple of references doubled `levels` times, the
+/// source linear in `levels`.
+fn doubled_references(levels: usize) -> String {
+    let mut s = String::from(
+        "struct Point:\n    x: i32\nfn main():\n    p := Point { x: 1 }\n    x0 := &p\n",
+    );
+    for i in 1..=levels {
+        let _ = writeln!(s, "    x{i} := (x{}, x{})", i - 1, i - 1);
+    }
+    let _ = writeln!(s, "    let y: i32 = x{levels}");
+    s
+}
+
+// Checker: #1887, a tuple of references doubled 20 times laid out a
+// million origin slots (`Layout::new`) and did not check in a minute.
+// `types.limit.references` reports the first value past 1,024 slots, the
+// body's dependent-result checks skip it, and the count enters each
+// distinct type once.
+#[test]
+fn a_doubled_tuple_of_references_reports_the_limit_in_linear_steps() {
+    let steps = |levels: usize| {
+        let ((out, counted), laid) = hd_check::work::count_layout_steps(|| {
+            hd_check::work::count_slot_counts(|| {
+                compile(&doubled_references(levels), &Goal::Analyze)
+            })
+        });
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(
+            codes,
+            ["type-mismatch", "type-too-large"],
+            "{levels} levels: {}",
+            out.render()
+        );
+        counted + laid
+    };
+    // A warm-up build, so std's one-time checks are not counted.
+    steps(19);
+    let (small, large) = (steps(20), steps(200));
+    assert!(
+        small >= 20 && large <= 10 * small,
+        "20 levels: {small} steps, 200 levels: {large}"
+    );
+}
+
 #[test]
 fn a_proof_past_the_depth_limit_prints_a_short_type() {
     for depth in [70, 150] {

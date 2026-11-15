@@ -178,17 +178,20 @@ fn stage_b_over<'i>(
     let mut clean = hd_base::HashSet::default();
     let mut values = crate::value::InlinePass::default();
     let mut private = hd_base::HashMap::default();
+    let mut slots = crate::dep_results::SlotCounts::new(cx.names.known.suspend);
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.cycles = cycles;
         hc.clean = clean;
         hc.values = values;
         hc.private = private;
+        hc.slots = slots;
         hc.item(it)?;
         cycles = hc.cycles;
         clean = hc.clean;
         values = hc.values;
         private = hc.private;
+        slots = hc.slots;
     }
     Ok(out)
 }
@@ -429,8 +432,9 @@ struct ItemCheck<'c, 'a> {
     /// Whether the fuel ran out: `item-too-complex` is reported, and no
     /// further goal is asked.
     too_complex: bool,
-    /// Whether a written type past `hd_base::limits::TYPE_DEPTH` is
-    /// reported: one `type-too-large` per item.
+    /// Whether a written type past `hd_base::limits::TYPE_DEPTH` or
+    /// `hd_base::limits::REFERENCES` is reported: one `type-too-large`
+    /// per item.
     too_deep: bool,
     /// The closed types whose check reported nothing, kept across the
     /// items of one stage-B pass.
@@ -442,6 +446,9 @@ struct ItemCheck<'c, 'a> {
     /// [`Self::private_in`]'s answers, kept across the items of one
     /// stage-B pass.
     private: hd_base::HashMap<Ty, Option<DefId>>,
+    /// The origin slots of written types (`types.limit.references`),
+    /// kept across the items of one stage-B pass.
+    slots: crate::dep_results::SlotCounts,
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
@@ -478,6 +485,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             clean: hd_base::HashSet::default(),
             values: crate::value::InlinePass::default(),
             private: hd_base::HashMap::default(),
+            slots: crate::dep_results::SlotCounts::new(cx.names.known.suspend),
         }
     }
 }
@@ -1498,6 +1506,15 @@ impl<'a> ItemCheck<'_, 'a> {
             if !self.too_deep {
                 self.too_deep = true;
                 self.report(slot, Code::TypeTooLarge, TYPE_TOO_LARGE.to_owned());
+            }
+            return Ok(());
+        }
+        // `types.limit.references.error`, under the same once per item.
+        if self.slots.over(pool, t) {
+            if !self.too_deep {
+                self.too_deep = true;
+                let message = crate::body::TOO_MANY_REFERENCES.to_owned();
+                self.report(slot, Code::TypeTooLarge, message);
             }
             return Ok(());
         }

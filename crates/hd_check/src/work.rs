@@ -216,6 +216,28 @@ pub(crate) fn layout_step() {
 }
 
 thread_local! {
+    static SLOT_COUNTS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the types the origin-slot limit's count enters on this thread
+/// (`crate::dep_results::SlotCounts`), one per distinct type it counts.
+pub fn count_slot_counts<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = SLOT_COUNTS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = SLOT_COUNTS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One type the origin-slot count enters.
+pub(crate) fn slot_count_step() {
+    SLOT_COUNTS.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}
+
+thread_local! {
     static HELD_TYPES: Cell<Option<u64>> = const { Cell::new(None) };
 }
 

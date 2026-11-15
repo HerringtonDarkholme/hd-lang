@@ -167,6 +167,10 @@ pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
 const TYPE_TOO_LARGE: &str =
     "this value's type nests deeper than the compiler allows; name a struct to wrap part of it";
 
+/// The message of `type-too-large` for a type past the origin-slot limit
+/// (`types.limit.references.error`), in a body and in a header.
+pub(crate) const TOO_MANY_REFERENCES: &str = "this type holds more references than the compiler allows, counting each use of a part; keep them in a list";
+
 /// The message of `item-too-complex`, in a body and in a header.
 pub(crate) const TOO_COMPLEX: &str =
     "checking this item needs more steps than the compiler allows; split it into smaller items";
@@ -584,6 +588,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// error): its poison types come from that error, not from a failed
     /// inference.
     pub read_poison_name: bool,
+    /// Whether a value or local of the body has more origin slots than
+    /// `types.limit.references` allows; the body's dependent-result
+    /// checks are skipped.
+    too_many_slots: bool,
     /// The source spans of expressions checked against a poisoned expected
     /// type: the error that poisoned it is already reported, so the end of
     /// the body does not report their unsolved types again.
@@ -806,6 +814,7 @@ pub(crate) fn new_ck<'a, 'c>(
         overflow_lits: Vec::new(),
         neg_nodes: Vec::new(),
         read_poison_name: false,
+        too_many_slots: false,
         absorbed: Vec::new(),
         lit_arg: None,
         module_init: None,
@@ -5217,6 +5226,10 @@ impl Ck<'_, '_> {
         };
         let mut cycle_scope = self.impl_stretch;
         let cycle_at = self.at;
+        // `types.limit.references`: a value whose type has more origin
+        // slots than the limit is an error, and the dependent-result
+        // checks, which lay out each slot, skip the body.
+        let mut slots = crate::dep_results::SlotCounts::new(self.cx.names.known.suspend);
         // The header check walked the function's written types under the
         // same impls, and reported what they hold.
         if !local_impls {
@@ -5246,6 +5259,14 @@ impl Ck<'_, '_> {
                 }
                 continue;
             }
+            if slots.over(pool, z) {
+                if !self.too_many_slots && syn != hd_base::NodeIdx::NONE {
+                    let node = self.cx.src.parse.tree.node(syn);
+                    self.err(Code::TypeTooLarge, node, TOO_MANY_REFERENCES);
+                }
+                self.too_many_slots = true;
+                continue;
+            }
             if syn != hd_base::NodeIdx::NONE && !self.diags.has_errors() {
                 let node = self.cx.src.parse.tree.node(syn);
                 let view = self.cx.impls.hiding(self.unseen());
@@ -5268,6 +5289,8 @@ impl Ck<'_, '_> {
             let t = self.b.body_mut().local_ty[i];
             let z = self.zonk(t);
             self.b.body_mut().local_ty[i] = z;
+            // A parameter's written type is the header's to report.
+            self.too_many_slots |= slots.over(pool, z);
         }
         self.fallback_rows(&open);
         let ret = self.zonk(ret);
@@ -5423,7 +5446,9 @@ impl Ck<'_, '_> {
         self.check_local_ref_types();
         let move_facts = self.check_moves(root);
         self.check_moves_out_of_place();
-        self.check_dependent_results(root, ret, fun, &move_facts);
+        if !self.too_many_slots && !slots.over(pool, ret) {
+            self.check_dependent_results(root, ret, fun, &move_facts);
+        }
         if let Some(node) = fun {
             self.check_inferred_result(node, ret);
         }

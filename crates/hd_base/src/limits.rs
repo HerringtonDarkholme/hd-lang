@@ -15,6 +15,21 @@
 /// `x1 := [x0]`, `x2 := [x1]`, ... does. Owner decision 2026-11-13.
 pub const TYPE_DEPTH: u32 = 1_000;
 
+/// Origin slots one type holds (`types.limit.references`): each local
+/// reference, function type and suspension in it, outside function
+/// types, a part counted at each of its uses
+/// (`hd_check::dep_results::SlotCounts`). The dependent-result checks
+/// give each slot its own origin set (`ref.dep.position`), so a type's
+/// layout is as long as its count, and a type that doubles a tuple of
+/// references at each level (`x1 := (x0, x0)`, ...) doubles it: 20
+/// levels laid out a million slots and did not check in a minute. A
+/// slot is a position the language keeps apart, so no shared encoding
+/// is cheaper (#1887). A body value or a written type past it is
+/// `type-too-large` (`types.limit.references.error`). rustc's
+/// `type_length_limit` bounds a type's expanded length the same way.
+/// Owner decision 2026-11-14.
+pub const REFERENCES: u32 = 1_024;
+
 /// Associated-type bindings one normalization follows, one after another
 /// (`trait.assoc.projection.depth`): normalizing `T::Out` through `impl
 /// Walk for A: type Out = U::Out` takes one, and a chain that needs more

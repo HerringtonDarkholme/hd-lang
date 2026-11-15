@@ -376,6 +376,8 @@ lang/control-flow/match-expressions/spread-patterns/a-spread-match-on-a-literal-
 lang/control-flow/match-expressions/spread-patterns/a-spread-tuple-pattern-against-an-integer-is-a-type-mismatch.hd	type	reject:type-mismatch	lang/06-control-flow.md#spread-patterns
 lang/expressions/primary-expressions/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-literal-item.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 lang/types/generics/generic-representation/a-mismatch-on-a-doubled-tuple-names-a-cut-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.limit.type-size
+lang/types/generics/generic-representation/a-tuple-of-1024-references-is-at-the-limit.hd	type	accept	lang/04-type-system.md#r-types.limit.references
+lang/types/generics/generic-representation/a-tuple-of-2048-references-is-too-large.hd	type	reject:type-too-large	lang/04-type-system.md#r-types.limit.references.error
 lang/expressions/primary-expressions/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-spread-short.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 lang/expressions/primary-expressions/tuple-rest-a-tuple-spread-takes-a-list-of-the-rest-items-spread-item.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 lang/expressions/primary-expressions/tuple-rest-selection-past-the-tuple-is-unknown-fixed.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.tuple.select-underscore

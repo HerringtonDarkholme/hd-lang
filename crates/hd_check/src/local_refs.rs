@@ -19,7 +19,7 @@
 //! field of a type parameter ([`capturing_field`]); dependent-result solving
 //! tracks that closure's capture origins.
 
-use hd_base::{HashSet, LocalId, TokenIdx};
+use hd_base::{HashMap, HashSet, LocalId, TokenIdx};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -419,54 +419,72 @@ fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: 
 /// tuple, an optional, a counted reference or another generic type's
 /// instance at the top (`ref.local.holding`), as a function type's
 /// parameter or behind a local reference is no escape.
-fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
+fn escape_in(
+    pool: Types<'_>,
+    t: Ty,
+    top_ok: bool,
+    depth: u32,
+    memo: &mut EscapeMemo,
+) -> Option<Escape> {
     if depth > hd_base::limits::TYPE_DEPTH || !pool.has_ref(t) {
         return None;
     }
+    if let Some(&e) = memo.get(&(t, top_ok)) {
+        return e;
+    }
     let d = depth + 1;
-    let escape_in = |t, top| escape_in(pool, t, top, d);
-    let list = |l, top: bool| pool.list_items(l).iter().find_map(|&a| escape_in(a, top));
-    match pool.get(t) {
+    let list = |l, top: bool, memo: &mut EscapeMemo| {
+        pool.list_items(l)
+            .iter()
+            .find_map(|&a| escape_in(pool, a, top, d, memo))
+    };
+    let e = match pool.get(t) {
         TyData::Ref {
             counted: false,
             inner,
             ..
         } => {
             if top_ok {
-                escape_in(inner, true)
+                escape_in(pool, inner, true, d, memo)
             } else {
                 Some(Escape::TypeArgument)
             }
         }
         // A counted reference holds what its referent holds
         // (`ref.local.holding.counted`), as a generic instance does.
-        TyData::Ref { inner, .. } => escape_in(inner, top_ok),
-        TyData::Tuple { elems, rest } => {
-            list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(r, top_ok)))
-        }
-        TyData::Adt { args, .. } | TyData::Union(args) => list(args, top_ok),
+        TyData::Ref { inner, .. } => escape_in(pool, inner, top_ok, d, memo),
+        TyData::Tuple { elems, rest } => list(elems, top_ok, memo)
+            .or_else(|| rest.and_then(|r| escape_in(pool, r, top_ok, d, memo))),
+        TyData::Adt { args, .. } | TyData::Union(args) => list(args, top_ok, memo),
         // An opaque type that borrows holds a local reference of its own,
         // at the top as a reference is (`types.opaque.borrows`).
         TyData::Opaque { borrows: true, .. } if !top_ok => Some(Escape::TypeArgument),
-        TyData::Opaque { args, .. } => list(args, false),
+        TyData::Opaque { args, .. } => list(args, false, memo),
         TyData::TraitValue { args, bindings, .. } => pool
             .list_items(args)
             .iter()
-            .find_map(|&a| escape_in(a, top_ok && hd_resolve::iface::is_lifetime_arg(pool, a)))
-            .or_else(|| bindings.iter().find_map(|&(_, b)| escape_in(b, false))),
+            .find_map(|&a| {
+                let top = top_ok && hd_resolve::iface::is_lifetime_arg(pool, a);
+                escape_in(pool, a, top, d, memo)
+            })
+            .or_else(|| {
+                bindings
+                    .iter()
+                    .find_map(|&(_, b)| escape_in(pool, b, false, d, memo))
+            }),
         // A projection holds what its base and its trait's arguments hold,
         // at the top as a generic instance does (`ref.local.holding`). Its
         // arguments are a bound's, a lifetime argument or a `&'a T` the
         // bound wrote, which the bound itself answers for
         // (`ref.lifetime.trait.bound-argument`), so they escape nowhere here.
         TyData::Assoc { self_ty, args, .. } => {
-            escape_in(self_ty, top_ok).or_else(|| list(args, top_ok))
+            escape_in(pool, self_ty, top_ok, d, memo).or_else(|| list(args, top_ok, memo))
         }
         // A result with a source may hold a local reference at the top,
         // as a function's may (`fn.type.lifetime.result`).
-        TyData::Fn { params, result, .. } => list(params, true).or_else(|| {
+        TyData::Fn { params, result, .. } => list(params, true, memo).or_else(|| {
             let sourced = pool.fn_ty_deps(t).is_some_and(|(_, outs)| !outs.is_empty());
-            match escape_in(result, sourced) {
+            match escape_in(pool, result, sourced, d, memo) {
                 Some(Escape::TypeArgument) if !sourced && is_local_ref(pool, result) => {
                     Some(Escape::Result)
                 }
@@ -484,13 +502,24 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
         | TyData::Canon(_)
         | TyData::Row(_)
         | TyData::Context(_) => None,
+    };
+    // Only a walk the depth limit cut nowhere is the type's answer.
+    if depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH {
+        memo.insert((t, top_ok), e);
     }
+    e
 }
+
+/// [`escape_in`]'s answers, by type and whether the top may hold a
+/// reference: the pool shares a part between its uses, so each distinct
+/// part is walked once, and a tuple doubled n times costs n steps, not
+/// 2^n (#1887).
+pub(crate) type EscapeMemo = HashMap<(Ty, bool), Option<Escape>>;
 
 /// Whether a value of type `t` holds a local reference anywhere, its top
 /// included (`ref.local.holding`).
 pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
-    escape_in(pool, t, false, 0).is_some()
+    escape_in(pool, t, false, 0, &mut EscapeMemo::default()).is_some()
 }
 
 /// `ref.generic.outlives.position`: the lifetime that bounds field type `f`
@@ -947,6 +976,7 @@ impl Ck<'_, '_> {
             }
         }
         let mut seen: HashSet<(Ty, bool)> = HashSet::default();
+        let mut memo = EscapeMemo::default();
         let mut found: Vec<(hd_base::NodeIdx, Escape)> = Vec::new();
         let body = self.b.body();
         // A type seen at the top may still report as a type argument.
@@ -961,7 +991,7 @@ impl Ck<'_, '_> {
                     return;
                 }
                 let e = if top_ok || !is_local_ref(pool, t) {
-                    escape_in(pool, t, top_ok, 0)
+                    escape_in(pool, t, top_ok, 0, &mut memo)
                 } else {
                     Some(Escape::TypeArgument)
                 };

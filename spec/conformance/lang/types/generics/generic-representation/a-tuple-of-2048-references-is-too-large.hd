@@ -1,0 +1,24 @@
+# test: a tuple of references doubled 11 times holds 2,048 references, past the limit
+# Spec 04 Types: types.limit.references.error.
+struct Point:
+    x: i32
+
+fn keep[T](t: T) -> i32:
+    0
+
+fn main() -> void $ Console:
+    p := Point { x: 1 }
+    x0 := &p
+    x1 := (x0, x0)
+    x2 := (x1, x1)
+    x3 := (x2, x2)
+    x4 := (x3, x3)
+    x5 := (x4, x4)
+    x6 := (x5, x5)
+    x7 := (x6, x6)
+    x8 := (x7, x7)
+    x9 := (x8, x8)
+    x10 := (x9, x9)
+    x11 := (x10, x10) # diagnostic: type-too-large
+    n := keep(x11)
+    println(n.to_string())

@@ -1814,8 +1814,10 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 12. r[types.generic.call-cycle.projection] A type argument does not hold a type parameter that occurs only inside a projection, such as `P.Item`.
 13. r[types.limit.type-size] An implementation may limit how deeply one type nests, counted in the types on the longest path from it down to a type built from no others. The limit is implementation-defined: `hd` allows 1,000.
 14. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
-15. r[types.generic.const.runtime] A const generic argument contributes to compile-time identity and specialization keys but does not add a runtime parameter by itself.
-16. r[types.generic.const.interfaces] Package interfaces preserve const parameter declarations, evaluated const arguments, and generic bodies needed by downstream compilation.
+15. r[types.limit.references] An implementation may limit how many references one type holds, since each is a reference position of its own ([`ref.dep.position`](13-values-and-references.md#r-ref.dep.position)). The count takes each `&` and `&mut` outside function types, each function type, each opaque type that borrows, and each suspension, and counts a part again at each use: `(R, R)` holds twice what `R` holds. A struct or enum instance counts its type arguments, not its fields. The limit is implementation-defined: `hd` allows 1,024.
+16. r[types.limit.references.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
+17. r[types.generic.const.runtime] A const generic argument contributes to compile-time identity and specialization keys but does not add a runtime parameter by itself.
+18. r[types.generic.const.interfaces] Package interfaces preserve const parameter declarations, evaluated const arguments, and generic bodies needed by downstream compilation.
 
 ```hd
 fn first[T](items: List[T]) -> T?:

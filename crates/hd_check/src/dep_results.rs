@@ -1029,6 +1029,87 @@ impl Layout {
     }
 }
 
+/// The origin slots of types, counted without laying them out
+/// (`types.limit.references`): each `&T` and `&mut T` outside function
+/// types, through counted references, each borrowing opaque type, each
+/// function type outside another, and each suspension, a part counted
+/// at each of its uses. That is [`Layout::walk`]'s slots less its whole
+/// slots, which are at most one per reference, so a type within
+/// [`hd_base::limits::REFERENCES`] lays out in at most twice that many.
+/// Each distinct part is counted once ([`Self::memo`]), and a count
+/// saturates just past the limit, so asking every type of a body costs
+/// its distinct type nodes.
+pub(crate) struct SlotCounts {
+    suspend: DefId,
+    memo: HashMap<Ty, u32>,
+}
+
+impl SlotCounts {
+    pub(crate) fn new(suspend: DefId) -> Self {
+        SlotCounts {
+            suspend,
+            memo: HashMap::default(),
+        }
+    }
+
+    /// Whether `t` holds more origin slots than the limit allows.
+    pub(crate) fn over(&mut self, pool: Types<'_>, t: Ty) -> bool {
+        self.count(pool, t) > hd_base::limits::REFERENCES
+    }
+
+    /// The parts of `t` whose slots it holds, and the slots it adds itself.
+    fn parts(&self, pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) -> u32 {
+        match pool.get(t) {
+            TyData::Ref { counted, inner, .. } => {
+                out.push(inner);
+                u32::from(!counted)
+            }
+            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => 1,
+            TyData::Tuple { elems, rest } => {
+                out.extend(pool.list_items(elems));
+                out.extend(rest);
+                0
+            }
+            TyData::Adt { def, args } => {
+                out.extend(pool.list_items(args));
+                u32::from(def == self.suspend)
+            }
+            TyData::TraitValue { args, .. } => {
+                out.extend(pool.list_items(args));
+                0
+            }
+            _ => 0,
+        }
+    }
+
+    /// `t`'s count, after its parts', with an explicit stack: a type
+    /// nested past [`hd_base::limits::TYPE_DEPTH`] is counted too, and
+    /// no native frame is taken per level.
+    fn count(&mut self, pool: Types<'_>, t: Ty) -> u32 {
+        let cap = hd_base::limits::REFERENCES + 1;
+        let mut stack = vec![(t, false)];
+        let mut parts = Vec::new();
+        while let Some((t, done)) = stack.pop() {
+            if self.memo.contains_key(&t) {
+                continue;
+            }
+            parts.clear();
+            let own = self.parts(pool, t, &mut parts);
+            if done {
+                let n = (parts.iter())
+                    .fold(own, |n, p| n.saturating_add(self.memo[p]))
+                    .min(cap);
+                self.memo.insert(t, n);
+            } else {
+                crate::work::slot_count_step();
+                stack.push((t, true));
+                stack.extend(parts.iter().map(|&p| (p, false)));
+            }
+        }
+        self.memo[&t]
+    }
+}
+
 /// A field's slot that is no one slot of its instance ([`FieldMap`]).
 const ALL_SLOTS: usize = usize::MAX;
 
