@@ -2890,14 +2890,22 @@ mod packed {
                 return None;
             }
             let dir = self.root.join("claims");
-            let file = std::fs::create_dir_all(&dir).and_then(|()| {
+            let path = dir.join(format!("{:04x}{:032x}", k.0, k.1));
+            let open = || {
                 OpenOptions::new()
                     .read(true)
                     .write(true)
                     .create(true)
                     .truncate(false)
-                    .open(dir.join(format!("{:04x}{:032x}", k.0, k.1)))
-            });
+                    .open(&path)
+            };
+            // The directory is made at the first claim only.
+            let file = match open() {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    std::fs::create_dir_all(&dir).and_then(|()| open())
+                }
+                opened => opened,
+            };
             // An unwritable cache computes without a claim.
             let Ok(file) = file else { return None };
             if file.try_lock().is_err() {
