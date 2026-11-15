@@ -1,5 +1,0 @@
-# test: transparent requires exactly one member
-@error(transparent) # diagnostic: decorator-target-kind
-struct D:
-    a: i32
-    b: i32

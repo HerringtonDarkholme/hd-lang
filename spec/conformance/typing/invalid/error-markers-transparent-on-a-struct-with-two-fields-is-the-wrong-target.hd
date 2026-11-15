@@ -1,0 +1,5 @@
+# test: error markers transparent on a struct with two fields is the wrong target
+@error(transparent) # diagnostic: decorator-target-kind
+struct D:
+    a: i32
+    b: i32

@@ -1,0 +1,5 @@
+# test: error markers transparent on a variant with two members is the wrong target
+@error
+enum E:
+    @error(transparent) # diagnostic: decorator-target-kind
+    Pair(a: i32, b: i32)

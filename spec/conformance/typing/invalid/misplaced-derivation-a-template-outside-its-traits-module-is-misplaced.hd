@@ -1,0 +1,8 @@
+# test: a template outside its traits module is misplaced
+# fixture-package-tree: misplaced-derivation-a-template-outside-its-traits-module-is-misplaced/src/main.hd
+use pkg.lib.show.Show
+use std.structure.Structure
+
+impl[T] Show for T by Structure: # diagnostic: misplaced-derivation
+    fn show(self) -> string:
+        "x"

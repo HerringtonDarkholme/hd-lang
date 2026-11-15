@@ -1,0 +1,5 @@
+# test: error markers an error marker with empty parentheses is invalid
+@error
+enum E:
+    @error() # diagnostic: invalid-error-marker
+    Full

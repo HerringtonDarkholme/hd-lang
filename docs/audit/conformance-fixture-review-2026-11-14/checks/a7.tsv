@@ -1260,10 +1260,10 @@ parse/valid/reference-types.hd	accept	lang/13-values-and-references.md#r-ref.typ
 runtime/valid/structure-build-fills-the-members-the-source-never-names.hd	accept	lang/14-annotations.md#build	-2	
 runtime/valid/error-derivation-run.hd	accept	lang/14-annotations.md#error-derivation	-42	
 typing/valid/error-derivation.hd	accept	lang/14-annotations.md#error-derivation	-24	
-typing/invalid/error-markers-cause-without-error-is-an-unmet-bound-20.hd	reject:unsatisfied-trait-bound	lang/14-annotations.md#error-types	-3	
-typing/invalid/error-markers-from-type-parameter-is-by-resolution-not-spelling-17.hd	reject:invalid-error-marker	lang/14-annotations.md#error-types	-3	
-typing/invalid/error-markers-marker-argument-is-rejected-12.hd	reject:invalid-error-marker	lang/14-annotations.md#error-types	-3	
-typing/valid/error-markers-from-type-parameter-is-by-resolution-not-spelling-16.hd	accept	lang/14-annotations.md#error-types	-6	
+typing/invalid/error-markers-a-source-field-whose-type-is-not-an-error-is-an-unmet-bound.hd	reject:unsatisfied-trait-bound	lang/14-annotations.md#error-types	-3	
+typing/invalid/error-markers-from-on-a-type-parameter-named-like-an-error-type-is-invalid.hd	reject:invalid-error-marker	lang/14-annotations.md#error-types	-3	
+typing/invalid/error-markers-a-source-marker-with-an-argument-is-invalid.hd	reject:invalid-error-marker	lang/14-annotations.md#error-types	-3	
+typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	accept	lang/14-annotations.md#error-types	-6	
 typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	accept	lang/14-annotations.md#error-types	-6	
 runtime/valid/structure-facts-arrive-in-source-order-per-derivation.hd	accept	lang/14-annotations.md#facts	-4	
 typing/valid/error-generated-bounds.hd	accept	lang/14-annotations.md#generated-error-bounds	-5	

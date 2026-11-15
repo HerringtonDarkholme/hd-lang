@@ -1,6 +1,6 @@
 trees/dyn-inherent-nonlocal	A1	identical to trees/migrate-71-impl-placement
 trees/failed-import-24	A1	identical to trees/failed-import-25
-trees/migrate-127-impl-placement	A1	identical to trees/migrate-128-impl-placement
+trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced	A1	identical to trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced
 trees/migrate-64-impl-placement	A1	identical to trees/migrate-69-impl-placement
 trees/migrate-698-10	A1	identical to trees/migrate-698-11
 trees/migrate-698-28	A1	identical to trees/migrate-698-29
@@ -80,11 +80,11 @@ typing/invalid/const-generic-evaluation-division-by-zero.hd	A3	typing/invalid/co
 typing/invalid/const-generic-evaluation-division-by-zero.hd	A3	typing/invalid/const-generic-evaluation-overflow.hd
 typing/invalid/const-generic-evaluation-invalid-shift.hd	A3	typing/invalid/const-generic-evaluation-overflow.hd
 typing/invalid/const-evaluation-takes-no-interpolation.hd	A3	typing/invalid/const-evaluation-takes-no-function-suffix.hd
-typing/invalid/error-markers-transparent-requires-exactly-one-member-1.hd	A3	typing/invalid/error-markers-transparent-requires-exactly-one-member-2.hd
-typing/invalid/error-markers-transparent-requires-exactly-one-member-3.hd	A3	typing/invalid/error-markers-transparent-requires-exactly-one-member-4.hd
-typing/invalid/facts-of-check-a-call-is-not-a-function-declaration-28.hd	A3	typing/invalid/facts-of-check-a-parameter-is-not-a-function-declaration-27.hd
+typing/invalid/error-markers-transparent-on-a-variant-without-members-is-the-wrong-target.hd	A3	typing/invalid/error-markers-transparent-on-a-variant-with-two-members-is-the-wrong-target.hd
+typing/invalid/error-markers-transparent-on-a-struct-without-fields-is-the-wrong-target.hd	A3	typing/invalid/error-markers-transparent-on-a-struct-with-two-fields-is-the-wrong-target.hd
+typing/invalid/facts-of-a-call-is-not-a-function-declaration.hd	A3	typing/invalid/facts-of-a-parameter-is-not-a-function-declaration.hd
 typing/invalid/facts-of-closure.hd	A3	typing/invalid/facts-of-as-value.hd
-typing/invalid/facts-of-check-a-missing-argument-follows-the-call-rules-30.hd	A3	typing/invalid/facts-of-check-an-extra-argument-follows-the-call-rules-31.hd
+typing/invalid/facts-of-a-missing-argument-follows-the-call-rules.hd	A3	typing/invalid/facts-of-an-extra-argument-follows-the-call-rules.hd
 typing/invalid/unknown-std-module.hd	A3	typing/invalid/unknown-std-module-grouped.hd
 typing/invalid/unknown-std-module.hd	A3	typing/invalid/unknown-pkg-module.hd
 typing/invalid/unknown-std-module-grouped.hd	A3	typing/invalid/unknown-pkg-module.hd
@@ -121,13 +121,13 @@ typing/invalid/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is
 typing/invalid/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is-left-out-43.hd	A3	typing/invalid/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is-left-out-44.hd
 typing/invalid/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is-left-out-43.hd	A3	typing/invalid/bare-parameter-impl-target.hd
 typing/invalid/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is-left-out-44.hd	A3	typing/invalid/bare-parameter-impl-target.hd
-typing/invalid/impl-targets-a-generic-tuple-impl-overlaps-the-tuple-template-79.hd	A3	typing/invalid/tuple-template-overlap.hd
+typing/invalid/templates-a-generic-pair-impl-overlaps-the-tuple-template.hd	A3	typing/invalid/tuple-template-overlap.hd
 typing/invalid/newtype-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/newtype-trailing-block-cannot-capture-a-local-reference.hd
 typing/invalid/variant-callback-cannot-capture-a-local-reference.hd	A3	typing/invalid/variant-trailing-block-cannot-capture-a-local-reference.hd
 typing/invalid/impl-trait-method-dyn-mut-call.hd	A3	typing/invalid/impl-trait-method-dyn-reference.hd
 typing/invalid/impl-trait-recursive.hd	A3	typing/invalid/impl-trait-nested-recursive-only.hd
 typing/invalid/impl-trait-return-mismatch.hd	A3	typing/invalid/impl-trait-return-void-mismatch.hd
-typing/invalid/misplaced-derivation-a-block-outside-its-targets-module-is-misplaced-127.hd	A3	typing/invalid/misplaced-derivation-a-member-line-in-a-template-is-misplaced-129.hd
+typing/invalid/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced.hd	A3	typing/invalid/misplaced-derivation-a-member-line-in-a-template-is-misplaced.hd
 typing/invalid/checker-integer-literals-take-their-default-types-58.hd	A3	typing/invalid/checker-integer-literals-take-their-default-types-59.hd
 typing/invalid/literals-duration-literals-have-a-fixed-import-free-type-10.hd	A3	typing/invalid/literals-duration-literals-have-a-fixed-import-free-type-11.hd
 typing/invalid/literals-duration-literals-have-a-fixed-import-free-type-10.hd	A3	typing/invalid/literals-duration-literals-have-a-fixed-import-free-type-9.hd
@@ -1143,7 +1143,7 @@ typing/valid/declarations-a-private-method-may-omit-its-result-type.hd	A3	typing
 typing/valid/declarations-a-public-method-declares-its-result-type.hd	A3	typing/valid/declarations-a-trait-impl-method-declares-its-result-type.hd
 typing/valid/self-type-a-function-outside-an-impl-names-a-concrete-parameter-type.hd	A3	typing/valid/self-type-a-struct-field-names-a-concrete-type.hd
 typing/valid/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	A3	typing/valid/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd
-typing/valid/misplaced-derivation-a-renamed-trait-less-header-is-clean-125.hd	A3	typing/valid/misplaced-derivation-a-trait-less-block-with-member-lines-is-clean-124.hd
+typing/valid/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd	A3	typing/valid/misplaced-derivation-a-trait-less-block-may-give-member-and-self-lines.hd
 runtime/panic/integer-add-overflow.hd	A3	runtime/panic/integer-negation-overflow.hd
 runtime/panic/i32-add-overflow-in-function.hd	A3	runtime/panic/i32-min-divided-by-minus-one.hd
 runtime/panic/list-index-out-of-bounds.hd	A3	runtime/panic/list-set-out-of-bounds.hd

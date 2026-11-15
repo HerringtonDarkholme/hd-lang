@@ -1,8 +1,0 @@
-# test: from type parameter is by resolution not spelling
-@error
-enum App[DiskError]:
-    @error("inner")
-    Inner(
-        @from # diagnostic: invalid-error-marker
-        error: DiskError,
-    )

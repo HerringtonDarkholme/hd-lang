@@ -1,0 +1,16 @@
+# test: member metadata lines for direct members self and variants are valid
+use std.structure.Structure
+
+struct User:
+    name: string
+
+impl User by Structure:
+    Self += []
+    name = []
+
+enum Reply:
+    Sent(id: i64)
+    Busy
+
+impl Reply by Structure:
+    Busy = []

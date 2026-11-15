@@ -1,0 +1,8 @@
+# test: error markers from on a type parameter named like an error type is invalid
+@error
+enum App[DiskError]:
+    @error("inner")
+    Inner(
+        @from # diagnostic: invalid-error-marker
+        error: DiskError,
+    )

@@ -1,0 +1,5 @@
+# test: error markers from on a struct field of a type parameter is invalid
+@error("x")
+struct D[E]:
+    @from # diagnostic: invalid-error-marker
+    inner: E

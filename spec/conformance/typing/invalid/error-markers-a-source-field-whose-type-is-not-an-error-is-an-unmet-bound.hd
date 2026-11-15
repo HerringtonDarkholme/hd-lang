@@ -1,0 +1,8 @@
+# test: error markers a source field whose type is not an error is an unmet bound
+@error
+enum E:
+    @error("bad")
+    Path(
+        @source # diagnostic: unsatisfied-trait-bound
+        reason: i64?,
+    )

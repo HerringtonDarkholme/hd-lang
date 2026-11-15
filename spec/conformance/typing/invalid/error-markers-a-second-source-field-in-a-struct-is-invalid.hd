@@ -1,0 +1,11 @@
+# test: error markers a second source field in a struct is invalid
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error("x")
+struct D:
+    @source
+    a: DiskError
+    @source # diagnostic: invalid-error-marker
+    b: DiskError

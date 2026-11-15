@@ -1,0 +1,5 @@
+# test: error markers transparent on a variant without members is the wrong target
+@error
+enum E:
+    @error(transparent) # diagnostic: decorator-target-kind
+    Empty

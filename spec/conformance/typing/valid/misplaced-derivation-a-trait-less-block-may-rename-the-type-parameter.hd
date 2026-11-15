@@ -1,0 +1,8 @@
+# test: misplaced derivation a trait less block may rename the type parameter
+use std.structure.Structure
+
+struct Box[T]:
+    item: T
+
+impl[U] Box[U] by Structure:
+    item += []

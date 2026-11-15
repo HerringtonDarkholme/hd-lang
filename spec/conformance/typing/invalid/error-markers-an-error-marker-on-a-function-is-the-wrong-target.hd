@@ -1,0 +1,4 @@
+# test: error markers an error marker on a function is the wrong target
+@error(opaque) # diagnostic: decorator-target-kind
+fn tool() -> string:
+    "hammer"

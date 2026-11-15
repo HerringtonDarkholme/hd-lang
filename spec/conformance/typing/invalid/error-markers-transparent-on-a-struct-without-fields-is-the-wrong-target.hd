@@ -1,0 +1,3 @@
+# test: error markers transparent on a struct without fields is the wrong target
+@error(transparent) # diagnostic: decorator-target-kind
+struct D: pass

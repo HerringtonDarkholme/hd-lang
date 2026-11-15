@@ -1,0 +1,12 @@
+# test: member metadata a trait less block gives a defaulted member a list
+use std.structure.Structure
+
+struct Token:
+    text: string = ""
+
+struct Account:
+    id: i64
+    token: Token = Token {}
+
+impl Account by Structure:
+    token = []

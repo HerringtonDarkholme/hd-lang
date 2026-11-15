@@ -1,0 +1,12 @@
+# test: error markers a source marker with an argument is invalid
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error
+enum E:
+    @error("x")
+    Y(
+        @source(strict) # diagnostic: invalid-error-marker
+        error: DiskError,
+    )

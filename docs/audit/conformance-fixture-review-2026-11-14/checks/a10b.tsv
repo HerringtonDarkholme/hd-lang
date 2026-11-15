@@ -36,8 +36,8 @@ typing/valid/parameter-names-two-closure-parameters-with-distinct-names-are-vali
 typing/valid/parameter-names-two-local-function-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-local-function-parameters-may-not-share-a-name.hd
 typing/valid/parameter-names-two-method-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-method-parameters-may-not-share-a-name.hd
 typing/valid/parameter-names-two-trait-method-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-trait-method-parameters-may-not-share-a-name.hd
-typing/valid/error-markers-from-type-parameter-is-by-resolution-not-spelling-16.hd	A10b	same title as reject typing/invalid/error-markers-from-type-parameter-is-by-resolution-not-spelling-17.hd
-typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	A10b	same title as reject typing/invalid/error-markers-transparent-requires-exactly-one-member-1.hd
+typing/valid/error-markers-from-on-a-concrete-error-field-of-a-generic-enum-is-valid.hd	A10b	same title as reject typing/invalid/error-markers-from-on-a-type-parameter-named-like-an-error-type-is-invalid.hd
+typing/valid/error-markers-transparent-requires-exactly-one-member-1-legal-markers.hd	A10b	same title as reject typing/invalid/error-markers-transparent-on-a-variant-without-members-is-the-wrong-target.hd
 typing/valid/impl-targets-a-dyn-inherent-impl-lives-in-the-module-of-its-trait-70.hd	A10b	same title as reject typing/invalid/impl-targets-a-dyn-inherent-impl-lives-in-the-module-of-its-trait-71.hd
 typing/valid/impl-targets-a-trait-argument-gives-module-ownership-only-in-its-own-module-67.hd	A10b	same title as reject typing/invalid/impl-targets-a-trait-argument-gives-module-ownership-only-in-its-own-module-68.hd
 typing/valid/literals-a-literal-converts-to-a-trait-value-at-its-default-type-47.hd	A10b	same title as reject typing/invalid/literals-a-literal-converts-to-a-trait-value-at-its-default-type-49.hd

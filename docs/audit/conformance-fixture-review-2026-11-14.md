@@ -503,7 +503,7 @@ Each pair should become one tree used by both fixtures.
 - `trees/failed-import-24` = `trees/failed-import-25`
 - `trees/migrate-64-impl-placement` = `trees/migrate-69-impl-placement`
 - `trees/dyn-inherent-nonlocal` = `trees/migrate-71-impl-placement`
-- `trees/migrate-127-impl-placement` = `trees/migrate-128-impl-placement`
+- `trees/misplaced-derivation-a-trait-block-outside-its-targets-module-is-misplaced` = `trees/misplaced-derivation-a-trait-less-block-outside-its-targets-module-is-misplaced`
 - `trees/migrate-698-8` = `trees/migrate-698-9`
 - `trees/migrate-698-10` = `trees/migrate-698-11`
 - `trees/migrate-698-28` = `trees/migrate-698-29`
@@ -556,14 +556,14 @@ legal, or make them `warn` cases if the lint is in scope.
   `fn debug(self) -> string`; std `Debug` is
   `debug(&self, out: *mut DebugWriter) -> void`. `hd` stops at
   `misplaced-derivation`, so CI never sees the mismatch.
-- `typing/invalid/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced-126.hd`:
+- `typing/invalid/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced.hd`:
   the template body is `"x"` with no walk, describe or build call, so
   `annot.template.body.error` (`marker-template`) also applies.
 
 **Wrong citation (B7)**
-- `typing/valid/facts-of-check-the-result-is-facts-26.hd`: an accept case cites
+- `typing/valid/facts-of-the-result-of-a-function-declaration-is-its-facts.hd`: an accept case cites
   `annot.facts-of.target.error`, an error-only rule.
-- `typing/invalid/facts-of-check-a-missing-argument-follows-the-call-rules-30.hd`
+- `typing/invalid/facts-of-a-missing-argument-follows-the-call-rules.hd`
   and `…-an-extra-argument-follows-the-call-rules-31.hd`: they expect
   `argument-count`, but cite `target.error`, whose code is
   `invalid-facts-of-target`.
@@ -577,9 +577,9 @@ legal, or make them `warn` cases if the lint is in scope.
   but the replaced member has no decorator.
 - `typing/valid/structure-calls-are-pure.hd`: the title names walk, describe and
   build, but only describe is called.
-- `typing/valid/generic-member-call-member-through-a-generic-walker-errors-39.hd`:
+- `typing/valid/walker-member-through-a-generic-structure-parameter-is-callable.hd`:
   an accept case titled "errors"; the walker is concrete.
-- `typing/valid/misplaced-derivation-a-rejected-block-reports-nothing-else-130-legal.hd`:
+- `typing/valid/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd`:
   kept its reject twin's title.
 
 **Checks that cannot fail (B3)**
@@ -597,7 +597,7 @@ legal, or make them `warn` cases if the lint is in scope.
 **Dead code (B5, minor)**
 - `runtime/valid/different-facts-are-evaluated-independently.hd`: `facts_of`
   import and `no_prefix` unused.
-- `typing/valid/checker-omitted-derivation-members-need-defaults-185.hd`:
+- `typing/valid/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd`:
   `struct Audit` unused.
 - `typing/invalid/trait-less-block-declares-no-method.hd`: `Note` and `note()`
   unused.
@@ -621,7 +621,7 @@ legal, or make them `warn` cases if the lint is in scope.
 
 ## Spec Questions
 
-- `typing/invalid/facts-of-check-an-unknown-name-is-unknown-32.hd`:
+- `typing/invalid/facts-of-an-unknown-name-is-unknown.hd`:
   `annot.facts-of.target.error` says any other argument gives
   `invalid-facts-of-target`, but the fixture expects `unknown-name`. The spec
   doesn't say which one wins.

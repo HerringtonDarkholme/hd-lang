@@ -1,0 +1,9 @@
+# test: error markers a transparent struct with one from field is valid
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error(transparent)
+struct Wrap:
+    @from
+    inner: DiskError

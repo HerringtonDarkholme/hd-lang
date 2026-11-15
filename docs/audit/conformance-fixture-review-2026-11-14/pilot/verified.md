@@ -17,16 +17,16 @@
 | 1 | runtime/valid/different-facts-are-evaluated-independently.hd | FIX B5 | CONFIRMED (minor) | facts_of import and no_prefix are unused. |
 | 1 | runtime/valid/member-line-lists-self-line-takes-a-list-expression.hd | FIX B5 | not checked | dead-code claim |
 | 1 | typing/valid/annotations.hd | FIX B5 | not checked | dead-code claim |
-| 1 | typing/valid/checker-omitted-derivation-members-need-defaults-185.hd | FIX B5 | CONFIRMED (minor) | struct Audit unused. |
+| 1 | typing/valid/member-metadata-a-derivation-may-omit-a-member-with-a-default.hd | FIX B5 | CONFIRMED (minor) | struct Audit unused. |
 | 1 | C2 generated-error-bounds | REPORT | keep as report | |
 | 5 | typing/invalid/extending-a-member-line-cannot-take-pass.hd | UNSURE B2 | REJECT | `hd check` reports exactly one error, on the marked line. |
 | 5 | typing/valid/trait-less-derivation-block.hd | FIX B1 | CONFIRMED | `email = [...]` "replaces" metadata, but email has no decorator, so nothing is replaced. |
 | 5 | runtime/valid/member-line-list-expression.hd | FIX B1 | PLAUSIBLE | title "any list-typed expression"; not checked in depth. |
 | 5 | typing/invalid/trait-less-block-declares-no-method.hd | FIX B5 | CONFIRMED (minor) | Note and note() unused. |
 | 5 | C2 no-trait.generic.rename, no-trait.not-inherent, metadata.eval-as-fact | REPORT | keep as report | |
-| 4 | typing/valid/facts-of-check-the-result-is-facts-26.hd | FIX B1 | CONFIRMED | An accept fixture cites target.error, an error-only rule. Wrong spec column. |
+| 4 | typing/valid/facts-of-the-result-of-a-function-declaration-is-its-facts.hd | FIX B1 | CONFIRMED | An accept fixture cites target.error, an error-only rule. Wrong spec column. |
 | 4 | typing/invalid/facts-of-check-{a-missing,an-extra}-argument-...-{30,31}.hd | FIX B1 | CONFIRMED | Expect argument-count but cite target.error (which gives invalid-facts-of-target). Wrong spec column. |
-| 4 | typing/invalid/facts-of-check-an-unknown-name-is-unknown-32.hd | UNSURE B2 | SPEC QUESTION | target.error says "any other argument" -> invalid-facts-of-target; fixture expects unknown-name. Spec doesn't say which wins. |
+| 4 | typing/invalid/facts-of-an-unknown-name-is-unknown.hd | UNSURE B2 | SPEC QUESTION | target.error says "any other argument" -> invalid-facts-of-target; fixture expects unknown-name. Spec doesn't say which wins. |
 | 4 | runtime/valid/facts-and-handles-build-once.hd | FIX B1 | PLAUSIBLE | Tests fact laziness; cites handle.constants. |
 | 4 | runtime/valid/structure-a-generic-owner-has-one-handle-per-instantiation.hd | FIX B3 | CONFIRMED | Prints name/position/index equalities that are true whether handles are shared or per-instantiation. |
 | 4 | runtime/valid/tuple-handle-instances.hd | FIX B1 | CONFIRMED | Cites handle.shared-target but never observes sharing. |
@@ -35,14 +35,14 @@
 | 4 | C2 x6 | REPORT | keep as report | |
 | 6 | typing/invalid/template-outside-trait-module.hd, template-reexported-from-other-package.hd | FIX B2 | CONFIRMED | Template writes `fn debug(self) -> string`; std Debug is `debug(&self, out: *mut DebugWriter) -> void`. A second error hides behind the marked one (hd stops at misplaced-derivation). |
 | 6 | typing/valid/structure-calls-are-pure.hd | FIX B1 | CONFIRMED | Title claims walk, describe and build; code calls only describe. |
-| 6 | typing/valid/checker-decorator-target-kind-is-checked-54.hd | UNSURE B1 | not checked | Accept case whose title reads like a rejection. |
+| 6 | typing/valid/annotations-a-field-annotation-on-a-struct-field-is-valid.hd | UNSURE B1 | not checked | Accept case whose title reads like a rejection. |
 | 6 | C2 x4 | REPORT | keep as report | |
 | 7 | typing/valid/typed-fact-function.hd | FIX B1 | PLAUSIBLE | Title says parameters are written as bounds; wrap[T] is unbounded. |
-| 8 | typing/invalid/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced-126.hd | FIX B2 | CONFIRMED | Template body is "x" with no walk/describe/build, so annot.template.body.error (marker-template) also applies. |
-| 8 | typing/valid/generic-member-call-member-through-a-generic-walker-errors-39.hd | FIX B1 | CONFIRMED | Accept case titled "errors"; the walker is concrete. Retitle. (DELETE C1 rejected: generic S differs from 41.) |
-| 8 | typing/valid/misplaced-derivation-a-rejected-block-reports-nothing-else-130-legal.hd | FIX B1 | CONFIRMED | Legal twin kept the reject twin's title. |
-| 8 | typing/valid/misplaced-derivation-a-renamed-trait-less-header-is-clean-125.hd | DELETE C1 | REJECT | The renamed parameter (impl[U] Box[U] for struct Box[T]) is the point of the case. |
+| 8 | typing/invalid/misplaced-derivation-a-template-outside-its-traits-module-is-misplaced.hd | FIX B2 | CONFIRMED | Template body is "x" with no walk/describe/build, so annot.template.body.error (marker-template) also applies. |
+| 8 | typing/valid/walker-member-through-a-generic-structure-parameter-is-callable.hd | FIX B1 | CONFIRMED | Accept case titled "errors"; the walker is concrete. Retitle. (DELETE C1 rejected: generic S differs from 41.) |
+| 8 | typing/valid/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd | FIX B1 | CONFIRMED | Legal twin kept the reject twin's title. |
+| 8 | typing/valid/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd | DELETE C1 | REJECT | The renamed parameter (impl[U] Box[U] for struct Box[T]) is the point of the case. |
 | 8 | typing/invalid/generic-data-member-call.hd ~ generic-member-call.hd | DELETE C1 | PLAUSIBLE | Differ only in hook name (data_member vs member). Owner call: one case per hook, or one total. |
 | 8 | typing/valid/typed-derivation.hd ~ runtime/valid/typed-derivation-walk.hd | DELETE C1 | PLAUSIBLE | not checked in depth |
 | 8 | runtime/valid/a-method-named-like-a-source-member-releases-its-owned-string.hd | UNSURE B1 | not checked | release only visible in checked mode |
-| 8 | typing/valid/derive-members-generic-target-meets-the-bound-through-its-derived-bound-364.hd | FIX B5 | not checked | |
+| 8 | typing/valid/derive-a-generic-target-meets-the-bound-through-its-derived-bound.hd | FIX B5 | not checked | |

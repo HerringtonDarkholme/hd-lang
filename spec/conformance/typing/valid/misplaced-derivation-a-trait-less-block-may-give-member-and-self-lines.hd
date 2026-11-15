@@ -1,0 +1,9 @@
+# test: misplaced derivation a trait less block may give member and self lines
+use std.structure.Structure
+
+struct Box[T]:
+    item: T
+
+impl[T] Box[T] by Structure:
+    item += []
+    Self += []
