@@ -1,4 +1,4 @@
-# test: checker contextual variants with an expected type are clean
+# test: matching enums contextual variants in bindings and results are valid
 fn case_237() -> i32?:
     let v: i32? = .None
     v
