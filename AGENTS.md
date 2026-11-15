@@ -94,6 +94,13 @@ Know what the change touches, and test that first.
    type pool), after the focused tests pass, and rare; say why.
 4. Keep the machine usable: cargo `-j 2`, `RUST_TEST_THREADS=2`, one heavy
    command at a time, and delete build output you made outside `target/`.
+5. Every command an agent runs has a timeout: a script, a test run, a
+   benchmark, a loop over processes, or a wait. Use the tool's own timeout,
+   or `timeout N` around the command. A command that can't finish within
+   its timeout is a bug to report, not one to wait out. Owner, 2026-11-14:
+   "each command must have a timeout". On that day a cache benchmark's
+   `hd check` processes deadlocked and sat at 0% CPU for over 30 minutes
+   while the agent waited on them.
 
 ## Spec Scope For The Standard Library
 
