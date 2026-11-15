@@ -2522,14 +2522,14 @@ Ledger: b160 (44): 6. b161 (45): 0. b162 (45): 1. b163 (45): 5.
 Ledger: b164 (45): 6. b165 (44): 2. b166 (45): 5. b167 (44): 1.
 
 - **Checks that cannot fail (B3), confirmed**:
-  - `runtime/valid/property-generators-scalars.hd:58` asserts `x == x || x != x`,
+  - `std/testing/property-tests/property-generators-scalars.hd:58` asserts `x == x || x != x`,
     which holds for every `f64`, NaN included. A17 missed it because it
     isn't a literal tautology.
   - `std/task/channels/channel-full-blocks-sender.hd`: the order loop checks
     `got(i-1)` against `sent(i+1)`. At `i = 3`, `"sent 4"` never exists
     (`position` returns 1000), so the last comparison always passes and only
     two of three orderings are really checked.
-  - Plausible: `runtime/valid/derived-arbitrary-with.hd` (asserts `price >= 0` with an
+  - Plausible: `std/testing/derived-arbitrary/derived-arbitrary-with.hd` (asserts `price >= 0` with an
     example price of 0).
 - **Code under test never runs (B4)**: `std/task/a-module-function-takes-type-arguments-through-its-module.hd`
   (`echo`, `make`, `say`, `wrap` and `convert!` are never called; it also cites only
@@ -2543,7 +2543,7 @@ Ledger: b164 (45): 6. b165 (44): 2. b166 (45): 5. b167 (44): 1.
   `std/text.md#more-string-methods` for trait-value rules (probably the tier rule
   again, as in b148). `std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd`.
 - Plausible B1: `std/serde/standard-implementations/serde-reference-round-trip.hd` (`&Node?` against `*Cell?`).
-  `runtime/valid/property-assume-discards.hd` (nothing counts the cases).
+  `std/testing/property-tests/property-assume-discards.hd` (nothing counts the cases).
 
 #### Targeted pass: formatter damage in chapters 01 and 02 (A7 + A7b, 136 fixtures)
 
