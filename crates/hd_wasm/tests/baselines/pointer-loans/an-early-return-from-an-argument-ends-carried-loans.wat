@@ -331,6 +331,7 @@
         local.set $t6
       end
       local.get $fail
+      local.tee $fail
       if
         local.get $fail
         i32.const 8

@@ -417,7 +417,6 @@
               i32.add
               local.set $t7
             end
-    ;; 26 |     for round in 0..2:
             local.get $t4
             if
               local.get $t4
@@ -458,7 +457,6 @@
               i32.const 0
               local.set $t4
             end
-    ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
             local.get $p
             i32.load $heap
             i32.load $heap offset=4
