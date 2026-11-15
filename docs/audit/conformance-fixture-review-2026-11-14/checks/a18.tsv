@@ -10,6 +10,6 @@ typing/invalid/dyn-conversion-without-impl.hd	A18	lang/09-traits.md#r-trait.dyn.
 typing/invalid/dyn-ref-value-shared.hd	A18	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
 typing/invalid/dyn-ref-value-mutable.hd	A18	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
 typing/invalid/dyn-ref-value-list-literal.hd	A18	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
-typing/invalid/provider-ref-value.hd	A18	lang/11-requirements-and-suspension.md#r-req.ref.install-value
+requirements/providers-behind-references/provider-ref-value.hd	A18	lang/11-requirements-and-suspension.md#r-req.ref.install-value
 typing/invalid/concrete-reference-bound-associated-type-mismatch.hd	A18	lang/09-traits.md#dynamic-trait-values
 typing/invalid/counted-trait-value-from-value.hd	A18	lang/09-traits.md#r-trait.dyn.ref.counted.new

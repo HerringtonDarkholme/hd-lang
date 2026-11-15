@@ -3,7 +3,7 @@ typing/valid/related-traits-derived-eq-and-hash-together-are-valid.hd	A13	every 
 typing/valid/related-traits-derived-eq-partial-ord-and-ord-together-are-valid.hd	A13	every code line is in runtime case runtime/valid/readonly-comparison-parameter-lifetimes.hd
 typing/valid/local-functions.hd	A13	every code line is in runtime case runtime/valid/named-local-functions.hd
 typing/valid/closure-assigns-captured-let.hd	A13	every code line is in runtime case runtime/valid/closure-captured-let-shared.hd
-typing/valid/requirement-key-any-trait.hd	A13	every code line is in runtime case runtime/valid/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd
+requirements/requirement-rows/requirement-keys/requirement-key-any-trait.hd	A13	every code line is in runtime case requirements/requirement-rows/requirement-keys/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd
 typing/valid/literal-one-fit-left-operand.hd	A13	every code line is in runtime case runtime/valid/operator-left-primitive-converted-left-operand-selects-the-left-types-implementation.hd
 typing/valid/omitted-result-cycle-one-annotated.hd	A13	every code line is in runtime case runtime/valid/inferred-results-recursion-through-an-annotated-function-is-valid.hd
 typing/valid/dependent-result-receiver.hd	A13	every code line is in runtime case runtime/valid/dependent-result-caller-side.hd

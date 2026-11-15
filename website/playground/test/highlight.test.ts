@@ -120,7 +120,7 @@ test("editor token classes match classify on the examples and runtime fixtures",
   const paths = [
     "examples/core.hd",
     "examples/suspension.hd",
-    "spec/conformance/runtime/valid/context-values-install-providers.hd",
+    "spec/conformance/requirements/provider-scopes/context-values-install-providers.hd",
     "spec/conformance/runtime/valid/propagation-from-two-domains.hd",
     "spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd",
     "spec/conformance/runtime/valid/println-console-stdout.hd",

@@ -520,10 +520,10 @@ other rule.
 - `typing/invalid/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
 - `names/module-scope/forward-module-binding.hd` = `names/module-scope/exec-binding-read-before-declared.hd`
 - `typing/invalid/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `typing/invalid/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
-- `typing/invalid/generic-requirement-key-collision.hd` = `typing/invalid/generic-provider-key-collision-nested.hd`
-- `typing/valid/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `typing/valid/row-union-private-result.hd` (`req.row.union.sites`)
-- `typing/invalid/requirement-key-unknown-binding.hd` = `typing/invalid/requirement-key-unknown-binding-rule.hd` (same rule, too)
-- `typing/invalid/row-parameter-unmarked.hd` (`req.row.param.unmarked`) = `typing/invalid/row-parameter-kind-not-inferred.hd` (`req.row.param.no-inference`)
+- `requirements/provider-scopes/generic-requirement-key-collision.hd` = `requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd`
+- `requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `requirements/requirement-rows/row-subsumption/row-union-private-result.hd` (`req.row.union.sites`)
+- `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd` = `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd` (same rule, too)
+- `requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd` (`req.row.param.unmarked`) = `requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd` (`req.row.param.no-inference`)
 - `typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd` is the `runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd` program without its `expect-stdout`. The runtime case covers it.
 
 **REJECTED (legitimate, 4 groups)**: they differ only by a directive or a
@@ -1919,7 +1919,7 @@ the point. **The likely wrong-reason ones** (the rule is about something else):
 - `typing/invalid/trait-generic-instantiations-unrelated.hd` (invariance)
 - `typing/invalid/inspectable-child-trait-without-impl.hd` (`trait.erase.child-impl`)
 - `typing/invalid/concrete-value-binding-mismatch.hd`, `typing/invalid/counted-trait-value-from-value.hd`,
-  `typing/invalid/provider-ref-value.hd` (need a look)
+  `requirements/providers-behind-references/provider-ref-value.hd` (need a look)
 Fix pattern: add the `&` so that only the rule under test is broken, then
 check that the expected code still fires.
 
@@ -2199,23 +2199,23 @@ Ledger: b102 (45): 4 rows. b103 (44): 1 row. Plausible 4, rejected 1.
 Ledger: b106 (43): 11 rows. b107 (45): 6 rows. Plausible ~15.
 
 - **Checks that cannot fail (B3), plausible-strong; a provider-test pattern**:
-  - `runtime/valid/multi-provider-use-order.hd`: `left.value() + right.value()` is
+  - `requirements/provider-access/multi-provider-use-order.hd`: `left.value() + right.value()` is
     commutative, so swapping the use order still gives 42. Use `left*100 + right`.
-  - `runtime/valid/closure-captures-provider-scope.hd` and
-    `runtime/valid/nested-provider-scope.hd`: the provider value is discarded
+  - `requirements/construction-time-requirement-binding/closure-captures-provider-scope.hd` and
+    `requirements/provider-scopes/nested-provider-scope.hd`: the provider value is discarded
     (`_ := clock`) and the function returns a constant 42, so a broken capture or
     the wrong nearest provider still passes. Call a method of the provider.
-  - `runtime/valid/cold-suspension-cancel-idempotent.hd`: `ready!` has no visible
+  - `requirements/cancellation/cold-suspension-cancel-idempotent.hd`: `ready!` has no visible
     effect, so running the cold body by mistake would go unnoticed.
-- **Stale title (B1)**: `runtime/valid/await-cancelled-job-cancels-all.hd` names an
+- **Stale title (B1)**: `requirements/cancellation/await-cancelled-job-cancels-all.hd` names an
   `all!` combinator that doesn't exist (it is `join!`).
-- Plausible B2: `runtime/panic/abandon-active-ancestor.hd` (the panic marker is on
+- Plausible B2: `requirements/cancellation/abandon-active-ancestor.hd` (the panic marker is on
   the caller's line; the b018 owner question).
-- Plausible B7: `runtime/valid/suspending-call-with-defer.hd` and `…-in-scoped-defer.hd`
+- Plausible B7: `requirements/cancellation/suspending-call-with-defer.hd` and `…-in-scoped-defer.hd`
   (cite cancellation; nothing is cancelled). `runtime/valid/result-pattern-nested-enum.hd`.
   `typing/invalid/unknown-std-module.hd` and `unknown-dep-module.hd` (the cited rules
   state no error; `unknown-module` is defined only in the README diagnostics list).
-- Plausible: `…/context-values-a-provider-that-does-not-implement-its-key-is-a-type-mismatch.hd` (B1). `runtime/valid/nested-provider-restoration.hd`
+- Plausible: `…/context-values-a-provider-that-does-not-implement-its-key-is-a-type-mismatch.hd` (B1). `requirements/provider-scopes/nested-provider-restoration.hd`
   ~ `…-a-later-entry-wins-over-a-spread-269.hd` (C1). `parse/invalid/direct-variant-use.hd`
   (`hd` reports it at use resolution; is it really a parse error?).
 
@@ -2223,29 +2223,29 @@ Ledger: b106 (43): 11 rows. b107 (45): 6 rows. Plausible ~15.
 
 Ledger: b114 (45): 2 rows. b115 (39): 2 rows.
 
-- Duplicate: `typing/valid/row-union-omitted-result.hd` = `row-union-private-result.hd` (already in A2).
-- Plausible B3: `runtime/valid/pending-first-poll-return-wide-result.hd` (returns 42,
+- Duplicate: `requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` = `row-union-private-result.hd` (already in A2).
+- Plausible B3: `requirements/suspending-functions/pending-first-poll-return-wide-result.hd` (returns 42,
   which fits in `i32`, so a narrow result type still passes).
-- Plausible: `runtime/valid/row-extension-provider-restoration.hd` (B1, restoration
-  is never observed). `runtime/valid/row-forced-overlap-nearest.hd` ~
+- Plausible: `requirements/requirement-polymorphism/row-extension-provider-restoration.hd` (B1, restoration
+  is never observed). `requirements/provider-scopes/row-forced-overlap-nearest.hd` ~
   `dynamic-row-parameter-nearest.hd` (C1).
 
 #### b110, b111 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b110 (45): 2 rows. b111 (45): 0 rows.
 
-- Plausible B3: `runtime/valid/provider-install-box.hd` (`count()` prints 10 whether
+- Plausible B3: `requirements/providers-behind-references/provider-install-box.hd` (`count()` prints 10 whether
   the value is shared or copied, so "a value provider is a copy" is untested).
-- Plausible C1: `typing/invalid/provider-share-shared-for-mutable.hd` ~ `provider-ref-shared-for-mutable.hd`.
+- Plausible C1: `requirements/mutable-providers/provider-share-shared-for-mutable.hd` ~ `provider-ref-shared-for-mutable.hd`.
 
 #### b108, b109, b112, b113 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b108 (42): 0. b109 (44): 6. b112 (43): 5. b113 (40): 3.
 
 - Already known duplicates: `row-parameter-unmarked.hd` (A2), `requirement-key-unknown-binding-rule.hd` (A2).
-- **Depends on map order (B8)**: `runtime/valid/row-union-list-runs.hd` (`from_map` iterates
+- **Depends on map order (B8)**: `requirements/requirement-rows/row-subsumption/row-union-list-runs.hd` (`from_map` iterates
   a map literal and asserts `health=noon;orders=db;`).
-- Plausible C1: `typing/invalid/a-local-row-fixit-skips-an-enclosing-const-parameter.hd` and
+- Plausible C1: `requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd` and
   `a-local-row-fixit-uses-the-active-declaration.hd`. They match siblings in code
   and line and differ only in the fix-it, which the runner doesn't judge (the
   b007 kind of message-only difference).
@@ -2254,26 +2254,26 @@ Ledger: b108 (42): 0. b109 (44): 6. b112 (43): 5. b113 (40): 3.
 - Plausible B1/B4: `checker-…-107` (the title says `println` is forbidden in direct
   contexts; nothing tests it). `checker-…-102` (`block_on` is never reached).
   `defer-indirect-block-on-checks.hd`. `requirement-key-any-trait.hd`.
-  `typing/invalid/row-slot-bare-alias-argument.hd`.
-  `typing/invalid/a-delayed-function-trait-value-keeps-the-callback-requirement.hd`
+  `requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd`.
+  `requirements/requirement-rows/row-sets/a-delayed-function-trait-value-keeps-the-callback-requirement.hd`
   (nothing is delayed).
 - Plausible B7: `…/inferred-rows-a-growing-key-in-a-recursive-row-is-too-deep.hd`
   (the error is `types.generic.polymorphic-recursion`).
-  `typing/invalid/row-union-a-call-through-the-union-needs-every-key.hd` (an `if`
+  `requirements/requirement-rows/row-subsumption/row-union-a-call-through-the-union-needs-every-key.hd` (an `if`
   union, not a list literal).
 
 #### b116, b117 (`lang/11-requirements-and-suspension.md`)
 
 Ledger: b116 (31): 5 rows. b117 (35): 3 rows.
 
-- `runtime/valid/closure-result-keeps-requirement-row.hd`: the A11 class (private `main`, nothing checked).
-- Accept cases titled as rejections (the A10b kind): `typing/valid/requirement-rows-main-declaring-console-may-print.hd`,
+- `requirements/requirement-rows/closure-result-keeps-requirement-row.hd`: the A11 class (private `main`, nothing checked).
+- Accept cases titled as rejections (the A10b kind): `requirements/requirement-rows/requirement-rows-main-declaring-console-may-print.hd`,
   `…-generic-parameter-used-in-the-other-kind-is-a-kind-mismatch-229.hd`.
-- Plausible C1: `typing/invalid/call-missing-requirement.hd` ~ `missing-requirement.hd`.
+- Plausible C1: `requirements/requirement-rows/call-missing-requirement.hd` ~ `missing-requirement.hd`.
   `bang-call-in-plain-function.hd` ~ `bang-call-outside-suspension.hd`.
   `bang-call-in-defer.hd` ~ `defer-suspends.hd`.
-- Plausible: `runtime/valid/a-cancelled-join-cleans-its-completed-text-result.hd` (B3,
-  cleanup not observed). `typing/valid/mutable-suspension.hd` (B1, nothing is `mut`).
+- Plausible: `requirements/cancellation/a-cancelled-join-cleans-its-completed-text-result.hd` (B3,
+  cleanup not observed). `requirements/suspending-functions/mutable-suspension.hd` (B1, nothing is `mut`).
 
 **Ticket size (owner direction):** from b128 on, each Haiku reviewer takes four
 old batches (about 180 fixtures), not one or two. The 43 remaining old batches
@@ -2282,9 +2282,9 @@ old batches (about 180 fixtures), not one or two. The 43 remaining old batches
 #### b118, b119 (`lang/11`, `lang/13`)
 
 Ledger: b118 (11): 3 rows. b119 (45): 0 rows (the generated pointer-loan matrix is clean).
-- Panic marker on the caller's line (the b018 owner question): `runtime/panic/reentrant-cancel.hd`,
-  `runtime/panic/dispose-cancels-active-ancestor.hd`.
-- Plausible C1: `runtime/panic/second-suspension-drive.hd` ~ `block-on-completed-suspension.hd`.
+- Panic marker on the caller's line (the b018 owner question): `requirements/suspendt-protocol/reentrant-cancel.hd`,
+  `requirements/suspendt-protocol/dispose-cancels-active-ancestor.hd`.
+- Plausible C1: `requirements/suspendt-protocol/second-suspension-drive.hd` ~ `block-on-completed-suspension.hd`.
 
 #### b120, b121 (`lang/13-values-and-references.md`, alias conflicts)
 

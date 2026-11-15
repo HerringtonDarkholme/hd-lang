@@ -2,8 +2,8 @@ annotations/two-annotate-forms/inline-always-with.hd	A15	line 10 calls print in 
 typing/invalid/let-else-falls-through.hd	A15	line 8 calls print in fn at line 6 with no $ row
 typing/invalid/omitted-result-cycle-with-written-row-calls-open-row.hd	A15	line 14 calls print in fn at line 12 with no $ row
 typing/invalid/let-pattern-mut-a-field-listed-twice-reports-a-duplicate-through-mut.hd	A15	line 11 calls print in fn at line 9 with no $ row
-typing/invalid/a-recursive-local-function-cannot-be-a-pure-callback.hd	A15	line 9 calls print in fn at line 8 with no $ row
-typing/invalid/a-recursive-function-value-cannot-be-a-pure-callback.hd	A15	line 12 calls print in fn at line 11 with no $ row
-typing/invalid/a-recursive-function-value-needs-its-solved-row.hd	A15	line 10 calls print in fn at line 9 with no $ row
+requirements/requirement-rows/row-subsumption/a-recursive-local-function-cannot-be-a-pure-callback.hd	A15	line 9 calls print in fn at line 8 with no $ row
+requirements/requirement-rows/row-subsumption/a-recursive-function-value-cannot-be-a-pure-callback.hd	A15	line 12 calls print in fn at line 11 with no $ row
+requirements/requirement-rows/row-sets/a-recursive-function-value-needs-its-solved-row.hd	A15	line 10 calls print in fn at line 9 with no $ row
 typing/invalid/provisional-recursive-row-errors-do-not-hide-untyped-collections.hd	A15	line 18 calls print in fn at line 17 with no $ row
 typing/invalid/a-propagation-target-check-survives-recursive-row-retries.hd	A15	line 10 calls print in fn at line 4 with no $ row

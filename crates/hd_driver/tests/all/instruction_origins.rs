@@ -202,7 +202,7 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
         ),
         (
             include_str!(
-                "../../../../spec/conformance/runtime/valid/suspending-closure-captures.hd"
+                "../../../../spec/conformance/requirements/suspending-functions/suspending-closure-captures.hd"
             ),
             false,
         ),

@@ -9,12 +9,12 @@ parse/invalid/mutable-field-modifier.hd	A2	same code (comments/directives stripp
 typing/invalid/nonfinal-spread.hd	A2	same code (comments/directives stripped) as grammar/expressions/positional-after-spread.hd [reject:nonfinal-positional-spread] [reject:nonfinal-positional-spread]
 names/module-scope/forward-module-binding.hd	A2	same code (comments/directives stripped) as names/module-scope/exec-binding-read-before-declared.hd [reject:binding-not-yet-visible] [reject:binding-not-yet-visible]
 typing/invalid/tuple-rest-differs-from-plain.hd	A2	same code (comments/directives stripped) as typing/invalid/tuple-rest-assign.hd [reject:type-mismatch] [reject:type-mismatch]
-typing/invalid/generic-requirement-key-collision.hd	A2	same code (comments/directives stripped) as typing/invalid/generic-provider-key-collision-nested.hd [reject:generic-requirement-key-collision] [reject:generic-requirement-key-collision]
-runtime/panic/competing-suspension-drivers.hd	A2	same code (comments/directives stripped) as runtime/panic/reentrant-suspension-poll.hd [panic:suspension-reentrant-poll] [panic:suspension-competing-driver]
-typing/valid/row-union-omitted-result.hd	A2	same code (comments/directives stripped) as typing/valid/row-union-private-result.hd [accept] [accept]
-typing/invalid/requirement-key-unknown-binding.hd	A2	same code (comments/directives stripped) as typing/invalid/requirement-key-unknown-binding-rule.hd [reject:unknown-associated-type] [reject:unknown-associated-type]
+requirements/provider-scopes/generic-requirement-key-collision.hd	A2	same code (comments/directives stripped) as requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd [reject:generic-requirement-key-collision] [reject:generic-requirement-key-collision]
+requirements/suspendt-protocol/competing-suspension-drivers.hd	A2	same code (comments/directives stripped) as requirements/suspendt-protocol/reentrant-suspension-poll.hd [panic:suspension-reentrant-poll] [panic:suspension-competing-driver]
+requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/row-subsumption/row-union-private-result.hd [accept] [accept]
+requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd [reject:unknown-associated-type] [reject:unknown-associated-type]
 typing/invalid/root-file-super.hd	A2	same code (comments/directives stripped) as typing/invalid/root-file-lib-super.hd [reject:unknown-module] [reject:unknown-module]
-typing/invalid/row-parameter-unmarked.hd	A2	same code (comments/directives stripped) as typing/invalid/row-parameter-kind-not-inferred.hd [reject:generic-kind-mismatch] [reject:generic-kind-mismatch]
+requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A2	same code (comments/directives stripped) as requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd [reject:generic-kind-mismatch] [reject:generic-kind-mismatch]
 lexical/comments/module-documentation.hd	A2	same code (comments/directives stripped) as lexical/comments/module-documentation-second-block.hd [reject:doc-comment-without-target] [accept]
 typing/invalid/module-named-pkg.hd	A2	same code (comments/directives stripped) as typing/invalid/root-mod-file.hd [reject:reserved-module-name], typing/invalid/module-path-not-identifier.hd [reject:invalid-module-path] [reject:reserved-module-name]
 runtime/valid/a-pointer-loan-keeps-its-independent-owner-owned-copy.hd	A2	same code (comments/directives stripped) as typing/valid/a-copied-box-keeps-a-dependent-reference-independent-of-its-list.hd [accept] [accept]
@@ -314,43 +314,43 @@ typing/invalid/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd
 typing/invalid/row-variance-a-list-argument-with-a-narrower-row-is-a-mismatch.hd	A3	typing/invalid/row-variance-a-list-assignment-with-a-narrower-row-is-a-mismatch.hd
 typing/invalid/row-variance-a-list-binding-with-a-narrower-row-is-a-mismatch.hd	A3	typing/invalid/row-variance-a-list-assignment-with-a-narrower-row-is-a-mismatch.hd
 typing/invalid/fn-reference-nested-row-invariant.hd	A3	typing/invalid/fn-reference-result-upgrade.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd	A3	typing/invalid/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
-typing/invalid/requirement-polymorphism-a-row-pattern-with-a-key-the-argument-lacks-is-a-mismatch.hd	A3	typing/invalid/requirement-polymorphism-two-lists-with-disagreeing-rows-are-one-mismatch.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-forwarded-row-parameter-the-caller-does-not-declare-is-missing.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-map-value-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-an-option-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-tuple-element-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-struct-field-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-nested-list-is-missing-in-the-caller.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-two-agreeing-occurrences-is-missing-in-the-caller.hd
+requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-the-argument-lacks-is-a-mismatch.hd	A3	requirements/requirement-polymorphism/requirement-polymorphism-two-lists-with-disagreeing-rows-are-one-mismatch.hd
 typing/invalid/sealed-traits-an-unknown-bound-adds-no-error-at-an-equality-use.hd	A3	typing/invalid/sealed-traits-an-unknown-bound-adds-no-error-at-a-method-call.hd
 typing/invalid/sealed-traits-a-child-trait-may-not-redeclare-a-sealed-member.hd	A3	typing/invalid/inspectable-member-redeclared.hd
 typing/invalid/sealed-traits-a-user-impl-of-any-is-rejected.hd	A3	typing/invalid/sealed-traits-a-user-impl-of-anyval-is-rejected.hd
@@ -443,16 +443,16 @@ names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-v
 names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd
 names/name-categories/module-member-a-trait-or-alias-through-a-module-is-not-a-value-alias.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
 names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-trait.hd	A3	names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd
-typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/requirement-key-unknown-trait.hd
-typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/a-body-row-key-of-a-primitive.hd
-typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
-typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/local-annotation-row-unknown-trait.hd
-typing/invalid/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	typing/invalid/provider-scope-unknown-trait.hd
-typing/invalid/requirement-key-unknown-trait.hd	A3	typing/invalid/a-body-row-key-of-a-primitive.hd
-typing/invalid/requirement-key-unknown-trait.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
-typing/invalid/a-body-row-key-of-a-primitive.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
-typing/invalid/requirement-key-unknown-generic-trait.hd	A3	typing/invalid/function-type-row-unknown-trait-nested.hd
-typing/invalid/local-annotation-row-unknown-trait.hd	A3	typing/invalid/provider-scope-unknown-trait.hd
+requirements/requirement-rows/requirement-keys/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	requirements/requirement-rows/requirement-keys/requirement-key-unknown-trait.hd
+requirements/requirement-rows/requirement-keys/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	requirements/requirement-rows/requirement-keys/a-body-row-key-of-a-primitive.hd
+requirements/requirement-rows/requirement-keys/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd
+requirements/requirement-rows/requirement-keys/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	requirements/requirement-rows/requirement-keys/local-annotation-row-unknown-trait.hd
+requirements/requirement-rows/requirement-keys/type-name-forms-a-requirement-key-naming-no-trait-is-unknown.hd	A3	requirements/requirement-rows/requirement-keys/provider-scope-unknown-trait.hd
+requirements/requirement-rows/requirement-keys/requirement-key-unknown-trait.hd	A3	requirements/requirement-rows/requirement-keys/a-body-row-key-of-a-primitive.hd
+requirements/requirement-rows/requirement-keys/requirement-key-unknown-trait.hd	A3	requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd
+requirements/requirement-rows/requirement-keys/a-body-row-key-of-a-primitive.hd	A3	requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd
+requirements/requirement-rows/requirement-keys/requirement-key-unknown-generic-trait.hd	A3	requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd
+requirements/requirement-rows/requirement-keys/local-annotation-row-unknown-trait.hd	A3	requirements/requirement-rows/requirement-keys/provider-scope-unknown-trait.hd
 typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
 typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
 typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
@@ -654,10 +654,10 @@ typing/invalid/arithmetic-on-bool.hd	A3	typing/invalid/arithmetic-on-list.hd
 typing/invalid/arithmetic-on-bool.hd	A3	typing/invalid/negative-literal-exponent.hd
 typing/invalid/arithmetic-on-list.hd	A3	typing/invalid/negative-literal-exponent.hd
 typing/invalid/propagation-operand-not-optional.hd	A3	typing/invalid/propagation-without-target.hd
-typing/invalid/direct-contexts-block-on-in-a-parameter-default-is-forbidden.hd	A3	typing/invalid/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
-typing/invalid/direct-contexts-block-on-in-a-type-annotation-argument-is-forbidden.hd	A3	typing/invalid/direct-contexts-block-on-in-a-field-annotation-argument-is-forbidden.hd
-typing/invalid/direct-contexts-block-on-in-a-type-annotation-argument-is-forbidden.hd	A3	typing/invalid/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
-typing/invalid/direct-contexts-block-on-in-a-field-annotation-argument-is-forbidden.hd	A3	typing/invalid/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
+requirements/suspending-functions/direct-contexts-block-on-in-a-parameter-default-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
+requirements/suspending-functions/direct-contexts-block-on-in-a-type-annotation-argument-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-annotation-argument-is-forbidden.hd
+requirements/suspending-functions/direct-contexts-block-on-in-a-type-annotation-argument-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
+requirements/suspending-functions/direct-contexts-block-on-in-a-field-annotation-argument-is-forbidden.hd	A3	requirements/suspending-functions/direct-contexts-block-on-in-a-field-default-is-forbidden.hd
 typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-function-value-argument-reads-a-later-binding.hd
 typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-reads-a-later-binding.hd
 typing/invalid/module-initialization-a-function-value-reads-a-later-binding.hd	A3	typing/invalid/module-initialization-a-bound-method-value-argument-reads-a-later-binding.hd
@@ -692,7 +692,7 @@ typing/valid/type-argument-defaults-a-bound-takes-the-trait-argument-default.hd	
 typing/valid/type-argument-defaults-a-default-may-name-an-earlier-parameter.hd	A3	typing/valid/type-argument-defaults-a-struct-parameter-may-default-to-a-concrete-type.hd
 typing/valid/propagation-a-try-error-converts-through-a-from-impl.hd	A3	typing/valid/propagation-a-try-error-with-an-error-impl-converts-to-a-dyn-error.hd
 typing/warnings/variant-binding-name-mismatch.hd	A3	typing/valid/named-variant-bindings.hd
-typing/valid/requirement-row-plus-list.hd	A3	typing/valid/requirement-row-duplicate-keys.hd
+requirements/requirement-rows/requirement-row-plus-list.hd	A3	requirements/requirement-rows/requirement-row-duplicate-keys.hd
 typing/valid/associated-types-an-impl-body-calls-a-sibling-through-a-projection-binding.hd	A3	typing/valid/associated-types-an-impl-body-calls-a-sibling-with-a-written-type-argument.hd
 typing/invalid/union-type-in-a-const-slot.hd	A3	typing/invalid/a-row-in-a-const-slot.hd
 typing/invalid/union-type-in-a-const-slot.hd	A3	typing/invalid/a-row-parameter-in-a-const-slot.hd
@@ -745,8 +745,8 @@ typing/valid/module-initialization-a-generic-impl-method-call-reads-an-earlier-b
 typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd
 typing/valid/module-initialization-a-static-method-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
 typing/valid/module-initialization-an-operator-impl-call-reads-an-earlier-binding.hd	A3	typing/valid/module-initialization-a-trait-default-method-call-reads-an-earlier-binding.hd
-typing/valid/row-parameters-a-type-argument-fills-a-type-parameter.hd	A3	typing/valid/row-parameters-a-row-parameter-used-as-a-row-is-valid.hd
-typing/valid/row-parameters-a-row-parameter-fills-a-function-row.hd	A3	typing/valid/row-parameters-a-row-parameter-used-as-a-row-is-valid.hd
+requirements/requirement-rows/row-parameters/row-parameters-a-type-argument-fills-a-type-parameter.hd	A3	requirements/requirement-rows/row-parameters/row-parameters-a-row-parameter-used-as-a-row-is-valid.hd
+requirements/requirement-rows/row-parameters/row-parameters-a-row-parameter-fills-a-function-row.hd	A3	requirements/requirement-rows/row-parameters/row-parameters-a-row-parameter-used-as-a-row-is-valid.hd
 typing/valid/impl-targets-an-inherent-impl-of-a-struct-is-well-formed.hd	A3	typing/valid/impl-targets-a-trait-impl-for-a-row-generic-function-type-is-well-formed.hd
 typing/valid/impl-targets-an-inherent-impl-of-a-struct-is-well-formed.hd	A3	typing/valid/impl-targets-a-trait-impl-for-a-list-of-trait-values-is-well-formed.hd
 typing/valid/impl-targets-a-bounded-generic-trait-impl-is-well-formed.hd	A3	typing/valid/impl-targets-a-trait-impl-with-an-associated-type-bound-is-well-formed.hd
@@ -1426,34 +1426,34 @@ annotations/two-annotate-forms/literal-suffix-extra-parameter.hd	A3	annotations/
 annotations/two-annotate-forms/literal-suffix-suspending.hd	A3	annotations/two-annotate-forms/literal-suffix-no-parameter.hd
 annotations/two-annotate-forms/string-prefix-extra-parameter.hd	A3	annotations/two-annotate-forms/string-prefix-suspending.hd
 typing/invalid/alias-cycle.hd	A3	typing/invalid/an-alias-of-itself-is-an-alias-cycle.hd
-typing/invalid/row-parameter-on-data.hd	A3	typing/invalid/row-parameter-on-trait.hd
-typing/invalid/row-parameter-on-data.hd	A3	typing/invalid/row-parameter-on-newtype.hd
-typing/invalid/row-parameter-on-data.hd	A3	typing/invalid/row-parameter-unmarked.hd
-typing/invalid/row-parameter-on-data.hd	A3	typing/invalid/a-const-parameter-in-a-row-is-a-kind-error.hd
-typing/invalid/row-parameter-on-trait.hd	A3	typing/invalid/row-parameter-on-newtype.hd
-typing/invalid/row-parameter-on-trait.hd	A3	typing/invalid/row-parameter-unmarked.hd
-typing/invalid/row-parameter-on-trait.hd	A3	typing/invalid/a-const-parameter-in-a-row-is-a-kind-error.hd
-typing/invalid/row-parameter-on-newtype.hd	A3	typing/invalid/row-parameter-unmarked.hd
-typing/invalid/row-parameter-on-newtype.hd	A3	typing/invalid/a-local-row-default-rejects-an-unmarked-local-parameter.hd
-typing/invalid/row-parameter-on-newtype.hd	A3	typing/invalid/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd
-typing/invalid/row-parameter-on-newtype.hd	A3	typing/invalid/a-local-row-fixit-skips-an-enclosing-const-parameter.hd
-typing/invalid/row-parameter-on-newtype.hd	A3	typing/invalid/a-local-row-annotation-rejects-an-unmarked-parameter.hd
-typing/invalid/row-parameter-on-newtype.hd	A3	typing/invalid/a-const-parameter-in-a-row-is-a-kind-error.hd
-typing/invalid/row-parameter-unmarked.hd	A3	typing/invalid/a-const-parameter-in-a-row-is-a-kind-error.hd
-typing/invalid/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	typing/invalid/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd
-typing/invalid/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	typing/invalid/a-local-row-fixit-skips-an-enclosing-const-parameter.hd
-typing/invalid/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	typing/invalid/a-local-row-annotation-rejects-an-unmarked-parameter.hd
-typing/invalid/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	typing/invalid/a-local-row-fixit-uses-the-active-declaration.hd
-typing/invalid/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd	A3	typing/invalid/a-local-row-fixit-skips-an-enclosing-const-parameter.hd
-typing/invalid/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd	A3	typing/invalid/a-local-row-annotation-rejects-an-unmarked-parameter.hd
-typing/invalid/a-local-row-fixit-skips-an-enclosing-const-parameter.hd	A3	typing/invalid/a-local-row-annotation-rejects-an-unmarked-parameter.hd
-typing/invalid/a-local-row-annotation-rejects-an-unmarked-parameter.hd	A3	typing/invalid/a-local-row-fixit-uses-the-active-declaration.hd
-typing/invalid/row-alias-as-type.hd	A3	typing/invalid/row-alias-in-use.hd
-typing/invalid/row-alias-as-type.hd	A3	typing/invalid/row-alias-type-argument.hd
-typing/invalid/row-alias-as-type.hd	A3	typing/invalid/row-alias-explicit-type-argument.hd
-typing/invalid/row-alias-in-use.hd	A3	typing/invalid/row-alias-type-argument.hd
-typing/invalid/row-alias-type-argument.hd	A3	typing/invalid/row-alias-explicit-type-argument.hd
-typing/invalid/row-alias-bare-target.hd	A3	typing/invalid/row-alias-bare-alias.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-data.hd	A3	requirements/requirement-rows/row-parameters/row-parameter-on-trait.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-data.hd	A3	requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-data.hd	A3	requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-data.hd	A3	requirements/requirement-rows/row-parameters/a-const-parameter-in-a-row-is-a-kind-error.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-trait.hd	A3	requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-trait.hd	A3	requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-trait.hd	A3	requirements/requirement-rows/row-parameters/a-const-parameter-in-a-row-is-a-kind-error.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	A3	requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-local-parameter.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-annotation-rejects-an-unmarked-parameter.hd
+requirements/requirement-rows/row-parameters/row-parameter-on-newtype.hd	A3	requirements/requirement-rows/row-parameters/a-const-parameter-in-a-row-is-a-kind-error.hd
+requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A3	requirements/requirement-rows/row-parameters/a-const-parameter-in-a-row-is-a-kind-error.hd
+requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd
+requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd
+requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-annotation-rejects-an-unmarked-parameter.hd
+requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-local-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-fixit-uses-the-active-declaration.hd
+requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd
+requirements/requirement-rows/row-parameters/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-annotation-rejects-an-unmarked-parameter.hd
+requirements/requirement-rows/row-parameters/a-local-row-fixit-skips-an-enclosing-const-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-annotation-rejects-an-unmarked-parameter.hd
+requirements/requirement-rows/row-parameters/a-local-row-annotation-rejects-an-unmarked-parameter.hd	A3	requirements/requirement-rows/row-parameters/a-local-row-fixit-uses-the-active-declaration.hd
+requirements/requirement-rows/row-aliases/row-alias-as-type.hd	A3	requirements/requirement-rows/row-aliases/row-alias-in-use.hd
+requirements/requirement-rows/row-aliases/row-alias-as-type.hd	A3	requirements/requirement-rows/row-aliases/row-alias-type-argument.hd
+requirements/requirement-rows/row-aliases/row-alias-as-type.hd	A3	requirements/requirement-rows/row-aliases/row-alias-explicit-type-argument.hd
+requirements/requirement-rows/row-aliases/row-alias-in-use.hd	A3	requirements/requirement-rows/row-aliases/row-alias-type-argument.hd
+requirements/requirement-rows/row-aliases/row-alias-type-argument.hd	A3	requirements/requirement-rows/row-aliases/row-alias-explicit-type-argument.hd
+requirements/requirement-rows/row-aliases/row-alias-bare-target.hd	A3	requirements/requirement-rows/row-aliases/row-alias-bare-alias.hd
 typing/invalid/trait-method-missing-result-type.hd	A3	typing/invalid/trait-default-method-missing-result-type.hd
 typing/invalid/list-call-not-callable.hd	A3	typing/invalid/call-through-nonfunction-reference.hd
 typing/invalid/only-apply-and-update-make-a-value-callable-store.hd	A3	typing/invalid/a-function-call-is-not-a-place-stored.hd
@@ -1503,8 +1503,8 @@ grammar/expressions/tuple-element-spread.hd	A3	grammar/expressions/tuple-spread-
 annotations/typed-derivation/templates/template-outside-trait-module.hd	A3	annotations/typed-derivation/templates/template-reexported-from-other-package.hd
 runtime/panic/list-slice-out-of-range.hd	A3	runtime/panic/list-slice-reversed.hd
 typing/invalid/unknown-std-name.hd	A3	typing/invalid/unknown-package-name.hd
-typing/invalid/row-slot-bare-alias-argument.hd	A3	typing/invalid/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd
-typing/invalid/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd	A3	typing/invalid/a-bare-trait-in-a-body-row-slot-is-one-kind-error.hd
+requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd
+requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-a-body-row-slot-is-one-kind-error.hd
 typing/invalid/row-slot-bare-explicit-key.hd	A3	typing/invalid/row-slot-bare-explicit-alias.hd
 typing/invalid/private-std-function.hd	A3	typing/invalid/private-std-type.hd
 typing/invalid/std-only-use.hd	A3	typing/invalid/std-only-use-size-of.hd
@@ -1640,7 +1640,7 @@ grammar/statements/a-chained-name-is-not-reassignable-in-its-last-link.hd	A3	gra
 typing/invalid/a-spread-whose-arity-is-not-known-is-rejected-known.hd	A3	typing/invalid/a-spread-whose-arity-is-not-known-is-rejected-other.hd
 typing/invalid/module-member-a-private-declaration-through-a-module-is-private-import-enum-variant.hd	A3	typing/invalid/module-member-a-private-declaration-through-a-module-is-private-import-associated-call.hd
 typing/invalid/module-member-a-missing-declaration-through-a-module-is-unknown-import-enum-variant.hd	A3	typing/invalid/module-member-a-missing-declaration-through-a-module-is-unknown-import-associated-call.hd
-typing/invalid/fn-row-argument-unknown-trait.hd	A3	typing/invalid/context-row-unknown-trait.hd
+requirements/requirement-rows/row-slots/fn-row-argument-unknown-trait.hd	A3	requirements/requirement-rows/row-slots/context-row-unknown-trait.hd
 typing/invalid/orphan-impl-standard-data.hd	A3	typing/invalid/orphan-impl-standard-enum.hd
 typing/invalid/local-impl-before-declaration.hd	A3	typing/invalid/local-inherent-impl-before-declaration.hd
 typing/invalid/local-impl-before-declaration.hd	A3	typing/invalid/local-impl-closure-before-declaration.hd
@@ -2103,9 +2103,9 @@ grammar/generic-parameters-and-bounds/const-generic-parameter-variance-marker.hd
 grammar/source-files-and-suites/nesting-too-deep-in-a-type.hd	A3	grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd
 grammar/source-files-and-suites/nesting-too-deep-in-a-type.hd	A3	grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd
 grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd	A3	grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd
-parse/invalid/provider-context-without-dot.hd	A3	parse/invalid/provider-context-without-operation.hd
-parse/invalid/provider-context-without-dot.hd	A3	parse/invalid/provider-context-without-entries.hd
-parse/invalid/provider-context-without-operation.hd	A3	parse/invalid/provider-context-without-entries.hd
+requirements/provider-scopes/provider-context-without-dot.hd	A3	requirements/provider-scopes/provider-context-without-operation.hd
+requirements/provider-scopes/provider-context-without-dot.hd	A3	requirements/provider-scopes/provider-context-without-entries.hd
+requirements/provider-scopes/provider-context-without-operation.hd	A3	requirements/provider-scopes/provider-context-without-entries.hd
 lexical/literals/unicode-escape-without-braces.hd	A3	lexical/literals/unicode-escape-without-digits.hd
 typing/invalid/union-constructor-call-under-an-unknown-annotation.hd	A3	typing/invalid/union-constructor-value-under-an-unknown-annotation.hd
 runtime/panic/host-character-rejects-lower-surrogate.hd	A3	runtime/panic/host-character-rejects-upper-surrogate.hd
@@ -2200,7 +2200,7 @@ runtime/valid/ord-supertrait-dispatch.hd	A4	runtime accept with no assert, stdou
 runtime/valid/generic-inherent-box.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/i64-widening-checked.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/shared-enum-data-computed-once.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/closure-result-keeps-requirement-row.hd	A4	runtime accept with no assert, stdout check, or scenario
+requirements/requirement-rows/closure-result-keeps-requirement-row.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/trait-default-method-instantiates-params.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/doc-test-console-row.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/reference-enum-replace-build.hd	A4	runtime accept with no assert, stdout check, or scenario
