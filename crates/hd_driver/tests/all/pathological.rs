@@ -601,6 +601,87 @@ fn a_growing_group_costs_its_size() {
     );
 }
 
+// Checker: #1830, the value rule decides each declaration once per run by
+// its component (`hd_check::value::InlineDecls`, #2011), so a ring of n
+// structs, a chain of n structs into a two-struct ring, and a comb of n
+// rings hung on a chain each enter their size in types, not a re-walk of
+// the chain per struct. Each source grows linearly in n.
+/// `struct C{i}: next: C{i+1}`, the last holding `C0`: one ring of `n`.
+fn struct_ring(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = writeln!(s, "struct C{i}:\n    next: C{}\n", (i + 1) % n);
+    }
+    s
+}
+
+/// A chain `C{i}: next: C{i+1}` of `n` structs whose last holds `A`, and
+/// the ring `A: b: B`, `B: a: A`.
+fn chain_into_ring(n: usize) -> String {
+    let mut s = String::from("struct A:\n    b: B\n\nstruct B:\n    a: A\n\n");
+    for i in 0..n {
+        let next = if i + 1 == n {
+            "A".to_owned()
+        } else {
+            format!("C{}", i + 1)
+        };
+        let _ = writeln!(s, "struct C{i}:\n    next: {next}\n");
+    }
+    s
+}
+
+/// A chain `C{i}: next: C{i+1}, ring: A{i}` of `n` structs, each also
+/// holding its own ring `A{i}: b: B{i}`, `B{i}: a: A{i}`.
+fn ring_comb(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = writeln!(
+            s,
+            "struct A{i}:\n    b: B{i}\n\nstruct B{i}:\n    a: A{i}\n"
+        );
+        if i + 1 == n {
+            let _ = writeln!(s, "struct C{i}:\n    ring: A{i}\n");
+        } else {
+            let _ = writeln!(s, "struct C{i}:\n    next: C{}\n    ring: A{i}\n", i + 1);
+        }
+    }
+    s
+}
+
+/// The types the value rule enters for `source`, which reports
+/// `recursive-value-type` `reports` times.
+fn recursive_values_work(source: &str, reports: usize) -> u64 {
+    let (out, types) = hd_check::work::count_held_types(|| compile(source, &Goal::Analyze));
+    let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+    assert_eq!(
+        codes,
+        vec!["recursive-value-type"; reports],
+        "{}",
+        out.render()
+    );
+    types
+}
+
+#[test]
+fn rings_below_chains_cost_their_size() {
+    recursive_values_work(&struct_ring(2), 1);
+    // Whether each struct of the shape hangs a ring of its own: the comb
+    // reports each ring.
+    for (name, generate, per_struct) in [
+        ("ring", struct_ring as fn(usize) -> String, false),
+        ("chain into a ring", chain_into_ring, false),
+        ("comb of rings", ring_comb, true),
+    ] {
+        let reports = |n: usize| if per_struct { n } else { 1 };
+        let small = recursive_values_work(&generate(2000), reports(2000));
+        let large = recursive_values_work(&generate(20_000), reports(20_000));
+        assert!(
+            small >= 2000 && large <= 10 * small * 5 / 4,
+            "types entered for the {name} of 2,000 and 20,000: {small} and {large}",
+        );
+    }
+}
+
 /// Checker: fuel spent entering expressions and solving body obligations.
 fn check_fuel(generate: fn(usize) -> String, small: usize, large: usize) {
     let work = |n| {
