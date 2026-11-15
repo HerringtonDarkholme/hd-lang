@@ -36,6 +36,10 @@ impl CacheStore for Claims {
             EntryKind::Check
         };
         if kind == claimed && found.is_none() {
+            // The driver runs every task inside `hd_cache::task`, so a
+            // claim taken in a task nested in another's join is told
+            // from one its own task left (#2018).
+            assert!(hd_cache::task_depth() >= 1, "a claimed miss outside a task");
             let previous = self
                 .pending
                 .lock()

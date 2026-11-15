@@ -252,9 +252,52 @@ pub fn packhint_key(pipeline: Hash128, profile: BuildProfile, package: Hash128) 
     k.finish()
 }
 
+thread_local! {
+    /// How many [`task`] frames this thread is inside.
+    static TASK_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Runs `f` as one scheduler task on this thread. A work-stealing pool
+/// runs a task inside another one's join on the same thread, while the
+/// outer task is suspended; a claim records the depth it was taken at, so
+/// the disk store tells a suspended task's claim from one this task left
+/// behind (DESIGN.md §5.4, "Why claims cannot deadlock"). Cost: two
+/// thread-local writes per task.
+pub fn task<R>(f: impl FnOnce() -> R) -> R {
+    struct Leave;
+    impl Drop for Leave {
+        fn drop(&mut self) {
+            TASK_DEPTH.with(|d| d.set(d.get() - 1));
+        }
+    }
+    TASK_DEPTH.with(|d| d.set(d.get() + 1));
+    let _leave = Leave;
+    f()
+}
+
+/// The number of [`task`] frames on this thread.
+#[must_use]
+pub fn task_depth() -> u32 {
+    TASK_DEPTH.with(std::cell::Cell::get)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn task_depth_counts_nested_tasks_and_unwinds() {
+        assert_eq!(task_depth(), 0);
+        task(|| {
+            assert_eq!(task_depth(), 1);
+            task(|| assert_eq!(task_depth(), 2));
+            assert_eq!(task_depth(), 1);
+            let unwound = std::panic::catch_unwind(|| task(|| panic!("task panics")));
+            assert!(unwound.is_err());
+            assert_eq!(task_depth(), 1);
+        });
+        assert_eq!(task_depth(), 0);
+    }
 
     #[test]
     fn keys_change_with_each_field() {

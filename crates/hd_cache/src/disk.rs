@@ -56,6 +56,9 @@ mod cost {
         pub lock_waits: u64,
         /// Misses that waited for another run's claim.
         pub claim_waits: u64,
+        /// Contested misses a task computed instead of waiting, because a
+        /// task suspended below it on the thread holds a claim.
+        pub claim_nested: u64,
     }
 
     thread_local! {
@@ -1104,6 +1107,9 @@ mod packed {
     struct Claim {
         _lock: File,
         thread: std::thread::ThreadId,
+        /// The thread's [`crate::task`] depth at the miss: a claim of a
+        /// smaller depth belongs to a task suspended below this one.
+        depth: u32,
         done: bool,
     }
 
@@ -2987,6 +2993,13 @@ mod packed {
             // a waiter can announce itself as soon as this lock is taken.
             drop(self.waits());
             if file.try_lock().is_err() {
+                // A task that runs inside another's join on this thread
+                // computes the entry itself (#2018): waiting would hold the
+                // suspended task's claim, which another run may wait for.
+                if !self.before_waiting() {
+                    count!(claim_nested, 1);
+                    return None;
+                }
                 // Announce before checking completed entries. A concurrent
                 // put either sees this notification or precedes the check,
                 // which then requests publication before we can block.
@@ -3000,7 +3013,6 @@ mod packed {
                 }
                 #[cfg(test)]
                 self.pause("claim-before-wait");
-                self.before_waiting();
                 count!(claim_waits, 1);
                 // A lock that fails leaves a claim others can still take:
                 // they compute too.
@@ -3029,27 +3041,41 @@ mod packed {
                 Claim {
                     _lock: file,
                     thread: std::thread::current().id(),
+                    depth: crate::task_depth(),
                     done: false,
                 },
             );
             None
         }
 
-        /// Before this thread waits for a claim: the only claim it may hold
-        /// is a package `graph`, an ancestor of the coherence rows it reads
-        /// (DESIGN.md §5.4, "Why claims cannot deadlock"). Any other claim of
-        /// this thread belongs to a computation it suspended; a debug build
-        /// stops there, and a release build lets the claim go, so that no
-        /// wait can close a cycle; another run may then compute that entry
-        /// too.
-        fn before_waiting(&self) {
+        /// Before this thread waits for a claim: whether it may. The only
+        /// unfinished claim its task may hold is a package `graph`, an
+        /// ancestor of the coherence rows it reads (DESIGN.md §5.4, "Why
+        /// claims cannot deadlock"). A claim of a task suspended below this
+        /// one on the thread (a smaller [`crate::task`] depth: a pool ran
+        /// this task inside that one's join) is no ancestor, but its task
+        /// resumes only after this one returns, so this one must not wait:
+        /// `false`, and the caller computes the entry. Any other claim was
+        /// left by this task or a finished one; a debug build stops there,
+        /// and a release build lets it go, so that no wait can close a
+        /// cycle; another run may then compute that entry too. Cost: one
+        /// pass over the claims this store holds, per contested miss.
+        fn before_waiting(&self) -> bool {
             let me = std::thread::current().id();
+            let depth = crate::task_depth();
             let mut claims = self.claims();
-            let off_path: Vec<Key> = claims
-                .iter()
-                .filter(|(k, c)| c.thread == me && !c.done && k.0 != EntryKind::Graph as u16)
-                .map(|(k, _)| *k)
-                .collect();
+            let mut suspended = false;
+            let mut off_path: Vec<Key> = Vec::new();
+            for (k, c) in claims.iter() {
+                if c.thread != me || c.done || k.0 == EntryKind::Graph as u16 {
+                    continue;
+                }
+                if c.depth < depth {
+                    suspended = true;
+                } else {
+                    off_path.push(*k);
+                }
+            }
             debug_assert!(
                 off_path.is_empty(),
                 "waiting for a claim while holding {off_path:x?}, which are not its ancestors"
@@ -3057,6 +3083,7 @@ mod packed {
             for k in off_path {
                 claims.remove(&k);
             }
+            !suspended
         }
 
         /// Cancel only this unfinished key, with one indexed lookup. A
@@ -6060,6 +6087,54 @@ mod packed {
             std::fs::write(&claims, b"not a directory").unwrap();
             assert!(a.get_or_claim(EntryKind::Check, &Hash128(3)).is_none());
             assert!(!a.held(EntryKind::Check, &Hash128(3)));
+        }
+
+        /// A task the pool runs inside a claim holder's join, on the same
+        /// thread, computes a contested miss instead of waiting (#2018):
+        /// the run it would wait for may be waiting for the suspended
+        /// task's claim. The suspended task keeps its claim.
+        #[test]
+        fn a_task_nested_in_a_claim_holders_join_computes_instead_of_waiting() {
+            let root = scratch("claim-nested");
+            let (mut a, mut b) = (Store::new(&root), Store::new(&root));
+            a.claiming = true;
+            b.claiming = true;
+            drop(a.join());
+            drop(b.join());
+            // Another run computes key 2.
+            assert!(b.get_or_claim(EntryKind::Check, &Hash128(2)).is_none());
+            assert!(b.held(EntryKind::Check, &Hash128(2)));
+            cost::take();
+            crate::task(|| {
+                assert!(a.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
+                assert!(a.held(EntryKind::Check, &Hash128(1)));
+                crate::task(|| {
+                    // Before #2018, this waited for `b` while holding key 1.
+                    assert!(a.get_or_claim(EntryKind::Check, &Hash128(2)).is_none());
+                    assert!(!a.held(EntryKind::Check, &Hash128(2)));
+                });
+                assert!(a.held(EntryKind::Check, &Hash128(1)));
+            });
+            let counts = cost::take();
+            assert_eq!((counts.claim_waits, counts.claim_nested), (0, 1));
+        }
+
+        /// A claim a task left unfinished, at its own depth, is no
+        /// suspended task's: a debug build stops before the wait.
+        #[test]
+        #[should_panic(expected = "which are not its ancestors")]
+        fn a_claim_left_by_the_waiting_task_stops_a_debug_build() {
+            let root = scratch("claim-left");
+            let (mut a, mut b) = (Store::new(&root), Store::new(&root));
+            a.claiming = true;
+            b.claiming = true;
+            drop(a.join());
+            drop(b.join());
+            assert!(b.get_or_claim(EntryKind::Check, &Hash128(2)).is_none());
+            crate::task(|| {
+                assert!(a.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
+                a.get_or_claim(EntryKind::Check, &Hash128(2))
+            });
         }
 
         #[test]

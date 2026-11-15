@@ -3734,7 +3734,15 @@ impl Run<'_> {
         matches!(self.goal, Goal::Analyze | Goal::CheckTests)
     }
 
-    fn exec(&self, _id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+    /// Runs one scheduler task. The pool may run it inside another task's
+    /// join on the same thread; [`hd_cache::task`] tells the cache so, and
+    /// a claimed miss there does not wait while the outer task's claim is
+    /// held (#2018).
+    fn exec(&self, id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+        hd_cache::task(|| self.exec_task(id, kind, sp));
+    }
+
+    fn exec_task(&self, _id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
         let t0 = self.host.clock.now_ns();
         let mut child_ns = 0;
         match kind {

@@ -483,10 +483,11 @@ obj/
     std texts and reads no entry.
   - `module_prep` (`check`): `check_key` needs every dependency in
     memory. Its `parse` and `lint` reads come before the `check` miss.
-    Preparation, bodies and the put execute in that one scheduler task,
-    before the worker takes another module. REPL input tasks depend on
-    earlier inputs and the library's complete check. Bodies within a module
-    can still fork and join on the pool.
+    Preparation, bodies and the put execute in that one scheduler task.
+    REPL input tasks depend on earlier inputs and the library's complete
+    check. Bodies within a module fork and join on the pool, and a join
+    lets its worker run another task, such as another module's
+    `module_prep`, while this one is suspended under it.
   - `graph_hit` (`graph`, the package's entry): after every interface and
     check. The Coherence part it starts reads the package's coherence rows
     (`graph`), from which the entry is built: a dependency edge. Reading
@@ -497,10 +498,15 @@ obj/
   coherence rows, whose holder waits for nothing. Every wait follows a
   dependency edge, and no wait forms a cycle; no order of process IDs is
   needed. A store never waits for a claim it holds itself, and a store's
-  threads never wait for each other. Before a thread waits, a debug build
-  checks that the only claim it holds is a package `graph`; a release build
-  lets any other claim of that thread go, so a computation the driver
-  suspended after its miss cannot close a cycle.
+  threads never wait for each other. The driver runs each scheduler task
+  inside `hd_cache::task`, and a claim records the thread's task depth.
+  A task the pool runs inside another's join, while that suspended task
+  holds a claim of a smaller depth, does not wait for another run's claim:
+  it computes the entry, which another run may compute too (#2018). Waiting
+  there could close a cycle, since the suspended task resumes only after
+  this one returns. Before a thread waits, a debug build checks that the
+  only unfinished claim of its own depth or deeper is a package `graph`; a
+  release build lets any other such claim go.
 - **Cost per run.** A run that reads `k` keys reads at most `k` shard
   logs (a 112-byte header and at most about 4 KiB of records each) and at
   most `k` pages; one that writes `j` entries or marks `j` hits appends one
