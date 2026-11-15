@@ -2,7 +2,7 @@
 # Spec std/collections: std-collections.set.distinct, std-collections.set.len,
 # std-collections.set.contains, std-collections.set.insert, std-collections.set.remove,
 # std-collections.set.iter, std-collections.set.snapshot, std-collections.set.eq,
-# std-collections.set.collect; types.map.order.deterministic.
+# std-collections.set.collect-distinct; types.map.order.deterministic.
 # General iteration has the map's deterministic but unspecified order.
 # Only collect's separate rule promises first-occurrence order.
 use std.collections.Set

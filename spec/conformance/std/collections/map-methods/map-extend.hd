@@ -1,6 +1,6 @@
 # test: map-extend preserves values and copy independence
 # expect: test
-# Spec std/collections: std-collections.map.extend, std-collections.map.extend-order.
+# Spec std/collections: std-collections.map.extend, std-collections.map.extend-last-wins.
 use std.collections.UniqList
 
 tests:
@@ -12,8 +12,11 @@ tests:
         items.extend([("b", +20), ("c", +3), ("c", +30)])
         entries := items.entries()
         assert_equal(entries.len(), 3)
-        assert_equal(entries.take(2).sorted(), [("a", +1), ("b", +20)])
-        assert_equal(entries[2], ("c", +30), reason="a new key follows the existing entries")
+        assert_equal(
+            entries.sorted(),
+            [("a", +1), ("b", +20), ("c", +30)],
+            reason="the last pair for a repeated key wins, compared sorted",
+        )
         assert_equal(snapshot, { "a": +1, "b": 2 })
         items.extend(items)
         assert_equal(items.len(), 3)

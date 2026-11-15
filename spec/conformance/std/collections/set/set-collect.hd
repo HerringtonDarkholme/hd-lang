@@ -1,5 +1,5 @@
-# test: collect builds a Set of the distinct items in first-seen order, and an empty iterator gives an empty set
-# Spec std/collections Set: std-collections.set.collect.
+# test: collect builds a Set of the distinct items, and an empty iterator gives an empty set
+# Spec std/collections Set: std-collections.set.collect-distinct.
 use std.collections.Set
 
 fn distinct(words: List[string]) -> Set[string]:
@@ -8,13 +8,13 @@ fn distinct(words: List[string]) -> Set[string]:
 tests:
     use std.testing.assert_equal
 
-    it("collects distinct items in first-seen order"):
+    it("collects each distinct item once"):
         found := distinct(["b", "a", "b", "c", "a"])
         assert_equal(found.len(), 3, reason="three distinct")
         assert_equal(
-            found.iter().collect::[List[string]](),
-            ["b", "a", "c"],
-            reason="first-seen order",
+            found.iter().collect::[List[string]]().sorted(),
+            ["a", "b", "c"],
+            reason="the distinct items, compared sorted",
         )
     it("an empty iterator gives an empty set"):
         found := distinct([])

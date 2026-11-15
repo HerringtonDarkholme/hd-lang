@@ -597,10 +597,10 @@ fn summary(stock: Map[string, i32]) -> string:
     "no tea"
 
 fn top_words(words: List[string]) -> List[(string, usize)]:
-    counts(words).most_common(2)  # [("a", 2), ("b", 1)] for ["a", "b", "a", "c"]
+    counts(words).most_common(2)  # [("a", 3), ("b", 2)] for ["a", "b", "a", "c", "b", "a"]
 
 fn pairs(stock: Map[string, i32]) -> List[(string, i32)]:
-    stock.entries()  # [("tea", 3), ("milk", 1)] for {"tea": 3, "milk": 1}
+    stock.entries()  # ("tea", 3) and ("milk", 1), in the map's order
 
 fn tally(words: List[string]) -> Map[string, usize]:
     let mut found: Map[string, usize] = {}
@@ -621,7 +621,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 10. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
 11. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
 12. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
-13. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
+13. r[std-collections.map.most-common.tie-order] Pairs with equal values keep the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the same in every run.
 
 > **Why.** `entries` is a list snapshot like `keys` and `values`, since a
 > loop that sorts or indexes the pairs needs a list. `most_common` is
@@ -640,7 +640,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 1. r[std-collections.map.retain] `retain(keep)` visits each entry once in iteration order, lets `keep` change its value, and removes entries for which it returns false.
 2. r[std-collections.map.extend] `extend(other)` inserts each yielded pair in order, replacing the value of an equal key as indexed assignment does.
-3. r[std-collections.map.extend-order] Replacing a key keeps its iteration position, and new keys follow the existing entries in their first insertion order.
+3. r[std-collections.map.extend-last-wins] When `other` yields equal keys more than once, the value of the last such pair stays.
 4. r[std-collections.map.drain] `drain()` empties the map and returns a non-copyable `MapDrain[K, V, 'a]` that borrows its receiver mutably and yields entries in iteration order.
 5. r[std-collections.map.drain-drop] Dropping the drain discards every unvisited entry and leaves the map empty.
 6. r[std-collections.map.bulk-copy] These methods leave other copies of the map unchanged.
@@ -721,7 +721,7 @@ fn distinct(words: List[string]) -> Set[string]:
 8. r[std-collections.set.cursor] A set's cursor type is `SetIter[T]`, which `std.collections` declares with private fields.
 9. r[std-collections.set.snapshot] Iterating a set walks the set as it was when `iter` was called. An `insert` or a `remove` while the loop runs changes the set but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a map.
 10. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
-11. r[std-collections.set.collect] A set implements `FromIterator[T]`. Collecting inserts each item in order, so the set holds each distinct item once, in the order of its first occurrence, and an empty iterator gives an empty set.
+11. r[std-collections.set.collect-distinct] A set implements `FromIterator[T]`. The collected set holds each distinct item once, and an empty iterator gives an empty set.
 
 > **Note.** `lib/std` builds a set over a `Map` whose values carry no
 > meaning, so `insert`, `remove`, and `contains` take expected constant

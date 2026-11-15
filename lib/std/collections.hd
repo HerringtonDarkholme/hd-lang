@@ -1963,8 +1963,8 @@ impl[T] List[T]:
             sorted.push(self[at])
         sorted
 
-    # The elements under each key, keys in the order first seen.
-    ## Groups the elements by `key(element)`, each group in list order, keys in first-seen order.
+    # The elements under each key.
+    ## Groups the elements by `key(element)`, each group in list order.
     ## See [std-collections.helper.group-by](../../spec/std/collections.md#r-std-collections.helper.group-by).
     pub fn group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]:
         let mut groups: Map[K, List[T]] = {}
@@ -2198,9 +2198,9 @@ fn before[T < Ord](left: T, right: T) -> bool:
         .Less => true
         _ => false
 
-# How many times each element occurs, keys in the order first seen
+# How many times each element occurs
 # (spec/std/collections.md#counts).
-## How many times each element occurs, keys in the order first seen.
+## How many times each element occurs.
 ## See [std-collections.counts.decl](../../spec/std/collections.md#r-std-collections.counts.decl).
 pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
     let mut tally: Map[T, usize] = {}
@@ -2833,8 +2833,7 @@ impl[T < Eq & Hash] Iterator[T] for SetIter[T]:
             .Some(entry) => .Some(entry._0)
             .None => .None
 
-# A set of the distinct items, in the order each first appears
-# (r-std-collections.set.collect).
+# A set of the distinct items (r-std-collections.set.collect-distinct).
 impl[T < Eq & Hash] FromIterator[T] for Set[T]:
     fn from_iter[I < ?Copy & Iterator[T]](items: I) -> Set[T]:
         let mut cursor = items

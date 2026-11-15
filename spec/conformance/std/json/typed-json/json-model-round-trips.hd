@@ -3,7 +3,7 @@
 # std-json.display.escapes, std-json.derive.to-json.data-included-members,
 # std-json.derive.to-json.included-enum-form, std-json.decode.direct.
 # Spec std/serde: std-serde.std.optional, std-serde.std.list, std-serde.std.map-key-entries,
-# std-serde.std.tuple, std-serde.std.set, std-serde.member-name.precedence,
+# std-serde.std.tuple, std-serde.std.set-elements, std-serde.member-name.precedence,
 # std-serde.skip.named-read-default, std-serde.skip.write, std-serde.skip-none.named-omit.v2.
 use std.collections.Set
 use std.json.{decode, encode}
@@ -249,7 +249,9 @@ tests:
             _ := value.insert(item)
             if !unique.contains(item):
                 unique.push(item)
-        expected := "[" + [for item in unique => integer(i64(item))].join(",") + "]"
+        found := value.iter().collect::[List[i32]]()
+        assert_equal(found.sorted(), unique.sorted(), reason="each distinct element once")
+        expected := "[" + [for item in found => integer(i64(item))].join(",") + "]"
         check(value, expected)
     )
 

@@ -4728,8 +4728,8 @@ std/fs/walking-and-globbing/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.or
 std/fs/walking-and-globbing/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep
 std/fs/walking-and-globbing/fs-glob-errors.hd	runtime	accept	std/fs.md#r-std-fs.glob.error
 std/collections/list-helpers/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.copy-first
-std/collections/map-methods/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std-collections.map.most-common.ties
-std/collections/set/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect
+std/collections/map-methods/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std-collections.map.most-common.tie-order
+std/collections/set/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect-distinct
 std/collections/set/set-properties.hd	runtime	accept	std/collections.md#set
 std/text/more-string-methods/string-rfind-splitn.hd	runtime	accept	std/text.md#r-std-text.rfind.empty
 std/task/retry/task-retry-when.hd	runtime	accept	std/task.md#r-std-task.policy.selective-retry.layer.fn-mut

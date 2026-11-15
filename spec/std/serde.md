@@ -329,7 +329,7 @@ encode(Point { x: 1, y: 2 })   # Point::regular() is true: TextWriter alone writ
 | r[std-serde.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | a newtype variant named `Ok` with the `T` payload, or one named `Err` with the `E` payload | the corresponding newtype variant and direct payload |
 | r[std-serde.std.list] List | `List[T]`, where `T` implements the trait | a list of the items, in order | a list, item by item |
 | r[std-serde.std.map-key-entries] Map | `Map[K, V]`, where `K` implements `Eq`, `Hash`, and `MapKey`, and `V` implements the trait | a map of the scalar-keyed entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
-| r[std-serde.std.set] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in insertion order | a list, element by element; a repeated element keeps one entry |
+| r[std-serde.std.set-elements] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in the set's [iteration order](collections.md#r-std-collections.set.iter) | a list, element by element; a repeated element keeps one entry |
 | r[std-serde.std.tuple] Tuple | a tuple type whose members implement the trait | a list of the members, in order | a list with one item per member, in order |
 | r[std-serde.std.counted-reference] Counted reference | `*T` and `*mut T`, where `T` implements the trait | what `T` writes for the value the reference refers to | a new object that holds what `T` reads |
 

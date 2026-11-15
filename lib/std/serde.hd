@@ -1387,8 +1387,8 @@ impl[K < Eq & Hash & MapKey, V < Deserialize] Deserialize for Map[K, V]:
                 .None => break
         .Ok(found)
 
-# A set is a list of its elements in insertion order
-# (r-std-serde.std.set).
+# A set is a list of its elements in its iteration order
+# (r-std-serde.std.set-elements).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
     fn regular() -> bool:
@@ -1400,7 +1400,7 @@ impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
             item.serialize(out)?
         out.end_list()
 
-# A repeated element keeps one entry (r-std-serde.std.set).
+# A repeated element keeps one entry (r-std-serde.std.set-elements).
 # Keep handwritten Deserialize: build logical entries from the collection wire form.
 impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Set[T], R::Error]:

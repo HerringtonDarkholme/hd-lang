@@ -6,7 +6,7 @@
 # std-json.derive.from-json.unknown, std-json.derive.from-json.default,
 # std-json.derive.from-json.unknown-variant, std-json.derive.from-json.included-payload-form.
 # Spec std/serde: std-serde.skip.named-read-default, std-serde.std.tuple-length, std-serde.std.range,
-# std-serde.std.set (a Set writes its elements in insertion order).
+# std-serde.std.set-elements (a Set reads a list with each repeated element once).
 use std.collections.Set
 use std.json.{Json, JsonError, decode, encode, from_json, parse}
 use std.serde.{Deserialize, Serialize, skip}
@@ -382,9 +382,13 @@ tests:
     )
 
     it_each("Set decoding removes repeated list values", [
-        ("[]", "[]"),
-        ("[3,1,3,2,1]", "[3,1,2]"),
-    ], body=fn!(row: (string, string)):
+        ("[]", []),
+        ("[3,1,3,2,1]", [1, 2, 3]),
+    ], body=fn!(row: (string, List[i32])):
         value := decode::[Set[i32]](row._0).expect("Set list")
-        assert_equal(encode(value), row._1, reason="distinct entries keep their first occurrence")
+        assert_equal(
+            value.iter().collect::[List[i32]]().sorted(),
+            row._1,
+            reason="distinct entries, compared sorted",
+        )
     )

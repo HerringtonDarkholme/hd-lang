@@ -1,6 +1,6 @@
-# test: entries lists the pairs in the map's order, and most_common orders a tally by count with ties in first-seen order
+# test: entries lists the pairs in the map's order, and most_common orders a tally by count with ties in the map's order
 # Spec std/collections Map Methods: std-collections.map.entries and std-collections.map.most-common,
-# with std-collections.map.most-common.ties for the first-seen order of a counts tally.
+# with std-collections.map.most-common.tie-order for the order of equal counts.
 use std.collections.counts
 
 tests:
@@ -25,13 +25,14 @@ tests:
         pairs := stock.entries()
         stock["milk"] = 1
         assert_equal(pairs, [("tea", 3)], reason="unchanged")
-    it("most_common orders by count, ties by first occurrence"):
+    it("most_common orders by count, ties in the map's order"):
         tally := counts("the cat and the hat and the bat".split_whitespace())
-        assert_equal(
-            tally.most_common(3),
-            [("the", 3), ("and", 2), ("cat", 1)],
-            reason="count, then first seen",
-        )
+        let mut expected: List[(string, usize)] = [("the", 3), ("and", 2)]
+        for pair in tally.entries():
+            if pair._1 == 1:
+                expected.push(pair)
+        assert_equal(expected.len(), 5, reason="three words tie at one")
+        assert_equal(tally.most_common(5), expected, reason="count, then the map's order")
     it("most_common clamps n"):
         tally := counts(["x", "y", "x"])
         assert_equal(tally.most_common(10), [("x", 2), ("y", 1)], reason="every entry")
