@@ -39,55 +39,24 @@
 // reaches this process, so a process told of such a signal ignores SIGINT
 // (the listener below), else the one interrupt would arrive twice.
 import { createOutput } from "./output.ts";
-import { createStartupHost } from "./startup.ts";
+import { runHere } from "./run-here.ts";
 import {
   CANCEL_STATUS,
-  HostContract,
   entryCancel,
   exitPast,
   PROGRAM_TIME_LIMIT,
   reportIn,
 } from "./run-support.ts";
 import type { Sink } from "./core.ts";
+import type { CancelControl, RunConfig } from "./run-here.ts";
 import type { EntryCancel } from "./run-support.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 type DynamicRecord = Record<string, Dynamic>;
 
-interface HostProviderConfig {
-  module: string;
-  grantPath: string;
-  path: string;
-}
-
-interface RunConfig extends DynamicRecord {
-  cleanupMs?: number | null;
-  framesFile?: string;
-  grants?: Record<string, boolean | string[]>;
-  hostProviders?: HostProviderConfig[];
-  interruptSignal?: NodeJS.Signals;
-  processLauncher?: string;
-  profile?: string;
-  program?: string;
-  statusFile?: string;
-  timeLimitMs?: number | null;
-}
-
-interface RunRequest {
-  module: BufferSource | WebAssembly.Module;
-  config: RunConfig;
-  args: string[];
-  sink: Sink;
-  deadline?: number | null;
-  cancel?: CancelControl | null;
-}
-
-type CancelControl = Pick<EntryCancel, "boundMs" | "requests" | "wait">;
-
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.ts).
-const { readFileSync, writeFileSync } = process.getBuiltinModule("node:fs");
-const { pathToFileURL } = process.getBuiltinModule("node:url");
+const { readFileSync } = process.getBuiltinModule("node:fs");
 const { isMainThread, MessageChannel, receiveMessageOnPort, Worker, workerData } =
   process.getBuiltinModule("node:worker_threads");
 
@@ -124,119 +93,6 @@ function sharedCancel(boundMs: number, cell: Int32Array<SharedArrayBuffer>): Can
       Atomics.store(cell, 1, 0);
     },
   };
-}
-
-// Runs `module` (bytes or a compiled module) in this thread under
-// `config`, writing through `sink`, and returns the status. `cancel`,
-// when given, is how a Ctrl-C reaches the run.
-async function runHere({
-  module,
-  config,
-  args,
-  sink,
-  deadline = null,
-  cancel = null,
-}: RunRequest): Promise<number> {
-  try {
-    return await runHereUnchecked({ module, config, args, sink, deadline, cancel });
-  } catch (error) {
-    if (!(error instanceof HostContract)) {
-      throw error;
-    }
-    sink.err(`error: ${error.message}\n`);
-    return 101;
-  }
-}
-
-async function packageHost(module: WebAssembly.Module, config: RunConfig): Promise<DynamicRecord> {
-  const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
-  if (sections.length > 1) {
-    throw new HostContract("duplicate package host contracts");
-  }
-  const required = sections.length
-    ? (await import("./package-contract.ts")).readPackageContract(new Uint8Array(sections[0]))
-    : [];
-  const registrations = new Map();
-  const grants = { ...config.grants };
-  for (const registration of config.hostProviders ?? []) {
-    const item = required.find((entry) => !entry.handle && entry.module === registration.module);
-    if (!item || !item.selectors.includes(registration.grantPath)) {
-      throw new HostContract("provider mapping names no required package capability");
-    }
-    if (registrations.has(item.module)) {
-      throw new HostContract(`duplicate provider for ${item.identity.trait_path}`);
-    }
-    registrations.set(item.module, registration);
-  }
-  for (const item of required.filter((entry) => !entry.handle)) {
-    const name = `${item.identity.package}@${item.identity.version}/${item.identity.trait_path}`;
-    if (item.selectors.some((selector) => grants[selector] === false)) {
-      throw new HostContract(`package capability denied: ${name}`);
-    }
-    const registration = registrations.get(item.module);
-    if (!registration) {
-      throw new HostContract(
-        `package capability ${name} is not granted; add its trait path to the app's [capabilities] table`,
-      );
-    }
-    grants[registration.grantPath] = true;
-  }
-  if (!required.length) {
-    return { grants, packageBindings: null, createPackageRuntime: null };
-  }
-  const [{ createPackageRuntime }, generated] = await Promise.all([
-    import("./package-providers.ts"),
-    // @ts-expect-error -- generated beside the runner when a package host is present.
-    import("./main.host.mjs"),
-  ]);
-  const providers = new Map();
-  for (const [name, registration] of registrations) {
-    providers.set(name, (await import(pathToFileURL(registration.path).href)).default);
-  }
-  return {
-    grants,
-    createPackageRuntime,
-    packageBindings: (runtime: Dynamic) => generated.bind(runtime, providers),
-  };
-}
-
-async function runHereUnchecked({
-  module,
-  config,
-  args,
-  sink,
-  deadline = null,
-  cancel = null,
-}: RunRequest): Promise<number> {
-  // The unsupervised path may receive bytes; retain the compiled module
-  // so checked reports can read its custom metadata too.
-  module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
-  const { grants, packageBindings, createPackageRuntime } = await packageHost(module, config);
-  const profile = config.profile ? await import("./profiles.ts") : null;
-  const host = await createStartupHost(module, sink, {
-    processLauncher: config.processLauncher,
-    module,
-    args,
-    program: config.program ?? "",
-    grants,
-    providers: profile ? (io: DynamicRecord) => profile.providers(config.profile!, io) : null,
-    packageBindings,
-    createPackageRuntime,
-    deadline,
-  });
-  try {
-    const instance = await WebAssembly.instantiate(module, host.imports);
-    const { status, frames } = await host.run(instance, "hd.init", "hd.poll", {
-      cancel,
-    });
-    // The frames of a trap, for `hd` to name (`flow.panic.report`).
-    if (frames?.length && config.framesFile) {
-      writeFileSync(config.framesFile, JSON.stringify(frames));
-    }
-    return status;
-  } finally {
-    host.close();
-  }
 }
 
 // Runs `module` in a worker until its deadline, `limit` milliseconds from

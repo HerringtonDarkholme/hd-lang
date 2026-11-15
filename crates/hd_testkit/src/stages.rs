@@ -7,6 +7,7 @@
 mod counts;
 mod inspection;
 mod layout;
+pub mod node_host;
 mod own;
 mod wat;
 pub use wat::{wat, wat_for};
@@ -591,13 +592,31 @@ pub fn diagnostics(p: &Program) -> String {
 
 /// The stdout view: the program built from `main` on the dev pipeline and
 /// run on the default host, as its exit status, standard output and
-/// standard error; or its diagnostics when it does not build.
-///
-/// # Panics
-/// When the Wasm cannot be written or `node` cannot start.
+/// standard error; or its diagnostics when it does not build. Every run of
+/// the test process goes to one long-lived Node host ([`node_host`]),
+/// which reports what a lone `node host/run.ts` run of the program would.
 #[must_use]
 pub fn stdout(p: &Program) -> String {
-    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let wasm = match program_wasm(p) {
+        Ok(wasm) => wasm,
+        Err(failed) => return failed,
+    };
+    match node_host::run(&wasm, &[], RUN_LIMIT) {
+        Ok(ran) => shown_run(&ran.exit.to_string(), &ran.stdout, &ran.stderr),
+        Err(error) => format!("host failed: {error}\n"),
+    }
+}
+
+/// How long one `stdout` case's program may run on the shared host. A
+/// stage program runs in milliseconds; one that overruns fails alone.
+const RUN_LIMIT: std::time::Duration = std::time::Duration::from_mins(1);
+
+/// The program of `p` built from `main` on the dev pipeline, or the
+/// `stdout` view's text for a build that fails.
+///
+/// # Errors
+/// The build reports diagnostics or writes no Wasm.
+pub fn program_wasm(p: &Program) -> Result<Vec<u8>, String> {
     let src = p.sources();
     let host = Host {
         render_tir: &[],
@@ -613,30 +632,19 @@ pub fn stdout(p: &Program) -> String {
             entry: "main".into(),
         },
     );
-    let Some(wasm) = built.wasm.as_deref().filter(|_| built.diags.is_empty()) else {
-        return format!("build failed\n{}", built.render_located());
-    };
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!("hd-stage-{}-{n}.wasm", std::process::id()));
-    std::fs::write(&path, wasm).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    // cost: one Node process per `stdout` case, after its one build, since
-    // a program run needs a host; no other view starts one.
-    let ran = std::process::Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
-        .arg(&path)
-        .output()
-        .expect("node");
-    let _ = std::fs::remove_file(&path);
-    let shown = path.display().to_string();
-    let stdout = String::from_utf8_lossy(&ran.stdout).replace(&shown, "<wasm>");
-    let stderr = String::from_utf8_lossy(&ran.stderr).replace(&shown, "<wasm>");
-    let mut out = format!(
-        "exit: {}\n",
-        ran.status
-            .code()
-            .map_or_else(|| "signal".to_owned(), |c| c.to_string())
-    );
-    for (name, text) in [("stdout", stdout), ("stderr", stderr)] {
+    match built.wasm {
+        Some(wasm) if built.diags.is_empty() => Ok(wasm),
+        _ => Err(format!("build failed\n{}", built.render_located())),
+    }
+}
+
+/// The `stdout` view's text of a run: its exit status, then each
+/// non-empty stream.
+#[must_use]
+pub fn shown_run(exit: &str, stdout: &[u8], stderr: &[u8]) -> String {
+    let mut out = format!("exit: {exit}\n");
+    for (name, bytes) in [("stdout", stdout), ("stderr", stderr)] {
+        let text = String::from_utf8_lossy(bytes);
         if !text.is_empty() {
             let _ = writeln!(out, "-- {name}");
             out.push_str(&text);
