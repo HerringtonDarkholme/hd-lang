@@ -1069,12 +1069,11 @@ impl OwnCx for Env<'_> {
     }
 
     fn copies(&self, ty: Ty) -> Tri {
-        if let Some(&c) = lock(&self.run.copy_types).get(&ty) {
+        let mut memo = lock(&self.run.copy_types);
+        if let Some(&c) = memo.get(&ty) {
             return c;
         }
-        let c = self.copy_parts(ty, &mut Vec::new());
-        lock(&self.run.copy_types).insert(ty, c);
-        c
+        self.copy_walk(ty, &mut memo)
     }
 }
 
@@ -1091,65 +1090,87 @@ impl Env<'_> {
     /// [`OwnCx::copies`] of `t`, as the `Copy` row reads it
     /// (`ref.copy.structure`): `No` when a part held by value is a type
     /// declared `!Copy`, else `Maybe` when one is a type parameter declared
-    /// `?Copy`. A reference, a projection and an opaque type copy; so does
-    /// a nominal type `open` already walks (a recursive one).
-    fn copy_parts(&self, t: Ty, open: &mut Vec<Ty>) -> Tri {
-        let pool = &self.run.pool;
+    /// `?Copy`. A reference, a projection and an opaque type copy.
+    ///
+    /// One post-order walk with an explicit stack and no depth cap, over
+    /// the run's `memo`: every type the walk enters, not only `t`, gets
+    /// its answer there, so each type is expanded once per run.
+    /// O(types + parts), one `hd_types::work::type_node` per type
+    /// expanded. The parts form a DAG: `recursive-value-type` rejects a
+    /// type that holds itself by value, through a field, a payload, a
+    /// tuple, a union, an option, a generic argument or a newtype, and a
+    /// reference or a collection is a leaf here.
+    fn copy_walk(&self, t: Ty, memo: &mut HashMap<Ty, Tri>) -> Tri {
         let meet = |a: Tri, b: Tri| match (a, b) {
             (Tri::No, _) | (_, Tri::No) => Tri::No,
             (Tri::Maybe, _) | (_, Tri::Maybe) => Tri::Maybe,
             _ => Tri::Yes,
         };
+        // Per open type: the type, its parts, the next part to visit, and
+        // the meet of its own answer and its visited parts' answers.
+        let mut frames: Vec<(Ty, Vec<Ty>, usize, Tri)> = Vec::new();
+        let mut entering = Some(t);
+        loop {
+            if let Some(ty) = entering.take() {
+                hd_types::work::type_node();
+                let (own, parts) = self.copy_step(ty);
+                frames.push((ty, parts, 0, own));
+            }
+            let Some((ty, parts, next, acc)) = frames.last_mut() else {
+                return memo[&t];
+            };
+            if let Some(&part) = parts.get(*next) {
+                *next += 1;
+                match memo.get(&part) {
+                    Some(&c) => *acc = meet(*acc, c),
+                    None => entering = Some(part),
+                }
+                continue;
+            }
+            let (ty, c) = (*ty, *acc);
+            memo.insert(ty, c);
+            frames.pop();
+            if let Some((_, _, _, acc)) = frames.last_mut() {
+                *acc = meet(*acc, c);
+            }
+        }
+    }
+
+    /// One type's own part of [`Self::copy_walk`]'s answer and the types
+    /// it holds by value, substituted at its arguments.
+    fn copy_step(&self, t: Ty) -> (Tri, Vec<Ty>) {
+        let pool = &self.run.pool;
         match pool.get(t) {
-            TyData::Tuple { elems, rest } => {
-                let mut c = rest.map_or(Tri::Yes, |r| self.copy_parts(r, open));
-                for &e in pool.list_items(elems) {
-                    c = meet(c, self.copy_parts(e, open));
-                }
-                c
-            }
-            TyData::Union(ms) => pool
-                .list_items(ms)
-                .iter()
-                .fold(Tri::Yes, |c, &m| meet(c, self.copy_parts(m, open))),
-            TyData::Param(p) => {
-                if self.param_copies(p) {
-                    Tri::Yes
-                } else {
-                    Tri::Maybe
-                }
-            }
+            TyData::Tuple { elems, rest } => (
+                Tri::Yes,
+                pool.list_items(elems).iter().copied().chain(rest).collect(),
+            ),
+            TyData::Union(ms) => (Tri::Yes, pool.list_items(ms).to_vec()),
+            TyData::Param(p) if !self.param_copies(p) => (Tri::Maybe, Vec::new()),
             TyData::Adt { def, args } => {
-                if open.contains(&t) || open.len() > 32 {
-                    return Tri::Yes;
-                }
                 let Some(item) = self.p.items.get(def) else {
-                    return Tri::Yes;
+                    return (Tri::Yes, Vec::new());
                 };
                 match item.copy_decl() {
-                    hd_types::CopyDecl::Copies => Tri::Yes,
-                    hd_types::CopyDecl::NotCopy => Tri::No,
+                    hd_types::CopyDecl::Copies => (Tri::Yes, Vec::new()),
+                    hd_types::CopyDecl::NotCopy => (Tri::No, Vec::new()),
                     hd_types::CopyDecl::Members(ms) => {
                         let argv = pool.list_items(args);
-                        open.push(t);
-                        let mut c = Tri::Yes;
-                        for m in ms {
-                            let m = pool.subst(m, &|p: hd_types::ParamRef| {
-                                (p.owner == def)
-                                    .then(|| argv.get(usize::from(p.index)).copied())
-                                    .flatten()
-                            });
-                            c = meet(c, self.copy_parts(m, open));
-                            if c == Tri::No {
-                                break;
-                            }
-                        }
-                        open.pop();
-                        c
+                        let parts = ms
+                            .into_iter()
+                            .map(|m| {
+                                pool.subst(m, &|p: hd_types::ParamRef| {
+                                    (p.owner == def)
+                                        .then(|| argv.get(usize::from(p.index)).copied())
+                                        .flatten()
+                                })
+                            })
+                            .collect();
+                        (Tri::Yes, parts)
                     }
                 }
             }
-            _ => Tri::Yes,
+            _ => (Tri::Yes, Vec::new()),
         }
     }
 

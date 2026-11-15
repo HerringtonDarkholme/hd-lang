@@ -3055,6 +3055,54 @@ fn generic_nest_builds_walk_each_level_once() {
     });
 }
 
+/// `n` struct declarations, each holding the next by value, over a
+/// `!Copy` struct, with a function per level that moves a value of that
+/// level's type: the ownership passes ask `Copy` of each level.
+fn declaration_chain(n: usize) -> String {
+    let mut s = String::from(
+        "use std.annotation.inline\n\nstruct Bottom:\n    id: i32\n\nimpl !Copy for Bottom\n\n",
+    );
+    for i in 0..n {
+        let (next, inner) = if i + 1 < n {
+            (format!("S{}", i + 1), format!("make{}()", i + 1))
+        } else {
+            ("Bottom".to_owned(), "Bottom { id: 1 }".to_owned())
+        };
+        let _ = write!(
+            s,
+            "struct S{i}:\n    inner: {next}\n\n@inline(.Never)\nfn keep{i}(x: S{i}) -> S{i}:\n    y := x\n    y\n\nfn make{i}() -> S{i}:\n    keep{i}(S{i} {{ inner: {inner} }})\n\n"
+        );
+    }
+    s.push_str("pub fn main() -> void:\n    _ := make0()\n");
+    s
+}
+
+// Ownership: #1990, the passes' `Copy` walk kept only the asked type's
+// answer and stopped at 32 open types, answering "copies" past it. Each
+// level of a declaration chain re-walked the chain below it up to the
+// cap. Now one walk memoizes every type it enters for the run.
+#[test]
+fn ownership_copy_walk_enters_each_type_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let nodes = |n: usize| {
+            let (out, nodes) =
+                hd_types::work::count_type_nodes(|| compile(&declaration_chain(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            nodes
+        };
+        nodes(1);
+        let base = nodes(2);
+        let (small, large) = (nodes(40) - base, nodes(400) - base);
+        assert!(
+            small > 0 && large <= 11 * small,
+            "type nodes at chain length 40 and 400 over 2: {small} and {large}"
+        );
+    });
+}
+
 // Types: #1912, each level of a generic nest resolved its type
 // `W^i[?int]` again, since only closed resolutions were kept across calls
 // and the literal's variable stays unbound to the body's end: O(depth^2)
