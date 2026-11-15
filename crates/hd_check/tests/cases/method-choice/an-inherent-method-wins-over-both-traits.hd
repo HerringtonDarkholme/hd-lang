@@ -1,0 +1,24 @@
+# @dump: diagnostics
+trait Left:
+    fn label(self) -> i32
+
+trait Right:
+    fn label(self) -> i32
+
+struct User:
+    value: i32
+
+impl Left for User:
+    fn label(self) -> i32: self.value
+
+impl Right for User:
+    fn label(self) -> i32: self.value + 100
+
+impl User:
+    fn label(self) -> i32: 7
+
+fn pick(user: User) -> i32:
+    user.label()
+
+pub fn main() -> void:
+    pass

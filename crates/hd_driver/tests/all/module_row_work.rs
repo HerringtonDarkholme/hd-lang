@@ -6,44 +6,6 @@ use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-#[test]
-fn a_default_sees_the_completed_row_of_a_function_value() {
-    let source = "\
-fn start() -> void:
-    next := finish
-    next()
-
-fn finish() -> void:
-    println(\"done\")
-
-struct Holder:
-    callback: fn() -> void = start
-";
-    for (source, expected) in [
-        (source.to_owned(), vec![hd_diag::Code::TypeMismatch]),
-        (
-            source.replace(
-                "callback: fn() -> void =",
-                "callback: fn() -> void $ Console =",
-            ),
-            vec![],
-        ),
-    ] {
-        let mut src = MemorySources::default();
-        src.insert("main.hd", &source);
-        let store = crate::warm_store();
-        let host = Host {
-            render_tir: &[],
-            sources: &src,
-            store: &store,
-            clock: &NoClock,
-            executor: Executor::Serial(SerialOrder::Priority),
-        };
-        let out = build(&host, "app", &Goal::Analyze);
-        assert_eq!(out.diags.code, expected, "{}", out.render());
-    }
-}
-
 /// #1526: settling argument goals must not retry the caller body or grow
 /// its native body-check stack with the number/nesting of value uses.
 #[test]

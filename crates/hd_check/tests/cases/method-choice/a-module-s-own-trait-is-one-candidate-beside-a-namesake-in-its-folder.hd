@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# Issue #346: a module's own trait sits in its folder's interface too.
+# When an earlier module of the folder declares another trait with the
+# same method name, that trait lands between the two copies, and the
+# one impl used to be counted twice.
+# @file: a.hd
+pub trait Costed0:
+    fn cost(self) -> i64
+# @file: b.hd
+pub struct Item1:
+    pub price: i64
+
+pub trait Costed1:
+    fn cost(self) -> i64
+
+impl Costed1 for Item1:
+    fn cost(self) -> i64: self.price
+
+pub fn total1(item: Item1) -> i64:
+    item.cost()
+
+pub fn main() -> void:
+    pass

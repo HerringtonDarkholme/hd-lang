@@ -1,0 +1,10 @@
+# @dump: diagnostics
+struct Point:
+    x: i32
+
+trait Source:
+    type Item
+
+fn run['a](p: &'a Point) -> i32:
+    f := fn(x: &'a Point | i32): 0
+    0

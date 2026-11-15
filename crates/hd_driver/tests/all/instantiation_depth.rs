@@ -27,11 +27,6 @@ fn run_in(store: &MemoryStore, executor: Executor, text: &str, goal: &Goal) -> O
     build(&host, "app", goal)
 }
 
-fn run(text: &str, goal: &Goal) -> Output {
-    let store = MemoryStore::default();
-    run_in(&store, Executor::Serial(SerialOrder::Priority), text, goal)
-}
-
 fn whole_program() -> Goal {
     Goal::Program {
         entry: "main".into(),
@@ -40,89 +35,6 @@ fn whole_program() -> Goal {
 
 fn codes(out: &Output) -> Vec<&str> {
     out.diags.code.iter().map(|c| c.as_str()).collect()
-}
-
-/// Each call nests `T` one tuple deeper: a generic call cycle whose type
-/// argument grows (`types.generic.polymorphic-recursion`), which checking
-/// finds from the calls alone.
-const GROWING: &str = "\
-fn wrap[T](value: T, depth: i32) -> i32:
-    if depth == 0: return depth
-    wrap((value, depth), depth - 1)
-
-pub fn main() -> void:
-    _ := wrap(+1, +3)
-";
-
-#[test]
-fn a_check_reports_a_growing_call_cycle() {
-    let checked = run(GROWING, &Goal::Analyze);
-    assert_eq!(
-        codes(&checked),
-        ["instantiation-too-deep"],
-        "{}",
-        checked.render()
-    );
-    // On the growing call, line 3.
-    let text = checked.render();
-    let call = GROWING.find("wrap((value").expect("the call");
-    assert!(text.contains(&format!("main.hd:{call}..")), "{text}");
-    assert!(text.contains("passes `(T, i32)` for `T`"), "{text}");
-    assert!(text.contains("cycle `wrap -> wrap`"), "{text}");
-}
-
-#[test]
-fn a_build_reports_the_cycle_before_instantiating() {
-    let program = run(GROWING, &whole_program());
-    assert_eq!(
-        codes(&program),
-        ["instantiation-too-deep"],
-        "{}",
-        program.render()
-    );
-    assert!(program.wasm.is_none());
-    assert!(program.render().contains("generic call cycle"));
-}
-
-/// Each round boxes the receiver once more through a call with no fixed
-/// callee, `value.grow` through the bound: no generic call cycle shows
-/// it, so only the depth limit stops it.
-const BOUND_GROWTH: &str = "\
-trait Grow:
-    fn grow(self, depth: i32) -> i32
-
-struct Box[T]:
-    value: T
-
-impl[T] Grow for Box[T]:
-    fn grow(self, depth: i32) -> i32:
-        if depth == 0: return depth
-        deeper(Box { value: self }, depth - 1)
-
-fn deeper[G < Grow](value: G, depth: i32) -> i32:
-    value.grow(depth)
-
-pub fn main() -> void:
-    _ := deeper(Box { value: +1 }, +3)
-";
-
-#[test]
-fn growth_through_a_bound_stops_at_the_depth_limit() {
-    let program = run(BOUND_GROWTH, &whole_program());
-    assert_eq!(
-        codes(&program),
-        ["instantiation-too-deep"],
-        "{}",
-        program.render()
-    );
-    assert!(program.wasm.is_none());
-    // On the growing call, line 10.
-    let text = program.render();
-    let call = BOUND_GROWTH
-        .find("deeper(Box { value: self }")
-        .expect("the call");
-    assert!(text.contains(&format!("main.hd:{call}..")), "{text}");
-    assert!(text.contains("33 deep, past the limit of 32"), "{text}");
 }
 
 /// Each round pairs the receiver with itself: the instance at depth `d`
@@ -314,46 +226,6 @@ fn growing_folder_call(out: &Output, file: &str, text: &str, call: &str) {
 }
 
 #[test]
-fn a_check_reports_a_growing_call_cycle_across_files() {
-    let out = check_folder_cycle(
-        &MemoryStore::default(),
-        CYCLE_A,
-        CYCLE_B,
-        SerialOrder::Priority,
-    );
-    growing_folder_call(&out, "a.hd", CYCLE_A, "eat([xs]");
-    // Equal node indices and byte offsets in different files are two calls.
-    let a = "use pkg.b.{feed}\n\npub fn bite[T](x: T) -> void:\n    feed([x])\n";
-    let b = "use pkg.a.{bite}\n\npub fn feed[T](x: T) -> void:\n    bite([x])\n";
-    assert_eq!(a.find("feed([x])"), b.find("bite([x])"));
-    let mut src = MemorySources::default();
-    src.insert("a.hd", a);
-    src.insert("b.hd", b);
-    let store = MemoryStore::default();
-    let host = Host {
-        render_tir: &[],
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let two = build(&host, "app", &Goal::Analyze);
-    assert_eq!(
-        codes(&two),
-        ["instantiation-too-deep", "instantiation-too-deep"],
-        "{}",
-        two.render()
-    );
-    for file in ["a.hd", "b.hd"] {
-        assert!(
-            two.render().contains(&format!("{file}:")),
-            "{}",
-            two.render()
-        );
-    }
-}
-
-#[test]
 fn a_check_accepts_a_same_shape_call_cycle_across_files() {
     let a = CYCLE_A.replace("eat([xs]", "eat(xs");
     let store = MemoryStore::default();
@@ -409,31 +281,4 @@ fn a_folder_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
         assert!(fixed.counters.modules_checked.is_empty());
         assert!(fixed.counters.tir_decoded.is_empty());
     }
-}
-
-/// Recursion that passes its erased parameter through unchanged shares
-/// one instance at one concrete shape: no error.
-const ERASED_SHARE: &str = "\
-fn walk[T](xs: List[T], n: i32) -> i32:
-    if n == 0: 0
-    else: walk(xs, n - 1) + 1
-
-fn a[T](x: T, n: i32) -> i32:
-    if n == 0: 0
-    else: b(x, n - 1)
-
-fn b[T](x: T, n: i32) -> i32:
-    if n == 0: 0
-    else: a(x, n - 1)
-
-pub fn main() -> void:
-    _ := walk([1, 2], 2)
-    _ := a([1], 2)
-";
-
-#[test]
-fn same_shape_recursion_through_erasure_builds() {
-    let program = run(ERASED_SHARE, &whole_program());
-    assert!(program.diags.is_empty(), "{}", program.render());
-    assert!(program.wasm.is_some());
 }

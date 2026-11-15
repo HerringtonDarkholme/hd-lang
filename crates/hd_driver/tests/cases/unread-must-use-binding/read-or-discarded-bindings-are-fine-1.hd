@@ -1,0 +1,7 @@
+# @dump: stdout
+fn work!() -> i32: 42
+fn res() -> Result[i32, string]: .Ok(1)
+fn opt() -> i32?: 1
+pub fn main() -> void:
+    r := res()
+    _ := r

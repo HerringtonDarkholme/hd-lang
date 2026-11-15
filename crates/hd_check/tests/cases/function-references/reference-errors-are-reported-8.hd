@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+fn identity[T](value: T) -> T:
+    value
+
+fn run() -> i32:
+    f := identity
+    f(3)

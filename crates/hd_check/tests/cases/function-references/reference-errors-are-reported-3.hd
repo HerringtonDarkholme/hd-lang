@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(&mut self, by: i32) -> void:
+        self.value = self.value + by
+
+fn frozen(counter: Counter) -> fn(i32) -> void:
+    counter::bump

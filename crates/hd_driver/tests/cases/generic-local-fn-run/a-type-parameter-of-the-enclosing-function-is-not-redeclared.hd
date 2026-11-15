@@ -1,0 +1,7 @@
+# @dump: stdout
+fn work[T](value: T) -> i32:
+    fn convert[T](other: T) -> i32: 0
+    0
+
+pub fn main() -> void:
+    pass

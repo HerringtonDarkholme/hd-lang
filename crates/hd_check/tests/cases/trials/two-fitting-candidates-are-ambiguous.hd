@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# Two candidates that both fit, with no literal to default: one
+# `ambiguous-method` naming both (`trait.resolve.many-apply`).
+trait Pick[T]:
+    fn pick(self) -> T
+
+struct Money:
+    cents: i32
+
+impl Pick[i32] for Money:
+    fn pick(self) -> i32: self.cents
+
+impl Pick[string] for Money:
+    fn pick(self) -> string: "money"
+
+fn invalid(price: Money) -> void:
+    _ := price.pick()

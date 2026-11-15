@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+struct User:
+    email: string
+
+fn emails() -> fn(User) -> string:
+    User::email

@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+fn restart(counter: Counter) -> fn() -> Counter:
+    counter::zero

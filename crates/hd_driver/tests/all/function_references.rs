@@ -10,7 +10,6 @@ use std::process::Command;
 use hd_testkit::Scratch;
 
 use hd_cache::MemoryStore;
-use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -27,15 +26,6 @@ fn analyze(main: &str, render: &[&str]) -> Output {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     build(&host, "app", &Goal::Analyze)
-}
-
-fn errors(src: &str) -> Vec<Code> {
-    let out = analyze(src, &[]);
-    out.diags
-        .content_order()
-        .into_iter()
-        .map(|i| out.diags.code[i])
-        .collect()
 }
 
 const COUNTER: &str = "struct Counter:
@@ -162,68 +152,6 @@ fn made() -> void:
     for (body, ty) in want {
         let line = line_of(&out, body, "ItemRef");
         assert!(line.ends_with(ty), "{body}: {line}");
-    }
-}
-
-/// The errors of spec 07's Method References and Generic Function
-/// Values.
-#[test]
-fn reference_errors_are_reported() {
-    let cases = [
-        // `fn.ref.no-fields`.
-        (
-            "struct User:\n    email: string\n\nfn emails() -> fn(User) -> string:\n    User::email\n",
-            Code::UnknownMethod,
-        ),
-        // `fn.ref.bound.associated`.
-        (
-            "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn zero() -> Counter:\n        Counter { value: 0 }\n\nfn restart(counter: Counter) -> fn() -> Counter:\n    counter::zero\n",
-            Code::UnknownMethod,
-        ),
-        // `fn.ref.bound.address.writable`.
-        (
-            "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(&mut self, by: i32) -> void:\n        self.value = self.value + by\n\nfn frozen(counter: Counter) -> fn(i32) -> void:\n    counter::bump\n",
-            Code::NotWritable,
-        ),
-        // `fn.ref.bound.address.writable`, for a built-in method.
-        (
-            "fn frozen(items: List[i32]) -> fn(i32) -> void:\n    items::push\n",
-            Code::NotWritable,
-        ),
-        // `fn.ref.unbound`, for a built-in method whose type nothing solves.
-        (
-            "fn unsolved() -> void:\n    _ := List::len\n",
-            Code::CannotInferType,
-        ),
-        // `fn.ref.trait-self.unsolved`.
-        (
-            "fn unsolved() -> void:\n    _ := Display::to_string\n",
-            Code::CannotInferType,
-        ),
-        // `fn.type.generic.unsolved`, through a call.
-        (
-            "fn identity[T](value: T) -> T:\n    value\n\nfn call_with_nothing[A, B](f: fn(A) -> B) -> void:\n    pass\n\nfn run() -> void:\n    call_with_nothing(identity)\n",
-            Code::CannotInferType,
-        ),
-        // `fn.type.generic.instantiate-from`: a later statement does not
-        // instantiate a reference.
-        (
-            "fn identity[T](value: T) -> T:\n    value\n\nfn run() -> i32:\n    f := identity\n    f(3)\n",
-            Code::CannotInferType,
-        ),
-        // `fn.ref.lookup.ambiguous`.
-        (
-            "trait Left:\n    fn name(self) -> string\n\ntrait Right:\n    fn name(self) -> string\n\nstruct Both: pass\n\nimpl Left for Both:\n    fn name(self) -> string: \"l\"\n\nimpl Right for Both:\n    fn name(self) -> string: \"r\"\n\nfn named() -> fn(Both) -> string:\n    Both::name\n",
-            Code::AmbiguousMethod,
-        ),
-        // `fn.ref.unbound.ref-self` with `fn.type.declared-variance`.
-        (
-            "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn reset(&mut self) -> void:\n        self.value = 0\n\nfn readonly() -> fn(Counter) -> void:\n    Counter::reset\n",
-            Code::TypeMismatch,
-        ),
-    ];
-    for (src, code) in cases {
-        assert_eq!(errors(src), vec![code], "{src}");
     }
 }
 

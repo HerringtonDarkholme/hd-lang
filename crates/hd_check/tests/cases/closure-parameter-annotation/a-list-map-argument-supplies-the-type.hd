@@ -1,0 +1,3 @@
+# @dump: diagnostics
+fn run(xs: List[i32]) -> List[i32]:
+    xs.map(fn(v): v + 1)

@@ -1,0 +1,4 @@
+# @dump: diagnostics
+fn run() -> i32:
+    closure := fn(value) -> i32: value
+    closure(1)

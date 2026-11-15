@@ -1,0 +1,16 @@
+# @dump: stdout
+fn walk[T](xs: List[T], n: i32) -> i32:
+    if n == 0: 0
+    else: walk(xs, n - 1) + 1
+
+fn a[T](x: T, n: i32) -> i32:
+    if n == 0: 0
+    else: b(x, n - 1)
+
+fn b[T](x: T, n: i32) -> i32:
+    if n == 0: 0
+    else: a(x, n - 1)
+
+pub fn main() -> void:
+    _ := walk([1, 2], 2)
+    _ := a([1], 2)

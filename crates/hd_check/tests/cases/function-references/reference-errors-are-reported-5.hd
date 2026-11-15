@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+fn unsolved() -> void:
+    _ := List::len

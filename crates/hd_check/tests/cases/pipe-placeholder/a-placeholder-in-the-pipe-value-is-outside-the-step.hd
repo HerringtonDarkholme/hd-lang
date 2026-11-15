@@ -1,0 +1,7 @@
+# @dump: diagnostics
+fn add(left: i32, right: i32) -> i32: left + right
+fn apply(value: i32, f: fn(i32) -> i32) -> i32: f(value)
+fn pair(left: i32, right: i32) -> (i32, i32): (left, right)
+
+fn run() -> i32:
+    _ |> add(_, 1)

@@ -59,34 +59,6 @@ fn of_two_candidates_the_one_whose_trial_fits_is_chosen() {
     );
 }
 
-/// Two candidates that both fit, with no literal to default: one
-/// `ambiguous-method` naming both (`trait.resolve.many-apply`).
-#[test]
-fn two_fitting_candidates_are_ambiguous() {
-    let src = "trait Pick[T]:\n    fn pick(self) -> T\n\nstruct Money:\n    cents: i32\n\nimpl Pick[i32] for Money:\n    fn pick(self) -> i32: self.cents\n\nimpl Pick[string] for Money:\n    fn pick(self) -> string: \"money\"\n\nfn invalid(price: Money) -> void:\n    _ := price.pick()\n";
-    let out = analyze(src, &[]);
-    let errs = errors(&out);
-    assert_eq!(errs.len(), 1, "{}", out.render());
-    assert_eq!(errs[0].0, Code::AmbiguousMethod);
-    assert!(errs[0].1.contains("Pick[i32]") && errs[0].1.contains("Pick[string]"));
-}
-
-/// No candidate fits: one `type-mismatch` listing the instantiations
-/// (`trait.resolve.no-apply`), not one error per trial.
-#[test]
-fn no_fitting_candidate_is_one_type_mismatch_listing_them() {
-    let src = "trait Combine[T]:\n    fn combine(self, other: T) -> i32\n\nstruct Money:\n    cents: i32\n\nimpl Combine[i32] for Money:\n    fn combine(self, other: i32) -> i32: self.cents + other\n\nimpl Combine[Money] for Money:\n    fn combine(self, other: Money) -> i32: self.cents + other.cents\n\nfn invalid(price: Money) -> i32:\n    price.combine(\"five\")\n";
-    let out = analyze(src, &[]);
-    let errs = errors(&out);
-    assert_eq!(errs.len(), 1, "{}", out.render());
-    assert_eq!(errs[0].0, Code::TypeMismatch);
-    assert!(
-        errs[0].1.contains("Combine[i32]") && errs[0].1.contains("Combine[Money]"),
-        "{}",
-        errs[0].1
-    );
-}
-
 /// A failed trial leaves no trace: with the failing `Apply[bool]`
 /// candidate present, `main`'s TIR (instructions, locals, constants,
 /// strings, captures) and diagnostics are those of the program without
@@ -104,22 +76,4 @@ fn a_failed_trial_leaves_no_trace() {
     );
     assert!(ta.contains("captures [$1 Copy]"), "{ta}");
     assert_eq!(ta, tb, "the trial of the bool candidate left a trace");
-}
-
-/// A trial that reads a skipped binding takes it out of the
-/// possibly-uninitialized set; rollback puts it back, so a later read
-/// still reports `possibly-uninitialized-binding`
-/// (`names.definite.reject`, `names.definite.skipped`).
-#[test]
-fn a_failed_trial_gives_back_a_skipped_binding() {
-    let main = "fn f(flag: bool, item: Item) -> i32:\n    if flag && (n := 3) > 0:\n        pass\n    a := item.apply(fn(v):\n        m := n\n        v + m\n    )\n    a + n\n";
-    let src = format!("{ITEM}{BOOL_IMPL}{I32_IMPL}{main}");
-    let out = analyze(&src, &[]);
-    let codes: Vec<Code> = errors(&out).into_iter().map(|(c, _)| c).collect();
-    assert_eq!(
-        codes,
-        [Code::TypeMismatch, Code::PossiblyUninitializedBinding],
-        "{}",
-        out.render()
-    );
 }

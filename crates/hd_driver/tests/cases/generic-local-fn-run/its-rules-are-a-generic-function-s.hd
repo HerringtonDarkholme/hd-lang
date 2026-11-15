@@ -1,0 +1,19 @@
+# @dump: stdout
+trait Shape:
+    fn area(self) -> i32
+
+fn unsolved() -> i32:
+    fn id[U](u: U) -> U: u
+    f := id
+    0
+
+fn unbounded() -> i32:
+    fn area_of[S < Shape](shape: S) -> i32: shape.area()
+    area_of(+3)
+
+fn checked_once() -> i32:
+    fn size[U](u: U) -> i32: u.area()
+    0
+
+pub fn main() -> void:
+    pass

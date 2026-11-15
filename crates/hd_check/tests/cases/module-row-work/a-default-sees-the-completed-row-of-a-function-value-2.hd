@@ -1,0 +1,10 @@
+# @dump: diagnostics
+fn start() -> void:
+    next := finish
+    next()
+
+fn finish() -> void:
+    println("done")
+
+struct Holder:
+    callback: fn() -> void $ Console = start

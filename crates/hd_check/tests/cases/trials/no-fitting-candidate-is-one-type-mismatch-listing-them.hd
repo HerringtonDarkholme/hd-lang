@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# No candidate fits: one `type-mismatch` listing the instantiations
+# (`trait.resolve.no-apply`), not one error per trial.
+trait Combine[T]:
+    fn combine(self, other: T) -> i32
+
+struct Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> i32: self.cents + other
+
+impl Combine[Money] for Money:
+    fn combine(self, other: Money) -> i32: self.cents + other.cents
+
+fn invalid(price: Money) -> i32:
+    price.combine("five")

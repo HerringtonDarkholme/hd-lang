@@ -1,0 +1,27 @@
+# @dump: diagnostics
+# A trial that reads a skipped binding takes it out of the
+# possibly-uninitialized set; rollback puts it back, so a later read
+# still reports `possibly-uninitialized-binding`
+# (`names.definite.reject`, `names.definite.skipped`).
+trait Apply[T]:
+    fn apply(self, run: fn(T) -> T) -> i32
+
+struct Item:
+    value: i32
+
+impl Apply[bool] for Item:
+    fn apply(self, run: fn(bool) -> bool) -> i32:
+        if run(true): 1 else: 0
+
+impl Apply[i32] for Item:
+    fn apply(self, run: fn(i32) -> i32) -> i32:
+        run(self.value)
+
+fn f(flag: bool, item: Item) -> i32:
+    if flag && (n := 3) > 0:
+        pass
+    a := item.apply(fn(v):
+        m := n
+        v + m
+    )
+    a + n

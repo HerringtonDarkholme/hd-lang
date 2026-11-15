@@ -1,0 +1,5 @@
+# @dump: diagnostics
+struct Point:
+    x: i32
+
+f := fn(x: &'a Point): x.x

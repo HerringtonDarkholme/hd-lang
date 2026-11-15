@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @file: a.hd
+use pkg.b.{feed}
+
+pub fn bite[T](x: T) -> void:
+    feed([x])
+# @file: b.hd
+use pkg.a.{bite}
+
+pub fn feed[T](x: T) -> void:
+    bite([x])

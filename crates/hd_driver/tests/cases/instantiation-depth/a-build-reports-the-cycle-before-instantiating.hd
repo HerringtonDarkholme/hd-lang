@@ -1,0 +1,7 @@
+# @dump: stdout
+fn wrap[T](value: T, depth: i32) -> i32:
+    if depth == 0: return depth
+    wrap((value, depth), depth - 1)
+
+pub fn main() -> void:
+    _ := wrap(+1, +3)

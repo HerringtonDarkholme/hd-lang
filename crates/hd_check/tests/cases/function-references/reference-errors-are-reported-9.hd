@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+trait Left:
+    fn name(self) -> string
+
+trait Right:
+    fn name(self) -> string
+
+struct Both: pass
+
+impl Left for Both:
+    fn name(self) -> string: "l"
+
+impl Right for Both:
+    fn name(self) -> string: "r"
+
+fn named() -> fn(Both) -> string:
+    Both::name

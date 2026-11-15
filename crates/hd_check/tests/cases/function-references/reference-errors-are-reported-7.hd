@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# The errors of spec 07's Method References and Generic Function
+# Values.
+fn identity[T](value: T) -> T:
+    value
+
+fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
+    pass
+
+fn run() -> void:
+    call_with_nothing(identity)

@@ -1,0 +1,17 @@
+# @dump: diagnostics
+use pkg.shelf.{Item, Tagged}
+
+fn read(item: Item) -> i32:
+    item.tag()
+
+pub fn main() -> void:
+    pass
+# @file: shelf.hd
+pub trait Tagged:
+    fn tag(self) -> i32
+
+pub struct Item:
+    pub value: i32
+
+impl Tagged for Item:
+    fn tag(self) -> i32: self.value

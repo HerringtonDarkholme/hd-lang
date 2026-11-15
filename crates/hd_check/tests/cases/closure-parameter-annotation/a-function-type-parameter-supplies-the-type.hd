@@ -1,0 +1,10 @@
+# @dump: diagnostics
+fn apply[T](f: fn(T) -> T, x: T) -> T:
+    f(x)
+
+fn run() -> i32:
+    apply(fn(q: i32): q, 3)
+
+fn run_inferred() -> i32:
+    let xs: i32 = 1
+    apply(fn(q): q, xs)

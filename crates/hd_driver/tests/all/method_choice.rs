@@ -9,7 +9,6 @@ use std::process::Command;
 
 use hd_testkit::Scratch;
 
-use hd_diag::{Code, Severity};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -47,69 +46,6 @@ fn build_files(files: &[(&str, &str)], goal: &Goal) -> Output {
     build(&host, "app", goal)
 }
 
-fn analyze(files: &[(&str, &str)]) -> Output {
-    build_files(files, &Goal::Analyze)
-}
-
-fn errors(out: &Output) -> Vec<Code> {
-    (0..out.diags.len())
-        .filter(|&i| out.diags.severity[i] == Severity::Error)
-        .map(|i| out.diags.code[i])
-        .collect()
-}
-
-#[track_caller]
-fn accepts(files: &[(&str, &str)]) {
-    let out = analyze(files);
-    assert_eq!(errors(&out), Vec::<Code>::new(), "{}", out.render());
-}
-
-#[track_caller]
-fn rejects(files: &[(&str, &str)], code: Code) -> Output {
-    let out = analyze(files);
-    assert_eq!(errors(&out), vec![code], "{}", out.render());
-    out
-}
-
-fn main_with(body: &str) -> String {
-    format!("{TRAITS}\n{body}\npub fn main() -> void:\n    pass\n")
-}
-
-#[test]
-fn an_inherent_method_wins_over_both_traits() {
-    let src = main_with(
-        "impl User:
-    fn label(self) -> i32: 7
-
-fn pick(user: User) -> i32:
-    user.label()
-",
-    );
-    accepts(&[("main.hd", &src)]);
-}
-
-#[test]
-fn two_available_traits_with_the_method_are_ambiguous() {
-    let src = main_with(
-        "fn pick(user: User) -> i32:
-    user.label()
-",
-    );
-    let out = rejects(&[("main.hd", &src)], Code::AmbiguousMethod);
-    let text = out.render();
-    assert!(text.contains("Left") && text.contains("Right"), "{text}");
-}
-
-#[test]
-fn a_qualified_call_resolves_the_ambiguity() {
-    let src = main_with(
-        "fn pick(user: User) -> i32:
-    Left::label(user) + Right::label(user)
-",
-    );
-    accepts(&[("main.hd", &src)]);
-}
-
 const SHELF: &str = "\
 pub trait Tagged:
     fn tag(self) -> i32
@@ -120,88 +56,6 @@ pub struct Item:
 impl Tagged for Item:
     fn tag(self) -> i32: self.value
 ";
-
-#[test]
-fn a_trait_that_is_not_available_is_not_a_candidate() {
-    let src = "\
-use pkg.shelf.{Item}
-
-fn read(item: Item) -> i32:
-    item.tag()
-
-pub fn main() -> void:
-    pass
-";
-    let out = rejects(
-        &[("shelf.hd", SHELF), ("main.hd", src)],
-        Code::UnknownMethod,
-    );
-    let text = out.render();
-    assert!(text.contains("Tagged") && text.contains("use"), "{text}");
-}
-
-#[test]
-fn importing_the_trait_makes_its_method_a_candidate() {
-    let src = "\
-use pkg.shelf.{Item, Tagged}
-
-fn read(item: Item) -> i32:
-    item.tag()
-
-pub fn main() -> void:
-    pass
-";
-    accepts(&[("shelf.hd", SHELF), ("main.hd", src)]);
-}
-
-#[test]
-fn an_unavailable_trait_does_not_make_an_available_one_ambiguous() {
-    let src = "\
-use pkg.shelf.{Item}
-
-trait Mine:
-    fn tag(self) -> i32
-
-impl Mine for Item:
-    fn tag(self) -> i32: 1
-
-fn read(item: Item) -> i32:
-    item.tag()
-
-pub fn main() -> void:
-    pass
-";
-    accepts(&[("shelf.hd", SHELF), ("main.hd", src)]);
-}
-
-/// Issue #346: a module's own trait sits in its folder's interface too.
-/// When an earlier module of the folder declares another trait with the
-/// same method name, that trait lands between the two copies, and the
-/// one impl used to be counted twice.
-#[test]
-fn a_module_s_own_trait_is_one_candidate_beside_a_namesake_in_its_folder() {
-    let before = "\
-pub trait Costed0:
-    fn cost(self) -> i64
-";
-    let mine = "\
-pub struct Item1:
-    pub price: i64
-
-pub trait Costed1:
-    fn cost(self) -> i64
-
-impl Costed1 for Item1:
-    fn cost(self) -> i64: self.price
-
-pub fn total1(item: Item1) -> i64:
-    item.cost()
-
-pub fn main() -> void:
-    pass
-";
-    accepts(&[("a.hd", before), ("b.hd", mine)]);
-}
 
 /// Runs the program's `tests:` block on the Node host; every test must pass.
 fn run_tests(name: &str, files: &[(&str, &str)]) {
