@@ -2412,8 +2412,8 @@ Ledger: b140 (40): 1. b141 (45): 3. b142 (44): 3. b143 (42): 3.
 
 Ledger: b144 (45): 0. b145 (45): 2. b146 (45): 3. b147 (45): 4.
 
-- **Depends on map or set order (B8)**: `runtime/valid/collection-structs-snapshot-iteration.hd`
-  (set order), `runtime/valid/map-drain.hd`, `runtime/valid/map-extend.hd` (map order).
+- **Depends on map or set order (B8)**: `std/collections/deque/collection-structs-snapshot-iteration.hd`
+  (set order), `std/collections/map-methods/map-drain.hd`, `std/collections/map-methods/map-extend.hd` (map order).
 - **Target width (B8)**: `runtime/valid/list-drain-inclusive-overflow.hd` (end 4294967295
   overflows only with a 32-bit `usize`; the target owner question).
 - **A check that cannot fail (B3)**: `std/cmp/min-and-max/cmp-min-max.hd` (the tie check
@@ -2436,7 +2436,7 @@ rows in b150 and b151 are one kind:
   result is that the spec column no longer says what the case tests. Options:
   allow a secondary citation, add a stdlib rule about the alias semantics of
   `UniqList`/`UniqMap` to cite, or build these fixtures on language-tier types only.
-- **Depends on map order (B8)**: `runtime/valid/map-entries-most-common.hd`, `runtime/valid/map-retain.hd`.
+- **Depends on map order (B8)**: `std/collections/map-methods/map-entries-most-common.hd`, `std/collections/map-methods/map-retain.hd`.
 - **Depends on machine memory (B8)**: `uniq-list-reserve-overflow.hd` expects
   `heap-exhausted` for 4294967295 elements, which may fit on a 64-bit machine.
 - Plausible B3: `span-index-of-span-skip.hd` (cites the cost rule but counts no

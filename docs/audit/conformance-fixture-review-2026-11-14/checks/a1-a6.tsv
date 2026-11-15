@@ -385,9 +385,9 @@ typing/invalid/sealed-traits-a-user-impl-of-float-is-rejected.hd	A3	typing/inval
 typing/invalid/sealed-traits-a-blanket-num-impl-over-integers-is-rejected.hd	A3	typing/invalid/sealed-traits-a-float-impl-for-a-builtin-integer-is-rejected.hd
 typing/invalid/sealed-traits-a-blanket-num-impl-over-integers-is-rejected.hd	A3	typing/invalid/sealed-traits-an-inspectable-impl-for-a-tuple-is-rejected.hd
 typing/invalid/sealed-traits-a-float-impl-for-a-builtin-integer-is-rejected.hd	A3	typing/invalid/sealed-traits-an-inspectable-impl-for-a-tuple-is-rejected.hd
-typing/invalid/slicing-a-slice-has-the-type-of-the-receiver-list-result.hd	A3	typing/invalid/list-slice-negative-literal.hd
-typing/invalid/slicing-a-slice-has-the-type-of-the-receiver-list-result.hd	A3	typing/invalid/list-slice-signed-bound.hd
-typing/invalid/list-slice-negative-literal.hd	A3	typing/invalid/list-slice-signed-bound.hd
+std/collections/list-methods/slicing-a-slice-has-the-type-of-the-receiver-list-result.hd	A3	std/collections/list-methods/list-slice-negative-literal.hd
+std/collections/list-methods/slicing-a-slice-has-the-type-of-the-receiver-list-result.hd	A3	std/collections/list-methods/list-slice-signed-bound.hd
+std/collections/list-methods/list-slice-negative-literal.hd	A3	std/collections/list-methods/list-slice-signed-bound.hd
 typing/invalid/slicing-a-slice-is-not-a-place-list-full.hd	A3	typing/invalid/slicing-a-slice-is-not-a-place-range-value.hd
 typing/invalid/slicing-a-slice-is-not-a-place-list-full.hd	A3	typing/invalid/slicing-a-slice-is-not-a-place-string-range.hd
 typing/invalid/slicing-a-slice-is-not-a-place-range-value.hd	A3	typing/invalid/slicing-a-slice-is-not-a-place-string-range.hd
@@ -453,9 +453,9 @@ requirements/requirement-rows/requirement-keys/requirement-key-unknown-trait.hd	
 requirements/requirement-rows/requirement-keys/a-body-row-key-of-a-primitive.hd	A3	requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd
 requirements/requirement-rows/requirement-keys/requirement-key-unknown-generic-trait.hd	A3	requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd
 requirements/requirement-rows/requirement-keys/local-annotation-row-unknown-trait.hd	A3	requirements/requirement-rows/requirement-keys/provider-scope-unknown-trait.hd
-typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
-typing/invalid/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	typing/invalid/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
+std/collections/set/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	std/collections/set/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd
+std/collections/set/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	A3	std/collections/set/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
+std/collections/set/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	A3	std/collections/set/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd
 names/module-scope/sibling-module-type-not-imported.hd	A3	names/module-scope/sibling-module-alias-not-imported.hd
 typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-generic-function-value-passed-to-a-generic-parameter-cannot-be-inferred.hd
 typing/invalid/generic-functions-a-type-parameter-no-parameter-or-result-names-cannot-be-inferred.hd	A3	typing/invalid/generic-functions-a-method-type-parameter-named-nowhere-cannot-be-inferred.hd
@@ -1501,7 +1501,7 @@ grammar/types/fn-bound-rest-before-input.hd	A3	grammar/types/function-type-rest-
 grammar/types/type-argument-rest-element.hd	A3	grammar/types/function-type-rest-before-parameter.hd
 grammar/expressions/tuple-element-spread.hd	A3	grammar/expressions/tuple-spread-not-last.hd
 annotations/typed-derivation/templates/template-outside-trait-module.hd	A3	annotations/typed-derivation/templates/template-reexported-from-other-package.hd
-runtime/panic/list-slice-out-of-range.hd	A3	runtime/panic/list-slice-reversed.hd
+std/collections/list-methods/list-slice-out-of-range.hd	A3	std/collections/list-methods/list-slice-reversed.hd
 typing/invalid/unknown-std-name.hd	A3	typing/invalid/unknown-package-name.hd
 requirements/requirement-rows/row-slots/row-slot-bare-alias-argument.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd
 requirements/requirement-rows/row-slots/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd	A3	requirements/requirement-rows/row-slots/a-bare-trait-in-a-body-row-slot-is-one-kind-error.hd
@@ -1736,9 +1736,9 @@ typing/invalid/bare-dyn-alias.hd	A3	typing/invalid/bare-dyn-body.hd
 typing/invalid/bare-dyn-alias.hd	A3	typing/invalid/bare-dyn-container.hd
 typing/invalid/bare-dyn-alias.hd	A3	typing/invalid/bare-dyn-parameter.hd
 typing/invalid/bare-dyn-container.hd	A3	typing/invalid/bare-dyn-parameter.hd
-runtime/panic/uniq-list-reserve-while-pinned.hd	A3	runtime/panic/uniq-list-drain-while-pinned.hd
-runtime/panic/uniq-list-reserve-while-pinned.hd	A3	runtime/panic/uniq-list-append-source-while-pinned.hd
-runtime/panic/uniq-list-drain-while-pinned.hd	A3	runtime/panic/uniq-list-append-source-while-pinned.hd
+std/collections/uniqlist/uniq-list-reserve-while-pinned.hd	A3	std/collections/uniqlist/uniq-list-drain-while-pinned.hd
+std/collections/uniqlist/uniq-list-reserve-while-pinned.hd	A3	std/collections/uniqlist/uniq-list-append-source-while-pinned.hd
+std/collections/uniqlist/uniq-list-drain-while-pinned.hd	A3	std/collections/uniqlist/uniq-list-append-source-while-pinned.hd
 runtime/panic/pointer-loan-stmt-ref-ulist-write-panics.hd	A3	runtime/panic/pointer-loan-stmt-ref-ulist-other-panics.hd
 runtime/panic/pointer-loan-stmt-ref-ulist-write-panics.hd	A3	runtime/panic/pointer-loan-stmt-ref-ulist-mut-panics.hd
 runtime/panic/pointer-loan-stmt-ref-ulist-write-panics.hd	A3	runtime/panic/pointer-loan-stmt-ref-ulist-elem-panics.hd
@@ -1838,9 +1838,9 @@ runtime/panic/pointer-loan-closure-ref-ulist-grow-panics.hd	A3	runtime/panic/poi
 runtime/panic/pointer-loan-closure-ref-ulist-grow-panics.hd	A3	runtime/panic/pointer-loan-closure-mut-ulist-grow-panics.hd
 runtime/panic/pointer-loan-closure-ref-ulist-replace-panics.hd	A3	runtime/panic/pointer-loan-closure-mut-ulist-replace-panics.hd
 runtime/panic/pointer-loan-closure-mut-ulist-grow-panics.hd	A3	runtime/panic/pointer-loan-closure-mut-ulist-replace-panics.hd
-runtime/panic/uniq-map-reserve-while-pinned.hd	A3	runtime/panic/uniq-map-drain-while-pinned.hd
-runtime/panic/uniq-map-reserve-while-pinned.hd	A3	runtime/panic/uniq-map-retain-while-pinned.hd
-runtime/panic/uniq-map-drain-while-pinned.hd	A3	runtime/panic/uniq-map-retain-while-pinned.hd
+std/collections/uniqmap/uniq-map-reserve-while-pinned.hd	A3	std/collections/uniqmap/uniq-map-drain-while-pinned.hd
+std/collections/uniqmap/uniq-map-reserve-while-pinned.hd	A3	std/collections/uniqmap/uniq-map-retain-while-pinned.hd
+std/collections/uniqmap/uniq-map-drain-while-pinned.hd	A3	std/collections/uniqmap/uniq-map-retain-while-pinned.hd
 runtime/panic/pointer-loan-stmt-ref-umap-write-panics.hd	A3	runtime/panic/pointer-loan-stmt-ref-umap-other-panics.hd
 runtime/panic/pointer-loan-stmt-ref-umap-write-panics.hd	A3	runtime/panic/pointer-loan-stmt-ref-umap-mut-panics.hd
 runtime/panic/pointer-loan-stmt-ref-umap-write-panics.hd	A3	runtime/panic/pointer-loan-stmt-ref-umap-elem-panics.hd
@@ -2054,14 +2054,14 @@ typing/invalid/move-field-out-of-counted-reference.hd	A3	typing/invalid/move-fie
 typing/invalid/copy-relaxed-parameter-moves.hd	A3	typing/invalid/copy-relaxed-local-fn-parameter-moves.hd
 typing/invalid/copy-negative-impl-other-trait.hd	A3	typing/invalid/copy-negative-impl-primitive.hd
 typing/invalid/collect-without-a-target.hd	A3	typing/invalid/a-method-name-does-not-choose-a-collect-target.hd
-runtime/panic/uniq-list-drain-reversed.hd	A3	runtime/panic/uniq-list-drain-past-end.hd
-runtime/panic/uniq-list-drain-reversed.hd	A3	runtime/panic/uniq-list-drain-inclusive-overflow.hd
-runtime/panic/uniq-list-drain-past-end.hd	A3	runtime/panic/uniq-list-drain-inclusive-overflow.hd
-runtime/panic/uniq-map-reserve-overflow.hd	A3	runtime/panic/uniq-map-capacity-overflow.hd
+std/collections/uniqlist/uniq-list-drain-reversed.hd	A3	std/collections/uniqlist/uniq-list-drain-past-end.hd
+std/collections/uniqlist/uniq-list-drain-reversed.hd	A3	std/collections/uniqlist/uniq-list-drain-inclusive-overflow.hd
+std/collections/uniqlist/uniq-list-drain-past-end.hd	A3	std/collections/uniqlist/uniq-list-drain-inclusive-overflow.hd
+std/collections/uniqmap/uniq-map-reserve-overflow.hd	A3	std/collections/uniqmap/uniq-map-capacity-overflow.hd
 typing/invalid/reference-impl-covers-only-its-kind.hd	A3	typing/invalid/local-impl-rejects-counted-caller.hd
-runtime/panic/list-drain-reversed.hd	A3	runtime/panic/list-drain-past-end.hd
-runtime/panic/list-drain-reversed.hd	A3	runtime/panic/list-drain-inclusive-overflow.hd
-runtime/panic/list-drain-past-end.hd	A3	runtime/panic/list-drain-inclusive-overflow.hd
+std/collections/list-methods/list-drain-reversed.hd	A3	std/collections/list-methods/list-drain-past-end.hd
+std/collections/list-methods/list-drain-reversed.hd	A3	std/collections/list-methods/list-drain-inclusive-overflow.hd
+std/collections/list-methods/list-drain-past-end.hd	A3	std/collections/list-methods/list-drain-inclusive-overflow.hd
 typing/invalid/map-loop-mutable-unused-insert.hd	A3	typing/invalid/map-loop-mutable-unused-replace.hd
 typing/invalid/map-loop-mutable-unused-insert.hd	A3	typing/invalid/map-loop-mutable-unused-read.hd
 typing/invalid/map-loop-mutable-unused-replace.hd	A3	typing/invalid/map-loop-mutable-unused-read.hd
@@ -2206,7 +2206,7 @@ runtime/valid/doc-test-console-row.hd	A4	runtime accept with no assert, stdout c
 runtime/valid/reference-enum-replace-build.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	A4	runtime accept with no assert, stdout check, or scenario
-runtime/valid/uniq-list-field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
+std/collections/uniqlist/uniq-list-field-move-after-local-borrow.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/boundary-fieldless-struct-crosses.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/known-closure-consumers-preserve-captures.hd	A4	runtime accept with no assert, stdout check, or scenario
 runtime/valid/known-consumer-mixed-loop-contexts.hd	A4	runtime accept with no assert, stdout check, or scenario

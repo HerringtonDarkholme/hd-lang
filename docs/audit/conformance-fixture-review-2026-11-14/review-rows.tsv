@@ -644,18 +644,18 @@ b143	runtime/valid/reference-enum-replace-build.hd	DELETE	C1	Subsumed by runtime
 b145	std/cmp/derived-equality/a-generic-type-derives-under-its-parameter-bound.hd	FIX	B5	`Shaper`, `shape()` and the Describer path are never called, so they play no part in the derive case. Drop them.
 b145	typing/invalid/readonly-mutation.hd	MERGE	C1	Duplicates typing/invalid/reference-write-through-shared-field.hd: field assignment through a shared reference, same rule and error. Only names differ.
 b146	std/cmp/min-and-max/cmp-min-max.hd	FIX	B3	The tie check reads .value of two equal Reverse{value: 1}, so returning either argument passes. Use distinguishable values as cmp-min-max-distinguishable-tie.hd does.
-b146	runtime/valid/collection-structs-snapshot-iteration.hd	FIX	B8	drop_later expects seen == [1, 2] from set iteration order, which is unspecified. Compare the seen items as a sorted list or a set.
+b146	std/collections/deque/collection-structs-snapshot-iteration.hd	FIX	B8	drop_later expects seen == [1, 2] from set iteration order, which is unspecified. Compare the seen items as a sorted list or a set.
 b146	std/cmp/min-and-max/initialization-implicit-std-min-reaches-a-binding-its-ord-impl-reads-before-it-is-set.hd	UNSURE	B7	Cites std-cmp.min-max.result, but the top-level-read-before-initialization error comes from names.init.whole-module (lang/03). Cite that rule as well.
-b147	runtime/panic/list-drain-inclusive-overflow.hd	FIX	B8	The end 4294967295 is out of bounds on 64-bit usize, and overflows on 32-bit. Use the usize maximum for a width-independent overflow case.
-b147	runtime/valid/slicing-a-range-value-is-a-slice-key.hd	UNSURE	B1	File name claims a Range is a slice key, and the code only reads r.start and r.end. Rename it or index with the range.
-b147	runtime/valid/map-drain.hd	FIX	B8	Asserts drain yields [("a", 1), ("c", 3)] in insertion order, but map order is unspecified (types.map.order.unspecified). Compare as a sorted list or set.
-b147	runtime/valid/map-extend.hd	FIX	B8	Compares items.entries() to an ordered list, but map entries follow unspecified iteration order. Sort the entries or look each key up.
-b148	runtime/valid/map-entries-most-common.hd	FIX	B8	Asserts entries() yields insertion order; types.map.order.unspecified says map order need not be insertion order. Compare as sorted or as a set.
-b148	runtime/valid/map-retain.hd	FIX	B8	Expects visit order [a,b,c] and entries order [(a,..),(c,..)]; types.map.order.unspecified does not promise insertion order. Sort before comparing.
-b148	runtime/panic/uniq-list-reserve-overflow.hd	FIX	B8	4294967295 elements fits a 64-bit address space, so the heap-exhausted panic depends on machine memory. Use a length whose sum exceeds the address space.
-b148	runtime/valid/span-index-of-span-skip.hd	FIX	B3	Cites index-of-span.cost but counts no comparisons, and a naive search prints the same output. Only results are checked.
-b148	runtime/valid/collection-temporary-receivers.hd	UNSURE	B3	pop_back on a fresh empty deque gives None whether or not the temporary changed, so the mutation claim in the reason is not observed.
-b148	runtime/valid/a-map-probe-keeps-its-shared-table-hit-and-miss-order.hd	UNSURE	B1	Title promises hit and miss order, but no assert observes order; it checks only values after a hit and a miss.
+b147	std/collections/list-methods/list-drain-inclusive-overflow.hd	FIX	B8	The end 4294967295 is out of bounds on 64-bit usize, and overflows on 32-bit. Use the usize maximum for a width-independent overflow case.
+b147	std/collections/list-methods/slicing-a-range-value-is-a-slice-key.hd	UNSURE	B1	File name claims a Range is a slice key, and the code only reads r.start and r.end. Rename it or index with the range.
+b147	std/collections/map-methods/map-drain.hd	FIX	B8	Asserts drain yields [("a", 1), ("c", 3)] in insertion order, but map order is unspecified (types.map.order.unspecified). Compare as a sorted list or set.
+b147	std/collections/map-methods/map-extend.hd	FIX	B8	Compares items.entries() to an ordered list, but map entries follow unspecified iteration order. Sort the entries or look each key up.
+b148	std/collections/map-methods/map-entries-most-common.hd	FIX	B8	Asserts entries() yields insertion order; types.map.order.unspecified says map order need not be insertion order. Compare as sorted or as a set.
+b148	std/collections/map-methods/map-retain.hd	FIX	B8	Expects visit order [a,b,c] and entries order [(a,..),(c,..)]; types.map.order.unspecified does not promise insertion order. Sort before comparing.
+b148	std/collections/uniqlist/uniq-list-reserve-overflow.hd	FIX	B8	4294967295 elements fits a 64-bit address space, so the heap-exhausted panic depends on machine memory. Use a length whose sum exceeds the address space.
+b148	std/collections/list-methods/span-index-of-span-skip.hd	FIX	B3	Cites index-of-span.cost but counts no comparisons, and a naive search prints the same output. Only results are checked.
+b148	std/collections/set-deque-and-heap-values/collection-temporary-receivers.hd	UNSURE	B3	pop_back on a fresh empty deque gives None whether or not the temporary changed, so the mutation claim in the reason is not observed.
+b148	std/collections/map-methods/a-map-probe-keeps-its-shared-table-hit-and-miss-order.hd	UNSURE	B1	Title promises hit and miss order, but no assert observes order; it checks only values after a hit and a miss.
 b150	runtime/panic/pointer-loan-arg-mut-ulist-grow-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration, not the pointer-loan conflict rule; use lang/13 ref.excl.alias.conflict. Generator fallback causes it.
 b150	runtime/panic/pointer-loan-arg-mut-ulist-read-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration, not the pointer-loan conflict rule; use lang/13 ref.excl.alias.conflict. Generator fallback causes it.
 b150	runtime/panic/pointer-loan-arg-mut-ulist-replace-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration, not the pointer-loan conflict rule; use lang/13 ref.excl.alias.conflict. Generator fallback causes it.
@@ -701,15 +701,15 @@ b150	runtime/panic/pointer-loan-struct-mut-ulist-grow-panics.hd	FIX	B7	Cites uni
 b150	runtime/panic/pointer-loan-struct-mut-ulist-read-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration, not the pointer-loan conflict rule; use lang/13 ref.excl.alias.conflict. Generator fallback causes it.
 b150	runtime/panic/pointer-loan-struct-mut-ulist-replace-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration, not the pointer-loan conflict rule; use lang/13 ref.excl.alias.conflict. Generator fallback causes it.
 b150	runtime/panic/pointer-loan-struct-ref-ulist-grow-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration, not the pointer-loan conflict rule; use lang/13 ref.excl.alias.conflict. Generator fallback causes it.
-b151	runtime/valid/uniq-list-assigned-through-pointer-in-bang-function.hd	FIX	B1	Title says the assignment follows a suspension point, but tick! never suspends (no $ Clock, no sleep).
-b151	runtime/valid/uniq-map-borrowed-payload.hd	FIX	B1	Title says matching a map slot lends the payload; the map part uses get_mut with expect, and the match cases use Option, tuple and struct.
-b151	runtime/valid/uniq-list-cycle-collected.hd	UNSURE	B3	Title says linked nodes are collected, but the test asserts only links.len(); a leak would pass unless the harness checks allocations.
-b151	runtime/valid/a-plain-parameter-copies-only-when-its-body-owns-it.hd	UNSURE	B3	Name claims copy behavior, but asserts compare equal strings and ints that match with or without copies; no copy is observed.
-b151	runtime/panic/uniq-list-append-source-while-pinned.hd	UNSURE	B2	Line 8 reserve(0) takes &mut while first is live; if that counts as a write, the panic lands on line 8, not marked line 10.
-b151	runtime/panic/uniq-list-drain-while-pinned.hd	UNSURE	B2	Line 8 reserve(0) takes &mut while first is live; if that counts as a write, the panic lands on line 8, not marked line 9.
+b151	std/collections/uniqlist/uniq-list-assigned-through-pointer-in-bang-function.hd	FIX	B1	Title says the assignment follows a suspension point, but tick! never suspends (no $ Clock, no sleep).
+b151	std/collections/uniqmap/uniq-map-borrowed-payload.hd	FIX	B1	Title says matching a map slot lends the payload; the map part uses get_mut with expect, and the match cases use Option, tuple and struct.
+b151	std/collections/uniqlist/uniq-list-cycle-collected.hd	UNSURE	B3	Title says linked nodes are collected, but the test asserts only links.len(); a leak would pass unless the harness checks allocations.
+b151	std/collections/uniqlist/a-plain-parameter-copies-only-when-its-body-owns-it.hd	UNSURE	B3	Name claims copy behavior, but asserts compare equal strings and ints that match with or without copies; no copy is observed.
+b151	std/collections/uniqlist/uniq-list-append-source-while-pinned.hd	UNSURE	B2	Line 8 reserve(0) takes &mut while first is live; if that counts as a write, the panic lands on line 8, not marked line 10.
+b151	std/collections/uniqlist/uniq-list-drain-while-pinned.hd	UNSURE	B2	Line 8 reserve(0) takes &mut while first is live; if that counts as a write, the panic lands on line 8, not marked line 9.
 b151	typing/invalid/pointer-loan-same-root-uniq-replace.hd	FIX	B5	Cell, Outer, bump and the Cell impl play no part; only Bag and probe matter.
-b151	runtime/panic/uniq-map-capacity-overflow.hd	FIX	B8	Whether a 4294967295-slot table fits the heap depends on machine memory; use a size past the address space.
-b151	runtime/panic/uniq-map-reserve-overflow.hd	FIX	B8	Whether a 4294967295-slot reserve fits the heap depends on machine memory; use a size past the address space.
+b151	std/collections/uniqmap/uniq-map-capacity-overflow.hd	FIX	B8	Whether a 4294967295-slot table fits the heap depends on machine memory; use a size past the address space.
+b151	std/collections/uniqmap/uniq-map-reserve-overflow.hd	FIX	B8	Whether a 4294967295-slot reserve fits the heap depends on machine memory; use a size past the address space.
 b151	runtime/panic/pointer-loan-struct-ref-ulist-replace-panics.hd	FIX	B7	Cites uniq-list.type, a type declaration; the case tests a pointer-loan conflict. Cite lang/13 ref.excl.alias.loan instead.
 b151	runtime/valid/pointer-loan-arg-ref-ulist-read.hd	FIX	B7	Cites uniq-list.type, a type declaration; the case tests a pointer-loan rule. Cite lang/13 ref.excl.alias.loan instead.
 b151	runtime/valid/pointer-loan-bang-ref-ulist-read.hd	FIX	B7	Cites uniq-list.type, a type declaration; the case tests a pointer-loan rule. Cite lang/13 ref.excl.alias.loan instead.
@@ -723,10 +723,10 @@ b151	runtime/valid/pointer-loan-ret-ref-ulist-read.hd	FIX	B7	Cites uniq-list.typ
 b151	runtime/valid/pointer-loan-stmt-ref-ulist-read.hd	FIX	B7	Cites uniq-list.type, a type declaration; the case tests a pointer-loan rule. Cite lang/13 ref.excl.alias.loan instead.
 b151	runtime/valid/pointer-loan-struct-ref-ulist-read.hd	FIX	B7	Cites uniq-list.type, a type declaration; the case tests a pointer-loan rule. Cite lang/13 ref.excl.alias.loan instead.
 b151	typing/invalid/pointer-loan-same-root-uniq-replace.hd	FIX	B7	Cites uniq-list.type, a type declaration; the case tests a pointer-loan conflict. Cite lang/13 ref.excl.alias.conflict instead.
-b151	runtime/panic/uniq-list-append-source-while-pinned.hd	FIX	B7	Cites uniq-list.type; the case is append of a pinned list. Cite uniq-list.append and lang/13 ref.excl.alias.loan.
-b151	runtime/panic/uniq-list-drain-while-pinned.hd	FIX	B7	Cites uniq-list.type; the case is drain of a pinned list. Cite uniq-list.drain and lang/13 ref.excl.alias.loan.
-b151	runtime/panic/uniq-list-element-alias-push-panics.hd	FIX	B7	Header cites ref.excl.alias.loan, but the spec column cites uniq-list.type. Put the header's rule in the column.
-b151	runtime/panic/uniq-list-reserve-while-pinned.hd	FIX	B7	Cites uniq-list.type; the case is reserve of a pinned list. Cite uniq-list.reserve-overflow or lang/13 ref.excl.alias.loan.
+b151	std/collections/uniqlist/uniq-list-append-source-while-pinned.hd	FIX	B7	Cites uniq-list.type; the case is append of a pinned list. Cite uniq-list.append and lang/13 ref.excl.alias.loan.
+b151	std/collections/uniqlist/uniq-list-drain-while-pinned.hd	FIX	B7	Cites uniq-list.type; the case is drain of a pinned list. Cite uniq-list.drain and lang/13 ref.excl.alias.loan.
+b151	std/collections/uniqlist/uniq-list-element-alias-push-panics.hd	FIX	B7	Header cites ref.excl.alias.loan, but the spec column cites uniq-list.type. Put the header's rule in the column.
+b151	std/collections/uniqlist/uniq-list-reserve-while-pinned.hd	FIX	B7	Cites uniq-list.type; the case is reserve of a pinned list. Cite uniq-list.reserve-overflow or lang/13 ref.excl.alias.loan.
 b152	runtime/panic/pointer-loan-arg-mut-umap-grow-panics.hd	FIX	B7	Cites std-collections.uniq-map.type, which says nothing about borrow conflicts or panics; the tested rule is ref.excl.alias.conflict in lang/13-values-and-references.md.
 b152	runtime/panic/pointer-loan-arg-mut-umap-read-panics.hd	FIX	B7	Cites std-collections.uniq-map.type, which says nothing about borrow conflicts or panics; the tested rule is ref.excl.alias.conflict in lang/13-values-and-references.md.
 b152	runtime/panic/pointer-loan-arg-mut-umap-replace-panics.hd	FIX	B7	Cites std-collections.uniq-map.type, which says nothing about borrow conflicts or panics; the tested rule is ref.excl.alias.conflict in lang/13-values-and-references.md.
@@ -774,10 +774,10 @@ b152	runtime/panic/pointer-loan-struct-ref-umap-grow-panics.hd	FIX	B7	Cites std-
 b152	runtime/panic/pointer-loan-struct-ref-umap-replace-panics.hd	FIX	B7	Cites std-collections.uniq-map.type, which says nothing about borrow conflicts or panics; the tested rule is ref.excl.alias.conflict in lang/13-values-and-references.md.
 b152	runtime/panic/pointer-loan-stmt-mut-umap-elem-panics.hd	UNSURE	C1	Same rule and panic as the write-panics sibling; only the key literal differs.
 b152	runtime/panic/pointer-loan-stmt-ref-umap-elem-panics.hd	UNSURE	C1	Same rule and panic as the write-panics sibling; only the key literal differs.
-b153	runtime/panic/uniq-map-drain-while-pinned.hd	FIX	B7	Cites std-collections.uniq-map.type, which does not state the conflict; cite std-collections.uniq-map.drain and ref.excl.alias.conflict (lang/13-values-and-references.md).
-b153	runtime/panic/uniq-map-reserve-while-pinned.hd	FIX	B7	Cites std-collections.uniq-map.type, which does not state the conflict; the tested rule is ref.excl.alias.conflict in lang/13-values-and-references.md.
-b153	runtime/panic/uniq-map-retain-while-pinned.hd	FIX	B7	Cites std-collections.uniq-map.type, which does not state the conflict; cite std-collections.uniq-map.retain and ref.excl.alias.conflict (lang/13-values-and-references.md).
-b153	runtime/panic/uniq-map-value-alias-insert-panics.hd	FIX	B7	Header cites ref.excl.alias.loan, but the specification column cites std-collections.uniq-map.type, which says nothing about borrow conflicts; cite the loan rule instead.
+b153	std/collections/uniqmap/uniq-map-drain-while-pinned.hd	FIX	B7	Cites std-collections.uniq-map.type, which does not state the conflict; cite std-collections.uniq-map.drain and ref.excl.alias.conflict (lang/13-values-and-references.md).
+b153	std/collections/uniqmap/uniq-map-reserve-while-pinned.hd	FIX	B7	Cites std-collections.uniq-map.type, which does not state the conflict; the tested rule is ref.excl.alias.conflict in lang/13-values-and-references.md.
+b153	std/collections/uniqmap/uniq-map-retain-while-pinned.hd	FIX	B7	Cites std-collections.uniq-map.type, which does not state the conflict; cite std-collections.uniq-map.retain and ref.excl.alias.conflict (lang/13-values-and-references.md).
+b153	std/collections/uniqmap/uniq-map-value-alias-insert-panics.hd	FIX	B7	Header cites ref.excl.alias.loan, but the specification column cites std-collections.uniq-map.type, which says nothing about borrow conflicts; cite the loan rule instead.
 b153	runtime/valid/pointer-loan-arg-ref-umap-read.hd	UNSURE	B7	Cites std-collections.uniq-map.type, which only declares the type; the accepted shared-read loan rule is ref.excl.alias.conflict (lang/13). Same citation in all nine pointer-loan valid files.
 b153	runtime/valid/pointer-loan-bang-ref-umap-read.hd	UNSURE	B7	Cites std-collections.uniq-map.type, which only declares the type; the accepted shared-read loan rule is ref.excl.alias.conflict (lang/13).
 b153	runtime/valid/pointer-loan-closure-ref-umap-read.hd	UNSURE	B7	Cites std-collections.uniq-map.type, which only declares the type; the accepted shared-read loan rule is ref.excl.alias.conflict (lang/13).
@@ -787,9 +787,9 @@ b153	runtime/valid/pointer-loan-loop-ref-umap-read.hd	UNSURE	B7	Cites std-collec
 b153	runtime/valid/pointer-loan-ret-ref-umap-read.hd	UNSURE	B7	Cites std-collections.uniq-map.type, which only declares the type; the accepted shared-read loan rule is ref.excl.alias.conflict (lang/13).
 b153	runtime/valid/pointer-loan-stmt-ref-umap-read.hd	UNSURE	B7	Cites std-collections.uniq-map.type, which only declares the type; the accepted shared-read loan rule is ref.excl.alias.conflict (lang/13).
 b153	runtime/valid/pointer-loan-struct-ref-umap-read.hd	UNSURE	B7	Cites std-collections.uniq-map.type, which only declares the type; the accepted shared-read loan rule is ref.excl.alias.conflict (lang/13).
-b153	runtime/valid/function-value-copy-inputs-preserve-owners.hd	UNSURE	B7	Cites std/collections.md#uniqlist, but the test checks fn.type.values, fn.capture.copies and ref.copy.structure, and imports std.http.Url; tier of citation unclear.
-b153	runtime/valid/list-view-run.hd	UNSURE	B1	Title promises a window read "with no copy", but the asserts only check values; nothing observes copying.
-b153	runtime/valid/list-span.hd	UNSURE	B1	Title promises reading and iterating "without copying its elements", but the asserts only check values; nothing observes copying.
+b153	std/collections/uniqlist/function-value-copy-inputs-preserve-owners.hd	UNSURE	B7	Cites std/collections.md#uniqlist, but the test checks fn.type.values, fn.capture.copies and ref.copy.structure, and imports std.http.Url; tier of citation unclear.
+b153	std/collections/list-methods/list-view-run.hd	UNSURE	B1	Title promises a window read "with no copy", but the asserts only check values; nothing observes copying.
+b153	std/collections/list-methods/list-span.hd	UNSURE	B1	Title promises reading and iterating "without copying its elements", but the asserts only check values; nothing observes copying.
 b153	runtime/valid/digest-value-copy.hd	FIX	B5	Imports Digest, which the program never names; import only sha256.
 b154	runtime/valid/encoding-decode-errors.hd	FIX	B3	Display check only asserts the text is non-empty; assert the exact text "invalid character at position 4" from lib/std/encoding.hd.
 b154	runtime/valid/std-errors-erased.hd	FIX	B5	Imports ParseNumberError, which the program never names; remove it from the use line.
