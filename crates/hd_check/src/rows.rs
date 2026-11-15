@@ -8,7 +8,7 @@ use hd_resolve::{FnSig, HeadKind, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::{RowData, RowId, RowParamRef, Ty, TyData};
 
-use crate::body::{Ck, RowFrame};
+use crate::body::{BodyCx, Ck, RowFrame};
 use crate::results::{RowEdge, RowFacts};
 use crate::trial::BodyUndo;
 
@@ -41,51 +41,144 @@ enum RowSeedVar {
     Body(RowOrigin, hd_types::VarKind),
 }
 
-/// Whether the listed key `have` supplies the needed key `want`: the same
-/// key, or a key whose trait has `want`'s trait as a supertrait.
-pub(crate) fn key_supplies(
-    lookup: &hd_resolve::Lookup<'_>,
+/// The strict supertrait keys requirement key `have` supplies beside
+/// itself (`req.row.entail.super`): each supertrait instance its trait
+/// reaches, with the arguments the supertrait lists bind along the path
+/// from `have`'s. Its bindings are those the lists write and `have`'s own,
+/// which may name a supertrait's associated type
+/// (`req.key.binding.names`), so a key that binds a subset of them is the
+/// one supplied (`req.key.binding.identity`). One trait reached
+/// with two argument lists, as under `Both < Store[i32] & Store[string]`,
+/// gives two keys; an instance reached twice, as in a diamond, gives one.
+///
+/// Cost: one visit per distinct instance reached and one substitution per
+/// supertrait edge of those, once per key and run: the run's memo
+/// ([`hd_types::solver::GlobalMemo::supertrait_keys`]) serves every later
+/// ask, from any body. The resolver cuts every supertrait cycle
+/// (`trait.super.acyclic`), so the walk ends without a depth limit.
+pub(crate) fn supertrait_keys(
+    cx: &BodyCx<'_>,
     pool: hd_types::Types<'_>,
     have: Ty,
-    want: Ty,
-) -> bool {
-    if have == want {
+) -> std::sync::Arc<[Ty]> {
+    let TyData::TraitValue {
+        def,
+        args,
+        bindings: listed,
+    } = pool.get(have)
+    else {
+        return std::sync::Arc::from([]);
+    };
+    cx.global.supertrait_keys(have, || {
+        let mut out = Vec::new();
+        let mut seen = hd_base::HashSet::default();
+        let mut stack = vec![(def, args)];
+        while let Some((def, args)) = stack.pop() {
+            let Some(hd_resolve::ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
+                continue;
+            };
+            let known = pool.list_items(args);
+            for s in t.supers.iter().rev() {
+                crate::work::scan_work(1);
+                // `Self` stays the trait's own parameter: no key names it.
+                let s = pool.subst(*s, &|p: hd_types::ParamRef| {
+                    (p.owner == def && p.index > 0)
+                        .then(|| known.get(usize::from(p.index) - 1).copied())
+                        .flatten()
+                });
+                let TyData::TraitValue {
+                    def: d,
+                    args: a,
+                    mut bindings,
+                } = pool.get(s)
+                else {
+                    continue;
+                };
+                for b in &listed {
+                    if !bindings.iter().any(|x| x.0 == b.0) {
+                        bindings.push(*b);
+                    }
+                }
+                let s = pool.intern_ty(&TyData::TraitValue {
+                    def: d,
+                    args: a,
+                    bindings,
+                });
+                if seen.insert(s) {
+                    out.push(s);
+                    stack.push((d, a));
+                }
+            }
+        }
+        out
+    })
+}
+
+/// Whether `inst`, the listed key `have` itself or one of its
+/// [`supertrait_keys`], is the needed key `want`: the same trait and
+/// arguments (`req.row.entail.super.arguments`), and each binding `want`
+/// writes fixed so by `inst` (`req.key.binding.identity`). The listed key
+/// itself also fits a key that binds nothing.
+fn key_is(pool: hd_types::Types<'_>, have: Ty, inst: Ty, want: Ty) -> bool {
+    if inst == want {
+        return true;
+    }
+    let (
+        TyData::TraitValue {
+            def: d1,
+            args: a1,
+            bindings: b1,
+        },
+        TyData::TraitValue {
+            def: d2,
+            args: a2,
+            bindings: b2,
+        },
+    ) = (pool.get(inst), pool.get(want))
+    else {
+        return false;
+    };
+    if d1 != d2 || a1 != a2 {
+        return false;
+    }
+    if inst == have {
+        return b1.is_empty() || b2.is_empty() || b1 == b2;
+    }
+    b2.iter().all(|b| b1.contains(b))
+}
+
+/// Whether the listed key `have` supplies the needed key `want`: the same
+/// key (`req.row.entail.concrete`), or one of its supertrait keys
+/// (`req.row.entail.super`).
+pub(crate) fn key_supplies(cx: &BodyCx<'_>, pool: hd_types::Types<'_>, have: Ty, want: Ty) -> bool {
+    if key_is(pool, have, have, want) {
         return true;
     }
     match (pool.get(have), pool.get(want)) {
-        (
-            TyData::TraitValue {
-                def: d1,
-                args: a1,
-                bindings: b1,
-            },
-            TyData::TraitValue {
-                def: d2,
-                args: a2,
-                bindings: b2,
-            },
-        ) => {
-            (d1 == d2 && a1 == a2 && (b1.is_empty() || b2.is_empty() || b1 == b2))
-                || (d1 != d2 && crate::body::trait_extends(lookup, pool, d1, d2))
+        (TyData::TraitValue { def: d1, .. }, TyData::TraitValue { def: d2, .. }) if d1 != d2 => {
+            supertrait_keys(cx, pool, have)
+                .iter()
+                .any(|&s| key_is(pool, have, s, want))
         }
         _ => false,
     }
 }
 
 /// The keys of a row, indexed for [`key_supplies`] questions: each key
-/// under its own trait and every supertrait of it, so asking which key
-/// supplies a needed key probes the keys of that trait only. A row of at
-/// most [`KeyIndex::SMALL`] keys is scanned, as building the maps would
-/// cost more than the scan.
+/// with its [`supertrait_keys`], so asking which key supplies a needed key
+/// compares keys of that trait only. A row of at most [`KeyIndex::SMALL`]
+/// keys is scanned, as building the maps would cost more than the scan.
 ///
-/// Cost: one supertrait walk per key to build; then one probe and the
-/// candidates' checks per question, where a scan asked every key and
-/// walked each one's supertraits.
+/// Cost: one memo ask per key to build, and for an indexed row one entry
+/// per supertrait key; then one probe and the candidates' comparisons per
+/// question, where asking each key would compare all its supertrait keys.
 pub(crate) enum KeyIndex {
-    Small(Vec<Ty>),
+    Small(Vec<(Ty, std::sync::Arc<[Ty]>)>),
     Indexed {
         all: hd_base::HashSet<Ty>,
-        by_trait: hd_base::HashMap<hd_base::DefId, Vec<Ty>>,
+        /// Under each trait, the listed keys that are or supply a key of
+        /// it, each with that key, in the row's order.
+        by_trait: hd_base::HashMap<hd_base::DefId, Vec<(Ty, Ty)>>,
     },
 }
 
@@ -93,61 +186,48 @@ impl KeyIndex {
     /// The most keys a row has to be scanned instead of indexed.
     const SMALL: usize = 8;
 
-    pub(crate) fn new(
-        lookup: &hd_resolve::Lookup<'_>,
-        pool: hd_types::Types<'_>,
-        keys: &[Ty],
-    ) -> Self {
+    pub(crate) fn new(cx: &BodyCx<'_>, pool: hd_types::Types<'_>, keys: &[Ty]) -> Self {
         crate::work::scan_work(keys.len());
         if keys.len() <= Self::SMALL {
-            return Self::Small(keys.to_vec());
+            return Self::Small(
+                keys.iter()
+                    .map(|&h| (h, supertrait_keys(cx, pool, h)))
+                    .collect(),
+            );
         }
         let mut all = hd_base::HashSet::default();
-        let mut by_trait: hd_base::HashMap<hd_base::DefId, Vec<Ty>> = hd_base::HashMap::default();
+        let mut by_trait: hd_base::HashMap<hd_base::DefId, Vec<(Ty, Ty)>> =
+            hd_base::HashMap::default();
         for &h in keys {
             all.insert(h);
-            if let TyData::TraitValue { def, .. } = pool.get(h) {
-                crate::body::walk_supertraits(
-                    lookup,
-                    pool,
-                    (def, hd_types::TyList::EMPTY),
-                    crate::body::Fill::No,
-                    |d, _, _| {
-                        crate::work::scan_work(1);
-                        let held = by_trait.entry(d).or_default();
-                        if held.last() != Some(&h) {
-                            held.push(h);
-                        }
-                        None::<()>
-                    },
-                );
+            for &inst in std::iter::once(&h).chain(supertrait_keys(cx, pool, h).iter()) {
+                if let TyData::TraitValue { def, .. } = pool.get(inst) {
+                    crate::work::scan_work(1);
+                    by_trait.entry(def).or_default().push((h, inst));
+                }
             }
         }
         Self::Indexed { all, by_trait }
     }
 
     /// The first key, in the row's order, that supplies `want`.
-    pub(crate) fn supplier(
-        &self,
-        lookup: &hd_resolve::Lookup<'_>,
-        pool: hd_types::Types<'_>,
-        want: Ty,
-    ) -> Option<Ty> {
+    pub(crate) fn supplier(&self, pool: hd_types::Types<'_>, want: Ty) -> Option<Ty> {
         match self {
             Self::Small(keys) => {
                 crate::work::scan_work(keys.len());
                 keys.iter()
-                    .copied()
-                    .find(|&h| key_supplies(lookup, pool, h, want))
+                    .find(|(h, supers)| {
+                        key_is(pool, *h, *h, want)
+                            || supers.iter().any(|&s| key_is(pool, *h, s, want))
+                    })
+                    .map(|(h, _)| *h)
             }
             Self::Indexed { all, by_trait } => match pool.get(want) {
                 TyData::TraitValue { def, .. } => by_trait.get(&def).and_then(|held| {
                     crate::work::scan_work(held.len());
-                    held.iter().copied().find(|&h| match pool.get(h) {
-                        // Indexed under a strict supertrait: it extends `want`'s trait.
-                        TyData::TraitValue { def: d, .. } if d != def => true,
-                        _ => key_supplies(lookup, pool, h, want),
-                    })
+                    held.iter()
+                        .find(|(h, inst)| key_is(pool, *h, *inst, want))
+                        .map(|(h, _)| *h)
                 }),
                 _ => all.contains(&want).then_some(want),
             },
@@ -155,13 +235,8 @@ impl KeyIndex {
     }
 
     /// Whether some key supplies `want`.
-    pub(crate) fn supplies(
-        &self,
-        lookup: &hd_resolve::Lookup<'_>,
-        pool: hd_types::Types<'_>,
-        want: Ty,
-    ) -> bool {
-        self.supplier(lookup, pool, want).is_some()
+    pub(crate) fn supplies(&self, pool: hd_types::Types<'_>, want: Ty) -> bool {
+        self.supplier(pool, want).is_some()
     }
 }
 
@@ -223,7 +298,7 @@ impl Ck<'_, '_> {
     }
     /// Whether the listed key `have` supplies the needed key `want`.
     fn key_supplies(&self, have: Ty, want: Ty) -> bool {
-        key_supplies(self.cx.lookup, self.pool(), have, want)
+        key_supplies(self.cx, self.pool(), have, want)
     }
 
     /// `key_supplies`, solving type variables inside a generic key: the
@@ -469,10 +544,8 @@ impl Ck<'_, '_> {
         }
         let (da, db) = (pool.row_data(a), pool.row_data(b));
         let within = |x: &hd_types::RowData, y: &hd_types::RowData| {
-            let have = KeyIndex::new(self.cx.lookup, pool, &y.keys);
-            x.keys
-                .iter()
-                .all(|k| have.supplies(self.cx.lookup, pool, *k))
+            let have = KeyIndex::new(self.cx, pool, &y.keys);
+            x.keys.iter().all(|k| have.supplies(pool, *k))
         };
         da.params == db.params && within(&da, &db) && within(&db, &da)
     }
@@ -626,17 +699,13 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let index = self.row_keys.borrow().get(&row).cloned();
         let index = index.unwrap_or_else(|| {
-            let built = std::rc::Rc::new(KeyIndex::new(
-                self.cx.lookup,
-                pool,
-                &pool.row_data(row).keys,
-            ));
+            let built = std::rc::Rc::new(KeyIndex::new(self.cx, pool, &pool.row_data(row).keys));
             self.row_keys
                 .borrow_mut()
                 .insert(row, std::rc::Rc::clone(&built));
             built
         });
-        index.supplier(self.cx.lookup, pool, k)
+        index.supplier(pool, k)
     }
 
     /// Finds `need` in the available-keys stack (`req.row.entail`); a

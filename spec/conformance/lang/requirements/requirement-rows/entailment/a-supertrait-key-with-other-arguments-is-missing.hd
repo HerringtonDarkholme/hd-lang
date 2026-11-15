@@ -1,0 +1,13 @@
+# test: a listed key does not supply its supertrait's trait at arguments other than those its supertrait list binds
+# Spec 11 Entailment: req.row.entail.super.arguments.
+trait Store[T]:
+    fn get(&self) -> T
+
+trait Cache < Store[i32]:
+    fn hit(&self) -> i32
+
+fn text() -> string $ Cache:
+    $.use(Store[string]).get() # diagnostic: missing-requirement
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,59 @@
+# test: a listed key supplies the keys of its supertraits one and two levels up, to a use, a call, a closure, and a body with a row parameter, beside a key listed directly
+# Spec 11 Entailment: req.row.entail.concrete, req.row.entail.super.
+trait Root:
+    fn root(&self) -> i32
+
+trait Base < Root:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+trait Other:
+    fn other(&self) -> i32
+
+struct S:
+    n: i32
+
+impl Root for S:
+    fn root(&self) -> i32: self.n * 100
+
+impl Base for S:
+    fn base(&self) -> i32: self.n * 10
+
+impl Named for S:
+    fn name(&self) -> i32: self.n
+
+impl Other for S:
+    fn other(&self) -> i32: self.n
+
+fn needs_base() -> i32 $ Base:
+    $.use(Base).base()
+
+fn levels() -> string $ Named:
+    "${$.use(Root).root()} ${$.use(Base).base()}"
+
+fn beside() -> i32 $ Other + Named:
+    $.use(Other).other() + $.use(Named).name() * 0
+
+fn call() -> i32 $ Named:
+    needs_base()
+
+fn closures() -> string $ Named:
+    inferred := fn() -> i32:
+        $.use(Base).base()
+    let typed: fn() -> i32 $ Named = fn() -> i32 $ Named:
+        $.use(Base).base() + 1
+    "${inferred()} ${typed()}"
+
+fn forward[$R](g: fn() -> i32 $ R) -> i32 $ R + Named:
+    inner := fn() -> i32 $ R + Named:
+        g() + $.use(Base).base()
+    inner() + $.use(Base).base()
+
+fn open() -> i32 $ Named:
+    forward(fn() -> i32: $.use(Base).base())
+
+pub fn main() -> void $ Console:
+    $.with(Named=box(S { n: 4 }), Other=box(S { n: 7 })):
+        println("${levels()} ${beside()} ${call()} ${closures()} ${$.use(Base).base()} ${open()}")

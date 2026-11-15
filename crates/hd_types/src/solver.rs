@@ -992,6 +992,10 @@ pub struct GlobalMemo {
     /// Each struct's fields by name, as indices in declaration order: the
     /// checker's literals and field reads probe it once per name.
     field_indices: Mutex<HashMap<DefId, Arc<HashMap<Symbol, u32>>>>,
+    /// Each requirement key's strict supertrait keys, the keys it supplies
+    /// beside itself (`req.row.entail.super`): a function of the key and
+    /// the run's trait declarations, so every body shares one walk per key.
+    supertrait_keys: Mutex<HashMap<Ty, Arc<[Ty]>>>,
     /// The closed types whose containment walk (the checker's
     /// `ProjectionCycles`) found no projection cycle and no projection
     /// past the depth limit, by the impl universe it normalized in: a
@@ -1132,6 +1136,27 @@ impl GlobalMemo {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .extend(tys.iter().map(|&t| (universe, t)));
+    }
+
+    /// The strict supertrait keys of requirement key `key`, made by `make`
+    /// on the first ask and then shared by every body of the run.
+    pub fn supertrait_keys(&self, key: Ty, make: impl FnOnce() -> Vec<Ty>) -> Arc<[Ty]> {
+        if let Some(keys) = self
+            .supertrait_keys
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&key)
+        {
+            return Arc::clone(keys);
+        }
+        let keys: Arc<[Ty]> = make().into();
+        Arc::clone(
+            self.supertrait_keys
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(key)
+                .or_insert(keys),
+        )
     }
 
     /// The fields of struct `def` by name, as `names` lists them in

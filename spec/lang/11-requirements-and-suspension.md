@@ -159,11 +159,13 @@ pub fn invalid() -> void:
 2. r[req.row.entail.available] For a body, `available` is the union of the declared row and the lexical keys.
 3. r[req.row.entail.member] Every required key must be a member of `available`.
 4. r[req.row.entail.membership] Rows contain only unions, so entailment reduces to membership.
-5. r[req.row.entail.concrete] A concrete key `K` is entailed by a row exactly when the row lists `K`.
-6. r[req.row.entail.concrete.parameter] An unknown row parameter listed in the row never entails `K`.
-7. r[req.row.entail.parameter] An unknown row parameter `R` is entailed by a row exactly when that row lists `R` itself.
-8. r[req.row.entail.parameter.concrete] No set of concrete keys entails `R`.
-9. r[req.row.entail.generic] A generic key such as `Repo[T]` is entailed only by a key that is identical to it after alias expansion.
+5. r[req.row.entail.concrete] A concrete key `K` is entailed by a row exactly when the row lists `K` or lists a key that supplies `K` through its supertraits.
+6. r[req.row.entail.super] A listed key supplies the key of each direct or transitive supertrait of its trait. Under `trait Named < Base`, the row `$ Named` entails `$ Base`.
+7. r[req.row.entail.super.arguments] A supertrait key has the arguments that the listed key's supertrait lists bind. Under `trait Cache < Store[i32]`, `$ Cache` entails `$ Store[i32]` but not `$ Store[string]`.
+8. r[req.row.entail.concrete.parameter] An unknown row parameter listed in the row never entails `K`.
+9. r[req.row.entail.parameter] An unknown row parameter `R` is entailed by a row exactly when that row lists `R` itself.
+10. r[req.row.entail.parameter.concrete] No set of concrete keys entails `R`.
+11. r[req.row.entail.generic] A generic key such as `Repo[T]` is entailed only by a key that is identical to it after alias expansion, or that supplies it through its supertraits.
 
 ```text
 trait Clock

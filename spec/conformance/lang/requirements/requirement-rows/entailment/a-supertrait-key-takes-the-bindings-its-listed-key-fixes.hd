@@ -1,0 +1,45 @@
+# test: a supertrait key binds the associated types that the listed key or its supertrait list binds
+# Spec 11 Entailment: req.row.entail.super; Bound Requirement Keys: req.key.binding.identity.
+trait Feed:
+    type Item
+    fn next(&self) -> Self::Item
+
+trait PriceFeed < Feed[Item = i32]:
+    fn currency(&self) -> string
+
+trait AnyFeed < Feed:
+    fn label(&self) -> string
+
+struct Prices: pass
+
+struct Words: pass
+
+impl Feed for Prices:
+    type Item = i32
+    fn next(&self) -> i32: 3
+
+impl PriceFeed for Prices:
+    fn currency(&self) -> string: "usd"
+
+impl Feed for Words:
+    type Item = string
+    fn next(&self) -> string: "three"
+
+impl AnyFeed for Words:
+    fn label(&self) -> string: "words"
+
+fn price() -> i32 $ Feed[Item = i32]:
+    $.use(Feed[Item = i32]).next()
+
+fn priced() -> i32 $ PriceFeed:
+    $.use(Feed[Item = i32]).next()
+
+fn word() -> string $ AnyFeed[Item = string]:
+    $.use(Feed[Item = string]).next()
+
+fn both() -> string $ PriceFeed + AnyFeed[Item = string]:
+    "${priced()} ${word()} ${price()}"
+
+pub fn main() -> void $ Console:
+    $.with(PriceFeed=box(Prices {}), AnyFeed[Item = string]=box(Words {})):
+        println(both())

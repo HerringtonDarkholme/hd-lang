@@ -1,0 +1,14 @@
+# test: a listed key does not supply its supertrait's key with an associated type bound otherwise than it binds
+# Spec 11 Entailment: req.row.entail.super; Bound Requirement Keys: req.key.binding.identity.
+trait Feed:
+    type Item
+    fn next(&self) -> Self::Item
+
+trait AnyFeed < Feed:
+    fn label(&self) -> string
+
+fn price() -> i32 $ AnyFeed[Item = string]:
+    $.use(Feed[Item = i32]).next() # diagnostic: missing-requirement
+
+pub fn main() -> void:
+    pass

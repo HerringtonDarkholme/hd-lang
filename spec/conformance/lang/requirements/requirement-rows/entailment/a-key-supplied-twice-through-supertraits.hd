@@ -1,0 +1,57 @@
+# test: a key reached twice through one listed key's supertraits, a key two listed keys supply, and a scope of a subtrait inside a function that lists the supertrait
+# Spec 11 Entailment: req.row.entail.super.
+trait Root:
+    fn root(&self) -> i32
+
+trait Left < Root:
+    fn left(&self) -> i32
+
+trait Right < Root:
+    fn right(&self) -> i32
+
+trait Both < Left & Right:
+    fn both(&self) -> i32
+
+trait Base:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+struct S:
+    n: i32
+
+impl Root for S:
+    fn root(&self) -> i32: self.n
+
+impl Left for S:
+    fn left(&self) -> i32: self.n + 1
+
+impl Right for S:
+    fn right(&self) -> i32: self.n + 2
+
+impl Both for S:
+    fn both(&self) -> i32: self.n + 3
+
+impl Base for S:
+    fn base(&self) -> i32: self.n * 10
+
+impl Named for S:
+    fn name(&self) -> i32: self.n
+
+fn diamond() -> i32 $ Both:
+    $.use(Root).root()
+
+fn twice() -> i32 $ Left + Right:
+    $.use(Root).root()
+
+fn needs_named() -> i32 $ Named:
+    $.use(Named).name() + $.use(Base).base() * 0
+
+fn scoped() -> string $ Base:
+    $.with(Named=box(S { n: 6 })):
+        "${needs_named()} ${$.use(Base).base()}"
+
+pub fn main() -> void $ Console:
+    $.with(Both=box(S { n: 5 }), Left=box(S { n: 5 }), Right=box(S { n: 5 }), Base=box(S { n: 6 })):
+        println("${diamond()} ${twice()} ${$.use(Left).left() + $.use(Right).right() - 5} ${scoped()}")

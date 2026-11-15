@@ -3806,6 +3806,8 @@ lang/requirements/requirement-rows/requirement-keys/requirement-key-binding-row-
 lang/requirements/requirement-rows/requirement-keys/requirement-key-unknown-argument-type.hd	type	reject:unknown-type	lang/11-requirements-and-suspension.md#requirement-keys
 lang/requirements/requirement-rows/entailment/requirement-key-trait-value-argument.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.generic
 lang/requirements/requirement-rows/entailment/a-wide-row-misses-a-key-it-lacks-but-not-a-supertrait-key.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.entail.member
+lang/requirements/requirement-rows/entailment/a-supertrait-key-with-other-arguments-is-missing.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.entail.super.arguments
+lang/requirements/requirement-rows/entailment/a-supertrait-key-with-another-binding-is-missing.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.entail.super
 lang/requirements/requirement-rows/requirement-keys/function-type-row-unknown-trait-nested.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 lang/requirements/requirement-rows/requirement-keys/local-annotation-row-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 lang/requirements/requirement-rows/requirement-keys/data-field-row-any-trait.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.key.any-trait-members.reference-values
@@ -3864,6 +3866,10 @@ lang/types/generics/generic-representation/generic-storage-callable-list-identit
 lang/requirements/requirement-polymorphism/row-parameter-callable-in-list.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.poly.row-parameter
 lang/requirements/requirement-rows/entailment/generic-requirement-key-substitution.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.generic
 lang/requirements/requirement-rows/entailment/a-wide-row-finds-each-key-and-a-trait-value-its-supertrait-method.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.member
+lang/requirements/requirement-rows/entailment/a-listed-key-supplies-its-supertrait-keys.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.super
+lang/requirements/requirement-rows/entailment/a-listed-key-supplies-its-generic-supertrait-keys.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.super.arguments
+lang/requirements/requirement-rows/entailment/a-key-supplied-twice-through-supertraits.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.super
+lang/requirements/requirement-rows/entailment/a-supertrait-key-takes-the-bindings-its-listed-key-fixes.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.super
 lang/types/generics/generic-arguments/generic-inference-from-requirement-key.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer
 lang/requirements/requirement-rows/row-sets/requirement-row-order-stored-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.set.order
 lang/requirements/requirement-rows/row-sets/requirement-row-order-trait-value.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.set.order

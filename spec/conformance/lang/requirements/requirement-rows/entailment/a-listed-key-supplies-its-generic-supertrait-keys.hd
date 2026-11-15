@@ -1,0 +1,47 @@
+# test: a listed key supplies a generic supertrait's key at the arguments its supertrait list binds, each of two instances of one trait, and through a generic key
+# Spec 11 Entailment: req.row.entail.super.arguments, req.row.entail.generic.
+trait Store[T]:
+    fn get(&self) -> T
+
+trait Cache < Store[i32]:
+    fn hit(&self) -> i32
+
+trait Both < Store[i32] & Store[string]:
+    fn both(&self) -> i32
+
+trait Wrap[T] < Store[T]:
+    fn wrap(&self) -> i32
+
+struct C:
+    n: i32
+
+impl Store[i32] for C:
+    fn get(&self) -> i32: self.n
+
+impl Store[string] for C:
+    fn get(&self) -> string: "s"
+
+impl Cache for C:
+    fn hit(&self) -> i32: 1
+
+impl Both for C:
+    fn both(&self) -> i32: 2
+
+impl Wrap[i32] for C:
+    fn wrap(&self) -> i32: 3
+
+fn fetch() -> i32 $ Store[i32]:
+    $.use(Store[i32]).get()
+
+fn cached() -> i32 $ Cache:
+    fetch()
+
+fn both() -> string $ Both:
+    "${$.use(Store[i32]).get()} ${$.use(Store[string]).get()}"
+
+fn wrapped[T](make: fn(T) -> string) -> string $ Wrap[T]:
+    make($.use(Store[T]).get())
+
+pub fn main() -> void $ Console:
+    $.with(Cache=box(C { n: 7 }), Both=box(C { n: 7 }), Wrap[i32]=box(C { n: 9 })):
+        println("${cached()} ${both()} ${wrapped(fn(v: i32) -> string: "${v}")}")
