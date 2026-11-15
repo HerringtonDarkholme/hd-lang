@@ -1,5 +1,5 @@
-# test: matching a borrowed field preserves value lifetimes across calls, alias stores, and returned payloads
-# Spec 13 References: ref.read.auto; Reference Lifetime: ref.box.lifetime.
+# test: a matched field's payload stays alive across calls, alias stores and guards that clear the field, and when returned
+# Spec 13 References: ref.read.auto; Reference Lifetime: ref.box.lifetime, ref.write.no-exclusivity.
 struct Node:
     value: i64
     left: (*Node)?
@@ -12,14 +12,14 @@ fn value(node: &Node) -> i64:
 fn clear(node: &mut Node) -> void:
     node.left = .None
 
-fn across_call(node: &Node, alias: &mut Node) -> i64:
+fn across_call(node: *Node, alias: *mut Node) -> i64:
     match node.left:
         .None => 0
         .Some(left) =>
             clear(alias)
             left.value
 
-fn across_store(node: &Node, alias: &mut Node) -> i64:
+fn across_store(node: *Node, alias: *mut Node) -> i64:
     match node.left:
         .None => 0
         .Some(left) =>
@@ -35,7 +35,7 @@ fn guard_clear(node: &mut Node) -> bool:
     clear(node)
     true
 
-fn across_guard(node: &Node, alias: &mut Node) -> i64:
+fn across_guard(node: *Node, alias: *mut Node) -> i64:
     match node.left:
         .Some(left) if guard_clear(alias) => left.value
         _ => 0
@@ -53,7 +53,7 @@ fn selected_erased(node: *Node) -> *dyn HasValue:
         .Some(left) => left
 
 tests:
-    use std.testing.assert_equal
+    use std.testing.{assert, assert_equal}
 
     it("a call-free match reads the borrowed payload"):
         node := Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) }
@@ -83,3 +83,21 @@ tests:
         child := selected_erased(node)
         node.left = .None
         assert_equal(child.number(), 42, reason="erasing a borrowed payload preserves ownership")
+
+    it("a matched payload outlives a call that clears its field through an alias"):
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        alias := node
+        assert_equal(across_call(node, alias), 42, reason="the arm keeps its payload")
+        assert(node.left.is_none(), reason="the call cleared the field")
+
+    it("a matched payload outlives a store to its field through an alias"):
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        alias := node
+        assert_equal(across_store(node, alias), 42, reason="the arm keeps its payload")
+        assert(node.left.is_none(), reason="the store cleared the field")
+
+    it("a matched payload outlives a guard that clears its field through an alias"):
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        alias := node
+        assert_equal(across_guard(node, alias), 42, reason="the arm keeps its payload")
+        assert(node.left.is_none(), reason="the guard cleared the field")

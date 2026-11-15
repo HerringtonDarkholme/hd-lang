@@ -1,4 +1,4 @@
-# test: multi provider use order
+# test: $.use with two names gives each its own provider, in the order the list names them
 
 trait Left:
     fn value(self) -> i32
@@ -20,10 +20,14 @@ impl Right for Number:
 fn main() -> i32:
     $.with(Left=Number { value: 20 }, Right=Number { value: 22 }):
         let (left, right) = $.use(Left, Right)
-        left.value() + right.value()
+        left.value() * 100 + right.value()
 
 tests:
     use std.testing.assert_equal
 
-    it("main returns 42"):
-        assert_equal(main(), 42, reason="multi provider use order")
+    it("each name in the use list gets its own provider"):
+        assert_equal(
+            main(),
+            2022,
+            reason="Left is 20 and Right is 22, in the order the list names them",
+        )

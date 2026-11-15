@@ -2,6 +2,7 @@
 # @build: v8 release
 # #1383: a loop-site profitability decision cannot poison a root-site memo.
 # fn.capture.cell; fn.capture.cell.fresh; fn.trait.mut.call.
+# expect-stdout: 12
 use std.function.FnMut
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
@@ -16,4 +17,4 @@ fn mixed(xs: List[string]) -> usize:
     total
 
 pub fn main() -> void $ Console:
-    println(mixed(["a", "bb"])) # prints: 12
+    println(mixed(["a", "bb"]))

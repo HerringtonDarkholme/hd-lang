@@ -50,6 +50,4 @@ tests:
 
     it("the default source is .None"):
         let error: &dyn Error = &ParseError.BadLine(3)
-        match error.source():
-            .Some(_) => assert(false, reason="no source was given")
-            .None => assert(true, reason="the default source")
+        assert(error.source().is_none(), reason="no source was given")

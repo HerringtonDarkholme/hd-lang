@@ -50,7 +50,7 @@ fn unchanged_map() -> string:
     *d
 
 pub fn main() -> void $ Console:
-    println(unchanged()) # prints: a
-    println(unchanged_pointer()) # prints: c
-    println(unchanged_field()) # prints: e
-    println(unchanged_map()) # prints: g
+    println(unchanged())
+    println(unchanged_pointer())
+    println(unchanged_field())
+    println(unchanged_map())

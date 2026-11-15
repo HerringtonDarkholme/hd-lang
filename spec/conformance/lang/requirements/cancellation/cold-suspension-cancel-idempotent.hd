@@ -1,12 +1,20 @@
 # test: cancelling a cold suspension marks it without running it, returns .Finished, and a second cancel does the same
 # Spec 11 Cancellation: req.cancel.cold-job, req.check.cancel-idempotent.
 
-fn ready!() -> i32:
+struct Runs:
+    count: i32
+
+fn ready!(runs: *mut Runs) -> i32:
+    runs.count += 1
     42
+
 fn main!() -> i32:
-    let pending: Suspend[i32] = ready()
+    runs := box(Runs { count: 0 })
+    let pending: Suspend[i32] = ready(runs)
     first := pending.cancel!()
     second := pending.cancel!()
+    if runs.count != 0:
+        return 0
     match first:
         .Finished => pass
         .Abandoned => return 0

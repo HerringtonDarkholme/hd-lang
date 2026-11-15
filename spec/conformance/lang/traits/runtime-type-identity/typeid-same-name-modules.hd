@@ -10,9 +10,7 @@ tests:
 
     it("a left Item does not downcast to a right Item"):
         value := left.erased("pen")
-        match value.downcast_ref::[right.Item]().map(fn(found): *found):
-            .Some(found) => assert(false, reason="a left Item came back with count {found.count}")
-            .None => assert(true, reason="different declarations")
+        assert(value.downcast_ref::[right.Item]().is_none(), reason="different declarations")
         match value.downcast_ref::[left.Item]().map(fn(found): *found):
             .Some(found) => assert_equal(found.label, "pen", reason="the same declaration")
             .None => assert(false, reason="the downcast must succeed")

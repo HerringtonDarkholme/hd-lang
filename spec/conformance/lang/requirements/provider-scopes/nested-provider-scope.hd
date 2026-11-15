@@ -1,27 +1,32 @@
-# test: requirements / provider scopes
+# test: inside a nested $.with the nearest provider answers, and before it the outer one does
 # Spec 11 Provider Scopes: req.with.block, req.with.evaluated,
 # req.with.type-or-ref, req.with.nested, req.with.nearest, req.with.nearest.which,
 # req.with.nearest.not-error, req.use.value.flow,
 # req.use.value.row-meaning.
 
 fn run() -> i32 $ Clock + Backup:
-    _ := $.use(Clock)
+    outer := $.use(Clock).now()
     $.with(Clock=$.use(Backup)):
-        _ := $.use(Clock)
-        42
+        inner := $.use(Clock).now()
+        outer * 10 + inner
 
-trait Clock
+trait Clock:
+    fn now(self) -> i32
 
 struct FixedClock: pass
 
-impl Clock for FixedClock
+impl Clock for FixedClock:
+    fn now(self) -> i32:
+        1
 
 trait Backup < Clock:
     fn label(self) -> i32
 
 struct FixedBackup: pass
 
-impl Clock for FixedBackup
+impl Clock for FixedBackup:
+    fn now(self) -> i32:
+        2
 
 impl Backup for FixedBackup:
     fn label(self) -> i32:
@@ -30,6 +35,6 @@ impl Backup for FixedBackup:
 tests:
     use std.testing.assert_equal
 
-    it("run returns 42 with its providers"):
+    it("the nested scope's Clock is the nearest one"):
         $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
-            assert_equal(run(), 42, reason="requirements / provider scopes")
+            assert_equal(run(), 12, reason="the outer Clock is 1, the nested one 2")

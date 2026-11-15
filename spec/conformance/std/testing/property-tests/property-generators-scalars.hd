@@ -48,6 +48,27 @@ tests:
     )
 
     it_prop(
-        "an f64 may be any value",
-        prop=fn!(x: f64): assert(x == x || x != x, reason="NaN is not equal to itself")
+        "an f64 draw reaches NaN",
+        expect_panic="assertion-failed",
+        prop=fn!(x: f64): assert(!x.is_nan(), reason="only a NaN fails")
+    )
+
+    it_prop(
+        "an f64 draw reaches an infinity",
+        expect_panic="assertion-failed",
+        prop=fn!(x: f64): assert(x.is_nan() || x.is_finite(), reason="only an infinity fails")
+    )
+
+    it_prop(
+        "an f64 draw reaches -0.0",
+        expect_panic="assertion-failed",
+        prop=fn!(x: f64): assert(x != 0.0 || 1.0 / x > 0.0, reason="only -0.0 fails")
+    )
+
+    it_prop("an f64 draw reaches a subnormal", expect_panic="assertion-failed", prop=fn!(x: f64):
+        let least_normal: f64 = 2.2250738585072014e-308
+        assert(
+            x == 0.0 || !(x > -least_normal && x < least_normal),
+            reason="only a subnormal fails",
+        )
     )

@@ -1,6 +1,7 @@
 # #1383: exposing generic consumers preserves creation snapshots and cells.
 # fn.capture.copy.value; fn.capture.cell.closures; fn.capture.copies;
 # fn.capture.call.any; fn.trait.mut.call.
+# expect-stdout: new 10 old:a,old:bb,old:ccc,old:dddd
 use std.function.FnMut
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
@@ -28,4 +29,4 @@ fn exercise() -> string:
     "${source[0]} $total ${seen.join(",")}"
 
 pub fn main() -> void $ Console:
-    println(exercise()) # prints: new 10 old:a,old:bb,old:ccc,old:dddd
+    println(exercise())

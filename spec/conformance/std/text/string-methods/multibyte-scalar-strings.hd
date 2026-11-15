@@ -11,7 +11,7 @@ tests:
 
     it("no normalization in equality"):
         assert("\u{E9}" != "e\u{301}", reason="canonically equivalent but distinct")
-        assert_equal("\u{E9}", "\u{E9}", reason="the same precomposed scalar")
+        assert_equal("é", "\u{E9}", reason="a literal é is the precomposed scalar")
 
     it("ordering compares bytes, which is scalar order, not UTF-16 code units"):
         assert("\u{FF61}" < "\u{1F600}", reason="U+FF61 < U+1F600 by scalar value")

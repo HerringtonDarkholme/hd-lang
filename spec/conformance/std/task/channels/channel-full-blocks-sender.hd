@@ -18,16 +18,16 @@ fn consume!(rx: Receiver[i32], log: *mut List[string]) -> void:
             .None => return
 
 fn position(log: &List[string], entry: string) -> usize:
-    log.index_of(entry).unwrap_or(1000)
+    log.index_of(entry).expect("every entry is logged")
 
 pub fn main!() -> void $ Console:
     let (tx, rx) = channel::[i32](capacity=1)
     let log: *mut List[string] = box([])
     _ := join!(produce(tx, log), consume(rx, log))
-    let ordered = true
-    let i: i32 = 1
+    let ordered = log.len() == 8
+    let i: i32 = 2
     while i < 4:
-        if position(log, "got ${i - 1}") > position(log, "sent ${i + 1}"):
+        if position(log, "got ${i - 2}") > position(log, "sent $i"):
             ordered = false
         i = i + 1
     println("4 items, each sent after the one before was taken: $ordered")

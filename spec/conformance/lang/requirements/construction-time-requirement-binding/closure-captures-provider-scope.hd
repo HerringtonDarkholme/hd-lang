@@ -1,24 +1,31 @@
-# test: closures / provider captures
+# test: a closure made in a $.with scope keeps the provider it captured there
 
 fn make_reader() -> (fn() -> i32) $ Backup:
     $.with(Clock=$.use(Backup)):
         let clock: *dyn Clock = $.use(Clock)
-        fn() -> i32:
-            _ := clock
-            42
+        fn() -> i32: clock.now()
 
 fn run() -> i32 $ Backup:
     reader := make_reader()
     reader()
 
-trait Clock
+trait Clock:
+    fn now(self) -> i32
 
 trait Backup < Clock:
     fn label(self) -> i32
 
+struct FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> i32:
+        1
+
 struct FixedBackup: pass
 
-impl Clock for FixedBackup
+impl Clock for FixedBackup:
+    fn now(self) -> i32:
+        2
 
 impl Backup for FixedBackup:
     fn label(self) -> i32:
@@ -27,6 +34,6 @@ impl Backup for FixedBackup:
 tests:
     use std.testing.assert_equal
 
-    it("run returns 42 with its providers"):
-        $.with(Backup=FixedBackup {}):
-            assert_equal(run(), 42, reason="closures / provider captures")
+    it("the closure calls the provider it captured, not the caller's"):
+        $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
+            assert_equal(run(), 2, reason="the captured Clock is the Backup")

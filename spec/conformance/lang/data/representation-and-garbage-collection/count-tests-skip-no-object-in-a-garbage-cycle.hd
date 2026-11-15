@@ -40,4 +40,5 @@ tests:
             n += 1
         assert(shared[0] == "kept 7", reason="the rings' shared list outlives them")
         shared.push("more")
-        assert(shared.len() == 2 && total >= 0, reason="the list is still the local's")
+        assert(shared.len() == 2, reason="the list is still the local's")
+        assert(total == 750, reason="each of the 10050 cycles added 2n + 6, modulo 1000")
