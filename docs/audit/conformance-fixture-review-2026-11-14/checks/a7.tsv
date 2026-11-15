@@ -676,7 +676,7 @@ typing/invalid/data-literal-missing-field.hd	reject:missing-required-field	lang/
 typing/invalid/data-literal-unknown-field.hd	reject:unknown-field	lang/08-data-and-enums.md#construction-and-access	-1	
 typing/invalid/missing-required-data-field.hd	reject:missing-required-field	lang/08-data-and-enums.md#construction-and-access	0	final-newline-changed
 typing/valid/data-types.hd	accept	lang/08-data-and-enums.md#construction-and-access	6	
-typing/valid/declaration-checks-a-literal-gives-each-field-once-294.hd	accept	lang/08-data-and-enums.md#construction-and-access	2	
+typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd	accept	lang/08-data-and-enums.md#construction-and-access	2	
 runtime/valid/copy-update-evaluation-order.hd	accept	lang/08-data-and-enums.md#copy-update-literals	-6	
 typing/invalid/copy-update-source-type-mismatch.hd	reject:type-mismatch	lang/08-data-and-enums.md#copy-update-literals	-1	
 parse/valid/data-embedding.hd	accept	lang/08-data-and-enums.md#data-embedding	3	
@@ -698,15 +698,15 @@ typing/valid/data-default-calls-function-value.hd	accept	lang/08-data-and-enums.
 typing/valid/data-field-defaults.hd	accept	lang/08-data-and-enums.md#field-defaults	-1	
 typing/valid/generic-optional-field-default.hd	accept	lang/08-data-and-enums.md#field-defaults	-1	
 runtime/valid/fieldless-data-argument.hd	accept	lang/08-data-and-enums.md#fieldless-data-types	-2	
-typing/invalid/declaration-checks-an-unknown-field-suppresses-the-missing-field-error-295.hd	reject:unknown-field	lang/08-data-and-enums.md#fields	-1	
-typing/valid/declaration-checks-an-unknown-field-suppresses-the-missing-field-error-296.hd	accept	lang/08-data-and-enums.md#fields	-1	
+typing/invalid/fields-a-literal-with-only-an-unknown-field-reports-it-and-not-the-missing-one.hd	reject:unknown-field	lang/08-data-and-enums.md#fields	-1	
+typing/valid/fields-a-literal-giving-its-only-field-may-be-read-at-once.hd	accept	lang/08-data-and-enums.md#fields	-1	
 runtime/valid/generic-enum-payloads.hd	accept	lang/08-data-and-enums.md#generic-and-recursive-enums	-1	
 runtime/valid/contextual-variant-expressions.hd	accept	lang/08-data-and-enums.md#matching-enums	-3	
 runtime/valid/contextual-variant-patterns.hd	accept	lang/08-data-and-enums.md#matching-enums	-1	
 runtime/valid/enum-payload-match.hd	accept	lang/08-data-and-enums.md#matching-enums	-1	
 runtime/valid/literal-payload-patterns.hd	accept	lang/08-data-and-enums.md#matching-enums	-10	
 runtime/valid/named-enum-payload-patterns.hd	accept	lang/08-data-and-enums.md#matching-enums	-5	
-typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-240.hd	accept	lang/08-data-and-enums.md#matching-enums	-1	
+typing/valid/matching-enums-a-contextual-variant-takes-its-enum-from-a-parameter-type.hd	accept	lang/08-data-and-enums.md#matching-enums	-1	
 typing/valid/contextual-variants.hd	accept	lang/08-data-and-enums.md#matching-enums	-1	
 runtime/valid/option-result-prelude-spellings.hd	accept	lang/08-data-and-enums.md#option-and-result	-4	
 runtime/valid/enum-value-fixed-at-construction.hd	accept	lang/08-data-and-enums.md#r-data.enum.immutable	-8	

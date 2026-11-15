@@ -1,0 +1,7 @@
+# test: data embedding a struct may embed a struct without a cycle
+struct Node:
+    id: string
+
+struct Edge:
+    Node
+    weight: i32

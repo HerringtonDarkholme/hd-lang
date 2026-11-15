@@ -17,5 +17,5 @@ runtime/valid/trailing-commas-everywhere.hd	A7b	lost ',,,,,,,,,,,,,,,,,' gained 
 typing/invalid/grammar-assignment-nonplace.hd	A7b	lost '()' gained ''	lang/02-grammar.md#r-grammar.stmt.assign-place
 typing/valid/composite-ordering.hd	A7b	lost ',' gained ''	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/data-types.hd	A7b	lost ',,' gained ''	lang/08-data-and-enums.md#construction-and-access
-typing/valid/declaration-checks-a-literal-gives-each-field-once-294.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#construction-and-access
+typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#construction-and-access
 typing/valid/generic-data-embedding.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#data-embedding

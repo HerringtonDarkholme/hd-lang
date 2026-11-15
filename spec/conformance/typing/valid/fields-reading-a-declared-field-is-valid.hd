@@ -1,4 +1,4 @@
-# test: checker checker errors are reported
+# test: fields reading a declared field is valid
 struct P:
     x: i32
 

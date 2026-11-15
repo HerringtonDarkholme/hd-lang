@@ -1,4 +1,4 @@
-# test: checker checker errors are reported
+# test: fields reading a field the struct lacks is unknown
 struct P:
     x: i32
 

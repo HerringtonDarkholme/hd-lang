@@ -1,4 +1,4 @@
-# test: declaration checks an unknown shorthand suppresses the missing field error
+# test: field shorthand shorthand fields from parameters give every field
 struct Point:
     x: i32
     y: i32

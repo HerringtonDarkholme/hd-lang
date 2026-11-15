@@ -1,0 +1,7 @@
+# test: data embedding a generic struct may embed a struct without a cycle
+struct Holder:
+    id: string
+
+struct Wrapper[T]:
+    Holder
+    value: T

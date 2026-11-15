@@ -1438,7 +1438,7 @@ under test:
   `parse/valid/literal-field-comparison-value.hd`, `runtime/valid/implicit-continuation-in-delimiters.hd`,
   `runtime/valid/json-number-grammar.hd`, `runtime/valid/module-initialization-before-main.hd`,
   `typing/valid/composite-ordering.hd`, `typing/valid/data-types.hd`,
-  `typing/valid/declaration-checks-a-literal-gives-each-field-once-294.hd`,
+  `typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd`,
   `typing/valid/generic-data-embedding.hd`: trailing commas removed.
 - `runtime/valid/module-qualified-function-value-parenthesized.hd` (b048: `(time.s)`
   became `time.s`, so it is now a duplicate of `module-qualified-function-value.hd`),
@@ -1551,7 +1551,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `typing/invalid/match-a-field-named-twice-in-a-struct-pattern-is-a-duplicate.hd` = `typing/invalid/duplicate-data-pattern-field.hd`
 - `typing/invalid/match-a-named-variant-pattern-field-the-variant-lacks-is-unknown.hd` = `typing/invalid/variant-pattern-unknown-field.hd` (b057)
 - `typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `typing/valid/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
-- `typing/valid/declaration-checks-a-shorthand-field-counts-as-given-300.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
+- `typing/valid/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `typing/invalid/propagation-without-target.hd` = `typing/invalid/propagation-nearest-function-target.hd`
 - `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)
 - `typing/valid/shared-reference-disjoint-field-write.hd` = `typing/valid/dependent-result-borrow-field-instead.hd`
@@ -1898,7 +1898,7 @@ Ledger: b078 (45): 4 rows. Confirmed 2 (A11), plausible 2.
 - The A11 class, found independently by the reviewer: `runtime/valid/shared-enum-data-computed-once.hd`
   and `runtime/valid/ord-supertrait-dispatch.hd` (private `main`, so nothing runs).
 - Plausible B1: `runtime/valid/derive-members-of-data-and-enums.hd` (`_1` is never
-  emitted). `typing/invalid/variant-value-constructors-that-are-not-function-values-are-errors-02.hd`
+  emitted). `typing/invalid/variant-constructors-a-generic-variant-value-without-an-expected-type-cannot-be-inferred.hd`
   (`Either.Left` *is* a function value; the real error is an unsolved generic,
   so this is the wrong-reason kind).
 

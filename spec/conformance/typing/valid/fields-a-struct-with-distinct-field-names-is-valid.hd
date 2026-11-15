@@ -1,0 +1,4 @@
+# test: fields a struct with distinct field names is valid
+struct Invoice:
+    number: string
+    total: i64

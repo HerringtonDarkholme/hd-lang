@@ -1,0 +1,5 @@
+# test: construction a literal giving each field once is valid
+struct User:
+    name: string
+
+user := User { name: "Ada" }

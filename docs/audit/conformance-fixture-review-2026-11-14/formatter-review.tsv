@@ -126,7 +126,7 @@ typing/invalid/trailing-block-ineligible.hd	HARMLESS
 typing/invalid/unary-plus-i32-literal-range.hd	HARMLESS	
 typing/valid/composite-ordering.hd	HARMLESS	
 typing/valid/data-types.hd	HARMLESS	
-typing/valid/declaration-checks-a-literal-gives-each-field-once-294.hd	HARMLESS	
+typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd	HARMLESS	
 typing/valid/declaration-owns-requirement-clause.hd	HARMLESS	
 typing/valid/explicit-empty-row.hd	HARMLESS	
 typing/valid/expression-type-arguments.hd	HARMLESS	

@@ -1,0 +1,6 @@
+# test: fields a literal giving its only field may be read at once
+struct Point:
+    x: i32
+
+fn get() -> i32:
+    Point { x: 1 }.x

@@ -1,8 +1,8 @@
 typing/valid/bare-trait-body-nested-in-tuple-and-option-is-one-error-legal-body-positions.hd	A10c	# test: bare trait body nested in tuple and option is one error
 typing/valid/caret-is-xor-a-caret-on-a-type-or-a-receiver-is-a-syntax-error-legal-types-and-receivers.hd	A10c	# test: caret is xor a caret on a type or a receiver is a syntax error
 typing/valid/checker-checker-errors-are-reported-26-legal.hd	A10c	# test: checker checker errors are reported
-typing/valid/checker-checker-errors-are-reported-29-legal.hd	A10c	# test: checker checker errors are reported
-typing/valid/checker-checker-errors-are-reported-35-legal.hd	A10c	# test: checker checker errors are reported
+typing/valid/fields-reading-a-declared-field-is-valid.hd	A10c	# test: checker checker errors are reported
+typing/valid/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10c	# test: checker checker errors are reported
 typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10c	# test: checker checker errors are reported
 typing/valid/pattern-a-tuple-pattern-binds-distinct-names.hd	A10c	# test: checker checker errors are reported
 typing/valid/checker-inferred-result-of-a-late-read-reports-once-168-legal.hd	A10c	# test: checker inferred result of a late read reports once

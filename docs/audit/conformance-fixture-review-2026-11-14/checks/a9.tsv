@@ -116,7 +116,7 @@ typing/invalid/void-unit-the-unit-value-is-no-other-type.hd	A9	reject:type-misma
 typing/invalid/waiting-impl-a-call-that-never-finds-an-impl-is-one-error-01.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/09-traits.md#method-resolution
 typing/invalid/waiting-impl-a-call-that-never-finds-an-impl-is-one-error-02.hd	A9	reject:unsatisfied-trait-bound not mentioned in cited lang/09-traits.md#method-resolution
 typing/invalid/checker-a-filled-default-and-the-written-argument-overlap-64.hd	A9	reject:overlapping-impl not mentioned in cited lang/04-type-system.md#type-argument-defaults
-typing/invalid/checker-checker-errors-are-reported-29.hd	A9	reject:unknown-field not mentioned in cited lang/08-data-and-enums.md#fields
+typing/invalid/fields-reading-a-field-the-struct-lacks-is-unknown.hd	A9	reject:unknown-field not mentioned in cited lang/08-data-and-enums.md#fields
 typing/invalid/checker-function-values-do-not-bypass-initialization-order-157.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/checker-function-values-do-not-bypass-initialization-order-159.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
 typing/invalid/checker-function-values-do-not-bypass-initialization-order-161.hd	A9	reject:top-level-read-before-initialization not mentioned in cited lang/10-modules.md#module-initialization
@@ -138,7 +138,7 @@ typing/invalid/parameter-names-a-closure-parameter-may-not-reuse-a-type-paramete
 typing/invalid/parameter-names-a-local-function-parameter-may-not-reuse-a-type-parameter-name.hd	A9	reject:duplicate-binding not mentioned in cited lang/03-names-and-scopes.md#function-and-closure-scopes
 typing/invalid/parameter-names-a-method-parameter-may-not-reuse-the-impl-type-parameter-name.hd	A9	reject:duplicate-binding not mentioned in cited lang/03-names-and-scopes.md#function-and-closure-scopes
 typing/invalid/parameter-names-a-trait-method-parameter-may-not-reuse-the-trait-type-parameter-name.hd	A9	reject:duplicate-binding not mentioned in cited lang/03-names-and-scopes.md#function-and-closure-scopes
-typing/invalid/declaration-checks-an-unknown-field-suppresses-the-missing-field-error-295.hd	A9	reject:unknown-field not mentioned in cited lang/08-data-and-enums.md#fields
+typing/invalid/fields-a-literal-with-only-an-unknown-field-reports-it-and-not-the-missing-one.hd	A9	reject:unknown-field not mentioned in cited lang/08-data-and-enums.md#fields
 typing/invalid/parameter-names-two-closure-parameters-may-not-share-a-name.hd	A9	reject:duplicate-binding not mentioned in cited lang/03-names-and-scopes.md#function-and-closure-scopes
 typing/invalid/parameter-names-two-local-function-parameters-may-not-share-a-name.hd	A9	reject:duplicate-binding not mentioned in cited lang/03-names-and-scopes.md#function-and-closure-scopes
 typing/invalid/parameter-names-two-method-parameters-may-not-share-a-name.hd	A9	reject:duplicate-binding not mentioned in cited lang/03-names-and-scopes.md#function-and-closure-scopes

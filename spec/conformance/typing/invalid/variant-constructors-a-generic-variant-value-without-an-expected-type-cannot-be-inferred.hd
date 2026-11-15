@@ -1,4 +1,4 @@
-# test: constructors that are not function values are errors
+# test: variant constructors a generic variant value without an expected type cannot be inferred
 enum Either[L, R]:
     Left(value: L)
     Right(value: R)

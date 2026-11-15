@@ -1,4 +1,4 @@
-# test: declaration checks an unknown field suppresses the missing field error
+# test: fields a literal with only an unknown field reports it and not the missing one
 struct Point:
     x: i32
 

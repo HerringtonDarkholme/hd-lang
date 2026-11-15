@@ -1,4 +1,4 @@
-# test: declaration checks the depth limit counts generic embedding
+# test: data embedding a chain through a generic struct may be three deep
 struct Stamp:
     at: i32
 

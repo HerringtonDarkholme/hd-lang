@@ -1,4 +1,4 @@
-# test: a qualified some is a value
+# test: variant constructors qualified option variants are values
 fn present(value: i32) -> i32?:
     Option.Some(value)
 

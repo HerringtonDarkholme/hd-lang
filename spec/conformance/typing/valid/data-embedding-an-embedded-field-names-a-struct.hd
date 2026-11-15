@@ -1,4 +1,4 @@
-# test: declaration checks an embedded field names a data type
+# test: data embedding an embedded field names a struct
 struct JobStatus:
     label: string
 

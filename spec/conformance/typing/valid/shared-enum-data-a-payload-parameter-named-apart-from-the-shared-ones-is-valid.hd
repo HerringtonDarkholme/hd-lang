@@ -1,0 +1,4 @@
+# test: shared enum data a payload parameter named apart from the shared ones is valid
+enum Status(code: i32):
+    Ok -> Status(200)
+    Moved(target: i32) -> Status(301)

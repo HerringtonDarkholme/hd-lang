@@ -1,4 +1,4 @@
-# test: checker checker errors are reported
+# test: matching enums a contextual variant without an expected type is an error
 pub fn main() -> void $ Console:
     v := .Ok(1) # diagnostic: missing-contextual-enum-type
     println(1)

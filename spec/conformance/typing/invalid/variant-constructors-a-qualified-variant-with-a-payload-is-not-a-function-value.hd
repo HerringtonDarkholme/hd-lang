@@ -1,4 +1,4 @@
-# test: constructors that are not function values are errors
+# test: variant constructors a qualified variant with a payload is not a function value
 enum Pair:
     Both(left: i32, right: i32)
 

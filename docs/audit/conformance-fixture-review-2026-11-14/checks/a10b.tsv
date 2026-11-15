@@ -31,7 +31,7 @@ typing/valid/parameter-names-a-closure-parameter-named-apart-from-a-type-paramet
 typing/valid/parameter-names-a-local-function-parameter-named-apart-from-a-type-parameter-is-valid.hd	A10b	same title as reject typing/invalid/parameter-names-a-local-function-parameter-may-not-reuse-a-type-parameter-name.hd
 typing/valid/parameter-names-a-method-parameter-may-take-a-type-parameter-name-its-impl-does-not-declare.hd	A10b	same title as reject typing/invalid/parameter-names-a-method-parameter-may-not-reuse-the-impl-type-parameter-name.hd
 typing/valid/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	A10b	same title as reject typing/invalid/parameter-names-a-trait-method-parameter-may-not-reuse-the-trait-type-parameter-name.hd
-typing/valid/declaration-checks-an-unknown-field-suppresses-the-missing-field-error-296.hd	A10b	same title as reject typing/invalid/declaration-checks-an-unknown-field-suppresses-the-missing-field-error-295.hd
+typing/valid/fields-a-literal-giving-its-only-field-may-be-read-at-once.hd	A10b	same title as reject typing/invalid/fields-a-literal-with-only-an-unknown-field-reports-it-and-not-the-missing-one.hd
 typing/valid/parameter-names-two-closure-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-closure-parameters-may-not-share-a-name.hd
 typing/valid/parameter-names-two-local-function-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-local-function-parameters-may-not-share-a-name.hd
 typing/valid/parameter-names-two-method-parameters-with-distinct-names-are-valid.hd	A10b	same title as reject typing/invalid/parameter-names-two-method-parameters-may-not-share-a-name.hd

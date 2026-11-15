@@ -1,4 +1,4 @@
-# test: declaration checks an embedded field name is unique
+# test: data embedding a generic and a plain embedded struct have distinct names
 struct Box[T]:
     value: T
 

@@ -1,4 +1,4 @@
-# test: declaration checks a type embeds at most three fields
+# test: data embedding a struct may embed three structs
 struct Created:
     created_at: i32
 

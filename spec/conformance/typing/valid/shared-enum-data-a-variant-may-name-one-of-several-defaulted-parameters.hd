@@ -1,4 +1,4 @@
-# test: checker defaults must not be followed by a required parameter
+# test: shared enum data a variant may name one of several defaulted parameters
 enum Status(code: i32 = 0, phrase: string = ""):
     Unknown -> Status(phrase="u")
 pub fn main() -> void:

@@ -1,0 +1,5 @@
+# test: enums an enum with distinct variant names is valid
+enum Color:
+    Red
+    Green
+    Blue

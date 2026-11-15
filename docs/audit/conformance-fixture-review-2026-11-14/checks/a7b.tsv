@@ -636,7 +636,7 @@ typing/invalid/trait-resolution-depth-signature.hd	A7b	lost '' gained ',,,,,,,,,
 typing/invalid/trait-resolution-depth.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	lang/09-traits.md#r-trait.bound.depth.limit
 typing/valid/composite-ordering.hd	A7b	lost ',' gained ''	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/data-types.hd	A7b	lost ',,' gained ''	lang/08-data-and-enums.md#construction-and-access
-typing/valid/declaration-checks-a-literal-gives-each-field-once-294.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#construction-and-access
+typing/valid/construction-a-literal-giving-each-field-once-is-valid.hd	A7b	lost ',' gained ''	lang/08-data-and-enums.md#construction-and-access
 typing/valid/decorator-target-kinds.hd	A7b	lost '' gained ','	lang/14-annotations.md#r-annot.target.limit
 typing/valid/decorator-targets.hd	A7b	lost '' gained ',,'	lang/14-annotations.md#r-annot.decorator.targets
 typing/valid/derived-equality.hd	A7b	lost '' gained ',,'	std/cmp.md#r-std-cmp.derive.eq.template

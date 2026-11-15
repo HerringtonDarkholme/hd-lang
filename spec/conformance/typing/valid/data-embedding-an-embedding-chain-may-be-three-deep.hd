@@ -1,4 +1,4 @@
-# test: declaration checks an embedding chain is at most three deep
+# test: data embedding an embedding chain may be three deep
 struct Stamp:
     at: i32
 

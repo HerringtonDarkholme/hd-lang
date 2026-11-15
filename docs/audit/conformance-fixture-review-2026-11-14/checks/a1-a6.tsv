@@ -43,7 +43,7 @@ parse/invalid/impl-trait-nested-parameter.hd	A3	parse/invalid/impl-trait-return-
 parse/valid/impl-trait-nested-return.hd	A3	parse/valid/impl-trait-optional-return.hd
 parse/valid/trailing-callback-statement.hd	A3	parse/valid/explicit-generic-arguments-with-placeholder.hd
 parse/valid/explicit-generic-arguments-with-placeholder.hd	A3	parse/valid/parameter-defaults.hd
-typing/valid/declaration-checks-an-embedding-chain-is-at-most-three-deep-348.hd	A3	typing/valid/embedding-depth-three.hd
+typing/valid/data-embedding-an-embedding-chain-may-be-three-deep.hd	A3	typing/valid/embedding-depth-three.hd
 runtime/panic/slicing-a-string-slice-inside-a-scalar-panics.hd	A3	runtime/panic/slicing-an-inclusive-end-at-the-length-panics.hd
 typing/invalid/a-body-trait-value-type-of-a-primitive.hd	A3	typing/invalid/a-body-trait-value-type-of-a-struct.hd
 typing/invalid/a-body-trait-value-type-of-a-primitive.hd	A3	typing/invalid/a-body-trait-value-type-of-a-type-parameter.hd

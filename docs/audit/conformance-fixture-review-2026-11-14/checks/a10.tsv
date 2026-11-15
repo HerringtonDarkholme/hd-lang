@@ -1,7 +1,7 @@
 typing/valid/checker-a-filled-default-and-the-written-argument-overlap-64-legal.hd	A10	same title as typing/invalid/checker-a-filled-default-and-the-written-argument-overlap-64.hd: # test: checker a filled default and the written argument overlap
 typing/valid/checker-checker-errors-are-reported-26-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-26.hd: # test: checker checker errors are reported
-typing/valid/checker-checker-errors-are-reported-29-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-29.hd: # test: checker checker errors are reported
-typing/valid/checker-checker-errors-are-reported-35-legal.hd	A10	same title as typing/invalid/checker-checker-errors-are-reported-35.hd: # test: checker checker errors are reported
+typing/valid/fields-reading-a-declared-field-is-valid.hd	A10	same title as typing/invalid/fields-reading-a-field-the-struct-lacks-is-unknown.hd: # test: checker checker errors are reported
+typing/valid/matching-enums-a-contextual-variant-takes-its-enum-from-an-annotation.hd	A10	same title as typing/invalid/matching-enums-a-contextual-variant-without-an-expected-type-is-an-error.hd: # test: checker checker errors are reported
 typing/valid/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd	A10	same title as typing/invalid/call-a-parameter-given-positionally-and-by-name-is-a-duplicate-argument.hd: # test: checker checker errors are reported
 typing/valid/pattern-a-tuple-pattern-binds-distinct-names.hd	A10	same title as typing/invalid/pattern-a-tuple-pattern-may-not-bind-a-name-twice.hd: # test: checker checker errors are reported
 typing/valid/match-distinct-float-literal-arms-are-reachable.hd	A10	same title as typing/invalid/match-a-repeated-float-literal-arm-is-unreachable.hd: # test: checker duplicate literal arms are unreachable
