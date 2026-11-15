@@ -3299,7 +3299,7 @@ std/console/standard-error/eprintln-error-line.hd	runtime	accept	std/console.md#
 std/console/standard-error/eprintln-without-console.hd	type	reject:missing-requirement	std/console.md#r-std-console.eprintln.row
 std/console/console-input/console-input-helper.hd	runtime	accept	std/console.md#console-input
 std/console/console-input/console-read-all.hd	runtime	accept	std/console.md#r-std-console.input.read-all-default
-runtime/valid/host-args-env.hd	runtime	accept	std/host.md#plain-reads
+std/host/plain-reads/host-args-env.hd	runtime	accept	std/host.md#plain-reads
 std/fs/file-system-errors/fs-error-variant-equality.hd	runtime	accept	std/fs.md#r-std-fs.error.eq.variant-payload
 std/fs/file-helpers/fs-helpers.hd	runtime	accept	std/fs.md#file-helpers
 typing/valid/path-newtype.hd	type	accept	std/path.md#paths
@@ -3467,7 +3467,7 @@ runtime/valid/manual-clock-block-on-outer-sleep.hd	runtime	accept	std/time.md#r-
 runtime/valid/manual-clock-block-on-nested.hd	runtime	accept	std/time.md#r-std-time.manual.sleep.idle.nested
 runtime/valid/time-properties.hd	runtime	accept	std/time.md#r-std-time.duration.parse
 runtime/valid/time-values-copy.hd	runtime	accept	std/time.md#r-std-time.date.decl-struct
-runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
+std/host/map-providers/map-args-env.hd	runtime	accept	std/host.md#map-providers
 std/fs/memory-file-system/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
 std/fs/copying-files/memory-fs-copy.hd	runtime	accept	std/fs.md#r-std-fs.copy.bytes
 std/fs/memory-file-system/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
@@ -4374,7 +4374,7 @@ runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.s
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.missing-reply
 runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok.borrowed-retained
 runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json-read-once
-runtime/valid/map-sys.hd	runtime	accept	std/host.md#map-sys
+std/host/map-sys/map-sys.hd	runtime	accept	std/host.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
 runtime/valid/net-scripted-stream.hd	runtime	accept	std/net.md#scripted-net
 runtime/valid/net-using-dispose.hd	runtime	accept	std/net.md#socket-handles
@@ -4788,9 +4788,9 @@ runtime/valid/text-properties.hd	runtime	accept	std/text.md#r-std-text.string.sp
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 std/cli/parsing/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
 std/cli/parsing/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.private
-runtime/valid/env-decode-errors.hd	runtime	accept	std/host.md#r-std-host.env-decode.prefix-decl
-runtime/valid/env-decode-record.hd	runtime	accept	std/host.md#r-std-host.env-decode.prefix-decl
-runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.shared-error-signature
+std/host/environment/env-decode-errors.hd	runtime	accept	std/host.md#r-std-host.env-decode.prefix-decl
+std/host/environment/env-decode-record.hd	runtime	accept	std/host.md#r-std-host.env-decode.prefix-decl
+std/host/environment/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.shared-error-signature
 runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
 runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
 runtime/panic/num-abs-min-i16.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
@@ -5456,7 +5456,7 @@ runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-ite
 runtime/valid/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 typing/invalid/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.retry.clock
 std/collections/list-helpers/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned
-runtime/valid/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.typed-env-decl
+std/host/environment/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.typed-env-decl
 runtime/valid/http-typed-request-bodies.hd	runtime	accept	std/http.md#r-std-http.request.set-form
 runtime/panic/http-scripted-used-reply.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.scripted.reply-used-panic
 runtime/valid/test-prelude-assertions.hd	runtime	accept	lang/10-modules.md#r-module.prelude.test-assertions

@@ -144,8 +144,8 @@ std/encoding/base64/encoding-decode-errors.hd	A7b	lost '' gained ',,,,,,,,,,,,,,
 std/encoding/hex/encoding-hex-vectors.hd	A7b	lost '' gained ',,,,'	std/encoding.md#r-std-encoding.hex.encode.digits
 std/encoding/base64/encoding-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/encoding.md#r-std-encoding.base64.decode.value
 runtime/valid/enum-value-fixed-at-construction.hd	A7b	lost '' gained ',,'	lang/08-data-and-enums.md#r-data.enum.immutable
-runtime/valid/env-decode-errors.hd	A7b	lost '' gained ',,,,'	std/host.md#r-std-host.env-decode.prefix-decl
-runtime/valid/env-decode-record.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,'	std/host.md#r-std-host.env-decode.prefix-decl
+std/host/environment/env-decode-errors.hd	A7b	lost '' gained ',,,,'	std/host.md#r-std-host.env-decode.prefix-decl
+std/host/environment/env-decode-record.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,'	std/host.md#r-std-host.env-decode.prefix-decl
 std/error/cause-chain/error-chain-derived-causes.hd	A7b	lost '' gained ',,,,,,'	std/error.md#r-std-error.chain.source-end
 std/error/cause-chain/error-chain-method.hd	A7b	lost '' gained ',,,,,'	std/error.md#r-std-error.chain.reference-method
 std/error/cause-chain/error-chain.hd	A7b	lost '' gained ',,,'	std/error.md#r-std-error.chain.source-order
@@ -210,9 +210,9 @@ runtime/valid/hd-run-command-forwarding.hd	A7b	lost '' gained ',,,'	std/testing.
 std/collections/heap/heap-order.hd	A7b	lost '' gained ',,'	std/collections.md#r-std-collections.heap.pop
 runtime/valid/homogeneous-varargs.hd	A7b	lost '' gained '()'	lang/07-functions.md#varargs
 runtime/valid/host-drive-slot-method-values.hd	A7b	lost '' gained ','	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
-runtime/valid/host-env-as.hd	A7b	lost '' gained ',,,,,'	std/host.md#r-std-host.env-as.shared-error-signature
+std/host/environment/host-env-as.hd	A7b	lost '' gained ',,,,,'	std/host.md#r-std-host.env-as.shared-error-signature
 runtime/valid/host-result-special-floats.hd	A7b	lost '' gained ','	lang/10-modules.md#r-module.profile.host-result.float
-runtime/valid/host-shared-error.hd	A7b	lost '' gained ',,,,,,'	std/host.md#r-std-host.error.typed-env-decl
+std/host/environment/host-shared-error.hd	A7b	lost '' gained ',,,,,,'	std/host.md#r-std-host.error.typed-env-decl
 runtime/valid/http-body-read-once.hd	A7b	lost '' gained ',,,,,,'	std/http.md#read-once-bodies
 runtime/valid/http-client-cookies.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,'	std/http.md#client
 runtime/valid/http-client-redirects.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,'	std/http.md#client
@@ -337,7 +337,7 @@ std/collections/map-methods/map-entries-most-common.hd	A7b	lost '' gained ',,'	s
 runtime/valid/map-iterator.hd	A7b	lost '' gained ','	lang/06-control-flow.md#for-loops
 runtime/valid/map-literal-and-comprehension-order.hd	A7b	lost '' gained ','	lang/05-expressions.md#list-and-map-expressions
 std/collections/map-methods/map-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/collections.md#r-std-collections.map.entries
-runtime/valid/map-sys.hd	A7b	lost '' gained ',,,'	std/host.md#map-sys
+std/host/map-sys/map-sys.hd	A7b	lost '' gained ',,,'	std/host.md#map-sys
 runtime/valid/map-value-element-reference.hd	A7b	lost '' gained ','	lang/13-values-and-references.md#r-ref.elem.map
 runtime/valid/map-value-field-write.hd	A7b	lost '' gained ','	lang/04-type-system.md#r-types.coll.map-value.place
 runtime/valid/match-reference-field-loan.hd	A7b	lost '' gained ',,,,,'	lang/13-values-and-references.md#r-ref.box.lifetime

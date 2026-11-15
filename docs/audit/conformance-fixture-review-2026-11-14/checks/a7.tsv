@@ -1414,11 +1414,11 @@ std/hash/bytes-written/hash-bytes-derived.hd	accept	std/hash.md#r-std-hash.bytes
 std/hash/bytes-written/hash-bytes-scalars.hd	accept	std/hash.md#r-std-hash.bytes.integer	-4	
 std/hash/bytes-written/hash-bytes-sequences.hd	accept	std/hash.md#r-std-hash.bytes.string	-11	
 std/hash/default-hasher/hasher-write-methods.hd	accept	std/hash.md#r-std-hash.default.typed-writes	-109	
-runtime/valid/map-sys.hd	accept	std/host.md#map-sys	-12	
-runtime/valid/host-env-as.hd	accept	std/host.md#r-std-host.env-as.shared-error-signature	-20	
-runtime/valid/env-decode-errors.hd	accept	std/host.md#r-std-host.env-decode.prefix-decl	-15	
-runtime/valid/env-decode-record.hd	accept	std/host.md#r-std-host.env-decode.prefix-decl	-75	
-runtime/valid/host-shared-error.hd	accept	std/host.md#r-std-host.error.typed-env-decl	-24	
+std/host/map-sys/map-sys.hd	accept	std/host.md#map-sys	-12	
+std/host/environment/host-env-as.hd	accept	std/host.md#r-std-host.env-as.shared-error-signature	-20	
+std/host/environment/env-decode-errors.hd	accept	std/host.md#r-std-host.env-decode.prefix-decl	-15	
+std/host/environment/env-decode-record.hd	accept	std/host.md#r-std-host.env-decode.prefix-decl	-75	
+std/host/environment/host-shared-error.hd	accept	std/host.md#r-std-host.error.typed-env-decl	-24	
 runtime/valid/http-client-cookies.hd	accept	std/http.md#client	-67	
 runtime/valid/http-client-redirects.hd	accept	std/http.md#client	-86	
 runtime/valid/http-client.hd	accept	std/http.md#client	-49	
