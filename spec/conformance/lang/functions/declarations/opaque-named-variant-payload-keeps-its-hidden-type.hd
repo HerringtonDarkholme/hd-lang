@@ -14,5 +14,5 @@ enum Holder[T]:
     Value(value: T)
 fn mixed(flag: bool) -> Holder[impl Number]:
     if flag:
-        return .Value(value= .Some(+1))
+        return .Value(value=.Some(+1))
     .Value(value=+2) # diagnostic: type-mismatch

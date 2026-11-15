@@ -72,7 +72,7 @@ tests:
         assert_equal(effectful(&mut log), 7, reason="second default result")
         assert_equal(log, [+1, +1], reason="each omitted argument evaluates its default")
         assert_equal(
-            effectful(&mut log, value= .Some(+23)),
+            effectful(&mut log, value=.Some(+23)),
             23,
             reason="an explicit argument bypasses the default",
         )

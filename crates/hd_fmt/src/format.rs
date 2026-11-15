@@ -849,12 +849,22 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
     }
 
+    /// A variant shorthand's leading `.` is spaced from a word before it,
+    /// a keyword such as `return` or `else`, which it would otherwise read
+    /// as a member of. After any other token the context decides, so a
+    /// value-level named argument keeps `x=.None`
+    /// (`cli.fmt.spacing.equal`), and `(`, `[` and a prefix `&` stay
+    /// glued to it. (A closing delimiter before a `.` makes a member
+    /// access, never a variant.)
     fn mark_variant(&mut self, node: NodeRef<'_>) {
         let Some(first) = node.first_token().get() else {
             return;
         };
         if self.parsed.tokens.kind(first) == T::Dot && first.idx() > 0 {
-            self.set_gap(first.idx(), Gap::Space);
+            let previous = self.parsed.tokens.kind[first.idx() - 1];
+            if word(previous) {
+                self.set_gap(first.idx(), Gap::Space);
+            }
         }
     }
 
@@ -864,7 +874,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
         };
         if first.idx() > 0 {
             let previous = self.parsed.tokens.kind[first.idx() - 1];
-            if word(previous) || previous.is_close_delimiter() {
+            if word(previous) {
                 self.set_gap(first.idx(), Gap::Space);
             }
         }

@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
         _ => panic("expected the cached pattern error during validation")
     assert_equal(pattern_compiles(), 2)
     other := Repeated {
-        rule: pattern("^other$", message= .Some("custom mismatch")),
+        rule: pattern("^other$", message=.Some("custom mismatch")),
         text: "valid_user42",
     }
     assert_equal(pattern_compiles(), 3)

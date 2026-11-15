@@ -1,0 +1,28 @@
+enum E:
+    A
+    B(x: i32)
+    W(inner: *E)
+
+struct S:
+    e: E=.A
+
+fn f(x: E, y: E= .A) -> E:
+    x
+
+fn g(e: E, log: &mut List[E]) -> E $ Pick:
+    let a: E= .A
+    let mut b: E =.A
+    b= .B(x= +1)
+    c := f(x= .A, y =.B(x=+2))
+    d := f( .A, .W(inner= &.A))
+    log.push(.A)
+    s := S { e: .A }
+    h := if e== .A: .A else:.B(x=+4)
+    $.with(Pick= .A):
+        pass
+    if !( .A == e) || e== .A:
+        return .B(x=+3)
+    match e:
+        .W(inner= .A) => .A
+        .B(x=_) => f(x= .A)
+        _ => [ .A ][0]
