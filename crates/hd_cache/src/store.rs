@@ -266,8 +266,13 @@ impl<S: CacheStore> CacheStore for DeferredStore<S> {
         }
         found
     }
+    /// A put entry is completed and awaits publication, so it keeps its
+    /// claim until [`Self::publish`] (the trait's rule); only an unput
+    /// miss's claim ends here.
     fn abandon(&self, kind: EntryKind, key: &Hash128) {
-        self.inner.abandon(kind, key);
+        if self.waiting.get(kind, key).is_none() {
+            self.inner.abandon(kind, key);
+        }
     }
     fn claims(&self, kind: EntryKind, key: &Hash128) -> bool {
         self.inner.claims(kind, key)
@@ -526,6 +531,40 @@ mod tests {
         assert_eq!(
             inner.get(EntryKind::Link, &Hash128(4)).as_deref(),
             Some(&b"four"[..])
+        );
+    }
+
+    /// A store that records the claims its callers abandon.
+    #[derive(Default)]
+    struct Abandons(std::sync::Mutex<Vec<(EntryKind, Hash128)>>);
+
+    impl CacheStore for &Abandons {
+        fn get(&self, _: EntryKind, _: &Hash128) -> Option<Arc<[u8]>> {
+            None
+        }
+        fn put(&self, _: EntryKind, _: &Hash128, _: &[u8]) {}
+        fn touch(&self, _: EntryKind, _: &Hash128) {}
+        fn abandon(&self, kind: EntryKind, key: &Hash128) {
+            self.0.lock().unwrap().push((kind, *key));
+        }
+    }
+
+    /// An entry put and waiting for publication is completed, so it
+    /// keeps its claim; an unput miss's abandon reaches the inner store.
+    #[test]
+    fn deferred_store_abandons_only_unput_entries() {
+        let inner = Abandons::default();
+        let d = DeferredStore::new(&inner);
+        d.put(EntryKind::Check, &Hash128(1), b"one");
+        d.abandon(EntryKind::Check, &Hash128(1));
+        d.abandon(EntryKind::Check, &Hash128(2));
+        d.abandon(EntryKind::Iface, &Hash128(1));
+        assert_eq!(
+            *inner.0.lock().unwrap(),
+            [
+                (EntryKind::Check, Hash128(2)),
+                (EntryKind::Iface, Hash128(1))
+            ]
         );
     }
 

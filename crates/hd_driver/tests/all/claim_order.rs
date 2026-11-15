@@ -152,3 +152,88 @@ fn a_rejected_parse_abandons_its_claim_before_the_next_query() {
         );
     }
 }
+
+/// A store that claims every `check`, `iface` and `graph` miss, and whose
+/// put of `stop`'s kind fails: the computation that missed it ends
+/// without its put, as an internal stop ends it (#2021).
+struct Stops {
+    inner: MemoryStore,
+    held: Mutex<Vec<(EntryKind, Hash128)>>,
+    stop: Option<EntryKind>,
+}
+
+impl CacheStore for Stops {
+    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        let found = self.inner.get(kind, key);
+        if found.is_none() && matches!(kind, EntryKind::Check | EntryKind::Iface | EntryKind::Graph)
+        {
+            self.held.lock().unwrap().push((kind, *key));
+        }
+        found
+    }
+
+    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+        assert!(
+            Some(kind) != self.stop,
+            "the computation stops before its put"
+        );
+        self.inner.put(kind, key, bytes);
+        self.held.lock().unwrap().retain(|k| *k != (kind, *key));
+    }
+
+    fn abandon(&self, kind: EntryKind, key: &Hash128) {
+        self.held.lock().unwrap().retain(|k| *k != (kind, *key));
+    }
+
+    fn touch(&self, kind: EntryKind, key: &Hash128) {
+        self.inner.touch(kind, key);
+    }
+}
+
+/// Each claimed kind's computation ends its claim on every exit, not
+/// only at its put: a `check` miss (`module_prep` through
+/// `module_finish`), an `iface` miss (`folder_iface`, the read list and
+/// the interface) and a `graph` miss (a folder's header findings, the
+/// coherence rows, the package's parts) that stop before their puts
+/// leave no claim held, and a build that finishes leaves none either.
+#[test]
+fn a_computation_that_stops_before_its_put_ends_its_claim() {
+    for stop in [
+        None,
+        Some(EntryKind::Check),
+        Some(EntryKind::Iface),
+        Some(EntryKind::Graph),
+    ] {
+        let mut sources = MemorySources::default();
+        sources.insert(
+            "main.hd",
+            "use util\nstruct P:\n    x: i32\nimpl P: Eq\npub fn main():\n    let x = util.one()\n",
+        );
+        sources.insert("util/util.hd", "pub fn one() -> i32: 1\n");
+        let store = Stops {
+            inner: MemoryStore::default(),
+            held: Mutex::default(),
+            stop,
+        };
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Fifo),
+        };
+        let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            build(&host, "app", &Goal::Analyze)
+        }));
+        assert_eq!(
+            stopped.is_err(),
+            stop.is_some(),
+            "{stop:?}: the put must be reached"
+        );
+        assert_eq!(
+            *store.held.lock().unwrap(),
+            [],
+            "{stop:?}: a stopped computation left its claim"
+        );
+    }
+}

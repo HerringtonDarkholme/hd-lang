@@ -1529,6 +1529,29 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
         .collect()
 }
 
+/// A claimed miss the task still owes a put: dropping it abandons the
+/// claim, a no-op once the entry is put ([`Run::lookup_owed`]).
+#[must_use = "dropping the guard at once ends the claim before the put"]
+struct Owed<'s> {
+    store: &'s dyn CacheStore,
+    kind: EntryKind,
+    key: Hash128,
+}
+
+impl Owed<'_> {
+    /// Passes the claim to the tasks that compute the entry; the last of
+    /// them ends it with a guard of its own (`GraphParts::claimed`).
+    fn hand_on(self) {
+        std::mem::forget(self);
+    }
+}
+
+impl Drop for Owed<'_> {
+    fn drop(&mut self) {
+        self.store.abandon(self.kind, &self.key);
+    }
+}
+
 struct Run<'a> {
     /// The attached analysis consumer, when a lint run asked for one.
     lint: Option<analysis::Lint<'a>>,
@@ -3890,6 +3913,20 @@ impl Run<'_> {
         sections
     }
 
+    /// [`Self::lookup`] for an entry this task computes and puts on a
+    /// miss: the miss holds the store's claim, which the returned guard
+    /// ends when it drops unless the entry was put by then
+    /// ([`CacheStore::abandon`] keeps a completed entry's claim). So every
+    /// return of the computation, an internal stop included, ends the
+    /// claim (`crates/hd_cache/DESIGN.md` §5.4).
+    fn lookup_owed(&self, kind: EntryKind, key: Hash128) -> Result<Vec<CacheSection>, Owed<'_>> {
+        self.lookup(kind, key).ok_or(Owed {
+            store: self.host.store,
+            kind,
+            key,
+        })
+    }
+
     fn put(&self, kind: EntryKind, key: Hash128, sections: &[&[u8]]) {
         let s: Vec<(u16, u32, &[u8])> = sections
             .iter()
@@ -4428,11 +4465,13 @@ impl Run<'_> {
         if !input && !broken && self.take_reused(fi, own) {
             return;
         }
-        let stored = if input || broken {
-            None
+        let (stored, _owed_reads) = if input || broken {
+            (None, None)
         } else {
-            self.lookup(EntryKind::Iface, own)
-                .and_then(|s| s.into_iter().next())
+            match self.lookup_owed(EntryKind::Iface, own) {
+                Ok(s) => (s.into_iter().next(), None),
+                Err(owed) => (None, Some(owed)),
+            }
         };
         let key_of = |reads: &[(String, bool)]| {
             if input {
@@ -4447,8 +4486,15 @@ impl Run<'_> {
         let last = stored.as_deref().and_then(decode_reads);
         let names = self.names();
         let last_key = (input || last.is_some()).then(|| key_of(last.as_deref().unwrap_or(&[])));
+        // The interface this run computes may key on other reads than
+        // the last run's: then the missed key is never put, and its
+        // guard ends the claim.
+        let mut _owed = None;
         if let Some(key) = last_key.filter(|_| !broken)
-            && let Some(sections) = self.lookup(EntryKind::Iface, key)
+            && let Some(sections) = self
+                .lookup_owed(EntryKind::Iface, key)
+                .map_err(|owed| _owed = Some(owed))
+                .ok()
             && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
             if let (Some(reads), Some(diags)) = (
@@ -5417,8 +5463,12 @@ impl Run<'_> {
         // A folder with a module that does not parse is checked every
         // run and never stored (`folder_iface`, #310).
         let parses = self.folder_parses(fi);
+        let mut _owed = None;
         if parses
-            && let Some(sections) = self.lookup(EntryKind::Graph, key)
+            && let Some(sections) = self
+                .lookup_owed(EntryKind::Graph, key)
+                .map_err(|owed| _owed = Some(owed))
+                .ok()
             && let Some(found) = sections
                 .first()
                 .and_then(|b| decode_header_findings(b, &own.items))
@@ -5827,7 +5877,7 @@ impl Run<'_> {
         // there (`crates/hd_cache/DESIGN.md`, "Coherence runs per changed
         // trait"). The head hashes come per folder, read from the rows
         // while the folder's impl records and their ranks are unchanged.
-        let old = self.coherence_rows();
+        let (old, _owed) = self.coherence_rows();
         let old_folders: HashMap<Hash128, &CohFolder> =
             old.folders.iter().rev().map(|r| (r.key, r)).collect();
         let old_traits: HashMap<Hash128, &CohRow> =
@@ -5959,11 +6009,18 @@ impl Run<'_> {
     }
 
     /// The package's coherence rows, newest first; empty when there are
-    /// none.
-    fn coherence_rows(&self) -> CohRows {
-        self.lookup(EntryKind::Graph, self.coherence_rows_key())
-            .and_then(|s| decode_coh_rows(s.first()?))
-            .unwrap_or_default()
+    /// none, with the miss's guard: `Coherence` rewrites the rows only
+    /// when it hashed a folder or checked a trait.
+    fn coherence_rows(&self) -> (CohRows, Option<Owed<'_>>) {
+        match self.lookup_owed(EntryKind::Graph, self.coherence_rows_key()) {
+            Ok(s) => (
+                s.first()
+                    .and_then(|b| decode_coh_rows(b))
+                    .unwrap_or_default(),
+                None,
+            ),
+            Err(owed) => (CohRows::default(), Some(owed)),
+        }
     }
 
     /// The slot of folder `fi`'s init order among the graph parts after
@@ -5987,6 +6044,11 @@ impl Run<'_> {
         if g.left.fetch_sub(1, std::sync::atomic::Ordering::AcqRel) != 1 {
             return;
         }
+        let _owed = g.claimed.then(|| Owed {
+            store: self.host.store,
+            kind: EntryKind::Graph,
+            key: g.key,
+        });
         let Some(parts) = g
             .slots
             .iter()
@@ -6022,31 +6084,37 @@ impl Run<'_> {
             k.hash(*x);
         }
         let key = k.finish();
-        let hit = self.lookup(EntryKind::Graph, key).and_then(|s| {
-            let parts = decode_graph(&s, keys.len())?;
-            let found = if parts[0].is_empty() {
-                Vec::new()
-            } else {
-                decode_overlaps(&parts[0], &all)?
-            };
-            let runs = parts[1..]
-                .iter()
-                .map(|b| {
-                    if b.is_empty() {
-                        Some(Vec::new())
-                    } else {
-                        decode_runs(b)
-                    }
-                })
-                .collect::<Option<Vec<_>>>()?;
-            Some((found, runs))
-        });
+        let mut owed = None;
+        let hit = self
+            .lookup_owed(EntryKind::Graph, key)
+            .map_err(|o| owed = Some(o))
+            .ok()
+            .and_then(|s| {
+                let parts = decode_graph(&s, keys.len())?;
+                let found = if parts[0].is_empty() {
+                    Vec::new()
+                } else {
+                    decode_overlaps(&parts[0], &all)?
+                };
+                let runs = parts[1..]
+                    .iter()
+                    .map(|b| {
+                        if b.is_empty() {
+                            Some(Vec::new())
+                        } else {
+                            decode_runs(b)
+                        }
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some((found, runs))
+            });
         let Some((found, runs)) = hit else {
             let _ = self.graph_parts.set(GraphParts {
                 key,
                 folders: folders.to_vec(),
                 slots: (0..keys.len()).map(|_| OnceLock::new()).collect(),
                 left: std::sync::atomic::AtomicUsize::new(keys.len()),
+                claimed: owed.map(Owed::hand_on).is_some(),
             });
             return false;
         };
@@ -6345,10 +6413,13 @@ impl Run<'_> {
         };
         let analysis_missing = cached_analysis.is_none() && self.lint_runs(mi);
         // Only a fresh check makes a rendered body's text.
-        let cached = if !parses || analysis_missing || self.renders_module(mi) {
-            None
+        let (cached, _owed) = if !parses || analysis_missing || self.renders_module(mi) {
+            (None, None)
         } else {
-            self.lookup(EntryKind::Check, key)
+            match self.lookup_owed(EntryKind::Check, key) {
+                Ok(sections) => (Some(sections), None),
+                Err(owed) => (None, Some(owed)),
+            }
         };
         if let Some(sections) = cached {
             if let Some(findings) = cached_analysis {
@@ -11544,6 +11615,9 @@ struct GraphParts {
     folders: Vec<usize>,
     slots: Vec<OnceLock<Option<Vec<u8>>>>,
     left: std::sync::atomic::AtomicUsize,
+    /// Whether the entry's miss is claimed, which the last part ends:
+    /// with the put, or, when a part has none, without it.
+    claimed: bool,
 }
 
 /// The sections of a package's `graph` entry: an index holding, per

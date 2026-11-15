@@ -494,6 +494,14 @@ obj/
     those rows takes no other entry, and the InitOrder parts read summaries
     in memory.
 
+  Each of these misses returns a guard (`Run::lookup_owed`) that
+  abandons the claim when it drops, so a computation that stops before
+  its put, on an internal stop or a key it no longer puts, ends its claim
+  on that return (#2021). The package graph's claim passes to its part
+  tasks, and the last part ends it, with or without the put.
+  `DeferredStore::abandon` keeps the claim of an entry that is put and
+  waits for publication.
+
   So a holder waits for no claim, except a package graph holder for its
   coherence rows, whose holder waits for nothing. Every wait follows a
   dependency edge, and no wait forms a cycle; no order of process IDs is
