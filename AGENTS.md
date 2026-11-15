@@ -101,6 +101,9 @@ Know what the change touches, and test that first.
    "each command must have a timeout". On that day a cache benchmark's
    `hd check` processes deadlocked and sat at 0% CPU for over 30 minutes
    while the agent waited on them.
+6. A check that puts hd source in and expects diagnostics or output is a
+   stage case (the `diagnostics` or `stdout` view), a conformance case is
+   for a spec rule, and a Rust test is for internals or cost.
 
 ## Spec Scope For The Standard Library
 
