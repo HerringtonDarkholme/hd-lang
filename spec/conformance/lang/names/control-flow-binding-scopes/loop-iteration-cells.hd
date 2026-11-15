@@ -11,11 +11,9 @@ pub fn main!() -> void:
     for seed in [+10, 20]:
         let count: i32 = seed
         readers.push(fn() -> i32: count)
-        writers.push(
-            fn!() -> i32:
-                count = count + 1
-                child!(count)
-            ,
+        writers.push(fn!() -> i32:
+            count = count + 1
+            child!(count)
         )
     left := writers[0]
     right := writers[1]

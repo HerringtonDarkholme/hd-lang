@@ -62,11 +62,9 @@ tests:
 
     it("callbacks run exactly once in source order"):
         let mut visited: List[i32] = []
-        actual := [+3, 0, 2].flat_map(
-            fn(n: i32) -> Repeat:
-                visited.push(n)
-                Repeat { value: n, count: usize(n) }
-            ,
+        actual := [+3, 0, 2].flat_map(fn(n: i32) -> Repeat:
+            visited.push(n)
+            Repeat { value: n, count: usize(n) }
         )
         assert_equal(visited, [+3, 0, 2], reason="one callback per source item")
         assert_equal(actual, [+3, 3, 3, 2, 2], reason="all items collected")

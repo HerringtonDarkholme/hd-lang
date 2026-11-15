@@ -7,9 +7,7 @@ fn read[F < Fn(i32) -> i32](f: F) -> i32:
 
 fn invalid() -> i32:
     let total = +0
-    read(
-        fn(x): # diagnostic: not-writable
-            total += x
-            total
-        ,
+    read(fn(x): # diagnostic: not-writable
+        total += x
+        total
     )

@@ -6,15 +6,19 @@ struct Oops:
     code: i32
 
 impl Display for Oops:
-    fn to_string(&self) -> string: "oops ${self.code}"
+    fn to_string(&self) -> string:
+        "oops ${self.code}"
 
 impl Error for Oops
 
-fn show(e: &*dyn Error) -> string: e.to_string()
+fn show(e: &*dyn Error) -> string:
+    e.to_string()
 
-fn grouped(e: &(*dyn Error)) -> string: (*e).to_string()
+fn grouped(e: &(*dyn Error)) -> string:
+    (*e).to_string()
 
-fn read(x: &*mut i32) -> i32: *(*x)
+fn read(x: &*mut i32) -> i32:
+    *(*x)
 
 fn reset(x: &mut *i32) -> void:
     *x = box(0)

@@ -57,7 +57,6 @@ tests:
         gen=die,
         cases=200,
         prop=fn!(n: i64): assert(n >= 1 && n <= 6, reason="in 1..=6")
-        ,
     )
 
     it_prop_with(
@@ -65,7 +64,6 @@ tests:
         gen=below_three,
         cases=200,
         prop=fn!(n: i32): assert(n >= 0 && n < 3, reason="in 0..3")
-        ,
     )
 
     it_prop_with(
@@ -73,7 +71,6 @@ tests:
         gen=negative,
         cases=200,
         prop=fn!(n: i16): assert(n >= -5 && n <= -2, reason="in -5..=-2")
-        ,
     )
 
     it_prop_with(
@@ -81,7 +78,6 @@ tests:
         gen=mixed,
         cases=200,
         prop=fn!(n: i8): assert(n >= -128 && n <= 127, reason="any i8")
-        ,
     )
 
     it_prop_with(
@@ -89,7 +85,6 @@ tests:
         gen=byte,
         cases=200,
         prop=fn!(n: u8): assert(u32(n) <= 255, reason="any u8")
-        ,
     )
 
     it_prop_with(
@@ -97,7 +92,6 @@ tests:
         gen=index,
         cases=200,
         prop=fn!(n: usize): assert(n < 4, reason="a valid index")
-        ,
     )
 
     it_prop_with(
@@ -105,7 +99,6 @@ tests:
         gen=whole_u64,
         cases=200,
         prop=fn!(n: u64): assert(n <= 18446744073709551615, reason="any u64")
-        ,
     )
 
     it_prop_with(
@@ -113,7 +106,6 @@ tests:
         gen=high_u64,
         cases=200,
         prop=fn!(n: u64): assert(n >= 9223372036854775808, reason="in the upper half")
-        ,
     )
 
     it_prop_with(
@@ -121,7 +113,6 @@ tests:
         gen=whole_i64,
         cases=200,
         prop=fn!(n: i64): assert(n == n, reason="any i64, no panic")
-        ,
     )
 
     it_prop_with(
@@ -129,7 +120,6 @@ tests:
         gen=half_open,
         cases=200,
         prop=fn!(x: f64): assert(x >= 0.0 && x < 1.0, reason="in 0.0..1.0")
-        ,
     )
 
     it_prop_with(
@@ -137,17 +127,13 @@ tests:
         gen=closed,
         cases=200,
         prop=fn!(x: f32): assert(x >= -2.0 && x <= 2.0, reason="in -2.0..=2.0")
-        ,
     )
 
-    it_prop_with(
-        "a range of at most one value returns start",
-        gen=empty,
-        cases=20,
-        prop=fn!(t: Ends):
-            assert_equal(t.half_open, 5, reason="5..5")
-            assert_equal(t.closed, 5, reason="5..=5")
-            assert_equal(t.reversed, 6, reason="6..=5")
-            assert_equal(t.float, 1.5, reason="1.5..1.5")
-        ,
+    it_prop_with("a range of at most one value returns start", gen=empty, cases=20, prop=fn!(
+        t: Ends,
+    ):
+        assert_equal(t.half_open, 5, reason="5..5")
+        assert_equal(t.closed, 5, reason="5..=5")
+        assert_equal(t.reversed, 6, reason="6..=5")
+        assert_equal(t.float, 1.5, reason="1.5..1.5")
     )

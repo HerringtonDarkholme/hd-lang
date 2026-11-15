@@ -8,4 +8,4 @@ fn read(value: (&i32)?) -> i32:
         .None => 0
 
 fn adapt() -> fn((*i32)?) -> i32:
-    read  # diagnostic: type-mismatch
+    read # diagnostic: type-mismatch

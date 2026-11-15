@@ -13,5 +13,4 @@ tests:
     it_prop( # diagnostic: unsatisfied-trait-bound
         "levels stay small",
         prop=fn!(reading: Reading): pass
-        ,
     )

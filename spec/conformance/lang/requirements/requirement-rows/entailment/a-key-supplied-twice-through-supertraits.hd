@@ -22,22 +22,28 @@ struct S:
     n: i32
 
 impl Root for S:
-    fn root(&self) -> i32: self.n
+    fn root(&self) -> i32:
+        self.n
 
 impl Left for S:
-    fn left(&self) -> i32: self.n + 1
+    fn left(&self) -> i32:
+        self.n + 1
 
 impl Right for S:
-    fn right(&self) -> i32: self.n + 2
+    fn right(&self) -> i32:
+        self.n + 2
 
 impl Both for S:
-    fn both(&self) -> i32: self.n + 3
+    fn both(&self) -> i32:
+        self.n + 3
 
 impl Base for S:
-    fn base(&self) -> i32: self.n * 10
+    fn base(&self) -> i32:
+        self.n * 10
 
 impl Named for S:
-    fn name(&self) -> i32: self.n
+    fn name(&self) -> i32:
+        self.n
 
 fn diamond() -> i32 $ Both:
     $.use(Root).root()
@@ -54,4 +60,6 @@ fn scoped() -> string $ Base:
 
 pub fn main() -> void $ Console:
     $.with(Both=box(S { n: 5 }), Left=box(S { n: 5 }), Right=box(S { n: 5 }), Base=box(S { n: 6 })):
-        println("${diamond()} ${twice()} ${$.use(Left).left() + $.use(Right).right() - 5} ${scoped()}")
+        println(
+            "${diamond()} ${twice()} ${$.use(Left).left() + $.use(Right).right() - 5} ${scoped()}",
+        )

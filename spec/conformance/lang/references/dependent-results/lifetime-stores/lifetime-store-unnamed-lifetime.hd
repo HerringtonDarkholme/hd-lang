@@ -4,4 +4,4 @@ struct User:
     name: string
 
 fn remember(seen: &mut List[&User], u: &User) -> void:
-    seen.push(u)  # diagnostic: local-reference-escapes
+    seen.push(u) # diagnostic: local-reference-escapes

@@ -9,6 +9,6 @@ fn count(fallback: &string) -> usize:
     if fallback.len() > 0:
         text := "hello"
         t = Token.Word(&text)
-    match t:  # diagnostic: local-reference-outlives-local
+    match t: # diagnostic: local-reference-outlives-local
         Token.Word(w) => w.len()
         Token.End => 0

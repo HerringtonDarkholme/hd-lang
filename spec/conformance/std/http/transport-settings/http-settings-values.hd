@@ -22,7 +22,16 @@ tests:
     it("DNS servers are literal IP addresses"):
         for server in ["10.0.0.2", "255.255.255.255", "::1", "fe80::1", "2001:db8::10.0.0.1"]:
             assert_equal(accepted(server), true, reason=server)
-        for server in ["example.com", "10.0.0.256", "010.0.0.1", "10.0.0", "[::1]", "10.0.0.2:53", "fe80::1%en0", ""]:
+        for server in [
+            "example.com",
+            "10.0.0.256",
+            "010.0.0.1",
+            "10.0.0",
+            "[::1]",
+            "10.0.0.2:53",
+            "fe80::1%en0",
+            "",
+        ]:
             assert_equal(accepted(server), false, reason=server)
         assert_equal(
             dns_servers(["10.0.0.2", "bad", "worse"]),
@@ -43,12 +52,12 @@ tests:
         assert_equal(certificate_ok(pem("CERTIFICATE", "not base64")), false, reason="bad body")
         assert_equal(certificate_ok(pem("CERTIFICATE", "")), false, reason="empty body")
         assert_equal(certificate_ok("note\n${root}"), false, reason="text outside a block")
-        assert_equal(certificate_ok(root.replace("-----END CERTIFICATE-----", "")), false, reason="unclosed")
         assert_equal(
-            Certificate::from_pem(root),
-            Certificate::from_pem(root),
-            reason="Eq",
+            certificate_ok(root.replace("-----END CERTIFICATE-----", "")),
+            false,
+            reason="unclosed",
         )
+        assert_equal(Certificate::from_pem(root), Certificate::from_pem(root), reason="Eq")
 
     it("an identity is a certificate chain and one private key"):
         cert := pem("CERTIFICATE", "AQIDBA==")
@@ -59,7 +68,11 @@ tests:
         assert_equal(identity_ok("", key), false, reason="no chain")
         assert_equal(identity_ok(key, key), false, reason="a key as the chain")
         assert_equal(identity_ok(cert, "${key}${key}"), false, reason="two keys")
-        assert_equal(identity_ok(cert, pem("ENCRYPTED PRIVATE KEY", "BQYHCA==")), false, reason="encrypted")
+        assert_equal(
+            identity_ok(cert, pem("ENCRYPTED PRIVATE KEY", "BQYHCA==")),
+            false,
+            reason="encrypted",
+        )
         match Identity::from_pem(cert, cert):
             .Ok(_) => panic("expected InvalidIdentity")
             .Err(error) => assert_equal(error, HttpConfigError.InvalidIdentity, reason="the error")

@@ -16,16 +16,20 @@ struct S:
     n: i32
 
 impl Root for S:
-    fn root(&self) -> i32: self.n * 100
+    fn root(&self) -> i32:
+        self.n * 100
 
 impl Base for S:
-    fn base(&self) -> i32: self.n * 10
+    fn base(&self) -> i32:
+        self.n * 10
 
 impl Named for S:
-    fn name(&self) -> i32: self.n
+    fn name(&self) -> i32:
+        self.n
 
 impl Other for S:
-    fn other(&self) -> i32: self.n
+    fn other(&self) -> i32:
+        self.n
 
 fn needs_base() -> i32 $ Base:
     $.use(Base).base()
@@ -40,15 +44,12 @@ fn call() -> i32 $ Named:
     needs_base()
 
 fn closures() -> string $ Named:
-    inferred := fn() -> i32:
-        $.use(Base).base()
-    let typed: fn() -> i32 $ Named = fn() -> i32 $ Named:
-        $.use(Base).base() + 1
+    inferred := fn() -> i32: $.use(Base).base()
+    let typed: fn() -> i32 $ Named = fn() -> i32 $ Named: $.use(Base).base() + 1
     "${inferred()} ${typed()}"
 
-fn forward[$R](g: fn() -> i32 $ R) -> i32 $ R + Named:
-    inner := fn() -> i32 $ R + Named:
-        g() + $.use(Base).base()
+fn forward[$ R](g: fn() -> i32 $ R) -> i32 $ R + Named:
+    inner := fn() -> i32 $ R + Named: g() + $.use(Base).base()
     inner() + $.use(Base).base()
 
 fn open() -> i32 $ Named:

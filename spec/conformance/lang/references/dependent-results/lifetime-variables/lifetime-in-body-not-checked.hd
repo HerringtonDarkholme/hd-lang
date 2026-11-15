@@ -4,5 +4,5 @@ struct User:
     name: string
 
 fn view(u: User) -> i32:
-    let r: &'a User = &u  # diagnostic: references-not-yet-checked
+    let r: &'a User = &u # diagnostic: references-not-yet-checked
     0

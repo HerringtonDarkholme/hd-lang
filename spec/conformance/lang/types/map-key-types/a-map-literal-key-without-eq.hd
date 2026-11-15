@@ -4,4 +4,4 @@ struct Point:
     x: i32
 
 fn make() -> void:
-    m := {Point { x: 1 }: 1}  # diagnostic: unsatisfied-trait-bound
+    m := { Point { x: 1 }: 1 } # diagnostic: unsatisfied-trait-bound

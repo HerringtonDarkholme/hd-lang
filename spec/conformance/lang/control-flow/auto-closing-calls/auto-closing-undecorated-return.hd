@@ -13,4 +13,4 @@ impl AutoClosing for Guard:
     pass
 
 fn invalid(value: Guard) -> Guard:
-    value  # diagnostic: unregistered-auto-closing
+    value # diagnostic: unregistered-auto-closing

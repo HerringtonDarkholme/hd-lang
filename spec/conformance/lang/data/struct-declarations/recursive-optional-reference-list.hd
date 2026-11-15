@@ -17,8 +17,7 @@ fn length(list: *Cell?) -> i64:
         .None => 0
 
 pub fn main() -> void $ Console:
-    let list: *Cell? = box(Cell {
-        value: 1,
-        next: box(Cell { value: 2, next: box(Cell { value: 3, next: .None }) }),
-    })
+    let list: *Cell? = box(
+        Cell { value: 1, next: box(Cell { value: 2, next: box(Cell { value: 3, next: .None }) }) },
+    )
     println("${sum(list)} ${length(list)}")

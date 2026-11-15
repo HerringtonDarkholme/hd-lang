@@ -15,7 +15,8 @@ impl AutoClosing for Guard:
     pass
 
 @auto_closing(1) # diagnostic: decorator-target-kind
-fn open() -> Guard: Guard {}
+fn open() -> Guard:
+    Guard {}
 
 fn main() -> void:
     open()

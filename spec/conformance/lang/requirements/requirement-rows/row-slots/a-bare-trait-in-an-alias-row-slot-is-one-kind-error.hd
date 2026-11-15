@@ -3,7 +3,7 @@
 # so no trait-used-as-type follows.
 trait Db
 
-type Job[$R] = fn() -> void $ R
+type Job[$ R] = fn() -> void $ R
 
-fn schedule(job: Job[Db]) -> void:  # diagnostic: generic-kind-mismatch
+fn schedule(job: Job[Db]) -> void: # diagnostic: generic-kind-mismatch
     pass

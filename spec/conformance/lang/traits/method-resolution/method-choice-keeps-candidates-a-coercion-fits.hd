@@ -17,7 +17,8 @@ struct Q:
     v: i32
 
 impl Take[P] for X:
-    fn take(&self, a: P) -> i32: a.v
+    fn take(&self, a: P) -> i32:
+        a.v
 
 impl Take[Q?] for X:
     fn take(&self, a: Q?) -> i32:
@@ -26,10 +27,12 @@ impl Take[Q?] for X:
             .None => 0
 
 impl Make[i32] for X:
-    fn make(&self) -> i32: 7
+    fn make(&self) -> i32:
+        7
 
 impl Make[i64] for X:
-    fn make(&self) -> i64: 8
+    fn make(&self) -> i64:
+        8
 
 pub fn main() -> void $ Console:
     x := X { n: 0 }

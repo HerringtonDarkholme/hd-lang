@@ -16,4 +16,4 @@ struct Holder:
     guard: Guard
 
 fn invalid(value: Guard) -> void:
-    holder := Holder { guard: value }  # diagnostic: unregistered-auto-closing
+    holder := Holder { guard: value } # diagnostic: unregistered-auto-closing

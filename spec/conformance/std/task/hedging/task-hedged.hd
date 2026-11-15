@@ -101,7 +101,6 @@ pub fn main!() -> void $ Clock:
             hedged(10ms),
             work=fn!() -> Result[string, string]:
                 replica!(pending_copies, cancel_first, cancel_second, true)
-            ,
         )
         assert_equal(
             race!(job, cancel(job)),

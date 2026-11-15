@@ -8,4 +8,4 @@ fn length(f: fn(&User) -> &string, u: &User, fresh: bool) -> usize:
     if fresh:
         local := User { name: "local" }
         r = f(&local)
-    r.len()  # diagnostic: local-reference-outlives-local
+    r.len() # diagnostic: local-reference-outlives-local

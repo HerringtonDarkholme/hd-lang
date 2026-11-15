@@ -416,36 +416,48 @@ fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built
     greedy := c.bool()
     lazy := if greedy: "" else: "?"
     if kind == 4:
-        return box(Built {
-            node: Node.Repeat(box(atom.node), 0, .None, greedy),
-            text: atom.text + "*" + lazy,
-        })
+        return box(
+            Built {
+                node: Node.Repeat(box(atom.node), 0, .None, greedy),
+                text: atom.text + "*" + lazy,
+            },
+        )
     if kind == 5:
-        return box(Built {
-            node: Node.Repeat(box(atom.node), 1, .None, greedy),
-            text: atom.text + "+" + lazy,
-        })
+        return box(
+            Built {
+                node: Node.Repeat(box(atom.node), 1, .None, greedy),
+                text: atom.text + "+" + lazy,
+            },
+        )
     if kind == 6:
-        return box(Built {
-            node: Node.Repeat(box(atom.node), 0, .Some(1), greedy),
-            text: atom.text + "?" + lazy,
-        })
+        return box(
+            Built {
+                node: Node.Repeat(box(atom.node), 0, .Some(1), greedy),
+                text: atom.text + "?" + lazy,
+            },
+        )
     low := c.int(0..=3)
     if kind == 7:
-        return box(Built {
-            node: Node.Repeat(box(atom.node), low, .Some(low), greedy),
-            text: atom.text + "{$low}" + lazy,
-        })
+        return box(
+            Built {
+                node: Node.Repeat(box(atom.node), low, .Some(low), greedy),
+                text: atom.text + "{$low}" + lazy,
+            },
+        )
     if kind == 8:
-        return box(Built {
-            node: Node.Repeat(box(atom.node), low, .None, greedy),
-            text: atom.text + "{$low,}" + lazy,
-        })
+        return box(
+            Built {
+                node: Node.Repeat(box(atom.node), low, .None, greedy),
+                text: atom.text + "{$low,}" + lazy,
+            },
+        )
     high := low + c.int(0..=2)
-    box(Built {
-        node: Node.Repeat(box(atom.node), low, .Some(high), greedy),
-        text: atom.text + "{$low,$high}" + lazy,
-    })
+    box(
+        Built {
+            node: Node.Repeat(box(atom.node), low, .Some(high), greedy),
+            text: atom.text + "{$low,$high}" + lazy,
+        },
+    )
 
 fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     kind := c.int(0..=(if depth >= 3: 7 else: 11))
@@ -579,12 +591,14 @@ fn case_gen(c: &mut Choices) -> *Case:
     text := c.list(14, fn(inner: &mut Choices) -> string: inner.choose(text_pieces())).join("")
     pieces := c.list(4, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
     template := template_text(pieces, c.bool())
-    box(Case {
-        pattern: built.text,
-        text: text,
-        template: template,
-        expected: old_summary(built.node, names, text, pieces),
-    })
+    box(
+        Case {
+            pattern: built.text,
+            text: text,
+            template: template,
+            expected: old_summary(built.node, names, text, pieces),
+        },
+    )
 
 # A long text of `count` pieces from a seeded generator, so its length does
 # not spend the draw limit.
@@ -603,12 +617,14 @@ fn long_case_gen(c: &mut Choices) -> *Case:
     text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
     pieces := c.list(3, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
     template := template_text(pieces, true)
-    box(Case {
-        pattern: built.text,
-        text: text,
-        template: template,
-        expected: old_summary(built.node, names, text, pieces),
-    })
+    box(
+        Case {
+            pattern: built.text,
+            text: text,
+            template: template,
+            expected: old_summary(built.node, names, text, pieces),
+        },
+    )
 
 # What the old engine reports for one pattern and text, one line for each
 # method. Each search runs with every slot; the slots do not change which
@@ -762,12 +778,14 @@ fn new_groups(groups: Captures) -> string:
 # A case from a pattern's tree, for the hand-picked shapes below.
 fn fixed(node: Node, pattern: string, names: List[string], text: string) -> *Case:
     pieces := [Piece.Literal("<"), Piece.Index(1), Piece.Literal(">")]
-    box(Case {
-        pattern: pattern,
-        text: text,
-        template: "<\$1>",
-        expected: old_summary(node, names, text, pieces),
-    })
+    box(
+        Case {
+            pattern: pattern,
+            text: text,
+            template: "<\$1>",
+            expected: old_summary(node, names, text, pieces),
+        },
+    )
 
 fn lit(text: string) -> Node:
     let mut items: List[Node] = []
@@ -780,7 +798,12 @@ tests:
         words := long_text(7, 300)
         cases := [
             fixed(
-                Node.Repeat(box(Node.Group(box(Node.Alternate([lit("a"), lit("b")])), 1)), 1, .None, true),
+                Node.Repeat(
+                    box(Node.Group(box(Node.Alternate([lit("a"), lit("b")])), 1)),
+                    1,
+                    .None,
+                    true,
+                ),
                 "(a|b)+",
                 ["", ""],
                 "xxabba",
@@ -845,12 +868,14 @@ tests:
             ),
             fixed(
                 Node.Group(
-                    box(Node.Repeat(
-                        box(Node.Class([ClassItem.Range('é', '😀')], true)),
-                        1,
-                        .Some(3),
-                        false,
-                    )),
+                    box(
+                        Node.Repeat(
+                            box(Node.Class([ClassItem.Range('é', '😀')], true)),
+                            1,
+                            .Some(3),
+                            false,
+                        ),
+                    ),
                     1,
                 ),
                 "([^é-😀]{1,3}?)",
@@ -861,12 +886,14 @@ tests:
                 Node.Concat(
                     [
                         Node.Group(
-                            box(Node.Repeat(
-                                box(Node.Class([ClassItem.Word(false)], false)),
-                                1,
-                                .None,
-                                true,
-                            )),
+                            box(
+                                Node.Repeat(
+                                    box(Node.Class([ClassItem.Word(false)], false)),
+                                    1,
+                                    .None,
+                                    true,
+                                ),
+                            ),
                             1,
                         ),
                         Node.Literal('-'),
@@ -885,7 +912,6 @@ tests:
         gen=case_gen,
         cases=600,
         prop=fn!(case: &Case): assert_equal(new_summary(case), case.expected, reason=case.pattern)
-        ,
     )
 
     it_prop_with(
@@ -893,5 +919,4 @@ tests:
         gen=long_case_gen,
         cases=60,
         prop=fn!(case: &Case): assert_equal(new_summary(case), case.expected, reason=case.pattern)
-        ,
     )

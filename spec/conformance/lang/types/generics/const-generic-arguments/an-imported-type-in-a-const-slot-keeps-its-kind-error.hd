@@ -3,7 +3,7 @@
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.Cart
 
-struct Fixed[N<const usize]: pass
+struct Fixed[N < const usize]: pass
 
 fn wrong_kind(value: Fixed[Cart]) -> void: # diagnostic: generic-kind-mismatch
     pass

@@ -4,4 +4,4 @@ struct Point:
     x: i32
 
 fn make() -> void:
-    a := Point(missing)  # diagnostic: unknown-name
+    a := Point(missing) # diagnostic: unknown-name

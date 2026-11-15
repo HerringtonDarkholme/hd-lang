@@ -131,7 +131,6 @@ pub fn main!() -> void $ Clock:
     let job: Suspend[Result[string, Failure]] = apply(
         guarded(cancel_state),
         work=fn!() -> Result[string, Failure]: pending!(cancel_state, activity, wait)
-        ,
     )
     assert_equal(race!(job, cancel(job)), .Ok("canceled"), reason="cancel pending guarded work")
     assert_equal(

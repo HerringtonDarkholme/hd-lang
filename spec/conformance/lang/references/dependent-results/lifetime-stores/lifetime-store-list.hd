@@ -33,4 +33,12 @@ pub fn main() -> void $ Console:
     index(&mut by, &ann)
     index(&mut by, &bob)
     println("${seen.len()} ${seen[0].age + seen[1].age} ${by["bob"].name}")
-    println(oldest([User { name: "cy", age: 20 }, User { name: "di", age: 50 }, User { name: "ed", age: 33 }]))
+    println(
+        oldest(
+            [
+                User { name: "cy", age: 20 },
+                User { name: "di", age: 50 },
+                User { name: "ed", age: 33 },
+            ],
+        ),
+    )

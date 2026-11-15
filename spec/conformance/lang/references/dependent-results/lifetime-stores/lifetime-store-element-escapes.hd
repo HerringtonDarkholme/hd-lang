@@ -6,4 +6,4 @@ struct User:
 fn first(fallback: &User) -> &User:
     local := User { name: "local" }
     seen := [&local, fallback]
-    seen[0]  # diagnostic: local-reference-escapes
+    seen[0] # diagnostic: local-reference-escapes

@@ -6,5 +6,5 @@ enum Pair['a, 'b]:
 
 fn right['a, 'b](p: Pair['a, 'b], fallback: &'a string) -> &'a string:
     match p:
-        Pair.Right(y) => y  # diagnostic: local-reference-escapes
+        Pair.Right(y) => y # diagnostic: local-reference-escapes
         _ => fallback

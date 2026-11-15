@@ -7,4 +7,4 @@ LOW := 1
 MID := 4
 
 fn sum_is_not_or(f: Fixed[LOW | MID]) -> Fixed[6]:
-    f  # diagnostic: type-mismatch
+    f # diagnostic: type-mismatch

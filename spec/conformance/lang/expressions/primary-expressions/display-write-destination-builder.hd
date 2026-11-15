@@ -28,4 +28,7 @@ tests:
 
     it("a write that observes the builder's identity only appends"):
         text := identity_demo()
-        assert(text == "head:a-<same>-z" || text == "head:a-<other>-z", reason="the written text follows the earlier text and the literals")
+        assert(
+            text == "head:a-<same>-z" || text == "head:a-<other>-z",
+            reason="the written text follows the earlier text and the literals",
+        )

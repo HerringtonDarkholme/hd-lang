@@ -3,7 +3,8 @@
 struct Writer['a]:
     target: &'a mut List[i32]
 
-fn dup[T](x: T) -> (T, T): (x, x)
+fn dup[T](x: T) -> (T, T):
+    (x, x)
 
 pub fn main() -> void $ Console:
     let mut items: List[i32] = [+1, 2, 3]

@@ -16,19 +16,24 @@ struct C:
     n: i32
 
 impl Store[i32] for C:
-    fn get(&self) -> i32: self.n
+    fn get(&self) -> i32:
+        self.n
 
 impl Store[string] for C:
-    fn get(&self) -> string: "s"
+    fn get(&self) -> string:
+        "s"
 
 impl Cache for C:
-    fn hit(&self) -> i32: 1
+    fn hit(&self) -> i32:
+        1
 
 impl Both for C:
-    fn both(&self) -> i32: 2
+    fn both(&self) -> i32:
+        2
 
 impl Wrap[i32] for C:
-    fn wrap(&self) -> i32: 3
+    fn wrap(&self) -> i32:
+        3
 
 fn fetch() -> i32 $ Store[i32]:
     $.use(Store[i32]).get()

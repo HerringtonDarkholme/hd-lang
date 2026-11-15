@@ -10,8 +10,6 @@ fn run[F < Fn() -> void](f: F) -> void:
 
 fn invalid() -> void:
     let mut seen: List[i32] = []
-    run(
-        fn(): # diagnostic: not-writable
-            later(fn(): seen.push(+1))
-        ,
+    run(fn(): # diagnostic: not-writable
+        later(fn(): seen.push(+1))
     )

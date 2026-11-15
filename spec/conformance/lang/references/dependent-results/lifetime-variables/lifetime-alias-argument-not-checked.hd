@@ -5,5 +5,5 @@ struct User:
 
 type Reader[T] = fn(T) -> i32
 
-fn apply['a](u: &'a User, f: Reader[&'a User]) -> i32:  # diagnostic: references-not-yet-checked
+fn apply['a](u: &'a User, f: Reader[&'a User]) -> i32: # diagnostic: references-not-yet-checked
     f(u)

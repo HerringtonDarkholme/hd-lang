@@ -5,4 +5,4 @@ enum Token['a]:
     End
 
 struct Holder:
-    token: Token  # diagnostic: local-reference-escapes
+    token: Token # diagnostic: local-reference-escapes

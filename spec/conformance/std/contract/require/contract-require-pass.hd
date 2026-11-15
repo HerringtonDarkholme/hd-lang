@@ -8,11 +8,9 @@ struct Calls:
 pub fn main() -> void:
     let limit = +3
     let calls: *mut Calls = box(Calls { n: +0 })
-    require(
-        condition=fn():
-            calls.n = calls.n + 1
-            limit == 3
-        ,
+    require(condition=fn():
+        calls.n = calls.n + 1
+        limit == 3
     )
     if calls.n != 1:
         panic("require evaluated its condition more than once")

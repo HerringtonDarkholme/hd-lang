@@ -8,7 +8,11 @@ tests:
         big := 18446744073709551615
         text := "max ${big}"
         let wide: u64 = big
-        assert_equal(text, "max 18446744073709551615", reason="the class is u64, so the value is unsigned")
+        assert_equal(
+            text,
+            "max 18446744073709551615",
+            reason="the class is u64, so the value is unsigned",
+        )
         assert_equal("${wide}", "18446744073709551615", reason="the settled binding reads the same")
 
     it("a class that settles to i8 keeps its sign"):

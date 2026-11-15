@@ -4,4 +4,4 @@
 use std.hash.Hash
 
 fn make[K < Eq & Hash](key: K) -> Map[K, i32]:
-    {key: 1}
+    { key: 1 }

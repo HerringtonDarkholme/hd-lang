@@ -4,6 +4,6 @@ struct Meter:
     value: i32
 
 impl Meter:
-    @track_caller  # diagnostic: decorator-target-kind
+    @track_caller # diagnostic: decorator-target-kind
     fn read(self) -> i32:
         self.value

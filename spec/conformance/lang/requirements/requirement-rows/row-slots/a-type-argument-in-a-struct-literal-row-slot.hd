@@ -7,4 +7,4 @@ fn noop() -> void:
     pass
 
 fn make() -> void:
-    job := Job::[i32] { run: noop }  # diagnostic: generic-kind-mismatch
+    job := Job::[i32] { run: noop } # diagnostic: generic-kind-mismatch

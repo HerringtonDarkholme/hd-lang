@@ -4,4 +4,4 @@
 struct Fixed[N < const usize]: pass
 
 fn symbolic[N < const usize]() -> void:
-    let value: Fixed[N + 1] = panic("not run")  # diagnostic: nonconstant-generic-argument
+    let value: Fixed[N + 1] = panic("not run") # diagnostic: nonconstant-generic-argument

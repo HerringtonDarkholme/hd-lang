@@ -7,8 +7,11 @@ trait Named:
     fn name(&self) -> string
 
 impl Named for &Point:
-    fn name(&self) -> string: "point"
+    fn name(&self) -> string:
+        "point"
 
-fn label[T < Named](value: T) -> string: value.name()
+fn label[T < Named](value: T) -> string:
+    value.name()
 
-fn bad_kind(p: *Point) -> string: label(p)  # diagnostic: unsatisfied-trait-bound
+fn bad_kind(p: *Point) -> string:
+    label(p) # diagnostic: unsatisfied-trait-bound

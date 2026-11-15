@@ -15,6 +15,5 @@ fn x_of(p: &Point) -> i32:
     p.x
 
 fn outer['a](p: &'a Point, r: &Point) -> i32:
-    g := fn(x: &'a Point, y: &Point):
-        (relay(Holder { f: x_of }, x).f)(y) # diagnostic: local-reference-escapes
+    g := fn(x: &'a Point, y: &Point): (relay(Holder { f: x_of }, x).f)(y) # diagnostic: local-reference-escapes
     g(p, r)

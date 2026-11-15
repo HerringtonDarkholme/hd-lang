@@ -57,7 +57,7 @@ tests:
 
     it("solves the parameter by name"):
         let g = Words { w: "w" }
-        assert_equal(before(g = g, x = "x"), ("x", "w"), reason="named arguments in any order")
+        assert_equal(before(g=g, x="x"), ("x", "w"), reason="named arguments in any order")
 
     it("solves the parameter through a reference"):
         let p = Pair { f: Nums { n: 3 }, x: 9 }

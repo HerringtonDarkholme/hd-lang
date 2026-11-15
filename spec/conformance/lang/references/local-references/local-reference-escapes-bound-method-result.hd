@@ -8,5 +8,5 @@ impl Point:
         &self.x
 
 fn demo(p: Point) -> i32:
-    f := p::x_ref  # diagnostic: local-reference-escapes
+    f := p::x_ref # diagnostic: local-reference-escapes
     *f()

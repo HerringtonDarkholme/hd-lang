@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn make(f: fn() -> &User) -> void:  # diagnostic: reference-result-without-source
+fn make(f: fn() -> &User) -> void: # diagnostic: reference-result-without-source
     pass

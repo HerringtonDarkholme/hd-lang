@@ -5,7 +5,8 @@ struct User:
     age: i32
 
 impl User:
-    fn describe(&self) -> string: "${self.name} ${self.age}"
+    fn describe(&self) -> string:
+        "${self.name} ${self.age}"
     fn birthday(&mut self) -> void:
         self.age = self.age + 1
 

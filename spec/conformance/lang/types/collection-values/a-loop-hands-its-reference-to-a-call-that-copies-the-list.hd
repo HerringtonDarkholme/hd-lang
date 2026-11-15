@@ -22,4 +22,6 @@ fn fill(bag: &mut Bag) -> void:
 pub fn main() -> void $ Console:
     let mut bag = Bag { items: [1, 2, 3], saved: [] }
     fill(&mut bag)
-    println("saved ${bag.saved[0]} ${bag.saved[1]} ${bag.saved[2]}; items ${bag.items[0]} ${bag.items[1]} ${bag.items[2]}")
+    println(
+        "saved ${bag.saved[0]} ${bag.saved[1]} ${bag.saved[2]}; items ${bag.items[0]} ${bag.items[1]} ${bag.items[2]}",
+    )

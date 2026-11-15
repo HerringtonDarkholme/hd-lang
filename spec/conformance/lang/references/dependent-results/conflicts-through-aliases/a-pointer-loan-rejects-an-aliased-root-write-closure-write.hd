@@ -7,8 +7,7 @@ fn name_of(p: &P) -> &string:
 
 pub fn main() -> void $ Console:
     let mut ps = [box(P { name: "a${1}" })]
-    change := fn() -> void:
-        ps[0] = box(P { name: "b${2}" }) # panic: borrow-conflict
+    change := fn() -> void: ps[0] = box(P { name: "b${2}" }) # panic: borrow-conflict
     d := name_of(ps[0])
     change()
     junk := "cccccc${3}"

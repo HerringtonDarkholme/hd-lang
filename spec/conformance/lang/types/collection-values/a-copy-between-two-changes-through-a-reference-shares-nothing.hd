@@ -37,4 +37,6 @@ pub fn main() -> void $ Console:
     store_shared(&mut bag)
     let mut fresh = Bag { items: [], other: [] }
     push_twice(&mut fresh)
-    println("field ${a[0]} $a1; whole ${b.items[0]} $b1; stored ${bag.other[0]} ${bag.items[0]}; again ${fresh.other[0]} ${fresh.other[1]}")
+    println(
+        "field ${a[0]} $a1; whole ${b.items[0]} $b1; stored ${bag.other[0]} ${bag.items[0]}; again ${fresh.other[0]} ${fresh.other[1]}",
+    )

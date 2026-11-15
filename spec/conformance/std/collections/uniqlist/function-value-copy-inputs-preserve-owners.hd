@@ -188,7 +188,9 @@ pub fn main() -> void:
         +17,
         reason="reference source outlives a stored callback result during native transfer",
     )
-    url_source := Url::parse("https://example.test/x#private?secret").expect("fixture URL").to_string()
+    url_source := Url::parse("https://example.test/x#private?secret")
+        .expect("fixture URL")
+        .to_string()
     assert_equal(
         projected_display(url_source),
         "HTTP status 404 for https://example.test/x",

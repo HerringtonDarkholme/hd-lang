@@ -14,8 +14,11 @@ type Level0 = List[i32]
 type Level1 = List[Level0]
 type Level2 = List[Level1]
 
-fn first(value: Level2) -> Level2: value
+fn first(value: Level2) -> Level2:
+    value
 
-fn reader(feed: &dyn Feed[Item = Level1]) -> i32: 0
+fn reader(feed: &dyn Feed[Item = Level1]) -> i32:
+    0
 
-fn second(value: (Level2, List[Sorted[Plain]])) -> i32: 0 # diagnostic: unsatisfied-trait-bound
+fn second(value: (Level2, List[Sorted[Plain]])) -> i32: # diagnostic: unsatisfied-trait-bound
+    0

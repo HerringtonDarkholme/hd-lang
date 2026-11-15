@@ -81,6 +81,10 @@ tests:
 
     it("reads each type's own block with no trait"):
         assert_equal(Point { x: 1, y: 2 }.probe(), "x=a/p;y=-/m;", reason="Point's block")
-        assert_equal(Pair { left: 1, right: 2 }.probe(), "left=b/n;right=c/q;", reason="Pair's block")
+        assert_equal(
+            Pair { left: 1, right: 2 }.probe(),
+            "left=b/n;right=c/q;",
+            reason="Pair's block",
+        )
         assert_equal(Plain { only: 1 }.probe(), "only=d/-;", reason="no block")
         assert_equal(Lone { first: 1 }.probe(), "first=-/o;", reason="a derived type's block")

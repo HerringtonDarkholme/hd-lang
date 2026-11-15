@@ -7,7 +7,8 @@ fn g_0(x: i32) $ Console: # diagnostic: recursive-function-needs-result-type
     say(x)
     g_1(x)
 
-fn g_1(x: i32): g_0(x)
+fn g_1(x: i32):
+    g_0(x)
 
 fn say(x: i32) -> void:
     if x > 5:

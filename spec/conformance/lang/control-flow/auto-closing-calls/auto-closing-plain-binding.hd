@@ -13,4 +13,4 @@ impl AutoClosing for Guard:
     pass
 
 fn invalid(value: Guard) -> void:
-    copy := value  # diagnostic: unregistered-auto-closing
+    copy := value # diagnostic: unregistered-auto-closing

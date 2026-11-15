@@ -98,13 +98,9 @@ impl HttpServer for Leases:
                             "https://example.test/slow"
                         else:
                             "https://example.test/fast"
-                        ,
                     }
-                    ,
                 }
-                ,
             )
-            ,
         )
     fn respond!(&mut self, id: RequestId, value: WireResponse) -> Result[void, ServerError]:
         if self.expire_response && id.sequence == 2:

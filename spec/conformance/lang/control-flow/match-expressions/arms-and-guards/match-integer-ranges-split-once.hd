@@ -88,9 +88,7 @@ pub fn main() -> void $ Console:
     println(
         "${bucket(3, false)} ${bucket(3, true)} ${bucket(9, true)} ${bucket(9, false)} ${bucket(250, true)} ${bucket(100, false)} ${bucket(100, true)}",
     )
-    println(
-        "${pair(0, 2)}|${pair(0, 5)}|${pair(2, 5)}|${pair(2, 9)}|${pair(0, 9)}|${pair(7, 1)}",
-    )
+    println("${pair(0, 2)}|${pair(0, 5)}|${pair(2, 5)}|${pair(2, 9)}|${pair(0, 9)}|${pair(7, 1)}")
     println("${grid(5, 1)}|${grid(2, 3)}|${grid(5, 3)}|${grid(2, 4)}|${grid(2, 9)}")
     println(
         "${word("a", true)} ${word("a", false)} ${word("b", true)} ${word("c", true)} ${tag("q", "x")} ${tag("y", "z")} ${tag("y", "w")}",

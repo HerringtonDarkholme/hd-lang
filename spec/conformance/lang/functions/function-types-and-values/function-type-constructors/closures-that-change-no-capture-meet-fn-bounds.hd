@@ -38,11 +38,9 @@ fn valid() -> i32:
     each([1, 2], fn(x): total += x)
     a := read(double) + read(m::times) + read(fn(x): x + total)
     b := named(f=fn(x): x * total, base=2)
-    c := change(
-        fn(x):
-            seen.push(x)
-            x
-        ,
+    c := change(fn(x):
+        seen.push(x)
+        x
     )
     w := wrap(.Some).unwrap_or(0)
     s := Show { show: fn(): total + i32(seen.len()) }

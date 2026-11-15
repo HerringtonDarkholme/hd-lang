@@ -3,4 +3,4 @@
 use std.debug.Location
 
 fn plain() -> u32:
-    Location::caller().line  # diagnostic: caller-outside-track-caller
+    Location::caller().line # diagnostic: caller-outside-track-caller

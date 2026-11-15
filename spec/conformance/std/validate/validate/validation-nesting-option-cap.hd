@@ -65,13 +65,11 @@ pub fn main() -> void:
     issues := error.issues()
     assert_equal(issues.len(), 1, reason="the cap retains one issue")
     assert_equal(
-        (&issues[0]).display_with(
-            fn(step: &PathStep) -> string:
-                match step:
-                    .Field(member) => ".${member.name}"
-                    .Index(index) => "[$index]"
-                    .Key(key) => "[$key]"
-            ,
+        (&issues[0]).display_with(fn(step: &PathStep) -> string:
+            match step:
+                .Field(member) => ".${member.name}"
+                .Index(index) => "[$index]"
+                .Key(key) => "[$key]"
         ),
         "$.items[0].count",
         reason="the structural path includes the list index",
@@ -85,13 +83,11 @@ pub fn main() -> void:
         .expect("invalid map value")
         .issues()
     assert_equal(
-        (&map_issues[0]).display_with(
-            fn(step: &PathStep) -> string:
-                match step:
-                    .Field(member) => ".${member.name}"
-                    .Index(index) => "[$index]"
-                    .Key(key) => "[$key]"
-            ,
+        (&map_issues[0]).display_with(fn(step: &PathStep) -> string:
+            match step:
+                .Field(member) => ".${member.name}"
+                .Index(index) => "[$index]"
+                .Key(key) => "[$key]"
         ),
         "$.entries[bad].count",
         reason="map values validate under their key path",

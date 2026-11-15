@@ -44,9 +44,15 @@ pub fn main() -> void $ Console:
     let keep: *mut Keep = box(Keep { rows: .None, saved: [] })
     let rows: *mut Rows = box(Rows { items: [] })
     keep.rows = .Some(rows)
-    rows.items = [Row { value: 5, keep: .Some(keep) }, Row { value: 3, keep: .None }, Row { value: 1, keep: .None }]
+    rows.items = [
+        Row { value: 5, keep: .Some(keep) },
+        Row { value: 3, keep: .None },
+        Row { value: 1, keep: .None },
+    ]
     settle(rows)
-    println("saved ${keep.saved[0].value} ${keep.saved[1].value} ${keep.saved[2].value}; list ${rows.items[0].value} ${rows.items[1].value} ${rows.items[2].value}")
+    println(
+        "saved ${keep.saved[0].value} ${keep.saved[1].value} ${keep.saved[2].value}; list ${rows.items[0].value} ${rows.items[1].value} ${rows.items[2].value}",
+    )
     rows.items = []
     keep.saved = []
     keep.rows = .None

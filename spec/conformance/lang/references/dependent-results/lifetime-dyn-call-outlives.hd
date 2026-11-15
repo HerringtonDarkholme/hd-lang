@@ -11,4 +11,4 @@ fn length(p: &dyn Picker, u: &User, fresh: bool) -> usize:
     if fresh:
         local := User { name: "local" }
         r = p.pick(u, &local)
-    r.name.len()  # diagnostic: local-reference-outlives-local
+    r.name.len() # diagnostic: local-reference-outlives-local

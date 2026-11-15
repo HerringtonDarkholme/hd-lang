@@ -7,4 +7,4 @@ fn pick['a](f: fn(&'a User, &User) -> &'a User, a: &'a User, b: &User) -> usize:
     f(a, b).name.len()
 
 fn demo(a: &User, b: &User) -> usize:
-    pick(fn(x, y): y, a, b)  # diagnostic: local-reference-escapes
+    pick(fn(x, y): y, a, b) # diagnostic: local-reference-escapes

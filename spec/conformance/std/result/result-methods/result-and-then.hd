@@ -37,11 +37,9 @@ tests:
     it("and_then keeps the first error and skips the step"):
         let calls = 0
         result := setting({}, "port")
-            .and_then(
-                fn(text: string) -> Result[i32, ConfigError]:
-                    calls = calls + 1
-                    number(text)
-                ,
+            .and_then(fn(text: string) -> Result[i32, ConfigError]:
+                calls = calls + 1
+                number(text)
             )
         assert(missing(result), reason="the first error is kept")
         assert_equal(calls, 0, reason="the step never runs for Err")

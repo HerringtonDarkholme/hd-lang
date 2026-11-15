@@ -3,5 +3,5 @@
 
 struct Wide[N < const u64]: pass
 
-fn huge(value: Wide[1 + 340282366920938463463374607431768211456]) -> void:  # diagnostic: const-evaluation-failed
+fn huge(value: Wide[1 + 340282366920938463463374607431768211456]) -> void: # diagnostic: const-evaluation-failed
     pass

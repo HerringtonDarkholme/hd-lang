@@ -11,7 +11,6 @@ fn stock(c: &mut Choices) -> Map[string, i32]:
         3,
         key=fn(inner: &mut Choices) -> string: inner.string(max_chars=1),
         value=fn(inner: &mut Choices) -> i32: inner.int(0..=9)
-        ,
     )
 
 # A leaf-first recursive generator ends once the draw limit is spent.
@@ -25,7 +24,6 @@ tests:
         "lists stay short",
         pair,
         prop=fn!(items: List[i64]): assert(items.len() <= 3, reason="at most max items")
-        ,
     )
 
     it_prop_with(
@@ -33,12 +31,10 @@ tests:
         gen=stock,
         prop=fn!(entries: Map[string, i32]):
             assert(entries.len() <= 3, reason="a drawn key again keeps one entry")
-        ,
     )
 
     it_prop_with(
         "the draw budget ends recursion",
         gen=depth,
         prop=fn!(d: i32): assert(d >= 0, reason="a finite depth")
-        ,
     )

@@ -4,4 +4,4 @@ fn helper() -> void:
     pass
 
 fn make() -> void:
-    let xs: List[&dyn helper] = []  # diagnostic: unknown-trait
+    let xs: List[&dyn helper] = [] # diagnostic: unknown-trait

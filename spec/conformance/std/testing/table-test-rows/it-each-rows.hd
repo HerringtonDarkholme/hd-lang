@@ -13,5 +13,4 @@ tests:
         [1, 2, 3],
         body=fn!(value: i32):
             assert_equal(double(value), value + value, reason="doubling adds the value to itself")
-        ,
     )

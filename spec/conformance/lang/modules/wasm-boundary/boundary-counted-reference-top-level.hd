@@ -33,5 +33,9 @@ fn cross() -> i32 $ Vault:
 pub fn main() -> void $ Vault:
     assert_equal(cross(), +6, reason="the first crossing encodes the shared node on both paths")
     assert_equal(cross(), +6, reason="the second crossing sees no mark left by the first")
-    assert_equal(eval(shared), +3, reason="the binding's object is intact after the results are released")
+    assert_equal(
+        eval(shared),
+        +3,
+        reason="the binding's object is intact after the results are released",
+    )
     assert_equal(nothing.len(), 0, reason="the empty list's object is intact")

@@ -79,9 +79,7 @@ pub fn main!() -> void $ Console + Clock:
                 timeout(1s),
                 retry(Backoff { attempts: 2, initial: 0ms })
                     .when(fn(error: HttpError): error.is_transient())
-                ,
             )
-            ,
         ):
             Request::get(Url::parse("https://retry.test/").expect("fixture URL")).send!()
         assert_equal(

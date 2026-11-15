@@ -24,8 +24,6 @@ fn disjoint!(t: &Team, alias: *mut User) -> void $ Console + Clock:
     println("${*held} $count")
 
 pub fn main!() -> void $ Console + Clock:
-    t := Team {
-        lead: box(User { name: "a", stats: box(Stats { count: +1 }) }),
-    }
+    t := Team { lead: box(User { name: "a", stats: box(Stats { count: +1 }) }) }
     alias := t.lead
     disjoint!(&t, alias)

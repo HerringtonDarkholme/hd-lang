@@ -2,7 +2,17 @@
 # Spec std/http Transport Settings: std-http.settings.methods, std-http.settings.default-unsupported, std-http.settings.default-name, std-http.settings.immutable.
 # Also covers std-http.scripted.settings-unsupported, std-http.error.unsupported-setting.
 # expect: test
-use std.http.{Certificate, Http, HttpError, Identity, Request, Response, ScriptedHttp, Url, dns_servers}
+use std.http.{
+    Certificate,
+    Http,
+    HttpError,
+    Identity,
+    Request,
+    Response,
+    ScriptedHttp,
+    Url,
+    dns_servers,
+}
 
 struct Counting:
     sends: usize

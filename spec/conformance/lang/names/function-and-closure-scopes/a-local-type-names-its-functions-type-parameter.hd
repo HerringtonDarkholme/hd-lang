@@ -73,9 +73,11 @@ fn sized[T](x: T) -> i32:
     struct W:
         v: T
     impl Size for W:
-        fn size(&self) -> i32: +1
+        fn size(&self) -> i32:
+            +1
     impl Size for i32:
-        fn size(&self) -> i32: +2
+        fn size(&self) -> i32:
+            +2
     W { v: x }.size() + (+5).size()
 
 pub fn main() -> void $ Console:

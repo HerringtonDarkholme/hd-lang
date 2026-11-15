@@ -171,184 +171,158 @@ fn scalar_count(bytes: List[u8]) -> usize:
     count
 
 tests:
-    it_prop_with(
-        "split and join preserve nonempty separators",
-        gen=text_cases,
-        cases=100,
-        prop=fn!(case: TextCase):
-            text := text_of(case.chars)
-            raw := text_of(case.needle)
-            separator := if raw.is_empty(): "\u{1F600}" else: raw
-            expected := split_model(text, separator)
-            assert_equal(
-                text.split(separator),
-                expected,
-                reason="split matches the independent byte scan",
-            )
-            assert_equal(
-                text.split(separator).join(separator),
-                text,
-                reason="join restores every separator and empty piece",
-            )
-            assert_equal(
-                joined(expected, separator),
-                text,
-                reason="the reference concatenation restores the input too",
-            )
-        ,
+    it_prop_with("split and join preserve nonempty separators", gen=text_cases, cases=100, prop=fn!(
+        case: TextCase,
+    ):
+        text := text_of(case.chars)
+        raw := text_of(case.needle)
+        separator := if raw.is_empty(): "\u{1F600}" else: raw
+        expected := split_model(text, separator)
+        assert_equal(
+            text.split(separator),
+            expected,
+            reason="split matches the independent byte scan",
+        )
+        assert_equal(
+            text.split(separator).join(separator),
+            text,
+            reason="join restores every separator and empty piece",
+        )
+        assert_equal(
+            joined(expected, separator),
+            text,
+            reason="the reference concatenation restores the input too",
+        )
     )
 
-    it_prop_with(
-        "replace is identity and matches nonoverlapping scans",
-        gen=text_cases,
-        cases=100,
-        prop=fn!(case: TextCase):
-            text := text_of(case.chars)
-            old := text_of(case.needle)
-            replacement := text_of(case.replacement)
-            assert_equal(
-                text.replace(old, old),
-                text,
-                reason="replacing a pattern by itself changes nothing",
-            )
-            assert_equal(
-                text.replace(old, replacement),
-                replace_model(text, old, replacement),
-                reason="the model scans left to right and advances past each match",
-            )
-        ,
+    it_prop_with("replace is identity and matches nonoverlapping scans", gen=text_cases, cases=100, prop=fn!(
+        case: TextCase,
+    ):
+        text := text_of(case.chars)
+        old := text_of(case.needle)
+        replacement := text_of(case.replacement)
+        assert_equal(
+            text.replace(old, old),
+            text,
+            reason="replacing a pattern by itself changes nothing",
+        )
+        assert_equal(
+            text.replace(old, replacement),
+            replace_model(text, old, replacement),
+            reason="the model scans left to right and advances past each match",
+        )
     )
 
-    it_prop_with(
-        "find returns the first matching byte offset",
-        gen=text_cases,
-        cases=100,
-        prop=fn!(case: TextCase):
-            text := text_of(case.chars)
-            needle := text_of(case.needle)
-            assert_equal(
-                text.find(needle),
-                find_from(text.to_utf8(), needle.to_utf8(), 0),
-                reason="the naive scan includes an empty needle at byte zero",
-            )
-        ,
+    it_prop_with("find returns the first matching byte offset", gen=text_cases, cases=100, prop=fn!(
+        case: TextCase,
+    ):
+        text := text_of(case.chars)
+        needle := text_of(case.needle)
+        assert_equal(
+            text.find(needle),
+            find_from(text.to_utf8(), needle.to_utf8(), 0),
+            reason="the naive scan includes an empty needle at byte zero",
+        )
     )
 
-    it_prop_with(
-        "trim agrees with independent Unicode scalar edges",
-        gen=text_cases,
-        cases=100,
-        prop=fn!(case: TextCase):
-            text := text_of(case.chars)
-            left := left_edge(case.chars)
-            right := right_edge(case.chars)
-            expected := if left >= right: "" else: text_of(char_slice(case.chars, left, right))
-            assert_equal(
-                text.trim(),
-                expected,
-                reason="only Unicode White_Space scalars are removed",
-            )
-            assert_equal(
-                text.trim_start(),
-                text_of(char_slice(case.chars, left, case.chars.len())),
-                reason="start trimming preserves the right edge",
-            )
-            assert_equal(
-                text.trim_end(),
-                text_of(char_slice(case.chars, 0, right)),
-                reason="end trimming preserves the left edge",
-            )
-            assert_equal(
-                text.trim(),
-                text.trim_start().trim_end(),
-                reason="the two one-sided operations compose",
-            )
-        ,
+    it_prop_with("trim agrees with independent Unicode scalar edges", gen=text_cases, cases=100, prop=fn!(
+        case: TextCase,
+    ):
+        text := text_of(case.chars)
+        left := left_edge(case.chars)
+        right := right_edge(case.chars)
+        expected := if left >= right: "" else: text_of(char_slice(case.chars, left, right))
+        assert_equal(text.trim(), expected, reason="only Unicode White_Space scalars are removed")
+        assert_equal(
+            text.trim_start(),
+            text_of(char_slice(case.chars, left, case.chars.len())),
+            reason="start trimming preserves the right edge",
+        )
+        assert_equal(
+            text.trim_end(),
+            text_of(char_slice(case.chars, 0, right)),
+            reason="end trimming preserves the left edge",
+        )
+        assert_equal(
+            text.trim(),
+            text.trim_start().trim_end(),
+            reason="the two one-sided operations compose",
+        )
     )
 
-    it_prop_with(
-        "chars count and UTF-8 round trips preserve scalars",
-        gen=text_cases,
-        cases=100,
-        prop=fn!(case: TextCase):
-            text := text_of(case.chars)
-            bytes := text.to_utf8()
-            assert_equal(
-                text.chars().count(),
-                scalar_count(bytes),
-                reason="count matches the independent byte state machine",
-            )
-            assert_equal(
-                text.chars().collect::[List[char]](),
-                case.chars,
-                reason="the generated scalars return in order, including combining marks",
-            )
-            assert_equal(
-                text.chars().count(),
-                case.chars.len(),
-                reason="scalar count is distinct from byte or grapheme count",
-            )
-            assert_equal(
-                string::from_utf8(bytes),
-                .Ok(text),
-                reason="well-formed generated bytes round trip",
-            )
-        ,
+    it_prop_with("chars count and UTF-8 round trips preserve scalars", gen=text_cases, cases=100, prop=fn!(
+        case: TextCase,
+    ):
+        text := text_of(case.chars)
+        bytes := text.to_utf8()
+        assert_equal(
+            text.chars().count(),
+            scalar_count(bytes),
+            reason="count matches the independent byte state machine",
+        )
+        assert_equal(
+            text.chars().collect::[List[char]](),
+            case.chars,
+            reason="the generated scalars return in order, including combining marks",
+        )
+        assert_equal(
+            text.chars().count(),
+            case.chars.len(),
+            reason="scalar count is distinct from byte or grapheme count",
+        )
+        assert_equal(
+            string::from_utf8(bytes),
+            .Ok(text),
+            reason="well-formed generated bytes round trip",
+        )
     )
 
-    it_prop_with(
-        "StringBuilder mixed pieces match concatenation",
-        gen=builder_cases,
-        cases=100,
-        prop=fn!(chunks: List[List[char]]):
-            builder := StringBuilder::new()
-            let expected = ""
-            let index: usize = 0
-            for chunk in chunks:
-                piece := text_of(chunk)
-                if index % 2 == 0:
-                    builder.push(piece)
-                else:
-                    for c in chunk:
-                        builder.push_char(c)
-                expected = expected + piece
-                index += 1
-            kept := builder.build()
-            assert_equal(kept, expected, reason="build joins every piece in push order")
-            builder.push("z")
-            assert_equal(kept, expected, reason="a previous result remains an independent string")
-            assert_equal(
-                builder.build(),
-                "z",
-                reason="build empties the builder, which accepts more text",
-            )
-        ,
+    it_prop_with("StringBuilder mixed pieces match concatenation", gen=builder_cases, cases=100, prop=fn!(
+        chunks: List[List[char]],
+    ):
+        builder := StringBuilder::new()
+        let expected = ""
+        let index: usize = 0
+        for chunk in chunks:
+            piece := text_of(chunk)
+            if index % 2 == 0:
+                builder.push(piece)
+            else:
+                for c in chunk:
+                    builder.push_char(c)
+            expected = expected + piece
+            index += 1
+        kept := builder.build()
+        assert_equal(kept, expected, reason="build joins every piece in push order")
+        builder.push("z")
+        assert_equal(kept, expected, reason="a previous result remains an independent string")
+        assert_equal(
+            builder.build(),
+            "z",
+            reason="build empties the builder, which accepts more text",
+        )
     )
 
-    it_each(
-        "UTF-8 and empty split boundaries",
-        [
-            ("", ",", [""]),
-            ("", "", []),
-            ("\u{E9}\u{1F600}\u{4E2D}", "\u{1F600}", ["\u{E9}", "\u{4E2D}"]),
-            ("\u{1F600}\u{E9}\u{1F600}", "\u{1F600}", ["", "\u{E9}", ""]),
-            ("a\u{E9}a\u{E9}", "\u{E9}", ["a", "a", ""]),
-            ("abc", "longer separator", ["abc"]),
-            ("aaaaa", "aa", ["", "", "a"]),
-            ("\u{E9}\u{1F600}", "", ["\u{E9}", "\u{1F600}"]),
-        ],
-        body=fn!(row: (string, string, List[string])):
-            assert_equal(
-                row._0.split(row._1),
-                row._2,
-                reason="empty pieces and scalar boundaries are explicit",
-            )
-            assert_equal(
-                row._0.find(row._1),
-                find_from(row._0.to_utf8(), row._1.to_utf8(), 0),
-                reason="find reports bytes even around multibyte scalars",
-            )
-        ,
+    it_each("UTF-8 and empty split boundaries", [
+        ("", ",", [""]),
+        ("", "", []),
+        ("\u{E9}\u{1F600}\u{4E2D}", "\u{1F600}", ["\u{E9}", "\u{4E2D}"]),
+        ("\u{1F600}\u{E9}\u{1F600}", "\u{1F600}", ["", "\u{E9}", ""]),
+        ("a\u{E9}a\u{E9}", "\u{E9}", ["a", "a", ""]),
+        ("abc", "longer separator", ["abc"]),
+        ("aaaaa", "aa", ["", "", "a"]),
+        ("\u{E9}\u{1F600}", "", ["\u{E9}", "\u{1F600}"]),
+    ], body=fn!(row: (string, string, List[string])):
+        assert_equal(
+            row._0.split(row._1),
+            row._2,
+            reason="empty pieces and scalar boundaries are explicit",
+        )
+        assert_equal(
+            row._0.find(row._1),
+            find_from(row._0.to_utf8(), row._1.to_utf8(), 0),
+            reason="find reports bytes even around multibyte scalars",
+        )
     )
 
     it_each(
@@ -368,7 +342,6 @@ tests:
                 row._3,
                 reason="matches do not overlap and empty patterns use scalar boundaries",
             )
-        ,
     )
 
     it_each(
@@ -380,7 +353,6 @@ tests:
                 "\u{E9}\u{1F600}",
                 reason="the independent Unicode property lists this scalar",
             )
-        ,
     )
 
     it_each(
@@ -407,5 +379,4 @@ tests:
                 .Err(row._1),
                 reason="the first malformed sequence determines the category and byte position",
             )
-        ,
     )

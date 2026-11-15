@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn pick['a](a: &'a User, b: &User) -> &User:  # diagnostic: ambiguous-reference-source
+fn pick['a](a: &'a User, b: &User) -> &User: # diagnostic: ambiguous-reference-source
     a

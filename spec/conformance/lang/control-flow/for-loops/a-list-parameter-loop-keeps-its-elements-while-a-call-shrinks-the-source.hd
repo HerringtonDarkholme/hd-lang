@@ -48,9 +48,7 @@ tests:
 
     it("a list a closure shrinks"):
         let mut ys = [+1, 2, 3]
-        total := by_value_loop(ys, fn() -> void:
-            _ := ys.pop()
-        )
+        total := by_value_loop(ys, fn() -> void: _ := ys.pop())
         assert_equal(total, 6, reason="the loop keeps three elements")
         assert_equal(ys.len(), 0, reason="the closure emptied the list")
 

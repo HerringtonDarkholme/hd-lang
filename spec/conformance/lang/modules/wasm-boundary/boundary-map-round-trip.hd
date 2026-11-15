@@ -32,6 +32,14 @@ pub fn main() -> void $ Vault:
     for (k, _) in kept.tags:
         order = order + "${k.name};"
     assert_equal(order, "one;two;", reason="entries keep insertion order")
-    assert_equal(kept.tags[Tag { id: +1, name: "one" }].len(), 2, reason="a struct key hashes and compares through its impls")
+    assert_equal(
+        kept.tags[Tag { id: +1, name: "one" }].len(),
+        2,
+        reason="a struct key hashes and compares through its impls",
+    )
     let empty: Map[string, i32] = {}
-    assert_equal($.use(Vault).keep(Shelf { counts: empty, tags: {} }).counts.len(), 0, reason="an empty map crosses")
+    assert_equal(
+        $.use(Vault).keep(Shelf { counts: empty, tags: {} }).counts.len(),
+        0,
+        reason="an empty map crosses",
+    )

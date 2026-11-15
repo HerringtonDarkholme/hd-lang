@@ -7,7 +7,7 @@ struct Parser[T, 'src]:
 fn position(p: &Parser[string]) -> usize:
     p.pos
 
-fn source(p: Parser[string]) -> &string:  # one lifetime: the result takes it
+fn source(p: Parser[string]) -> &string: # one lifetime: the result takes it
     p.src
 
 fn demo(text: string) -> usize:

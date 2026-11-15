@@ -5,7 +5,8 @@ struct Token:
 
 impl !Copy for Token
 
-fn take(t: Token) -> i32: t.id
+fn take(t: Token) -> i32:
+    t.id
 
 fn pick(t: Token, c: bool) -> i32:
     y := if c:
@@ -80,105 +81,205 @@ fn pick(t: Token, c: bool) -> i32:
                                                                                                                                                                                                                                                                                         if c:
                                                                                                                                                                                                                                                                                             t
                                                                                                                                                                                                                                                                                         else:
-                                                                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                                                                            Token {
+                                                                                                                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                                                                                                                            }
                                                                                                                                                                                                                                                                                     else:
-                                                                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                                                                        Token {
+                                                                                                                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                                                                                                                        }
                                                                                                                                                                                                                                                                                 else:
-                                                                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                                                                    Token {
+                                                                                                                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                                                                                                                    }
                                                                                                                                                                                                                                                                             else:
-                                                                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                                                                Token {
+                                                                                                                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                                                                                                                }
                                                                                                                                                                                                                                                                         else:
-                                                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                                                            Token {
+                                                                                                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                                                                                                            }
                                                                                                                                                                                                                                                                     else:
-                                                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                                                        Token {
+                                                                                                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                                                                                                        }
                                                                                                                                                                                                                                                                 else:
-                                                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                                                    Token {
+                                                                                                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                                                                                                    }
                                                                                                                                                                                                                                                             else:
-                                                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                                                Token {
+                                                                                                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                                                                                                }
                                                                                                                                                                                                                                                         else:
-                                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                                            Token {
+                                                                                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                                                                                            }
                                                                                                                                                                                                                                                     else:
-                                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                                        Token {
+                                                                                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                                                                                        }
                                                                                                                                                                                                                                                 else:
-                                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                                    Token {
+                                                                                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                                                                                    }
                                                                                                                                                                                                                                             else:
-                                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                                Token {
+                                                                                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                                                                                }
                                                                                                                                                                                                                                         else:
-                                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                                            Token {
+                                                                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                                                                            }
                                                                                                                                                                                                                                     else:
-                                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                                        Token {
+                                                                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                                                                        }
                                                                                                                                                                                                                                 else:
-                                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                                    Token {
+                                                                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                                                                    }
                                                                                                                                                                                                                             else:
-                                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                                Token {
+                                                                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                                                                }
                                                                                                                                                                                                                         else:
-                                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                                            Token {
+                                                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                                                            }
                                                                                                                                                                                                                     else:
-                                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                                        Token {
+                                                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                                                        }
                                                                                                                                                                                                                 else:
-                                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                                    Token {
+                                                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                                                    }
                                                                                                                                                                                                             else:
-                                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                                Token {
+                                                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                                                }
                                                                                                                                                                                                         else:
-                                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                                            Token {
+                                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                                            }
                                                                                                                                                                                                     else:
-                                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                                        Token {
+                                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                                        }
                                                                                                                                                                                                 else:
-                                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                                    Token {
+                                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                                    }
                                                                                                                                                                                             else:
-                                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                                Token {
+                                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                                }
                                                                                                                                                                                         else:
-                                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                                            Token {
+                                                                                                                                                                                                id: 0,
+                                                                                                                                                                                            }
                                                                                                                                                                                     else:
-                                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                                        Token {
+                                                                                                                                                                                            id: 0,
+                                                                                                                                                                                        }
                                                                                                                                                                                 else:
-                                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                                    Token {
+                                                                                                                                                                                        id: 0,
+                                                                                                                                                                                    }
                                                                                                                                                                             else:
-                                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                                Token {
+                                                                                                                                                                                    id: 0,
+                                                                                                                                                                                }
                                                                                                                                                                         else:
-                                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                                            Token {
+                                                                                                                                                                                id: 0,
+                                                                                                                                                                            }
                                                                                                                                                                     else:
-                                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                                        Token {
+                                                                                                                                                                            id: 0,
+                                                                                                                                                                        }
                                                                                                                                                                 else:
-                                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                                    Token {
+                                                                                                                                                                        id: 0,
+                                                                                                                                                                    }
                                                                                                                                                             else:
-                                                                                                                                                                Token { id: 0 }
+                                                                                                                                                                Token {
+                                                                                                                                                                    id: 0,
+                                                                                                                                                                }
                                                                                                                                                         else:
-                                                                                                                                                            Token { id: 0 }
+                                                                                                                                                            Token {
+                                                                                                                                                                id: 0,
+                                                                                                                                                            }
                                                                                                                                                     else:
-                                                                                                                                                        Token { id: 0 }
+                                                                                                                                                        Token {
+                                                                                                                                                            id: 0,
+                                                                                                                                                        }
                                                                                                                                                 else:
-                                                                                                                                                    Token { id: 0 }
+                                                                                                                                                    Token {
+                                                                                                                                                        id: 0,
+                                                                                                                                                    }
                                                                                                                                             else:
-                                                                                                                                                Token { id: 0 }
+                                                                                                                                                Token {
+                                                                                                                                                    id: 0,
+                                                                                                                                                }
                                                                                                                                         else:
-                                                                                                                                            Token { id: 0 }
+                                                                                                                                            Token {
+                                                                                                                                                id: 0,
+                                                                                                                                            }
                                                                                                                                     else:
-                                                                                                                                        Token { id: 0 }
+                                                                                                                                        Token {
+                                                                                                                                            id: 0,
+                                                                                                                                        }
                                                                                                                                 else:
-                                                                                                                                    Token { id: 0 }
+                                                                                                                                    Token {
+                                                                                                                                        id: 0,
+                                                                                                                                    }
                                                                                                                             else:
-                                                                                                                                Token { id: 0 }
+                                                                                                                                Token {
+                                                                                                                                    id: 0,
+                                                                                                                                }
                                                                                                                         else:
-                                                                                                                            Token { id: 0 }
+                                                                                                                            Token {
+                                                                                                                                id: 0,
+                                                                                                                            }
                                                                                                                     else:
-                                                                                                                        Token { id: 0 }
+                                                                                                                        Token {
+                                                                                                                            id: 0,
+                                                                                                                        }
                                                                                                                 else:
-                                                                                                                    Token { id: 0 }
+                                                                                                                    Token {
+                                                                                                                        id: 0,
+                                                                                                                    }
                                                                                                             else:
-                                                                                                                Token { id: 0 }
+                                                                                                                Token {
+                                                                                                                    id: 0,
+                                                                                                                }
                                                                                                         else:
-                                                                                                            Token { id: 0 }
+                                                                                                            Token {
+                                                                                                                id: 0,
+                                                                                                            }
                                                                                                     else:
-                                                                                                        Token { id: 0 }
+                                                                                                        Token {
+                                                                                                            id: 0,
+                                                                                                        }
                                                                                                 else:
-                                                                                                    Token { id: 0 }
+                                                                                                    Token {
+                                                                                                        id: 0,
+                                                                                                    }
                                                                                             else:
-                                                                                                Token { id: 0 }
+                                                                                                Token {
+                                                                                                    id: 0,
+                                                                                                }
                                                                                         else:
-                                                                                            Token { id: 0 }
+                                                                                            Token {
+                                                                                                id: 0,
+                                                                                            }
                                                                                     else:
-                                                                                        Token { id: 0 }
+                                                                                        Token {
+                                                                                            id: 0,
+                                                                                        }
                                                                                 else:
                                                                                     Token { id: 0 }
                                                                             else:

@@ -13,12 +13,28 @@ tests:
 
     it("a counted reference prints with `*` or `*mut `"):
         user := TypeId::of::[User]().to_string()
-        assert_equal(TypeId::of::[*User]().to_string(), "*" + user, reason="shared counted reference")
-        assert_equal(TypeId::of::[*mut User]().to_string(), "*mut " + user, reason="mutable counted reference")
+        assert_equal(
+            TypeId::of::[*User]().to_string(),
+            "*" + user,
+            reason="shared counted reference",
+        )
+        assert_equal(
+            TypeId::of::[*mut User]().to_string(),
+            "*mut " + user,
+            reason="mutable counted reference",
+        )
         assert_equal(TypeId::of::[*i32]().to_string(), "*i32", reason="a prelude referent")
-        assert_equal(TypeId::of::[List[*mut User]]().to_string(), "List[*mut " + user + "]", reason="as a type argument")
+        assert_equal(
+            TypeId::of::[List[*mut User]]().to_string(),
+            "List[*mut " + user + "]",
+            reason="as a type argument",
+        )
 
     it("an erased `*mut T` records its counted reference type"):
         shared := box(User { name: "a" })
         let erased: *dyn Inspectable = box(shared)
-        assert_equal(erased.runtime_type().to_string(), "*mut " + user_name(), reason="recorded type")
+        assert_equal(
+            erased.runtime_type().to_string(),
+            "*mut " + user_name(),
+            reason="recorded type",
+        )

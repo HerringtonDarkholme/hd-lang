@@ -17,12 +17,8 @@ fn parse_digit(text: string) -> Result[i32, DigitError]:
 tests:
     use std.testing.{assert_equal, it_each}
 
-    it_each(
-        "parses",
-        ["7"],
-        body=fn!(text: string):
-            digit := parse_digit(text)?
-            assert_equal(digit, 7, reason="the digit parses")
-            .Ok(())
-        ,
+    it_each("parses", ["7"], body=fn!(text: string):
+        digit := parse_digit(text)?
+        assert_equal(digit, 7, reason="the digit parses")
+        .Ok(())
     )

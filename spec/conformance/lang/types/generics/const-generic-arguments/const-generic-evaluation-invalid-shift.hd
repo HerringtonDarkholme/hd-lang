@@ -4,4 +4,4 @@
 struct Byte[N < const i8]: pass
 
 fn invalid_shift() -> void:
-    let value: Byte[1i8 << 8i8] = panic("not run")  # diagnostic: const-evaluation-failed
+    let value: Byte[1i8 << 8i8] = panic("not run") # diagnostic: const-evaluation-failed

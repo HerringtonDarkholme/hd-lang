@@ -11,4 +11,4 @@ fn word['a](t: Token['a], fallback: &'a string) -> &'a string:
 
 fn count(text: string) -> usize:
     t := Token.Word(&text)
-    word(t, &text).len()  # text is in scope
+    word(t, &text).len() # text is in scope

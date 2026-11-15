@@ -10,5 +10,4 @@ tests:
     it(
         "takes a named body",
         body=fn!(): assert_equal(2 + 2, 4, reason="the named argument is the body")
-        ,
     )

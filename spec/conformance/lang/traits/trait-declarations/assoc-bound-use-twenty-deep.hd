@@ -7,10 +7,51 @@ trait Walk:
     fn name(self) -> string
 
 fn deep[I < Walk](walker: I) -> string:
-    walker.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().name()
+    walker.step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .step()
+        .name()
 
 fn named[W < Walk](walker: W) -> string:
     walker.name()
 
 fn passed[I < Walk](walker: I) -> string:
-    named(walker.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step())
+    named(
+        walker.step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step()
+            .step(),
+    )

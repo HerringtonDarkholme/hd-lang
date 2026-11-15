@@ -10,5 +10,4 @@ tests:
         "doubles",
         [1, 2],
         body=fn!(value: i32): testing.assert(value * 2 > value, reason="positive rows grow")
-        ,
     )

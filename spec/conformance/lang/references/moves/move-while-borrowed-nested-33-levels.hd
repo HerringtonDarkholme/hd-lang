@@ -101,9 +101,11 @@ struct S32:
 struct S33:
     inner: S32
 
-fn consume(b: S33) -> usize: 0
+fn consume(b: S33) -> usize:
+    0
 
-fn peek(r: &S33) -> usize: 0
+fn peek(r: &S33) -> usize:
+    0
 
 fn early(b: S33) -> usize:
     r := &b

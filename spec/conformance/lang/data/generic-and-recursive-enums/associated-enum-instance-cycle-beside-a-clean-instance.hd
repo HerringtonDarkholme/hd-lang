@@ -16,7 +16,8 @@ impl[T] Source for Provider[T]:
 impl Source for Plain:
     type Item = i32
 
-fn make[S < Source]() -> Holder[S]: .Empty
+fn make[S < Source]() -> Holder[S]:
+    .Empty
 
 fn clean() -> void:
     value := (make::[Plain](), make::[Plain]())

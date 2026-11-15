@@ -9,8 +9,7 @@ fn name_of(p: &P) -> &string:
 
 pub fn main() -> void $ Console:
     let mut ps = [box(P { name: "a${1}" })]
-    change := fn() -> void:
-        ps[0] = box(P { name: "b${2}" })
+    change := fn() -> void: ps[0] = box(P { name: "b${2}" })
     d := name_of(ps[0])
     junk := "cccccc${3}"
     println("${*d} $junk")

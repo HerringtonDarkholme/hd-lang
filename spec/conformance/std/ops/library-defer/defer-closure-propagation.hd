@@ -3,14 +3,12 @@
 use std.ops.defer
 
 fn main() -> i32:
-    defer(
-        fn() -> void:
-            inner := fn() -> Result[i32, string]:
-                let answer: Result[i32, string] = .Err("failure")
-                _ := answer?
-                .Ok(0)
-            _ := inner()
-        ,
+    defer(fn() -> void:
+        inner := fn() -> Result[i32, string]:
+            let answer: Result[i32, string] = .Err("failure")
+            _ := answer?
+            .Ok(0)
+        _ := inner()
     )
     42
 

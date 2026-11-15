@@ -313,7 +313,6 @@ tests:
         gen=text_gen,
         cases=300,
         prop=fn!(text: string): assert_equal(disagreement(text), "", reason="text ${debug(text)}")
-        ,
     )
 
     it_prop_with(
@@ -321,5 +320,4 @@ tests:
         gen=number_gen,
         cases=300,
         prop=fn!(text: string): assert_equal(disagreement(text), "", reason="text ${debug(text)}")
-        ,
     )

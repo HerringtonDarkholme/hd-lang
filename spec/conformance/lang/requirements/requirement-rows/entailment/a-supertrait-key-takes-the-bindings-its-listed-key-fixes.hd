@@ -16,17 +16,21 @@ struct Words: pass
 
 impl Feed for Prices:
     type Item = i32
-    fn next(&self) -> i32: 3
+    fn next(&self) -> i32:
+        3
 
 impl PriceFeed for Prices:
-    fn currency(&self) -> string: "usd"
+    fn currency(&self) -> string:
+        "usd"
 
 impl Feed for Words:
     type Item = string
-    fn next(&self) -> string: "three"
+    fn next(&self) -> string:
+        "three"
 
 impl AnyFeed for Words:
-    fn label(&self) -> string: "words"
+    fn label(&self) -> string:
+        "words"
 
 fn price() -> i32 $ Feed[Item = i32]:
     $.use(Feed[Item = i32]).next()

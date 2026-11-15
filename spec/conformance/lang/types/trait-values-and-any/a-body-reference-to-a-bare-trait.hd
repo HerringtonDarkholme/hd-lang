@@ -3,4 +3,4 @@
 trait Shape
 
 fn make() -> void:
-    let xs: List[&Shape] = []  # diagnostic: trait-used-as-type
+    let xs: List[&Shape] = [] # diagnostic: trait-used-as-type

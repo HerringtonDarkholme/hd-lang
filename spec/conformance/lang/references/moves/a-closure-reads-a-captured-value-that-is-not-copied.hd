@@ -15,9 +15,7 @@ fn name_len(p: &Photo) -> usize:
 
 pub fn main() -> void $ Console:
     photo := Photo { name: "a" }
-    borrows := fn() -> usize:
-        name_len(&photo)
-    calls := fn() -> usize:
-        photo.size()
+    borrows := fn() -> usize: name_len(&photo)
+    calls := fn() -> usize: photo.size()
     again := borrows
     println(borrows() + again() + calls())

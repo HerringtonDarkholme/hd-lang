@@ -17,4 +17,4 @@ fn closing() -> Guard:
     Guard {}
 
 fn invalid() -> void:
-    value := closing()  # diagnostic: unregistered-auto-closing
+    value := closing() # diagnostic: unregistered-auto-closing

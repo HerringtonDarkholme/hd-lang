@@ -7,10 +7,10 @@ struct OnExit[$ R]:
 trait Describe:
     fn describe(self) -> string
 
-impl[$R] Describe for OnExit[$ R]:
+impl[$ R] Describe for OnExit[$ R]:
     fn describe(self) -> string:
         "any"
 
-impl Describe for OnExit[$ Console]:  # diagnostic: overlapping-impl
+impl Describe for OnExit[$ Console]: # diagnostic: overlapping-impl
     fn describe(self) -> string:
         "console"

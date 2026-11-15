@@ -4,4 +4,4 @@ struct User:
     name: string
 
 fn third['a](a: &'a User, b: &'a User, c: &User) -> &'a User:
-    c  # diagnostic: local-reference-escapes
+    c # diagnostic: local-reference-escapes

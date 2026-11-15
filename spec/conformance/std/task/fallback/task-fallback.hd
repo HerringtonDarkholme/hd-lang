@@ -45,10 +45,7 @@ impl Http for DelayedHttp:
         if url == "http://primary/item":
             self.started += 1
             defer(fn() -> void: self.closed += 1)
-            let wait: Suspend[void] = if self.started == 1:
-                self.first_wait
-            else:
-                self.second_wait
+            let wait: Suspend[void] = if self.started == 1: self.first_wait else: self.second_wait
             wait!()
             self.finished += 1
         else:
@@ -198,7 +195,6 @@ pub fn main!() -> void $ Clock:
     let pending: Suspend[Result[usize, string]] = apply(
         fallback(other, ()),
         work=fn!() -> Result[usize, string]: wait_primary!(activity, primary_wait)
-        ,
     )
     assert_equal(race!(pending, cancel(pending)), .Ok(9), reason="cancel the in-flight primary")
     assert_equal(activity.backup, 1, reason="cancellation is not a failure that starts backup")
@@ -207,7 +203,6 @@ pub fn main!() -> void $ Clock:
     let pending_backup: Suspend[Result[usize, string]] = apply(
         fallback(waiting_backup, ()),
         work=fn!() -> Result[usize, string]: .Err("primary-error")
-        ,
     )
     assert_equal(
         race!(pending_backup, cancel(pending_backup)),

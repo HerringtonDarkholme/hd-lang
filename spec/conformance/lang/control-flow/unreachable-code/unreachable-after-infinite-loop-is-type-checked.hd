@@ -3,4 +3,4 @@
 fn serve() -> void:
     while true:
         pass
-    let count: i32 = "many"  # diagnostic: type-mismatch
+    let count: i32 = "many" # diagnostic: type-mismatch

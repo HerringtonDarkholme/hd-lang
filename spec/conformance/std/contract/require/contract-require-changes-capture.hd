@@ -4,9 +4,7 @@ use std.contract.require
 
 fn invalid() -> void:
     let calls = +0
-    require(
-        condition=fn(): # diagnostic: not-writable
-            calls += 1
-            true
-        ,
+    require(condition=fn(): # diagnostic: not-writable
+        calls += 1
+        true
     )

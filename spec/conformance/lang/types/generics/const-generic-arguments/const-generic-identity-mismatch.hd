@@ -4,4 +4,4 @@
 struct Fixed[N < const usize]: pass
 
 fn different(value: Fixed[4]) -> Fixed[5]:
-    value  # diagnostic: type-mismatch
+    value # diagnostic: type-mismatch

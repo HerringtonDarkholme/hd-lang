@@ -138,14 +138,16 @@ tests:
             )
 
     it("only declared variables are queried and names is never called"):
-        vars := box(DeclaredEnv {
-            values: {
-                "APP_DEPLOY_TOKEN": "demo",
-                "APP_REGION_NAMES": "one",
-                "APP_TOKEN": "guarded",
-                "UNRELATED": "ignored",
+        vars := box(
+            DeclaredEnv {
+                values: {
+                    "APP_DEPLOY_TOKEN": "demo",
+                    "APP_REGION_NAMES": "one",
+                    "APP_TOKEN": "guarded",
+                    "UNRELATED": "ignored",
+                },
             },
-        })
+        )
         $.with(Env=vars):
             config := env_decode::[Config](prefix="APP_").expect("declared reads only")
             assert_equal(

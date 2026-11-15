@@ -57,61 +57,48 @@ tests:
             assert_equal("${power + 1}", reference_unsigned(power + 1), reason="above")
             power = power * 10
 
-    it_prop(
-        "i8",
-        prop=fn!(value: i8):
-            assert_equal("$value", reference_signed(i64(value)), reason="i8")
-            assert_equal(value.to_string(), reference_signed(i64(value)), reason="i8 to_string")
-        ,
+    it_prop("i8", prop=fn!(value: i8):
+        assert_equal("$value", reference_signed(i64(value)), reason="i8")
+        assert_equal(value.to_string(), reference_signed(i64(value)), reason="i8 to_string")
     )
 
     it_prop(
         "i16",
         prop=fn!(value: i16): assert_equal("$value", reference_signed(i64(value)), reason="i16")
-        ,
     )
 
     it_prop(
         "i32",
         prop=fn!(value: i32): assert_equal("$value", reference_signed(i64(value)), reason="i32")
-        ,
     )
 
-    it_prop(
-        "i64",
-        prop=fn!(value: i64):
-            assert_equal("$value", reference_signed(value), reason="i64")
-            assert_equal(debug(value), reference_signed(value), reason="i64 debug")
-        ,
+    it_prop("i64", prop=fn!(value: i64):
+        assert_equal("$value", reference_signed(value), reason="i64")
+        assert_equal(debug(value), reference_signed(value), reason="i64 debug")
     )
 
     it_prop(
         "u8",
         prop=fn!(value: u8): assert_equal("$value", reference_unsigned(u64(value)), reason="u8")
-        ,
     )
 
     it_prop(
         "u16",
         prop=fn!(value: u16): assert_equal("$value", reference_unsigned(u64(value)), reason="u16")
-        ,
     )
 
     it_prop(
         "u32",
         prop=fn!(value: u32): assert_equal("$value", reference_unsigned(u64(value)), reason="u32")
-        ,
     )
 
     it_prop(
         "u64",
         prop=fn!(value: u64): assert_equal("$value", reference_unsigned(value), reason="u64")
-        ,
     )
 
     it_prop(
         "usize",
         prop=fn!(value: usize):
             assert_equal("$value", reference_unsigned(u64(value)), reason="usize")
-        ,
     )

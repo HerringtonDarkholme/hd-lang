@@ -3,5 +3,5 @@
 
 struct Fixed[N < const i64]: pass
 
-fn kinds(f: Fixed[$ Console]) -> void:  # diagnostic: generic-kind-mismatch
+fn kinds(f: Fixed[$ Console]) -> void: # diagnostic: generic-kind-mismatch
     pass

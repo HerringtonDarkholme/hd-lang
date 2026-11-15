@@ -13,4 +13,4 @@ impl['a] Identity for Wrap[&'a string]:
 fn leak['outer]() -> Wrap[&'outer string]:
     local := "local"
     wrapped := Wrap { value: &local }
-    wrapped.identity()  # diagnostic: local-reference-escapes
+    wrapped.identity() # diagnostic: local-reference-escapes

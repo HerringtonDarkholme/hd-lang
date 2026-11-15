@@ -11,4 +11,4 @@ fn pick(x: &User, first: bool) -> usize:
     if first:
         local := User { name: "local" }
         r = choose(x, &local, first)
-    r.name.len()  # diagnostic: local-reference-outlives-local
+    r.name.len() # diagnostic: local-reference-outlives-local

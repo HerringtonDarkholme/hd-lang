@@ -8,5 +8,4 @@ tests:
         [1, 2],
         ignore="demonstrates ignore",
         body=fn!(value: i32): panic("an ignored row must not run")
-        ,
     )

@@ -2,5 +2,5 @@
 # Spec 04 Const Generic Parameters: types.generic.const.type-position.
 
 fn width[N < const i64](value: i64) -> i64:
-    let copy: N = value  # diagnostic: generic-kind-mismatch
+    let copy: N = value # diagnostic: generic-kind-mismatch
     value

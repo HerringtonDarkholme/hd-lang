@@ -28,11 +28,9 @@ fn connections!(server: *mut Server) -> void $ Clock:
     sleep!(s(60))
 
 fn acceptor!(server: &mut Server) -> void $ Clock:
-    defer(
-        fn() -> void:
-            server.accepting = false
-            server.log.push("acceptor stops accepting")
-        ,
+    defer(fn() -> void:
+        server.accepting = false
+        server.log.push("acceptor stops accepting")
     )
     sleep!(s(60))
 

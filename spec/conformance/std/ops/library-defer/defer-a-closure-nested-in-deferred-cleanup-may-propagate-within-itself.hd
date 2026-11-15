@@ -3,13 +3,11 @@ use std.ops.defer
 
 fn f() -> Result[i32, string]:
     let r: Result[i32, string] = .Ok(1)
-    defer(
-        fn() -> void:
-            let g = fn() -> Result[i32, string]:
-                v := r?
-                .Ok(v)
-            _ := g()
-        ,
+    defer(fn() -> void:
+        let g = fn() -> Result[i32, string]:
+            v := r?
+            .Ok(v)
+        _ := g()
     )
     .Ok(42)
 pub fn main() -> void:

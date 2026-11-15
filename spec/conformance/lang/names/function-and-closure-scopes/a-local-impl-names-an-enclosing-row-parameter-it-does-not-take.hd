@@ -9,6 +9,7 @@ fn outer() -> i32:
         v: i32
     fn inner[$ R]() -> i32:
         impl Cell:
-            fn held(&self) -> Held[$ R]: Held { value: self.v } # diagnostic: local-impl-outer-parameter
+            fn held(&self) -> Held[$ R]: # diagnostic: local-impl-outer-parameter
+                Held { value: self.v }
         +0
     +1

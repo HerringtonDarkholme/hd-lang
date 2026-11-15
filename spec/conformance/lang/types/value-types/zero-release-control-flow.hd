@@ -11,11 +11,13 @@ fn tree(depth: i32, word: string) -> *Tree:
     if depth == 0:
         box(Tree { word: word, left: .None, right: .None })
     else:
-        box(Tree {
-            word: word,
-            left: .Some(tree(depth - 1, word)),
-            right: .Some(tree(depth - 1, word)),
-        })
+        box(
+            Tree {
+                word: word,
+                left: .Some(tree(depth - 1, word)),
+                right: .Some(tree(depth - 1, word)),
+            },
+        )
 
 fn nodes(root: &Tree) -> usize:
     left := match root.left:

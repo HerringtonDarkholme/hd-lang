@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn name(a: &'b User) -> &string:  # diagnostic: unknown-lifetime
+fn name(a: &'b User) -> &string: # diagnostic: unknown-lifetime
     &a.name

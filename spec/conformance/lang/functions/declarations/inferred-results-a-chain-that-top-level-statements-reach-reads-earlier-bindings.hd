@@ -1,14 +1,18 @@
 # test: a chain of omitted results that top-level statements reach reads the bindings declared before each call
 # Spec 07 Functions: fn.decl.result-inferred; Spec 10 Definite Initialization: module.init.binding.
-fn head(x: i32): tail(x) + middle(x)
+fn head(x: i32):
+    tail(x) + middle(x)
 
 offset := +3
 
-fn tail(x: i32): x + offset
+fn tail(x: i32):
+    x + offset
 
-fn middle(x: i32): tail(x) * 2
+fn middle(x: i32):
+    tail(x) * 2
 
-fn doubled(x: i32): twice(x)
+fn doubled(x: i32):
+    twice(x)
 
 fn twice(x: i32):
     late := x * 2

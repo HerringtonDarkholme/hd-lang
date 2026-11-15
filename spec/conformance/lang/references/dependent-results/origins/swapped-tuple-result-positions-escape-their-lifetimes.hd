@@ -5,4 +5,4 @@ struct User:
 
 fn keep_order['a, 'b](x: &'a User, y: &'b User) -> (&'a User, &'b User):
     pair := (y, x)
-    pair  # diagnostic: local-reference-escapes
+    pair # diagnostic: local-reference-escapes

@@ -7,4 +7,4 @@ fn make[N < const usize](n: usize) -> Fixed[N]:
     panic("not run")
 
 fn runtime_value_does_not_infer() -> void:
-    value := make(4)  # diagnostic: cannot-infer-type
+    value := make(4) # diagnostic: cannot-infer-type

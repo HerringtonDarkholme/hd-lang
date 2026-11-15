@@ -31,18 +31,14 @@ tests:
         let calls = 0
         let present: i32? = .Some(4)
         let absent: i32? = .None
-        result := present.and_then(
-            fn(value: i32) -> i32?:
-                calls = calls + 1
-                quarter(value)
-            ,
+        result := present.and_then(fn(value: i32) -> i32?:
+            calls = calls + 1
+            quarter(value)
         )
         assert_equal(result, .Some(1), reason="the step's result")
-        _ := absent.and_then(
-            fn(value: i32) -> i32?:
-                calls = calls + 1
-                quarter(value)
-            ,
+        _ := absent.and_then(fn(value: i32) -> i32?:
+            calls = calls + 1
+            quarter(value)
         )
         assert_equal(calls, 1, reason="once for Some, never for None")
 

@@ -122,7 +122,8 @@ struct S39:
 struct S40:
     inner: S39
 
-fn dup[T < Copy](x: T) -> (T, T): (x, x)
+fn dup[T < Copy](x: T) -> (T, T):
+    (x, x)
 
 fn run(b: S40) -> usize:
     _ := dup(b) # diagnostic: unsatisfied-trait-bound

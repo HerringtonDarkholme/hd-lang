@@ -76,6 +76,5 @@ fn local_receiver(p: &Point) -> i32:
     (m.make(&q).f)(&q)
 
 fn in_closure['a](p: &'a Point) -> i32:
-    g := fn(x: &'a Point):
-        (relay(Holder { f: x_of }, x).f)(x)
+    g := fn(x: &'a Point): (relay(Holder { f: x_of }, x).f)(x)
     g(p)

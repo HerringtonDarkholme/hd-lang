@@ -18,7 +18,8 @@ trait Show:
     fn show(&self) -> string
 
 impl Show for Counter:
-    fn show(&self) -> string: "p${self.n}"
+    fn show(&self) -> string:
+        "p${self.n}"
 
 struct Rest[U]:
     items: *mut dyn Iterator[U]

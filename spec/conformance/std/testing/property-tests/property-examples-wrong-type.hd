@@ -11,5 +11,4 @@ tests:
         gen=small,
         examples=["zero"], # diagnostic: type-mismatch
         prop=fn!(n: i32): pass
-        ,
     )

@@ -12,14 +12,14 @@ tests:
         let mut items = [+1, +2, +3, +4, +5]
         windows := items.windows(3)
         assert_equal(windows.len(), 3, reason="one view per complete window")
-        assert_equal(windows.map(fn(window: &ListView[i32]) -> i32: total(*window)), [+6, +9, +12], reason="iterator sum")
+        assert_equal(
+            windows.map(fn(window: &ListView[i32]) -> i32: total(*window)),
+            [+6, +9, +12],
+            reason="iterator sum",
+        )
         assert_equal(windows[0][2], +3, reason="indexing")
         items[1] = +20
-        assert_equal(
-            windows[0].to_list(),
-            [+1, +2, +3],
-            reason="the view keeps its snapshot",
-        )
+        assert_equal(windows[0].to_list(), [+1, +2, +3], reason="the view keeps its snapshot")
         assert_equal(
             windows[1].to_list(),
             [+2, +3, +4],

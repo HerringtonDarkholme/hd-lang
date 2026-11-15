@@ -9,10 +9,12 @@ struct P:
     v: i32
 
 impl Take[P] for X:
-    fn take(&self, a: P) -> i32: a.v
+    fn take(&self, a: P) -> i32:
+        a.v
 
 impl Take[P?] for X:
-    fn take(&self, a: P?) -> i32: 0
+    fn take(&self, a: P?) -> i32:
+        0
 
 pub fn main() -> void:
     x := X { n: 0 }

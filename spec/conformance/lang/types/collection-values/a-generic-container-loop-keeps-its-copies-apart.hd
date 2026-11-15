@@ -65,4 +65,6 @@ pub fn main() -> void $ Console:
     let mut row: Queue[i64] = Queue { items: [1, 2, 3] }
     before := row
     row.swap_up()
-    println("${show(&saved.items)} | ${show(&q.items)} | ${show_names(&kept.items)} | ${show_names(&names.items)} | ${show(&both.items)} | ${show(&pair.items)} | ${show(&before.items)} | ${show(&row.items)}")
+    println(
+        "${show(&saved.items)} | ${show(&q.items)} | ${show_names(&kept.items)} | ${show_names(&names.items)} | ${show(&both.items)} | ${show(&pair.items)} | ${show(&before.items)} | ${show(&row.items)}",
+    )

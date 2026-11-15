@@ -14,4 +14,4 @@ fn needs_five[T < Mark[5]](value: T) -> bool:
     value.marked()
 
 fn mismatch(value: Four) -> bool:
-    needs_five(value)  # diagnostic: unsatisfied-trait-bound
+    needs_five(value) # diagnostic: unsatisfied-trait-bound

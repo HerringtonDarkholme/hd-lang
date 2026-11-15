@@ -3,4 +3,4 @@
 type Meters(i32)
 
 fn make() -> void:
-    b := Meters(1, 2)  # diagnostic: argument-count
+    b := Meters(1, 2) # diagnostic: argument-count

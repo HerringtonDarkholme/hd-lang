@@ -18,7 +18,7 @@ impl Ops for Tag:
 
 trait Source < ?Copy:
     fn next_value(&mut self) -> i32
-    fn doubled[$R](&mut self, then: fn(i32) -> i32 $ R) -> i32 $ R:
+    fn doubled[$ R](&mut self, then: fn(i32) -> i32 $ R) -> i32 $ R:
         then(self.next_value()) * 2
 
 struct Count:
@@ -53,4 +53,8 @@ tests:
     it("a trait value meets the bound when the generic method has a default"):
         let mut count = Count { at: +0 }
         let s: &mut dyn Source = &mut count
-        assert_equal(default_through_dyn(s), 4, reason="the default runs at the reference type and dispatches next_value")
+        assert_equal(
+            default_through_dyn(s),
+            4,
+            reason="the default runs at the reference type and dispatches next_value",
+        )

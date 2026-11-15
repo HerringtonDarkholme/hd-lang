@@ -18,7 +18,13 @@ pub trait Vault:
     fn keep(self, token: Token) -> Token
 
 pub fn main() -> void $ Vault:
-    sent := Token { before: +1, alone: Empty {}, pick: Pick.One(Empty {}, +7), many: [Empty {}, Empty {}], after: "z" }
+    sent := Token {
+        before: +1,
+        alone: Empty {},
+        pick: Pick.One(Empty {}, +7),
+        many: [Empty {}, Empty {}],
+        after: "z",
+    }
     back := $.use(Vault).keep(sent)
     if back.before != +1 || back.after != "z" || back.many.len() != 2:
         panic("the fields around the empty struct changed")

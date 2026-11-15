@@ -7,5 +7,5 @@ struct Fixed[N < const i64]: pass
 LOW := 1
 OPEN := true
 
-fn mixed(f: Fixed[LOW | OPEN]) -> void:  # diagnostic: type-mismatch
+fn mixed(f: Fixed[LOW | OPEN]) -> void: # diagnostic: type-mismatch
     pass

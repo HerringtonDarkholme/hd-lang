@@ -21,6 +21,6 @@ fn line(text: string) -> void $ Sink:
 
 pub fn main() -> void $ Console:
     first := box(Count { n: 0 })
-    $.with(Sink = first):
+    $.with(Sink=first):
         line("ab")
     println(first.n)

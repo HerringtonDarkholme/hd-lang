@@ -16,4 +16,5 @@ impl Source for Provider:
 impl Source for Other:
     type Item = i32
 
-fn inspect(value: &Holder[Provider]) -> void: pass
+fn inspect(value: &Holder[Provider]) -> void:
+    pass

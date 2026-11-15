@@ -20,7 +20,8 @@ impl Pos:
         self.x = self.x + 10
 
 impl User:
-    fn describe(&self) -> string: "${self.name} ${self.age}"
+    fn describe(&self) -> string:
+        "${self.name} ${self.age}"
     fn birthday(&mut self) -> void:
         self.age = self.age + 1
 
@@ -28,7 +29,8 @@ struct Oops:
     code: i32
 
 impl Display for Oops:
-    fn to_string(&self) -> string: "oops ${self.code}"
+    fn to_string(&self) -> string:
+        "oops ${self.code}"
 
 impl Error for Oops
 
@@ -47,7 +49,8 @@ fn deep(u: &(*mut (*mut User))) -> i32:
     u.pos.x = 7
     u.pos.x
 
-fn show(e: &(*dyn Error)) -> string: e.to_string()
+fn show(e: &(*dyn Error)) -> string:
+    e.to_string()
 
 pub fn main() -> void $ Console:
     let mut p: *mut User = box(User { name: "ann", age: 30, pos: Pos { x: 1 }, tags: [] })

@@ -44,4 +44,6 @@ pub fn main() -> void $ Console:
     old := overwrite(&mut wide, 3)
     let mut zeros = Bag { items: [+0, +0, +0], base: +1 }
     r := rounds(&mut zeros, 3)
-    println("rounds $r ${zeros.items[2]}; ${total(&seen[0])} ${total(&seen[1])} ${total(&seen[2])}; old ${total(&old)}; items ${bag.items[0]} ${bag.items[1]} ${bag.items[2]} ${wide.items[3]} ${wide.items[4]} ${wide.items[5]}")
+    println(
+        "rounds $r ${zeros.items[2]}; ${total(&seen[0])} ${total(&seen[1])} ${total(&seen[2])}; old ${total(&old)}; items ${bag.items[0]} ${bag.items[1]} ${bag.items[2]} ${wide.items[3]} ${wide.items[4]} ${wide.items[5]}",
+    )

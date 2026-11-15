@@ -6,5 +6,4 @@ tests:
     testing.it_prop(
         "a value equals itself",
         prop=fn!(value: i32): testing.assert(value == value, reason="equality is reflexive")
-        ,
     )

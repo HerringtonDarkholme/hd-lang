@@ -124,98 +124,103 @@ tests:
         "hex matches the bitstream model and round trips",
         cases=100,
         prop=fn!(bytes: List[u8]): verify_hex(bytes)
-        ,
     )
 
     it_prop(
         "Standard base64 matches the bitstream model and round trips",
         cases=100,
         prop=fn!(bytes: List[u8]): verify_base64(.Standard, bytes)
-        ,
     )
 
     it_prop(
         "StandardNoPad base64 matches the bitstream model and round trips",
         cases=100,
         prop=fn!(bytes: List[u8]): verify_base64(.StandardNoPad, bytes)
-        ,
     )
 
     it_prop(
         "Url base64 matches the bitstream model and round trips",
         cases=100,
         prop=fn!(bytes: List[u8]): verify_base64(.Url, bytes)
-        ,
     )
 
     it_prop(
         "UrlNoPad base64 matches the bitstream model and round trips",
         cases=100,
         prop=fn!(bytes: List[u8]): verify_base64(.UrlNoPad, bytes)
-        ,
     )
 
-    it_each(
-        "canonical vectors cover empty input and incomplete groups",
-        rows=[
-            Vector { bytes: [], hex: "", standard: "", url: "" },
-            Vector { bytes: [102], hex: "66", standard: "Zg==", url: "Zg==" },
-            Vector { bytes: [102, 111], hex: "666f", standard: "Zm8=", url: "Zm8=" },
-            Vector { bytes: [102, 111, 111], hex: "666f6f", standard: "Zm9v", url: "Zm9v" },
-            Vector {
-                bytes: [102, 111, 111, 98],
-                hex: "666f6f62",
-                standard: "Zm9vYg==",
-                url: "Zm9vYg==",
-            },
-            Vector {
-                bytes: [102, 111, 111, 98, 97],
-                hex: "666f6f6261",
-                standard: "Zm9vYmE=",
-                url: "Zm9vYmE=",
-            },
-            Vector {
-                bytes: [102, 111, 111, 98, 97, 114],
-                hex: "666f6f626172",
-                standard: "Zm9vYmFy",
-                url: "Zm9vYmFy",
-            },
-            Vector { bytes: [0], hex: "00", standard: "AA==", url: "AA==" },
-            Vector { bytes: [255], hex: "ff", standard: "/w==", url: "_w==" },
-            Vector { bytes: [251, 255], hex: "fbff", standard: "+/8=", url: "-_8=" },
-            Vector { bytes: [251, 255, 191], hex: "fbffbf", standard: "+/+/", url: "-_-_" },
-        ],
-        body=fn!(row: Vector):
-            assert_equal(hex_encode(row.bytes), row.hex, reason="known hex vector")
-            assert_equal(hex_decode(row.hex), .Ok(row.bytes), reason="known hex payload")
-            for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
-                let expected = if encoding == .Standard || encoding == .StandardNoPad:
-                    row.standard
-                else:
-                    row.url
-                if !padded(encoding):
-                    expected = without_padding(expected)
-                assert_equal(encoding.encode(row.bytes), expected, reason="known base64 vector")
-                assert_equal(
-                    encoding.decode(expected),
-                    .Ok(row.bytes),
-                    reason="known base64 payload",
-                )
-                verify_base64(encoding, row.bytes)
-        ,
+    it_each("canonical vectors cover empty input and incomplete groups", rows=[
+        Vector { bytes: [], hex: "", standard: "", url: "" },
+        Vector { bytes: [102], hex: "66", standard: "Zg==", url: "Zg==" },
+        Vector { bytes: [102, 111], hex: "666f", standard: "Zm8=", url: "Zm8=" },
+        Vector { bytes: [102, 111, 111], hex: "666f6f", standard: "Zm9v", url: "Zm9v" },
+        Vector {
+            bytes: [102, 111, 111, 98],
+            hex: "666f6f62",
+            standard: "Zm9vYg==",
+            url: "Zm9vYg==",
+        },
+        Vector {
+            bytes: [102, 111, 111, 98, 97],
+            hex: "666f6f6261",
+            standard: "Zm9vYmE=",
+            url: "Zm9vYmE=",
+        },
+        Vector {
+            bytes: [102, 111, 111, 98, 97, 114],
+            hex: "666f6f626172",
+            standard: "Zm9vYmFy",
+            url: "Zm9vYmFy",
+        },
+        Vector { bytes: [0], hex: "00", standard: "AA==", url: "AA==" },
+        Vector { bytes: [255], hex: "ff", standard: "/w==", url: "_w==" },
+        Vector { bytes: [251, 255], hex: "fbff", standard: "+/8=", url: "-_8=" },
+        Vector { bytes: [251, 255, 191], hex: "fbffbf", standard: "+/+/", url: "-_-_" },
+    ], body=fn!(row: Vector):
+        assert_equal(hex_encode(row.bytes), row.hex, reason="known hex vector")
+        assert_equal(hex_decode(row.hex), .Ok(row.bytes), reason="known hex payload")
+        for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
+            let expected = if encoding == .Standard || encoding == .StandardNoPad:
+                row.standard
+            else:
+                row.url
+            if !padded(encoding):
+                expected = without_padding(expected)
+            assert_equal(encoding.encode(row.bytes), expected, reason="known base64 vector")
+            assert_equal(encoding.decode(expected), .Ok(row.bytes), reason="known base64 payload")
+            verify_base64(encoding, row.bytes)
     )
 
-    it_each(
-        "byte and length boundaries agree with the reference",
-        rows=[0, 1, 2, 3, 4, 5, 6, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 255, 256, 257],
-        body=fn!(length: usize):
-            let mut bytes: List[u8] = []
-            for index in 0..length:
-                bytes.push(u8(index % 256))
-            verify_hex(bytes)
-            for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
-                verify_base64(encoding, bytes)
-        ,
+    it_each("byte and length boundaries agree with the reference", rows=[
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        15,
+        16,
+        17,
+        31,
+        32,
+        33,
+        63,
+        64,
+        65,
+        255,
+        256,
+        257,
+    ], body=fn!(length: usize):
+        let mut bytes: List[u8] = []
+        for index in 0..length:
+            bytes.push(u8(index % 256))
+        verify_hex(bytes)
+        for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
+            verify_base64(encoding, bytes)
     )
 
     it_each(
@@ -237,7 +242,6 @@ tests:
                 .Err(row.error),
                 reason="hex refusal kind and byte offset",
             )
-        ,
     )
 
     it_each(
@@ -274,5 +278,4 @@ tests:
                 .Err(row.error),
                 reason="base64 refusal kind and byte offset",
             )
-        ,
     )

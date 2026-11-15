@@ -3,8 +3,10 @@
 fn bump(r: &mut i32, flag: bool) -> void:
     *r = 1
     *r += 1
-    if flag: *r = 2
-    if flag: *r *= 3
+    if flag:
+        *r = 2
+    if flag:
+        *r *= 3
     if flag:
         *r = 4
     while flag:

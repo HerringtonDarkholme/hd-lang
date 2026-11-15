@@ -27,7 +27,6 @@ tests:
         "draws one of the items",
         prop=fn!(suit: Suit):
             assert(suit.name == "hearts" || suit.name == "spades", reason="one of the two")
-        ,
     )
 
     it_prop("an empty list panics", expect_panic="explicit-panic", prop=fn!(value: Nothing): pass)

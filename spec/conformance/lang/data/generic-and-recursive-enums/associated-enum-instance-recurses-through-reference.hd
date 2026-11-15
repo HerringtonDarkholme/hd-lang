@@ -11,4 +11,5 @@ enum Holder[S < Source]:
 impl Source for Provider:
     type Item = *Holder[Provider]
 
-fn inspect(value: &Holder[Provider]) -> void: pass
+fn inspect(value: &Holder[Provider]) -> void:
+    pass

@@ -6,7 +6,4 @@ struct Photo:
 impl !Copy for Photo
 
 fn take(r: &mut Photo, fresh: bool) -> Photo:
-    if fresh:
-        Photo { width: 1 }
-    else:
-        *r # diagnostic: move-out-of-place
+    if fresh: Photo { width: 1 } else: *r # diagnostic: move-out-of-place

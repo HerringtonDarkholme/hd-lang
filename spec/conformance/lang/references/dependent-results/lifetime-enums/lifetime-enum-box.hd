@@ -6,4 +6,4 @@ enum Token['a]:
 
 fn keep(text: string, other: &string) -> *Token:
     t := Token.Word(&text)
-    box(t)  # diagnostic: local-reference-escapes
+    box(t) # diagnostic: local-reference-escapes

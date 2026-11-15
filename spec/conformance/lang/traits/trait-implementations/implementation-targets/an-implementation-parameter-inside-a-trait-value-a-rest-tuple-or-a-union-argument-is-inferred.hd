@@ -20,21 +20,26 @@ struct ByUnion[X]:
 type OrBool[T] = T | bool
 
 impl[T] Named for ByTrait[*dyn Bar[T]]:
-    fn name(&self) -> string: "trait value"
+    fn name(&self) -> string:
+        "trait value"
 
 impl[T] Named for ByRest[(i32, List[T]...)]:
-    fn name(&self) -> string: "rest tuple"
+    fn name(&self) -> string:
+        "rest tuple"
 
 # A fixed element that differs, or one more fixed element, rules these
 # heads out for `b`.
 impl[T] Named for ByRest[(bool, List[T]...)]:
-    fn name(&self) -> string: "bool rest tuple"
+    fn name(&self) -> string:
+        "bool rest tuple"
 
 impl[T] Named for ByRest[(i32, i32, List[T]...)]:
-    fn name(&self) -> string: "longer rest tuple"
+    fn name(&self) -> string:
+        "longer rest tuple"
 
 impl[T] Named for ByUnion[OrBool[T]]:
-    fn name(&self) -> string: "union"
+    fn name(&self) -> string:
+        "union"
 
 fn names(
     a: ByTrait[*dyn Bar[i32]],

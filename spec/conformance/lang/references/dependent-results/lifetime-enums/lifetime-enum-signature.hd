@@ -4,7 +4,7 @@ enum Token[T, 'src]:
     Word(&'src T)
     End
 
-fn make(src: &string) -> Token[string]:  # the result takes src's lifetime
+fn make(src: &string) -> Token[string]: # the result takes src's lifetime
     Token.Word(src)
 
 impl[T, 'a] Token[T, 'a]:

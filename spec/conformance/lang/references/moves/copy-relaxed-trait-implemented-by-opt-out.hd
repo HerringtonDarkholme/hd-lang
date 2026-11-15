@@ -10,7 +10,8 @@ trait Stored < ?Copy:
     fn size(&self) -> u32
 
 impl Stored for Photo:
-    fn size(&self) -> u32: self.width
+    fn size(&self) -> u32:
+        self.width
 
 fn handed[T < ?Copy & Stored](item: T) -> (T, u32):
     size := item.size()

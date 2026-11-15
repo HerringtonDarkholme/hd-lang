@@ -10,9 +10,11 @@ y := g_0(+1)
 println(y)
 z := 1
 
-fn g_0(x: i32): g_1(x) + g_2(x)
+fn g_0(x: i32):
+    g_1(x) + g_2(x)
 
-fn g_1(x: i32): g_2(x) * 2
+fn g_1(x: i32):
+    g_2(x) * 2
 
 fn g_2(x: i32):
     z := x + 1

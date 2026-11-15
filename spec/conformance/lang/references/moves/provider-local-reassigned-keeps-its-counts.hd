@@ -20,6 +20,6 @@ fn line(text: string, other: &mut dyn Sink) -> void $ Sink:
 pub fn main() -> void $ Console:
     first := box(Count { n: 0 })
     second := box(Count { n: 0 })
-    $.with(Sink = first):
+    $.with(Sink=first):
         line("ab", second)
     println("${first.n} ${second.n}")

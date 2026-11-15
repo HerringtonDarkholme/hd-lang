@@ -4,4 +4,4 @@
 struct Fixed[N < const usize]: pass
 
 fn cast() -> void:
-    let value: Fixed[usize(4)] = panic("not run")  # diagnostic: nonconstant-generic-argument
+    let value: Fixed[usize(4)] = panic("not run") # diagnostic: nonconstant-generic-argument

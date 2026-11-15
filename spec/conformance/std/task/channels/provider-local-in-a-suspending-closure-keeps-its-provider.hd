@@ -28,7 +28,7 @@ pub fn main!() -> void $ Console:
     let (keep, waits) = channel::[string](1)
     first := box(Count { n: 0 })
     held := make(waits)
-    $.with(Sink = first):
+    $.with(Sink=first):
         let winner = race!(held(), quick())
         println(winner)
     _ := keep

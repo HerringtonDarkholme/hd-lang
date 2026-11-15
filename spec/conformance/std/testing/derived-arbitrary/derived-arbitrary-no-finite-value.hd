@@ -17,12 +17,10 @@ tests:
         "a directly recursive enum panics",
         expect_panic="explicit-panic",
         prop=fn!(value: Loop): pass
-        ,
     )
 
     it_prop(
         "an enum recursive through Ok panics",
         expect_panic="explicit-panic",
         prop=fn!(value: Step): pass
-        ,
     )

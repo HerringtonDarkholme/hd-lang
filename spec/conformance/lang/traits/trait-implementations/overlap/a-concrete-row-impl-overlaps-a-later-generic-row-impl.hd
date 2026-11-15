@@ -11,6 +11,6 @@ impl Describe for OnExit[$ Console]:
     fn describe(self) -> string:
         "console"
 
-impl[$R] Describe for OnExit[$ R]:  # diagnostic: overlapping-impl
+impl[$ R] Describe for OnExit[$ R]: # diagnostic: overlapping-impl
     fn describe(self) -> string:
         "any"

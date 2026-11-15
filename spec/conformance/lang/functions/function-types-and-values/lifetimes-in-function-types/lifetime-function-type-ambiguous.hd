@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn apply(f: fn(&User, &User) -> &User) -> void:  # diagnostic: ambiguous-reference-source
+fn apply(f: fn(&User, &User) -> &User) -> void: # diagnostic: ambiguous-reference-source
     pass

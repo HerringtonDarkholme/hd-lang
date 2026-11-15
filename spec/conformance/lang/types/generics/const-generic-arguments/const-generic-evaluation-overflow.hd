@@ -4,4 +4,4 @@
 struct Byte[N < const i8]: pass
 
 fn overflow() -> void:
-    let value: Byte[127i8 + 1i8] = panic("not run")  # diagnostic: const-evaluation-failed
+    let value: Byte[127i8 + 1i8] = panic("not run") # diagnostic: const-evaluation-failed

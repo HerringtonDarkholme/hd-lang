@@ -31,7 +31,6 @@ fn main() -> i32:
             $.with(Clock=Fixed { value: 2 }):
                 clock := $.use(Clock)
                 value + clock.now()
-        ,
     )
 
 tests:

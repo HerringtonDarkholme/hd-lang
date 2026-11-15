@@ -37,4 +37,6 @@ impl Pong:
         if self.n == 0: false else: Ping { n: self.n - 1 }.step()
 
 pub fn main() -> void $ Console:
-    println("${Box { v: 2 }.size()} ${label(Tag { s: "hi" })} ${total(Box { v: 2 })} ${Ping { n: 4 }.step()} ${Pong { n: 4 }.step()}")
+    println(
+        "${Box { v: 2 }.size()} ${label(Tag { s: "hi" })} ${total(Box { v: 2 })} ${Ping { n: 4 }.step()} ${Pong { n: 4 }.step()}",
+    )

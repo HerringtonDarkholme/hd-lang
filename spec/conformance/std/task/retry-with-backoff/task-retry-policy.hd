@@ -38,7 +38,6 @@ tests:
             let result: Result[void, string] = apply!(
                 retry(Backoff { attempts: 4, initial: 200ms })
                     .when(fn(error: string): error == "busy")
-                ,
             ):
                 calls += 1
                 let attempt: Result[void, string] = .Err(if calls == 1: "busy" else: "refused")

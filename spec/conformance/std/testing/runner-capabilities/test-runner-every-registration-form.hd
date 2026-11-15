@@ -17,18 +17,15 @@ tests:
         "table body picks a region",
         [1, 2],
         body=fn!(attempt: i32): _ := pick_region(["us-east", "eu-west"])
-        ,
     )
 
     it_prop(
         "property body picks a region",
         prop=fn!(quantity: i32): _ := pick_region(["us-east", "eu-west"])
-        ,
     )
 
     it_prop_with(
         "generated property body picks a region",
         gen=small_quantity,
         prop=fn!(quantity: i32): _ := pick_region(["us-east", "eu-west"])
-        ,
     )

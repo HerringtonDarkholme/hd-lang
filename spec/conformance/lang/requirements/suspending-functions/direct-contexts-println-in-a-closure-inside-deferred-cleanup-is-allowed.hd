@@ -14,11 +14,9 @@ fn text!() -> string:
     "t"
 
 fn f() -> void $ Console:
-    defer(
-        fn() -> void:
-            let g = fn() -> void $ Console: println("x")
-            g()
-        ,
+    defer(fn() -> void:
+        let g = fn() -> void $ Console: println("x")
+        g()
     )
     pass
 

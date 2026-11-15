@@ -14,5 +14,4 @@ tests:
         [1, 2],
         timeout=5s,
         body=fn!(value: i32): assert(value > 0, reason="every row is positive")
-        ,
     )

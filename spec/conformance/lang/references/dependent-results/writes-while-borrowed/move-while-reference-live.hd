@@ -7,10 +7,7 @@ impl !Copy for Bag
 
 impl Bag:
     fn first(&self) -> &string?:
-        if self.labels.is_empty():
-            .None
-        else:
-            .Some(&self.labels[0])
+        if self.labels.is_empty(): .None else: .Some(&self.labels[0])
 
 fn consume(bag: Bag) -> usize:
     bag.labels.len()

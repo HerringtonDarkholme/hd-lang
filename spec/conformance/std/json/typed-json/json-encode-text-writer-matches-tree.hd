@@ -208,34 +208,36 @@ fn float_gen(c: &mut Choices) -> f64:
     )
 
 fn numbers_gen(c: &mut Choices) -> *Numbers:
-    box(Numbers {
-        small: c.int(i8(-128)..=i8(127)),
-        short: c.int(i16(-32768)..=i16(32767)),
-        medium: c.int(-2147483648..=2147483647),
-        wide: c.choose(
-            [
-                -9223372036854775807 - 1,
-                9223372036854775807,
-                0,
-                -1,
-                c.int(-1000000000000..=1000000000000),
-            ],
-        ),
-        byte: c.int(u8(0)..=u8(255)),
-        ushort: c.int(u16(0)..=u16(65535)),
-        umedium: c.int(u32(0)..=u32(4294967295)),
-        uwide: c.choose(
-            [
-                u64(0),
-                u64(18446744073709551615),
-                u64(9223372036854775808),
-                c.int(u64(0)..=u64(1000000000000)),
-            ],
-        ),
-        size: c.int(usize(0)..=usize(4294967295)),
-        single: f32(float_gen(c)),
-        double: float_gen(c),
-    })
+    box(
+        Numbers {
+            small: c.int(i8(-128)..=i8(127)),
+            short: c.int(i16(-32768)..=i16(32767)),
+            medium: c.int(-2147483648..=2147483647),
+            wide: c.choose(
+                [
+                    -9223372036854775807 - 1,
+                    9223372036854775807,
+                    0,
+                    -1,
+                    c.int(-1000000000000..=1000000000000),
+                ],
+            ),
+            byte: c.int(u8(0)..=u8(255)),
+            ushort: c.int(u16(0)..=u16(65535)),
+            umedium: c.int(u32(0)..=u32(4294967295)),
+            uwide: c.choose(
+                [
+                    u64(0),
+                    u64(18446744073709551615),
+                    u64(9223372036854775808),
+                    c.int(u64(0)..=u64(1000000000000)),
+                ],
+            ),
+            size: c.int(usize(0)..=usize(4294967295)),
+            single: f32(float_gen(c)),
+            double: float_gen(c),
+        },
+    )
 
 fn shape_gen(c: &mut Choices, depth: i32) -> Shape:
     pick := c.int(0..=(if depth < 2: 4 else: 3))
@@ -280,19 +282,21 @@ fn item_gen(c: &mut Choices, depth: i32) -> *Item:
     if depth < 2:
         for _ in 0..c.int(0..=3):
             children.push(item_gen(c, depth + 1))
-    box(Item {
-        name: text_gen(c),
-        letter: c.choose(['a', '"', '\\', '\n', '\u{1}', 'é', '\u{1f600}']),
-        flag: c.bool(),
-        numbers: numbers_gen(c),
-        note: if c.bool(): .Some(text_gen(c)) else: .None,
-        nested: nested,
-        tags: box(c.list(4, text_gen)),
-        attrs: box(c.map(20, text_gen, fn(inner: &mut Choices) -> i32: inner.int(-100..=100))),
-        shape: shape_gen(c, 0),
-        raw: json_gen(c, 0),
-        children: children,
-    })
+    box(
+        Item {
+            name: text_gen(c),
+            letter: c.choose(['a', '"', '\\', '\n', '\u{1}', 'é', '\u{1f600}']),
+            flag: c.bool(),
+            numbers: numbers_gen(c),
+            note: if c.bool(): .Some(text_gen(c)) else: .None,
+            nested: nested,
+            tags: box(c.list(4, text_gen)),
+            attrs: box(c.map(20, text_gen, fn(inner: &mut Choices) -> i32: inner.int(-100..=100))),
+            shape: shape_gen(c, 0),
+            raw: json_gen(c, 0),
+            children: children,
+        }
+    )
 
 # A hand-written Serialize that replays a script of writer calls and
 # ignores every error, so the walks that derived code never makes are
@@ -553,7 +557,6 @@ tests:
         gen=fn(c: &mut Choices) -> *Item: item_gen(c, 0),
         cases=200,
         prop=fn!(item: &Item): assert_equal(disagreement(item), "", reason="item")
-        ,
     )
 
     it_prop_with(
@@ -561,5 +564,4 @@ tests:
         gen=script_gen,
         cases=300,
         prop=fn!(script: &Script): assert_equal(disagreement(script), "", reason="script")
-        ,
     )

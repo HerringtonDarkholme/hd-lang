@@ -13,5 +13,4 @@ tests:
         "a data type that always needs itself panics",
         expect_panic="explicit-panic",
         prop=fn!(value: *Ring): pass
-        ,
     )

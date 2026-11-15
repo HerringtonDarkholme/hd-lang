@@ -42,4 +42,8 @@ tests:
         assert_equal(first(Label { inner: Count { at: 4 } }), 4, reason="Label's own Out is string")
 
     it("I::Next::Next::Out is i32 one level deeper"):
-        assert_equal(second(Label { inner: Count { at: 4 } }), 5, reason="the step of Count adds one")
+        assert_equal(
+            second(Label { inner: Count { at: 4 } }),
+            5,
+            reason="the step of Count adds one",
+        )

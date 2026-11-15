@@ -13,10 +13,7 @@ impl Number for i32:
 
 impl Number for bool:
     fn number(self) -> i32:
-        if self:
-            1
-        else:
-            0
+        if self: 1 else: 0
 
 struct Box[T]:
     item: T
@@ -41,6 +38,8 @@ pub fn main() -> void $ Console:
         fn inner(y: impl Number) -> i32:
             y.number() * 2
         inner(x) + inner(x.number() + 1)
-    fn kept(x: impl Number & 'static) -> i32:
+    fn kept(x: impl Number&'static) -> i32:
         x.number()
-    println("$first $second $s $k ${deflt(true)} ${deflt(+2, y=1)} ${f(+1, +2)} ${outer(+1)} ${kept(+9)}")
+    println(
+        "$first $second $s $k ${deflt(true)} ${deflt(+2, y=1)} ${f(+1, +2)} ${outer(+1)} ${kept(+9)}",
+    )

@@ -22,6 +22,10 @@ done
 # one process (a per-row shell loop took most of this script's time).
 node --experimental-strip-types "$spec_dir/check-fixture-index.ts" "$spec_dir"
 node --experimental-strip-types "$spec_dir/tools/generate-pointer-loan-matrix.ts" --check
+# Every eligible fixture is formatted (conformance/README.md "Formatting
+# Fixtures"): one formatter pass over the suite, no file written.
+cargo run -q -p hd_fmt --example conformance -- "$spec_dir/conformance" >/dev/null ||
+    fail "conformance fixtures need formatting: cargo run -p hd_fmt --example conformance -- --write"
 
 tab=$(printf '\t')
 

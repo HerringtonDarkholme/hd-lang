@@ -10,10 +10,12 @@ struct A:
     n: i32
 
 impl Mix for A:
-    fn mix(&self) -> i32: self.n
+    fn mix(&self) -> i32:
+        self.n
 
 impl Other for A:
-    fn mix(&self) -> i32: 2
+    fn mix(&self) -> i32:
+        2
 
 pub fn main() -> void $ Console:
     a := A { n: 1 }

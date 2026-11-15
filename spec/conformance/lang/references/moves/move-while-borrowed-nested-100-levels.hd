@@ -302,9 +302,11 @@ struct S99:
 struct S100:
     inner: S99
 
-fn consume(b: S100) -> usize: 0
+fn consume(b: S100) -> usize:
+    0
 
-fn peek(r: &S100) -> usize: 0
+fn peek(r: &S100) -> usize:
+    0
 
 fn early(b: S100) -> usize:
     r := &b

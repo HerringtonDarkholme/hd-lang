@@ -16,4 +16,4 @@ fn first(outer: string) -> usize:
     if outer.len() > 0:
         inner := "inner"
         kept = left(Pair.Both(&outer, &inner), &outer)
-    kept.len()  # kept does not point into inner
+    kept.len() # kept does not point into inner

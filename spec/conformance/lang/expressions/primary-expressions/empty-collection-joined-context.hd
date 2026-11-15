@@ -5,9 +5,10 @@ fn lists(flag: bool):
     if flag: [1] else: []
 
 fn maps(flag: bool):
-    if flag: {"a": 1} else: {}
+    if flag: { "a": 1 } else: {}
 
-fn identity[T](value: T) -> T: value
+fn identity[T](value: T) -> T:
+    value
 
 fn boxed() -> *List[i32]:
     box([])

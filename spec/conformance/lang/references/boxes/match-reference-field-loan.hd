@@ -73,18 +73,10 @@ tests:
     it("a match through a pointer keeps its field until the arm ends"):
         for n in 0..20:
             node := box(Node { value: 1, left: .Some(box(Node { value: i64(n), left: .None })) })
-            assert_equal(
-                value(node),
-                i64(n),
-                reason="a field stays live through its match",
-            )
+            assert_equal(value(node), i64(n), reason="a field stays live through its match")
             child := selected(node)
             node.left = .None
-            assert_equal(
-                child.value,
-                i64(n),
-                reason="a returned payload owns its count",
-            )
+            assert_equal(child.value, i64(n), reason="a returned payload owns its count")
 
     it("an erased returned payload keeps its owned coercion"):
         node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })

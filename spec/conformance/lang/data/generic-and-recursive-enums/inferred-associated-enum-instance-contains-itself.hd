@@ -11,7 +11,8 @@ enum Holder[S < Source]:
 impl[T] Source for Provider[T]:
     type Item = Holder[Provider[T]]
 
-fn make[S < Source]() -> Holder[S]: .Empty
+fn make[S < Source]() -> Holder[S]:
+    .Empty
 
 pub fn main() -> void:
     value := make::[Provider[i32]]() # diagnostic: recursive-value-type

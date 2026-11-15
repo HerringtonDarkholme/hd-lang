@@ -1,6 +1,6 @@
 # test: a function name is a runtime value rather than a non-value kind
 # Spec 04 Const Generic Arguments: types.generic.const.nonconstant.
-struct Fixed[N<const usize]: pass
+struct Fixed[N < const usize]: pass
 
 fn amount() -> usize:
     3

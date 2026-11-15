@@ -11,7 +11,8 @@ fn outer[T < Display](x: T) -> string:
         v: T
     fn inner[U](x: T, u: U, n: i32) -> string:
         impl Show for Cell:
-            fn show(&self) -> string: "${self.v}"
+            fn show(&self) -> string:
+                "${self.v}"
         impl Cell:
             fn again(&self, k: i32) -> string:
                 let c: Cell = Cell { v: self.v }
@@ -24,7 +25,8 @@ fn plain() -> string:
         n: i32
     fn inner[U](u: U) -> string:
         impl Box2:
-            fn twice(&self) -> i32: self.n + 2
+            fn twice(&self) -> i32:
+                self.n + 2
         "${Box2 { n: +3 }.twice()}"
     inner(1.5)
 

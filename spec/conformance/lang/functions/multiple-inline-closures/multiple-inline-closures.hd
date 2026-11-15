@@ -18,7 +18,6 @@ fn pick(flag: bool) -> i32:
             halved := b / 2
             halved - 5
         )
-        ,
     )
 
 tests:

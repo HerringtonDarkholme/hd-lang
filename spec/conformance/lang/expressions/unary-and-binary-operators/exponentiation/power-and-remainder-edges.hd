@@ -96,7 +96,10 @@ tests:
         nan := 0.0 / 0.0
         assert(within_ulp(9.0 ** 0.5, 3.0), reason="fractional exponent, within 1 ULP")
         assert(within_ulp(2.0 ** -3.0, 0.125), reason="negative exponent, within 1 ULP")
-        assert(within_ulp((-2.0) ** 3.0, -8.0), reason="negative base, integral exponent, within 1 ULP")
+        assert(
+            within_ulp((-2.0) ** 3.0, -8.0),
+            reason="negative base, integral exponent, within 1 ULP",
+        )
         invalid := (-2.0) ** 0.5
         assert(invalid != invalid, reason="negative base with fractional exponent")
         assert_equal(nan ** 0.0, 1.0, reason="NaN to zero")

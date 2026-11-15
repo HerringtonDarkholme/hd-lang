@@ -40,7 +40,6 @@ tests:
             step: fn() -> i32:
                 hits = hits + 1
                 hits
-            ,
         }
         r := &handler
         assert_equal(fire(r), 1, reason="first")

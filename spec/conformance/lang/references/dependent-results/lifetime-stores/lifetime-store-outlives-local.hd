@@ -11,4 +11,4 @@ fn count(b: bool) -> usize:
     if b:
         local := User { name: "local" }
         remember(&mut seen, &local)
-    seen.len()  # diagnostic: local-reference-outlives-local
+    seen.len() # diagnostic: local-reference-outlives-local

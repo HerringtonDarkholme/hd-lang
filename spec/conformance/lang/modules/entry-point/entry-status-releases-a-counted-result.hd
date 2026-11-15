@@ -8,10 +8,7 @@ pub struct Report:
 
 impl Termination for Report:
     fn report(self) -> ExitCode:
-        if self.rows.len() == 3:
-            ExitCode(0)
-        else:
-            ExitCode(1)
+        if self.rows.len() == 3: ExitCode(0) else: ExitCode(1)
 
 pub fn main() -> Report $ Console:
     let mut rows: List[i32] = []

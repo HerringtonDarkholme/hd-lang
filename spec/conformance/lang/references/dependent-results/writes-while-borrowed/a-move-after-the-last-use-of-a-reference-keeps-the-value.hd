@@ -11,10 +11,7 @@ impl !Copy for Bag
 
 impl Bag:
     fn first(&self) -> &string?:
-        if self.labels.is_empty():
-            .None
-        else:
-            .Some(&self.labels[0])
+        if self.labels.is_empty(): .None else: .Some(&self.labels[0])
 
 fn consume(bag: Bag) -> usize:
     bag.labels.len()
@@ -22,10 +19,7 @@ fn consume(bag: Bag) -> usize:
 fn report(bag: Bag, eat: bool) -> string:
     r := &bag
     k := r.labels.len()
-    if eat:
-        "eaten ${consume(bag)}"
-    else:
-        "kept $k"
+    if eat: "eaten ${consume(bag)}" else: "kept $k"
 
 pub fn main() -> void $ Console:
     bag := Bag { labels: ["a", "b"] }

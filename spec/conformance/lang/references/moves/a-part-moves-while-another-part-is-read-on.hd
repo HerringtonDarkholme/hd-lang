@@ -31,10 +31,7 @@ fn loop_keeps_the_part(p: Pair) -> usize:
 
 fn branch_reads_later(p: Pair, more: bool) -> usize:
     n := own(p.a)
-    if more:
-        n + own(p.b) + p.a.len()
-    else:
-        n
+    if more: n + own(p.b) + p.a.len() else: n
 
 fn of_a_temporary(a: string, b: string) -> usize:
     t := (a + "!", b + "?")
@@ -59,8 +56,16 @@ tests:
         assert_equal(loop_keeps_the_part(pair_of("a" + "b", "c")), 7, reason="each round reads it")
 
     it("one branch reads the part again"):
-        assert_equal(branch_reads_later(pair_of("a" + "b", "c"), true), 5, reason="the branch sees the part")
-        assert_equal(branch_reads_later(pair_of("a" + "b", "c"), false), 2, reason="the other branch drops the rest")
+        assert_equal(
+            branch_reads_later(pair_of("a" + "b", "c"), true),
+            5,
+            reason="the branch sees the part",
+        )
+        assert_equal(
+            branch_reads_later(pair_of("a" + "b", "c"), false),
+            2,
+            reason="the other branch drops the rest",
+        )
 
     it("a temporary's parts"):
         assert_equal(of_a_temporary("a", "b"), 6, reason="each part once")

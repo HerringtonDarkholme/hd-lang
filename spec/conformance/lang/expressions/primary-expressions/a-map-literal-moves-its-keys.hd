@@ -24,4 +24,6 @@ pub fn main() -> void $ Console:
     p := both(key_of("z"))
     kept := key_of("z")
     l := lists([5])
-    println("${m.len()} ${m[k]} ${m[key_of("b")]} | ${t.len()} ${t[one]} ${t[two]} | ${p.len()} ${p[(kept, 1)]} | $k | ${l.len()} ${l["y"][0]}")
+    println(
+        "${m.len()} ${m[k]} ${m[key_of("b")]} | ${t.len()} ${t[one]} ${t[two]} | ${p.len()} ${p[(kept, 1)]} | $k | ${l.len()} ${l["y"][0]}",
+    )

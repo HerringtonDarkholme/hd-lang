@@ -26,8 +26,7 @@ fn pair[I < Supplier](xs: List[I]) -> (List[I::Item], usize):
     (all(xs), xs.len())
 
 fn later[I < Supplier & 'static](xs: List[I]) -> fn() -> List[I::Item]:
-    fn():
-        all(xs)
+    fn(): all(xs)
 
 pub fn main() -> void $ Console:
     let mut a = []

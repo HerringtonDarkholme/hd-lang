@@ -62,7 +62,8 @@ formatter, which keeps those inputs intact:
 cargo run -j 2 -p hd_fmt --example conformance -- --write
 ```
 
-Without `--write`, it checks eligible fixtures without changing them.
+Without `--write`, it checks eligible fixtures without changing them, and
+`spec/check.sh` runs that check, so a fixture that needs formatting fails it.
 It excludes every case whose primary specification is `lang/01-*` or
 `lang/02-*`, plus the paths in `format-exempt.tsv`. Add a path and reason to
 that table when another chapter tests a source form that formatting erases.

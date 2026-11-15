@@ -47,46 +47,60 @@ struct S:
     n: i32
 
 impl K0 for S:
-    fn v(&self) -> i32: self.n + 0
+    fn v(&self) -> i32:
+        self.n + 0
 
 impl K1 for S:
-    fn v(&self) -> i32: self.n + 1
+    fn v(&self) -> i32:
+        self.n + 1
 
 impl K2 for S:
-    fn v(&self) -> i32: self.n + 2
+    fn v(&self) -> i32:
+        self.n + 2
 
 impl K3 for S:
-    fn v(&self) -> i32: self.n + 3
+    fn v(&self) -> i32:
+        self.n + 3
 
 impl K4 for S:
-    fn v(&self) -> i32: self.n + 4
+    fn v(&self) -> i32:
+        self.n + 4
 
 impl K5 for S:
-    fn v(&self) -> i32: self.n + 5
+    fn v(&self) -> i32:
+        self.n + 5
 
 impl K6 for S:
-    fn v(&self) -> i32: self.n + 6
+    fn v(&self) -> i32:
+        self.n + 6
 
 impl K7 for S:
-    fn v(&self) -> i32: self.n + 7
+    fn v(&self) -> i32:
+        self.n + 7
 
 impl Base for S:
-    fn base(&self) -> i32: self.n * 10
+    fn base(&self) -> i32:
+        self.n * 10
 
 impl Named for S:
-    fn name(&self) -> i32: self.n
+    fn name(&self) -> i32:
+        self.n
 
 impl Repo[i32] for S:
-    fn get(&self) -> i32: 2
+    fn get(&self) -> i32:
+        2
 
 impl Left for S:
-    fn tag(&self) -> i32: 1
+    fn tag(&self) -> i32:
+        1
 
 impl Right for S:
-    fn tag(&self) -> i32: 2
+    fn tag(&self) -> i32:
+        2
 
 impl Both for S:
-    fn both(&self) -> i32: 0
+    fn both(&self) -> i32:
+        0
 
 fn inner() -> i32 $ K0 + K1 + K2 + K3 + K4 + K5 + K6 + K7 + Named + Repo[i32]:
     $.use(K3).v() * 0 + $.use(K3).v()
@@ -99,5 +113,16 @@ fn tag(b: &dyn Both) -> i32:
     b.tag()
 
 pub fn main() -> void $ Console:
-    $.with(K0=box(S { n: 0 }), K1=box(S { n: 0 }), K2=box(S { n: 0 }), K3=box(S { n: 0 }), K4=box(S { n: 0 }), K5=box(S { n: 0 }), K6=box(S { n: 0 }), K7=box(S { n: 0 }), Named=box(S { n: 4 }), Repo[i32]=box(S { n: 0 })):
+    $.with(
+        K0=box(S { n: 0 }),
+        K1=box(S { n: 0 }),
+        K2=box(S { n: 0 }),
+        K3=box(S { n: 0 }),
+        K4=box(S { n: 0 }),
+        K5=box(S { n: 0 }),
+        K6=box(S { n: 0 }),
+        K7=box(S { n: 0 }),
+        Named=box(S { n: 4 }),
+        Repo[i32]=box(S { n: 0 }),
+    ):
         println(outer())

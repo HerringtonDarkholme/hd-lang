@@ -18,8 +18,7 @@ fn rename(account: &mut Account, name: string) -> void:
     account.profile.rename(name)
 
 fn readonly_account(profile: *mut Profile) -> *Account:
-    let account: *Account = box(Account {
-        profile: profile,
-        snapshot: box(Profile { name: "Ada" }),
-    })
+    let account: *Account = box(
+        Account { profile: profile, snapshot: box(Profile { name: "Ada" }) },
+    )
     account

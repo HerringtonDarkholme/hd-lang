@@ -67,7 +67,6 @@ tests:
             result := apply!(
                 retry(Backoff { attempts: 5, initial: 0ms })
                     .when(fn(error: string): judge(server, error))
-                ,
             ):
                 ask!(server)
             assert_equal(result, .Ok("ready"), reason="the third call succeeds")

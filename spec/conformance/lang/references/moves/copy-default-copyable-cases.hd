@@ -12,9 +12,11 @@ trait Shown:
     fn shown(&self) -> string
 
 impl Shown for Point:
-    fn shown(&self) -> string: "${self.x},${self.y}"
+    fn shown(&self) -> string:
+        "${self.x},${self.y}"
 
-fn dup[T](x: T) -> (T, T): (x, x)
+fn dup[T](x: T) -> (T, T):
+    (x, x)
 
 fn show_all[T < Shown](items: List[T]) -> string:
     let out = ""
@@ -27,7 +29,7 @@ pub fn main() -> void $ Console:
     pair := dup(p)
     points := [p, pair._1]
     labeled := Labeled { label: "origin", value: p }
-    names := {"a": labeled}
+    names := { "a": labeled }
     view := &p
     views := dup(view)
     println("${show_all(points)} ${names.len()} ${views._0.x}")

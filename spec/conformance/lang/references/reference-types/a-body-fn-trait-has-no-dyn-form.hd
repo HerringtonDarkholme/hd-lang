@@ -6,4 +6,4 @@ fn double(x: i64) -> i64:
     x * 2
 
 fn use_it() -> void:
-    let f: &dyn Fn(i64) -> i64 = &double  # diagnostic: trait-not-dynamically-safe
+    let f: &dyn Fn(i64) -> i64 = &double # diagnostic: trait-not-dynamically-safe

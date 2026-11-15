@@ -50,5 +50,9 @@ tests:
         let mut keeper = Keeper { saved: [] }
         save(root, &mut keeper)
         root = leaf(0)
-        assert_equal(keeper.saved[0].value + keeper.saved[1].value, 11, reason="each kept child holds its own count")
+        assert_equal(
+            keeper.saved[0].value + keeper.saved[1].value,
+            11,
+            reason="each kept child holds its own count",
+        )
         assert_equal(root.value, 0, reason="the old root and its list are gone")

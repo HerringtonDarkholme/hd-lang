@@ -20,28 +20,35 @@ struct Pair[T]:
     left: T
 
 impl Mix for A:
-    fn mix(&self) -> i32: self.n
+    fn mix(&self) -> i32:
+        self.n
 
 impl[T] Other for Pair[T]:
-    fn mix(&self) -> i32: 2
+    fn mix(&self) -> i32:
+        2
 
 impl Mix for i32:
-    fn mix(&self) -> i32: 3
+    fn mix(&self) -> i32:
+        3
 
 impl Other for (i32, i32):
-    fn mix(&self) -> i32: 4
+    fn mix(&self) -> i32:
+        4
 
 impl Show for i32:
-    fn show(&self) -> i32: 5
+    fn show(&self) -> i32:
+        5
 
 impl[T < Show] Loud for Pair[T]:
-    fn loud(&self) -> i32: self.left.show()
+    fn loud(&self) -> i32:
+        self.left.show()
 
 fn local() -> i32:
     struct B:
         n: i32
     impl Mix for B:
-        fn mix(&self) -> i32: self.n
+        fn mix(&self) -> i32:
+            self.n
     B { n: 6 }.mix()
 
 pub fn main() -> void $ Console:

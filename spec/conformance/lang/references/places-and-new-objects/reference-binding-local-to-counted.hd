@@ -3,7 +3,8 @@
 struct Point:
     x: i32
 
-fn keep(p: *mut Point) -> void: pass
+fn keep(p: *mut Point) -> void:
+    pass
 
 fn invalid() -> void:
     let mut p = Point { x: 0 }

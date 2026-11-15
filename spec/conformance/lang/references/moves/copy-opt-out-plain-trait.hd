@@ -9,7 +9,8 @@ trait Sized2D:
     fn area(&self) -> u32
 
 impl Sized2D for Photo: # diagnostic: missing-supertrait-implementation
-    fn area(&self) -> u32: self.width
+    fn area(&self) -> u32:
+        self.width
 
 pub fn main() -> void $ Console:
     println("ok")

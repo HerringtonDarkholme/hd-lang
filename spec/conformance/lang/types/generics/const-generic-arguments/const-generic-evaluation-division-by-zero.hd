@@ -4,4 +4,4 @@
 struct Byte[N < const i8]: pass
 
 fn division_by_zero() -> void:
-    let value: Byte[1i8 / 0i8] = panic("not run")  # diagnostic: const-evaluation-failed
+    let value: Byte[1i8 / 0i8] = panic("not run") # diagnostic: const-evaluation-failed

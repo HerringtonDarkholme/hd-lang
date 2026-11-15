@@ -5,5 +5,5 @@ struct View['a]:
     item: &'a i64
 
 fn read(v: View) -> i64:
-    let again: View['a] = v  # diagnostic: references-not-yet-checked
+    let again: View['a] = v # diagnostic: references-not-yet-checked
     0

@@ -10,6 +10,5 @@ fn name_len(p: Photo) -> usize:
 
 fn moved_capture() -> usize:
     photo := Photo { name: "a" }
-    run := fn() -> usize:
-        name_len(photo) # diagnostic: move-out-of-place
+    run := fn() -> usize: name_len(photo) # diagnostic: move-out-of-place
     run()
