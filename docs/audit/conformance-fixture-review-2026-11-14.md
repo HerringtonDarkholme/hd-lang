@@ -74,7 +74,7 @@ which kind of row it rests on.
   unchanged. A12 (13 against 12), A13 (12 against 11) and A9 (1,281 against
   1,269) grew by fixtures added since.
 - **P0 item 1: confirmed.** `crates/hd_driver/tests/conformance.rs:1812`
-  returns `Verdict::Pass` on `missing-entry-point`. `runtime/valid/result-ok-unit.hd`
+  returns `Verdict::Pass` on `missing-entry-point`. `types/result-types/result-ok-unit.hd`
   has a private `main` and no tests, so its body never runs.
 - **P0 item 2: confirmed.** `lexical/physical-and-logical-lines/crlf-line-endings.hd` had 18 CRLF
   line endings when 8f8f62c46 added it and 0 after edea876ae. The format commit
@@ -519,7 +519,7 @@ other rule.
 - `data/struct-declarations/mutable-field-modifier.hd` (cites 08 `#fields`) = `grammar/declarations/grammar-mutable-field-modifier.hd` (cites `grammar.data.no-mut-modifier`; it is also a `parse` case kept under `typing/`)
 - `functions/parameters/nonfinal-spread.hd` (07 `#varargs`) = `grammar/expressions/positional-after-spread.hd` (02 `#calls-and-arguments`)
 - `names/module-scope/forward-module-binding.hd` = `names/module-scope/exec-binding-read-before-declared.hd`
-- `typing/invalid/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `typing/invalid/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
+- `types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd` (`types.tuple.rest.same`) = `types/nominal-and-structural-types/tuple-rest-assign.hd` (`types.tuple.rest.assign`)
 - `requirements/provider-scopes/generic-requirement-key-collision.hd` = `requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd`
 - `requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd` (`req.row.union.sites.type`) = `requirements/requirement-rows/row-subsumption/row-union-private-result.hd` (`req.row.union.sites`)
 - `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd` = `requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd` (same rule, too)
@@ -928,8 +928,8 @@ Ledger: b016 (45): 2 rows. Plausible 2.
 
 Ledger: b018 (24): 4 rows. Confirmed 3, plausible 1.
 
-- **Panic marker on the caller's line (B2, minor)**: `runtime/panic/i32-remainder-by-zero.hd`
-  and `runtime/panic/i64-remainder-by-zero.hd` mark `_ := remainder(1, 0)` (line 7),
+- **Panic marker on the caller's line (B2, minor)**: `types/numeric-conversions/i32-remainder-by-zero.hd`
+  and `types/numeric-conversions/i64-remainder-by-zero.hd` mark `_ := remainder(1, 0)` (line 7),
   but `a % b` (line 5) raises the panic. The runner does not judge panic
   lines, and the README says the marker names the line that raises the panic.
   This pattern (the marker on the top-level call) is probably widespread.
@@ -939,7 +939,7 @@ Ledger: b018 (24): 4 rows. Confirmed 3, plausible 1.
   `fn timeout(…) -> void: time.s(seconds)` returns a `Duration` from a `void`
   function. With the `use` added, it is still a `type-mismatch`. Fix:
   `_ := time.s(seconds)`.
-- Plausible B7: `typing/valid/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd`
+- Plausible B7: `types/generics/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd`
   cites `#generics`; it tests `types.generic.call-cycle.fixed-callee`.
 
 #### b017 (`lang/03`, `lang/04`)
@@ -964,11 +964,11 @@ Ledger: b021 (45): 4 rows. Confirmed 3, covered by A6 1.
 - **Title copied across a generated series (B1)**: the
   `runtime/panic/int-widths-i8-overflow-panics-at-127-plus-1-0{1..4}.hd` series
   all share one title, but `-03` uses `u8` subtraction and `-04` uses `u16`
-  multiplication. `runtime/panic/int-widths-a-u64-product-past-the-maximum-panics.hd`
+  multiplication. `types/numeric-conversions/int-widths-a-u64-product-past-the-maximum-panics.hd`
   multiplies `u64`. These numbered series come from one spec example split
   into cases, and they keep the example's title. Each case should get its
   own title.
-- `typing/warnings/unused-nested-optional-binding.hd`: an accept case under
+- `types/optional-types/unused-nested-optional-binding.hd`: an accept case under
   `warnings/`, already in A6.
 
 **Brief v2.1 (from b025 on):** reviewers read all of a batch's fixtures in
@@ -983,7 +983,7 @@ Ledger: b019 (45): 8 rows. Confirmed 4 (+ the A10 class), plausible 3, rejected 
 - **Systemic, script check A10** (`a10_legal_titles.py`, output `full/a10.tsv`):
   **all 40** `*-legal.hd` accept fixtures carry the `# test:` title of their
   reject twin word for word. An example is
-  `typing/valid/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd`,
+  `types/literal-types/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd`,
   "…is rejected", which is an accept case. The pilot's `…-130-legal.hd` is one
   of them. Fix: give each `-legal` fixture a title that states what is
   accepted.
@@ -991,12 +991,12 @@ Ledger: b019 (45): 8 rows. Confirmed 4 (+ the A10 class), plausible 3, rejected 
   `typing/valid/literals-a-signed-literal-under-power-checks-and-evaluates-{87,88,89}.hd`.
   A `type` case never runs, so "`-2 ** 2` evaluates to -4" is untested. Fix:
   make them `runtime` cases with an `assert_equal`.
-- Plausible: `typing/valid/literal-types-float-literals-multiply-as-floats.hd`
-  (uses only float literals). `runtime/valid/map-grow-and-remove.hd` (the header
+- Plausible: `types/literal-types/literal-types-float-literals-multiply-as-floats.hd`
+  (uses only float literals). `types/map-key-types/map-grow-and-remove.hd` (the header
   names order, replace, reindex and repair rules; the code exercises none).
   `typing/valid/literals-a-negated-bare-literal-is-signed-through-parentheses-{83..86}.hd`
   (no spec rule says this).
-- Rejected: `typing/invalid/literal-types-a-negated-literal-cannot-become-unsigned.hd`.
+- Rejected: `types/literal-types/literal-types-a-negated-literal-cannot-become-unsigned.hd`.
   The marker is on line 5, which is where `hd` reports; the reviewer
   miscounted.
 
@@ -1047,22 +1047,22 @@ for l in list(open('cases.tsv'))[1:]:
 
 Ledger: b020 (34): 6 rows. Confirmed 3, plausible 3.
 
-- `runtime/valid/u8-checked-add.hd`, `runtime/valid/i64-widening-checked.hd`: the A11 class above.
-- `runtime/panic/u8-add-overflow.hd`: the panic marker is on the caller's line
+- `types/numeric-conversions/u8-checked-add.hd`, `types/numeric-conversions/i64-widening-checked.hd`: the A11 class above.
+- `types/numeric-conversions/u8-add-overflow.hd`: the panic marker is on the caller's line
   (the owner question in b018).
-- Plausible: `runtime/valid/f32-to-integer-saturates.hd` and `…/f64-…`. Their
+- Plausible: `types/numeric-conversions/f32-to-integer-saturates.hd` and `…/f64-…`. Their
   `usize` column expects 32-bit maxima, which looks target-dependent.
-  `runtime/valid/impl-trait-value-copy.hd`: the expected copy-on-bind is not
+  `types/opaque-result-types/impl-trait-value-copy.hd`: the expected copy-on-bind is not
   stated in the cited section.
 
 #### b023 (`lang/04-type-system.md`)
 
 Ledger: b023 (45): 7 rows. Confirmed 2, plausible 4, unverified 1.
 
-- **Duplicate (C1)**: `runtime/valid/value-argument-reference-change.hd` ~
-  `runtime/valid/value-argument-legacy-alias.hd`. The same program, with a
+- **Duplicate (C1)**: `types/collection-values/value-argument-reference-change.hd` ~
+  `types/collection-values/value-argument-legacy-alias.hd`. The same program, with a
   renamed helper and reworded titles.
-- **Checks that cannot fail (B3)**: `runtime/valid/generic-forward-bound-explicit-first-slot.hd`.
+- **Checks that cannot fail (B3)**: `types/generics/bound-order/generic-forward-bound-explicit-first-slot.hd`.
   The default `= string` equals the bound, so the test passes even if bound
   inference breaks (not hand-checked; plausible).
 - Plausible: `value-argument-legacy-alias.hd` (`view_len_after` is never called;
@@ -1076,18 +1076,18 @@ Ledger: b023 (45): 7 rows. Confirmed 2, plausible 4, unverified 1.
 
 Ledger: b022 (46): 9 rows. Confirmed 2, plausible 5, covered by A6 2.
 
-- **Wrong citation (B7)**: `typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd`
+- **Wrong citation (B7)**: `types/numeric-conversions/a-cast-with-no-argument-is-an-argument-count-error.hd`
   and `…-two-arguments-…` cite `types.cast.syntax`, which has no error. The
   `argument-count` rule is the next one, `types.cast.argument`.
-- Plausible: `typing/invalid/a-tuple-spread-of-a-diverging-value-is-never.hd`
+- Plausible: `types/value-types/a-tuple-spread-of-a-diverging-value-is-never.hd`
   (no rule says a tuple spread of `never` is `never`; `types.never.not-structural`
   points the other way, which may be a spec question).
-  `typing/invalid/let-pattern-mut-a-plain-field-in-the-same-pattern-stays-readonly.hd`
+  `types/value-types/let-pattern-mut-a-plain-field-in-the-same-pattern-stays-readonly.hd`
   (no `mut` field in the pattern). `typing/valid/collection-value-fix-…-267.hd`
-  (title). `runtime/valid/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd`
-  (the key isn't computed by a call). `runtime/valid/indexed-replacement-list-and-map.hd`
+  (title). `types/collection-values/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd`
+  (the key isn't computed by a call). `types/collection-values/indexed-replacement-list-and-map.hd`
   (cites the list-only rule).
-- `typing/warnings/let-mut-primitive-unused.hd`, `…-annotation-unused.hd`: accept
+- `types/value-types/let-mut-primitive-unused.hd`, `…-annotation-unused.hd`: accept
   cases under `warnings/`, already in A6.
 
 #### b028 (`lang/04-type-system.md`)
@@ -1100,7 +1100,7 @@ v2.1 with a private cache: 104 s and 10 tool calls (earlier batches took
   are the same programs as `typing/invalid/type-too-long-a-data-type-written-too-long-reports-once-{01,05,06}.hd`.
   The numbered ones add an unused 5-line preamble (`type Both`, `trait Show`,
   `trait Conv`) inherited from the spec example they were split from.
-- Plausible B7: `typing/valid/generics-a-written-type-with-its-exact-arguments-is-valid.hd`
+- Plausible B7: `types/generics/generic-arguments/generics-a-written-type-with-its-exact-arguments-is-valid.hd`
   (an accept case citing the error-only `types.generic.too-long`).
 
 **Script check A12** (`a12_subset.py`, output `full/a12.tsv`): fixture A's
@@ -1155,7 +1155,7 @@ Ledger: b027 (36): 4 rows. Covered by A10 1, plausible 3. 279 s, 11 tool calls.
 
 Ledger: b030 (31): 3 rows. Confirmed 1, plausible 2. 79 s, 8 tool calls.
 
-- **Rejected for the wrong reason (B2)**: `typing/invalid/least-common-type-functions-with-different-results-and-rows-have-no-common-type.hd`.
+- **Rejected for the wrong reason (B2)**: `types/least-common-type/least-common-type-functions-with-different-results-and-rows-have-no-common-type.hd`.
   `[orders, count]` mixes `fn() -> string $ Db` with `fn() -> i32 $ Clock`. The
   results already differ, so `no-common-type` holds whatever the rows do. The
   unused `health() -> string $ Clock` is the sibling that would test the row
@@ -1168,17 +1168,17 @@ Ledger: b030 (31): 3 rows. Confirmed 1, plausible 2. 79 s, 8 tool calls.
 
 Ledger: b026 (45): 2 rows, plausible 2. b029 (22): 4 rows, confirmed 2, plausible 2 (94 s, 8 calls).
 
-- **Wrong citation (B7)**: `typing/valid/row-inference-explicit-type-arguments-disambiguate-two-keys.hd`
-  and `typing/valid/row-inference-a-unique-key-match-solves-the-argument.hd`:
+- **Wrong citation (B7)**: `types/type-inference-boundaries/row-inference-explicit-type-arguments-disambiguate-two-keys.hd`
+  and `types/type-inference-boundaries/row-inference-a-unique-key-match-solves-the-argument.hd`:
   accept cases that cite the error-only `types.infer.ambiguous.code`.
-- **Spec question (B7)**: `typing/valid/least-common-type-weakens-a-covariant-list-element.hd`
+- **Spec question (B7)**: `types/least-common-type/least-common-type-weakens-a-covariant-list-element.hd`
   joins `List[*mut Cell]` with `List[*Cell]` by weakening the element type.
   `types.lct.no-combine` seems to forbid combining conversions that way.
   Either the spec or the fixture is wrong.
-- Plausible: `runtime/valid/lct-optional-injection.hd` adds no site beyond the
+- Plausible: `types/least-common-type/lct-optional-injection.hd` adds no site beyond the
   two `optional-join-*` fixtures (C1).
-  `runtime/valid/type-name-forms-a-default-method-names-its-traits-own-parameter.hd`
-  (cites `default.written`). `typing/valid/generic-join-fresh-list-elements.hd`
+  `types/generics/type-argument-defaults/type-name-forms-a-default-method-names-its-traits-own-parameter.hd`
+  (cites `default.written`). `types/generics/generic-arguments/generic-join-fresh-list-elements.hd`
   (the title says the list literal solves `T` at the call, but it is bound
   to a variable first).
 
@@ -1186,24 +1186,24 @@ Ledger: b026 (45): 2 rows, plausible 2. b029 (22): 4 rows, confirmed 2, plausibl
 
 Ledger: b025 (34): 1 row, plausible 1.
 
-- Plausible B7: `typing/invalid/a-const-parameter-as-a-body-type.hd` cites
+- Plausible B7: `types/generics/const-generic-parameters/a-const-parameter-as-a-body-type.hd` cites
   `types.generic.const.type-position`; the error comes from `types.generic.const.parameter`.
 
 #### b024 (`lang/04-type-system.md`, const generics)
 
 Ledger: b024 (43): 7 rows. Confirmed 1, plausible 6.
 
-- **A check that cannot fail (B3)**: `typing/invalid/const-argument-or-of-named-constants-is-its-value.hd`.
+- **A check that cannot fail (B3)**: `types/generics/const-generic-arguments/const-argument-or-of-named-constants-is-its-value.hd`.
   It expects `Fixed[LOW | MID]` (`1 | 4 = 5`) not to match `Fixed[6]`. Any
   wrong evaluation other than 6 also passes, including `+` (also 5). A reject
   case can only show a value is *not* 6. Fix: an accept case with overlapping
   bits, `Fixed[1 | 3]` matching `Fixed[3]` (not `Fixed[4]`).
-- Plausible B1: `runtime/valid/union-type-arguments-preserve-named-const-pipes.hd`
-  (no union sits in a type slot). `typing/invalid/const-generic-symbolic-arithmetic.hd`
+- Plausible B1: `types/generics/const-generic-arguments/union-type-arguments-preserve-named-const-pipes.hd`
+  (no union sits in a type slot). `types/generics/const-generic-parameters/const-generic-symbolic-arithmetic.hd`
   (the "a parameter alone is accepted" clause is never used).
-  `typing/valid/const-generic-i16-bitwise-not-plus-and-comparison.hd`
+  `types/generics/const-generic-arguments/const-generic-i16-bitwise-not-plus-and-comparison.hd`
   ("wraps", but `~0` is `-1`).
-- Plausible B7: `typing/invalid/a-row-in-a-const-slot.hd`,
+- Plausible B7: `types/generics/const-generic-arguments/a-row-in-a-const-slot.hd`,
   `a-row-parameter-in-a-const-slot.hd`, `a-const-expression-in-a-body-row-slot.hd`
   (the cited `argument.kind` rule names only type and trait names in const
   slots, not rows; a spec gap?).
@@ -1212,13 +1212,13 @@ Ledger: b024 (43): 7 rows. Confirmed 1, plausible 6.
 
 Ledger: b031 (36): 4 rows. Plausible 4.
 
-- Plausible C1: `typing/valid/literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms.hd`
-  ~ `typing/valid/duration-literals.hd` (the same `500ms` literal and rule).
-- Plausible B3: `runtime/valid/an-interpolated-open-literal-writes-at-its-settled-width.hd`
+- Plausible C1: `types/literal-types/literal-types-a-duration-literal-is-a-duration-beside-a-function-named-ms.hd`
+  ~ `types/literal-types/duration-literals.hd` (the same `500ms` literal and rule).
+- Plausible B3: `types/literal-types/an-interpolated-open-literal-writes-at-its-settled-width.hd`
   ("-7 7" is the same for every signed default width).
-- Plausible B4: `typing/valid/literal-one-fit-bound.hd` (the `let n: i64`
+- Plausible B4: `types/literal-types/literal-one-fit-bound.hd` (the `let n: i64`
   annotation may fix `T` before the one-fit path runs).
-- Plausible B1: `typing/valid/generic-parameters-at-the-limit.hd` (the title
+- Plausible B1: `types/generics/generic-parameters-at-the-limit.hd` (the title
   claims lifetimes plus other parameters in one declaration; the method has
   only lifetimes).
 
@@ -1227,8 +1227,8 @@ Ledger: b031 (36): 4 rows. Plausible 4.
 Ledger: b033 (49): 3 rows. Plausible 3 (all one kind).
 
 - **Plausible, accept cases that would pass under the default anyway (B3)**:
-  `typing/valid/literal-first-use-closure.hd`, `typing/valid/literal-first-use-top-level.hd`,
-  `typing/valid/literal-var-for-range-index.hd`. The literal's default type
+  `types/literal-types/literal-first-use-closure.hd`, `types/literal-types/literal-first-use-top-level.hd`,
+  `types/literal-types/literal-var-for-range-index.hd`. The literal's default type
   (`usize` for an unsigned `0`) equals the type the "first use" is meant to
   fix. So the case accepts even if the first-use rule is ignored. Fix: use a
   literal whose default differs from the type the use fixes (a signed `+0`
@@ -1244,10 +1244,10 @@ kind, plausible ~20, spec question 1.
   later annotation fixes the type instead of the use the title names.
   `typing/valid/literal-first-use-{generic-wait,method,while-len,generic-join}.hd`,
   `typing/valid/literal-var-{method-fallback,range-bound,flow-types}.hd`,
-  `typing/valid/literal-one-fit-receiver.hd` (plus b033's three). Fix all of them
+  `types/literal-types/literal-one-fit-receiver.hd` (plus b033's three). Fix all of them
   together: pick literals whose default differs from the type the rule
   should infer, and remove the annotations that fix the type early.
-- **Spec question, target-dependent fixtures**: `runtime/panic/usize-width-u32.hd`
+- **Spec question, target-dependent fixtures**: `types/numeric-conversions/usize-width-u32.hd`
   expects `usize(u32::MAX) + 1` to overflow, which holds only on a 32-bit
   target. `types.num.usize-width` ties `usize` to the target. No fixture
   directive names a target, so a 64-bit implementation fails this case. b020's
@@ -1256,22 +1256,22 @@ kind, plausible ~20, spec question 1.
   target-specific cases out of the suite?
 - Plausible B7: 7 `runtime/panic/never-*.hd` cite `types.never.assignable` (a
   typing rule) but test evaluation order (`expr.order.applies`).
-  `typing/invalid/impl-trait-borrow-two-sources-local.hd` and
-  `typing/invalid/impl-trait-borrow-box.hd` (the code comes from
-  `types.opaque.borrows.body`). `typing/invalid/literal-var-method-missing.hd`,
-  `typing/invalid/literal-trait-value-no-one-fit.hd`,
-  `runtime/valid/literal-erased-fallback.hd`.
-- Plausible C1: `typing/valid/literal-first-use-fallback.hd` ~ `sign-fallback-unsigned.hd`.
-  `typing/invalid/option-invariant.hd` ~ `typing/invalid/optional-payload-weakening.hd`.
-- Plausible B1: `typing/invalid/readonly-edge-mut-self-call.hd` (the title says an
-  `&` field; the field is `*Child`). `runtime/valid/optional-closure-arguments.hd`
+  `types/opaque-result-types/impl-trait-borrow-two-sources-local.hd` and
+  `types/opaque-result-types/impl-trait-borrow-box.hd` (the code comes from
+  `types.opaque.borrows.body`). `types/literal-types/literal-var-method-missing.hd`,
+  `types/literal-types/literal-trait-value-no-one-fit.hd`,
+  `types/literal-types/literal-erased-fallback.hd`.
+- Plausible C1: `types/literal-types/literal-first-use-fallback.hd` ~ `sign-fallback-unsigned.hd`.
+  `types/optional-types/option-invariant.hd` ~ `types/optional-types/optional-payload-weakening.hd`.
+- Plausible B1: `types/value-types/readonly-edge-mut-self-call.hd` (the title says an
+  `&` field; the field is `*Child`). `types/optional-types/optional-closure-arguments.hd`
   (passes a named function, not a closure).
 
 #### b038 (`lang/04-type-system.md`)
 
 Ledger: b038 (44): 2 rows. Plausible 1, rejected 1. 108 s.
 
-- Plausible B3: `runtime/valid/fn-reference-variance.hd`. Test 2's
+- Plausible B3: `types/variance/reference-variance-keeps-function-calls-and-values-intact.hd`. Test 2's
   `create().name == "Ada"` also holds if the reference were copied.
 - Rejected: `…/row-variance-an-invariant-struct-argument-keeps-its-row.hd`.
   With an invariant `Holder[T]`, two types that differ only in their row
@@ -1283,44 +1283,44 @@ Ledger: b038 (44): 2 rows. Plausible 1, rejected 1. 108 s.
 Ledger: b037 (50): 4 rows. Plausible 2, spec question 2 (the target class).
 
 - **Target-dependent fixtures (owner question from b032–b035)**:
-  `runtime/valid/usize-width-wasm32.hd` and `runtime/panic/usize-max-overflow-wasm32.hd`
+  `types/primitive-types/usize-width-wasm32.hd` and `types/primitive-types/usize-max-overflow-wasm32.hd`
   also assume a 32-bit `usize`. A grep for "wasm32" or "32-bit" in the
-  fixtures finds 6 files: these two, `runtime/panic/usize-width-u32.hd`,
-  `runtime/valid/sized-integer-arithmetic.hd`, `std/num/integer-parsing/num-parse-unsigned.hd`
+  fixtures finds 6 files: these two, `types/numeric-conversions/usize-width-u32.hd`,
+  `types/numeric-conversions/sized-integer-arithmetic.hd`, `std/num/integer-parsing/num-parse-unsigned.hd`
   and `std/hash/default-hasher/hasher-write-methods.hd`. The README names no target, and
   no directive selects one.
-- Plausible B3: `runtime/valid/union-members-name-self-and-hold-a-reference.hd`
+- Plausible B3: `types/union-construction-and-matching/union-members-name-self-and-hold-a-reference.hd`
   (`first()` never reads `x`, so the `&i32` payload is unused).
-- Plausible C1: `typing/invalid/let-readonly-fresh-literal.hd` ~
-  `typing/invalid/struct-field-write-plain-let.hd`.
+- Plausible C1: `types/value-types/let-readonly-fresh-literal.hd` ~
+  `types/value-types/struct-field-write-plain-let.hd`.
 
 #### b039 (`lang/04-type-system.md`)
 
 Ledger: b039 (40): 6 rows. Plausible 6 (four are B7, which A9 already
 suggests is common for heading-level citations).
 
-- Plausible B7: `runtime/valid/string-concatenation-and-numeric-selectors.hd`
-  (`_0` selectors, cites `#strings`). `typing/valid/explicit-discard-and-void-result.hd`
-  (`_ :=`, cites `#result-types`). `typing/invalid/generic-enum-variant-without-context.hd`
-  and `typing/invalid/result-constructor-without-context.hd` (`cannot-infer-type`
+- Plausible B7: `types/primitive-types/string-concatenation-and-numeric-selectors.hd`
+  (`_0` selectors, cites `#strings`). `types/result-types/explicit-discard-and-void-result.hd`
+  (`_ :=`, cites `#result-types`). `types/type-inference-boundaries/generic-enum-variant-without-context.hd`
+  and `types/type-inference-boundaries/result-constructor-without-context.hd` (`cannot-infer-type`
   comes from `types.generic.default.unsolved`).
 - Plausible B1: `…/type-argument-defaults-a-struct-parameter-may-default-to-a-concrete-type.hd`
   (`Box[T = i32]` has no earlier parameter).
-- Plausible C1: `typing/invalid/bare-err-is-unknown-name.hd` ~ `bare-ok-is-unknown-name.hd`.
+- Plausible C1: `types/result-types/bare-err-is-unknown-name.hd` ~ `bare-ok-is-unknown-name.hd`.
 
 #### b036 (`lang/04-type-system.md`)
 
 Ledger: b036 (44): 7 rows. Covered by A2 1, plausible 6.
 
-- `typing/invalid/tuple-rest-differs-from-plain.hd` = `tuple-rest-assign.hd`: already in A2.
-- Plausible B1: `typing/valid/anyref-accepts-references.hd` (no `*mut T` value).
-  `runtime/valid/mut-self-primitive-arithmetic.hd` (`self + 1` gives 42 for any
+- `types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd` = `tuple-rest-assign.hd`: already in A2.
+- Plausible B1: `types/trait-values-and-any/anyref-accepts-references.hd` (no `*mut T` value).
+  `types/primitive-types/mut-self-primitive-arithmetic.hd` (`self + 1` gives 42 for any
   integer `self`, so it shows nothing about `Self`).
-  `runtime/valid/string-scalar-boundaries.hd` (offset 2, inside a scalar, is
-  never checked). `runtime/panic/string-slice-at-continuation-byte.hd` (the title
+  `types/primitive-types/string-scalar-boundaries.hd` (offset 2, inside a scalar, is
+  never checked). `types/primitive-types/string-slice-at-continuation-byte.hd` (the title
   says `text[index]`; the code calls `slice`).
-- Plausible B7: `typing/invalid/a-union-pattern-naming-a-variant-reports-once-per-match.hd`,
-  `runtime/valid/impl-head-binds-only-in-a-tuple-rest.hd`.
+- Plausible B7: `types/union-construction-and-matching/a-union-pattern-naming-a-variant-reports-once-per-match.hd`,
+  `types/nominal-and-structural-types/impl-head-binds-only-in-a-tuple-rest.hd`.
 
 #### b040 (`lang/04`, `lang/05`)
 
@@ -1553,7 +1553,7 @@ distinct. **17 groups.** 11 were already found (A2 and earlier batches). The
 - `expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-distinct-parameters-are-valid.hd` = `names/function-and-closure-scopes/parameter-names-two-function-parameters-with-distinct-names-are-valid.hd`
 - `data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd` = `…-an-unknown-shorthand-suppresses-the-missing-field-error-298.hd`
 - `expressions/postfix-expressions/propagation/propagation-without-target.hd` = `expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd`
-- `parse/invalid/placeholder-in-ordinary-type.hd` = `parse/invalid/placeholder-in-a-declaration.hd` (b027)
+- `types/generics/generic-arguments/placeholder-in-ordinary-type.hd` = `types/generics/generic-arguments/placeholder-in-a-declaration.hd` (b027)
 - `typing/valid/shared-reference-disjoint-field-write.hd` = `typing/valid/dependent-result-borrow-field-instead.hd`
 
 A pattern: the numbered `rejected-pattern-binds-*`, `checker-*` and

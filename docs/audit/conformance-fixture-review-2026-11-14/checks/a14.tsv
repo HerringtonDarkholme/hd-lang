@@ -6,12 +6,12 @@ expressions/postfix-expressions/calls/call-positional-and-named-arguments-for-di
 data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd	A14	accept: same code after renaming as data/construction-and-access/field-shorthand-shorthand-fields-from-parameters-give-every-field.hd
 functions/parameters/nonfinal-spread.hd	A14	reject:nonfinal-positional-spread: same code after renaming as grammar/expressions/positional-after-spread.hd
 names/module-scope/forward-module-binding.hd	A14	reject:binding-not-yet-visible: same code after renaming as names/module-scope/exec-binding-read-before-declared.hd
-typing/invalid/tuple-rest-differs-from-plain.hd	A14	reject:type-mismatch: same code after renaming as typing/invalid/tuple-rest-assign.hd
+types/nominal-and-structural-types/tuple-rest-differs-from-plain.hd	A14	reject:type-mismatch: same code after renaming as types/nominal-and-structural-types/tuple-rest-assign.hd
 requirements/provider-scopes/generic-requirement-key-collision.hd	A14	reject:generic-requirement-key-collision: same code after renaming as requirements/requirement-polymorphism/generic-provider-key-collision-nested.hd
 lexical/literals/repeated-numeric-separator.hd	A14	reject:invalid-token: same code after renaming as lexical/literals/double-numeric-separator.hd
 expressions/postfix-expressions/propagation/propagation-without-target.hd	A14	reject:invalid-result-propagation: same code after renaming as expressions/postfix-expressions/propagation/propagation-nearest-function-target.hd
 requirements/requirement-rows/row-subsumption/row-union-omitted-result.hd	A14	accept: same code after renaming as requirements/requirement-rows/row-subsumption/row-union-private-result.hd
 requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding.hd	A14	reject:unknown-associated-type: same code after renaming as requirements/requirement-rows/requirement-keys/requirement-key-unknown-binding-rule.hd
 requirements/requirement-rows/row-parameters/row-parameter-unmarked.hd	A14	reject:generic-kind-mismatch: same code after renaming as requirements/requirement-rows/row-parameters/row-parameter-kind-not-inferred.hd
-parse/invalid/placeholder-in-ordinary-type.hd	A14	reject:syntax-error: same code after renaming as parse/invalid/placeholder-in-a-declaration.hd
+types/generics/generic-arguments/placeholder-in-ordinary-type.hd	A14	reject:syntax-error: same code after renaming as types/generics/generic-arguments/placeholder-in-a-declaration.hd
 typing/valid/shared-reference-disjoint-field-write.hd	A14	accept: same code after renaming as typing/valid/dependent-result-borrow-field-instead.hd

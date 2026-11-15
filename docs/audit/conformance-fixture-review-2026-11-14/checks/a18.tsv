@@ -1,7 +1,7 @@
 traits/runtime-type-identity/generic-erasure-without-bound.hd	A18	lang/09-traits.md#r-trait.erase.bound-required.reference-values
 traits/runtime-type-identity/closure-not-inspectable.hd	A18	lang/09-traits.md#inspectable-types
 traits/runtime-type-identity/spelled-function-type-not-inspectable.hd	A18	lang/09-traits.md#r-trait.inspectable.not.function
-typing/invalid/literal-trait-value-no-one-fit.hd	A18	lang/04-type-system.md#r-types.literal.local.erased.reference-values
+types/literal-types/literal-trait-value-no-one-fit.hd	A18	lang/04-type-system.md#r-types.literal.local.erased.reference-values
 names/member-resolution/local-impl-trait-value-before-declaration.hd	A18	lang/03-names-and-scopes.md#r-names.member.known-impl
 traits/trait-declarations/trait-generic-instantiations-unrelated.hd	A18	lang/09-traits.md#r-trait.decl.generic.invariant
 traits/dynamic-trait-values/concrete-value-binding-mismatch.hd	A18	lang/09-traits.md#r-trait.dyn.binding.reference-convert

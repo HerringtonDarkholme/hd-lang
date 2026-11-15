@@ -10,10 +10,10 @@ names/name-categories/self-type-a-function-outside-an-impl-names-a-concrete-para
 names/name-categories/self-type-a-struct-field-names-a-concrete-type.hd	A10c	# test: checker self outside a trait or impl is unknown
 modules/use-forms/use-forms-a-group-use-from-a-package-module.hd	A10c	# test: failed group use reports one error
 modules/use-forms/use-forms-a-single-use-of-a-package-module.hd	A10c	# test: failed single use reports one error
-typing/valid/generic-inference-two-integer-literals-join.hd	A10c	# test: bool literal against integer still errors
+types/generics/inference-from-several-arguments/generic-inference-two-integer-literals-join.hd	A10c	# test: bool literal against integer still errors
 traits/trait-implementations/implementation-targets/impl-targets-a-struct-target-may-delegate-to-its-embedded-field.hd	A10c	# test: a bare parameter target with a delegation is rejected
 annotations/typed-derivation/misplaced-derivation-a-structure-block-without-lines-for-a-struct-is-valid.hd	A10c	# test: a rejected block reports nothing else
-typing/valid/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd	A10c	# test: float literal past f64 range is rejected
+types/literal-types/literal-types-a-large-negative-float-literal-within-f64-is-accepted.hd	A10c	# test: float literal past f64 range is rejected
 control-flow/match-expressions/match-a-scrutinee-called-from-an-imported-function.hd	A10c	# test: a failed use scrutinee reports once
 control-flow/match-expressions/match-an-optional-binding-scrutinee-binds-its-payload.hd	A10c	# test: an unknown method scrutinee reports once
 control-flow/match-expressions/match-an-optional-parameter-scrutinee-binds-its-payload.hd	A10c	# test: an unknown name scrutinee reports once
