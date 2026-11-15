@@ -351,6 +351,8 @@ fn body_func<'a>(
     if suspending {
         fres.push(Val::I32);
     }
+    em.frame_index.clear();
+    em.frame_of.clear();
     em.f = em.m.func(
         format!("{}#{}", (input.path)(item), sub),
         params.clone(),
@@ -1311,6 +1313,16 @@ struct Em<'i, 'a, 'm> {
     args: TyList,
     calls: &'i HashMap<u32, Target>,
     f: Func,
+    /// Where each inlined frame (callee, instruction, parent anchor) sits
+    /// in [`Func::inlined`]: [`Em::frame_anchor`] asks it once per anchored
+    /// instruction, so a scan of the list and a path string per question
+    /// made a body with n inlined calls cost O(n^2) time and bytes (#1914).
+    /// Cleared with each new function.
+    frame_index: HashMap<(DefId, u32, u32), u32>,
+    /// [`Em::frame_anchor`]'s answer per body anchor, so each anchor's
+    /// chain of inlined parents is walked once per function, not once per
+    /// instruction that carries it. Cleared with each new function.
+    frame_of: HashMap<u32, (u32, u32)>,
     /// Each computed instruction's locals.
     vals: HashMap<u32, Vec<u32>>,
     /// Per owned argument value: whether a callback has taken its native
@@ -1573,6 +1585,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             .unwrap_or_default();
         let f = m.func("", vec![], vec![]);
         let mut em = Em {
+            frame_index: HashMap::default(),
+            frame_of: HashMap::default(),
             input,
             m,
             b,
@@ -2382,20 +2396,27 @@ impl Em<'_, '_, '_> {
     /// anchor it stands in: an inlined copy's instruction is an entry of
     /// the function's [`Func::inlined`] frames, whose parent is the call's.
     fn frame_anchor(&mut self, at: u32) -> (u32, u32) {
+        if let Some(&known) = self.frame_of.get(&at) {
+            return known;
+        }
         let Some((callee, inst, call)) = self.b.inlined_frame(at) else {
             return (at, at);
         };
         let (parent, outer) = self.frame_anchor(call);
-        let frame = ((self.input.path)(callee), inst, parent);
-        let t = &mut self.f.inlined;
-        let k = t.iter().position(|e| *e == frame).unwrap_or_else(|| {
-            t.push(frame);
-            t.len() - 1
-        });
-        (
-            hd_tir::ir::INLINED | u32::try_from(k).expect("frames"),
-            outer,
-        )
+        let k = if let Some(&k) = self.frame_index.get(&(callee, inst, parent)) {
+            k
+        } else {
+            let t = &mut self.f.inlined;
+            t.push(((self.input.path)(callee), inst, parent));
+            // ruled out: a function adds at most one frame per anchored
+            // instruction, and a body's instructions are numbered by u32.
+            let k = u32::try_from(t.len() - 1).expect("frames");
+            self.frame_index.insert((callee, inst, parent), k);
+            k
+        };
+        let answer = (hd_tir::ir::INLINED | k, outer);
+        self.frame_of.insert(at, answer);
+        answer
     }
 
     /// Whether instruction `i` has a source position, so it anchors calls.
