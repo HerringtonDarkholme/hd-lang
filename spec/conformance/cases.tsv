@@ -2856,7 +2856,7 @@ runtime/valid/newtype-derive-a-newtype-wraps-no-new-object.hd	runtime	accept	lan
 std/ops/derived-default/newtype-derive-default-wraps-the-base-default.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.template
 runtime/valid/newtype-derive-eq-hash-and-ordering-follow-the-base-type.hd	runtime	accept	lang/09-traits.md#r-trait.derive.newtype.base
 runtime/valid/newtype-derive-handwritten-methods-on-newtypes-keep-their-bodies.hd	runtime	accept	lang/09-traits.md#r-trait.derive.newtype.not-inherited
-runtime/valid/newtype-derive-self-positions-unwrap-and-wrap.hd	runtime	accept	std/result.md#r-std-result.map
+std/result/mapping-the-value/newtype-derive-self-positions-unwrap-and-wrap.hd	runtime	accept	std/result.md#r-std-result.map
 std/json/typed-json/newtype-derive-serialize-and-deserialize-wrap-the-base-value.hd	runtime	accept	std/json.md#r-std-json.encode
 typing/invalid/foreign-inherent-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.inherent
 lexical/whitespace-and-indentation/tab-in-string-literal.hd	parse	reject:tab-whitespace	lang/01-lexical-structure.md#r-lex.tab.content
@@ -3412,8 +3412,8 @@ std/hash/bytes-written/hash-bytes-result.hd	runtime	accept	std/hash.md#r-std-has
 runtime/panic/host-result-out-of-range.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.contract-panic
 typing/valid/expect-panic-host-contract.hd	type	accept	lang/06-control-flow.md#r-flow.panic.known-categories
 std/option/optional-methods/option-and-then.hd	runtime	accept	std/option.md#r-std-option.and-then
-runtime/valid/result-and-then.hd	runtime	accept	std/result.md#r-std-result.and-then
-typing/invalid/result-and-then-error-type.hd	type	reject:type-mismatch	std/result.md#r-std-result.and-then.same-error
+std/result/result-methods/result-and-then.hd	runtime	accept	std/result.md#r-std-result.and-then
+std/result/result-methods/result-and-then-error-type.hd	type	reject:type-mismatch	std/result.md#r-std-result.and-then.same-error
 std/num/checked-arithmetic/num-checked-wrapping.hd	runtime	accept	std/num.md#checked-arithmetic
 std/num/absolute-difference/num-abs-diff.hd	runtime	accept	std/num.md#r-std-num.abs-diff
 std/num/absolute-difference/num-abs-diff-unsigned.hd	type	reject:mixed-signedness	std/num.md#r-std-num.abs-diff.unsigned
@@ -3443,9 +3443,9 @@ runtime/panic/power-a-negative-i64-base-to-an-odd-exponent-past-the-minimum-pani
 runtime/panic/power-a-u64-power-of-two-past-the-maximum-panics.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
 runtime/panic/power-a-u64-power-of-ten-past-the-maximum-panics.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
 runtime/panic/power-an-exponent-in-the-billions-panics-on-overflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
-runtime/valid/result-map.hd	runtime	accept	std/result.md#r-std-result.map
-runtime/valid/result-tests-conversions.hd	runtime	accept	std/result.md#variant-tests-and-conversions
-runtime/panic/result-expect-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.expect.panic
+std/result/mapping-the-value/result-map.hd	runtime	accept	std/result.md#r-std-result.map
+std/result/variant-tests-and-conversions/result-tests-conversions.hd	runtime	accept	std/result.md#variant-tests-and-conversions
+std/result/variant-tests-and-conversions/result-expect-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.expect.panic
 std/num/saturating-arithmetic/num-saturating.hd	runtime	accept	std/num.md#saturating-arithmetic
 std/num/checked-arithmetic/num-every-width.hd	runtime	accept	std/num.md#r-std-num.methods.every-width
 std/num/wrapping-arithmetic/num-wrapping-mul.hd	runtime	accept	std/num.md#r-std-num.wrapping.mul
@@ -6083,7 +6083,7 @@ typing/invalid/union-duplicate-arity-is-type-identity.hd	type	reject:type-mismat
 typing/invalid/union-nesting-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.nesting
 typing/invalid/union-member-does-not-inject.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.no-member-injection
 typing/valid/union-construction-and-match.hd	type	accept	lang/04-type-system.md#r-types.union.construct
-typing/valid/union-map-err-constructor.hd	type	accept	std/result.md#r-std-result.map-err
+std/result/result-methods/union-map-err-constructor.hd	type	accept	std/result.md#r-std-result.map-err
 typing/invalid/union-constructor-without-result-context.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.union.constructor-context
 typing/invalid/union-constructor-unknown-case.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
 typing/invalid/a-union-case-past-its-arity-in-a-value-path.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case

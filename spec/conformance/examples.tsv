@@ -1224,10 +1224,10 @@ std/regex.md	12	complete	std/regex/replacing-and-splitting/regex-replace.hd
 std/regex.md	13	complete	std/regex/replacing-and-splitting/regex-split.hd
 std/regex.md	14	type-fragment	-
 std/regex.md	15	complete	std/regex/pattern-errors/regex-errors.hd
-std/result.md	1	complete	runtime/valid/result-and-then.hd
-std/result.md	2	mixed	typing/invalid/result-and-then-error-type.hd
-std/result.md	3	complete	runtime/valid/result-map.hd
-std/result.md	4	complete	runtime/valid/result-tests-conversions.hd
+std/result.md	1	complete	std/result/result-methods/result-and-then.hd
+std/result.md	2	mixed	std/result/result-methods/result-and-then-error-type.hd
+std/result.md	3	complete	std/result/mapping-the-value/result-map.hd
+std/result.md	4	complete	std/result/variant-tests-and-conversions/result-tests-conversions.hd
 std/serde.md	1	complete	runtime/valid/serde-derive-call-order.hd
 std/serde.md	2	type-fragment	-
 std/serde.md	3	complete	runtime/valid/serde-derive-call-order.hd
