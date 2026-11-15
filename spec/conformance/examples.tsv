@@ -1071,11 +1071,11 @@ std/format.md	5	complete	std/format/references/reference-derived-debug.hd|std/fo
 std/fs.md	1	type-fragment	-
 std/fs.md	2	type-fragment	-
 std/fs.md	3	type-fragment	-
-std/fs.md	4	complete	runtime/valid/fs-helpers.hd
-std/fs.md	5	complete	runtime/valid/fs-helpers.hd
+std/fs.md	4	complete	std/fs/file-helpers/fs-helpers.hd
+std/fs.md	5	complete	std/fs/file-helpers/fs-helpers.hd
 std/fs.md	6	type-fragment	-
-std/fs.md	7	complete	runtime/valid/fs-walk.hd|runtime/valid/fs-glob.hd
-std/fs.md	8	complete	runtime/valid/memory-fs.hd
+std/fs.md	7	complete	std/fs/walking-and-globbing/fs-walk.hd|std/fs/walking-and-globbing/fs-glob.hd
+std/fs.md	8	complete	std/fs/memory-file-system/memory-fs.hd
 std/hash.md	1	complete	typing/valid/derived-hash.hd
 std/hash.md	2	complete	typing/valid/tuple-derived-traits.hd
 std/hash.md	3	complete	runtime/valid/list-map-key.hd

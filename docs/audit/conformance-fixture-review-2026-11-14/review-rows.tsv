@@ -794,7 +794,7 @@ b153	std/digest/digest/digest-value-copy.hd	FIX	B5	Imports Digest, which the pro
 b154	std/encoding/base64/encoding-decode-errors.hd	FIX	B3	Display check only asserts the text is non-empty; assert the exact text "invalid character at position 4" from lib/std/encoding.hd.
 b154	std/error/standard-error-types/std-errors-erased.hd	FIX	B5	Imports ParseNumberError, which the program never names; remove it from the use line.
 b154	std/encoding/base64/encoding-properties.hd	UNSURE	C1	The bad-base64 table repeats encoding-decode-errors.hd cases with the same inputs and expectations, such as "Zm-_", "Zg=a", "Zh==" and "Zm9v\n".
-b155	runtime/valid/fs-glob.hd	FIX	B3	glob!("tree/c[a-]*.md") expects [], which holds even if the dash is dropped or the class matches nothing; add a file such as tree/c-x.md and expect it.
+b155	std/fs/walking-and-globbing/fs-glob.hd	FIX	B3	glob!("tree/c[a-]*.md") expects [], which holds even if the dash is dropped or the class matches nothing; add a file such as tree/c-x.md and expect it.
 b155	runtime/valid/map-many-string-keys.hd	FIX	B3	Line 2737 compares keys_of(values) with itself, so it cannot fail; compare with the keys of a map built in reverse insertion order.
 b155	runtime/valid/map-index-groups-keep-order-and-lookups.hd	FIX	B8	Lines 51 and 65 pin a digest of Map and UniqMap iteration order, which types.map.order.unspecified leaves open; compare against a digest of sorted keys.
 b155	runtime/valid/union-hash.hd	FIX	B7	Cites std/hash.md#r-std-hash.hash-of-local, which is about hash_of on locals; the tested rule is the union template rule trait.target.union.enum-shape in lang/09-traits.md.
