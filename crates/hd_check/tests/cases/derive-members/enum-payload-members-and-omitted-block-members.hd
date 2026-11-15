@@ -1,0 +1,56 @@
+# @dump: diagnostics
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Show:
+    fn show(self) -> string
+
+impl Show for i64:
+    fn show(self) -> string:
+        "$self"
+
+struct Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Show](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.out = self.out + value.show() + ";"
+        .Ok(())
+
+fn shower() -> Shower:
+    Shower { out: "" }
+
+fn wrapped(start: string) -> Shower:
+    s := shower()
+    Shower { out: start + s.out }
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let mut w = shower()
+        _ := Structure::walk(&self, &mut w)
+        w.out
+
+@derive(Show)
+enum Reply:
+    Sent(id: i64)
+    Raw(string)
+
+struct Cache: pass
+
+struct Order:
+    id: i64
+    cache: Cache = Cache {}
+
+impl Show for Order by Structure:
+    cache = pass
+
+struct Bad:
+    id: i64
+    cache: Cache
+
+impl Show for Bad by Structure:
+    id = []

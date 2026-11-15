@@ -1,0 +1,16 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+pub trait Shape:
+    fn area(self) -> i32
+# @file: b/y.hd
+pub struct P:
+    pub v: i32
+# @file: c/z.hd
+use pkg.a.x.{Shape}
+use pkg.b.y.{P}
+
+impl Shape for P:
+    fn area(self) -> i32:
+        1

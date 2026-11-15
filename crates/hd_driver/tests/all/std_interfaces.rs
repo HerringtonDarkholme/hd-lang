@@ -352,46 +352,6 @@ fn check(files: &[(&str, &str)]) -> String {
 }
 
 #[test]
-fn name_phase_errors() {
-    let r = check(&[
-        (
-            "a/x.hd",
-            "pub use pkg.a.y.{B}\nuse pkg.a.y.{Hidden}\nuse pkg.b.z.{Nope}\npub struct A:\n    pub v: i32\n",
-        ),
-        (
-            "a/y.hd",
-            "pub use pkg.a.x.{B}\nstruct Hidden:\n    v: i32\n",
-        ),
-        ("b/z.hd", "pub struct Z:\n    pub v: i32\n"),
-    ]);
-    assert!(r.contains("re-export-loop"), "{r}");
-    assert!(r.contains("private-import"), "{r}");
-    assert!(r.contains("unknown-import"), "{r}");
-    let r = check(&[("a/x.hd", "use std.nothing.{X}\n")]);
-    assert!(r.contains("unknown-module"), "{r}");
-    let r = check(&[("a/x.hd", "fn println(v: i32) -> void:\n    pass\n")]);
-    assert!(r.contains("prelude-name-shadow"), "{r}");
-}
-
-#[test]
-fn ownership_errors() {
-    let r = check(&[(
-        "a/x.hd",
-        "impl Display for i32:\n    fn to_text(self) -> string:\n        \"\"\n",
-    )]);
-    assert!(r.contains("orphan-impl"), "{r}");
-    let r = check(&[
-        ("a/x.hd", "pub trait Shape:\n    fn area(self) -> i32\n"),
-        ("b/y.hd", "pub struct P:\n    pub v: i32\n"),
-        (
-            "c/z.hd",
-            "use pkg.a.x.{Shape}\nuse pkg.b.y.{P}\n\nimpl Shape for P:\n    fn area(self) -> i32:\n        1\n",
-        ),
-    ]);
-    assert!(r.contains("nonlocal-impl"), "{r}");
-}
-
-#[test]
 fn orphan_impl_overlapping_std_is_one_error() {
     let r = check(&[(
         "a/x.hd",
@@ -400,28 +360,6 @@ fn orphan_impl_overlapping_std_is_one_error() {
     assert_eq!(r.lines().count(), 1, "{r}");
     assert!(r.contains("error: a/x.hd:0..67: orphan-impl: "), "{r}");
     assert!(!r.contains("overlapping-impl"), "{r}");
-}
-
-#[test]
-fn stage_b_and_coherence_errors() {
-    let r = check(&[(
-        "a/x.hd",
-        "pub struct Set[K < Hash]:\n    pub k: K\n\npub fn first[T](s: Set[T]) -> i32:\n    1\n",
-    )]);
-    assert!(r.contains("unsatisfied-trait-bound"), "{r}");
-    let r = check(&[(
-        "a/x.hd",
-        "pub trait A:\n    fn a(self) -> i32\npub trait B < A:\n    fn b(self) -> i32\npub struct P:\n    pub v: i32\nimpl B for P:\n    fn b(self) -> i32:\n        1\n",
-    )]);
-    assert!(r.contains("missing-supertrait-implementation"), "{r}");
-    let r = check(&[(
-        "a/x.hd",
-        "pub trait Shape:\n    fn area(self) -> i32\npub struct Box[T]:\n    pub v: T\nimpl[T] Shape for Box[T]:\n    fn area(self) -> i32:\n        1\nimpl Shape for Box[i32]:\n    fn area(self) -> i32:\n        2\n",
-    )]);
-    assert!(
-        r.contains("overlapping-impl") && r.contains("Box[i32]"),
-        "{r}"
-    );
 }
 
 /// A signature's written lifetimes, one per local

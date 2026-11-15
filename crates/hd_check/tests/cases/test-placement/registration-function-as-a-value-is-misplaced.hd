@@ -1,0 +1,6 @@
+# @dump: diagnostics
+use std.testing.{it}
+
+fn register() -> void:
+    make := it
+    _ := make

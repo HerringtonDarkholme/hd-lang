@@ -1,0 +1,13 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+pub trait A:
+    fn a(self) -> i32
+pub trait B < A:
+    fn b(self) -> i32
+pub struct P:
+    pub v: i32
+impl B for P:
+    fn b(self) -> i32:
+        1

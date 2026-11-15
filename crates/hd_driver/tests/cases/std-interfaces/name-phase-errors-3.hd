@@ -1,0 +1,6 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+fn println(v: i32) -> void:
+    pass

@@ -59,20 +59,6 @@ fn errors(out: &Output) -> Vec<Code> {
         .collect()
 }
 
-const USE_IT: &str = "use std.testing.{it}\n\n";
-
-#[test]
-fn registration_call_in_a_function_is_misplaced() {
-    let main = format!("{USE_IT}fn helper() -> void:\n    it(\"nested\"):\n        pass\n");
-    assert_eq!(errors(&check(&main)), vec![Code::MisplacedTestCase]);
-}
-
-#[test]
-fn registration_function_as_a_value_is_misplaced() {
-    let main = format!("{USE_IT}fn register() -> void:\n    make := it\n    _ := make\n");
-    assert_eq!(errors(&check(&main)), vec![Code::MisplacedTestCase]);
-}
-
 #[test]
 fn non_registration_statement_in_test_position_is_invalid() {
     let main = "tests:\n    let shared: i32 = 0\n\n    it(\"counts\"):\n        pass\n";

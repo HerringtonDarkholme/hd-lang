@@ -1,0 +1,16 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+pub use pkg.a.y.{B}
+use pkg.a.y.{Hidden}
+use pkg.b.z.{Nope}
+pub struct A:
+    pub v: i32
+# @file: a/y.hd
+pub use pkg.a.x.{B}
+struct Hidden:
+    v: i32
+# @file: b/z.hd
+pub struct Z:
+    pub v: i32

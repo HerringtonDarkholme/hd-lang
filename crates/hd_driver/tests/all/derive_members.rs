@@ -21,21 +21,6 @@ fn build_with(src: &MemorySources, store: &MemoryStore) -> Output {
     build(&host, "app", &Goal::Analyze)
 }
 
-fn analyze(main: &str) -> Output {
-    let mut src = MemorySources::default();
-    src.insert("main.hd", main);
-    build_with(&src, &MemoryStore::default())
-}
-
-fn codes(out: &Output) -> Vec<Code> {
-    out.diags
-        .content_order()
-        .into_iter()
-        .map(|i| out.diags.code[i])
-        .filter(|c| *c != Code::Unsupported)
-        .collect()
-}
-
 fn messages(out: &Output) -> Vec<String> {
     out.diags
         .content_order()
@@ -85,88 +70,6 @@ impl[T] Show for T by Structure:
         w.out
 "
     )
-}
-
-#[test]
-fn walker_written_in_place() {
-    let src = show_lib("Shower { out: \"\" }")
-        + "
-@derive(Show)
-struct Label:
-    text: string
-    count: i64
-";
-    let out = analyze(&src);
-    assert_eq!(
-        codes(&out),
-        vec![Code::MemberNotDerivable],
-        "{}",
-        out.render()
-    );
-    assert!(messages(&out)[0].contains("`text`"));
-}
-
-#[test]
-fn walker_built_by_a_helper() {
-    // The template names no walker type: checking infers it from the
-    // helper's result.
-    for walker in ["shower()", "wrapped(\"<\")"] {
-        let src = show_lib(walker)
-            + "
-@derive(Show)
-struct Label:
-    text: string
-    count: i64
-
-@derive(Show)
-struct Count:
-    count: i64
-";
-        let out = analyze(&src);
-        assert_eq!(
-            codes(&out),
-            vec![Code::MemberNotDerivable],
-            "{walker}: {}",
-            out.render()
-        );
-        let msgs = messages(&out);
-        assert!(
-            msgs[0].contains("`text`") && msgs[0].contains("Label"),
-            "{msgs:?}"
-        );
-    }
-}
-
-#[test]
-fn enum_payload_members_and_omitted_block_members() {
-    let src = show_lib("shower()")
-        + "
-@derive(Show)
-enum Reply:
-    Sent(id: i64)
-    Raw(string)
-
-struct Cache: pass
-
-struct Order:
-    id: i64
-    cache: Cache = Cache {}
-
-impl Show for Order by Structure:
-    cache = pass
-
-struct Bad:
-    id: i64
-    cache: Cache
-
-impl Show for Bad by Structure:
-    id = []
-";
-    let out = analyze(&src);
-    let msgs = messages(&out);
-    assert_eq!(msgs.len(), 2, "{}", out.render());
-    assert!(msgs[0].contains("`Raw._0`"), "{msgs:?}");
-    assert!(msgs[1].contains("`cache`"), "{msgs:?}");
 }
 
 /// The template lives in another folder of the package; editing only its

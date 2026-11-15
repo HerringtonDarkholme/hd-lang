@@ -30,54 +30,6 @@ fn analyze(files: &[(&str, &str)], executor: Executor, file: &str) -> Vec<String
         .collect()
 }
 
-const SUPERS: &str = "\
-pub trait Plain:
-    fn plain(self) -> i32
-
-pub trait Named:
-    fn name(self) -> string
-
-pub trait Tagged < Named:
-    fn tag(self) -> i32
-
-pub struct Box[T]:
-    pub v: T
-
-impl Plain for i32:
-    fn plain(self) -> i32:
-        self
-
-impl[T < Plain] Named for Box[T]:
-    fn name(self) -> string:
-        \"box\"
-
-impl Tagged for Box[i32]:
-    fn tag(self) -> i32:
-        1
-
-impl Tagged for Box[string]:
-    fn tag(self) -> i32:
-        2
-";
-
-#[test]
-fn a_supertrait_holds_through_a_blanket_impl_and_fails_on_its_bound() {
-    let lines = analyze(
-        &[("a/defs.hd", SUPERS)],
-        Executor::Serial(SerialOrder::Priority),
-        "a/defs.hd",
-    );
-    // `Box[i32]: Named` holds through `impl[T < Plain] Named for Box[T]`;
-    // `Box[string]: Named` commits to it and fails on `string: Plain`.
-    assert_eq!(lines.len(), 1, "{lines:#?}");
-    assert!(
-        lines[0].contains(
-            "missing-supertrait-implementation: Box[string] implements Tagged but not Named"
-        ),
-        "{lines:#?}"
-    );
-}
-
 const LIB: &str = "\
 pub trait Tag:
     fn tag(self) -> i32

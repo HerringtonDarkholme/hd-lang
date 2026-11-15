@@ -1,0 +1,9 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+pub struct Set[K < Hash]:
+    pub k: K
+
+pub fn first[T](s: Set[T]) -> i32:
+    1

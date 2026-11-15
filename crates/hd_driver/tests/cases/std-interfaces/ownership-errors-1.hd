@@ -1,0 +1,7 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+impl Display for i32:
+    fn to_text(self) -> string:
+        ""

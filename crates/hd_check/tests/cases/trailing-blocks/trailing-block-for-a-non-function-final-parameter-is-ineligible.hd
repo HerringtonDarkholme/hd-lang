@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# A trailing block for a callee whose final parameter is not a
+# zero-argument function is `trailing-block-ineligible`, not an argument
+# count (spec 02 `grammar.call.trailing-block.eligible`).
+fn total(items: List[i32]) -> usize: items.len()
+
+fn run() -> void:
+    _count := total([1, 2]):
+        pass

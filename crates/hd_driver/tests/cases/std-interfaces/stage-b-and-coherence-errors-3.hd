@@ -1,0 +1,14 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+pub trait Shape:
+    fn area(self) -> i32
+pub struct Box[T]:
+    pub v: T
+impl[T] Shape for Box[T]:
+    fn area(self) -> i32:
+        1
+impl Shape for Box[i32]:
+    fn area(self) -> i32:
+        2

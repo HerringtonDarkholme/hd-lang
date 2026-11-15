@@ -1,0 +1,6 @@
+# @dump: diagnostics
+use std.testing.{it}
+
+fn helper() -> void:
+    it("nested"):
+        pass

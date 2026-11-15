@@ -1,0 +1,41 @@
+# @dump: stdout
+# A trailing block as a statement, on the right of `:=`, after ordinary
+# arguments (`fn.trailing.arguments`), with `()` omitted
+# (`fn.trailing.empty-parentheses`), and with a `return` that leaves only
+# the callback (`fn.trailing.return`). The block runs only when the
+# callee calls it.
+fn run(body: fn() -> void $ Console) -> void $ Console:
+    body()
+
+fn measure(body: fn() -> i32) -> i32:
+    body() * 2
+
+fn add(base: i32, times: i32, body: fn() -> i32) -> i32:
+    let total = base
+    for _ in 0..times:
+        total = total + body()
+    total
+
+fn skip(body: fn() -> void $ Console) -> void:
+    pass
+
+fn pick(flag: bool) -> i32:
+    value := measure:
+        if flag:
+            return 20
+        1
+    value + 2
+
+pub fn main() -> void $ Console:
+    run:
+        println("statement")
+    skip:
+        println("not called")
+    x := measure:
+        5
+    println(x)
+    y := add(1, 3):
+        10
+    println(y)
+    println(pick(true))
+    println(pick(false))

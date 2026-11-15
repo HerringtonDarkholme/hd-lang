@@ -5,11 +5,6 @@
 //! test module and an integration test file (spec/lang/10-modules.md,
 //! Test Cases).
 
-use std::path::Path;
-use std::process::Command;
-
-use hd_testkit::Scratch;
-
 use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -39,99 +34,6 @@ fn errors(main: &str) -> Vec<Code> {
         .into_iter()
         .map(|i| out.diags.code[i])
         .collect()
-}
-
-/// Runs a built program on V8 and returns its standard output.
-fn run(out: &Output, name: &str) -> String {
-    let wasm = out.wasm.as_ref().expect("wasm");
-    let path = Scratch::unmade(
-        env!("CARGO_TARGET_TMPDIR"),
-        &format!("trailing-{name}.wasm"),
-    );
-    std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
-        .arg(&path)
-        .output()
-        .expect("node");
-    let _ = std::fs::remove_file(&path);
-    assert!(
-        ran.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&ran.stderr)
-    );
-    String::from_utf8(ran.stdout).expect("UTF-8")
-}
-
-/// A trailing block as a statement, on the right of `:=`, after ordinary
-/// arguments (`fn.trailing.arguments`), with `()` omitted
-/// (`fn.trailing.empty-parentheses`), and with a `return` that leaves only
-/// the callback (`fn.trailing.return`). The block runs only when the
-/// callee calls it.
-#[test]
-fn trailing_blocks_run_as_closures() {
-    let main = "fn run(body: fn() -> void $ Console) -> void $ Console:
-    body()
-
-fn measure(body: fn() -> i32) -> i32:
-    body() * 2
-
-fn add(base: i32, times: i32, body: fn() -> i32) -> i32:
-    let total = base
-    for _ in 0..times:
-        total = total + body()
-    total
-
-fn skip(body: fn() -> void $ Console) -> void:
-    pass
-
-fn pick(flag: bool) -> i32:
-    value := measure:
-        if flag:
-            return 20
-        1
-    value + 2
-
-pub fn main() -> void $ Console:
-    run:
-        println(\"statement\")
-    skip:
-        println(\"not called\")
-    x := measure:
-        5
-    println(x)
-    println(add(1, 3):
-        10
-    )
-";
-    // A trailing block inside parentheses is not a trailing-block call.
-    assert_eq!(
-        errors(main).first().copied(),
-        Some(Code::TrailingBlockPosition),
-        "a trailing block inside brackets"
-    );
-    let main = main.replace(
-        "    println(add(1, 3):\n        10\n    )\n",
-        "    y := add(1, 3):\n        10\n    println(y)\n    println(pick(true))\n    println(pick(false))\n",
-    );
-    let out = build_files(
-        &[("main.hd", &main)],
-        &Goal::Program {
-            entry: "main".into(),
-        },
-        &[],
-    );
-    assert!(out.diags.is_empty(), "{}", out.render());
-    assert_eq!(run(&out, "closures"), "statement\n10\n31\n42\n4\n");
-}
-
-/// A trailing block for a callee whose final parameter is not a
-/// zero-argument function is `trailing-block-ineligible`, not an argument
-/// count (spec 02 `grammar.call.trailing-block.eligible`).
-#[test]
-fn trailing_block_for_a_non_function_final_parameter_is_ineligible() {
-    let main = "fn total(items: List[i32]) -> usize: items.len()\n\nfn run() -> void:\n    _count := total([1, 2]):\n        pass\n";
-    assert_eq!(errors(main), vec![Code::TrailingBlockIneligible]);
 }
 
 /// A trailing block for an `fn!` parameter is a suspending closure, so it

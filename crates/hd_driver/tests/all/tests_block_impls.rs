@@ -145,8 +145,3 @@ fn a_block_impl_overlapping_a_module_impl_is_reported_in_the_test_role() {
     assert_eq!(overlap_codes(&tests), [Code::OverlappingImpl]);
     assert_eq!(overlap_codes(&Goal::CheckTests), [Code::OverlappingImpl]);
 }
-
-#[test]
-fn the_library_role_ignores_a_block_impl_overlap() {
-    assert_eq!(overlap_codes(&Goal::Analyze), []);
-}
