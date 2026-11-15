@@ -60,7 +60,6 @@ mod prelude_binding_shadow;
 mod private_main;
 mod profile_handles;
 mod promotion;
-mod provider_keys_run;
 mod receiver_fix;
 mod recursive_layouts;
 mod recursive_value_fix;

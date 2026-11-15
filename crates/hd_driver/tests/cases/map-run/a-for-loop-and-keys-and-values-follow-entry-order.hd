@@ -1,0 +1,16 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut m: Map[string, i32] = {"b": 1, "a": 2, "b": 3, "c": 4}
+    m["a"] = 20
+    m["d"] = 5
+    for (k, v) in m:
+        println("${k}=${v}")
+    let line = ""
+    for k in m.keys():
+        line = line + k
+    println(line)
+    let sum = +0
+    for v in m.values():
+        sum = sum * 100 + v
+    println(sum)
+    println(m.len())

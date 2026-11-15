@@ -1,0 +1,13 @@
+# @dump: stdout
+@derive(Eq, Debug)
+enum Shelf:
+    Empty
+    Stock(items: Map[string, i32])
+
+pub fn main() -> void $ Console:
+    a := Shelf.Stock({"x": 1, "y": 2})
+    println(a == Shelf.Stock({"y": 2, "x": 1}))
+    println(a == Shelf.Stock({"x": 1}))
+    println(a == Shelf.Empty)
+    println(debug(a))
+    println(debug(Shelf.Empty))

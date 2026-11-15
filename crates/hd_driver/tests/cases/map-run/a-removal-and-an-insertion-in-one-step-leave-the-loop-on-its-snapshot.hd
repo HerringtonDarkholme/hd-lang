@@ -1,0 +1,9 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut m: Map[string, i32] = {"a": 1, "b": 2, "c": 3}
+    for (k, _) in m:
+        if k == "a":
+            _ := m.remove("c")
+            m["d"] = 4
+        println(k)
+    println(m.keys().len())

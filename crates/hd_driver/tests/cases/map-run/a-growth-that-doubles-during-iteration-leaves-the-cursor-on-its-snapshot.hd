@@ -1,0 +1,14 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut m: Map[string, i32] = {"a": 1, "b": 2, "c": 3, "d": 4}
+    let mut it = m.iter()
+    match it.next():
+        .Some((k, _)) => println(k)
+        .None => println("none")
+    _ := m.remove("c")
+    m["e"] = 5
+    while true:
+        match it.next():
+            .Some((k, _)) => println(k)
+            .None => break
+    println(m.len())

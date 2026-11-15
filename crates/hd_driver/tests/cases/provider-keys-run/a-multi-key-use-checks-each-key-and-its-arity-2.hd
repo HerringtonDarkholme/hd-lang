@@ -1,0 +1,29 @@
+# @dump: stdout
+# Each key of a multi-key `$.use` must be in the row, and the tuple has
+# one element per key.
+use std.time.{Clock, Duration, sleep}
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
+
+impl Repo[User] for UserRepo:
+    fn count(self) -> i32: 20
+
+impl Repo[Post] for PostRepo:
+    fn count(self) -> i32: 1
+
+fn activity() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()
+
+fn three() -> i32 $ Repo[User] + Repo[Post]:
+    let (users, posts, _extra) = $.use(Repo[User], Repo[Post])
+    users.count() + posts.count()
+
+pub fn main() -> void $ Console:
+    $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
+        println(three())

@@ -1,0 +1,19 @@
+# @dump: stdout
+@derive(Eq, Hash)
+struct Point:
+    x: i32
+    label: string
+
+pub fn main() -> void $ Console:
+    let mut m: Map[Point, i32] = {}
+    for i in 0..50:
+        m[Point { x: i % 10, label: "p" }] = i
+    println(m.len())
+    println(m[Point { x: 3, label: "p" }])
+    println(m.get(Point { x: 3, label: "q" }).is_some())
+    println(m.remove(Point { x: 4, label: "p" }) == .Some(44))
+    println(m.len())
+    let xs = ""
+    for (p, _) in m:
+        xs = xs + "${p.x}"
+    println(xs)
