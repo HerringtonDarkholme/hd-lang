@@ -1173,7 +1173,7 @@ impl Ck<'_, '_> {
             // initializer that reported an error needs no follow-on.
             if annot.is_none()
                 && !initializer_failed
-                && self.infer.resolve(self.pool(), t) == Ty::NEVER
+                && self.infer.shallow(self.pool(), t) == Ty::NEVER
             {
                 let msg = format!(
                     "`{}` has no value to bind: the initializer has type `never`, which has no value",

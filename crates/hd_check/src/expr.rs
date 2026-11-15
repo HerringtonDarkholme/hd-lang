@@ -11,7 +11,7 @@ use hd_resolve::{ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::{Answer, Evidence, TraitRef};
-use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
+use hd_types::{ParamRef, Prim, Ty, TyData, VarKind, holds};
 
 use crate::body::{Ck, ExpectPosition, OpenSub};
 
@@ -189,6 +189,7 @@ impl Ck<'_, '_> {
         // expression: its unsolved types are not a second error. A block
         // is left out, so its unrelated statements still report.
         if let Some(w) = want
+            && self.infer.may_hold(self.pool(), w, holds::POISON)
             && self.pool().has_poison(self.infer.resolve(self.pool(), w))
             && !matches!(n.kind(), SyntaxKind::Block)
         {

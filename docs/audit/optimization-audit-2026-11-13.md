@@ -372,7 +372,6 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
 
 26. **R0c. Exponential and quadratic checker paths. [V, review F8 to
     F12, F14, F15]**
-    - Doubled tuple types, a walk per tree node (F8, F14, `unify.rs:233`).
     - Speculative method trials re-check the argument per candidate (F9,
       F10, `trial.rs:400`, `:483`).
     - Init summaries sorted by formatted path (F11).

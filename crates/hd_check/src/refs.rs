@@ -101,7 +101,7 @@ impl Ck<'_, '_> {
     /// `&mut T`, `None` for any other type.
     pub(crate) fn ref_counted(&self, t: Ty) -> Option<bool> {
         let pool = self.pool();
-        match pool.get(self.infer.resolve(pool, t)) {
+        match pool.get(self.infer.shallow(pool, t)) {
             TyData::Ref { counted, .. } => Some(counted),
             _ => None,
         }

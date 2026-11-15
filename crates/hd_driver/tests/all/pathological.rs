@@ -1950,16 +1950,18 @@ fn doubled_types(doubled: bool, n: usize) -> String {
 
 // Types: #1891, resolving variables, the occurs check and the solver's
 // folds walk each distinct node of an interned type once (memoized by
-// type id), not the type as a tree; and a type with no variable left is
-// kept resolved, so a later use does not walk it again: a chain of list
-// types costs work linear in its length. A doubled tuple whose literals
-// are still open costs one walk of its distinct nodes per use, so its
-// work grows with the square of its depth (it grew as 2^depth); that
-// remainder is Known in the commit.
+// type id), not the type as a tree. A use resolves only the head, or
+// nothing when no projection, opaque type or poison is reachable through
+// a binding; a closed resolution is kept across calls until a rollback or
+// `rebind` undoes a binding under it, so writeback and the occurs check
+// resolve each node once per body. Both a chain of list types and a
+// doubled tuple whose literals stay open until writeback cost work
+// linear in their depth (the tuple's grew as its square, before that as
+// 2^depth).
 #[test]
 fn type_walks_visit_each_distinct_node_once() {
     on_test_stack(|| {
-        for (doubled, small, growth) in [(false, 90, 10), (true, 40, 100)] {
+        for (doubled, small) in [(false, 90), (true, 40)] {
             let mut base = 0;
             for n in [small, small * 10] {
                 let (out, nodes) = hd_types::work::count_type_nodes(|| {
@@ -1970,7 +1972,7 @@ fn type_walks_visit_each_distinct_node_once() {
                     base = nodes;
                 }
                 assert!(
-                    base > 0 && nodes <= growth * base * 5 / 4,
+                    base > 0 && nodes <= 10 * base * 5 / 4,
                     "type nodes walked for {small} and {n} levels ({doubled}): {base}, {nodes}"
                 );
             }

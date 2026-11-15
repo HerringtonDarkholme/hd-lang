@@ -18,4 +18,4 @@ pub use pool::{
     Ty, TyData, TyList, TyMap, Types, with_assoc_args,
 };
 pub use sealed::CopyDecl;
-pub use unify::{InferTable, UnifyError, VarKind};
+pub use unify::{InferTable, UnifyError, VarKind, holds};

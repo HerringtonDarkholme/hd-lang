@@ -194,12 +194,18 @@ impl Ck<'_, '_> {
 
     /// Whether `t` implements the compiler-known `AutoClosing` marker.
     pub(crate) fn implements_auto_closing(&mut self, t: Ty) -> StageResult<bool> {
+        let auto_closing = self.cx.names.known.auto_closing;
+        // A head no row of the trait can take answers without resolving
+        // the whole type or asking the solver (#1891).
+        if !self.may_have_rows(auto_closing, self.infer.shallow(self.pool(), t)) {
+            return Ok(false);
+        }
         let self_ty = self.resolved(t);
         if self.pool().has_poison(self_ty) {
             return Ok(false);
         }
         let goal = TraitRef {
-            trait_: self.cx.names.known.auto_closing,
+            trait_: auto_closing,
             self_ty,
             args: hd_types::TyList::EMPTY,
         };

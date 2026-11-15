@@ -25,7 +25,7 @@ use hd_types::solver::{
     Answer, BodyMemo, BuiltinImpl, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls,
     ParamEnv, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InferTable, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind};
+use hd_types::{InferTable, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind, holds};
 
 use crate::expr::Indexed;
 
@@ -2191,6 +2191,13 @@ impl Ck<'_, '_> {
         if g == Ty::NEVER || g == w {
             return r;
         }
+        // Equal types once resolved need no coercion: `norm_ty` resolves
+        // only the head, and a type known closed is one lookup.
+        if (pool.has_infer(g) || pool.has_infer(w))
+            && self.infer.resolve(pool, g) == self.infer.resolve(pool, w)
+        {
+            return r;
+        }
         if self.strict_opaque_slot(target) {
             // A call of this same declaration returns its chosen hidden
             // type. It constrains neither which type that is nor its size.
@@ -3372,6 +3379,10 @@ impl Ck<'_, '_> {
     /// environment's key is renewed when one is new.
     pub(crate) fn add_projection_clauses(&mut self, t: Ty) {
         let pool = self.pool();
+        // No projection reachable: nothing to add, and no walk (#1891).
+        if !self.infer.may_hold(pool, t, holds::PROJECTION) {
+            return;
+        }
         let t = self.infer.resolve(pool, t);
         if add_projection_bounds(
             self.cx.lookup,

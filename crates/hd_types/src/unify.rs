@@ -44,7 +44,46 @@ enum Undo {
     Parent(u32, u32),
     Rank(u32, u8),
     Kind(u32, VarKind),
-    Rebind(u32, Option<Ty>),
+    /// A replaced binding, with the flags the old one held.
+    Rebind(u32, Option<Ty>, u8),
+}
+
+/// What a binding's type may hold that a use must see through its
+/// variables: the flags [`InferTable::may_hold`] answers for.
+pub mod holds {
+    pub const POISON: u8 = 1;
+    pub const PROJECTION: u8 = 2;
+    pub const OPAQUE: u8 = 4;
+}
+
+fn holds_of(pool: Types<'_>, t: Ty) -> u8 {
+    let bit = |on: bool, flag: u8| if on { flag } else { 0 };
+    bit(pool.has_poison(t), holds::POISON)
+        | bit(pool.has_assoc(t), holds::PROJECTION)
+        | bit(pool.has_opaque(t), holds::OPAQUE)
+}
+
+/// The resolutions with no variable left, kept across calls (#1891): a
+/// closed result depends only on the bindings made before it, all on the
+/// trail, so it stays valid until a rollback undoes one of them or a
+/// `rebind` replaces one. `log` holds each key with the trail length when
+/// it was resolved; stamps never decrease, because a rollback to `s`
+/// first drops every entry stamped above `s`.
+#[derive(Default, Debug, Clone)]
+struct Closed {
+    map: HashMap<Ty, Ty>,
+    log: Vec<(usize, Ty)>,
+}
+
+impl Closed {
+    fn drop_above(&mut self, s: usize) {
+        while let Some(&(stamp, t)) = self.log.last()
+            && stamp > s
+        {
+            self.log.pop();
+            self.map.remove(&t);
+        }
+    }
 }
 
 /// The body's inference table: union-find with union by rank and a trail
@@ -59,6 +98,11 @@ pub struct InferTable {
     binding: Vec<Option<Ty>>,
     kind: Vec<VarKind>,
     trail: Vec<Undo>,
+    /// Per variable, the [`holds`] flags its binding's type holds itself.
+    held: Vec<u8>,
+    /// The live bindings holding each [`holds`] flag, by bit.
+    held_count: [u32; 3],
+    closed: std::cell::RefCell<Closed>,
 }
 
 /// A rollback point (the one rollback contract, §3.5).
@@ -80,6 +124,7 @@ impl InferTable {
         self.parent.push(v);
         self.rank.push(0);
         self.binding.push(None);
+        self.held.push(0);
         self.kind.push(kind);
         pool.intern_ty(&TyData::Infer(InferVar::from_raw(v)))
     }
@@ -91,6 +136,48 @@ impl InferTable {
         v
     }
 
+    /// Records the [`holds`] flags `h` of `v`'s new binding for
+    /// [`Self::may_hold`]; the binding and its trail entry are the caller's.
+    fn hold(&mut self, v: u32, h: u8) {
+        self.unhold(v);
+        self.held[v as usize] = h;
+        for (bit, n) in self.held_count.iter_mut().enumerate() {
+            *n += u32::from(h >> bit & 1);
+        }
+    }
+
+    fn unhold(&mut self, v: u32) {
+        let h = std::mem::take(&mut self.held[v as usize]);
+        for (bit, n) in self.held_count.iter_mut().enumerate() {
+            *n -= u32::from(h >> bit & 1);
+        }
+    }
+
+    /// Whether `t` resolved may hold one of the [`holds`] flags `mask`:
+    /// `t` holds it itself, or `t` has a variable and some live binding's
+    /// type holds it. One read of `t`'s flags, no walk; `false` is exact.
+    #[must_use]
+    pub fn may_hold(&self, pool: Types<'_>, t: Ty, mask: u8) -> bool {
+        holds_of(pool, t) & mask != 0
+            || (pool.has_infer(t)
+                && self
+                    .held_count
+                    .iter()
+                    .enumerate()
+                    .any(|(bit, n)| *n > 0 && mask >> bit & 1 != 0))
+    }
+
+    /// `t` shallowly resolved, or fully when its full resolution is
+    /// already known closed: one lookup, no walk.
+    #[must_use]
+    pub fn shallow_or_closed(&self, pool: Types<'_>, t: Ty) -> Ty {
+        let t = self.shallow(pool, t);
+        if !pool.has_infer(t) {
+            return t;
+        }
+        self.closed.borrow().map.get(&t).copied().unwrap_or(t)
+    }
+
     #[must_use]
     pub fn snapshot(&self) -> Snapshot {
         Snapshot(self.trail.len())
@@ -98,15 +185,23 @@ impl InferTable {
 
     pub fn rollback(&mut self, s: Snapshot) {
         let from = s.0.min(self.trail.len());
-        for u in self.trail.drain(from..).rev() {
+        while self.trail.len() > from {
+            let Some(u) = self.trail.pop() else { break };
             match u {
-                Undo::Bind(v) => self.binding[v as usize] = None,
+                Undo::Bind(v) => {
+                    self.binding[v as usize] = None;
+                    self.unhold(v);
+                }
                 Undo::Parent(v, old) => self.parent[v as usize] = old,
                 Undo::Rank(v, old) => self.rank[v as usize] = old,
                 Undo::Kind(v, k) => self.kind[v as usize] = k,
-                Undo::Rebind(v, old) => self.binding[v as usize] = old,
+                Undo::Rebind(v, old, h) => {
+                    self.binding[v as usize] = old;
+                    self.hold(v, h);
+                }
             }
         }
+        self.closed.get_mut().drop_above(from);
     }
 
     #[must_use]
@@ -125,6 +220,12 @@ impl InferTable {
         self.parent.truncate(m.vars);
         self.rank.truncate(m.vars);
         self.binding.truncate(m.vars);
+        debug_assert!(
+            self.held[m.vars.min(self.held.len())..]
+                .iter()
+                .all(|h| *h == 0)
+        );
+        self.held.truncate(m.vars);
         self.kind.truncate(m.vars);
     }
 
@@ -136,8 +237,15 @@ impl InferTable {
             return;
         };
         let r = self.root(v.raw());
-        self.trail.push(Undo::Rebind(r, self.binding[r as usize]));
+        self.trail.push(Undo::Rebind(
+            r,
+            self.binding[r as usize],
+            self.held[r as usize],
+        ));
         self.binding[r as usize] = Some(t);
+        self.hold(r, holds_of(pool, t));
+        // A replaced binding may change any closed resolution through it.
+        *self.closed.get_mut() = Closed::default();
     }
 
     /// Binds the unbound variable `var` to `t`, a type outside `var`'s
@@ -146,14 +254,15 @@ impl InferTable {
     /// least-common-type site's variable takes its first value's type this
     /// way, so widening the site does not retype that value
     /// (`crates/hd_check/DESIGN.md` §4.3).
-    pub fn alias(&mut self, var: InferVar, t: Ty) {
+    pub fn alias(&mut self, pool: Types<'_>, var: InferVar, t: Ty) {
         let r = self.root(var.raw());
         debug_assert!(
             self.binding[r as usize].is_none(),
             "alias binds a free variable"
         );
-        self.trail.push(Undo::Rebind(r, None));
+        self.trail.push(Undo::Rebind(r, None, 0));
         self.binding[r as usize] = Some(t);
+        self.hold(r, holds_of(pool, t));
     }
 
     /// Replaces bound variables at the top of `t`.
@@ -300,7 +409,11 @@ impl InferTable {
 
     fn bind(&mut self, pool: Types<'_>, v: u32, t: Ty) -> Result<(), UnifyError> {
         let var = InferVar::from_raw(v);
-        if self.occurs(pool, v, t) {
+        // The occurs check reads `t` resolved: its parts already known
+        // closed cost one lookup each, and a closed `t` needs no walk, so a
+        // chain of bindings each naming the last is linear (#1891).
+        let r = self.resolve(pool, t);
+        if pool.has_infer(r) && self.occurs(pool, v, r) {
             return Err(UnifyError::Occurs { var, ty: t });
         }
         let ok = match (self.kind[v as usize], pool.get(t)) {
@@ -315,6 +428,7 @@ impl InferTable {
             return Err(UnifyError::Kind { var, ty: t });
         }
         self.binding[v as usize] = Some(t);
+        self.hold(v, holds_of(pool, t));
         self.trail.push(Undo::Bind(v));
         Ok(())
     }
@@ -652,9 +766,17 @@ impl crate::TyMap for Resolve<'_, '_> {
         if let Some(&r) = self.memo.get(&t) {
             return r;
         }
+        if let Some(&r) = self.table.closed.borrow().map.get(&t) {
+            return r;
+        }
         crate::work::type_node();
         let r = self.pool.map_children(t, self);
         self.memo.insert(t, r);
+        if !self.pool.has_infer(r) {
+            let mut c = self.table.closed.borrow_mut();
+            c.map.insert(t, r);
+            c.log.push((self.table.trail.len(), t));
+        }
         r
     }
     fn row(&mut self, r: crate::RowId) -> crate::RowId {
@@ -679,6 +801,7 @@ impl crate::TyMap for PoisonVars<'_, '_> {
         if let TyData::Infer(v) = self.pool.get(t) {
             let root = self.table.root(v.raw());
             self.table.binding[root as usize] = Some(Ty::POISON);
+            self.table.hold(root, holds::POISON);
             self.table.trail.push(Undo::Bind(root));
             return Ty::POISON;
         }
@@ -773,7 +896,7 @@ mod tests {
         let alias = table.fresh(p, VarKind::General);
         assert_eq!(table.shallow(p, a), a);
         table.unify(p, a, b).expect("join classes");
-        table.alias(var(p, alias), a);
+        table.alias(p, var(p, alias), a);
         let root = table.shallow(p, a);
         assert_eq!(table.shallow(p, b), root);
         assert_eq!(table.shallow(p, alias), root);
@@ -808,7 +931,7 @@ mod tests {
             bindings: vec![(hd_base::DefId::from_raw(8), b)],
         });
         assert!(nested.is_local());
-        table.alias(var(p, a), nested);
+        table.alias(p, var(p, a), nested);
         assert_eq!(table.shallow(p, a), nested);
         assert_eq!(table.shallow(p, nested), nested);
         table.unify(p, b, Ty::I32).expect("bind nested variable");
@@ -944,6 +1067,67 @@ mod tests {
             Err(UnifyError::Kind { .. })
         ));
         assert!(t.unify(p, lit, Ty::POISON).is_ok());
+    }
+
+    /// #1891: a closed resolution is kept across calls until a rollback
+    /// undoes a binding under it or a `rebind` replaces one; a rollback
+    /// keeps the results resolved before its snapshot. `may_hold` counts
+    /// live bindings holding poison, so it follows binds, rebinds and
+    /// rollbacks.
+    #[test]
+    fn closed_resolutions_and_held_flags_follow_the_trail() {
+        use super::holds;
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let a = t.fresh(p, VarKind::General);
+        let b = t.fresh(p, VarKind::General);
+        let opt = |x: Ty| p.intern_ty(&TyData::Union(p.list(&[x])));
+        let pair = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[a, b]),
+            rest: None,
+        });
+        t.unify(p, a, Ty::I32).expect("a");
+        assert_eq!(t.resolve(p, opt(a)), opt(Ty::I32));
+        assert_eq!(t.shallow_or_closed(p, opt(a)), opt(Ty::I32));
+        assert!(!t.may_hold(p, pair, holds::POISON));
+        let outer = t.snapshot();
+        t.unify(p, b, Ty::STRING).expect("b");
+        let closed = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::I32, Ty::STRING]),
+            rest: None,
+        });
+        assert_eq!(t.resolve(p, pair), closed);
+        assert_eq!(t.shallow_or_closed(p, pair), closed);
+        // A trial that binds a variable to poison and is dropped.
+        let mark = t.trial_mark();
+        let c = t.fresh(p, VarKind::General);
+        t.unify(p, c, Ty::POISON).expect("c");
+        assert!(t.may_hold(p, pair, holds::POISON));
+        assert!(!t.may_hold(p, Ty::I32, holds::POISON));
+        t.rollback_trial(mark);
+        assert!(!t.may_hold(p, pair, holds::POISON));
+        // Undoing `b` drops the pair's result, not `opt(a)`'s.
+        t.rollback(outer);
+        assert_eq!(t.shallow_or_closed(p, pair), pair);
+        assert_eq!(t.shallow_or_closed(p, opt(a)), opt(Ty::I32));
+        assert_eq!(
+            t.resolve(p, pair),
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[Ty::I32, b]),
+                rest: None
+            })
+        );
+        // A rebind replaces `a`'s solution: every kept result goes, and
+        // its undo restores the flags the old binding held.
+        let snap = t.snapshot();
+        t.rebind(p, a, Ty::POISON);
+        assert!(t.may_hold(p, opt(a), holds::POISON));
+        assert_eq!(t.shallow_or_closed(p, opt(a)), opt(a));
+        assert_eq!(t.resolve(p, opt(a)), opt(Ty::POISON));
+        t.rollback(snap);
+        assert!(!t.may_hold(p, opt(a), holds::POISON));
+        assert_eq!(t.resolve(p, opt(a)), opt(Ty::I32));
     }
 
     /// Union by rank: unions keep classes shallow, kinds merge at the
@@ -1177,7 +1361,9 @@ mod tests {
                 "{:?}",
                 p.get(form)
             );
-            assert!(nodes <= 45, "one visit per distinct node: {nodes}");
+            // The occurs check reads the bound type resolved: one resolve
+            // and one occurs visit per distinct node.
+            assert!(nodes <= 2 * 45, "two visits per distinct node: {nodes}");
         }
     }
 }

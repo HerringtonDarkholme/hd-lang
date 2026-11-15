@@ -448,7 +448,7 @@ impl Ck<'_, '_> {
             // own class unifies below, which binds nothing.
             let value = self.infer.shallow(pool, got);
             if matches!(pool.get(value), TyData::Infer(_)) && value != cur {
-                self.infer.alias(site, got);
+                self.infer.alias(pool, site, got);
                 return true;
             }
             let snap = self.infer.snapshot();

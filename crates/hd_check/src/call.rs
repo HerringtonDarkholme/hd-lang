@@ -15,7 +15,7 @@ use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
 };
 use hd_types::solver::{Answer, Evidence, Goal, TraitRef};
-use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
+use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, holds, with_assoc_args};
 
 use crate::body::{Ck, ExpectPosition, ProjectSite};
 use crate::ty::Named;
@@ -4678,6 +4678,23 @@ impl Ck<'_, '_> {
         Some(traits)
     }
 
+    /// Whether a goal `t: trait_` may take a row: false only when `t`'s
+    /// head reads rows of one key, and no table of the view
+    /// (`Impls::traits_for_head`) nor the compiler-supplied rows offer
+    /// `trait_` one. A trait value answers its own trait without a row,
+    /// so it is asked. Cost: one probe per impl table of the view.
+    pub(crate) fn may_have_rows(&self, trait_: DefId, t: Ty) -> bool {
+        let pool = self.pool();
+        if matches!(pool.get(t), TyData::TraitValue { .. }) {
+            return true;
+        }
+        let Some(found) = hd_types::solver::Impls::Owned(self.cx.impls).traits_for_head(pool, t)
+        else {
+            return true;
+        };
+        found.contains(&trait_) || self.cx.names.known.sealed().supplied().contains(&trait_)
+    }
+
     /// `trait.bound.depth.limit`: the lookup of `name` needs a proof deeper
     /// than 64 bounds, whether or not a deeper proof would succeed.
     pub(crate) fn method_too_deep(&mut self, name: &str, traits: &[DefId], n: NodeRef<'_>) {
@@ -5797,8 +5814,19 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `t` with its projections normalized and its opaque types' bounds
+    /// added to the environment. With neither reachable through `t`'s
+    /// variables ([`hd_types::InferTable::may_hold`], one flag read), `t` shallowly
+    /// resolved, or fully when that is known closed: a use resolves the
+    /// head only, and writeback resolves the whole type once (#1891).
     pub(crate) fn norm_ty(&mut self, t: Ty) -> Ty {
         let pool = self.pool();
+        if !self
+            .infer
+            .may_hold(pool, t, holds::PROJECTION | holds::OPAQUE)
+        {
+            return self.infer.shallow_or_closed(pool, t);
+        }
         let r = self.infer.resolve(pool, t);
         self.add_opaque_bounds(r);
         if !pool.has_assoc(r) {
