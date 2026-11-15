@@ -2007,6 +2007,8 @@ mod packed {
         /// publication that only appends reads none of them.
         txn: Option<Txn>,
         dir: PathBuf,
+        #[cfg(test)]
+        on_pause: Option<Arc<dyn Fn(&'static str) + Send + Sync>>,
     }
 
     impl Shard {
@@ -2153,6 +2155,8 @@ mod packed {
             self.txn()?.shrink()?;
             let epoch = self.header.epoch.wrapping_add(1);
             let base = self.header.total;
+            #[cfg(test)]
+            let on_pause = self.on_pause.clone();
             let file = &self.file;
             let header = std::cell::RefCell::new(self.header);
             let write = |header: &LogHeader| -> io::Result<()> {
@@ -2174,6 +2178,10 @@ mod packed {
                     // the pages, whose split buckets still hold the rows
                     // they gave away.
                     file.set_len(LOG_HEADER as u64)?;
+                    #[cfg(test)]
+                    if let Some(pause) = &on_pause {
+                        pause("shortened");
+                    }
                     let mut h = header.borrow_mut();
                     h.epoch = epoch;
                     h.head = head;
@@ -2298,6 +2306,8 @@ mod packed {
                 pending: Vec::new(),
                 txn,
                 dir,
+                #[cfg(test)]
+                on_pause: self.on_pause.clone(),
             };
             if log.header.is_none() {
                 shard.write_header()?;
@@ -2318,7 +2328,16 @@ mod packed {
             // file names the last fold, and the batches, checksummed on
             // their own, still apply.
             let (epoch, head) = if let Some(header) = log.header {
-                (header.epoch, header.head)
+                // A shard's first fold writes its head file, shortens the
+                // log, then rewrites the header: a log read in between
+                // names no head and holds none of the changes the fold
+                // moved to the pages (#1977). The head file names them.
+                // Cost: one missing-file check per view of a shard never
+                // folded.
+                let head = header
+                    .head
+                    .or_else(|| read_head(&self.index_dir(shard)).ok().flatten());
+                (header.epoch, head)
             } else {
                 let head = read_head(&self.index_dir(shard)).ok().flatten();
                 let epoch = head.map_or(0, |h| u32::try_from(h.generation).unwrap_or(0));
@@ -4453,6 +4472,10 @@ mod packed {
             let go = Mutex::new(go);
             let mut collector = Store::new(&root);
             collector.on_pause = Some(Arc::new(move |stop| {
+                // Its folds stop inside the writer lock.
+                if stop == "shortened" {
+                    return;
+                }
                 at.send(stop).unwrap();
                 go.lock().unwrap().recv().unwrap();
             }));
@@ -4770,6 +4793,30 @@ mod packed {
                 .unwrap();
             assert_eq!(got.len(), 4096);
             assert!(got.iter().all(|&b| b == got[0]));
+        }
+
+        /// A reader that reads a shard's log while its first fold has
+        /// shortened it but not yet rewritten its header (#1977) sees the
+        /// old header, which names no pages, and no records: it finds the
+        /// key in the pages that fold just wrote.
+        #[test]
+        fn a_reader_between_a_first_folds_shortening_and_its_header_finds_the_key() {
+            let root = scratch("fold-shortened");
+            let mut writer = Store::new(&root);
+            let reader_root = root.clone();
+            let found = Arc::new(Mutex::new(Vec::new()));
+            let seen = Arc::clone(&found);
+            writer.on_pause = Some(Arc::new(move |stop| {
+                if stop == "shortened" {
+                    let got = Store::new(&reader_root).get(EntryKind::Check, &Hash128(1));
+                    seen.lock()
+                        .unwrap()
+                        .push(got.as_deref() == Some(b"one".as_slice()));
+                }
+            }));
+            writer.publish(&[item(1, b"one")]).unwrap();
+            writer.open_shard(0).unwrap().fold().unwrap();
+            assert_eq!(*found.lock().unwrap(), [true]);
         }
 
         /// A reader whose view predates a fold that split a bucket finds a
