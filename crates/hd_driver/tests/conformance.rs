@@ -2681,19 +2681,22 @@ fn caught(run: impl FnOnce() -> Verdict) -> Verdict {
 
 /// `run(i)` for every `i` below `len`, on [`workers`] threads that take
 /// the indices in `order`; the results are by index. A worker gets the
-/// stack a wasmtime engine needs when one runs.
+/// stack `hd` gives its command thread (`hd_sched::pool::WORKER_STACK`),
+/// under which the compiler takes a chain of `grammar.limit.chain`'s
+/// 10,000 links, or the larger stack a wasmtime engine needs when one
+/// runs. Untouched stack pages cost address space only.
 fn pool<R: Send>(len: usize, order: &[usize], run: impl Fn(usize) -> R + Sync) -> Vec<R> {
     let count = workers().min(len.max(1));
     let next = AtomicUsize::new(0);
     let slots: Vec<Mutex<Option<R>>> = (0..len).map(|_| Mutex::new(None)).collect();
     std::thread::scope(|scope| {
         for _ in 0..count {
-            let builder = std::thread::Builder::new();
-            let builder = if engine_mode() == EngineMode::Node {
-                builder
+            let stack = if engine_mode() == EngineMode::Node {
+                hd_sched::pool::WORKER_STACK
             } else {
-                builder.stack_size(wasmtime::worker_stack())
+                wasmtime::worker_stack().max(hd_sched::pool::WORKER_STACK)
             };
+            let builder = std::thread::Builder::new().stack_size(stack);
             builder
                 .spawn_scoped(scope, || {
                     while let Some(&index) = order.get(next.fetch_add(1, Ordering::Relaxed)) {

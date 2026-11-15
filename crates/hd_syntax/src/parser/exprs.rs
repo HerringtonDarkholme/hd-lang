@@ -760,89 +760,172 @@ impl Parser<'_> {
         lhs
     }
 
+    /// A prefix expression and its `**` tail, without recursion. The
+    /// grammar it reads:
+    ///
+    /// - `unary := '*' deref [ '**' unary ] | prefix unary | postfix [ '**' unary ]`
+    /// - `deref := '*' deref | prefix unary | postfix` (`ref.prec.deref`:
+    ///   `*` binds like a postfix operator, tighter than `**`)
+    ///
+    /// where `prefix` is `+`, `-`, `!`, `~` or `&` with an optional `mut`.
+    /// Each prefix operator and each `**` is one link of
+    /// `grammar.limit.chain`: a chain of them loops here, and the frames a
+    /// recursive descent would hold are entries of `frames`, so a chain
+    /// costs O(links) time and no native stack. The links of the finished
+    /// expression compose bottom-up into `self.links`, as `binary` and
+    /// `postfix` do; the limit is checked top-down when a frame is pushed,
+    /// so the error names the first operator past it in source order.
     fn unary(&mut self) -> Done {
-        if self.at(TokenKind::Star) {
-            // ref.prec.deref: `*` binds like a postfix operator, tighter than `**`
-            let deref = self.deref();
-            return self.power_tail(deref);
+        enum Frame {
+            /// A prefix operator's node, completed around its operand.
+            Prefix(super::Marker, SyntaxKind),
+            /// A `*`'s node, completed around its operand.
+            Deref(super::Marker),
+            /// A `**` may follow the operand finished below this frame.
+            PowerTail,
+            /// A `**`'s node, with the links of its left operand.
+            Power(super::Marker, u32),
         }
-        if matches!(
-            self.current(),
-            Some(
-                TokenKind::Plus
-                    | TokenKind::Minus
-                    | TokenKind::Bang
-                    | TokenKind::Tilde
-                    | TokenKind::Amp
-            )
-        ) {
-            if !self.enter() {
+        let outer = core::mem::take(&mut self.links);
+        let mut frames: Vec<Frame> = Vec::new();
+        // The operator frames on `frames`: links above the next operand.
+        let mut above = 0_u32;
+        'operand: loop {
+            // A `unary`: a run of prefix operators and `*`s, then the
+            // operand they apply to.
+            let mut tail = true;
+            let mut done = loop {
+                let deref = self.at(TokenKind::Star);
+                let prefix = matches!(
+                    self.current(),
+                    Some(
+                        TokenKind::Plus
+                            | TokenKind::Minus
+                            | TokenKind::Bang
+                            | TokenKind::Tilde
+                            | TokenKind::Amp
+                    )
+                );
+                if !deref && !prefix {
+                    if tail {
+                        frames.push(Frame::PowerTail);
+                    }
+                    break self.chain_operand(above);
+                }
+                if let Some(error) = self.prefix_too_long(above) {
+                    break error;
+                }
                 let marker = self.start();
-                self.skip_balanced();
-                return self.complete(marker, SyntaxKind::Error);
-            }
-            let marker = self.start();
-            let kind = if self.at(TokenKind::Amp) {
-                // ref.expr.make
-                self.bump();
-                self.eat(TokenKind::KwMut);
-                SyntaxKind::RefExpr
-            } else {
-                self.bump();
-                SyntaxKind::UnaryExpr
+                if deref {
+                    // The first `*` of a run takes the `**` after the
+                    // whole run; the `*`s inside it, and their operand,
+                    // take none.
+                    if tail {
+                        frames.push(Frame::PowerTail);
+                        tail = false;
+                    }
+                    self.bump();
+                    frames.push(Frame::Deref(marker));
+                } else {
+                    let kind = if self.at(TokenKind::Amp) {
+                        // ref.expr.make
+                        self.bump();
+                        self.eat(TokenKind::KwMut);
+                        SyntaxKind::RefExpr
+                    } else {
+                        self.bump();
+                        SyntaxKind::UnaryExpr
+                    };
+                    frames.push(Frame::Prefix(marker, kind));
+                    // A prefix operator's operand is a whole `unary`.
+                    tail = true;
+                }
+                above += 1;
             };
-            self.unary();
-            self.leave();
-            return self.complete(marker, kind);
-        }
-        let base = self.postfix();
-        self.power_tail(base)
-    }
-
-    /// `**` after an operand, and its right operand.
-    fn power_tail(&mut self, base: Done) -> Done {
-        if self.at(TokenKind::StarStar) {
-            let marker = self.precede(base);
-            self.bump();
-            if !self.enter() {
-                self.skip_balanced();
-                return self.complete(marker, SyntaxKind::PowerExpr);
+            // Unwind: complete each frame around the operand, bottom-up.
+            let mut links = self.links;
+            while let Some(frame) = frames.pop() {
+                match frame {
+                    Frame::Prefix(marker, kind) => {
+                        above -= 1;
+                        done = self.complete(marker, kind);
+                        links += 1;
+                    }
+                    Frame::Deref(marker) => {
+                        above -= 1;
+                        done = self.complete(marker, SyntaxKind::DerefExpr);
+                        links += 1;
+                    }
+                    Frame::Power(marker, left) => {
+                        above -= 1;
+                        done = self.complete(marker, SyntaxKind::PowerExpr);
+                        links = links.max(left) + 1;
+                    }
+                    Frame::PowerTail => {
+                        if !self.at(TokenKind::StarStar) {
+                            continue;
+                        }
+                        // The left operand sits below this `**` too.
+                        if let Some(error) = self.power_too_long(done, above + 1 + links) {
+                            done = error;
+                            links = 0;
+                            continue;
+                        }
+                        let marker = self.precede(done);
+                        self.bump();
+                        frames.push(Frame::Power(marker, links));
+                        above += 1;
+                        self.links = 0;
+                        continue 'operand;
+                    }
+                }
             }
-            self.unary();
-            self.leave();
-            return self.complete(marker, SyntaxKind::PowerExpr);
+            self.links = outer.max(links);
+            return done;
         }
-        base
     }
 
-    /// `*e` (ref.expr.deref-operand): the operand is a postfix expression, another
-    /// `*e`, or another prefix operator with its own operand.
-    fn deref(&mut self) -> Done {
-        if !self.enter() {
-            let marker = self.start();
-            self.skip_balanced();
-            return self.complete(marker, SyntaxKind::Error);
+    /// The operand of a prefix chain, `above` links below its top: a
+    /// postfix expression, whose own links (`self.links` on return) add
+    /// to those above it (`grammar.limit.chain`).
+    fn chain_operand(&mut self, above: u32) -> Done {
+        let at = self.pos();
+        self.links = 0;
+        let done = self.postfix();
+        if above + self.links > super::MAX_CHAIN_LINKS {
+            self.chain_past_limit(at);
         }
+        done
+    }
+
+    /// A prefix operator or `*` at the current token, under `above`
+    /// links, past `grammar.limit.chain`: reports it and skips the rest
+    /// of the expression into an error node, the operand of the frames
+    /// above it.
+    fn prefix_too_long(&mut self, above: u32) -> Option<Done> {
+        if above < super::MAX_CHAIN_LINKS {
+            return None;
+        }
+        let at = self.pos();
+        self.chain_past_limit(at);
         let marker = self.start();
-        self.bump();
-        if self.at(TokenKind::Star) {
-            self.deref();
-        } else if matches!(
-            self.current(),
-            Some(
-                TokenKind::Plus
-                    | TokenKind::Minus
-                    | TokenKind::Bang
-                    | TokenKind::Tilde
-                    | TokenKind::Amp
-            )
-        ) {
-            self.unary();
-        } else {
-            self.postfix();
+        self.skip_balanced();
+        self.links = 0;
+        Some(self.complete(marker, SyntaxKind::Error))
+    }
+
+    /// A `**` at the current token whose left operand `done` would lie
+    /// `links` links deep under it: past `grammar.limit.chain`, reports the
+    /// `**` and skips it and the rest into an error node around `done`.
+    fn power_too_long(&mut self, done: Done, links: u32) -> Option<Done> {
+        if links <= super::MAX_CHAIN_LINKS {
+            return None;
         }
-        self.leave();
-        self.complete(marker, SyntaxKind::DerefExpr)
+        let at = self.pos();
+        self.chain_past_limit(at);
+        let marker = self.precede(done);
+        self.skip_balanced();
+        Some(self.complete(marker, SyntaxKind::Error))
     }
 
     fn postfix(&mut self) -> Done {

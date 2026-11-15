@@ -215,7 +215,13 @@ pass. `precede` wraps a finished node through `forward_parent`;
   in V8, and the worst measured shape fails past 1,200. A type's `?`
   suffix builds the same left-deep tree in a loop, so `ty` counts its
   marks against the same limit and skips the rest of a longer suffix
-  (#1827).
+  (#1827). A prefix operator (`*`, `-`, `+`, `!`, `~`, `&`, `&mut`) and a
+  `**` are one link each (#1955): `unary` reads a run of them, and the
+  right-associative `**` tail, in one loop over an explicit stack of
+  frames that a recursive descent would hold, completes the nodes
+  bottom-up as their operands finish, and checks the limit top-down as
+  each frame is pushed, so the first operator past it in source order is
+  the one reported. O(links) time, no native stack per link.
 - **Grammar checks.** A path-only alias such as `use a.b as c` parses.
   An associated type is only `type Name` in a trait or `type Name = Type`
   in an impl; `type Item < Eq = i32` is a `syntax-error`.

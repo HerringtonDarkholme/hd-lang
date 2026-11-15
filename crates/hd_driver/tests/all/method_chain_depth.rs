@@ -92,3 +92,89 @@ fn a_chain_of_ten_thousand_and_one_links_is_too_deep() {
     let codes: Vec<&str> = out.diags.code.iter().map(|code| code.as_str()).collect();
     assert_eq!(codes, ["nesting-too-deep"], "{}", out.render());
 }
+
+/// `fn f(x: T) -> T:` whose body is `body`, and a `main` that prints
+/// `f(1)`.
+fn with_main(ty: &str, body: &str) -> String {
+    format!(
+        "fn f(x: {ty}) -> {ty}:\n    {body}\n\npub fn main() -> void $ Console:\n    println(f(1))\n"
+    )
+}
+
+/// Checks, formats and, with `build`, builds `text` on a worker's stack.
+fn checks_formats_builds(text: String, build_it: bool) {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", &text);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Pool(2),
+    };
+    let goal = if build_it {
+        Goal::Program {
+            entry: "main".into(),
+        }
+    } else {
+        Goal::Analyze
+    };
+    let out = build(&host, "app", &goal);
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert_eq!(out.wasm.is_some(), build_it);
+    let formatted = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(move || hd_fmt::format(&text).is_ok())
+        .expect("thread")
+        .join()
+        .expect("fmt");
+    assert!(formatted);
+}
+
+/// A prefix operator is one link of `grammar.limit.chain` (#1955): the
+/// parser takes 10,000 of them in a loop, and below that limit a dev
+/// build checks, formats and builds them on a worker's stack, `*` and
+/// `&` alternating as well as `-` alone.
+#[test]
+fn a_prefix_chain_of_ten_thousand_operators_checks_formats_and_builds() {
+    checks_formats_builds(with_main("i32", &format!("{}x", "- ".repeat(10_000))), true);
+    checks_formats_builds(
+        with_main("i32", &format!("{}x", "* & ".repeat(5_000))),
+        true,
+    );
+}
+
+/// `**` is a binary operator, one link each (#1955): 10,000 of them
+/// check and format on a worker's stack. A build is left out: the wasm
+/// optimizer's liveness rules take time quadratic in this nesting
+/// (about 25 s at 10,000 in a dev build; see the issue filed with #1955).
+#[test]
+fn a_power_chain_of_ten_thousand_operators_checks_and_formats() {
+    checks_formats_builds(
+        with_main("u32", &format!("x{}", " ** x".repeat(10_000))),
+        false,
+    );
+}
+
+#[test]
+fn a_prefix_or_power_chain_one_past_the_limit_is_too_deep() {
+    for body in [
+        format!("{}x", "* ".repeat(10_001)),
+        format!("x{}", " ** x".repeat(10_001)),
+    ] {
+        let mut src = MemorySources::default();
+        src.insert("main.hd", &with_main("u32", &body));
+        let store = crate::warm_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &src,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Pool(2),
+        };
+        let out = build(&host, "app", &Goal::Analyze);
+        let codes: Vec<&str> = out.diags.code.iter().map(|code| code.as_str()).collect();
+        assert_eq!(codes, ["nesting-too-deep"], "{}", out.render());
+    }
+}

@@ -6744,8 +6744,11 @@ lang/grammar/types/type-argument-rest-element.hd	parse	reject:syntax-error	lang/
 lang/grammar/types/function-type-rest-before-parameter.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.type.rest.elsewhere
 lang/grammar/types/optional-function-type-after-requirement-row.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.type.optional.function
 lang/grammar/source-files-and-suites/nesting-too-deep-in-a-type.hd	parse	reject:nesting-too-deep	lang/02-grammar.md#r-grammar.limit.nesting.error
-lang/grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd	parse	reject:nesting-too-deep	lang/02-grammar.md#r-grammar.limit.nesting.error
-lang/grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd	parse	reject:nesting-too-deep	lang/02-grammar.md#r-grammar.limit.nesting.error
+lang/grammar/source-files-and-suites/nesting-too-deep-in-a-dereference.hd	parse	reject:nesting-too-deep	lang/02-grammar.md#r-grammar.limit.chain.error
+lang/grammar/source-files-and-suites/a-dereference-chain-at-the-limit-parses.hd	parse	accept	lang/02-grammar.md#r-grammar.limit.chain
+lang/grammar/source-files-and-suites/a-negation-chain-at-the-limit-runs.hd	runtime	accept	lang/02-grammar.md#r-grammar.limit.chain
+lang/grammar/source-files-and-suites/nesting-too-deep-in-a-power.hd	parse	reject:nesting-too-deep	lang/02-grammar.md#r-grammar.limit.chain.error
+lang/grammar/source-files-and-suites/a-power-chain-at-the-limit-checks.hd	type	accept	lang/02-grammar.md#r-grammar.limit.chain
 lang/grammar/source-files-and-suites/nesting-too-deep-in-a-pattern.hd	parse	reject:nesting-too-deep	lang/02-grammar.md#r-grammar.limit.nesting.error
 lang/grammar/patterns/range-pattern-exponent-bound.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.range.bound
 lang/grammar/patterns/inclusive-range-pattern-without-end.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.range

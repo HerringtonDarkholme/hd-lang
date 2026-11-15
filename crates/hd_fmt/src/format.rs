@@ -1925,11 +1925,23 @@ mod tests {
         }
     }
 
+    /// On the stack `hd fmt` runs with (`hd_sched::pool::WORKER_STACK`):
+    /// the corpus holds chains at `grammar.limit.chain`'s 10,000 links,
+    /// which the formatter's tree walks take below that stack, not below
+    /// a test thread's default 2 MiB.
     #[test]
     fn std_and_parseable_conformance_preserve_tree_comments_and_fixed_point() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        verify_corpus(&root.join("lib/std"));
-        verify_corpus(&root.join("spec/conformance"));
+        // cost: one thread for the whole corpus, as before; only its stack grows.
+        std::thread::Builder::new()
+            .stack_size(hd_sched::pool::WORKER_STACK)
+            .spawn(|| {
+                let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+                verify_corpus(&root.join("lib/std"));
+                verify_corpus(&root.join("spec/conformance"));
+            })
+            .expect("thread")
+            .join()
+            .expect("corpus");
     }
 
     #[test]

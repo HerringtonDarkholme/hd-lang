@@ -341,6 +341,112 @@ fn a_chain_counts_the_links_of_its_bracketed_operand() {
     assert!(too_deep(&wide).is_empty());
 }
 
+/// `fn f(x: T) -> T:` and one expression of `count` copies of the prefix
+/// operator `op` before `x`.
+fn prefixed(op: &str, count: usize) -> String {
+    format!("fn f(x: i32) -> i32:\n    {}x\n", op.repeat(count))
+}
+
+#[test]
+fn a_prefix_chain_of_ten_thousand_operators_parses_and_one_more_is_too_deep() {
+    // grammar.limit.chain: each prefix operator, `*` included, is one
+    // link (#1955). The parser takes the chain in a loop, so 100,000 of
+    // them neither overflow its stack nor nest past the limit twice.
+    let head = "fn f(x: i32) -> i32:\n    ".len();
+    for op in ["* ", "- ", "+ ", "! ", "~ ", "& ", "&mut ", "* - "] {
+        let links = if op == "* - " { 5_000 } else { 10_000 };
+        let parsed = parse(prefixed(op, links).as_bytes());
+        assert!(parsed.is_ok(), "{op:?}: {:?}", parsed.diagnostic_codes());
+        let source = prefixed(op, links);
+        assert_eq!(parsed.tree.reconstruct(&parsed.tokens, &source), source);
+        let operators = parsed
+            .tree
+            .root()
+            .descendants()
+            .filter(|n| {
+                matches!(
+                    n.kind(),
+                    SyntaxKind::DerefExpr | SyntaxKind::UnaryExpr | SyntaxKind::RefExpr
+                )
+            })
+            .count();
+        assert_eq!(operators, 10_000, "{op:?}");
+    }
+    for op in ["* ", "- ", "! ", "&mut "] {
+        let first_past = u32::try_from(head + op.len() * 10_000).unwrap();
+        assert_eq!(
+            too_deep(&prefixed(op, 10_001)),
+            [(first_past, "nesting-too-deep")],
+            "{op:?}"
+        );
+        assert_eq!(too_deep(&prefixed(op, 100_000)).len(), 1, "{op:?}");
+    }
+}
+
+#[test]
+fn a_power_chain_of_ten_thousand_operators_parses_and_one_more_is_too_deep() {
+    // grammar.limit.chain: `**` is a binary operator, one link each,
+    // right-associative, so the last operand is 10,000 links deep.
+    let fits = chain(" ** x", 10_000);
+    let parsed = parse(fits.as_bytes());
+    assert!(parsed.is_ok(), "{:?}", parsed.diagnostic_codes());
+    let powers = parsed.tree.root().descendants();
+    assert_eq!(
+        powers.filter(|n| n.kind() == SyntaxKind::PowerExpr).count(),
+        10_000
+    );
+    let past = chain(" ** x", 10_001);
+    let last = u32::try_from(past.len() - 1 - "** x".len()).unwrap();
+    assert_eq!(too_deep(&past), [(last, "nesting-too-deep")]);
+    assert_eq!(too_deep(&chain(" ** x", 100_000)).len(), 1);
+}
+
+#[test]
+fn a_prefix_chain_counts_the_links_around_it() {
+    let head = "fn f(x: i32) -> i32:\n    ";
+    // The operand's own postfix links lie below the prefix operators:
+    // 9,999 and 2 make 10,001, reported at the operand.
+    let deep = format!("{head}{}x.a.b\n", "- ".repeat(9_999));
+    let at = u32::try_from(head.len() + 2 * 9_999).unwrap();
+    assert_eq!(too_deep(&deep), [(at, "nesting-too-deep")]);
+    assert!(too_deep(&format!("{head}{}x.a\n", "- ".repeat(9_999))).is_empty());
+    // A `**`'s left operand lies below it: 10,000 links and the `**`.
+    let left = format!("{head}x{} ** x\n", ".a".repeat(10_000));
+    let at = u32::try_from(head.len() + 1 + 2 * 10_000 + 1).unwrap();
+    assert_eq!(too_deep(&left), [(at, "nesting-too-deep")]);
+    assert!(too_deep(&format!("{head}x{} ** x\n", ".a".repeat(9_999))).is_empty());
+    // A binary operator above a prefix chain adds its link.
+    let above = format!("{head}x + {}x\n", "- ".repeat(10_000));
+    assert_eq!(too_deep(&above).len(), 1);
+    assert!(too_deep(&format!("{head}x + {}x\n", "- ".repeat(9_999))).is_empty());
+}
+
+#[test]
+fn prefix_operators_bind_around_the_power_tail_as_before() {
+    // ref.prec.deref: `*` binds tighter than `**`; any other prefix
+    // operator takes the whole power as its operand.
+    use SyntaxKind::{DerefExpr as D, PowerExpr as P, UnaryExpr as U};
+    let shape = |source: &str| -> Vec<SyntaxKind> {
+        let parsed = parse(format!("fn f(a: i32, b: i32) -> i32:\n    {source}\n").as_bytes());
+        assert!(parsed.is_ok(), "{source}: {:?}", parsed.diagnostic_codes());
+        let body = parsed.tree.root().descendants();
+        body.filter(|n| {
+            matches!(
+                n.kind(),
+                SyntaxKind::DerefExpr | SyntaxKind::UnaryExpr | SyntaxKind::PowerExpr
+            )
+        })
+        .map(crate::NodeRef::kind)
+        .collect()
+    };
+    assert_eq!(shape("-a ** b"), [U, P]);
+    assert_eq!(shape("*a ** b"), [P, D]);
+    assert_eq!(shape("* *a ** b"), [P, D, D]);
+    assert_eq!(shape("* -a ** b"), [D, U, P]);
+    assert_eq!(shape("a ** -b ** a"), [P, U, P]);
+    assert_eq!(shape("a ** *b ** a"), [P, P, D]);
+}
+
 #[test]
 fn impl_types_are_scoped_to_named_function_annotations() {
     let source = "fn values[T](value: T) -> impl Iterator[T]:\n    value\n";

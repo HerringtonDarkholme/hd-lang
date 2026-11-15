@@ -269,8 +269,9 @@ impl Done {
 
 const MAX_NESTING: u32 = 160;
 
-/// Binary operators and postfix operations on one path from an expression
-/// down to an operand, brackets included (`grammar.limit.chain`). Each
+/// Binary operators, prefix operators and postfix operations on one path
+/// from an expression down to an operand, brackets included
+/// (`grammar.limit.chain`). Each
 /// link is a level of the syntax tree that every later walk takes by
 /// recursion, and the nesting limit does not bound them: a chain loops in
 /// the parser. Below it, check, fmt and build fit a pool worker's stack
@@ -930,13 +931,19 @@ impl<'t> Parser<'t> {
         if links <= MAX_CHAIN_LINKS {
             return None;
         }
+        self.chain_past_limit(at);
+        let marker = self.precede(done);
+        self.skip_balanced();
+        Some(self.complete(marker, SyntaxKind::Error))
+    }
+
+    /// `grammar.limit.chain.error`: the link at token `at` is the first
+    /// past the limit. Reports it, once per file as every nesting error.
+    pub(crate) fn chain_past_limit(&mut self, at: usize) {
         if !self.errors.iter().any(|e| e.code == Code::NestingTooDeep) {
             self.report(Code::NestingTooDeep, at, CHAIN_TOO_LONG);
         }
         self.stmt_errored = true;
-        let marker = self.precede(done);
-        self.skip_balanced();
-        Some(self.complete(marker, SyntaxKind::Error))
     }
 
     /// Past the nesting limit: skips a balanced run of tokens.

@@ -10,5 +10,8 @@ hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
 hd_syntax = { path = "../hd_syntax" }
 
+[dev-dependencies]
+hd_sched = { path = "../hd_sched", features = ["threads"] }
+
 [lints]
 workspace = true
