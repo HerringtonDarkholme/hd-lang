@@ -3,7 +3,7 @@
 //! kinds (§3.6). Poison unifies with everything (`docs/compiler/data-structures.md` §3.6).
 
 use hd_base::InferVar;
-use hd_base::{HashMap, HashSet, SliceSort as _};
+use hd_base::{HashMap, HashSet};
 
 use crate::pool::{Inputs, Ty, TyData, Types};
 
@@ -63,31 +63,80 @@ fn holds_of(pool: Types<'_>, t: Ty) -> u8 {
         | bit(pool.has_opaque(t), holds::OPAQUE)
 }
 
-/// The resolutions with no variable left, kept across calls (#1891): a
-/// closed result depends only on the bindings made before it, all on the
+/// The resolutions kept across calls. A closed one, with no variable
+/// left (#1891), depends only on the bindings made before it, all on the
 /// trail, so it stays valid until a rollback undoes one of them or a
 /// `rebind` replaces one. `log` holds each key with the trail length when
 /// it was resolved; stamps never decrease, because a rollback to `s`
 /// first drops every entry stamped above `s`.
 ///
-/// `open` keeps the resolutions that still hold variables (#1912), each
-/// with the unbound root variables it holds, when they are at most
-/// [`OPEN_VARS`]: such a result stays valid while each of them is still
-/// an unbound root, since a binding or a union of one changes it, and the
-/// bindings it read are on the trail like a closed one's. `W[W[...[?int]]]`
-/// resolved at each level of a nest is then walked once, not once per
-/// level: an integer literal's variable stays unbound to the body's end.
+/// `open` keeps the resolutions that still hold variables (#1912, #2005),
+/// whatever their number. Such a result also depends on each unbound
+/// root variable it reached staying an unbound root: a binding or a
+/// union of one changes it. So each entry records its direct
+/// dependencies, the unbound roots and the open child types its walk
+/// reached, as edges in `users`; a binding or union of a variable kills
+/// the entries above it along those edges ([`InferTable::kill`]), and a
+/// lookup that finds an entry needs no check. A killed entry goes to
+/// `killed` with the trail length of the kill, so a rollback below the
+/// kill revives it, as it undoes the binding that killed it.
+/// `W[W[...[?int]]]` resolved at each level of a nest is then walked
+/// once, not once per level, however many variables each level holds.
+///
+/// Cost: a walk pays one edge per child of each new node; a lookup is one
+/// probe; a kill and its revival pay each entry killed and each edge out
+/// of it once. `edges` keeps each edge once, so a key resolved again
+/// after a kill adds no edge it already has, and a trial repeated `k`
+/// times does not grow a kill's scan `k` times. An edge goes with the
+/// entry that added it when a rollback drops that entry (`edge_log`); an
+/// edge whose entry was killed stays, and a kill along it finds no entry.
 #[derive(Default, Debug, Clone)]
 struct Closed {
     map: HashMap<Ty, Ty>,
-    open: HashMap<Ty, (Ty, Vars)>,
+    /// Each open key's result and the trail length it was resolved at.
+    open: HashMap<Ty, (Ty, usize)>,
     /// Each kept key, the trail length it was resolved at, and whether
     /// it went to `open`.
     log: Vec<(usize, Ty, bool)>,
+    /// The open entries a dependency's change kills: those whose walk
+    /// reached it directly.
+    users: HashMap<Dep, Vec<Ty>>,
+    edges: HashSet<(Dep, Ty)>,
+    /// Each edge in the order added, with the trail length of the entry
+    /// that added it.
+    edge_log: Vec<(usize, Dep, Ty)>,
+    /// Killed open entries in kill order: the trail length at the kill,
+    /// the key, its result and the trail length it was resolved at.
+    killed: Vec<(usize, Ty, Ty, usize)>,
+}
+
+/// What an open resolution read directly: an unbound root variable, or
+/// an open child type with its own entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Dep {
+    Var(u32),
+    Ty(Ty),
 }
 
 impl Closed {
+    /// Drops what was resolved above trail length `s` and the edges it
+    /// added, then revives what was killed above it and resolved at or
+    /// below it.
     fn drop_above(&mut self, s: usize) {
+        while let Some(&(stamp, d, t)) = self.edge_log.last()
+            && stamp > s
+        {
+            self.edge_log.pop();
+            self.edges.remove(&(d, t));
+            // Edges leave in the reverse of the order they came, so each
+            // is the last of its dependency's users.
+            if let Some(ts) = self.users.get_mut(&d) {
+                ts.pop();
+                if ts.is_empty() {
+                    self.users.remove(&d);
+                }
+            }
+        }
         while let Some(&(stamp, t, open)) = self.log.last()
             && stamp > s
         {
@@ -98,29 +147,27 @@ impl Closed {
                 self.map.remove(&t);
             }
         }
+        while let Some(&(at, t, r, made)) = self.killed.last()
+            && at > s
+        {
+            self.killed.pop();
+            if made <= s {
+                self.open.insert(t, (r, made));
+            }
+        }
+    }
+
+    /// Records that the open entry `t`, resolved at trail length
+    /// `stamp`, read each of `deps` directly.
+    fn depend(&mut self, deps: impl Iterator<Item = Dep>, t: Ty, stamp: usize) {
+        for d in deps {
+            if self.edges.insert((d, t)) {
+                self.users.entry(d).or_default().push(t);
+                self.edge_log.push((stamp, d, t));
+            }
+        }
     }
 }
-
-/// The most unbound variables an [`Closed::open`] entry keeps: a
-/// result with more is walked again, at most this many checks per reuse.
-const OPEN_VARS: usize = 4;
-
-/// The unbound root variables of an open resolution, at most
-/// [`OPEN_VARS`], sorted.
-#[derive(Default, Debug, Clone, Copy)]
-struct Vars {
-    vars: [u32; OPEN_VARS],
-    len: u8,
-}
-
-impl Vars {
-    fn as_slice(&self) -> &[u32] {
-        &self.vars[..usize::from(self.len)]
-    }
-}
-
-/// A resolution's variables past [`OPEN_VARS`] on [`Resolve`]'s stack.
-const MANY: u32 = u32::MAX;
 
 /// The body's inference table: union-find with union by rank and a trail
 /// (`docs/compiler/data-structures.md` §3.19's `parent`, `rank`, `kind` and `binding`
@@ -163,6 +210,34 @@ impl InferTable {
         self.held.push(0);
         self.kind.push(kind);
         pool.intern_ty(&TyData::Infer(InferVar::from_raw(v)))
+    }
+
+    /// Kills the open resolutions that read the unbound root `v`, which
+    /// a binding or union just changed, and those above them
+    /// ([`Closed`]): each entry and each edge out of it once. Called
+    /// after the change's trail entry, so a rollback to before the change
+    /// revives them.
+    fn kill(&mut self, v: u32) {
+        let at = self.trail.len();
+        let Closed {
+            open,
+            users,
+            killed,
+            ..
+        } = self.closed.get_mut();
+        if open.is_empty() {
+            return;
+        }
+        let mut todo = vec![Dep::Var(v)];
+        while let Some(d) = todo.pop() {
+            for &t in users.get(&d).map_or(&[][..], Vec::as_slice) {
+                crate::work::type_node();
+                if let Some((r, made)) = open.remove(&t) {
+                    killed.push((at, t, r, made));
+                    todo.push(Dep::Ty(t));
+                }
+            }
+        }
     }
 
     fn root(&self, mut v: u32) -> u32 {
@@ -299,6 +374,7 @@ impl InferTable {
         self.trail.push(Undo::Rebind(r, None, 0));
         self.binding[r as usize] = Some(t);
         self.hold(r, holds_of(pool, t));
+        self.kill(r);
     }
 
     /// Replaces bound variables at the top of `t`.
@@ -466,6 +542,7 @@ impl InferTable {
         self.binding[v as usize] = Some(t);
         self.hold(v, holds_of(pool, t));
         self.trail.push(Undo::Bind(v));
+        self.kill(v);
         Ok(())
     }
 
@@ -547,6 +624,7 @@ impl InferTable {
                     self.trail.push(Undo::Kind(root, kr));
                     self.kind[root as usize] = merged;
                 }
+                self.kill(child);
                 Ok(())
             }
             (TyData::Infer(x), _) => self.bind(pool, self.root(x.raw()), b),
@@ -779,13 +857,10 @@ impl InferTable {
 struct Resolve<'t, 'p> {
     table: &'t InferTable,
     pool: Types<'p>,
-    /// Each type already resolved in this walk, by id, with its
-    /// variables (`None` past [`OPEN_VARS`]).
-    memo: HashMap<Ty, (Ty, Option<Vars>)>,
-    /// The unbound root variables of the types resolved so far, each
-    /// node's run deduplicated when it is done; [`MANY`] for a run past
-    /// [`OPEN_VARS`].
-    vars: Vec<u32>,
+    /// The direct dependencies of the nodes being resolved, each node's
+    /// run on top: what each finished child read, for its parent's entry
+    /// ([`Closed::depend`]).
+    deps: Vec<Dep>,
 }
 
 impl<'t, 'p> Resolve<'t, 'p> {
@@ -793,41 +868,8 @@ impl<'t, 'p> Resolve<'t, 'p> {
         Resolve {
             table,
             pool,
-            memo: HashMap::default(),
-            vars: Vec::new(),
+            deps: Vec::new(),
         }
-    }
-
-    fn push(&mut self, vars: Option<Vars>) {
-        match vars {
-            Some(v) => self.vars.extend_from_slice(v.as_slice()),
-            None => self.vars.push(MANY),
-        }
-    }
-
-    /// The variables pushed since `mark`, deduplicated in place: a node's
-    /// set, `None` past [`OPEN_VARS`]. O(the run, log).
-    fn close(&mut self, mark: usize) -> Option<Vars> {
-        let run = &mut self.vars[mark..];
-        run.sort_stable();
-        let mut len = 0;
-        for k in 0..run.len() {
-            if k == 0 || run[k] != run[k - 1] {
-                run[len] = run[k];
-                len += 1;
-            }
-        }
-        self.vars.truncate(mark + len);
-        let run = &self.vars[mark..];
-        if run.last() == Some(&MANY) || run.len() > OPEN_VARS {
-            self.vars.truncate(mark);
-            self.vars.push(MANY);
-            return None;
-        }
-        let mut v = Vars::default();
-        v.vars[..run.len()].copy_from_slice(run);
-        v.len = u8::try_from(run.len()).unwrap_or(u8::MAX);
-        Some(v)
     }
 }
 
@@ -839,45 +881,38 @@ impl crate::TyMap for Resolve<'_, '_> {
         }
         // `shallow` leaves only an unbound root variable.
         if let TyData::Infer(v) = self.pool.get(t) {
-            self.vars.push(v.raw());
+            self.deps.push(Dep::Var(v.raw()));
             return t;
         }
-        if let Some(&(r, vars)) = self.memo.get(&t) {
-            self.push(vars);
-            return r;
-        }
+        // Every node resolved so far is kept, closed or open, and a kept
+        // open entry is valid: a change under it killed it.
         let known = {
             let c = self.table.closed.borrow();
-            c.map.get(&t).map(|&r| (r, None)).or_else(|| {
-                c.open.get(&t).and_then(|&(r, vars)| {
-                    let table = self.table;
-                    vars.as_slice()
-                        .iter()
-                        .all(|&v| table.root(v) == v && table.binding[v as usize].is_none())
-                        .then_some((r, Some(vars)))
-                })
-            })
+            c.map
+                .get(&t)
+                .or_else(|| c.open.get(&t).map(|(r, _)| r))
+                .copied()
         };
-        if let Some((r, vars)) = known {
-            // A closed result holds no variable.
-            if let Some(vars) = vars {
-                self.push(Some(vars));
+        if let Some(r) = known {
+            if self.pool.has_infer(r) {
+                self.deps.push(Dep::Ty(t));
             }
             return r;
         }
         crate::work::resolve_node();
-        let mark = self.vars.len();
+        let mark = self.deps.len();
         let r = self.pool.map_children(t, self);
-        let vars = self.close(mark);
-        self.memo.insert(t, (r, vars));
-        if !self.pool.has_infer(r) {
-            let mut c = self.table.closed.borrow_mut();
+        let stamp = self.table.trail.len();
+        let mut c = self.table.closed.borrow_mut();
+        if self.pool.has_infer(r) {
+            c.depend(self.deps.drain(mark..), t, stamp);
+            c.open.insert(t, (r, stamp));
+            c.log.push((stamp, t, true));
+            self.deps.push(Dep::Ty(t));
+        } else {
+            self.deps.truncate(mark);
             c.map.insert(t, r);
-            c.log.push((self.table.trail.len(), t, false));
-        } else if let Some(vars) = vars {
-            let mut c = self.table.closed.borrow_mut();
-            c.open.insert(t, (r, vars));
-            c.log.push((self.table.trail.len(), t, true));
+            c.log.push((stamp, t, false));
         }
         r
     }
@@ -905,6 +940,7 @@ impl crate::TyMap for PoisonVars<'_, '_> {
             self.table.binding[root as usize] = Some(Ty::POISON);
             self.table.hold(root, holds::POISON);
             self.table.trail.push(Undo::Bind(root));
+            self.table.kill(root);
             return Ty::POISON;
         }
         if self.pool.has_infer(t) {
@@ -1469,11 +1505,11 @@ mod tests {
         }
     }
 
-    /// An open resolution is kept with its unbound variables (#1912): the
-    /// next resolve reuses it while they stay unbound, a binding of one
-    /// walks it again, and a type with more than `OPEN_VARS` of them is
-    /// not kept, nor is a type around it, and a rollback drops what a
-    /// trial kept.
+    /// An open resolution is kept while its unbound variables stay unbound
+    /// (#1912), however many it holds (#2005): the next resolve reuses it,
+    /// a binding or union of one kills it and every entry above it, an
+    /// entry that does not read the variable stays, and a rollback drops
+    /// what a trial kept and revives what it killed.
     #[test]
     fn open_resolutions_hold_while_their_variables_stay_unbound() {
         let (gp, lp) = (InternPool::new(), LocalPool::new());
@@ -1504,12 +1540,78 @@ mod tests {
         );
         t.rollback(s);
         assert_eq!(walk(&t, outer), (tuple(&[tuple(&[a, a]), Ty::I32]), 0));
-        // Five variables: neither the tuple nor a type around it is kept.
-        let many: Vec<Ty> = (0..5).map(|_| t.fresh(p, VarKind::General)).collect();
+        // Nine variables: binding `y` resolved the tuple and kept it, and
+        // the type around it is kept too.
+        let many: Vec<Ty> = (0..9).map(|_| t.fresh(p, VarKind::General)).collect();
         let y = t.fresh(p, VarKind::General);
         t.unify(p, y, tuple(&many)).expect("bind");
         let around = tuple(&[y, b, y]);
+        assert_eq!(
+            walk(&t, around),
+            (tuple(&[tuple(&many), b, tuple(&many)]), 1)
+        );
+        assert_eq!(walk(&t, around).1, 0);
+        // A trial's union of the tuple's last variable kills the tuple and
+        // `around`, not `outer`; the rollback revives both.
+        let s = t.snapshot();
+        t.unify(p, many[8], b).expect("union");
         assert_eq!(walk(&t, around).1, 2);
-        assert_eq!(walk(&t, around).1, 2);
+        assert_eq!(walk(&t, outer).1, 0);
+        t.rollback(s);
+        assert_eq!(walk(&t, around).1, 0);
+        // A union that leaves the tuple's variable the root kills only
+        // the type that reads the other one.
+        let (c, d) = (t.fresh(p, VarKind::General), t.fresh(p, VarKind::General));
+        let (cd, dc) = (tuple(&[c, Ty::I32]), tuple(&[d, Ty::I32]));
+        assert_eq!(walk(&t, cd).1 + walk(&t, dc).1, 2);
+        t.unify(p, d, c).expect("union");
+        assert_eq!(walk(&t, cd), (cd, 0));
+        assert_eq!(walk(&t, dc), (cd, 1));
+        // An alias binding and a poisoning kill what read the variable.
+        let (e, f) = (t.fresh(p, VarKind::General), t.fresh(p, VarKind::General));
+        let ef = tuple(&[e, f]);
+        assert_eq!(walk(&t, ef).1, 1);
+        t.alias(p, var(p, e), Ty::I32);
+        assert_eq!(walk(&t, ef), (tuple(&[Ty::I32, f]), 1));
+        t.unify(p, f, Ty::POISON).expect("poison");
+        assert_eq!(walk(&t, ef), (tuple(&[Ty::I32, Ty::POISON]), 1));
+    }
+
+    /// #2005: a nest whose level `i` holds `i` distinct variables,
+    /// `(?i, (?i-1, ... (?1,)))`, resolved at every level, walks each
+    /// level once, and a binding of the innermost variable kills each
+    /// level once: linear in the depth at `n` and `10n`, where a memo
+    /// that keeps only results with few variables walks `n^2 / 2` nodes.
+    #[test]
+    fn a_nest_of_distinct_variables_resolves_and_kills_each_level_once() {
+        let nodes = |n: usize| {
+            let (gp, lp) = (InternPool::new(), LocalPool::new());
+            let p = Types::with_local(&gp, &lp);
+            let mut t = InferTable::default();
+            let first = t.fresh(p, VarKind::General);
+            let mut level = first;
+            let mut levels = Vec::new();
+            for _ in 0..n {
+                let v = t.fresh(p, VarKind::General);
+                level = p.intern_ty(&TyData::Tuple {
+                    elems: p.list(&[v, level]),
+                    rest: None,
+                });
+                levels.push(level);
+            }
+            let ((), count) = crate::work::count_type_nodes(|| {
+                for &l in &levels {
+                    let _ = t.resolve(p, l);
+                }
+                t.unify(p, first, Ty::I32).expect("bind");
+                let _ = t.resolve(p, level);
+            });
+            count
+        };
+        let (small, large) = (nodes(40), nodes(400));
+        assert!(
+            small > 0 && large <= 11 * small,
+            "type nodes at depth 40 and 400: {small} and {large}"
+        );
     }
 }

@@ -3002,21 +3002,17 @@ fn generic_nest_in_generic(n: usize) -> String {
 
 // Checker: #1991, the canonical-fold memo kept only types with at most
 // eight inference variables, so each level of a nest whose types carry
-// nine re-folded the whole type below it: O(depth^2) type nodes. Every
-// fold is kept now. The count leaves out `InferTable::resolve`'s share,
-// whose open-resolution memo keeps at most four variables (`OPEN_VARS`)
-// and stays quadratic on this nest.
+// nine re-folded the whole type below it: O(depth^2) type nodes. #2005,
+// `InferTable::resolve`'s open-resolution memo likewise kept only
+// results with at most four. Every fold and every resolution is kept now.
 #[test]
 fn wide_generic_nest_folds_each_level_once() {
     on_test_stack(|| {
         let nodes = |n: usize| {
-            let ((out, resolve), nodes) = hd_types::work::count_type_nodes(|| {
-                hd_types::work::count_resolve_nodes(|| {
-                    compile(&wide_generic_nest(n), &Goal::Analyze)
-                })
-            });
+            let (out, nodes) =
+                hd_types::work::count_type_nodes(|| compile(&wide_generic_nest(n), &Goal::Analyze));
             assert!(!out.diags.has_errors(), "{n}: {}", out.render());
-            nodes - resolve
+            nodes
         };
         // The first build also checks what the run's memo then keeps.
         nodes(0);
@@ -3024,7 +3020,7 @@ fn wide_generic_nest_folds_each_level_once() {
         let (small, large) = (nodes(3) - zero, nodes(30) - zero);
         assert!(
             small > 0 && large <= 11 * small,
-            "type nodes besides resolution at depth 3 and 30: {small} and {large}"
+            "type nodes at depth 3 and 30: {small} and {large}"
         );
     });
 }
