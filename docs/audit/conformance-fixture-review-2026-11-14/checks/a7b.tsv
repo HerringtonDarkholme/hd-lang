@@ -404,10 +404,10 @@ runtime/valid/optional-propagation.hd	A7b	lost '' gained ','	lang/04-type-system
 runtime/valid/owned-temporary-match-payloads.hd	A7b	lost '' gained ',,,,,'	lang/06-control-flow.md#match-expressions
 runtime/valid/parameter-defaults-after-explicit-arguments.hd	A7b	lost '' gained ','	lang/07-functions.md#default-values
 runtime/valid/partial-equality-dispatch.hd	A7b	lost '' gained ',,,'	lang/05-expressions.md#unary-and-binary-operators
-runtime/valid/path-operations.hd	A7b	lost '' gained ',,,,'	std/path.md#path-operations
-runtime/valid/path-parse.hd	A7b	lost '' gained ','	std/path.md#paths
-runtime/valid/path-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/path.md#r-std-path.join
-runtime/valid/path-stem-with-extension.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,'	std/path.md#path-operations
+std/path/path-operations/path-operations.hd	A7b	lost '' gained ',,,,'	std/path.md#path-operations
+std/path/paths/path-parse.hd	A7b	lost '' gained ','	std/path.md#paths
+std/path/path-operations/path-properties.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,,,'	std/path.md#r-std-path.join
+std/path/path-operations/path-stem-with-extension.hd	A7b	lost '' gained ',,,,,,,,,,,,,,,,,,'	std/path.md#path-operations
 grammar/patterns/pattern-forms.hd	A7b	lost '' gained ','	lang/02-grammar.md#r-grammar.pattern.range
 runtime/valid/payloads-and-fields-keep-every-width.hd	A7b	lost '' gained ','	lang/08-data-and-enums.md#r-data.struct.value
 requirements/suspending-functions/pending-first-poll-argument-order.hd	A7b	lost '' gained ','	lang/11-requirements-and-suspension.md#r-req.suspend.bang

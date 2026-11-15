@@ -1527,10 +1527,10 @@ std/ops/derived-default/derive-default-beside-serialize.hd	accept	std/ops.md#r-s
 std/ops/default-trait/void-unit-void-has-the-tuple-template-impls.hd	accept	std/ops.md#r-std-ops.default.std.tuple.any-size	-1	
 std/ops/default-trait/default-standard-types.hd	accept	std/ops.md#standard-implementations	-4	
 std/option/optional-methods/option-and-then.hd	accept	std/option.md#r-std-option.and-then	-8	
-runtime/valid/path-operations.hd	accept	std/path.md#path-operations	-16	
-runtime/valid/path-stem-with-extension.hd	accept	std/path.md#path-operations	-72	
-runtime/valid/path-parse.hd	accept	std/path.md#paths	-4	
-runtime/valid/path-properties.hd	accept	std/path.md#r-std-path.join	-282	
+std/path/path-operations/path-operations.hd	accept	std/path.md#path-operations	-16	
+std/path/path-operations/path-stem-with-extension.hd	accept	std/path.md#path-operations	-72	
+std/path/paths/path-parse.hd	accept	std/path.md#paths	-4	
+std/path/path-operations/path-properties.hd	accept	std/path.md#r-std-path.join	-282	
 runtime/valid/process-command-handle-shared.hd	accept	std/process.md#r-std-process.command.new-ref	-12	
 runtime/valid/process-command-run.hd	accept	std/process.md#r-std-process.command.run	-24	
 runtime/valid/process-error-display.hd	accept	std/process.md#r-std-process.error.display.other	-52	

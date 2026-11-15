@@ -1195,8 +1195,8 @@ std/option.md	1	complete	std/option/optional-methods/option-and-then.hd
 std/option.md	2	complete	std/option/variant-tests-and-conversions/option-tests-conversions.hd
 std/option.md	3	complete	std/option/borrowed-payloads/option-copied.hd
 std/option.md	4	complete	std/error/one-off-errors/error-message.hd
-std/path.md	1	complete	typing/valid/path-newtype.hd
-std/path.md	2	complete	runtime/valid/path-operations.hd
+std/path.md	1	complete	std/path/paths/path-newtype.hd
+std/path.md	2	complete	std/path/path-operations/path-operations.hd
 std/process.md	1	complete	runtime/valid/process-error-display.hd
 std/process.md	2	complete	runtime/valid/process-exit-data-eq.hd
 std/process.md	3	type-fragment	-

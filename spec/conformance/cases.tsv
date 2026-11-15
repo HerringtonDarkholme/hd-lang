@@ -3302,7 +3302,7 @@ std/console/console-input/console-read-all.hd	runtime	accept	std/console.md#r-st
 std/host/plain-reads/host-args-env.hd	runtime	accept	std/host.md#plain-reads
 std/fs/file-system-errors/fs-error-variant-equality.hd	runtime	accept	std/fs.md#r-std-fs.error.eq.variant-payload
 std/fs/file-helpers/fs-helpers.hd	runtime	accept	std/fs.md#file-helpers
-typing/valid/path-newtype.hd	type	accept	std/path.md#paths
+std/path/paths/path-newtype.hd	type	accept	std/path.md#paths
 typing/valid/random-trait.hd	type	accept	std/random.md#random-source
 runtime/valid/string-lines.hd	runtime	accept	std/text.md#r-std-text.string.lines
 runtime/valid/string-repeat.hd	runtime	accept	std/text.md#r-std-text.string.repeat
@@ -4080,10 +4080,10 @@ std/num/integer-parsing/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-nu
 std/num/radix-text/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-trip
 std/num/integer-parsing/num-parse-byte-reader-matches-scalar-reader.hd	runtime	accept	std/num.md#r-std-num.parse.invalid-digit-byte
 std/num/rotation/num-rotate.hd	runtime	accept	std/num.md#rotation
-runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
-runtime/valid/path-properties.hd	runtime	accept	std/path.md#r-std-path.join
-runtime/valid/path-stem-with-extension.hd	runtime	accept	std/path.md#path-operations
-runtime/valid/path-parse.hd	runtime	accept	std/path.md#paths
+std/path/path-operations/path-operations.hd	runtime	accept	std/path.md#path-operations
+std/path/path-operations/path-properties.hd	runtime	accept	std/path.md#r-std-path.join
+std/path/path-operations/path-stem-with-extension.hd	runtime	accept	std/path.md#path-operations
+std/path/paths/path-parse.hd	runtime	accept	std/path.md#paths
 std/iter/iterator-adapters/iterator-list-sum.hd	runtime	accept	std/iter.md#r-std-iter.adapter.sum.numeric-target
 std/iter/numeric-aggregation/iterator-numeric-targets.hd	runtime	accept	std/iter.md#numeric-aggregation
 std/iter/numeric-aggregation/iterator-product-overflow.hd	runtime	panic:integer-overflow	std/iter.md#r-std-iter.product.numeric-overflow
