@@ -93,10 +93,8 @@ export const KNOWN: ReadonlyMap<string, string> = new Map([
   ["option-nest build", "#1918"],
   ["generic-nest check", "#1912"],
   ["generic-nest build", "#1912"],
-  ["bool-nest build", "#1905"],
   ["tuple-nest build", "#1924"],
   ["tuple-nest check", "#1924"],
-  ["if-expr-nest build", "#1913"],
   ["fn-nest build", "#1911"],
 ]);
 

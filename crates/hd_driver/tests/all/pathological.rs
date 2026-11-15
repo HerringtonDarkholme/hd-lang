@@ -2505,3 +2505,78 @@ fn nested_list_types_hash_each_type_once() {
         );
     });
 }
+
+/// Inline `if` values nested `n` deep: the scale check's `if-expr-nest`.
+fn if_value_nest(n: usize) -> String {
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +1\n    t = {}t{}\n    println(\"$t\")\n",
+        "if t > 0: (".repeat(n),
+        ") else: +0".repeat(n)
+    )
+}
+
+/// `||` and `&&` values nested `n` deep: the scale check's `bool-nest`.
+fn logic_value_nest(n: usize) -> String {
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +1\n    b := {}true{}\n    if b:\n        t = t + 1\n    println(\"$t\")\n",
+        "(t < 1 || !(t >= 2 && ".repeat(n),
+        "))".repeat(n)
+    )
+}
+
+/// `n` inline `if` values one after another in one body.
+fn if_value_run(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +1\n");
+    for _ in 0..n {
+        s.push_str("    t = if t > 0: t + 1 else: +0\n");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// A generated program, its size n, and what it prints at size k.
+type ValueShape = (&'static str, fn(usize) -> String, usize, fn(usize) -> usize);
+
+// Emitter: #1905, #1913, rule 6 of the local cleanup (a value `if` whose
+// arms each set one local) rewrote one `if` per pass over the body, and
+// rule 20 copied the body for each value `if` it tested, so a body's value
+// `if`s, nested or one after another, cost their count times its length.
+// Now one pass rewrites every rule 6 `if`, and rule 20 copies only for a
+// rewrite, which counts as work. Each program runs and prints its value.
+#[test]
+fn value_ifs_rewrite_in_one_pass_over_the_body() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |name: &str, source: String, printed: String| {
+            let (out, work) = hd_wasm::work::count_control(|| compile(&source, &goal));
+            assert!(!out.diags.has_errors(), "{name}: {}", out.render());
+            let ran =
+                crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
+            assert!(
+                ran.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&ran.stderr)
+            );
+            assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+            work
+        };
+        let shapes: [ValueShape; 3] = [
+            // An entry nests more than two levels: 50 stays below the limit.
+            ("if-value-nest", if_value_nest, 5, |_| 1),
+            ("logic-value-nest", logic_value_nest, 5, |_| 2),
+            ("if-value-run", if_value_run, 100, |n| n + 1),
+        ];
+        for (name, generate, n, printed) in shapes {
+            let zero = work(name, generate(0), format!("{}\n", printed(0)));
+            let small = work(name, generate(n), format!("{}\n", printed(n))) - zero;
+            let large = work(name, generate(10 * n), format!("{}\n", printed(10 * n))) - zero;
+            assert!(
+                small > 0 && large <= 12 * small,
+                "{name}: control work over the empty body at {n} and {}: {small} and {large}",
+                10 * n
+            );
+        }
+    });
+}
