@@ -1567,7 +1567,7 @@ lang/grammar/declarations/vararg-and-spread.hd	parse	accept	lang/02-grammar.md#r
 lang/grammar/declarations/vararg-with-default.hd	parse	reject:syntax-error	lang/02-grammar.md#declarations
 lang/grammar/declarations/parameter-defaults.hd	parse	accept	lang/02-grammar.md#declarations
 lang/grammar/declarations/copy-update-spread-not-first.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.primary.prefix-elsewhere
-lang/grammar/declarations/copy-update-spread.hd	parse	accept	lang/02-grammar.md#data-types
+lang/grammar/declarations/copy-update-spread.hd	parse	accept	lang/02-grammar.md#r-grammar.primary.update-spread
 lang/grammar/patterns/named-payload-pattern-labels.hd	parse	accept	lang/02-grammar.md#patterns
 lang/grammar/patterns/nested-result-payload-pattern.hd	parse	accept	lang/02-grammar.md#patterns
 lang/grammar/patterns/literal-payload-pattern.hd	parse	accept	lang/02-grammar.md#patterns
@@ -2895,8 +2895,8 @@ lang/grammar/expressions/type-name-brackets-without-marker.hd	parse	reject:synta
 lang/grammar/expressions/trait-qualified-brackets-without-marker.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.expr.type-arguments.unmarked
 lang/grammar/expressions/index-then-call-element.hd	runtime	accept	lang/02-grammar.md#r-grammar.expr.index-only
 lang/control-flow/for-loops/readonly-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.iterator.iterable-bound
-lang/control-flow/for-loops/for-over-mut-iterator.hd	type	accept	lang/06-control-flow.md#r-flow.for.iterator.owned-source
-lang/control-flow/for-loops/iterator-single-pass.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator.owned-position
+lang/control-flow/for-loops/for-over-mut-iterator.hd	type	accept	lang/06-control-flow.md#r-flow.for.accepts-owned-cursor
+lang/control-flow/for-loops/iterator-single-pass.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator.reference-progress
 lang/annotations/typed-derivation/templates/structure-qualified-self.hd	runtime	accept	lang/14-annotations.md#r-annot.template.qualified-self
 lang/grammar/control-flow-expressions/for-bare-name-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.flow.for-list.bare
 lang/grammar/control-flow-expressions/comprehension-bare-name-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.flow.for-list.bare
