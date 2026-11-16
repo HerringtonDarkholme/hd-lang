@@ -132,6 +132,52 @@ fn checks_formats_builds(text: String, build_it: bool) {
     assert!(formatted);
 }
 
+/// #1994: count every liveness rewrite sweep as well as persistent-set
+/// work; a whole-body sweep per power level would grow quadratically.
+#[test]
+fn power_chain_liveness_work_is_near_linear() {
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let mut measured = Vec::new();
+            for n in [1_000, 10_000] {
+                let text = with_main("u32", &vec!["x"; n + 1].join(" ** "));
+                let mut src = MemorySources::default();
+                src.insert("main.hd", &text);
+                let store = crate::warm_store();
+                let host = Host {
+                    render_tir: &[],
+                    sources: &src,
+                    store: &store,
+                    clock: &NoClock,
+                    executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+                };
+                let (out, work) = hd_wasm::work::count_liveness(|| {
+                    build(
+                        &host,
+                        "app",
+                        &Goal::Program {
+                            entry: "main".into(),
+                        },
+                    )
+                });
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                assert!(out.wasm.is_some());
+                eprintln!("power count {n}: work {work}");
+                measured.push(work);
+            }
+            // Persistent-set paths contribute a logarithmic factor.
+            assert!(
+                measured[0] > 0 && measured[1] <= measured[0] * 14,
+                "{measured:?}"
+            );
+        });
+    assert!(worker.is_ok());
+    if let Ok(worker) = worker {
+        assert!(worker.join().is_ok());
+    }
+}
+
 /// A prefix operator is one link of `grammar.limit.chain` (#1955): the
 /// parser takes 10,000 of them in a loop, and below that limit a dev
 /// build checks, formats and builds them on a worker's stack, `*` and
@@ -146,14 +192,13 @@ fn a_prefix_chain_of_ten_thousand_operators_checks_formats_and_builds() {
 }
 
 /// `**` is a binary operator, one link each (#1955): 10,000 of them
-/// check and format on a worker's stack. A build is left out: the wasm
-/// optimizer's liveness rules take time quadratic in this nesting
-/// (about 25 s at 10,000 in a dev build; see the issue filed with #1955).
+/// check, format and build on a worker's stack. Persistent liveness sets
+/// remove the quadratic build cost previously tracked by #1994.
 #[test]
-fn a_power_chain_of_ten_thousand_operators_checks_and_formats() {
+fn a_power_chain_of_ten_thousand_operators_checks_formats_and_builds() {
     checks_formats_builds(
         with_main("u32", &format!("x{}", " ** x".repeat(10_000))),
-        false,
+        true,
     );
 }
 

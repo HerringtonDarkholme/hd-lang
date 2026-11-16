@@ -2057,6 +2057,7 @@ const NONE: u32 = u32::MAX;
 /// union is unchanged. Each access is walked in at most one union, and
 /// the moves are sorted once: `O(B + M log M)` for `M` moves, no set.
 fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
+    crate::work::liveness(f.body.len());
     let body = &f.body;
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(body.len());

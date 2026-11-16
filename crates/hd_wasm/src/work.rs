@@ -84,8 +84,9 @@ pub(crate) fn static_looks(n: usize) {
 }
 
 /// Counts the liveness and local coalescing work on this thread: each
-/// basic block a liveness pass makes and each node of its persistent
-/// sets, and each local, loop and class heap step of the coalescing scan
+/// instruction a rewrite sweep visits, each basic block a liveness pass
+/// makes and each node of its persistent sets, and each local, loop and
+/// class heap step of the coalescing scan
 /// ([`crate::opt::coalesce`]).
 pub fn count_liveness<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&LIVENESS, run)
