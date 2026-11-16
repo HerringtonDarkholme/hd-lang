@@ -48,6 +48,8 @@ mod dyn_value;
 mod excl;
 pub(crate) use excl::{OriginIndex, collect_loans};
 mod guards;
+mod indirect;
+pub(crate) use indirect::Params as IndirectParams;
 mod iter;
 mod list;
 mod loan;
@@ -154,8 +156,27 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         // A promoted copy borrows what it takes by value (§23.40).
         lends: input.env.lends(item, args)
             | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
+        indirect: indirect::params(input, m, id),
     };
-    body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
+    let Some(ps) = own.indirect.clone() else {
+        return body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b);
+    };
+    // The worker takes them by address; the instance's own symbol is the
+    // leaf-ABI wrapper (`indirect.rs`).
+    let worker = body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)?;
+    let leaves = param_locals(b)
+        .into_iter()
+        .map(|l| {
+            vals(
+                input.pool,
+                input.env,
+                subst(input.pool, input.env, item, args, b.local_ty[l]),
+            )
+        })
+        .collect::<StageResult<Vec<_>>>()?;
+    let wrapper = indirect::wrapper(m, own.key, &worker, &ps, &leaves);
+    m.define(Sym::Part(own.key, Part::Indirect), worker);
+    Ok(wrapper)
 }
 
 /// What [`body_func`] emits: item `item`'s instance at `args`, its sub-body
@@ -171,6 +192,9 @@ struct Own {
     /// The parameters the item's release summary lends
     /// (`ProgramEnv::lends`): none for a body that only calls the item.
     lends: u64,
+    /// The parameters this body, an instance's worker, takes by address
+    /// (`indirect.rs`): none for every other body.
+    indirect: Option<indirect::Params>,
 }
 
 /// The function of body `b`'s sub-body `sub`, the instance `own`, whose
@@ -310,7 +334,13 @@ fn body_func<'a>(
     // Plain functions use `layout::Pass` (§23.25). Cold and fresh
     // suspending entries use the selected cold argument convention.
     let by_type = own.cold.is_some() || !suspending && (sub != 0 || !input.env.suspends(item));
-    for &l in &plocals {
+    for (k, &l) in plocals.iter().enumerate() {
+        if let Some(Some(mem)) = own.indirect.as_ref().map(|ps| ps[k].clone()) {
+            let at = shape::u32_of(params.len());
+            em.mem_locals.insert(l, (at, mem));
+            params.push(Val::I32);
+            continue;
+        }
         let ty = em.sub(b.local_ty[l]);
         let vs = em.vals(ty)?;
         let at = u32::try_from(params.len()).expect("params");
@@ -359,6 +389,7 @@ fn body_func<'a>(
         params.clone(),
         fres,
     );
+    em.forward = em.forwarded();
     em.borrow_init_flags();
     em.f.reason = Some(Reason::Conservative("entry"));
     em.f.names_counts = em.names_counts();
@@ -614,7 +645,7 @@ fn body_func<'a>(
         }
     }
     for &l in &plocals {
-        if !em.is_cell(l) && !em.borrowed.contains(&l) {
+        if !em.is_cell(l) && !em.borrowed.contains(&l) && !em.mem_locals.contains_key(&l) {
             em.mark_drop_root(drop_flags::Root::Local(l), em.sub(b.local_ty[l]), true);
         }
     }
@@ -1056,6 +1087,7 @@ fn call_func(
         key: k.finish(),
         cold,
         lends: 0,
+        indirect: None,
     };
     let f = body_func(input, m, &own, 0, &calls, b)?;
     let sym = Sym::Inst(own.key);
@@ -1420,6 +1452,14 @@ struct Em<'i, 'a, 'm> {
     /// the read. Each arm's fields load where they are read
     /// ([`Em::lazy_borrow`]).
     lazy: HashMap<u32, Lazy>,
+    /// Each parameter local this worker takes by address (`indirect.rs`):
+    /// the Wasm local of its address and its layout.
+    mem_locals: HashMap<usize, (u32, crate::layout::Mem)>,
+    /// Each field read of such a parameter that only passes on as an
+    /// address argument ([`Em::forwarded`]).
+    forward: hd_base::HashSet<u32>,
+    /// Each such read's value: the address local and the field's offset.
+    mem_vals: HashMap<u32, (u32, u32)>,
     /// Adjacent TIR Retains lowered during construction, before the result's
     /// vtable loads. Their statement must not emit the same count again.
     retained_before_result: hd_base::HashSet<u32>,
@@ -1643,6 +1683,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
             lazy: HashMap::default(),
+            mem_locals: HashMap::default(),
+            forward: hd_base::HashSet::default(),
+            mem_vals: HashMap::default(),
             retained_before_result: hd_base::HashSet::default(),
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
@@ -2031,6 +2074,13 @@ impl Em<'_, '_, '_> {
         if let Some(ls) = self.locals.get(&l) {
             return Ok(ls.clone());
         }
+        // ruled out: `indirect::params` keeps a parameter by address only
+        // when its every use is a field read, which `Em::mem_read` emits
+        // without its locals.
+        assert!(
+            !self.mem_locals.contains_key(&l),
+            "an address parameter read whole"
+        );
         // A shared local is its cell's address (`closure.rs`).
         let vs = if self.is_cell(l) {
             vec![Val::I32]
@@ -3133,6 +3183,34 @@ impl Em<'_, '_, '_> {
     /// a borrowed one is lent. Arguments spread from a tuple do not line up
     /// with the parameters one to one: each owned parameter's values then
     /// take a count, wherever they come from.
+    /// Pushes argument `k`, `r`, of call `i` for parameter type `t`.
+    pub(super) fn push_arg(
+        &mut self,
+        i: u32,
+        k: usize,
+        r: u32,
+        t: Ty,
+        lends: Option<u64>,
+    ) -> StageResult<()> {
+        if matches!(self.argument_pass(lends, k, t), Pass::Owned(_)) {
+            let s = if let Some(reason) = self.operation_count(
+                i,
+                Tag::Retain,
+                // ruled out: a call's arguments fit Wasm's u32 parameter indices.
+                CountPart::Operand(u32::try_from(k).expect("arguments")),
+            ) {
+                // A stated borrowed read has no count to move;
+                // this owned ABI parameter takes its copy.
+                self.because(reason, |em| em.retain_ref(r))?
+            } else {
+                self.consumed(r)?
+            };
+            self.push_src(&s)
+        } else {
+            self.push(r)
+        }
+    }
+
     pub(super) fn push_args(
         &mut self,
         i: u32,
@@ -3154,22 +3232,7 @@ impl Em<'_, '_, '_> {
         };
         if params.len() == args.len() {
             for (k, (r, t)) in args.iter().zip(params).enumerate() {
-                if matches!(self.argument_pass(lends, k, *t), Pass::Owned(_)) {
-                    let s = if let Some(reason) = self.operation_count(
-                        i,
-                        Tag::Retain,
-                        CountPart::Operand(u32::try_from(k).expect("arguments")),
-                    ) {
-                        // A stated borrowed read has no count to move;
-                        // this owned ABI parameter takes its copy.
-                        self.because(reason, |em| em.retain_ref(*r))?
-                    } else {
-                        self.consumed(*r)?
-                    };
-                    self.push_src(&s)?;
-                } else {
-                    self.push(*r)?;
-                }
+                self.push_arg(i, k, *r, *t, lends)?;
             }
             return Ok(());
         }
@@ -3247,13 +3310,21 @@ impl Em<'_, '_, '_> {
         if suspends && let Some(on) = crate::drive::block_on_of(self.b, &self.topo, self.calls, i) {
             return self.call_known_drive(i, ct, args, on);
         }
+        let mut worker = None;
         if suspends {
             self.push_cold_args(i, args, ct.item, ct.args, None)?;
         } else {
             let params = self.param_tys(ct.key, ct.item, ct.args);
             let lends = self.env().lends(ct.item, ct.args)
                 | promote::promoted_params(self.input, self.m, ct.key);
-            self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
+            let ws = self.worker_of(ct.key).filter(|ws| {
+                ws.len() == args.len() && params.as_ref().is_some_and(|p| p.len() == args.len())
+            });
+            if let (Some(ws), Some(params)) = (ws, params.as_deref()) {
+                worker = Some(self.push_worker_args(i, args, params, lends, &ws)?);
+            } else {
+                self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
+            }
         }
         let c = self.push_call_providers(i, ct.item, ct.args);
         // A frame that only awaits in this body, whose
@@ -3266,9 +3337,14 @@ impl Em<'_, '_, '_> {
             });
         self.f.call(if lent {
             Sym::Part(ct.key, Part::Lent)
+        } else if worker.is_some() {
+            Sym::Part(ct.key, Part::Indirect)
         } else {
             Sym::Inst(ct.key)
         });
+        if let Some(block) = worker {
+            self.release_block(block);
+        }
         // A suspending callee called cold returns its frame.
         let ret = if suspends { self.ty(i) } else { ct.ret };
         self.call_results(i, ret)?;

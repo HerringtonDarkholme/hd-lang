@@ -43,8 +43,14 @@ impl Leaf {
     /// `base` bytes before the value.
     #[must_use]
     pub fn load(self, base: u32) -> I {
+        self.load_in(HEAP, base)
+    }
+
+    /// [`Leaf::load`] from memory `memory`.
+    #[must_use]
+    pub fn load_in(self, memory: u32, base: u32) -> I {
         let m = memarg(
-            HEAP,
+            memory,
             u64::from(base + self.offset),
             u32::from(self.bytes).trailing_zeros(),
         );
@@ -66,8 +72,14 @@ impl Leaf {
     /// on the stack, `base` bytes before the value.
     #[must_use]
     pub fn store(self, base: u32) -> I {
+        self.store_in(HEAP, base)
+    }
+
+    /// [`Leaf::store`] to memory `memory`.
+    #[must_use]
+    pub fn store_in(self, memory: u32, base: u32) -> I {
         let m = memarg(
-            HEAP,
+            memory,
             u64::from(base + self.offset),
             u32::from(self.bytes).trailing_zeros(),
         );
@@ -338,6 +350,38 @@ pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
             coll_leaves(pool, env, *f).into_iter().map(move |k| at + k)
         })
         .collect()
+}
+
+/// The most Wasm values a struct or tuple passes as values. A larger one
+/// passes as one address (rustc's `PassMode::Indirect`, which the Rust ABI
+/// picks above two pointers): passing it costs one value however many it
+/// holds, so a value forwarded down a chain of calls costs each call the
+/// same. 16 keeps ordinary records, a seven-`f64` body included, direct
+/// (owner, #2031).
+pub const INDIRECT: usize = 16;
+
+/// The layout of `t` when it passes by address ([`INDIRECT`]): a struct or
+/// tuple of more than [`INDIRECT`] values that holds no counted reference
+/// and nothing to drop, so its bits are the whole value.
+pub fn indirect(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Option<Mem>> {
+    let t = strip(pool, env, t);
+    let aggregate = match pool.get(t) {
+        TyData::Tuple { .. } => true,
+        TyData::Adt { def, args } => {
+            env.std_kind(def) == StdKind::Other
+                && matches!(kind(pool, env, t), Kind::Value)
+                && env.enum_variants(def, args).is_none()
+        }
+        _ => false,
+    };
+    if !aggregate {
+        return Ok(None);
+    }
+    let m = mem(pool, env, t)?;
+    if m.leaves.len() <= INDIRECT || walk(pool, env, t).is_some() || holds_drop(pool, env, t) {
+        return Ok(None);
+    }
+    Ok(Some(m))
 }
 
 /// The Wasm values of a concrete type.

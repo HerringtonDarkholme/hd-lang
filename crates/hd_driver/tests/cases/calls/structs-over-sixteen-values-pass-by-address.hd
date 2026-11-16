@@ -1,0 +1,103 @@
+# @dump: stdout
+# Each form of a struct or tuple over 16 values reaching a callee (#2031):
+# a literal stored around the call, a field forwarded at a nonzero offset,
+# a field of a field, a tuple, mixed leaves, a parameter read whole (which
+# stays leaves), a function value and a generic instance (which call the
+# leaf-ABI wrapper), a field read into a local, a parameter a closure
+# captures (which stays leaves), and a struct holding a string (which
+# counts, so stays leaves).
+struct Wide:
+    a: i32
+    b: i64
+    c: f64
+    d: u8
+    e: bool
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+struct Mid:
+    tag: i32
+    wide: Wide
+
+struct Top:
+    x: i64
+    mid: Mid
+    y: u8
+
+struct Named:
+    name: string
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+
+fn wide(n: i32) -> Wide:
+    Wide { a: n, b: i64(n) * 2, c: 0.5, d: 7, e: true, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: n + 100 }
+
+fn sum(w: Wide) -> i64:
+    let flag: i64 = if w.e: 1 else: 0
+    i64(w.a) + w.b + i64(w.d) + flag + i64(w.q) + i64(w.c * 4.0)
+
+fn mid_sum(m: Mid) -> i64: sum(m.wide) + i64(m.tag)
+
+fn top_sum(t: Top) -> i64: mid_sum(t.mid) + sum(t.mid.wide) + t.x + i64(t.y)
+
+fn twice(t: Top) -> i64:
+    let w = t.mid.wide
+    sum(w) + sum(w)
+
+fn whole(w: Wide) -> Wide: w
+
+fn mixed(k: i32, w: Wide, z: f64) -> f64: f64(k) + f64(sum(w)) + z
+
+fn tuple_sum(t: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32)) -> i32:
+    t._0 + t._16
+
+fn first[T](w: Wide, other: T) -> i32: w.q
+
+fn named(v: Named) -> i32: v.a + v.p
+
+fn apply(f: fn(Wide) -> i64, w: Wide) -> i64: f(w)
+
+fn captured(w: Wide) -> i32:
+    let get: fn(i32) -> i32 = fn(n) -> i32:
+        w.q + n
+    get(1)
+
+pub fn main() -> void $ Console:
+    let top = Top { x: 1000, mid: Mid { tag: 50, wide: wide(1) }, y: 3 }
+    println("${sum(wide(2))}")
+    println("${mid_sum(Mid { tag: 9, wide: wide(3) })}")
+    println("${top_sum(top)}")
+    println("${twice(Top { x: 1, mid: Mid { tag: 2, wide: wide(4) }, y: 5 })}")
+    println("${sum(whole(wide(5)))}")
+    println("${mixed(+7, wide(6), 0.25)}")
+    println("${tuple_sum((+1, +2, +3, +4, +5, +6, +7, +8, +9, +10, +11, +12, +13, +14, +15, +16, +17))}")
+    let f = sum
+    println("${apply(sum, wide(9))}")
+    println("${captured(wide(10))}")
+    println("${f(wide(7))}")
+    println("${first(wide(8), "x")}")
+    println("${named(Named { name: "n", a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16 })}")

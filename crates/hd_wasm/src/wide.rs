@@ -107,6 +107,11 @@ pub fn lower(
         }
         any |= calls(f, &sig)?;
         any |= storage(f)?;
+        // A worker's call reserves its address arguments' block there
+        // (`emit/indirect.rs`).
+        any |= f.body.iter().any(|i| {
+            matches!(i, Ins::GlobalGet(g) | Ins::GlobalSet(g) if symbols.global(*g) == Global::Stack)
+        });
         f.rebuild_callees();
     }
     Ok(any)

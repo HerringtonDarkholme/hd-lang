@@ -1,0 +1,36 @@
+# @dump: wat
+# A struct of more than 16 values that counts nothing passes to its
+# callee's worker as one address in the shadow stack (#2031). `outer`
+# passes `t.inner` on as that address plus the field's offset, loading
+# nothing, and reads `t.v` alone; `main` stores the literal's leaves in
+# a block around the call. The leaf-ABI wrapper nothing calls is gone.
+struct Inner:
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+struct Outer:
+    inner: Inner
+    v: i32
+
+fn inner_sum(t: Inner) -> i32: t.a + t.q
+
+fn outer(t: Outer) -> i32: inner_sum(t.inner) + t.v
+
+fn main():
+    let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
+    println("${outer(Outer { inner: i, v: +100 })}")

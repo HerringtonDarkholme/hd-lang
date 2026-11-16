@@ -895,6 +895,9 @@ impl Em<'_, '_, '_> {
     /// locals, which is read as a copy: the root's `Drop`, which the move
     /// pass keeps for such a root, releases it.
     pub(super) fn place_read(&mut self, i: u32) -> StageResult<()> {
+        if self.mem_read(i)? {
+            return Ok(());
+        }
         let p = self.place(self.b.data[i as usize][0]);
         let last = self.last_through(&p)?;
         let start = self.place_start(i, &p, last)?;

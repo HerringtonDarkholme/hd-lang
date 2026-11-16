@@ -266,7 +266,7 @@ fn buckets(n: usize, key: impl Fn(usize) -> u32) -> (Vec<u32>, Vec<u32>) {
     (at, items)
 }
 
-fn u32_of(i: usize) -> u32 {
+pub(super) fn u32_of(i: usize) -> u32 {
     // ruled out: TIR names instructions by `u32` words, so a body's
     // instruction count fits.
     u32::try_from(i).expect("instructions fit u32")

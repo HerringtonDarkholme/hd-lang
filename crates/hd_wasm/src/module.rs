@@ -293,6 +293,11 @@ pub enum Part {
     /// outlive the frame (`ref_word::LENT`). Defined only for an instance
     /// whose frame counts such objects.
     Lent,
+    /// `(arguments, providers) -> results` with each parameter of
+    /// `crate::emit::indirect::params` as its address: the worker that
+    /// direct calls make (#2031). The instance's own symbol is then its
+    /// leaf-ABI wrapper.
+    Indirect,
 }
 
 /// A host import (`crates/hd_run_wasmtime/DESIGN.md` §17.2): its module,
@@ -1198,6 +1203,10 @@ pub struct Module {
     /// and sub-bodies rather than rescanned for each parameter or closure.
     pub(crate) boundary_counts: Vec<Option<crate::emit::BoundaryCell>>,
     pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
+    /// Per instance, the parameters its worker takes by address, once
+    /// (`emit/indirect.rs`).
+    pub(crate) indirect_params:
+        hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
@@ -1325,6 +1334,7 @@ impl Module {
             element_checks: Vec::default(),
             boundary_counts: Vec::default(),
             body_facts: Vec::default(),
+            indirect_params: hd_base::HashMap::default(),
             loan_uses: Vec::default(),
             frames: BTreeMap::default(),
             frame_spills: hd_base::HashMap::default(),
@@ -2847,7 +2857,8 @@ impl Module {
             shared: false,
             page_size_log2: None,
         });
-        // Memory 2: the shadow stack, when a wide signature uses it.
+        // Memory 2: the shadow stack, when a wide signature or an address
+        // argument's block (`emit/indirect.rs`) uses it.
         if stack {
             memories.memory(MemoryType {
                 minimum: u64::from(STACK_PAGES),
