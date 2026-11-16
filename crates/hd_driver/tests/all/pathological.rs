@@ -3852,6 +3852,58 @@ fn unknown_method_hints_ask_only_the_receivers_methods() {
     });
 }
 
+/// `k` folders of one module each, every module calling `get` on the
+/// struct `S` of the root folder's `shared` module: lane 126's measure
+/// of the folder slots a module's view scans per receiver head.
+fn modules_in_many_folders_call_one_type(k: usize) -> MemorySources {
+    let mut src = MemorySources::default();
+    src.insert(
+        "shared.hd",
+        "pub trait Get:\n    fn get(&self) -> i32\n\npub struct S:\n    pub v: i32\n\nimpl Get for S:\n    fn get(&self) -> i32: self.v\n",
+    );
+    for i in 0..k {
+        src.insert(
+            &format!("d{i}/m.hd"),
+            &format!("use pkg.shared.{{S, Get}}\n\npub fn call{i}(s: S) -> i32: s.get()\n"),
+        );
+    }
+    src.insert(
+        "main.hd",
+        "pub fn main() -> void $ Console:\n    println(\"0\")\n",
+    );
+    src
+}
+
+// Driver and solver: each module's impl view held a slot per folder of
+// the program, made per module (`closure_impls`) and scanned once per
+// receiver head (`Impls::tables_at`), so k modules in k folders cost
+// k^2. The view now holds its closure's folders alone (`FolderSlots`).
+#[test]
+fn modules_in_many_folders_scan_their_view_once_per_head() {
+    on_test_stack(|| {
+        let work = |k: usize| {
+            let src = modules_in_many_folders_call_one_type(k);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let (out, slots) =
+                hd_types::work::count_view_slots(|| build(&host, "app", &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{k}: {}", out.render());
+            slots
+        };
+        let (small, large) = (work(100), work(1_000));
+        assert!(
+            small > 0 && large <= 12 * small,
+            "view slots at 100 and 1,000 folders: {small} and {large}"
+        );
+    });
+}
+
 // Emitter: #1918, the walk for a release's `Drop` calls entered every
 // inline part of each value it released, so each level of an option or
 // tuple nest walked the `i` levels below it: O(depth^2). A part that

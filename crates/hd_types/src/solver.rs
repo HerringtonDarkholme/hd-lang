@@ -3718,15 +3718,12 @@ mod tests {
             }
         }
 
-        fn view<'a>(
-            &'a self,
-            folders: &'a [Option<&'a super::FolderImpls>],
-        ) -> super::ImplView<'a> {
+        fn view<'a>(&'a self, folders: &'a [(u32, &'a super::FolderImpls)]) -> super::ImplView<'a> {
             super::ImplView {
                 paths: &self.paths,
                 owners: &self.owners,
                 own: None,
-                folders,
+                folders: crate::lookup::FolderSlots::new(folders),
                 universe: ImplUniverses::default().intern(&[]).0,
                 extra: &self.extra,
                 arity: &no_arity,
@@ -3929,7 +3926,7 @@ mod tests {
         t.by_trait.insert(tr.raw(), (0, 1));
         t.index();
         let folder = TestFolder::new(p, Some(&t));
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
@@ -4069,11 +4066,11 @@ mod tests {
 
         // One context: its closure's folders, one open goal.
         let ask = |closure: &[u32]| -> (Answer, MemoKey) {
-            let mut folders: Vec<Option<&FolderImpls>> = vec![None; 4];
+            let mut folders: Vec<(u32, &FolderImpls)> = Vec::new();
             let mut members = Vec::new();
             for &c in closure {
                 let fi = if c == 1 { &prod } else { &empty };
-                folders[c as usize] = Some(fi);
+                folders.push((c, fi));
                 if fi.in_universe() {
                     members.push((f(c), fi));
                 }
@@ -4084,7 +4081,7 @@ mod tests {
                 paths: &paths,
                 owners: &owners,
                 own: None,
-                folders: &folders,
+                folders: crate::lookup::FolderSlots::new(&folders),
                 universe,
                 extra: &extra,
                 arity: &arity,
@@ -4214,7 +4211,7 @@ mod tests {
         let global = GlobalMemo::default();
 
         let ask = |closure: &[u32], self_ty: Ty| -> (Answer, MemoKey, super::ImplUniverseId) {
-            let mut folders: Vec<Option<&FolderImpls>> = vec![None; 4];
+            let mut folders: Vec<(u32, &FolderImpls)> = Vec::new();
             let mut members = Vec::new();
             for &c in closure {
                 let fi = match c {
@@ -4222,7 +4219,7 @@ mod tests {
                     1 => &prod,
                     _ => &empty,
                 };
-                folders[c as usize] = Some(fi);
+                folders.push((c, fi));
                 if fi.in_universe() {
                     members.push((f(c), fi));
                 }
@@ -4233,7 +4230,7 @@ mod tests {
                 paths: &paths,
                 owners: &owners,
                 own: None,
-                folders: &folders,
+                folders: crate::lookup::FolderSlots::new(&folders),
                 universe,
                 extra: &extra,
                 arity: &arity,
@@ -4387,7 +4384,7 @@ mod tests {
         );
         t.index();
         let fi = FolderImpls::new(FolderId::from_raw(0), t, g, &paths, &owners);
-        let folders = [Some(&fi)];
+        let folders = [(0, &fi)];
         let extra = UniverseImpls::default();
         let arity = |d: DefId| usize::from(d == sup || d == pick);
         let (universe, _) = ImplUniverses::default().intern(&[]);
@@ -4395,7 +4392,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            folders: &folders,
+            folders: crate::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,
@@ -4446,7 +4443,7 @@ mod tests {
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
         let folder = TestFolder::new(p, Some(t));
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
@@ -4792,7 +4789,7 @@ mod tests {
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
         let folder = TestFolder::new(p, Some(t));
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
@@ -4927,7 +4924,7 @@ mod tests {
         goal: &Goal,
     ) -> super::Answer {
         let folder = TestFolder::new(p, Some(t));
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
@@ -5040,7 +5037,7 @@ mod tests {
         t.assoc[2].push((out, proj(lp)));
         t.index();
         let folder = TestFolder::new(p, Some(&t));
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let impls = super::Impls::Owned(&view);
         let at_limit = proj(boxes(p, boxed, PROJECTION_DEPTH as usize - 1));
@@ -5518,7 +5515,7 @@ mod tests {
         row(&mut own, imp("Foo"), foo_ty);
         own.index();
         let empty = FolderImpls::default();
-        let folders = [Some(&fi), Some(&empty)];
+        let folders = [(0, &fi), (1, &empty)];
         let extra = UniverseImpls::default();
         let arity = |_: DefId| 0;
         let (universe, _) = ImplUniverses::default().intern(&[]);
@@ -5526,7 +5523,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own,
-            folders: &folders,
+            folders: crate::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,
@@ -5639,7 +5636,7 @@ mod tests {
     ) -> super::Answer {
         let mut body = BodyMemo::default();
         let folder = TestFolder::new(p, None);
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
@@ -5971,7 +5968,7 @@ mod tests {
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
         let folder = TestFolder::new(p, None);
-        let folders = [Some(&folder.impls)];
+        let folders = [(0, &folder.impls)];
         let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
@@ -6044,7 +6041,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            folders: &[],
+            folders: crate::lookup::FolderSlots::default(),
             universe,
             extra: &extra,
             arity: &arity,
@@ -6137,7 +6134,7 @@ mod tests {
         t.origin[3] = ImplOrigin::TupleTemplate;
         t.index();
         let fi = FolderImpls::new(FolderId::from_raw(0), t, p, &w.paths, &w.owners);
-        let folders = [Some(&fi)];
+        let folders = [(0, &fi)];
         let extra = UniverseImpls::default();
         let arity = |_: DefId| 0;
         let step = |on| MemberStep {
@@ -6159,7 +6156,7 @@ mod tests {
             paths: &w.paths,
             owners: &w.owners,
             own: None,
-            folders: &folders,
+            folders: crate::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,

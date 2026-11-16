@@ -312,6 +312,39 @@ impl Unseen<'_> {
     }
 }
 
+/// The impl tables of a closure's folders, by folder id: the closure's
+/// folders alone, sorted by id, so a read is a binary search and a walk
+/// visits the closure, not every folder of the program. A dense slot per
+/// program folder made each module's view, and each walk of it, cost the
+/// program's folders: k modules in k folders cost k^2 (Cranelift's
+/// `SparseMap` keeps members apart from the key space the same way).
+#[derive(Clone, Copy, Default)]
+pub struct FolderSlots<'a> {
+    slots: &'a [(u32, &'a FolderImpls)],
+}
+
+impl<'a> FolderSlots<'a> {
+    /// The slots `slots`, sorted by folder id with no id twice.
+    #[must_use]
+    pub fn new(slots: &'a [(u32, &'a FolderImpls)]) -> Self {
+        debug_assert!(slots.windows(2).all(|w| w[0].0 < w[1].0), "sorted slots");
+        FolderSlots { slots }
+    }
+
+    /// Folder `i`'s tables, when the closure holds it: a binary search.
+    #[must_use]
+    pub fn get(self, i: usize) -> Option<&'a FolderImpls> {
+        let i = u32::try_from(i).ok()?;
+        let at = self.slots.binary_search_by_key(&i, |s| s.0).ok()?;
+        Some(self.slots[at].1)
+    }
+
+    /// The closure's folders in id order.
+    pub fn iter(self) -> impl Iterator<Item = (usize, &'a FolderImpls)> {
+        self.slots.iter().map(|&(i, f)| (i as usize, f))
+    }
+}
+
 /// A solving context's view of the impls (§3.2): its own module's table,
 /// the frozen tables of its closure's folders, read by owner, and its
 /// universe's unowned rows and directory.
@@ -319,8 +352,8 @@ pub struct ImplView<'a> {
     pub paths: &'a PathTable,
     pub owners: &'a OwnerMap,
     pub own: Option<&'a ImplTable>,
-    /// By folder id: `Some` for the folders of the closure.
-    pub folders: &'a [Option<&'a FolderImpls>],
+    /// The folders of the closure, by folder id ([`FolderSlots`]).
+    pub folders: FolderSlots<'a>,
     pub universe: ImplUniverseId,
     pub extra: &'a UniverseImpls,
     /// A trait's number of arguments: a projection that leaves them
@@ -387,11 +420,7 @@ impl<'a> Impls<'a> {
         if m == OWN_TABLE {
             return v.own;
         }
-        v.folders
-            .get(m.raw() as usize)
-            .copied()
-            .flatten()
-            .map(|f| &f.table)
+        v.folders.get(m.raw() as usize).map(|f| &f.table)
     }
 
     /// The member steps of a tuple template's plan (§3.9), when this
@@ -430,8 +459,9 @@ impl<'a> Impls<'a> {
         if v.own.is_some_and(|t| t.has_rows_at(codes)) {
             out.push(TableAt::Own);
         }
-        for (i, f) in v.folders.iter().enumerate() {
-            if f.is_some_and(|f| f.table.has_rows_at(codes)) {
+        for (i, f) in v.folders.iter() {
+            crate::work::view_slots(1);
+            if f.table.has_rows_at(codes) {
                 out.push(TableAt::Folder(i));
             }
         }
@@ -468,7 +498,7 @@ impl<'a> Impls<'a> {
                 }
             }
             TableAt::Folder(i) => {
-                if let Some(Some(f)) = v.folders.get(i) {
+                if let Some(f) = v.folders.get(i) {
                     f.table.traits_named(codes, sym, names, out);
                 }
             }
@@ -491,7 +521,7 @@ impl<'a> Impls<'a> {
                 }
             }
             TableAt::Folder(i) => {
-                if let Some(Some(f)) = v.folders.get(i) {
+                if let Some(f) = v.folders.get(i) {
                     f.table.traits_at(codes, out);
                 }
             }
@@ -512,8 +542,6 @@ impl<'a> Impls<'a> {
             TableAt::Folder(i) => v
                 .folders
                 .get(i)
-                .copied()
-                .flatten()
                 .is_some_and(|f| f.table.candidates(trait_, key).next().is_some()),
             TableAt::Unowned => v.extra.unowned.has(trait_, key),
             TableAt::Directory => v.extra.directory.has(trait_, key),
@@ -552,7 +580,7 @@ impl<'a> Impls<'a> {
             }));
         }
         for f in owners {
-            if let Some(Some(fi)) = v.folders.get(f.idx()) {
+            if let Some(fi) = v.folders.get(f.idx()) {
                 refs.extend(fi.table.candidates(trait_, key).map(|row| ImplRef {
                     module: folder_table(f),
                     row,

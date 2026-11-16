@@ -5521,7 +5521,7 @@ impl Run<'_> {
             paths: &self.paths,
             owners: self.owners(),
             own: None,
-            folders: &folders,
+            folders: hd_types::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,
@@ -6561,20 +6561,24 @@ impl Run<'_> {
     fn closure_impls(
         &self,
         closure: &[FolderId],
-    ) -> (
-        Vec<Option<&FolderImpls>>,
-        ImplUniverseId,
-        Arc<UniverseImpls>,
-    ) {
-        let mut folders: Vec<Option<&FolderImpls>> = vec![None; self.table.folders.len()];
+    ) -> (Vec<(u32, &FolderImpls)>, ImplUniverseId, Arc<UniverseImpls>) {
+        let mut folders: Vec<(u32, &FolderImpls)> = Vec::new();
         let mut members = Vec::new();
         for f in closure {
-            let fi = self.folder_impls(*f);
-            folders[f.idx()] = fi;
-            if let Some(fi) = fi.filter(|fi| fi.in_universe()) {
+            let Some(fi) = self.folder_impls(*f) else {
+                continue;
+            };
+            folders.push((f.raw(), fi));
+            if fi.in_universe() {
                 members.push((*f, fi));
             }
         }
+        // By id, for `FolderSlots`: O(c log c) for a closure of c folders,
+        // where a slot per folder of the program cost every module the
+        // program's folders.
+        folders.sort_stable_by_key(|s| s.0);
+        folders.dedup_by_key(|s| s.0);
+        hd_types::work::view_slots(folders.len());
         let (universe, extra) = self.universes.intern(&members);
         (folders, universe, extra)
     }
@@ -6678,7 +6682,7 @@ impl Run<'_> {
             paths: &self.paths,
             owners: self.owners(),
             own: Some(&own_table),
-            folders: &folders,
+            folders: hd_types::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,
@@ -8180,7 +8184,7 @@ impl Run<'_> {
             paths: &self.paths,
             owners: self.owners(),
             own: own_impls,
-            folders: &folders,
+            folders: hd_types::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,
@@ -8260,7 +8264,7 @@ impl Run<'_> {
             paths: &self.paths,
             owners: self.owners(),
             own: Some(&own_table),
-            folders: &folders,
+            folders: hd_types::lookup::FolderSlots::new(&folders),
             universe,
             extra: &extra,
             arity: &arity,
@@ -9630,10 +9634,14 @@ impl Run<'_> {
             .as_ref()
     }
 
-    /// Every folder's impls, by folder id: the program's tables.
-    fn program_folders(&self) -> Vec<Option<&FolderImpls>> {
+    /// Every folder's impls, by folder id: the program's tables, for
+    /// `FolderSlots`.
+    fn program_folders(&self) -> Vec<(u32, &FolderImpls)> {
         (0..self.table.folders.len())
-            .map(|f| self.folder_impls(FolderId::from_raw(u32_of(f))))
+            .filter_map(|f| {
+                let id = u32_of(f);
+                Some((id, self.folder_impls(FolderId::from_raw(id))?))
+            })
             .collect()
     }
 
@@ -9644,14 +9652,14 @@ impl Run<'_> {
     fn program_view<'a>(
         &'a self,
         p: &'a ProgramTables,
-        folders: &'a [Option<&'a FolderImpls>],
+        folders: &'a [(u32, &'a FolderImpls)],
         arity: &'a (dyn Fn(DefId) -> usize + Sync),
     ) -> ImplView<'a> {
         ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
-            folders,
+            folders: hd_types::lookup::FolderSlots::new(folders),
             universe: p.universe,
             extra: &p.extra,
             arity,
