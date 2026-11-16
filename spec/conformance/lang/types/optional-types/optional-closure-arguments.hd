@@ -17,7 +17,10 @@ tests:
 
     it("closures keep mutable optional arguments"):
         item := box(User { name: 40 })
-        let pair: ((*mut User)?, (fn((*mut User)?) -> (*mut User)?)?) = (item, .Some(change))
+        let pair: ((*mut User)?, (fn((*mut User)?) -> (*mut User)?)?) = (
+            item,
+            .Some(fn(value: (*mut User)?) -> (*mut User)?: change(value))
+        )
         match apply(pair._1, pair._0):
             .Some(value) => assert_equal(value.name, 42, reason="payload reached 42")
             .None => assert_equal(1, 2, reason="expected .Some")

@@ -1,3 +1,4 @@
 # test: a tuple expression needs the fixed elements of a rest type
-fn wrong() -> (i32, List[i32]...):
-    (1, "a") # diagnostic: type-mismatch
+# Spec 05 Tuple Rest Elements: expr.tuple.rest.collect.
+fn wrong() -> (i32, string, List[i32]...):
+    (1,) # diagnostic: type-mismatch

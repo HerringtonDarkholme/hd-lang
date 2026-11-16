@@ -1,4 +1,4 @@
-# test: ? converts an error once through the enclosing error type's From implementation, and a from body may panic
+# test: ? converts an error once through the enclosing error type's From implementation, and a from body may hold a panic branch, which these paths never take
 # Spec 09 Conversion Trait: trait.from.module, trait.from.propagation; Pure Conversions: trait.from.pure, trait.from.panic.
 use std.convert.From
 enum FsError:

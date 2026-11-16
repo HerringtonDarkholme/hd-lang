@@ -1,4 +1,4 @@
-# test: a list literal's spreads lend their lists and a map literal's keys are copied, each released once by its owner
+# test: a list literal's spreads lend their lists and a map literal's keys stay usable by the caller, each released once by its owner
 # Spec 05 Expressions: expr.list.spread.insert.
 fn joined(xs: List[string], tail: string) -> List[string]:
     [xs..., tail, xs...]

@@ -1,4 +1,4 @@
-# test: explicit associated type arguments select the candidate per trial
+# test: an explicit type argument fills the associated function's own parameter, while the closure body selects the candidate per trial
 # Spec 09 Traits: trait.resolve.many-apply (a trait-qualified call with type arguments resolves ambiguity).
 trait Choose[T]:
     fn choose[U](run: fn(T) -> U) -> U

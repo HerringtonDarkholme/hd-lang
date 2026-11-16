@@ -3,6 +3,9 @@
 fn add(items: &mut List[i32]) -> void:
     items.push(+2)
 
+fn count(items: List[i32]) -> usize:
+    items.len()
+
 tests:
     use std.testing.assert_equal
 
@@ -11,3 +14,8 @@ tests:
         add(&mut items)
         add(&mut items)
         assert_equal(items, [+1, +2, +2], reason="both calls reached the caller's list")
+
+    it("a list passed by value stays usable"):
+        let items: List[i32] = [+1, +2]
+        assert_equal(count(items), 2, reason="the call reads the list")
+        assert_equal(items.len(), 2, reason="the caller still owns the list")

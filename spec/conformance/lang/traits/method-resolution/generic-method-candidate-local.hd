@@ -17,8 +17,12 @@ impl Apply[i32] for Item:
 fn main() -> i32:
     Item { value: 40 }.apply(fn(value): value + 2)
 
+fn flipped() -> bool:
+    Item { value: 40 }.apply(fn(value): !value)
+
 tests:
     use std.testing.assert_equal
 
     it("the generic candidate infers the closure result"):
         assert_equal(main(), 42, reason="the i32 candidate fits the closure")
+        assert_equal(flipped(), false, reason="a later call solves U as bool, not the earlier i32")

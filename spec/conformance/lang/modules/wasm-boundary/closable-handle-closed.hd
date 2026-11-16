@@ -1,4 +1,4 @@
-# test: a closable handle reports use after close through its module's Closed variant, and a using binding disposes it
+# test: a closable handle reports use after close through its module's Closed variant, and a using! binding of it checks
 # Spec 10 Closable Handles: module.resource.closed, module.resource.close.repeated, module.resource.async-disposable.
 use std.ops.AsyncDisposable
 

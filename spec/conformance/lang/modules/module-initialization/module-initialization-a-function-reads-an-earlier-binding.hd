@@ -3,5 +3,7 @@ count := +0
 
 fn read() -> i32:
     count
+total := read()
+
 pub fn main() -> void:
     pass

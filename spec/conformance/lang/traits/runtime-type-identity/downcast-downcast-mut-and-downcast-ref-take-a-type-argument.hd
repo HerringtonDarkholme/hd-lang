@@ -1,4 +1,4 @@
-# test: downcast downcast mut and downcast ref take a type argument
+# test: downcast_mut and downcast_ref take a type argument
 use std.inspect.Inspectable
 
 struct Counter:

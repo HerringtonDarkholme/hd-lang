@@ -1,4 +1,4 @@
-# test: a Tuple-bounded vararg type is solved as the tuple of the argument types, one element per argument
+# test: a Tuple-bounded vararg collects the separate arguments into the tuple the function fixes, one element per argument, and a spread or a named argument passes that tuple
 # expect: test
 use std.function.{Fn, Tuple}
 fn add2(a: i32, b: i32) -> i32:

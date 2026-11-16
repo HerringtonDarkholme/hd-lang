@@ -7,6 +7,10 @@ impl Describe for (i32, string):
     fn describe(self) -> string:
         "pair " + self._1
 
+impl Describe for (string, string):
+    fn describe(self) -> string:
+        "words " + self._0
+
 impl Describe for (i32, i32, i32):
     fn describe(self) -> string:
         "triple"
@@ -17,3 +21,8 @@ tests:
     it("tuple targets dispatch by arity and element types"):
         assert_equal((+1, "a").describe(), "pair a", reason="two-element tuple")
         assert_equal((+1, +2, +3).describe(), "triple", reason="three-element tuple")
+        assert_equal(
+            ("x", "y").describe(),
+            "words x",
+            reason="two strings select the other pair impl",
+        )

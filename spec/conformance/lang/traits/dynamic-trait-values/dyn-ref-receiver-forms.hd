@@ -1,4 +1,4 @@
-# test: through `&dyn` the `self` and `&self` methods are callable, through `&mut dyn` also `&mut self` and `&mut self`; struct and data implementations, a default method, and a `&mut dyn` weakened to `&dyn`
+# test: through `&dyn` the `self` and `&self` methods are callable, through `&mut dyn` also the `&mut self` ones; two struct implementations, a default method used and overridden, and a `&mut dyn` weakened to `&dyn`
 # Spec 09 Trait Value References: trait.dyn.ref.member, trait.dyn.ref.weaken, trait.dyn.ref.written.
 # expect-stdout: square 4.0
 # expect-stdout: square 9.0 3.0

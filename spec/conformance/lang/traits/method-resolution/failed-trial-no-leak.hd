@@ -26,11 +26,12 @@ impl Clock for Fixed:
 
 fn main() -> i32:
     item := Item { value: 40 }
+    offset := 0
     item.apply(
         fn(value):
             $.with(Clock=Fixed { value: 2 }):
                 clock := $.use(Clock)
-                value + clock.now()
+                value + clock.now() + offset
     )
 
 tests:

@@ -1,4 +1,4 @@
-# test: suspending references copy cells but copied captures keep fresh objects
+# test: a suspending closure bumps its own local, writes a shared capture through &mut, and reads a capture it does not change
 # expect-stdout: 1
 # expect-stdout: 1
 # expect-stdout: 0

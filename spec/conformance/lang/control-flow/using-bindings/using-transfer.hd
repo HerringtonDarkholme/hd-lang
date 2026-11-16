@@ -1,4 +1,4 @@
-# test: using bindings release their values last in first out when the scope ends
+# test: using bindings take a pointer to a disposable struct in a plain function; using-sync-and-async-order runs the release order
 # Spec lang/06 Using Bindings: flow.using.disposable.row, flow.using.forms.split, flow.using.register.split.
 use std.ops.Disposable
 

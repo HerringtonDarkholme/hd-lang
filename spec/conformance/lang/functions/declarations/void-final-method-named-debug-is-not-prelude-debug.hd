@@ -1,4 +1,4 @@
-# test: only the prelude debug function has the void-tail exception
+# test: a void function rejects a final call to a user method named debug that returns i32
 struct Logger: pass
 
 impl Logger:

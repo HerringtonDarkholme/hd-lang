@@ -4,6 +4,12 @@
 fn compare(a: (i32, string), b: (i32, string)) -> bool:
     a == b || a < b
 
+fn top[T < Ord](a: T, b: T) -> T:
+    if a < b: b else: a
+
+fn ordered(a: (i32, string), b: (i32, string)) -> (i32, string):
+    top(a, b)
+
 fn index(counts: Map[(i32, string), i32]) -> i32:
     counts[(1, "a")]
 

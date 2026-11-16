@@ -8,9 +8,9 @@ trait Mutate:
 fn button[F < 'static & FnMut() -> void $ Mutate](mut on_click: F) -> void:
     pass
 
-fn noop() -> void:
+fn noop() -> void $ Mutate:
     pass
 
 fn probe() -> void:
-    button(fn(): pass)
+    button(fn(): noop())
     button(noop)

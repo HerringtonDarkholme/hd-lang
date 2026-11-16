@@ -15,6 +15,16 @@ fn pair_of(value: *dyn Inspectable) -> string:
         .Some(pair) => "${pair._0}:${pair._1}"
         .None => "none"
 
+fn words_of(value: *dyn Inspectable) -> usize:
+    match value.downcast_ref::[List[string]]().map(fn(found): *found):
+        .Some(words) => words.len()
+        .None => 0
+
+fn text_of(value: *dyn Inspectable) -> string:
+    match value.downcast_ref::[string]().map(fn(found): *found):
+        .Some(text) => text
+        .None => "none"
+
 fn weight_of(value: *dyn Inspectable) -> f64:
     match value.downcast_ref::[f64]().map(fn(found): *found):
         .Some(weight) => weight
@@ -38,6 +48,13 @@ tests:
         assert_equal(stock_of(other), -1, reason="Map[string, i64] is another type")
         pair := box::[(i32, string)]((7, "bolts"))
         assert_equal(pair_of(pair), "7:bolts", reason="a tuple of inspectable elements")
+
+    it("a list and a string come back with their exact types"):
+        words := box::[List[string]](["a", "b"])
+        assert_equal(words_of(words), 2, reason="List[string]")
+        assert_equal(words_of(box::[List[i32]]([1])), 0, reason="List[i32] is another type")
+        assert_equal(text_of(box("hi")), "hi", reason="string")
+        assert_equal(text_of(box::[i32](1)), "none", reason="an i32 is not a string")
 
     it("a primitive comes back by value"):
         weight := box::[f64](2.5)

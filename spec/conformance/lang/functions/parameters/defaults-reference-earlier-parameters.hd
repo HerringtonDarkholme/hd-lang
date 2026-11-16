@@ -32,6 +32,6 @@ tests:
     it("defaults are evaluated for each call"):
         assert(!(fresh() is fresh()), reason="each call allocates a new default value")
 
-    it("function values do not inherit defaults"):
+    it("a function value takes every argument positionally"):
         let call: fn(i32, i32) -> i32 = area
         assert_equal(call(2, 3), 6, reason="positional call through a function value")

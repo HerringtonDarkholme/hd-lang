@@ -1,6 +1,7 @@
+# test: a `&dyn` reference never becomes a `&mut dyn` reference
 # Spec 09 Trait Value References: trait.dyn.ref.no-upgrade. A `&dyn` reference never becomes a `&mut dyn` reference.
 trait Counter:
     fn bump(&mut self) -> void
 
-fn upgrade(counter: *dyn Counter) -> *mut dyn Counter:
+fn upgrade(counter: &dyn Counter) -> &mut dyn Counter:
     counter # diagnostic: mutable-upgrade

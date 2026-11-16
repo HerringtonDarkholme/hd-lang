@@ -1,4 +1,4 @@
-# test: main maps an error to ExitCode(2), and a Result's .Err reports 1
+# test: main returns the ExitCode exit_for picks, which maps a usage error to 2 and another error to 1
 # Spec 10 Exit Status: module.entry.termination.exit-code, module.entry.termination.err-one, module.entry.termination.ok.
 # expect-stdout: done
 use std.process.{ExitCode, Termination}

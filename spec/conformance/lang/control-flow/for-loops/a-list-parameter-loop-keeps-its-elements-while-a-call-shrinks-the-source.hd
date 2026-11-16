@@ -12,9 +12,9 @@ fn shrink() -> void:
 
 fn over_top_level(xs: List[i32]) -> i32:
     let mut sum = +0
-    for i in 0..xs.len():
+    for x in xs:
         shrink()
-        sum += xs[i]
+        sum += x
     sum
 
 fn by_value_loop(xs: List[i32], f: fn() -> void) -> i32:
@@ -26,18 +26,18 @@ fn by_value_loop(xs: List[i32], f: fn() -> void) -> i32:
 
 fn beside_its_owner(xs: List[i32], bag: &mut Bag) -> i32:
     let mut sum = +0
-    for i in 0..xs.len():
+    for x in xs:
         bag.items[0] = +100
         _ := bag.items.pop()
-        sum += xs[i]
+        sum += x
     sum
 
 fn through_a_pointer(xs: List[i32], p: *mut List[i32]) -> i32:
     let mut sum = +0
-    for i in 0..xs.len():
+    for x in xs:
         p[0] = +100
         _ := p.pop()
-        sum += xs[i]
+        sum += x
     sum
 
 tests:

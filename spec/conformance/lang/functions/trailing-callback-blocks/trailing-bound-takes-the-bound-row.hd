@@ -11,8 +11,14 @@ fn read_only[F < 'static & Fn() -> string $ Track](compute: F) -> void:
 fn handler[F < 'static & FnMut() -> void $ Track](mut run: F) -> void:
     pass
 
+fn status() -> string $ Track:
+    "ready"
+
+fn note() -> void $ Track:
+    pass
+
 fn probe() -> void:
     read_only:
-        "ready"
+        status()
     handler:
-        pass
+        note()
