@@ -113,6 +113,8 @@ Know what the change touches, and test that first.
    for a spec rule, and a Rust test is for internals or cost.
    - `# @package: NAME` names a stage case's root package (`app` by
      default); `# @single-file: true` builds it as a single-file program.
+   - The `functions` view lists the functions a program linked from `main`
+     defines, in link order, with an instance's type arguments.
 
 ## Spec Scope For The Standard Library
 

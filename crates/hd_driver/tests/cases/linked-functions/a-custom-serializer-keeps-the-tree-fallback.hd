@@ -1,0 +1,17 @@
+# @dump: functions
+# @build: release
+# A hand-written serializer may make an irregular walk (two values for
+# one struct), so `json.encode` keeps its tree fallback (#921).
+use std.json.encode
+use std.serde.{Serialize, Serializer}
+
+struct Odd:
+    value: i64
+
+impl Serialize for Odd:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.int(self.value)?
+        out.int(self.value + 1)
+
+pub fn main() -> void $ Console:
+    println(encode(Odd { value: 1 }))

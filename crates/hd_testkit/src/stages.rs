@@ -5,6 +5,7 @@
 //! lines and interleaved below them. Blessing never rewrites source cases.
 //! `# @package: NAME` names the case's root package (`app` by default).
 //! `# @single-file: true` builds the case as a single-file program.
+//! The `functions` view lists the linked program's functions in link order.
 
 mod counts;
 mod diagnostics;
@@ -53,8 +54,8 @@ pub struct Program {
     /// The fuel of each body and header goal of the case's package
     /// (`# @fuel: N`), smaller than `Fuel::BODY_DEFAULT`, so a small case
     /// reaches `item-too-complex` (`fn.limit.complexity.error`) at a chosen
-    /// step. The `tir`, `diagnostics`, `spans`, `fixed`, `stdout` and
-    /// `tests` views build with it (`Packages::body_fuel`).
+    /// step. The `tir`, `diagnostics`, `spans`, `fixed`, `stdout`,
+    /// `functions` and `tests` views build with it (`Packages::body_fuel`).
     pub fuel: Option<u64>,
     /// The file that holds the case's own text when it is not `main.hd`
     /// (`# @main: src/main.hd`), for a case about package layout.
@@ -152,7 +153,7 @@ impl Program {
 /// begins a module. The `tir` view checks the joined session; `wat`
 /// builds the inputs in order and shows the final extension module.
 /// `@fuel: N` gives the package `N` steps of fuel per item in the `tir`,
-/// `diagnostics`, `spans`, `fixed`, `stdout` and `tests` views.
+/// `diagnostics`, `spans`, `fixed`, `stdout`, `functions` and `tests` views.
 /// `@main: PATH` names the file of the case's own text, `main.hd` by
 /// default, for a case about package layout (`src/main.hd`); `@entry:
 /// NAME` names an executable entry module (`src/NAME.hd`), as a manifest
@@ -227,6 +228,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                                 | "fixed"
                                 | "spans"
                                 | "stdout"
+                                | "functions"
                                 | "tests"
                         ) {
                             return Err(format!("unknown dump `{view}`"));
@@ -357,12 +359,12 @@ pub fn parse(text: &str) -> Result<Case, String> {
             || dumps.iter().any(|d| {
                 !matches!(
                     d.as_str(),
-                    "diagnostics" | "fixed" | "spans" | "stdout" | "tests"
+                    "diagnostics" | "fixed" | "spans" | "stdout" | "functions" | "tests"
                 )
             }))
     {
         return Err(
-            "an `@main`, `@entry`, `@package` or `@single-file` case shows only the `diagnostics`, `fixed`, `spans`, `stdout` and `tests` views, with no profile or REPL"
+            "an `@main`, `@entry`, `@package` or `@single-file` case shows only the `diagnostics`, `fixed`, `spans`, `stdout`, `functions` and `tests` views, with no profile or REPL"
                 .to_owned(),
         );
     }
@@ -385,12 +387,12 @@ pub fn parse(text: &str) -> Result<Case, String> {
             || dumps.iter().any(|d| {
                 !matches!(
                     d.as_str(),
-                    "tir" | "diagnostics" | "fixed" | "spans" | "stdout" | "tests"
+                    "tir" | "diagnostics" | "fixed" | "spans" | "stdout" | "functions" | "tests"
                 )
             }))
     {
         return Err(
-            "a `@fuel` case shows only the `tir`, `diagnostics`, `fixed`, `spans`, `stdout` and `tests` views of a package"
+            "a `@fuel` case shows only the `tir`, `diagnostics`, `fixed`, `spans`, `stdout`, `functions` and `tests` views of a package"
                 .to_owned(),
         );
     }
@@ -714,8 +716,8 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
-/// The packages of a `diagnostics`, `spans`, `fixed`, `stdout` or `tests`
-/// build of `p` as `build`: the case's `@fuel`, `@profile`, `@entry` and `@single-file`,
+/// The packages of a `diagnostics`, `spans`, `fixed`, `stdout`,
+/// `functions` or `tests` build of `p` as `build`: the case's `@fuel`, `@profile`, `@entry` and `@single-file`,
 /// and `@build`'s level (`release` runs the optimized pipeline, and a
 /// program gets the release profile), engine target and checked runtime.
 /// Every build verifies the ownership passes' output
@@ -899,6 +901,13 @@ const RUN_LIMIT: std::time::Duration = std::time::Duration::from_mins(1);
 /// # Errors
 /// The build reports diagnostics or writes no Wasm.
 pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
+    let built = link(p, &packages(p, at))?;
+    Ok(built.wasm.expect("a linked program has Wasm"))
+}
+
+/// The program of `p` linked from `main` with `packages`, or the
+/// `stdout` view's text for a build that fails.
+fn link(p: &Program, packages: &hd_driver::Packages<'_>) -> Result<hd_driver::Output, String> {
     let src = p.sources();
     let host = Host {
         render_tir: &[],
@@ -910,15 +919,43 @@ pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
     let built = hd_driver::build_packages(
         &host,
         p.package_name(),
-        &packages(p, at),
+        packages,
         &Goal::Program {
             entry: "main".into(),
         },
     );
-    match built.wasm {
-        Some(wasm) if built.diags.is_empty() => Ok(wasm),
-        _ => Err(format!("build failed\n{}", diagnostics::render(&built))),
+    if built.wasm.is_some() && built.diags.is_empty() {
+        Ok(built)
+    } else {
+        Err(format!("build failed\n{}", diagnostics::render(&built)))
     }
+}
+
+/// The functions view: every function the program linked from `main`
+/// defines, in link order, by its debug name, then an instance's type
+/// arguments in brackets. It reads the build's instruction origins
+/// (`Packages::instruction_origins`), which a release build without a
+/// name section still records, and never parses the Wasm.
+#[must_use]
+pub fn functions(p: &Program, at: Build) -> String {
+    let mut packages = packages(p, at);
+    packages.instruction_origins = true;
+    let built = match link(p, &packages) {
+        Ok(built) => built,
+        Err(failed) => return failed,
+    };
+    // By function index: the order the module defines them.
+    let mut linked: Vec<_> = built.instruction_origins.iter().collect();
+    linked.sort_stable_by_key(|f| f.index);
+    let mut out = String::new();
+    for f in linked {
+        out.push_str(&f.name);
+        if !f.type_args.is_empty() {
+            let _ = write!(out, " [{}]", f.type_args.join(", "));
+        }
+        out.push('\n');
+    }
+    out
 }
 
 /// The `stdout` view's text of a run: its exit status, then each
@@ -995,6 +1032,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
         "fixed" => diagnostics::fixed(p, build),
         "spans" => diagnostics::spans(p, build),
         "stdout" => stdout(p, build),
+        "functions" => functions(p, build),
         "tests" => tests(p, build),
         _ => return None,
     })

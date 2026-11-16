@@ -1,0 +1,5 @@
+# @dump: functions
+# A program that does not build links no functions: the view shows its
+# diagnostics instead.
+pub fn main() -> void $ Console:
+    println(missing)

@@ -1,0 +1,17 @@
+# @dump: functions
+# An omitted argument whose default is a scalar constant, such as
+# `times: i32 = 3`, is inlined at the call: the program has no function
+# for that default body (`crates/hd_mono/DESIGN.md` §13.13). A default
+# that computes keeps its instance (`computed.n`).
+fn retry(times: i32 = 3, wait: f64 = 1.5, loud: bool = true) -> i32:
+    if loud:
+        return times
+    0
+
+fn computed(n: i32 = 2 + 3) -> i32:
+    n
+
+pub fn main() -> void $ Console:
+    println(retry())
+    println(retry(times=7))
+    println(computed())

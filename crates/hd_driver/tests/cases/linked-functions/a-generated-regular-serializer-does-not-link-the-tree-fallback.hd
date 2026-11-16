@@ -1,0 +1,18 @@
+# @dump: functions
+# @build: release
+# A concrete `json.encode` instance links its tree fallback only when its
+# selected serializer may make an irregular walk (#921). A derived
+# regular serializer links no `JsonWriter`, `encode_fallback`,
+# `enum_tagging` or `Skip` fact search.
+use std.json.{encode, encode_pretty}
+use std.serde.Serialize
+
+@derive(Serialize)
+struct Row:
+    id: i64
+    name: string
+
+pub fn main() -> void $ Console:
+    value := [Row { id: 1, name: "one" }]
+    println(encode(value))
+    println(encode_pretty(value))
