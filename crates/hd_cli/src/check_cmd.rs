@@ -258,11 +258,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
             &docs,
             lint,
         );
-        for x in more {
-            if !shown.contains(&x) {
-                shown.push(x);
-            }
-        }
+        merge_role(&mut shown, more);
         checked.extend(names);
         checked.sort_stable();
         checked.dedup();
@@ -277,6 +273,48 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     diags.extend(left_out);
     diags.extend(shown);
     (diags, checked.len())
+}
+
+/// Adds the test role's diagnostics to the library role's, showing a
+/// diagnostic both roles report once (`cli.check.tests`). Two reports are
+/// one when they share code, severity and span: the roles check the same
+/// source, so only what they can see differs, such as the test role's
+/// import hint and fix-it for a name the test prelude's std module
+/// exports. The one with fix-its is kept. A report with no code (no source
+/// causes it) is one only with an equal message. One index over the
+/// library role's reports, so the merge is linear in the two lists.
+fn merge_role(shown: &mut Vec<Diag>, more: Vec<Diag>) {
+    type Key = (
+        Option<u16>,
+        bool,
+        Option<String>,
+        [Option<usize>; 4],
+        Option<String>,
+    );
+    let key = |d: &Diag| -> Key {
+        (
+            d.code.map(|c| c as u16),
+            d.is_error(),
+            d.file.clone(),
+            [d.line, d.column, d.end_line, d.end_column],
+            d.code.is_none().then(|| d.message.clone()),
+        )
+    };
+    let mut at: hd_base::HashMap<Key, usize> = hd_base::HashMap::default();
+    for (i, d) in shown.iter().enumerate() {
+        at.entry(key(d)).or_insert(i);
+    }
+    for x in more {
+        let k = key(&x);
+        if let Some(&i) = at.get(&k) {
+            if shown[i].fixes.is_empty() && !x.fixes.is_empty() {
+                shown[i] = x;
+            }
+        } else {
+            at.insert(k, shown.len());
+            shown.push(x);
+        }
+    }
 }
 
 /// The key of `t`'s stored report (#1510): the package-result key of a

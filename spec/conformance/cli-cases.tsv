@@ -184,6 +184,7 @@ check-std-dir-interpolation	cli.file.check-test,cli.file.run
 check-tests-library-role	cli.check.tests,cli.check.default,cli.package.file,cli.exit.hd-failure,cli.check.summary-mode
 check-tests-test-code-only	cli.check.tests,cli.check.default,cli.package.file,cli.exit.hd-failure,cli.exit.success
 check-tests-single-file	cli.check.tests,cli.check.default,cli.exit.hd-failure,cli.check.summary-mode
+check-tests-unknown-name-once	cli.check.tests,cli.check.default,cli.exit.hd-failure
 check-tests-duplicate-function-and-type	cli.check.tests,cli.check.summary-mode
 check-tests-public-use	cli.check.tests,cli.check.summary-mode
 check-tests-duplicate-name	cli.check.tests,cli.check.summary-mode

@@ -1,0 +1,13 @@
+# A name both roles report unknown is reported once under `--tests`, with
+# the import hint and fix-it the test role's std modules give it.
+run: hd check totals.hd
+exit: 101
+stdout-json: []
+stderr: error: totals.hd:2:5: unknown-name: `assert_equal` is not defined
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd check --tests totals.hd
+exit: 101
+stdout-json: []
+stderr: error: totals.hd:2:5: unknown-name: `assert_equal` is not defined; add `use std.testing.assert_equal`
+stderr:     fix: add `use std.testing.assert_equal`
+stderr: check result: FAILED. errors: 1; warnings: 0

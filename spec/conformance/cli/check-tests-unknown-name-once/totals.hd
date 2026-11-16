@@ -1,0 +1,7 @@
+fn total() -> i32:
+    assert_equal(1, 1)
+    1
+
+tests:
+    it("x"):
+        pass
