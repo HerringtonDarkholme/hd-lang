@@ -134,7 +134,6 @@ pub enum SyntaxKind {
     InferType,
     RequirementRow,
     Error,
-    SkippedBody,
 }
 
 const _: () = assert!(core::mem::size_of::<SyntaxKind>() == 2);

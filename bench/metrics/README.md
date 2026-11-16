@@ -421,8 +421,7 @@ The coverage table closes the run. Of the parser's closed `SyntaxKind`
 set, as `parse_check --tree` dumps each shape, every kind must appear in
 a repeated shape, so a new kind with no shape fails; the kinds a nested
 shape holds are reported with the misses listed. `Error` (only source
-that does not parse) and `SkippedBody` (no parser path builds it) are
-exempt.
+that does not parse) is exempt.
 
 `HD_SCALE_SHAPES=A,B` measures only those shapes. To print one package:
 `node --experimental-strip-types bench/metrics/lib/scale.ts SHAPE K`. The

@@ -317,7 +317,6 @@ export const KIND_EXEMPT: ReadonlyMap<string, string> = new Map([
     "Error",
     "ruled out: only source that does not parse holds it, and the check scales correct programs (owner, 2026-11-14)",
   ],
-  ["SkippedBody", "ruled out: no parser path builds it (gap: #1927)"],
 ]);
 
 /** The parser's closed set of node kinds: the variants of `SyntaxKind`. */
