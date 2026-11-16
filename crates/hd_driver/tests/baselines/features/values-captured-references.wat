@@ -50,42 +50,41 @@
     local.get $origin
     ;; 16 |     step := bump(origin)
     local.tee $s.0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $s.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $s.1
+        local.get $s.0
         call $rt:retain_known
       end
     end
     local.get $s.0
     call $bump
-    local.set $s.1
-    local.tee $s.0
+    local.set $s.0
+    local.tee $s.1
     ;; 17 |     step()
     local.set $t0
-    local.get $s.1
+    local.get $s.0
     i32.const 0
     local.get $t0
     call_indirect $table0 (param i32 i32)
     ;; 18 |     step()
-    local.get $s.1
-    i32.const 0
     local.get $s.0
-    call_indirect $table0 (param i32 i32)
+    i32.const 0
     local.get $s.1
+    call_indirect $table0 (param i32 i32)
+    local.get $s.0
     if
-      local.get $s.1
+      local.get $s.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $s.1
+        local.get $s.0
         call $rt:release_ref
       end
     end
@@ -94,16 +93,15 @@
     i32.load $heap offset=8
     ;; 15 |     origin := box(Point { name: s, x: 0 })
     local.get $origin
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $origin
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $s.1
+        local.get $origin
         call $rt:release_ref
       end
     end

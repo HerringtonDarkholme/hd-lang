@@ -267,16 +267,16 @@
       if
         local.get $t5
         i32.load $heap offset=4
-        local.tee $early
+        local.tee $t5
         if
-          local.get $early
+          local.get $t5
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $early
+            local.get $t5
             call $rt:release_ref
           end
         end
@@ -287,16 +287,16 @@
       if
         local.get $t3
         i32.load $heap offset=4
-        local.tee $early
+        local.tee $t3
         if
-          local.get $early
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $early
+            local.get $t3
             call $rt:release_ref
           end
         end
@@ -304,16 +304,15 @@
       i32.const 0
       local.set $t3
       local.get $log
-      local.tee $early
       if
-        local.get $early
+        local.get $log
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $early
+          local.get $log
           call $rt:release_ref
         end
       end
@@ -323,16 +322,15 @@
       local.set $t4
     end
     local.get $log
-    local.tee $early
     if
-      local.get $early
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $early
+        local.get $log
         call $rt:release_ref
       end
     end
@@ -340,16 +338,16 @@
     if
       local.get $t3
       i32.load $heap offset=4
-      local.tee $early
+      local.tee $log
       if
-        local.get $early
+        local.get $log
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $early
+          local.get $log
           call $rt:release_ref
         end
       end
@@ -358,16 +356,16 @@
     if
       local.get $t5
       i32.load $heap offset=4
-      local.tee $early
+      local.tee $log
       if
-        local.get $early
+        local.get $log
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $early
+          local.get $log
           call $rt:release_ref
         end
       end

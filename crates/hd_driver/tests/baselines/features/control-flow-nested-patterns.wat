@@ -36,9 +36,8 @@
     end
     ;; 23 |         .Line(start=_, end=User { name }) => name
     local.get $s.3
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $s.3
       call $retain
     end
     ;; 21 |     match s:

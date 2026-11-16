@@ -97,23 +97,21 @@
     i32.load $heap offset=4
     local.set $t1
     local.tee $t2
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t2
       call $retain
     end
     ;; 15 |     let mut sink = Sink { text: "" }
     local.get $sink
-    local.tee $t3
     if
-      local.get $t3
+      local.get $sink
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t3
+        local.get $sink
         call $rt:release_ref'1
       end
     end

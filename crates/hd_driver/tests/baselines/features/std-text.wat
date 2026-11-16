@@ -166,14 +166,13 @@
     call $"impl StringBuilder.build"
     local.get $sb
     ;; 10 |     sb := StringBuilder::new()
-    local.tee $parts
     if
-      local.get $parts
+      local.get $sb
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $parts
+        local.get $sb
         call $rt:release_ref
       end
     end

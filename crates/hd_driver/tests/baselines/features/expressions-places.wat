@@ -19,37 +19,36 @@
     local.get $xs
     i32.load $heap offset=16
     local.tee $xs
-    local.tee $t0
     if
-      local.get $t0
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $xs
         call $rt:retain_known
       end
     end
     local.get $xs
+    local.tee $t0
     i32.load $heap
-    local.get $xs
+    local.get $t0
     i32.load $heap offset=4
-    local.get $xs
+    local.get $t0
     local.get $s.0
     i32.store $heap
-    local.get $xs
+    local.get $t0
     local.get $s.1
     i32.store $heap offset=4
     call $rt:release
     local.get $xs
-    local.tee $t0
     if
-      local.get $t0
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $xs
         call $rt:release_ref'1
       end
     end
@@ -71,14 +70,13 @@
     i32.add
     i32.load $heap offset=16
     local.tee $xs
-    local.tee $i
     if
-      local.get $i
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $i
+        local.get $xs
         call $rt:retain_known
       end
     end

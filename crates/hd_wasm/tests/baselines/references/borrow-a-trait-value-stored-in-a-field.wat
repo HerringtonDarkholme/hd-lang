@@ -9,7 +9,7 @@
     local.get $self
     i32.load $heap
   )
-  (func $read (param $holder i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $read (param $holder i32) (result i32) (local $t0 i32)
     ;; 19 |     let borrowed: &dyn Reader = &*holder.value
     local.get $holder
     i32.load $heap
@@ -18,9 +18,8 @@
     ;; 20 |     borrowed.read()
     local.set $holder
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
     local.get $t0
@@ -29,9 +28,8 @@
     call_indirect $table0 (param i32) (result i32)
     ;; 19 |     let borrowed: &dyn Reader = &*holder.value
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
   )

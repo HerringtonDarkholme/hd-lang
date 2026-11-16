@@ -238,24 +238,24 @@
     i32.add
     i32.const 5
     call_indirect $table0 (param i32) (result i32)
-    local.set $t1
+    local.set $saved
     local.get $items
     if
       local.get $items
       i32.load $heap
-      local.tee $saved
+      local.tee $items
       if
-        local.get $saved
+        local.get $items
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $saved
+          local.get $items
           call $rt:release_ref
         end
       end
     end
-    local.get $t1
+    local.get $saved
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -359,24 +359,24 @@
     i32.mul
     i32.add
     i32.load $heap offset=4
-    local.set $t1
+    local.set $saved
     local.get $items
     if
       local.get $items
       i32.load $heap
-      local.tee $saved
+      local.tee $items
       if
-        local.get $saved
+        local.get $items
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $saved
+          local.get $items
           call $rt:release_ref
         end
       end
     end
-    local.get $t1
+    local.get $saved
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"

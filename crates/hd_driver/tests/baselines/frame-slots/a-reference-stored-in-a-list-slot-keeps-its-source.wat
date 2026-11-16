@@ -276,14 +276,13 @@
     end
     local.get $t1
     i32.wrap_i64
-    local.set $t3
+    local.set $ps
     local.get $junk.0
-    local.tee $ps
     if
-      local.get $ps
+      local.get $junk.0
       call $rt:release_ref'2
     end
-    local.get $t3
+    local.get $ps
     i64.extend_i32_u
     local.get $junk.1
     i64.extend_i32_u

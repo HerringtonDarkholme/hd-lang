@@ -123,46 +123,42 @@
     call $"impl Fast for Tree.regular#1"
     local.set $t2
     local.get $bump.1
-    local.tee $seen
     if
-      local.get $seen
+      local.get $bump.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $seen
+        local.get $bump.1
         call $rt:release_ref'1
       end
     end
     i32.const 4
     i32.const 0
     call $rt:new/class-1
-    local.tee $seen
+    local.tee $t1
     i32.const 1
     i32.store $heap
-    local.get $seen
+    local.get $t1
     i32.const 412 ;; &vtable[rt:dyn_slot]
     local.set $t1
     local.tee $t3
-    local.tee $step
     local.tee $seen
     if
       local.get $seen
       call $retain
     end
     local.get $t3
-    local.tee $seen
     if
-      local.get $seen
+      local.get $t3
       call $rt:release_ref'2
     end
-    local.get $step
+    local.get $seen
     local.get $t1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
     local.set $t1
-    local.get $step
-    local.tee $seen
+    local.get $seen
     if
       local.get $seen
       call $rt:release_ref'2

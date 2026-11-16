@@ -76,7 +76,7 @@
     ;; 15 |     *d
     local.get $d
     i32.load $heap
-    local.tee $t1
+    local.tee $next
     local.get $d
     i32.load $heap offset=4
     local.tee $d
@@ -86,7 +86,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $next
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -96,7 +96,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $next
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -108,7 +108,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $next
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -118,7 +118,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $next
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -130,7 +130,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $next
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -140,37 +140,35 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $next
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
     local.get $h
-    local.tee $next
     if
-      local.get $next
+      local.get $h
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $next
+        local.get $h
         call $rt:release_ref
       end
     end
     local.get $alias
-    local.tee $next
     if
-      local.get $next
+      local.get $alias
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $next
+        local.get $alias
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $next
     local.get $d
   )
   (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $d i32) (local $t0 i32) (local $t1 i32)
@@ -237,7 +235,7 @@
     ;; 26 |     *d
     local.get $d
     i32.load $heap
-    local.tee $t1
+    local.tee $next
     local.get $d
     i32.load $heap offset=4
     local.tee $d
@@ -247,7 +245,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $next
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -257,7 +255,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $next
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -269,7 +267,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $next
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -279,7 +277,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $next
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -291,7 +289,7 @@
     if
       local.get $t0
       i32.load $heap
-      local.tee $next
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -301,37 +299,35 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $next
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
     local.get $h
-    local.tee $next
     if
-      local.get $next
+      local.get $h
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $next
+        local.get $h
         call $rt:release_ref
       end
     end
     local.get $alias
-    local.tee $next
     if
-      local.get $next
+      local.get $alias
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $next
+        local.get $alias
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $next
     local.get $d
   )
   (func $name_of (param $p i32) (result i32)

@@ -61,14 +61,13 @@
       end
     end
     local.get $t0
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $provider0
+        local.get $t0
         call $rt:release_ref
       end
     end

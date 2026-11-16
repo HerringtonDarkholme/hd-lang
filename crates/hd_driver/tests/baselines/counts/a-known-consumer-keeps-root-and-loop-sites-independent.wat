@@ -207,7 +207,7 @@
     i32.add
     global.set $locals
   )
-  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.1 i32) (local $x.0 i32) (local $t1 i32)
+  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.1 i32) (local $x.0 i32)
     ;; 8 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -240,9 +240,8 @@
         end
     ;; 9 |         f(x)
         local.get $x.0
-        local.tee $t1
         if
-          local.get $t1
+          local.get $x.0
           call $retain
         end
         local.get $f.1
@@ -252,9 +251,8 @@
         call $mixed#1
     ;; 8 |     for x in xs:
         local.get $x.0
-        local.tee $t1
         if
-          local.get $t1
+          local.get $x.0
           call $rt:release_ref'2
         end
         br 0

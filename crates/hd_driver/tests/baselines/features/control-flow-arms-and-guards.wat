@@ -38,9 +38,8 @@
           end
     ;; 13 |         .Named(n) if n.len() > 3 => n
           local.get $t.1
-          local.tee $t.0
           if
-            local.get $t.0
+            local.get $t.1
             call $retain
           end
           local.get $t.1
@@ -61,9 +60,8 @@
       end
     ;; 15 |         .Pair(left=_, right=r) => r
       local.get $t.2
-      local.tee $t.0
       if
-        local.get $t.0
+        local.get $t.2
         call $retain
       end
       local.get $t.2

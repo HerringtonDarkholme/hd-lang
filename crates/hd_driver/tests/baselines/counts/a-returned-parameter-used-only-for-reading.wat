@@ -77,16 +77,15 @@
       end
     end
   )
-  (func $keeps (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
+  (func $keeps (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 19 |     ident(s)
     local.get $s.0
     local.get $s.1
     call $ident
     local.set $s.0
     local.tee $s.1
-    local.tee $t0
     if
-      local.get $t0
+      local.get $s.1
       call $retain
     end
     local.get $s.1
@@ -130,7 +129,7 @@
     local.get $s.1
     i32.add
   )
-  (func $reads_heap_field_after (param $value i32) (param $action.0 i32) (param $action.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $reads_heap_field_after (param $value i32) (param $action.0 i32) (param $action.1 i32) (result i32) (local $result.0 i32)
     ;; 64 |     result := ident(value.name)
     local.get $value
     i32.load $heap
@@ -138,22 +137,20 @@
     i32.load $heap offset=4
     call $ident
     local.set $value
-    local.tee $t0
-    local.tee $t1
+    local.tee $result.0
     if
-      local.get $t1
+      local.get $result.0
       call $retain
     end
+    local.get $result.0
     ;; 65 |     action()
     local.get $action.1
     i32.const 0
     local.get $action.0
     call_indirect $table0 (param i32 i32)
     ;; 64 |     result := ident(value.name)
-    local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $result.0
       call $rt:release_ref'2
     end
     local.get $value

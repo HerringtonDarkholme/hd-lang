@@ -136,14 +136,13 @@
               br 2
             else
               local.get $alias
-              local.tee $t6
               if
-                local.get $t6
+                local.get $alias
                 i32.const 8
                 i32.sub
                 i32.load $heap
                 if
-                  local.get $t6
+                  local.get $alias
                   call $rt:retain_known
                 end
               end
@@ -155,12 +154,12 @@
             local.get $t2
             call $observe
             drop
-            local.set $t6
+            local.set $t3
             local.get $t7
             if
               local.get $t7
               i32.load $heap
-              local.tee $t3
+              local.tee $t2
               i32.const 2031616
               i32.and
               i32.const 2031616
@@ -170,7 +169,7 @@
                 call $rt:loan_unshare
               else
                 local.get $t7
-                local.get $t3
+                local.get $t2
                 i32.const 65536
                 i32.sub
                 i32.store $heap
@@ -183,9 +182,9 @@
               local.set $t7
             end
     ;; 26 |     for round in 0..2:
-            local.get $t6
+            local.get $t3
             if
-              local.get $t6
+              local.get $t3
               call $rt:release_ref'1
             end
           else
@@ -200,7 +199,7 @@
         if
           local.get $t7
           i32.load $heap
-          local.tee $t6
+          local.tee $t2
           i32.const 2031616
           i32.and
           i32.const 2031616
@@ -210,7 +209,7 @@
             call $rt:loan_unshare
           else
             local.get $t7
-            local.get $t6
+            local.get $t2
             i32.const 65536
             i32.sub
             i32.store $heap
@@ -249,7 +248,7 @@
     if
       local.get $t7
       i32.load $heap
-      local.tee $t6
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -259,33 +258,31 @@
         call $rt:loan_unshare
       else
         local.get $t7
-        local.get $t6
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
     local.get $p
-    local.tee $t6
     if
-      local.get $t6
+      local.get $p
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t6
+        local.get $p
         call $rt:release_ref'2
       end
     end
     local.get $alias
-    local.tee $t6
     if
-      local.get $t6
+      local.get $alias
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t6
+        local.get $alias
         call $rt:release_ref'2
       end
     end
@@ -467,14 +464,13 @@
               br 2
             else
               local.get $alias
-              local.tee $t3
               if
-                local.get $t3
+                local.get $alias
                 i32.const 8
                 i32.sub
                 i32.load $heap
                 if
-                  local.get $t3
+                  local.get $alias
                   call $rt:retain_known
                 end
               end
@@ -520,14 +516,13 @@
               call $rt:release_ref'1
             end
             local.get $t2
-            local.tee $t3
             if
-              local.get $t3
+              local.get $t2
               i32.const 8
               i32.sub
               i32.load $heap
               if
-                local.get $t3
+                local.get $t2
                 call $rt:release_ref'2
               end
             end

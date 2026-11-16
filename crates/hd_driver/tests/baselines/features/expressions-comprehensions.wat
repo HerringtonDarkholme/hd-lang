@@ -50,9 +50,8 @@
         local.get $u.active
         if
           local.get $u.name.0
-          local.tee $u.active
           if
-            local.get $u.active
+            local.get $u.name.0
             call $retain
           end
           local.get $t0
@@ -235,7 +234,7 @@
     end
     local.get $t0
   )
-  (func $pairs (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $t3 i32) (local $t4 i32) (local $y.1 i32) (local $y.0 i32) (local $t6 i32) (local $t7 i32) (local $t5 i32)
+  (func $pairs (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $t3 i32) (local $t4 i32) (local $y.1 i32) (local $y.0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 13 |     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
     i32.const 80 ;; &empty-buffer
     local.set $t0
@@ -304,15 +303,13 @@
             i32.eq
             if
               local.get $x.0
-              local.tee $t5
               if
-                local.get $t5
+                local.get $x.0
                 call $retain
               end
               local.get $y.0
-              local.tee $t5
               if
-                local.get $t5
+                local.get $y.0
                 call $retain
               end
               local.get $t0

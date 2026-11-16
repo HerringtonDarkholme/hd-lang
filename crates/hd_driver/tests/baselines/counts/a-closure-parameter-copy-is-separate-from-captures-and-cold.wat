@@ -52,9 +52,8 @@
       call $retain
     end
     local.get $value.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $value.0
       call $retain
     end
     local.get $ctx
@@ -104,15 +103,13 @@
       local.set $captured.1
     else
       local.get $captured.0
-      local.tee $env
       if
-        local.get $env
+        local.get $captured.0
         call $retain
       end
       local.get $value.0
-      local.tee $env
       if
-        local.get $env
+        local.get $value.0
         call $retain
       end
     end
@@ -275,9 +272,9 @@
     end
     local.get $t0
     i32.load $heap offset=36
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
   )
@@ -302,24 +299,23 @@
     local.get $t4
     i32.store $heap offset=36
     local.get $t4
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t4
       call $retain
     end
     local.get $t2
     i32.load $heap
-    local.tee $t3
+    local.tee $t1
     local.get $t2
     i32.load $heap offset=4
     local.set $t2
-    local.tee $t1
+    local.tee $t3
     if
-      local.get $t1
+      local.get $t3
       call $retain
     end
     local.get $t0
-    local.get $t3
+    local.get $t1
     i32.store $heap offset=40
     local.get $t0
     local.get $t2

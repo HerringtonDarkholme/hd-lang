@@ -43,9 +43,8 @@
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
     local.get $f.1
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $f.1
       call $rt:release_ref
     end
     local.get $values.0.0

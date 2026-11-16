@@ -30,20 +30,19 @@
     local.get $env
     i32.load $heap
     local.tee $env
-    local.tee $ctx
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $ctx
+        local.get $env
         call $rt:retain_known
       end
     end
     local.get $env
   )
-  (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
     ;; 33 |     kept := keep(u)
     i32.const 8
     i32.const 1
@@ -81,35 +80,32 @@
     i32.load $heap
     local.get $u.name.0
     i32.load $heap offset=4
-    local.set $t0
-    local.tee $t1
-    local.tee $u.name.0
+    local.set $u.name.0
+    local.tee $t0
     if
-      local.get $u.name.0
+      local.get $t0
       call $retain
     end
     local.get $u.name.1
-    local.tee $u.name.0
     if
-      local.get $u.name.0
+      local.get $u.name.1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $u.name.0
+        local.get $u.name.1
         call $rt:release_ref'1
       end
     end
-    local.get $t1
+    local.get $t0
     ;; 33 |     kept := keep(u)
-    local.tee $u.name.0
     if
-      local.get $u.name.0
+      local.get $t0
       call $rt:release_ref'2
     end
-    local.get $t0
+    local.get $u.name.0
   )
   (func $"id[&string]" (param $value i32) (result i32)
     ;; 16 |     value

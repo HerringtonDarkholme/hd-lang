@@ -36,9 +36,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $callback.1
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $callback.1
       call $rt:release_ref
     end
   )
@@ -66,9 +65,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $callback.1
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $callback.1
       call $rt:release_ref
     end
   )
@@ -96,9 +94,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $callback.1
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $callback.1
       call $rt:release_ref
     end
   )

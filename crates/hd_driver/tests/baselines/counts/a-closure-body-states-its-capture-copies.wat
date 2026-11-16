@@ -68,7 +68,7 @@
     local.get $t4
     local.get $t3
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $t0 i32) (local $items i32) (local $t2 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $items i32) (local $t0 i32) (local $t1 i32)
     ;; 22 |     original := word(7)
     i32.const 7
     i32.const 7
@@ -77,42 +77,40 @@
     local.tee $original.0
     ;; 23 |     println(keep(original)())
     local.tee $shared
-    local.tee $t0
     if
-      local.get $t0
+      local.get $shared
       call $retain
     end
     local.get $shared
     local.get $original.1
     i32.const 8
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $t0
     local.set $shared
-    local.get $t0
-    i32.const 0
+    local.set $items
     local.get $shared
+    i32.const 0
+    local.get $items
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $shared
-    local.tee $items
-    local.get $t0
+    local.set $items
+    local.tee $t0
+    local.get $shared
     if
-      local.get $t0
+      local.get $shared
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $shared
         call $rt:release_ref'1
       end
     end
-    local.get $shared
+    local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $items
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       call $rt:release_ref'2
@@ -121,22 +119,22 @@
     i32.const 7
     i32.const 9
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t0
     local.set $shared
-    local.get $t0
-    i32.const 0
+    local.set $items
     local.get $shared
+    i32.const 0
+    local.get $items
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $t0
+    local.get $shared
     if
-      local.get $t0
+      local.get $shared
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $shared
         call $rt:release_ref'1
       end
     end
@@ -145,31 +143,30 @@
     call $"println[i32]"
     ;; 25 |     println(lend(original)())
     local.get $original.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $original.0
       call $retain
     end
     local.get $original.0
     local.get $original.1
     i32.const 10
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $t0
     local.set $shared
-    local.get $t0
-    i32.const 0
+    local.set $items
     local.get $shared
+    i32.const 0
+    local.get $items
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $t0
+    local.get $shared
     if
-      local.get $t0
+      local.get $shared
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $shared
         call $rt:release_ref'1
       end
     end
@@ -178,9 +175,8 @@
     call $"println[usize]"
     ;; 26 |     shared := box(Named { text: original })
     local.get $original.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $original.0
       call $retain
     end
     i32.const 8
@@ -195,53 +191,50 @@
     local.get $shared
     ;; 27 |     println(keep(shared)().text)
     local.tee $items
-    local.tee $t0
     if
-      local.get $t0
+      local.get $items
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $items
         call $rt:retain_known
       end
     end
     local.get $items
     i32.const 11
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t0
     local.set $items
-    local.get $t0
-    i32.const 0
+    local.set $t0
     local.get $items
-    call_indirect $table0 (param i32 i32) (result i32)
-    local.tee $items
+    i32.const 0
     local.get $t0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $t0
+    local.get $items
     if
-      local.get $t0
+      local.get $items
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $items
         call $rt:release_ref'1
       end
     end
-    local.tee $t0
+    local.tee $items
     i32.load $heap
-    local.get $t0
+    local.get $items
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $t2
-    local.tee $t0
+    local.set $items
+    local.tee $t1
     if
-      local.get $t0
+      local.get $t1
       call $retain
     end
-    local.get $items
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -254,22 +247,20 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t2
     local.get $t1
+    local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t2
-    local.tee $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       call $rt:release_ref'2
     end
     ;; 28 |     items := [original]
     local.get $original.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $original.0
       call $retain
     end
     i32.const 1
@@ -310,16 +301,15 @@
     end
     i32.load $heap offset=4
     local.get $t1
-    local.tee $t0
     if
-      local.get $t0
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $t1
         call $rt:release_ref'1
       end
     end
@@ -339,36 +329,33 @@
     i32.load $heap offset=16
     local.get $items
     i32.load $heap offset=20
-    local.set $t1
-    local.tee $t2
-    local.tee $t0
+    local.set $t0
+    local.tee $t1
     if
-      local.get $t0
+      local.get $t1
       call $retain
     end
     local.get $items
-    local.tee $t0
     if
-      local.get $t0
+      local.get $items
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $items
         call $rt:release_ref'1
       end
     end
-    local.get $t2
     local.get $t1
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t2
-    local.tee $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       call $rt:release_ref'2
     end
     ;; 31 |     println(shared.text)
@@ -377,34 +364,31 @@
     local.get $shared
     i32.load $heap offset=4
     local.set $items
-    local.tee $t1
     local.tee $t0
     if
       local.get $t0
       call $retain
     end
-    local.get $t1
+    local.get $t0
     local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t1
-    local.tee $t0
+    local.get $t0
     if
       local.get $t0
       call $rt:release_ref'2
     end
     local.get $shared
-    local.tee $t0
     if
-      local.get $t0
+      local.get $shared
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $shared
         call $rt:release_ref'1
       end
     end
@@ -416,9 +400,8 @@
     call $"println[string]"
     local.get $original.0
     ;; 22 |     original := word(7)
-    local.tee $t0
     if
-      local.get $t0
+      local.get $original.0
       call $rt:release_ref'2
     end
   )
@@ -474,14 +457,13 @@
     local.get $env
     i32.load $heap
     local.tee $env
-    local.tee $ctx
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $ctx
+        local.get $env
         call $rt:retain_known
       end
     end

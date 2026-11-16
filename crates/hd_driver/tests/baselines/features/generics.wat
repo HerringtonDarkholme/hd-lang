@@ -77,9 +77,8 @@
       i32.load $heap offset=20
       local.set $t2
       local.tee $t3
-      local.tee $t4
       if
-        local.get $t4
+        local.get $t3
         call $retain
       end
       local.get $t3
@@ -88,42 +87,41 @@
     end
     local.set $t3
     local.get $xs
-    local.tee $t4
     if
-      local.get $t4
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $xs
         call $rt:release_ref'1
       end
     end
     local.get $t3
     i32.const 16 ;; &"heap-exhausted"
-    local.set $t4
     local.set $xs
+    local.set $t4
     block
       block
         block
-          local.get $xs
+          local.get $t4
           if
-            local.get $xs
+            local.get $t4
             local.get $t2
             local.set $t5
-            local.set $t4
+            local.set $xs
             br 1
           else
-            local.get $xs
+            local.get $t4
             i32.eqz
             br_if 2
             unreachable
           end
           unreachable
         end
-        local.get $t4
+        local.get $xs
         if
-          local.get $t4
+          local.get $xs
           call $retain
         end
         br 1
@@ -132,9 +130,9 @@
     local.get $t3
     local.get $t2
     call $rt:release
-    local.get $t4
+    local.get $xs
     if
-      local.get $t4
+      local.get $xs
       call $rt:release_ref'2
     end
     local.get $t1
@@ -142,47 +140,47 @@
     i32.add
     local.set $t1
     i32.const 80 ;; &empty-buffer
-    local.tee $t4
     local.tee $t2
-    i32.load $heap offset=4
     local.tee $t5
-    local.get $t2
+    i32.load $heap offset=4
+    local.tee $xs
+    local.get $t5
     i32.load $heap
     i32.eq
     if
-      local.get $t2
+      local.get $t5
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.tee $t2
-      local.set $t4
+      local.tee $t5
+      local.set $t2
     end
-    local.get $t2
     local.get $t5
+    local.get $xs
     i32.const 8
     i32.mul
     i32.add
-    local.tee $xs
+    local.tee $t3
     local.get $s.0
     i32.store $heap offset=16
-    local.get $xs
+    local.get $t3
     local.get $s.1
     i32.store $heap offset=20
-    local.get $t2
     local.get $t5
+    local.get $xs
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    local.get $t4
+    local.get $t2
     i32.load $heap offset=4
     local.set $s.0
-    local.get $t4
+    local.get $t2
     if
-      local.get $t4
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $t2
         call $rt:release_ref'1
       end
     end

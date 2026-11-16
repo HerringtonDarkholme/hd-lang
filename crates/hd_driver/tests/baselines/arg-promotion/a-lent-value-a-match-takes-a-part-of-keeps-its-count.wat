@@ -84,9 +84,8 @@
               i32.eqz
               if
                 local.get $other.1
-                local.tee $self.1
                 if
-                  local.get $self.1
+                  local.get $other.1
                   call $retain
                 end
                 local.get $other.1
@@ -117,9 +116,8 @@
         end
     ;; 19 |         match *self:
         local.get $right.0'1
-        local.tee $self.1
         if
-          local.get $self.1
+          local.get $right.0'1
           call $rt:release_ref
         end
         br 1
@@ -134,9 +132,8 @@
             i32.eq
             if
               local.get $other.1
-              local.tee $self.1
               if
-                local.get $self.1
+                local.get $other.1
                 call $retain
               end
               local.get $other.1
@@ -166,24 +163,21 @@
       end
     ;; 19 |         match *self:
       local.get $right.0'2
-      local.tee $self.1
       if
-        local.get $self.1
+        local.get $right.0'2
         call $rt:release_ref
       end
       local.get $t1
       local.set $t0
     end
     local.get $left.0'2
-    local.tee $self.1
     if
-      local.get $self.1
+      local.get $left.0'2
       call $rt:release_ref
     end
     local.get $left.0'1
-    local.tee $self.1
     if
-      local.get $self.1
+      local.get $left.0'1
       call $rt:release_ref
     end
     local.get $t0
@@ -244,26 +238,26 @@
         local.get $other
         i32.load $heap offset=8
         local.set $right.1'1
-        local.set $t0
         local.set $t2
+        local.set $other
         block
           block
             block
     ;; 22 |                     .Good(right) => left == right
-              local.get $t2
+              local.get $other
               i32.eqz
               if
-                local.get $t0
+                local.get $t2
                 if
-                  local.get $t0
+                  local.get $t2
                   call $retain
                 end
-                local.get $t0
+                local.get $t2
                 local.set $right.0
                 br 1
               else
     ;; 23 |                     .Bad(_) => false
-                local.get $t2
+                local.get $other
                 i32.const 1
                 i32.eq
                 br_if 2
@@ -286,9 +280,8 @@
         end
     ;; 19 |         match *self:
         local.get $right.0
-        local.tee $t0
         if
-          local.get $t0
+          local.get $right.0
           call $rt:release_ref
         end
         br 1
@@ -301,27 +294,27 @@
       local.get $other
       i32.load $heap offset=8
       local.set $right.1'2
-      local.set $t0
       local.set $other
+      local.set $right.0
       block
         block
           block
     ;; 26 |                     .Bad(right) => left == right
-            local.get $other
+            local.get $right.0
             i32.const 1
             i32.eq
             if
-              local.get $t0
+              local.get $other
               if
-                local.get $t0
+                local.get $other
                 call $retain
               end
-              local.get $t0
+              local.get $other
               local.set $right.1'1
               br 1
             else
     ;; 27 |                     .Good(_) => false
-              local.get $other
+              local.get $right.0
               i32.eqz
               br_if 2
               unreachable
@@ -343,24 +336,21 @@
       end
     ;; 19 |         match *self:
       local.get $right.1'1
-      local.tee $t0
       if
-        local.get $t0
+        local.get $right.1'1
         call $rt:release_ref
       end
       local.get $t2
       local.set $right.1'2
     end
     local.get $left.0'2
-    local.tee $t0
     if
-      local.get $t0
+      local.get $left.0'2
       call $rt:release_ref
     end
     local.get $left.0'1
-    local.tee $t0
     if
-      local.get $t0
+      local.get $left.0'1
       call $rt:release_ref
     end
     local.get $right.1'2

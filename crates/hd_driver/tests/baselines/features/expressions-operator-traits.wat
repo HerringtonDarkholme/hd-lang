@@ -106,7 +106,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.1 i32) (local $item.0 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
+  (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.1 i32) (local $item.0 i32) (local $t3 i32) (local $t2 i32)
     ;; 30 |     for item in items:
     local.get $items
     i32.load $heap offset=4
@@ -140,55 +140,51 @@
     ;; 31 |         total = total + item
         block
           local.get $item.0
-          local.tee $t2
           if
-            local.get $t2
+            local.get $item.0
             call $retain
           end
           local.get $zero.1
           local.get $item.1
           i32.add
-          local.tee $t3
+          local.tee $t2
           i32.const 16
-          local.set $t4
+          local.set $t3
           if
-            local.get $t3
+            local.get $t2
             call $rt:str
-            local.set $t4
+            local.set $t3
           end
-          local.get $t4
+          local.get $t3
           local.get $zero.0
           local.get $zero.1
           call $rt:memory_copy/0/0
-          local.get $t4
+          local.get $t3
           local.get $zero.1
           i32.add
           local.get $item.0
           local.get $item.1
           call $rt:memory_copy/0/0
           local.get $item.0
-          local.tee $t2
           if
-            local.get $t2
+            local.get $item.0
             call $rt:release_ref
           end
-          local.get $t3
+          local.get $t2
           local.set $zero.1
           br 0
-          local.get $t4
-          local.tee $t2
+          local.get $t3
           if
-            local.get $t2
+            local.get $t3
             call $rt:release_ref
           end
         end
         local.get $zero.0
-        local.tee $t2
         if
-          local.get $t2
+          local.get $zero.0
           call $rt:release_ref
         end
-        local.get $t4
+        local.get $t3
         local.set $zero.0
     ;; 30 |     for item in items:
         br 0

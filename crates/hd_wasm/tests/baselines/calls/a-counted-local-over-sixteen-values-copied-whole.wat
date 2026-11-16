@@ -89,9 +89,8 @@
       end
     end
     local.get $t3
-    local.tee $t4
     if
-      local.get $t4
+      local.get $t3
       call $rt:release_ref'2
     end
     local.get $x
@@ -583,9 +582,8 @@
       end
     end
     local.get $t2
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t2
       call $rt:release_ref'2
     end
     local.get $x
@@ -1037,14 +1035,14 @@
     end
     local.get $t0
     i32.load $stack offset=84
-    local.tee $t3
+    local.tee $t0
     if
-      local.get $t3
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -1215,9 +1213,8 @@
       end
     end
     local.get $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref'2
     end
     local.get $x

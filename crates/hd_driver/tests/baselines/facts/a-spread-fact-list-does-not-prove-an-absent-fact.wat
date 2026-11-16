@@ -5,26 +5,25 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $unknown (param $unrelated i32) (param $value i64) (result i64) (local $t0 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t5 i32) (local $t6 i32)
+  (func $unknown (param $unrelated i32) (param $value i64) (result i64) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t5 i32) (local $t6 i32)
     ;; ...
     ;; 12 |     if facts.find::[EnumTagging]().is_some():
     call $"impl Facts.find[std.serde.EnumTagging]"
+    local.set $unrelated
     local.set $t0
     local.set $t1
     local.set $t2
     local.set $t3
-    local.set $t4
     ;; ...
-    local.tee $unrelated
     if
-      local.get $unrelated
+      local.get $t4
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $unrelated
+        local.get $t4
         call $rt:release_ref
       end
     end
@@ -34,27 +33,27 @@
     local.get $t5
     i32.const 8
     i32.add
-    local.tee $unrelated
-    local.get $t4
-    i32.store $heap
-    local.get $unrelated
+    local.tee $t4
     local.get $t3
-    i32.store $heap offset=4
-    local.get $unrelated
+    i32.store $heap
+    local.get $t4
     local.get $t2
-    i32.store $heap offset=8
-    local.get $unrelated
+    i32.store $heap offset=4
+    local.get $t4
     local.get $t1
-    i32.store $heap offset=12
-    local.get $unrelated
+    i32.store $heap offset=8
+    local.get $t4
     local.get $t0
-    i32.store $heap offset=16
+    i32.store $heap offset=12
+    local.get $t4
     local.get $unrelated
-    local.set $t0
+    i32.store $heap offset=16
+    local.get $t4
+    local.set $unrelated
     block
       block
         block
-          local.get $t0
+          local.get $unrelated
           i32.load $heap
           i32.const 3
           i32.ne
@@ -67,17 +66,17 @@
         br 1
       end
     end
-    local.get $unrelated
+    local.get $t4
     if
-      local.get $unrelated
+      local.get $t4
       i32.load $heap
-      local.get $unrelated
+      local.get $t4
       i32.load $heap offset=4
-      local.get $unrelated
+      local.get $t4
       i32.load $heap offset=8
-      local.get $unrelated
+      local.get $t4
       i32.load $heap offset=12
-      local.get $unrelated
+      local.get $t4
       i32.load $heap offset=16
       call $rt:release
     end

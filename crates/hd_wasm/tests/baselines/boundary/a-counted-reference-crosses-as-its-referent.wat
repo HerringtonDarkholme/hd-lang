@@ -59,16 +59,15 @@
       end
     end
     local.get $t2
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0
+        local.get $t2
         call $rt:release_ref
       end
     end

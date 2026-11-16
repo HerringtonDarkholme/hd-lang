@@ -107,9 +107,8 @@
       local.set $t4
     else
       local.get $t5
-      local.tee $env
       if
-        local.get $env
+        local.get $t5
         call $retain
       end
       i32.const 8
@@ -243,9 +242,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t6
-            local.tee $env
             if
-              local.get $env
+              local.get $t6
               call $rt:release_ref'1
             end
           end
@@ -527,9 +525,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -561,9 +559,8 @@
     local.get $t2
     i32.store $heap offset=32
     local.get $t3
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t3
       call $retain
     end
     local.get $t0

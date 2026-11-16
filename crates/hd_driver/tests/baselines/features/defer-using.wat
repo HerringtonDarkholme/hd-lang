@@ -13,7 +13,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 13 funcref))
-  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |         self.log.push(self.name)
     local.get $self
     i32.load $heap
@@ -21,9 +21,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $self
@@ -221,23 +220,21 @@
       end
     end
     local.get $log
-    local.tee $t1
     if
-      local.get $t1
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $log
         call $rt:release_ref'1
       end
     end
     local.get $s.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.0
       call $rt:release_ref'2
     end
     local.get $s.1

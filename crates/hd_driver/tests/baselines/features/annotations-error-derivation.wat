@@ -23,7 +23,7 @@
     i32.const 0
     i32.const 0
   )
-  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32)
+  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32)
     ;; 25 | @error
     local.get $self
     i32.load $heap
@@ -48,44 +48,42 @@
     if (result i32)
     ;; 29 |         path: string,
       local.get $t0
-      local.tee $t3
       if
-        local.get $t3
+        local.get $t0
         call $retain
       end
     ;; 27 |     @error("cannot read $path")
       i32.const 12
-      local.tee $t3
+      local.tee $t1
       local.get $self
       i32.add
-      local.tee $t4
+      local.tee $t3
       i32.const 16 ;; &"cannot read "
-      local.set $t1
+      local.set $t2
       if
-        local.get $t4
+        local.get $t3
         call $rt:str
-        local.set $t1
+        local.set $t2
       end
-      local.get $t1
-      local.tee $t5
+      local.get $t2
+      local.tee $t4
       i32.const 543449445
       i32.store $heap offset=8 align=1
-      local.get $t5
+      local.get $t4
       i64.const 8223700941521445219
       i64.store $heap align=1
+      local.get $t2
       local.get $t1
-      local.get $t3
       i32.add
       local.get $t0
       local.get $self
       call $rt:memory_copy/0/0
       local.get $t0
-      local.tee $t3
       if
-        local.get $t3
+        local.get $t0
         call $rt:release_ref
       end
-      local.get $t1
+      local.get $t2
     else
     ;; 33 |     @error("bad config")
       local.get $t3
@@ -94,15 +92,14 @@
       if (result i32)
         i32.const 28 ;; &"bad config"
         i32.const 10
-        local.set $t4
+        local.set $t3
       else
     ;; 40 |         @from
         local.get $t2
         if (result i32)
           local.get $t2
-          local.tee $t3
           if
-            local.get $t3
+            local.get $t2
             call $retain
           end
           i32.const 11
@@ -111,37 +108,36 @@
           call $"impl StringBuilder.text_width"
           i32.add
           call $"impl StringBuilder.value_new"
-          local.set $t4
+          local.set $t3
           local.tee $self
-          local.get $t4
+          local.get $t3
           i32.const 0
           i32.const 38 ;; &"not found: "
           i32.const 11
           call $"impl StringBuilder.value_text"
           local.get $self
-          local.get $t4
+          local.get $t3
           i32.const 11
           local.get $t2
           local.get $t1
           call $"impl StringBuilder.value_text"
           local.get $t2
-          local.tee $t3
           if
-            local.get $t3
+            local.get $t2
             call $rt:release_ref
           end
           local.get $self
         else
           i32.const 49 ;; &"Busy"
           i32.const 4
-          local.set $t4
+          local.set $t3
         end
     ;; 33 |     @error("bad config")
       end
     ;; 27 |     @error("cannot read $path")
     end
     ;; 25 | @error
-    local.get $t4
+    local.get $t3
   )
   (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 15 |         "bad yaml at line ${self.line}"
@@ -248,30 +244,28 @@
       i32.const 8
       i32.const 1
       call $rt:new/class-1
-      local.tee $t3
+      local.tee $t2
       local.get $t1
       i32.store $heap
-      local.get $t3
+      local.get $t2
       local.get $self
       i32.store $heap offset=4
-      local.get $t3
-      local.tee $self
+      local.get $t2
       if
-        local.get $self
+        local.get $t2
         call $retain
       end
-      local.get $t3
+      local.get $t2
     ;; 27 |     @error("cannot read $path")
-      local.get $t3
-      local.tee $self
+      local.get $t2
       if
-        local.get $self
+        local.get $t2
         call $rt:release_ref
       end
     ;; 30 |         @source
       i32.const 468 ;; &vtable[rt:dyn_slot]
     ;; 27 |     @error("cannot read $path")
-      local.set $t1
+      local.set $self
     else
     ;; 33 |     @error("bad config")
       local.get $t2
@@ -286,17 +280,15 @@
         local.get $t0
         i64.store $heap
         local.get $t3
-        local.tee $self
         if
-          local.get $self
+          local.get $t3
           call $retain
         end
         local.get $t3
     ;; 33 |     @error("bad config")
         local.get $t3
-        local.tee $self
         if
-          local.get $self
+          local.get $t3
           call $rt:release_ref
         end
     ;; 35 |         @from
@@ -308,10 +300,10 @@
       end
     ;; 27 |     @error("cannot read $path")
       local.get $t3
-      local.set $t1
+      local.set $self
     end
     ;; 25 | @error
-    local.get $t1
+    local.get $self
   )
   (func $load (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i64 i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i32)
     ;; 50 |     value := parse(text)?
@@ -397,7 +389,7 @@
     i32.wrap_i64
     i32.const 0
   )
-  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32)
+  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
     ;; 19 | @error
     local.get $self
     i32.load $heap
@@ -409,9 +401,8 @@
     if (result i32)
     ;; 22 |     NotFound(path: string)
       local.get $t0
-      local.tee $t1
       if
-        local.get $t1
+        local.get $t0
         call $retain
       end
     ;; 21 |     @error("not found: $path")
@@ -444,9 +435,8 @@
       local.get $self
       call $rt:memory_copy/0/0
       local.get $t0
-      local.tee $t1
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
       local.get $t3

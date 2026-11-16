@@ -51,9 +51,8 @@
       i32.load $heap offset=4
       local.set $value.0
       local.tee $value.1
-      local.tee $user
       if
-        local.get $user
+        local.get $value.1
         call $retain
       end
     ;; 13 |     match value.downcast_ref::[User]():

@@ -53,7 +53,7 @@
     ;; 17 |     n
     local.get $n
   )
-  (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
+  (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 24 |     let mut out: List[string] = []
     i32.const 80 ;; &empty-buffer
     local.set $out
@@ -89,9 +89,8 @@
         end
     ;; 26 |         out.push(x)
         local.get $x.0
-        local.tee $t2
         if
-          local.get $t2
+          local.get $x.0
           call $retain
         end
         local.get $out

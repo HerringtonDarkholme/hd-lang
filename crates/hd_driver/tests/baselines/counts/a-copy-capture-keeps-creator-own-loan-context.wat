@@ -17,7 +17,7 @@
     local.get $f.0
     call_indirect $table0 (param i32 i32)
   )
-  (func $probe (result i32 i32 i32 i32) (local $p i32) (local $r i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
+  (func $probe (result i32 i32 i32 i32) (local $p i32) (local $r i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
     i32.const 16
     i32.const 1
@@ -130,21 +130,19 @@
     i32.load $heap offset=4
     local.set $t1
     local.tee $t2
-    local.tee $t4
     if
-      local.get $t4
+      local.get $t2
       call $retain
     end
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
     local.get $p
-    local.tee $t4
     if
-      local.get $t4
+      local.get $p
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $p
         call $rt:release_ref
       end
     end

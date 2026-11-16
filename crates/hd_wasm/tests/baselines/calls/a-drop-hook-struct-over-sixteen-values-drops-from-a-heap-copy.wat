@@ -57,9 +57,9 @@
     end
     local.get $t0
     i32.load $stack offset=8
-    local.tee $t3
+    local.tee $t0
     if
-      local.get $t3
+      local.get $t0
       call $rt:release_ref
     end
     local.get $t1

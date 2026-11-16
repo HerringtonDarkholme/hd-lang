@@ -11,44 +11,46 @@
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $list_spread (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $list_spread (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 12 |     [xs..., s]
-    i32.const 1
     local.get $xs
+    local.set $t0
+    i32.const 1
+    local.get $t0
     i32.load $heap offset=4
     i32.add
-    local.tee $t0
+    local.tee $t1
     call $rt:list_buf
+    local.tee $t2
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $t2
     local.tee $t1
     local.get $t0
-    i32.store $heap offset=4
-    local.get $t1
-    local.tee $t0
-    local.get $xs
     i32.load $heap offset=4
     i32.const 8
     i32.mul
-    local.set $t2
+    local.set $t3
     i32.const 16
     i32.add
-    local.get $xs
-    i32.const 16
-    i32.add
-    local.get $t2
-    call $rt:memory_copy/0/0
     local.get $t0
     i32.const 16
     i32.add
-    local.get $xs
+    local.get $t3
+    call $rt:memory_copy/0/0
+    local.get $t1
+    i32.const 16
+    i32.add
+    local.get $t0
     i32.load $heap offset=4
     call $rt:copy_elems
-    local.get $t0
-    local.get $t2
+    local.get $t1
+    local.get $t3
     i32.add
-    local.tee $t0
+    local.tee $t1
     local.get $s.0
     i32.store $heap offset=16
-    local.get $t0
+    local.get $t1
     local.get $s.1
     i32.store $heap offset=20
     local.get $xs
@@ -62,7 +64,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $t2
   )
   (func $list_spread_two (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 15 |     [xs..., ys...]
@@ -132,14 +134,13 @@
       end
     end
     local.get $xs
-    local.tee $ys
     if
-      local.get $ys
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $ys
+        local.get $xs
         call $rt:release_ref
       end
     end

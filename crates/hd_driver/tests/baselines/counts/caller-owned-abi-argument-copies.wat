@@ -58,14 +58,13 @@
     end
     local.get $t5
     local.get $h
-    local.tee $t2
     if
-      local.get $t2
+      local.get $h
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $h
         call $rt:retain_known
       end
     end
@@ -77,7 +76,7 @@
     local.get $t0
     call $"impl[S] Source[S] for Seeds.member[(string, i32), string]"
     drop
-    local.set $t2
+    local.set $t5
     local.get $t3
     local.get $t0
     call $rt:release

@@ -16,6 +16,7 @@
     local.get $t0
     local.get $first.1
     i32.store $heap offset=4
+    local.get $t0
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -37,7 +38,6 @@
     local.get $first.1
     i32.const 236 ;; &vtable[rt:dyn_read]
     i32.store $heap offset=28
-    local.get $t0
     if
       local.get $t0
       call $rt:release_ref
@@ -79,9 +79,9 @@
       local.get $label.0
       call $retain
     end
-    local.tee $label.0
+    local.tee $ctx
     if
-      local.get $label.0
+      local.get $ctx
       call $rt:release_ref
     end
     local.get $label.1

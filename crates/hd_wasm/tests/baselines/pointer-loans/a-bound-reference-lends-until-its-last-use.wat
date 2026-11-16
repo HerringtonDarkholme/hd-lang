@@ -129,14 +129,13 @@
       end
     end
     local.get $alias
-    local.tee $p
     if
-      local.get $p
+      local.get $alias
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $alias
         call $rt:release_ref
       end
     end

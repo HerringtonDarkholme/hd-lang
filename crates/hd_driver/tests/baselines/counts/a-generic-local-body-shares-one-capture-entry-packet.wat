@@ -265,9 +265,9 @@
     end
     local.get $t0
     i32.load $heap offset=28
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'2
     end
   )
@@ -288,14 +288,13 @@
     local.get $t1
     i32.load $heap
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $t1
         call $rt:retain_known
       end
     end
@@ -354,9 +353,8 @@
       call $retain
     end
     local.get $value.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $value.0
       call $retain
     end
     ;; 8 |         (captured, value)

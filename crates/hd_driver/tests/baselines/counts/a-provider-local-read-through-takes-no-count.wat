@@ -8,7 +8,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t1 i32)
+  (func $go (result i32) (local $first i32) (local $second i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     ;; 28 |     first := box(Count { n: 0 })
     i32.const 4
     i32.const 0
@@ -26,14 +26,13 @@
     i32.store $heap
     ;; 30 |     $.with(Sink = first):
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
@@ -110,9 +109,8 @@
       local.set $t3
     end
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'1
     end
     ;; 33 |     first.n + second.n
@@ -147,26 +145,24 @@
     i32.add
     ;; 28 |     first := box(Count { n: 0 })
     local.get $second
-    local.tee $t1
     if
-      local.get $t1
+      local.get $second
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $second
         call $rt:release_ref'2
       end
     end
     local.get $first
-    local.tee $t1
     if
-      local.get $t1
+      local.get $first
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $first
         call $rt:release_ref'2
       end
     end

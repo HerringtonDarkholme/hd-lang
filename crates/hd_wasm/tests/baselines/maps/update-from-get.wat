@@ -124,7 +124,7 @@
     i32.store $heap
     i64.const 2
   )
-  (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
+  (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 22 |     words[key] += suffix
     local.get $words
     i32.load $heap
@@ -160,48 +160,46 @@
     i32.load $heap offset=4
     local.set $key.1
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
     local.get $key.1
     local.get $suffix.1
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.eqz
     if (result i32)
       i32.const 16
     else
-      local.get $t2
+      local.get $t1
       call $rt:str
     end
+    local.tee $t2
     local.tee $t3
-    local.tee $t1
     local.get $t0
     local.get $key.1
     call $rt:memory_copy/0/0
-    local.get $t1
+    local.get $t3
     local.get $key.1
     i32.add
     local.get $suffix.0
     local.get $suffix.1
     call $rt:memory_copy/0/0
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $words
     i32.load $heap
     call $rt:map_unique'2
-    local.set $t1
+    local.set $key.1
     local.get $words
-    local.get $t1
+    local.get $key.1
     i32.store $heap
-    local.get $t1
-    local.get $t1
+    local.get $key.1
+    local.get $key.1
     i32.load $heap offset=12
     i32.const 14
     i32.mul
@@ -214,16 +212,16 @@
     i32.add
     local.tee $words
     i32.load $heap offset=8
-    local.tee $t1
+    local.tee $key.0
     if
-      local.get $t1
+      local.get $key.0
       call $rt:release_ref
     end
     local.get $words
-    local.get $t3
+    local.get $t2
     i32.store $heap offset=8
     local.get $words
-    local.get $t2
+    local.get $t1
     i32.store $heap offset=12
   )
   (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32)
@@ -323,35 +321,34 @@
     local.set $t2
     local.get $counts
     i32.load $heap
-    local.set $other.1
+    local.set $other.0
     local.get $word.0
     local.get $word.1
-    local.get $other.1
+    local.get $other.0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t0
+    local.set $other.1
+    local.get $other.0
     local.get $other.1
-    local.get $t0
     local.get $word.0
     local.get $word.1
     call $rt:map_find
-    local.set $t1
+    local.set $t0
     local.get $word.0
-    local.tee $other.0
     if
-      local.get $other.0
+      local.get $word.0
       call $retain
     end
+    local.get $other.0
     local.get $other.1
     local.get $t0
-    local.get $t1
     local.get $word.0
     local.get $word.1
     local.get $t2
     call $rt:map_put
-    local.set $other.1
+    local.set $other.0
     local.get $counts
-    local.get $other.1
+    local.get $other.0
     i32.store $heap
   )
   (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $seen i64)

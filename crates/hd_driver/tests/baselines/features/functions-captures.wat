@@ -153,7 +153,7 @@
     i32.add
     global.set $locals
   )
-  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
+  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -198,9 +198,8 @@
     local.get $s.0
     ;; 18 |     add()
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $xs
@@ -243,9 +242,8 @@
     i32.store $heap offset=4
     ;; 19 |     xs.len()
     local.get $s.0
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       call $retain
     end
     local.get $xs
@@ -255,23 +253,23 @@
     i32.store $heap
     local.get $xs
     i32.load $heap
-    local.tee $t2
-    i32.load $heap offset=4
     local.tee $t1
-    local.get $t2
+    i32.load $heap offset=4
+    local.tee $t2
+    local.get $t1
     i32.load $heap
     i32.eq
     if
-      local.get $t2
+      local.get $t1
       i32.const 4
       call_indirect $table0 (param i32) (result i32)
-      local.set $t2
+      local.set $t1
       local.get $xs
-      local.get $t2
+      local.get $t1
       i32.store $heap
     end
-    local.get $t2
     local.get $t1
+    local.get $t2
     i32.const 8
     i32.mul
     i32.add
@@ -281,15 +279,14 @@
     local.get $t3
     local.get $s.1
     i32.store $heap offset=20
-    local.get $t2
     local.get $t1
+    local.get $t2
     i32.const 1
     i32.add
     i32.store $heap offset=4
     local.get $s.0
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       call $rt:release_ref'1
     end
     ;; 15 |     let mut xs: List[string] = []
@@ -301,16 +298,16 @@
     if
       local.get $xs
       i32.load $heap
-      local.tee $t2
+      local.tee $s.1
       if
-        local.get $t2
+        local.get $s.1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t2
+          local.get $s.1
           call $rt:release_ref'2
         end
       end
@@ -319,16 +316,15 @@
     local.get $s.0
     i32.load $heap offset=4
     local.get $s.0
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t2
+        local.get $s.0
         call $rt:release_ref'2
       end
     end

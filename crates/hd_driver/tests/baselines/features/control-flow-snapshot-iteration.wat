@@ -10,7 +10,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.1 i32) (local $v.0 i32) (local $t4 i32) (local $t5 i32) (local $t3 i32)
+  (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.1 i32) (local $v.0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 9 |     let mut out = values
     local.get $values
     ;; 10 |     for v in out:
@@ -46,9 +46,8 @@
         end
     ;; 11 |         out.push(v)
         local.get $v.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $v.0
           call $retain
         end
         local.get $values
@@ -88,14 +87,13 @@
       end
     end
     local.get $t0
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $t0
         call $rt:release_ref
       end
     end
@@ -224,32 +222,31 @@
         i32.load $heap offset=4
         i32.add
     ;; 18 |     match cursor.next():
-        local.set $cursor
+        local.set $t1
         br 1
       end
     ;; 20 |         .None => items.len()
       local.get $values
       i32.load $heap offset=4
     ;; 18 |     match cursor.next():
-      local.set $cursor
+      local.set $t1
     end
     ;; 15 |     let mut items = values
     local.get $s.1
     local.get $s.0
     call $rt:release
     local.get $values
-    local.tee $t1
     if
-      local.get $t1
+      local.get $values
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $values
         call $rt:release_ref
       end
     end
-    local.get $cursor
+    local.get $t1
     local.get $t0
     i32.const 16
     i32.add

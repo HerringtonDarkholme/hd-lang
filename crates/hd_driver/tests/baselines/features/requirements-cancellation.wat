@@ -452,9 +452,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $key.0
-            local.tee $job
             if
-              local.get $job
+              local.get $key.0
               call $rt:release_ref'1
             end
           end
@@ -523,9 +522,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $key.1
-          local.tee $job
           if
-            local.get $job
+            local.get $key.1
             call $rt:release_ref'1
           end
         end
@@ -557,9 +555,9 @@
     end
     local.get $t2
     i32.load $heap
-    local.tee $job
+    local.tee $key.1
     if
-      local.get $job
+      local.get $key.1
       call $rt:release_ref'1
     end
     local.get $key.0
@@ -705,9 +703,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end

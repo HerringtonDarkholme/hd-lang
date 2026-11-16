@@ -239,7 +239,7 @@
     ;; 33 |     match xs.get_mut(i):
     end
   )
-  (func $list_take (param $xs i32) (param $i i32) (result i32 i32) (local $t0 i32)
+  (func $list_take (param $xs i32) (param $i i32) (result i32 i32)
     ;; 14 |     xs[i]
     local.get $i
     local.get $xs
@@ -260,9 +260,8 @@
     i32.load $heap offset=20
     local.set $xs
     local.tee $i
-    local.tee $t0
     if
-      local.get $t0
+      local.get $i
       call $retain
     end
     local.get $i

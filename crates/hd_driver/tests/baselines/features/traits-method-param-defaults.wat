@@ -68,14 +68,14 @@
     if
       local.get $j
       i32.load $heap
-      local.tee $t2
+      local.tee $j
       if
-        local.get $t2
+        local.get $j
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t2
+          local.get $j
           call $rt:release_ref'2
         end
       end

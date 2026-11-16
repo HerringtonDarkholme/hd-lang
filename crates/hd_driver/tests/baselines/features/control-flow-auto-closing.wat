@@ -16,7 +16,7 @@
     local.get $label.0
     local.get $label.1
   )
-  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 14 |         self.log.push(self.label)
     local.get $self
     i32.load $heap offset=4
@@ -24,9 +24,8 @@
     i32.load $heap offset=8
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $self

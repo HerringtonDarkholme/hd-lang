@@ -595,12 +595,9 @@
     ;; 42 |     println(read(&S {}))
     call $read
     local.set $boxed.1
-    ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $boxed.0
-    ;; 42 |     println(read(&S {}))
-    local.tee $mutable.0
     if
-      local.get $mutable.0
+      local.get $boxed.0
       call $rt:release_ref
     end
     ;; (no span)
@@ -760,12 +757,9 @@
     ;; 42 |     println(read(&S {}))
     call $read
     local.set $boxed.1
-    ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $boxed.0
-    ;; 42 |     println(read(&S {}))
-    local.tee $mutable.0
     if
-      local.get $mutable.0
+      local.get $boxed.0
       call $rt:release_ref
     else
       call $skipped_test

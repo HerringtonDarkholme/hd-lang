@@ -73,8 +73,8 @@
     i32.const 0
     i32.store $heap offset=4
     local.set $s.0
-    ;; 23 |     let mut p = Named { name: s }
     local.tee $s.1
+    ;; 23 |     let mut p = Named { name: s }
     if
       local.get $s.1
       call $rt:release_ref

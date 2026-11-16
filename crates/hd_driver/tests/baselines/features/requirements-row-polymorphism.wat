@@ -26,9 +26,8 @@
       call $rt:release_ref
     end
     local.get $t0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
@@ -55,9 +54,8 @@
       call $rt:release_ref
     end
     local.get $t0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $s.0

@@ -82,41 +82,41 @@
     call $write_unsigned_sized
     i32.const 2
     call $rt:list_buf
-    local.tee $t2
+    local.tee $t1
     i32.const 2
     i32.store $heap offset=4
-    local.get $t2
-    local.tee $t1
+    local.get $t1
+    local.tee $t2
     local.get $t4
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t2
     local.get $t3
     i32.store $heap offset=20
-    local.get $t1
+    local.get $t2
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $t2
     i32.const 88 ;; &"b"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=20
     global.get $names
-    local.tee $t1
+    local.tee $t2
     if
-      local.get $t1
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t2
         call $rt:release_ref'2
       end
     end
-    local.get $t2
+    local.get $t1
     global.set $names
   )
-  (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     greeting
     i32.const 24 ;; &greeting
     i32.load $heap
@@ -124,9 +124,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $t1

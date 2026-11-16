@@ -12,14 +12,13 @@
     local.get $env
     i32.load $heap
     local.tee $env
-    local.tee $ctx
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $ctx
+        local.get $env
         call $rt:retain_known
       end
     end
@@ -30,14 +29,13 @@
     local.get $env
     i32.load $heap
     local.tee $env
-    local.tee $ctx
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $ctx
+        local.get $env
         call $rt:retain_known
       end
     end
@@ -124,14 +122,13 @@
   (func $live (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 38 |     step := capture(value)
     local.get $value
-    local.tee $t0
     if
-      local.get $t0
+      local.get $value
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $value
         call $rt:retain_known
       end
     end

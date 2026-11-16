@@ -8,7 +8,7 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $fill (param $frame i32) (local $index i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32)
+  (func $fill (param $frame i32) (local $index i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 11 |     while index < frame.keys.len():
     local.get $frame
     i32.load $heap
@@ -60,47 +60,44 @@
         i32.load $heap offset=20
         local.set $t0
         local.tee $t1
-        local.tee $t2
         if
-          local.get $t2
+          local.get $t1
           call $retain
         end
         local.get $frame
         i32.load $heap offset=4
-        local.set $t3
+        local.set $t2
         local.get $t1
         local.get $t0
-        local.get $t3
+        local.get $t2
         i64.load $heap offset=24
         call $rt:map_hash
-        local.set $t4
+        local.set $t3
+        local.get $t2
         local.get $t3
-        local.get $t4
         local.get $t1
         local.get $t0
         call $rt:map_find
-        local.set $t5
+        local.set $t4
         local.get $t1
-        local.tee $t2
         if
-          local.get $t2
+          local.get $t1
           call $retain
         end
+        local.get $t2
         local.get $t3
         local.get $t4
-        local.get $t5
         local.get $t1
         local.get $t0
         local.get $index
         call $rt:map_put
-        local.set $t3
+        local.set $t2
         local.get $frame
-        local.get $t3
+        local.get $t2
         i32.store $heap offset=4
         local.get $t1
-        local.tee $t2
         if
-          local.get $t2
+          local.get $t1
           call $rt:release_ref
         end
     ;; 13 |         index += 1

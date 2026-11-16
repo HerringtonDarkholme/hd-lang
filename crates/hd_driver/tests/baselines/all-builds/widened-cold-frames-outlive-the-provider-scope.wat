@@ -5,7 +5,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
     if
@@ -15,42 +15,37 @@
     local.get $provider1
     local.get $provider1.vtable
     i32.load $heap offset=4
-    local.set $provider1.vtable
+    local.set $provider1
+    local.tee $provider1.vtable
     local.tee $t0
-    local.tee $t1
-    local.tee $provider1
     if
-      local.get $provider1
+      local.get $t0
       call $retain
-    end
-    local.get $t1
-    local.get $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
-    end
-    local.tee $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $retain
-    end
-    local.get $t1
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
     end
     local.get $t0
     local.get $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $rt:release_ref
+    end
+    local.tee $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $retain
+    end
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $provider1.vtable
+    local.get $provider1
     local.get $provider0
     local.get $provider0.vtable
     call $read
-    local.get $t0
-    local.tee $provider1
+    local.get $provider1.vtable
     if
-      local.get $provider1
+      local.get $provider1.vtable
       call $rt:release_ref
     end
   )
@@ -62,7 +57,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
     if
@@ -74,50 +69,45 @@
     local.get $provider1
     local.get $provider1.vtable
     i32.load $heap offset=4
-    local.set $provider1.vtable
+    local.set $provider1
+    local.tee $provider1.vtable
     local.tee $t0
-    local.tee $t1
-    local.tee $provider1
     if
-      local.get $provider1
+      local.get $t0
       call $retain
-    else
-      call $skipped_test
-    end
-    local.get $t1
-    local.get $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
-    else
-      call $skipped_test
-    end
-    local.tee $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $retain
-    else
-      call $skipped_test
-    end
-    local.get $t1
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
     else
       call $skipped_test
     end
     local.get $t0
     local.get $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
+    local.tee $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $retain
+    else
+      call $skipped_test
+    end
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
+    local.get $provider1.vtable
+    local.get $provider1
     local.get $provider0
     local.get $provider0.vtable
     call $read
-    local.get $t0
-    local.tee $provider1
+    local.get $provider1.vtable
     if
-      local.get $provider1
+      local.get $provider1.vtable
       call $rt:release_ref
     else
       call $skipped_test
@@ -130,7 +120,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
     if
@@ -140,42 +130,37 @@
     local.get $provider1
     local.get $provider1.vtable
     i32.load $heap offset=4
-    local.set $provider1.vtable
+    local.set $provider1
+    local.tee $provider1.vtable
     local.tee $t0
-    local.tee $t1
-    local.tee $provider1
     if
-      local.get $provider1
+      local.get $t0
       call $retain
-    end
-    local.get $t1
-    local.get $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
-    end
-    local.tee $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $retain
-    end
-    local.get $t1
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
     end
     local.get $t0
     local.get $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $rt:release_ref
+    end
+    local.tee $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $retain
+    end
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $provider1.vtable
+    local.get $provider1
     local.get $provider0
     local.get $provider0.vtable
     call $read
-    local.get $t0
-    local.tee $provider1
+    local.get $provider1.vtable
     if
-      local.get $provider1
+      local.get $provider1.vtable
       call $rt:release_ref
     end
   )
@@ -187,7 +172,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
     if
@@ -199,50 +184,45 @@
     local.get $provider1
     local.get $provider1.vtable
     i32.load $heap offset=4
-    local.set $provider1.vtable
+    local.set $provider1
+    local.tee $provider1.vtable
     local.tee $t0
-    local.tee $t1
-    local.tee $provider1
     if
-      local.get $provider1
+      local.get $t0
       call $retain
-    else
-      call $skipped_test
-    end
-    local.get $t1
-    local.get $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
-    else
-      call $skipped_test
-    end
-    local.tee $t0
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $retain
-    else
-      call $skipped_test
-    end
-    local.get $t1
-    local.tee $provider1
-    if
-      local.get $provider1
-      call $rt:release_ref
     else
       call $skipped_test
     end
     local.get $t0
     local.get $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
+    local.tee $provider1.vtable
+    if
+      local.get $provider1.vtable
+      call $retain
+    else
+      call $skipped_test
+    end
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
+    local.get $provider1.vtable
+    local.get $provider1
     local.get $provider0
     local.get $provider0.vtable
     call $read
-    local.get $t0
-    local.tee $provider1
+    local.get $provider1.vtable
     if
-      local.get $provider1
+      local.get $provider1.vtable
       call $rt:release_ref
     else
       call $skipped_test

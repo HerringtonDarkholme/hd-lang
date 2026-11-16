@@ -178,17 +178,17 @@
     ;; 15 |     *d
     local.get $d
     i32.load $heap
-    local.tee $change.0
+    local.tee $change.1
     local.get $d
     i32.load $heap offset=4
-    local.tee $d
+    local.tee $change.0
     call $rt:retain
     ;; 10 |     let mut ps = [box(P { name: "a" })]
     local.get $t1
     if
       local.get $t1
       i32.load $heap
-      local.tee $change.1
+      local.tee $d
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -198,7 +198,7 @@
         call $rt:loan_unshare
       else
         local.get $t1
-        local.get $change.1
+        local.get $d
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -210,7 +210,7 @@
     if
       local.get $t1
       i32.load $heap
-      local.tee $change.1
+      local.tee $d
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -220,7 +220,7 @@
         call $rt:loan_unshare
       else
         local.get $t1
-        local.get $change.1
+        local.get $d
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -232,16 +232,16 @@
     if
       local.get $ps
       i32.load $heap
-      local.tee $change.1
+      local.tee $ps
       if
-        local.get $change.1
+        local.get $ps
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $change.1
+          local.get $ps
           call $rt:release_ref
         end
       end
@@ -266,8 +266,8 @@
         i32.store $heap
       end
     end
+    local.get $change.1
     local.get $change.0
-    local.get $d
     local.get $t0
     i32.const 16
     i32.add

@@ -373,9 +373,8 @@
     i32.load $heap offset=20
     local.set $a.1
     local.tee $b.0
-    local.tee $b.1
     if
-      local.get $b.1
+      local.get $b.0
       call $retain
     end
     local.get $q
@@ -395,9 +394,8 @@
       end
     end
     local.get $b.0
-    local.tee $b.1
     if
-      local.get $b.1
+      local.get $b.0
       call $rt:release_ref'2
     end
     i32.const 0
@@ -413,26 +411,23 @@
     local.get $a.0
     i32.load $heap offset=20
     local.set $b.0
-    local.tee $q
     local.tee $b.1
     if
       local.get $b.1
       call $retain
     end
     local.get $a.0
-    local.tee $b.1
     if
-      local.get $b.1
+      local.get $a.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $b.1
+        local.get $a.0
         call $rt:release_ref'1
       end
     end
-    local.get $q
-    local.tee $b.1
+    local.get $b.1
     if
       local.get $b.1
       call $rt:release_ref'2
@@ -869,14 +864,13 @@
     i64.load $heap offset=16
     local.set $b
     local.get $saved
-    local.tee $q
     if
-      local.get $q
+      local.get $saved
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $q
+        local.get $saved
         call $rt:release_ref'1
       end
     end
@@ -1034,14 +1028,13 @@
     i64.load $heap offset=16
     local.set $b
     local.get $saved
-    local.tee $q
     if
-      local.get $q
+      local.get $saved
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $q
+        local.get $saved
         call $rt:release_ref'1
       end
     end
@@ -1213,9 +1206,8 @@
         i32.load $heap offset=20
         local.set $left
         local.tee $t0
-        local.tee $t1
         if
-          local.get $t1
+          local.get $t0
           call $retain
         end
         local.get $t2
@@ -1274,28 +1266,28 @@
     local.get $self
     i32.load $heap
     call $rt:list_unique'1
-    local.set $t1
+    local.set $t2
     local.get $self
-    local.get $t1
+    local.get $t2
     i32.store $heap
     local.get $start
-    local.get $t1
+    local.get $t2
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t2
     local.get $start
     i32.const 8
     i32.mul
     i32.add
     local.tee $self
     i32.load $heap offset=16
-    local.tee $t1
+    local.tee $start
     if
-      local.get $t1
+      local.get $start
       call $rt:release_ref'2
     end
     local.get $self

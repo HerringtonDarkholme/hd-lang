@@ -13,7 +13,7 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $named (param $n i32) (result i32) (local $t0 i64) (local $t2 i32) (local $t1 i32)
+  (func $named (param $n i32) (result i32) (local $t2 i32) (local $t0 i64) (local $t1 i32)
     ;; 27 |     let w = make(n)
     local.get $n
     i64.extend_i32_s
@@ -199,7 +199,7 @@
     local.get $self.name.0
     i32.div_u
   )
-  (func $total (param $n i32) (result i32) (local $t0 i64) (local $t2 i32) (local $t1 i32)
+  (func $total (param $n i32) (result i32) (local $t2 i32) (local $t0 i64) (local $t1 i32)
     ;; 24 |     make(n).size()
     local.get $n
     i64.extend_i32_s

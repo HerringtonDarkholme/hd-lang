@@ -24,14 +24,13 @@
     i32.store $heap
     local.get $t1
     ;; 11 |     node = box(Node { next: .Some(parent) })
-    local.tee $t0
     if
-      local.get $t0
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $t1
         call $rt:retain_known
       end
     end

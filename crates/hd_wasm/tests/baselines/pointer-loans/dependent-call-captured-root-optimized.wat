@@ -244,7 +244,7 @@
     if
       local.get $t2
       i32.load $heap
-      local.tee $t5
+      local.tee $t4
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -254,7 +254,7 @@
         call $rt:loan_unshare
       else
         local.get $t2
-        local.get $t5
+        local.get $t4
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -266,16 +266,16 @@
     if
       local.get $ps
       i32.load $heap
-      local.tee $t5
+      local.tee $ps
       if
-        local.get $t5
+        local.get $ps
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $ps
           call $rt:release_ref
         end
       end

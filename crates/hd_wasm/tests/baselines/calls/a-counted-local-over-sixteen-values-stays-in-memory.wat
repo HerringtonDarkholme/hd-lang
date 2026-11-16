@@ -13,7 +13,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
-  (func $early (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i64) (local $t2 i32)
+  (func $early (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
     ;; 47 |     if x > 3:
     global.get $stack
     i32.const 80
@@ -885,7 +885,7 @@
     i32.add
     global.set $locals
   )
-  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i64) (local $t2 i32)
+  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t2 i64)
     ;; 42 |     let t = mk_outer(x)
     global.get $stack
     i32.const 88
@@ -901,27 +901,27 @@
     local.get $t0
     i32.load $stack offset=80
     call $keep
+    local.set $x
+    local.tee $s.0
     ;; 44 |     t.v + i32(s.len())
     local.get $t0
     i32.load $stack offset=84
-    local.set $x
+    local.set $t1
     local.get $t0
     call $rt:release_at
-    local.set $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $s.0
       call $rt:release_ref
     end
-    local.get $x
-    i64.extend_i32_s
     local.get $t1
     i64.extend_i32_s
+    local.get $x
+    i64.extend_i32_s
     i64.add
-    local.tee $t3
+    local.tee $t2
     i64.const 2147483647
     i64.gt_s
-    local.get $t3
+    local.get $t2
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -929,7 +929,7 @@
       call $rt:panic
       unreachable
     end
-    local.get $t3
+    local.get $t2
     i32.wrap_i64
     ;; 42 |     let t = mk_outer(x)
     local.get $t0

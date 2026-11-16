@@ -244,14 +244,13 @@
     i32.load $heap offset=4
     local.get $text.1
     ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-    local.tee $text.0
     if
-      local.get $text.0
+      local.get $text.1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $text.0
+        local.get $text.1
         call $rt:release_ref
       end
     end
@@ -340,14 +339,13 @@
       end
     end
     local.get $root
-    local.tee $text.1
     if
-      local.get $text.1
+      local.get $root
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $text.1
+        local.get $root
         call $rt:release_ref
       end
     end

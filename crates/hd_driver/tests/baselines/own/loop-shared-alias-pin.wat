@@ -177,14 +177,13 @@
       end
     end
     local.get $a
-    local.tee $t0
     if
-      local.get $t0
+      local.get $a
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $a
         call $rt:release_ref
       end
     end

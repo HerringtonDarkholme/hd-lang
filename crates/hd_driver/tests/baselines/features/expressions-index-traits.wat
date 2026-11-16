@@ -233,9 +233,8 @@
       end
     end
     local.get $t2
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref'2
     end
     local.get $xs

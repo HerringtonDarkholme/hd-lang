@@ -46,11 +46,11 @@
     local.get $t0
     local.get $n
     call $"impl StringBuilder.value_signed"
+    local.get $t2
     local.get $t1
     i32.const 1
     i32.add
     local.set $n
-    local.get $t2
     if
       local.get $t2
       call $rt:release_ref
@@ -110,11 +110,11 @@
     i32.add
     local.get $n
     call $write_signed_sized
+    local.get $t4
     local.get $t3
     i32.const 1
     i32.add
     local.set $n
-    local.get $t4
     if
       local.get $t4
       call $rt:release_ref
@@ -171,7 +171,7 @@
     i32.const 1
     i32.add
   )
-  (func $twice (param $n i32) (result i32) (local $t0 i64) (local $t2 i32) (local $t1 i32)
+  (func $twice (param $n i32) (result i32) (local $t0 i64) (local $t.s.0 i32) (local $t.s.1 i32)
     ;; 25 |     let t = make(n)
     local.get $n
     i64.extend_i32_s
@@ -182,39 +182,36 @@
     local.get $n
     i32.add
     call $"impl StringBuilder.value_new"
-    local.set $t1
-    local.tee $t2
-    local.get $t1
+    local.set $t.s.1
+    local.tee $t.s.0
+    local.get $t.s.1
     i32.const 0
     i32.const 65 ;; &"x"
     i32.const 1
     call $"impl StringBuilder.value_text"
-    local.get $t2
-    local.get $t1
+    local.get $t.s.0
+    local.get $t.s.1
     i32.const 1
     local.get $t0
     local.get $n
     call $"impl StringBuilder.value_signed"
-    local.get $t1
+    local.get $t.s.0
     ;; 26 |     let a = t.size()
+    local.get $t.s.1
     i32.const 1
     i32.add
     local.set $n
-    ;; 25 |     let t = make(n)
-    local.get $t1
     ;; 27 |     a + t.size()
+    local.get $t.s.1
     i32.const 1
     i32.add
-    local.set $t1
-    ;; 25 |     let t = make(n)
-    local.get $t2
-    ;; 27 |     a + t.size()
+    local.set $t.s.1
     if
-      local.get $t2
+      local.get $t.s.0
       call $rt:release_ref
     end
     local.get $n
-    local.get $t1
+    local.get $t.s.1
     i32.add
   )
 )

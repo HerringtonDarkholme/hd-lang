@@ -28,7 +28,7 @@
   (import "fixture" "all_polls" (global $all_polls (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 20 funcref))
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t6 i32) (local $t2 i32) (local $t4 i32) (local $t7 i64) (local $t0 i32) (local $t1 i32) (local $t5 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t6 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t7 i64) (local $t0 i32) (local $t1 i32)
     ;; 20 |     n := box::[Note](Note { text: "n" })
     global.get $locals
     global.get $locals_base
@@ -132,28 +132,26 @@
         end
         local.get $t4
         local.tee $provider0
-        local.tee $t5
         if
-          local.get $t5
+          local.get $provider0
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t5
+            local.get $provider0
             call $rt:retain_known
           end
         end
         local.get $t4
-        local.tee $t5
         if
-          local.get $t5
+          local.get $t4
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t5
+            local.get $t4
             call $rt:release_ref'1
           end
         end
@@ -396,9 +394,9 @@
           end
           local.get $t2
           i32.load $heap offset=36
-          local.tee $t5
+          local.tee $provider0.vtable
           if
-            local.get $t5
+            local.get $provider0.vtable
             call $rt:release_ref'2
           end
           i32.const 0
@@ -510,9 +508,9 @@
         i32.store $heap offset=24
         local.get $t2
         i32.load $heap offset=36
-        local.tee $t5
+        local.tee $t6
         if
-          local.get $t5
+          local.get $t6
           call $rt:release_ref'2
         end
         local.get $t2
@@ -520,16 +518,16 @@
         i32.store $heap offset=36
         local.get $t2
         i32.load $heap offset=16
-        local.tee $t5
+        local.tee $t6
         if
-          local.get $t5
+          local.get $t6
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t5
+            local.get $t6
             call $rt:release_ref'1
           end
         end
@@ -538,16 +536,16 @@
         i32.store $heap offset=16
         local.get $t2
         i32.load $heap offset=20
-        local.tee $t5
+        local.tee $t6
         if
-          local.get $t5
+          local.get $t6
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t5
+            local.get $t6
             call $rt:release_ref'1
           end
         end
@@ -560,16 +558,16 @@
       end
       local.get $t2
       i32.load $heap offset=20
-      local.tee $t5
+      local.tee $t3
       if
-        local.get $t5
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $t3
           call $rt:release_ref'1
         end
       end
@@ -578,16 +576,16 @@
       i32.store $heap offset=20
       local.get $t2
       i32.load $heap offset=16
-      local.tee $t5
+      local.tee $t3
       if
-        local.get $t5
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $t3
           call $rt:release_ref'1
         end
       end
@@ -621,16 +619,15 @@
       i64.extend_i32_u
       local.set $t7
       local.get $provider0.vtable
-      local.tee $t5
       if
-        local.get $t5
+        local.get $provider0.vtable
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $provider0.vtable
           call $rt:release_ref'1
         end
       end
@@ -662,9 +659,9 @@
     end
     local.get $t2
     i32.load $heap offset=36
-    local.tee $t5
+    local.tee $provider0
     if
-      local.get $t5
+      local.get $provider0
       call $rt:release_ref'2
     end
     local.get $frame

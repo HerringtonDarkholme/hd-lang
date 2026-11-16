@@ -65,91 +65,89 @@
     end
     local.get $t3
   )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t0 i32)
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t4 i32)
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
     local.get $env
     i32.load $heap
     local.tee $ctx
-    local.tee $t0
     if
-      local.get $t0
+      local.get $ctx
       call $retain
     end
     local.get $env
     call $peek
     i64.extend_i32_s
+    local.tee $t0
     local.tee $t1
-    local.tee $t2
     call $signed_magnitude
     call $unsigned_width
-    local.set $t0
-    local.get $t2
+    local.set $t2
+    local.get $t1
     i64.const 0
     i64.lt_s
     if
       i32.const 1
       local.set $t3
     end
-    local.get $t0
+    local.get $t2
     i64.extend_i32_u
     local.get $t3
     i64.extend_i32_u
     i64.add
-    local.tee $t2
+    local.tee $t1
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i32.wrap_i64
     local.set $t3
     local.get $env
     call $first
     local.set $env
-    local.tee $t4
+    local.tee $t2
     local.get $ctx
-    local.tee $t0
     if
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref'2
     end
     drop
     local.get $t3
-    local.tee $t0
+    local.tee $ctx
     i32.const -2
     i32.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t0
+    local.get $ctx
     i32.const 1
     i32.add
-    local.tee $t0
+    local.tee $ctx
     i64.extend_i32_u
     local.get $env
     i64.extend_i32_u
     i64.add
-    local.tee $t2
+    local.tee $t1
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i32.wrap_i64
-    local.tee $ctx
+    local.tee $t4
     i32.const 16
     local.set $t5
     if
-      local.get $ctx
+      local.get $t4
       call $rt:str
       local.set $t5
     end
-    local.get $t1
+    local.get $t0
     local.get $t5
     local.get $t3
     call $write_signed_sized
@@ -158,41 +156,40 @@
     local.get $t3
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
     local.get $t5
     i64.extend_i32_u
-    local.get $t0
+    local.get $ctx
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
-    local.get $t4
+    local.get $t2
     local.get $env
     call $rt:memory_copy/0/0
-    local.get $t4
-    local.tee $t0
+    local.get $t2
     if
-      local.get $t0
+      local.get $t2
       call $rt:release_ref'2
     end
     local.get $t5
-    local.get $ctx
+    local.get $t4
   )
 )

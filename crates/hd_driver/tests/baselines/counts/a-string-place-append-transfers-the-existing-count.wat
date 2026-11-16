@@ -80,9 +80,8 @@
       call $rt:release_ref
     end
     local.get $t0
-    local.tee $t3
     if
-      local.get $t3
+      local.get $t0
       call $rt:release_ref
     end
     local.get $text
@@ -113,7 +112,7 @@
     i32.const 76 ;; &"!"
     i32.const 1
   )
-  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $current i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $current i32) (local $t0 i32) (local $t1 i32)
     ;; 10 |     let mut current = text
     global.get $locals
     global.get $locals_base
@@ -164,9 +163,8 @@
     local.set $text.1
     i32.load $heap
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $current
@@ -186,9 +184,8 @@
       i32.store $heap offset=4
     end
     local.get $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref
     end
     local.get $current
@@ -204,19 +201,19 @@
     local.get $text.1
     local.get $text.0
     call $rt:str_append
-    local.set $t2
     local.set $text.0
+    local.set $text.1
     local.get $current
     i32.load $heap
     local.get $current
-    local.get $text.0
+    local.get $text.1
     i32.store $heap
     local.get $current
-    local.get $t2
+    local.get $text.0
     i32.store $heap offset=4
-    local.tee $t2
+    local.tee $text.0
     if
-      local.get $t2
+      local.get $text.0
       call $rt:release_ref
     end
     ;; 13 |     current
@@ -226,9 +223,8 @@
     i32.load $heap offset=4
     local.set $text.0
     local.tee $text.1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $text.1
       call $retain
     end
     ;; 10 |     let mut current = text
@@ -236,9 +232,9 @@
     if
       local.get $current
       i32.load $heap
-      local.tee $t2
+      local.tee $current
       if
-        local.get $t2
+        local.get $current
         call $rt:release_ref
       end
     end

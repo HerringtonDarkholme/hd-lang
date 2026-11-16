@@ -6,7 +6,7 @@
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     local.tee $callback.0
@@ -40,20 +40,21 @@
     local.tee $t0
     i32.const 6
     i32.store $heap
+    local.get $t0
+    local.set $t1
     ;; 33 |         println(invoke(callback))
     local.get $callback.0
     i32.const 0
+    local.get $t1
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    local.get $t0
     i32.const 304 ;; &vtable[rt:dyn_slot]
     ;; 33 |         println(invoke(callback))
     call $invoke
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
-    local.get $t0
     ;; 29 |     let callback: fn() -> i32 $ Named = original
+    local.get $t0
     if
       local.get $t0
       call $rt:release_ref
@@ -68,7 +69,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     local.tee $callback.0
@@ -104,20 +105,21 @@
     local.tee $t0
     i32.const 6
     i32.store $heap
+    local.get $t0
+    local.set $t1
     ;; 33 |         println(invoke(callback))
     local.get $callback.0
     i32.const 0
+    local.get $t1
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    local.get $t0
     i32.const 644 ;; &vtable[rt:dyn_slot]
     ;; 33 |         println(invoke(callback))
     call $invoke
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
-    local.get $t0
     ;; 29 |     let callback: fn() -> i32 $ Named = original
+    local.get $t0
     if
       local.get $t0
       call $rt:release_ref
@@ -173,9 +175,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $t2
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref
     end
     local.get $provider0
@@ -183,9 +184,8 @@
     call $"println[i32]"
     ;; 30 |     $.with(Named=box(S { n: 4 })):
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
     ;; 32 |     $.with(Named=box(S { n: 6 })):
@@ -222,9 +222,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $t2
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref
     end
     local.get $provider0
@@ -232,9 +231,8 @@
     call $"println[i32]"
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
   )
@@ -289,9 +287,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $t2
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref
     else
       call $skipped_test
@@ -301,9 +298,8 @@
     call $"println[i32]"
     ;; 30 |     $.with(Named=box(S { n: 4 })):
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     else
       call $skipped_test
@@ -344,9 +340,8 @@
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $t2
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref
     else
       call $skipped_test
@@ -356,9 +351,8 @@
     call $"println[i32]"
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     else
       call $skipped_test

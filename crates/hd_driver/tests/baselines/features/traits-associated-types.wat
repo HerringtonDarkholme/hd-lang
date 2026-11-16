@@ -92,7 +92,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 18 |         self.value
     local.get $self
     i32.load $heap
@@ -100,9 +100,8 @@
     i32.load $heap offset=4
     local.set $self
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
     local.get $t0

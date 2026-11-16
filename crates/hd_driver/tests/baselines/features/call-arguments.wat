@@ -217,19 +217,19 @@
     i32.load $heap
     local.get $t
     i32.load $heap offset=4
-    local.set $s.1
+    local.set $s.0
     local.get $t
     i32.const 0
     i32.store $heap
     local.get $t
     i32.const 0
     i32.store $heap offset=4
-    local.tee $s.0
-    local.get $s.1
-    call $by_value
+    local.tee $s.1
     local.get $s.0
+    call $by_value
+    local.get $s.1
     if
-      local.get $s.0
+      local.get $s.1
       call $rt:release_ref
     end
     i32.add

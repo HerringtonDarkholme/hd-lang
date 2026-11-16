@@ -36,7 +36,7 @@
     i32.store $heap offset=4
     local.get $t0
   )
-  (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t i32) (local $t0 i32) (local $t1 i32)
+  (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t i32) (local $t0 i32)
     ;; 18 |     let mut t = s
     global.get $locals
     global.get $locals_base
@@ -83,9 +83,8 @@
     ;; 20 |     add()
     i32.load $heap
     local.tee $s.0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $s.0
       call $retain
     end
     local.get $t
@@ -105,9 +104,8 @@
       i32.store $heap offset=4
     end
     local.get $s.0
-    local.tee $s.1
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
     local.get $t
@@ -123,19 +121,19 @@
     i32.const 65 ;; &"x"
     i32.const 1
     call $rt:str_append
-    local.set $s.1
     local.set $s.0
+    local.set $s.1
     local.get $t
     i32.load $heap
     local.get $t
-    local.get $s.0
+    local.get $s.1
     i32.store $heap
     local.get $t
-    local.get $s.1
+    local.get $s.0
     i32.store $heap offset=4
-    local.tee $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
     ;; 21 |     t
@@ -144,7 +142,6 @@
     local.get $t
     i32.load $heap offset=4
     local.set $s.0
-    local.tee $t1
     local.tee $s.1
     if
       local.get $s.1
@@ -155,13 +152,13 @@
     if
       local.get $t
       i32.load $heap
-      local.tee $s.1
+      local.tee $t
       if
-        local.get $s.1
+        local.get $t
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $s.1
     local.get $s.0
     local.get $t0
     i32.const 16

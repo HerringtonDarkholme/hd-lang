@@ -39,9 +39,8 @@
     local.get $callback.0
     call $"forward[{open row}]"
     local.get $callback.0
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $callback.0
       call $rt:release_ref'1
     end
   )
@@ -231,9 +230,9 @@
     end
     local.get $t0
     i32.load $heap offset=32
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'1
     end
   )
@@ -411,9 +410,9 @@
           i32.store $heap offset=28
           local.get $t2
           i32.load $heap offset=8
-          local.tee $callback.0
+          local.tee $provider0
           if
-            local.get $callback.0
+            local.get $provider0
             call $retain
           end
           local.get $t4
@@ -427,9 +426,8 @@
           i32.const 0
           i32.store $heap offset=20
           local.get $t4
-          local.tee $callback.0
           if
-            local.get $callback.0
+            local.get $t4
             call $rt:release_ref'1
           end
           local.get $provider0
@@ -497,9 +495,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $callback.1
-            local.tee $callback.0
             if
-              local.get $callback.0
+              local.get $callback.1
               call $rt:release_ref'1
             end
           end
@@ -568,9 +565,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t5
-          local.tee $callback.0
           if
-            local.get $callback.0
+            local.get $t5
             call $rt:release_ref'1
           end
         end
@@ -758,9 +754,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -811,9 +807,8 @@
     local.get $callback.0
     call $later
     local.get $callback.0
-    local.tee $provider0
     if
-      local.get $provider0
+      local.get $callback.0
       call $rt:release_ref'1
     end
   )

@@ -50,14 +50,13 @@
     local.get $stock
     ;; 12 |     alias := stock
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
@@ -147,14 +146,13 @@
     drop
     ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
     local.get $stock
-    local.tee $t1
     if
-      local.get $t1
+      local.get $stock
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $stock
         call $rt:release_ref
       end
     end

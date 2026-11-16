@@ -49,14 +49,13 @@
     end
     local.get $t1
   )
-  (func $"impl Probes.captured_copy#1" (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
+  (func $"impl Probes.captured_copy#1" (param $env i32) (param $ctx i32) (result i32)
     ;; 53 |         fn() -> usize:
     local.get $env
     i32.load $heap
     local.tee $ctx
-    local.tee $t0
     if
-      local.get $t0
+      local.get $ctx
       call $retain
     end
     ;; 54 |             borrowed := &value
@@ -65,9 +64,8 @@
     call $"impl string.len"
     ;; 53 |         fn() -> usize:
     local.get $ctx
-    local.tee $t0
     if
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref'1
     end
   )

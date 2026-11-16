@@ -5,7 +5,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $text.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 23 |     text := read(path)?
     local.get $path.0
     local.get $path.1
@@ -17,12 +17,12 @@
       i32.add
       local.tee $path.1
       call $rt:str
+      local.tee $text.0
       local.tee $t1
-      local.tee $t2
       local.get $path.0
       local.get $t0
       call $rt:memory_copy/0/0
-      local.get $t2
+      local.get $t1
       local.get $t0
       i32.add
       i32.const 47
@@ -30,7 +30,7 @@
       i32.const 0
     else
       local.get $path.0
-      local.set $t1
+      local.set $text.0
       i32.const 0
       local.set $path.0
       i32.const 1
@@ -45,21 +45,20 @@
     i32.eqz
     if
     else
-      local.get $t1
+      local.get $text.0
       local.get $path.1
       return
     end
-    local.get $t1
+    local.get $text.0
     ;; 24 |     .Ok(text.len())
-    local.tee $path.0
     if
-      local.get $path.0
+      local.get $text.0
       call $rt:release_ref
     end
     i32.const 0
     local.get $path.1
   )
-  (func $converted (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $converted (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $text.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 27 |     text := read(path)?
     local.get $path.0
     local.get $path.1
@@ -71,12 +70,12 @@
       i32.add
       local.tee $path.1
       call $rt:str
+      local.tee $text.0
       local.tee $t1
-      local.tee $t2
       local.get $path.0
       local.get $t0
       call $rt:memory_copy/0/0
-      local.get $t2
+      local.get $t1
       local.get $t0
       i32.add
       i32.const 47
@@ -84,7 +83,7 @@
       i32.const 0
     else
       local.get $path.0
-      local.set $t1
+      local.set $text.0
       i32.const 0
       local.set $path.0
       i32.const 1
@@ -99,15 +98,14 @@
     i32.eqz
     if
     else
-      local.get $t1
+      local.get $text.0
       local.get $path.1
       return
     end
-    local.get $t1
+    local.get $text.0
     ;; 28 |     .Ok(text.len())
-    local.tee $path.0
     if
-      local.get $path.0
+      local.get $text.0
       call $rt:release_ref
     end
     i32.const 0

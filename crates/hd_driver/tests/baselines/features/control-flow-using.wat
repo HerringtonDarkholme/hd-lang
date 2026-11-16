@@ -11,7 +11,7 @@
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |         self.log.push(self.name)
     local.get $self
     i32.load $heap
@@ -19,9 +19,8 @@
     i32.load $heap offset=4
     local.set $t0
     local.tee $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
     local.get $self
@@ -273,7 +272,7 @@
     ;; 30 |     held.name.len()
     local.get $t0
   )
-  (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $t0 i32) (local $r i32)
+  (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $r i32) (local $t0 i32)
     ;; 24 |     for x in xs:
     global.get $locals
     global.get $locals_base
@@ -343,20 +342,18 @@
         end
     ;; 25 |         using r = Res { name: x, log: log }
         local.get $x.0
-        local.tee $r
         if
-          local.get $r
+          local.get $x.0
           call $retain
         end
         local.get $log
-        local.tee $r
         if
-          local.get $r
+          local.get $log
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $r
+            local.get $log
             call $rt:retain_known
           end
         end
@@ -419,14 +416,13 @@
       end
     end
     local.get $log
-    local.tee $r
     if
-      local.get $r
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $r
+        local.get $log
         call $rt:release_ref
       end
     end

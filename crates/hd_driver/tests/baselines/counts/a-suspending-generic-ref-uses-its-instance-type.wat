@@ -17,7 +17,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 18 funcref))
-  (func $"generic[Tally]" (param $frame i32) (param $t5 i64) (result i64 i32) (local $t3 i32) (local $t7 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32) (local $t6 i32)
+  (func $"generic[Tally]" (param $frame i32) (param $t5 i64) (result i64 i32) (local $t3 i32) (local $t6 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 12 |     copy!(&value)
     global.get $locals
     global.get $locals_base
@@ -200,9 +200,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t4
-            local.tee $t6
             if
-              local.get $t6
+              local.get $t4
               call $rt:release_ref'1
             end
           end
@@ -214,13 +213,13 @@
         local.set $t4
         local.get $frame
         i32.load $heap offset=16
-        local.tee $t7
+        local.tee $t6
         if
-          local.get $t7
-          local.get $t7
+          local.get $t6
+          local.get $t6
           i32.load $heap offset=4
           call_indirect $table0 (param i32)
-          local.get $t7
+          local.get $t6
           i32.load $heap offset=12
           i32.const 16
           i32.and
@@ -241,7 +240,7 @@
           call $rt:frame_ensure'1
           drop
           local.tee $frame
-          local.get $t7
+          local.get $t6
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -265,13 +264,12 @@
           global.set $locals
           return
         end
-        local.get $t7
+        local.get $t6
         if
           local.get $frame
           i32.const 0
           i32.store $heap offset=16
-          local.get $t7
-          local.tee $t6
+          local.get $t6
           if
             local.get $t6
             call $rt:release_ref'1
@@ -283,7 +281,7 @@
         i64.const 0
         local.set $t5
         i32.const 1
-        local.set $t7
+        local.set $t6
         br 1
       end
       i32.const 0
@@ -293,16 +291,16 @@
       i32.store $heap offset=4
       local.get $t2
       i32.load $heap
-      local.tee $t6
+      local.tee $t3
       if
-        local.get $t6
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t3
           call $rt:release_ref'2
         end
       end
@@ -312,16 +310,16 @@
     end
     local.get $t2
     i32.load $heap
-    local.tee $t6
+    local.tee $t3
     if
-      local.get $t6
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $t3
         call $rt:release_ref'2
       end
     end
@@ -335,7 +333,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t7
+    local.get $t6
     if (result i32)
       local.get $frame
       local.get $frame
@@ -474,9 +472,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -495,7 +493,7 @@
     i32.store $heap offset=24
     local.get $t0
   )
-  (func $"generic[i32]" (param $frame i32) (param $t5 i32) (result i32 i32) (local $t3 i32) (local $t7 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32) (local $t6 i32)
+  (func $"generic[i32]" (param $frame i32) (param $t5 i32) (result i32 i32) (local $t3 i32) (local $t6 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 12 |     copy!(&value)
     global.get $locals
     global.get $locals_base
@@ -678,9 +676,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t4
-            local.tee $t6
             if
-              local.get $t6
+              local.get $t4
               call $rt:release_ref'1
             end
           end
@@ -749,9 +746,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t5
-          local.tee $t6
           if
-            local.get $t6
+            local.get $t5
             call $rt:release_ref'1
           end
         end
@@ -761,7 +757,7 @@
         i32.const 0
         local.set $t5
         i32.const 1
-        local.set $t7
+        local.set $t6
         br 1
       end
       i32.const 0
@@ -771,16 +767,16 @@
       i32.store $heap offset=4
       local.get $t2
       i32.load $heap
-      local.tee $t6
+      local.tee $t3
       if
-        local.get $t6
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t3
           call $rt:release_ref'2
         end
       end
@@ -790,16 +786,16 @@
     end
     local.get $t2
     i32.load $heap
-    local.tee $t6
+    local.tee $t3
     if
-      local.get $t6
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $t3
         call $rt:release_ref'2
       end
     end
@@ -813,7 +809,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t7
+    local.get $t6
     if (result i32)
       local.get $frame
       local.get $frame
@@ -952,9 +948,9 @@
     if
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end

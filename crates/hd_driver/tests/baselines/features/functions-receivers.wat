@@ -113,7 +113,7 @@
     local.get $s.1
     local.get $t0
   )
-  (func $counted (param $b i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $counted (param $b i32) (result i32) (local $t0 i32)
     ;; 49 |     b.keep().name.len()
     local.get $b
     call $"impl Vec2.keep"
@@ -123,44 +123,39 @@
     i32.load $heap offset=4
     local.set $b
     local.tee $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $retain
     end
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $b
   )
-  (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
+  (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32)
     ;; 45 |     w := v.renamed(n)
     local.get $v.name.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $v.name.0
       call $retain
     end
     local.get $n.0
     local.get $v.name.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $v.name.0
       call $rt:release_ref
     end
     ;; 46 |     w.name.len() + v.name.len()
-    local.tee $t0
+    local.tee $n.0
     if
-      local.get $t0
+      local.get $n.0
       call $rt:release_ref
     end
     local.get $v.name.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $v.name.0
       call $rt:release_ref
     end
     local.get $n.1

@@ -190,27 +190,27 @@
     local.get $b.0
     local.get $b.1
     i32.add
-    local.set $b.0
+    local.set $s
     local.get $t
     i32.load $heap
     local.get $t
     i32.const 0
     i32.store $heap
-    local.tee $s
+    local.tee $b.0
     i32.load $heap offset=4
     local.set $b.1
-    local.get $s
+    local.get $b.0
     if
-      local.get $s
+      local.get $b.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $s
+        local.get $b.0
         call $rt:release_ref
       end
     end
-    local.get $b.0
+    local.get $s
     local.get $b.1
     i32.add
     ;; 23 |     let mut t = s

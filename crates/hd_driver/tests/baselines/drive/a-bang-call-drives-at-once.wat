@@ -24,9 +24,9 @@
         i32.store $heap offset=16
         local.get $t0
         i32.load $heap offset=16
-        local.tee $provider0.vtable
+        local.tee $text.0
         if
-          local.get $provider0.vtable
+          local.get $text.0
           call $retain
         end
         local.get $t0
@@ -166,9 +166,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t1
-              local.tee $provider0.vtable
               if
-                local.get $provider0.vtable
+                local.get $t1
                 call $rt:release_ref
               end
             end
@@ -238,17 +237,16 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $provider0
-          local.tee $provider0.vtable
           if
-            local.get $provider0.vtable
+            local.get $provider0
             call $rt:release_ref
           end
         end
         local.get $t0
         i32.load $heap offset=16
-        local.tee $provider0.vtable
+        local.tee $provider0
         if
-          local.get $provider0.vtable
+          local.get $provider0
           call $rt:release_ref
         end
         local.get $t0
