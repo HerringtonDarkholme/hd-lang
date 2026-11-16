@@ -1,0 +1,14 @@
+# @dump: stdout
+# @build: release
+# @main: src/main.hd
+# module.dbg.own-code: a path dependency is the user's own code, so its
+# `dbg` call is a release error (module.dbg.release).
+use dep.money.{cents}
+
+pub fn main() -> void $ Console:
+    println(cents(2))
+# @dependency: money
+# @file: src/lib.hd
+pub fn cents(n: i32) -> i32:
+    dbg(n)
+    n * 100

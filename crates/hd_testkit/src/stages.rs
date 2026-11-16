@@ -6,6 +6,7 @@
 //! `# @package: NAME` names the case's root package (`app` by default).
 //! `# @single-file: true` builds the case as a single-file program.
 //! The `functions` view lists the linked program's functions in link order.
+//! `# @dependency: NAME [fetched]` begins a dependency package's `@file`s.
 
 mod counts;
 mod diagnostics;
@@ -74,7 +75,34 @@ pub struct Program {
     /// (`# @single-file: true`), whose declarations print under the
     /// file's stem (`trait.typeid.name.single-file`).
     pub single_file: bool,
+    /// The dependency packages the case declares
+    /// (`# @dependency: money fetched`), which the root requires by name.
+    pub deps: Vec<CaseDependency>,
     marked: bool,
+}
+
+/// A dependency package of a case: its name, which the root requires and
+/// its source writes after `dep.`, whether it was fetched for a version
+/// requirement (`module.dbg.own-code`) or is a path dependency, and its
+/// package-relative files.
+#[derive(Clone)]
+pub struct CaseDependency {
+    pub name: String,
+    pub fetched: bool,
+    /// Its package index in the build: `i + 1` for the case's `i`th.
+    index: u16,
+    sources: hd_project::MemorySources,
+    files: BTreeMap<String, String>,
+}
+
+impl std::fmt::Debug for CaseDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CaseDependency")
+            .field("name", &self.name)
+            .field("fetched", &self.fetched)
+            .field("files", &self.files)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Program {
@@ -99,6 +127,7 @@ impl Program {
             filter: None,
             package: None,
             single_file: false,
+            deps: Vec::new(),
             marked: span.is_some(),
         })
     }
@@ -160,7 +189,11 @@ impl Program {
 /// does. `@filter: TEXT` keeps only the test cases whose names contain
 /// `TEXT` in the `tests` view. `@package: NAME` names the root package as
 /// its `hd.toml` does, `app` by default; `@single-file: true` builds it
-/// as a single-file program.
+/// as a single-file program. `@dependency: NAME` (a path dependency) or
+/// `@dependency: NAME fetched` (one fetched for a version requirement)
+/// begins a dependency package the root requires as `dep.NAME`; the
+/// `@file` modules after it, package-relative, are its files until the
+/// next `@dependency`, so dependencies follow the root's own modules.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -176,6 +209,10 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut filter = None;
     let mut package = None;
     let mut single_file = false;
+    let mut deps: Vec<CaseDependency> = Vec::new();
+    let mut dep_names = std::collections::BTreeSet::new();
+    // The current dependency file, once `@file` follows `@dependency`.
+    let mut dep_file: Option<String> = None;
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
@@ -309,6 +346,42 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     }
                     single_file = true;
                 }
+                "dependency" => {
+                    let (dep, fetched) = match value.split_whitespace().collect::<Vec<_>>()[..] {
+                        [dep] => (dep, false),
+                        [dep, "fetched"] => (dep, true),
+                        _ => {
+                            return Err(format!(
+                                "`@dependency: {value}`; write `NAME` or `NAME fetched`"
+                            ));
+                        }
+                    };
+                    if deps.last().is_some_and(|d| d.files.is_empty()) {
+                        return Err("a `@dependency` with no `@file`".to_owned());
+                    }
+                    if !dep_names.insert(dep) {
+                        return Err(format!("duplicate dependency `{dep}`"));
+                    }
+                    let index = u16::try_from(deps.len() + 1)
+                        .map_err(|_| "more dependencies than a build holds".to_owned())?;
+                    deps.push(CaseDependency {
+                        name: dep.to_owned(),
+                        fetched,
+                        index,
+                        sources: hd_project::MemorySources::default(),
+                        files: BTreeMap::new(),
+                    });
+                    dep_file = None;
+                }
+                "file" if let Some(dep) = deps.last_mut() => {
+                    if !module_path_ok(value) {
+                        return Err(format!("invalid module path `{value}`"));
+                    }
+                    if dep.files.insert(value.to_owned(), String::new()).is_some() {
+                        return Err(format!("duplicate module `{value}` in `{}`", dep.name));
+                    }
+                    dep_file = Some(value.to_owned());
+                }
                 "file" => {
                     if !module_path_ok(value) {
                         return Err(format!("invalid module path `{value}`"));
@@ -328,11 +401,30 @@ pub fn parse(text: &str) -> Result<Case, String> {
             }
             // Keep line numbers in the implicit main source; directives
             // remain ordinary comments, never compiler input flags.
-            if current == "main.hd" {
+            if current == "main.hd" && deps.is_empty() {
                 modules.entry(current.clone()).or_default().push_str(line);
+            }
+        } else if let Some(dep) = deps.last_mut() {
+            match dep_file.as_ref().and_then(|file| dep.files.get_mut(file)) {
+                Some(text) => text.push_str(line),
+                None if code => {
+                    return Err(format!(
+                        "code in dependency `{}` before its first `@file`",
+                        dep.name
+                    ));
+                }
+                None => {}
             }
         } else {
             modules.entry(current.clone()).or_default().push_str(line);
+        }
+    }
+    if deps.last().is_some_and(|d| d.files.is_empty()) {
+        return Err("a `@dependency` with no `@file`".to_owned());
+    }
+    for dep in &mut deps {
+        for (name, text) in &dep.files {
+            dep.sources.insert(name, text);
         }
     }
     if dumps.is_empty() {
@@ -353,7 +445,11 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.hosts = hosts;
     program.repl = repl;
     program.fuel = fuel;
-    if (main_path.is_some() || !entries.is_empty() || package.is_some() || single_file)
+    if (main_path.is_some()
+        || !entries.is_empty()
+        || package.is_some()
+        || single_file
+        || !deps.is_empty())
         && (repl.is_some()
             || program.profile.is_some()
             || dumps.iter().any(|d| {
@@ -364,7 +460,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
             }))
     {
         return Err(
-            "an `@main`, `@entry`, `@package` or `@single-file` case shows only the `diagnostics`, `fixed`, `spans`, `stdout`, `functions` and `tests` views, with no profile or REPL"
+            "an `@main`, `@entry`, `@package`, `@single-file` or `@dependency` case shows only the `diagnostics`, `fixed`, `spans`, `stdout`, `functions` and `tests` views, with no profile or REPL"
                 .to_owned(),
         );
     }
@@ -378,6 +474,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.entries = entries;
     program.package = package;
     program.single_file = single_file;
+    program.deps = deps;
     if filter.is_some() && dumps.iter().any(|d| d != "tests") {
         return Err("a `@filter` case shows only the `tests` view".to_owned());
     }
@@ -717,15 +814,28 @@ pub fn tir(p: &Program) -> String {
 }
 
 /// The packages of a `diagnostics`, `spans`, `fixed`, `stdout`,
-/// `functions` or `tests` build of `p` as `build`: the case's `@fuel`, `@profile`, `@entry` and `@single-file`,
-/// and `@build`'s level (`release` runs the optimized pipeline, and a
+/// `functions` or `tests` build of `p` as `build`: the case's `@fuel`,
+/// `@profile`, `@entry`, `@single-file` and `@dependency` packages, and
+/// `@build`'s level (`release` runs the optimized pipeline, and a
 /// program gets the release profile), engine target and checked runtime.
 /// Every build verifies the ownership passes' output
 /// (`Packages::verify_own`), as a debug-built compiler always does, so a
 /// test run of a release-built harness (CI's) checks the same. It costs
 /// only the case package's whole-result reuse, which a case never repeats.
-fn packages(p: &Program, build: Build) -> hd_driver::Packages<'static> {
+fn packages(p: &Program, build: Build) -> hd_driver::Packages<'_> {
     let mut packages = hd_driver::Packages {
+        requires: p.deps.iter().map(|d| (d.name.clone(), d.index)).collect(),
+        deps: p
+            .deps
+            .iter()
+            .map(|d| hd_driver::Dependency {
+                name: d.name.clone(),
+                identity: format!("stage-case/{}", d.name),
+                sources: &d.sources,
+                requires: Vec::new(),
+                fetched: d.fetched,
+            })
+            .collect(),
         body_fuel: p.fuel,
         profile: p.profile.clone(),
         entries: p.entries.clone(),
@@ -1400,6 +1510,38 @@ mod tests {
             parse("# @dump: stdout\n# @package: acme-shop\n# @single-file: true\n").expect("case");
         assert_eq!(case.program.package_name(), "acme-shop");
         assert!(case.program.single_file);
+        let case = parse(
+            "# @dump: stdout\nuse dep.money\n# @dependency: money fetched\n# lib\n# @file: src/lib.hd\npub fn one() -> i32: 1\n# @file: src/two.hd\npub fn two() -> i32: 2\n# @dependency: cash\n# @file: src/lib.hd\npub fn three() -> i32: 3\n",
+        )
+        .expect("case");
+        assert_eq!(case.program.text, "# @dump: stdout\nuse dep.money\n");
+        assert!(case.program.files.is_empty());
+        let deps: Vec<_> = case
+            .program
+            .deps
+            .iter()
+            .map(|d| (d.name.as_str(), d.fetched, d.index, d.files.len()))
+            .collect();
+        assert_eq!(deps, [("money", true, 1, 2), ("cash", false, 2, 1)]);
+        assert!(case.program.deps[0].files["src/two.hd"].contains("fn two"));
+        assert!(format!("{:?}", case.program.deps[1]).contains("fn three"));
+        // A build's package index is a `u16`, and the root is 0.
+        let many = |n: usize| {
+            let mut text = "# @dump: stdout\n".to_owned();
+            for i in 0..n {
+                let _ = std::fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!("# @dependency: d{i}\n# @file: a.hd\n"),
+                );
+            }
+            parse(&text)
+        };
+        let fits = many(usize::from(u16::MAX)).map(|case| case.program.deps.len());
+        assert_eq!(fits, Ok(65535));
+        assert_eq!(
+            many(usize::from(u16::MAX) + 1).err().as_deref(),
+            Some("more dependencies than a build holds")
+        );
         let case = parse("# @dump: stdout\n# @build: dev | release checked\n").expect("case");
         assert_eq!(
             case.builds,
@@ -1434,6 +1576,14 @@ mod tests {
             "# @dump: wat\n# @single-file: true\n",
             "# @dump: stdout\n# @profile: tick\n# @package: acme-shop\n",
             "# @dump: stdout\nx := 1\n# @package: acme-shop\n",
+            "# @dump: stdout\n# @dependency: money cached\n# @file: src/lib.hd\n",
+            "# @dump: stdout\n# @dependency: money\n",
+            "# @dump: stdout\n# @dependency: money\n# @dependency: cash\n# @file: a.hd\n",
+            "# @dump: stdout\n# @dependency: money\n# @file: a.hd\n# @dependency: money\n# @file: b.hd\n",
+            "# @dump: stdout\n# @dependency: money\nx := 1\n# @file: a.hd\n",
+            "# @dump: stdout\n# @dependency: money\n# @file: a.hd\n# @file: a.hd\n",
+            "# @dump: stdout\n# @dependency: money\n# @file: ../a.hd\n",
+            "# @dump: tir\n# @dependency: money\n# @file: a.hd\n",
         ] {
             assert!(parse(bad).is_err(), "{bad}");
         }

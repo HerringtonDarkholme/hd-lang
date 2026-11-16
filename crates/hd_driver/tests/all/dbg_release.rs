@@ -83,14 +83,6 @@ fn a_path_dependency_is_rejected_in_release_after_a_checked_build() {
 }
 
 #[test]
-fn a_fetched_dependency_is_not_the_users_own_code() {
-    let store = MemoryStore::default();
-    let release = build(&store, true, BuildProfile::Release);
-    assert_eq!(rejections(&release), 0, "{}", release.render());
-    assert!(release.wasm.is_some());
-}
-
-#[test]
 fn fetched_debug_is_quiet_while_suppression_survives_check_and_link_cache_hits() {
     let store = MemoryStore::default();
     let code = "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    let show: fn((i32,)) -> void = dbg\n    show((n,))\n    n * 100\n";

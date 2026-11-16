@@ -1,0 +1,15 @@
+# @dump: stdout
+# @build: release
+# @main: src/main.hd
+# module.dbg.own-code: a package fetched for a version requirement is not
+# the user's own code, so its `dbg` call is no release error
+# (module.dbg.release) and the program builds and runs.
+use dep.money.{cents}
+
+pub fn main() -> void $ Console:
+    println(cents(2))
+# @dependency: money fetched
+# @file: src/lib.hd
+pub fn cents(n: i32) -> i32:
+    dbg(n)
+    n * 100
