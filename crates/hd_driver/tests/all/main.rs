@@ -1,6 +1,11 @@
 //! Every driver integration test, linked once: one binary per crate keeps the
 //! compiler from relinking and from starting a process for each file.
 //! `conformance.rs` stays a separate target (CI runs it on its own).
+//!
+//! A test here checks what a fixture cannot show: counters and cost at two
+//! sizes, the cache and warm rebuilds, executors, host linking and APIs. A
+//! check that puts hd source in and expects diagnostics, output or the
+//! linked functions is a stage case under `tests/cases/` (#1975).
 
 mod all_wakes;
 mod allocator_init;
