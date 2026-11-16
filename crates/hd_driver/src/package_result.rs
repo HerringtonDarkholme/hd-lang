@@ -330,7 +330,6 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
         w.u8(u8::from(d.severity[i] == Severity::Warning));
         write_span(w, d.primary[i]);
         write_range(w, d.message[i]);
-        write_range(w, d.labels[i]);
         write_range(w, d.fixes[i]);
         match d.root[i] {
             None => w.u8(u8::MAX),
@@ -340,11 +339,6 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
                 w.u32(root.value);
             }
         }
-    }
-    w.len_of(&d.label_span);
-    for (span, msg) in d.label_span.iter().zip(&d.label_msg) {
-        write_span(w, *span);
-        write_range(w, *msg);
     }
     w.len_of(&d.fix_title);
     for f in 0..d.fix_title.len() {
@@ -371,7 +365,6 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
         });
         d.primary.push(read_span(r));
         d.message.push(read_range(r));
-        d.labels.push(read_range(r));
         d.fixes.push(read_range(r));
         let cause = match r.u8() {
             u8::MAX => None,
@@ -388,10 +381,6 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
             cause,
             value: r.u32(),
         }));
-    }
-    for _ in 0..r.count() {
-        d.label_span.push(read_span(r));
-        d.label_msg.push(read_range(r));
     }
     for _ in 0..r.count() {
         d.fix_title.push(read_range(r));
@@ -417,10 +406,8 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
             && d.text.is_char_boundary((x.start + x.len) as usize)
     };
     let ok = d.message.iter().all(|&m| text(m))
-        && d.label_msg.iter().all(|&m| text(m))
         && d.fix_title.iter().all(|&t| text(t))
         && d.edits.iter().all(|e| text(e.text))
-        && d.labels.iter().all(|&l| within(l, d.label_span.len()))
         && d.fixes.iter().all(|&f| within(f, d.fix_title.len()))
         && d.fix_edits.iter().all(|&e| within(e, d.edits.len()));
     (r.ok() && ok).then_some(d)

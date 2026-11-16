@@ -1394,9 +1394,8 @@ no tie falls back to an ID (tsgo #64589). Exact duplicates are dropped.
 **Rendering.**
 
 - **Compact text** (default): one line `file:line:col: code: message`, and
-  at most one `hint:` line naming the fix. Notes and secondary labels
-  appear with `--verbose`. The target is at most 60 tokens per diagnostic
-  (the `mistakes` metric).
+  at most one `hint:` line naming the fix. The target is at most 60
+  tokens per diagnostic (the `mistakes` metric).
 - **JSON lines** with the fields of
   [Machine Output](../../spec/cli/command-line.md#machine-output).
 - **Capping.** `--max-errors N` stops printing after N errors and still

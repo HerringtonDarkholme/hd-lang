@@ -61,7 +61,6 @@ impl AnalysisSink for Recorder {
                     "synthetic analysis finding",
                     None,
                 );
-                out.add_label(src.span(node), "the public declaration");
                 out.add_fix("rename it", FixSafety::Exact, &[(span, "entry")]);
             }
         }
@@ -302,10 +301,6 @@ fn verified_modules_reach_the_hook_then_load_the_lint_cache() {
     assert_eq!(warm.counters.hit("lint"), 1);
     assert_eq!(warm.analysis_diags.code, cold.analysis_diags.code);
     assert_eq!(warm.analysis_diags.primary, cold.analysis_diags.primary);
-    assert_eq!(
-        warm.analysis_diags.label_span,
-        cold.analysis_diags.label_span
-    );
     assert_eq!(warm.analysis_diags.edits, cold.analysis_diags.edits);
     assert_eq!(warm.analysis_diags.text, cold.analysis_diags.text);
 }
@@ -335,10 +330,6 @@ fn cached_finding_spans_follow_comment_only_line_shifts() {
     assert_eq!(
         warm.analysis_diags.primary[0].hi,
         cold.analysis_diags.primary[0].hi + delta
-    );
-    assert_eq!(
-        warm.analysis_diags.label_span[0].lo,
-        cold.analysis_diags.label_span[0].lo + delta
     );
     assert_eq!(
         warm.analysis_diags.edits[0].span.lo,

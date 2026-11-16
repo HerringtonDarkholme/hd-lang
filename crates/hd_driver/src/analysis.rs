@@ -288,19 +288,6 @@ fn encode_cache(findings: &DiagBuf, lines: &Lines<'_>, file: FileId) -> Option<V
         lines.write(&mut w, findings.primary[i].lo);
         lines.write(&mut w, findings.primary[i].hi);
         w.str(findings.get_text(findings.message[i]));
-        let labels = findings.labels[i];
-        w.u32(labels.len);
-        for label in &findings.label_span[labels.range()] {
-            if label.file != file {
-                return None;
-            }
-        }
-        for label in labels.start..labels.start + labels.len {
-            let label = label as usize;
-            lines.write(&mut w, findings.label_span[label].lo);
-            lines.write(&mut w, findings.label_span[label].hi);
-            w.str(findings.get_text(findings.label_msg[label]));
-        }
         let fixes = findings.fixes[i];
         w.u32(fixes.len);
         for fix in fixes.start..fixes.start + fixes.len {
@@ -348,15 +335,6 @@ fn decode_cache(
         };
         let message = r.str().to_owned();
         findings.push(code, severity, primary, &message, None);
-        for _ in 0..r.count() {
-            let span = Span {
-                file,
-                lo: lines.read(&mut r),
-                hi: lines.read(&mut r),
-            };
-            let message = r.str().to_owned();
-            findings.add_label(span, &message);
-        }
         for _ in 0..r.count() {
             let title = r.str().to_owned();
             let safety = match r.u8() {

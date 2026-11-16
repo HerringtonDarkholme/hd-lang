@@ -46,7 +46,6 @@ pub struct RootKey {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DiagMark {
     rows: u32,
-    label_span: u32,
     fix_title: u32,
     edits: u32,
     text: u32,
@@ -66,11 +65,8 @@ pub struct DiagBuf {
     pub severity: Vec<Severity>,
     pub primary: Vec<Span>,
     pub message: Vec<Range32>,
-    pub labels: Vec<Range32>,
     pub fixes: Vec<Range32>,
     pub root: Vec<Option<RootKey>>,
-    pub label_span: Vec<Span>,
-    pub label_msg: Vec<Range32>,
     pub fix_title: Vec<Range32>,
     pub fix_safety: Vec<FixSafety>,
     pub fix_edits: Vec<Range32>,
@@ -128,8 +124,6 @@ impl DiagBuf {
         self.severity.push(severity);
         self.primary.push(primary);
         self.message.push(message);
-        let nl = u32::try_from(self.label_span.len()).expect("labels");
-        self.labels.push(Range32::new(nl, 0));
         let nf = u32::try_from(self.fix_title.len()).expect("fixes");
         self.fixes.push(Range32::new(nf, 0));
         self.root.push(root);
@@ -173,17 +167,6 @@ impl DiagBuf {
         }
     }
 
-    /// Attaches a secondary span and message to the diagnostic pushed last.
-    pub fn add_label(&mut self, span: Span, message: &str) {
-        let Some(row) = self.labels.last_mut() else {
-            return;
-        };
-        row.len += 1;
-        let message = self.text(message);
-        self.label_span.push(span);
-        self.label_msg.push(message);
-    }
-
     /// Error-severity diagnostic with no root key.
     pub fn error(&mut self, code: Code, primary: Span, message: &str) {
         self.push(code, Severity::Error, primary, message, None);
@@ -212,7 +195,7 @@ impl DiagBuf {
         (!self.is_internal(i)).then_some(self.code[i])
     }
 
-    /// Appends another buffer's diagnostics, labels and fix-its included.
+    /// Appends another buffer's diagnostics, fix-its included.
     pub fn append(&mut self, other: &DiagBuf) {
         self.append_if(other, &|_| true);
     }
@@ -227,7 +210,7 @@ impl DiagBuf {
         }
     }
 
-    /// Appends row `i` of `other`, its labels and fix-its, unless its root
+    /// Appends row `i` of `other` and its fix-its, unless its root
     /// is reported already.
     fn append_row(&mut self, other: &DiagBuf, i: usize) {
         if !self.push(
@@ -238,14 +221,6 @@ impl DiagBuf {
             other.root[i],
         ) {
             return;
-        }
-        let labels = other.labels[i];
-        for label in labels.start..labels.start + labels.len {
-            let label = label as usize;
-            self.add_label(
-                other.label_span[label],
-                other.get_text(other.label_msg[label]),
-            );
         }
         let fixes = other.fixes[i];
         for f in fixes.start..fixes.start + fixes.len {
@@ -263,7 +238,7 @@ impl DiagBuf {
     }
 
     /// Drops each diagnostic that repeats an earlier one exactly: its
-    /// code, severity, span, message, labels and fix-its (`crates/hd_tir/DESIGN.md`
+    /// code, severity, span, message and fix-its (`crates/hd_tir/DESIGN.md`
     /// §4.14 "Order"). Two tasks that each report one fact of an item,
     /// such as its header check and its body running out of fuel at its
     /// header, report it once. One hash probe per row; only rows that
@@ -301,17 +276,8 @@ impl DiagBuf {
     }
 
     /// Whether rows `i` and `j`, of one code, span and message, have the
-    /// same severity, labels and fix-its.
+    /// same severity and fix-its.
     fn same_parts(&self, i: usize, j: usize) -> bool {
-        let labels = |r: usize| {
-            let l = self.labels[r];
-            (l.start..l.start + l.len).map(|k| {
-                (
-                    self.label_span[k as usize],
-                    self.get_text(self.label_msg[k as usize]),
-                )
-            })
-        };
         let fixes = |r: usize| {
             let f = self.fixes[r];
             (f.start..f.start + f.len).map(|k| {
@@ -328,7 +294,6 @@ impl DiagBuf {
         };
         self.severity[i] == self.severity[j]
             && self.root[i] == self.root[j]
-            && labels(i).eq(labels(j))
             && fixes(i).eq(fixes(j))
     }
 
@@ -338,7 +303,6 @@ impl DiagBuf {
         let n = |v: usize| u32::try_from(v).expect("diags");
         DiagMark {
             rows: n(self.code.len()),
-            label_span: n(self.label_span.len()),
             fix_title: n(self.fix_title.len()),
             edits: n(self.edits.len()),
             text: n(self.text.len()),
@@ -364,11 +328,8 @@ impl DiagBuf {
         self.severity.truncate(rows);
         self.primary.truncate(rows);
         self.message.truncate(rows);
-        self.labels.truncate(rows);
         self.fixes.truncate(rows);
         self.root.truncate(rows);
-        self.label_span.truncate(m.label_span as usize);
-        self.label_msg.truncate(m.label_span as usize);
         self.fix_title.truncate(m.fix_title as usize);
         self.fix_safety.truncate(m.fix_title as usize);
         self.fix_edits.truncate(m.fix_title as usize);
@@ -539,7 +500,6 @@ mod tests {
         decoded.severity.clone_from(&b.severity);
         decoded.primary.clone_from(&b.primary);
         decoded.message.clone_from(&b.message);
-        decoded.labels.clone_from(&b.labels);
         decoded.fixes.clone_from(&b.fixes);
         decoded.root.clone_from(&b.root);
         let half = decoded.mark();

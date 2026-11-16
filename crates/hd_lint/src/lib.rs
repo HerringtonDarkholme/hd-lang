@@ -786,12 +786,6 @@ fn append_row(out: &mut DiagBuf, source: &DiagBuf, row: usize) {
     ) {
         return;
     }
-    for label in source.labels[row].range() {
-        out.add_label(
-            source.label_span[label],
-            source.get_text(source.label_msg[label]),
-        );
-    }
     for fix in source.fixes[row].range() {
         let edits: Vec<_> = source.edits[source.fix_edits[fix].range()]
             .iter()

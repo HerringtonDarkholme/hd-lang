@@ -3152,12 +3152,7 @@ fn stored_output(
     // run reads none.
     let spans = [&stored.diags, &stored.analysis_diags]
         .into_iter()
-        .flat_map(|d| {
-            d.primary
-                .iter()
-                .chain(&d.label_span)
-                .chain(d.edits.iter().map(|e| &e.span))
-        });
+        .flat_map(|d| d.primary.iter().chain(d.edits.iter().map(|e| &e.span)));
     for span in spans {
         if span.file.get().is_some() {
             let _ = texts.get(span.file.idx());

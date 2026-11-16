@@ -250,8 +250,8 @@ into content order, keeps one per root cause, and writes them to the
 fix-its.
 
 **Layout.** A `DiagBuf` is columns, one row per diagnostic: `code`,
-`severity`, `primary` span, `message`, `labels`, `fixes` and
-`root: Option<RootKey>`, plus pooled label, fix-it and edit columns and
+`severity`, `primary` span, `message`, `fixes` and
+`root: Option<RootKey>`, plus pooled fix-it and edit columns and
 one `text` buffer. A `RootKey` is `(item DefId, cause, value)`.
 `FixSafety::Exact` marks a fix-it that passed the re-parse check, which
 the applicable `--fix` mode applies.
