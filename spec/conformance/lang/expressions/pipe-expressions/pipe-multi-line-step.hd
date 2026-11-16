@@ -9,6 +9,6 @@ fn bumped(n: i32) -> i32:
         |> apply( # diagnostic: multi-line-pipe-step
             _,
             fn(v):
-                _ := v + 1
-                v + 2
+                w := v + 1
+                w + 2
         )
