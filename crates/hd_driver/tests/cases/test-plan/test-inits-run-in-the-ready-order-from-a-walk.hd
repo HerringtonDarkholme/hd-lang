@@ -1,0 +1,49 @@
+# @dump: wat tests
+# @build: tests
+# @helpers: test_init_walk
+# A test program's `hd.test.init` walks the unit graph from the module's
+# roots with a stack in static memory, sorts the reached units and runs
+# them in that order (#2063). main uses c and b, c uses a, and the names
+# sort a < b < c: the ready order (`module.init.cycle.ready-order`) is a,
+# b, c, main, not the depth-first a, c, b, main.
+use pkg.c.{c}
+use pkg.b.{b}
+use pkg.log.{record, recorded}
+use std.testing.assert_equal
+
+record("main")
+
+tests:
+    it("ready order"):
+        assert_equal(recorded(), ["a", "b", "c", "main"], reason="identity order among ready cycles")
+        assert_equal("${b()}${c()}", "bca", reason="every module is in use")
+# @file: log.hd
+let mut lines: List[string] = []
+
+pub fn record(line: string) -> void:
+    lines.push(line)
+
+pub fn recorded() -> List[string]:
+    lines
+# @file: a.hd
+use pkg.log.{record}
+
+record("a")
+
+pub fn a() -> string:
+    "a"
+# @file: b.hd
+use pkg.log.{record}
+
+record("b")
+
+pub fn b() -> string:
+    "b"
+# @file: c.hd
+use pkg.a.{a}
+use pkg.log.{record}
+
+record("c")
+
+pub fn c() -> string:
+    "c${a()}"

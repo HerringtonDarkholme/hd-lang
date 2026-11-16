@@ -549,7 +549,15 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   the runtime by name.
 - **Test programs.** Tests export `hd.test.init(N)`, module `N`'s
   inits, and `hd.test(N, ctx)`, case `N`'s entry poll with the suspension
-  protocol (§23.21). Each dispatches by a `br_table`, so an instance's
+  protocol (§23.21). The inits come in units, one per module cycle, each
+  named once, in run order (the runtime's first, then the global ready
+  order). Static data holds the unit graph: each module's root units and
+  each unit's direct dependencies. `hd.test.init(N)` walks it with a
+  stack in static memory, marking each unit once, heapsorts the reached
+  unit numbers and runs each unit through the unit dispatch, so a call
+  costs `r log r` for the `r` units it runs, the module is linear in
+  modules plus uses, and no chain of modules nests a call (#2063).
+  `hd.test(N, ctx)` and the unit dispatch each go by a `br_table`, so an instance's
   exports, which every instantiate builds, are constant in the case count.
   Over more than 256 arms (`rt::DISPATCH_ARMS`) a dispatch is a tree of
   functions of at most 256 arms each, as LLVM splits a large switch into

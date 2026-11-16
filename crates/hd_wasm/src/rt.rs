@@ -18,6 +18,41 @@ use crate::module::{
 };
 use crate::{Entry, Input};
 
+/// A test program's unit graph in static memory ([`test_graph`]), read
+/// by [`Helper::TestInitWalk`]. `at` holds `u32` words: the group offsets
+/// (`groups + 1` words from word 0), each group's root units, the unit
+/// offsets (`units + 1` words from word `unit_offsets`), and each unit's
+/// direct dependencies; every offset is a word index into `at`.
+/// `scratch` is zeroed and written: the stack, the reached units, then a
+/// mark byte per unit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TestGraph {
+    pub at: u32,
+    pub unit_offsets: u32,
+    pub units: u32,
+    pub scratch: u32,
+}
+
+/// Places a test program's unit graph `words` ([`Entry::Tests`]) in
+/// static data, with scratch for its units: a [`TestGraph`]. Static words
+/// linear in the groups, units and edges, and scratch linear in the
+/// units.
+fn test_graph(m: &mut Module, words: &[u32], unit_offsets: u32) -> TestGraph {
+    // The first unit offset points just past the `units + 1` offsets.
+    let units = words
+        .get(unit_offsets as usize)
+        .map_or(0, |first| first - unit_offsets - 1);
+    let bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
+    let at = m.static_bytes(&bytes, 4);
+    let scratch = m.static_slot(units * 9, 4);
+    TestGraph {
+        at,
+        unit_offsets,
+        units,
+        scratch,
+    }
+}
+
 /// The canonical descriptor behind a `TypeId` (`emit/dyn_value.rs`):
 /// its identity key and printable name, both in static storage.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -141,9 +176,9 @@ pub enum Helper {
         polls: Vec<Helper>,
         reinit: Vec<Hash128>,
     },
-    /// `hd.test.init(module)`: the test program's init entry, the inits
-    /// `inits[module]` as [`Helper::EntryInit`] runs them, in arms as
-    /// [`Helper::TestPoll`] has.
+    /// `(unit)`: a test program's unit dispatch, which runs the inits
+    /// `inits[unit]` as [`Helper::EntryInit`] runs them, in arms as
+    /// [`Helper::TestPoll`] has; [`Helper::TestInitWalk`] calls it.
     TestInit {
         inits: Vec<Vec<(Hash128, bool)>>,
     },
@@ -153,7 +188,17 @@ pub enum Helper {
     TestPollPart {
         polls: Vec<Helper>,
     },
-    /// `(module)`: the groups `inits` of a [`Helper::TestInit`] too many
+    /// `hd.test.init(group)`: marks the units `graph` says the group
+    /// reaches, by an explicit stack in static memory, sorts their numbers
+    /// in place (heapsort) and runs each through [`Helper::TestInit`] over
+    /// `inits`, one list per unit. A call costs `r log r` for the `r`
+    /// units it reaches, and no call nests: a chain of modules is a loop,
+    /// not a recursion.
+    TestInitWalk {
+        inits: Vec<Vec<(Hash128, bool)>>,
+        graph: TestGraph,
+    },
+    /// `(unit)`: the units `inits` of a [`Helper::TestInit`] too many
     /// for one function, as [`Helper::TestPollPart`] holds cases.
     TestInitPart {
         inits: Vec<Vec<(Hash128, bool)>>,
@@ -852,7 +897,9 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         } => (*init, *key, before.clone(), after.clone(), *report),
         Entry::Tests {
             cases,
-            inits,
+            units,
+            graph,
+            unit_offsets,
             runtime_inits,
         } => {
             // The module under test is not an entry module
@@ -860,21 +907,24 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             // One export each dispatches by number, `hd.test.init(j)` and
             // `hd.test(i, ctx)`: an instance's exports, which every
             // instantiate builds, stay constant in the case and module
-            // counts (#1902).
-            let groups = inits
+            // counts (#1902). `hd.test.init(j)` walks the unit graph from
+            // group j's roots and runs the units it reaches in order
+            // ([`Helper::TestInitWalk`]), so each init is named once.
+            let inits = units
                 .iter()
                 .map(|ks| ks.iter().map(|k| (*k, true)).collect())
                 .collect();
+            let graph = test_graph(m, graph, *unit_offsets);
             m.export(
                 "hd.test.init",
-                Sym::Helper(Helper::TestInit { inits: groups }),
+                Sym::Helper(Helper::TestInitWalk { inits, graph }),
             );
             let mut bang = false;
-            // Each init once, in first-reach order; a set keeps the pass
-            // linear in the inits the groups name.
+            // Each init once, in unit order; a set keeps the pass linear
+            // in the inits the units name.
             let runtime: HashSet<Hash128> = runtime_inits.iter().copied().collect();
             let mut seen: HashSet<Hash128> = HashSet::default();
-            let reinit: Vec<Hash128> = inits
+            let reinit: Vec<Hash128> = units
                 .iter()
                 .flatten()
                 .copied()
@@ -1092,7 +1142,7 @@ fn dispatch_end(f: &mut Func) {
 }
 
 /// [`Helper::TestInit`] and [`Helper::TestInitPart`], `name`: an arm per
-/// group of `groups`, or per part of them ([`dispatch_parts`]).
+/// unit of `groups`, or per part of them ([`dispatch_parts`]).
 fn test_init(m: &Module, name: &str, groups: &[Vec<(Hash128, bool)>]) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     let span = dispatch_span(groups.len());
@@ -1114,6 +1164,236 @@ fn test_init(m: &Module, name: &str, groups: &[Vec<(Hash128, bool)>]) -> Func {
         }
     }
     dispatch_end(&mut f);
+    f
+}
+
+/// Pushes the word at word index `idx` (a local) of the array at static
+/// address `at`.
+fn load_word(f: &mut Func, at: u32, idx: u32) {
+    word_addr(f, at, idx);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+}
+
+/// Pushes the address of word `idx` (a local) of the array at `at`.
+fn word_addr(f: &mut Func, at: u32, idx: u32) {
+    f.static_addr(at);
+    f.get(idx);
+    f.i32(2);
+    f.op(Instruction::I32Shl);
+    f.op(Instruction::I32Add);
+}
+
+/// Stores local `value` at word `idx` (a local) of the array at `at`.
+fn store_word(f: &mut Func, at: u32, idx: u32, value: u32) {
+    word_addr(f, at, idx);
+    f.get(value);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+}
+
+/// `local += by`.
+fn bump(f: &mut Func, local: u32, by: i32) {
+    f.get(local);
+    f.i32(by);
+    f.op(Instruction::I32Add);
+    f.set(local);
+}
+
+/// Marks unit `u` (a local) and pushes it on the stack at `stack`, depth
+/// `sp`, unless its mark byte at `marks` is already set.
+fn test_visit(f: &mut Func, marks: u32, stack: u32, sp: u32, u: u32) {
+    f.static_addr(marks);
+    f.get(u);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.static_addr(marks);
+    f.get(u);
+    f.op(Instruction::I32Add);
+    f.i32(1);
+    f.op(Instruction::I32Store8(mem(HEAP, 0, 0)));
+    store_word(f, stack, sp, u);
+    bump(f, sp, 1);
+    f.op(Instruction::End);
+}
+
+/// Sifts the word at index `r` (a local, changed) of the max-heap of
+/// `size` (a local) words at `at` down to its place, as heapsort does:
+/// a loop, `log size` steps. `c` and `t` are scratch locals.
+fn test_sift(f: &mut Func, at: u32, r: u32, size: u32, c: u32, t: u32) {
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    // c = 2r + 1; stop at the heap's end.
+    f.get(r);
+    f.i32(1);
+    f.op(Instruction::I32Shl);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(c);
+    f.get(c);
+    f.get(size);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    // The larger child.
+    f.get(c);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.get(size);
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::If(BlockType::Empty));
+    load_word(f, at, c);
+    f.get(c);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(t);
+    load_word(f, at, t);
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(t);
+    f.set(c);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    // Stop once the parent is no smaller.
+    load_word(f, at, r);
+    load_word(f, at, c);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    test_swap(f, at, r, c, t);
+    f.get(c);
+    f.set(r);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+}
+
+/// Swaps words `a` and `b` (locals) of the array at `at`, through `t`.
+fn test_swap(f: &mut Func, at: u32, a: u32, b: u32, t: u32) {
+    load_word(f, at, a);
+    f.set(t);
+    word_addr(f, at, a);
+    load_word(f, at, b);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    store_word(f, at, b, t);
+}
+
+/// [`Helper::TestInitWalk`]: group (parameter 0)'s roots onto the stack,
+/// then a depth-first walk of the units, each marked once and recorded;
+/// a heapsort of the recorded unit numbers, whose order is the run
+/// order; then each unit's inits through [`Helper::TestInit`]. Every
+/// step is a loop over static memory, so no input nests a call.
+fn test_init_walk(m: &Module, inits: &[Vec<(Hash128, bool)>], g: TestGraph) -> Func {
+    let mut f = m.func("rt:test_init_walk", vec![Val::I32], vec![]);
+    let (stack, out, marks) = (g.scratch, g.scratch + 4 * g.units, g.scratch + 8 * g.units);
+    let [i, end, sp, n, u, c, t, r] = [(); 8].map(|()| f.local(Val::I32));
+    // The group's roots: words [at[g], at[g + 1]).
+    load_word(&mut f, g.at, 0);
+    f.set(i);
+    f.get(0);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(t);
+    load_word(&mut f, g.at, t);
+    f.set(end);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(i);
+    f.get(end);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    load_word(&mut f, g.at, i);
+    f.set(u);
+    test_visit(&mut f, marks, stack, sp, u);
+    bump(&mut f, i, 1);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    // The walk: pop a unit, record it, push its unmarked dependencies.
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(sp);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    bump(&mut f, sp, -1);
+    load_word(&mut f, stack, sp);
+    f.set(u);
+    store_word(&mut f, out, n, u);
+    bump(&mut f, n, 1);
+    f.get(u);
+    f.u32(g.unit_offsets);
+    f.op(Instruction::I32Add);
+    f.set(t);
+    load_word(&mut f, g.at, t);
+    f.set(i);
+    bump(&mut f, t, 1);
+    load_word(&mut f, g.at, t);
+    f.set(end);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(i);
+    f.get(end);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    load_word(&mut f, g.at, i);
+    f.set(c);
+    test_visit(&mut f, marks, stack, sp, c);
+    bump(&mut f, i, 1);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    // Heapsort the n recorded units: build the heap from n / 2 down, then
+    // move the largest to the end, n - 1 times.
+    f.get(n);
+    f.i32(1);
+    f.op(Instruction::I32ShrU);
+    f.set(i);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(i);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    bump(&mut f, i, -1);
+    f.get(i);
+    f.set(r);
+    test_sift(&mut f, out, r, n, c, t);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.get(n);
+    f.set(end);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(end);
+    f.i32(1);
+    f.op(Instruction::I32LeU);
+    f.op(Instruction::BrIf(1));
+    bump(&mut f, end, -1);
+    f.i32(0);
+    f.set(r);
+    test_swap(&mut f, out, r, end, t);
+    test_sift(&mut f, out, r, end, c, t);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    // Run the units in order.
+    f.i32(0);
+    f.set(i);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(i);
+    f.get(n);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    load_word(&mut f, out, i);
+    f.helper(Helper::TestInit {
+        inits: inits.to_vec(),
+    });
+    bump(&mut f, i, 1);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
     f
 }
 
@@ -1749,6 +2029,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::RetainAny
         | H::RaceDrop { .. }
         | H::TestInit { .. }
+        | H::TestInitWalk { .. }
         | H::TestInitPart { .. } => (1, 0),
         H::PanicStr
         | H::CopyElems { .. }
@@ -1983,6 +2264,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::TestPoll { polls, reinit } => test_poll(m, polls, Some(reinit)),
         Helper::TestPollPart { polls } => test_poll(m, polls, None),
         Helper::TestInit { inits } => test_init(m, "rt:test_init", inits),
+        Helper::TestInitWalk { inits, graph } => test_init_walk(m, inits, *graph),
         Helper::TestInitPart { inits } => test_init(m, "rt:test_init_part", inits),
         Helper::CollectPoll { poll } => {
             let mut f = m.func("rt:collect_poll", vec![Val::I32], vec![Val::I32]);

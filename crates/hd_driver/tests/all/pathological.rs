@@ -4468,10 +4468,12 @@ fn collect_roots_look_up_each_root_once() {
     });
 }
 
-// Driver: #2063, each root module rebuilt the whole use graph's edges and
-// components and ordered them again, so k test modules cost k times the
-// program there. The global init order is now built once per collect and
-// each root's order is its restriction.
+// Driver and Wasm: #2063, each root module rebuilt the whole use graph's
+// edges and components and ordered them again, and the test program
+// listed every init each test module reaches, so k test modules cost k
+// times the program there and k^2/2 init calls. The global init order is
+// now built once per collect, and the program names each init once, in a
+// unit graph `hd.test.init` walks.
 #[test]
 fn the_init_order_is_built_once_per_collect() {
     on_test_stack(|| {
@@ -4493,12 +4495,52 @@ fn the_init_order_is_built_once_per_collect() {
                 hd_driver::work::count_init_order_steps(|| build(&host, "app", &goal));
             assert!(!out.diags.has_errors(), "{n}: {}", out.render());
             assert_eq!(out.tests.len(), n, "{n}: one case per test module");
-            work
+            (work, out.wasm.map_or(0, |w| w.len()))
         };
-        let (small, large) = (run(20), run(200));
+        let ((small, small_size), (large, large_size)) = (run(20), run(200));
         assert!(
             small > 0 && large <= 10 * small + 100,
             "init order steps for 20 and 200 test modules: {small} and {large}"
+        );
+        assert!(
+            small_size > 0 && large_size <= 10 * small_size,
+            "test program bytes for 20 and 200 test modules: {small_size} and {large_size}"
+        );
+    });
+}
+
+// Wasm: #2063, `hd.test.init` walks the unit graph with a stack in
+// static memory and sorts with a heapsort, so a chain of 2,000 modules
+// initializes in one call that nests none.
+#[test]
+fn a_deep_chain_of_modules_initializes_in_one_flat_call() {
+    on_test_stack(|| {
+        let n = 2_000;
+        let mut main = format!(
+            "use pkg.m{last}.step{last}\nuse std.testing.assert_equal\n\ntests:\n    it(\"deep\"):\n        assert_equal(step{last}(), +{n})\n",
+            last = n - 1
+        );
+        main.push('\n');
+        let mut p = hd_testkit::stages::Program::new(&main).expect("a program");
+        p.files.push((
+            "m0.hd".to_owned(),
+            "base0 := +1\n\npub fn step0() -> i32: base0\n".to_owned(),
+        ));
+        for i in 1..n {
+            let q = i - 1;
+            p.files.push((
+                format!("m{i}.hd"),
+                format!("use pkg.m{q}.step{q}\n\nbase{i} := step{q}()\n\npub fn step{i}() -> i32: base{i} + 1\n"),
+            ));
+        }
+        let out = hd_testkit::stages::tests(
+            &p,
+            hd_testkit::stages::Build::parse("tests").expect("a build"),
+        );
+        assert!(
+            out.contains("deep: {\"status\":0,\"trapped\":false"),
+            "{}",
+            out.lines().rev().take(20).collect::<Vec<_>>().join("\n")
         );
     });
 }

@@ -1294,11 +1294,13 @@ enum Roots {
     /// The inputs of a joined REPL build ([`Packages::inputs_from`]), in
     /// order, each a script.
     Inputs(Vec<JoinedInput>),
-    /// Each running case (item, instance, report), and per test module
-    /// the inits it reaches.
+    /// Each running case (item, instance, report), and the init units
+    /// ([`hd_wasm::Entry::Tests`]).
     Tests {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
-        inits: Vec<Vec<Hash128>>,
+        units: Vec<Vec<Hash128>>,
+        deps: Vec<Vec<u32>>,
+        groups: Vec<Vec<u32>>,
     },
     /// A scenario's `main`, its report and the inits it reaches: like
     /// `Main`, but linked with the scenario exports.
@@ -9940,7 +9942,6 @@ impl Run<'_> {
                 root_modules.push(m.clone());
             }
         }
-        let mut per_module: Vec<Vec<DefId>> = Vec::new();
         let mut all_inits: Vec<DefId> = Vec::new();
         let mut seen_inits: HashSet<DefId> = HashSet::default();
         // The entry module's own init bodies, in order: its whole init, or
@@ -9966,8 +9967,41 @@ impl Run<'_> {
             };
         all_inits.extend(&runtime_inits);
         seen_inits.extend(runtime_inits.iter().copied());
-        let runtime_set: HashSet<DefId> = runtime_inits.iter().copied().collect();
-        for m in &root_modules {
+        // A test program names each unit's inits once and each group's
+        // root units ([`Self::test_init_units`]); every other plan has one
+        // root module.
+        let tests_plan = match &self.goal {
+            Goal::ReplInput { .. } if self.repl_inputs.joined => false,
+            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } => false,
+            _ => true,
+        };
+        let mut test_units: Option<TestUnits<'_>> = None;
+        if tests_plan {
+            let units = match self.test_init_units(
+                &graph,
+                &mut query,
+                runtime,
+                &root_modules,
+                &init_of,
+                &has_init,
+            ) {
+                Ok(u) => u,
+                Err(e) => {
+                    self.stage::<()>(Stage::Collect, Err(e));
+                    return;
+                }
+            };
+            for (d, module) in units.bodies.iter().flatten() {
+                if seen_inits.insert(*d) {
+                    all_inits.push(*d);
+                    if *module == entry_key {
+                        own.push(*d);
+                    }
+                }
+            }
+            test_units = Some(units);
+        }
+        for m in root_modules.iter().filter(|_| !tests_plan) {
             let defs = match self.root_init_order(&graph, &mut query, m, &init_of, &has_init) {
                 Ok(o) => o,
                 Err(e) => {
@@ -9986,17 +10020,6 @@ impl Run<'_> {
                     }
                 }
             }
-            per_module.push(
-                runtime_inits
-                    .iter()
-                    .copied()
-                    .chain(
-                        defs.into_iter()
-                            .map(|(d, _)| d)
-                            .filter(|d| !runtime_set.contains(d)),
-                    )
-                    .collect(),
-            );
         }
         // A script's root is its first own body; the rest run after it.
         let root = match own.first() {
@@ -10183,10 +10206,16 @@ impl Run<'_> {
                         (*d, key, reports[i].as_ref().and_then(key_of_extra))
                     })
                     .collect(),
-                inits: per_module
-                    .iter()
-                    .map(|ds| ds.iter().filter_map(key_of_init).collect())
-                    .collect(),
+                units: test_units.as_ref().map_or_else(Vec::new, |u| {
+                    u.bodies
+                        .iter()
+                        .map(|ds| ds.iter().filter_map(|(d, _)| key_of_init(d)).collect())
+                        .collect()
+                }),
+                deps: test_units
+                    .as_ref()
+                    .map_or_else(Vec::new, |u| u.deps.clone()),
+                groups: test_units.map_or_else(Vec::new, |u| u.groups),
             },
         };
         let order = collected.table.content_order();
@@ -10725,12 +10754,13 @@ impl Run<'_> {
         }
     }
 
-    /// The init bodies a program root module `entry` reaches
-    /// ([`Self::reached_init_order`]). A test run also initializes the
-    /// modules its `tests:` block uses (`module.init.tests`): those uses make no edge
-    /// of the use graph (`module.cycle.test-code`), so they are further
-    /// roots, and the union of what the roots reach runs in the one ready
-    /// order (`module.init.cycle.ready-order`).
+    /// The init bodies a program root module `entry` reaches, in
+    /// initialization order ([`reached_cycles`]). A test run also
+    /// initializes the modules its `tests:` block uses
+    /// (`module.init.tests`): those uses make no edge of the use graph
+    /// (`module.cycle.test-code`), so they are further roots, and the union
+    /// of what the roots reach runs in the one ready order
+    /// (`module.init.cycle.ready-order`).
     fn root_init_order<'a>(
         &'a self,
         graph: &InitGraph,
@@ -10739,8 +10769,20 @@ impl Run<'_> {
         init_of: &dyn Fn(&str) -> DefId,
         has_init: &dyn Fn(&str) -> bool,
     ) -> hd_base::StageResult<Vec<(DefId, &'a str)>> {
+        let roots = self.init_roots(entry);
+        let mut out = Vec::new();
+        for c in reached_cycles(graph, query, &roots) {
+            out.extend_from_slice(self.cycle_bodies_once(graph, query, c, init_of, has_init)?);
+        }
+        Ok(out)
+    }
+
+    /// The modules a root module `entry`'s initialization starts from:
+    /// itself, and in a test run the modules its `tests:` block uses
+    /// (`module.init.tests`; [`Self::root_init_order`]).
+    fn init_roots(&self, entry: &str) -> Vec<usize> {
         let Some(m) = self.table.module(entry).map(ModuleId::idx) else {
-            return Ok(Vec::new());
+            return Vec::new();
         };
         let mut roots = vec![m];
         if matches!(self.goal, Goal::Tests { .. }) && self.role(m) == "test" {
@@ -10752,57 +10794,91 @@ impl Run<'_> {
                     .map(ModuleId::idx),
             );
         }
-        self.reached_init_order(graph, query, &roots, init_of, has_init)
+        roots
     }
 
-    /// The init bodies the modules `roots` reach, in initialization order
-    /// (spec/lang/10-modules.md, "Initialization Order"): the global order
-    /// of [`Self::init_graph`] restricted to the cycles the roots reach.
-    /// Inside a cycle whose statements sit in several modules,
-    /// `InitOrder`'s runs: a module's whole init when its statements run
-    /// together, else one body per run. Each body comes with its module's
-    /// path. Cost: O(r log r + e) for the r cycles reached and their e
-    /// edges; each cycle's bodies are computed once per collect.
-    fn reached_init_order<'a>(
+    /// The init bodies of cycle `c` ([`Self::cycle_bodies`]), computed
+    /// once per collect.
+    fn cycle_bodies_once<'q, 'a>(
+        &'a self,
+        graph: &InitGraph,
+        query: &'q mut InitQuery<'a>,
+        c: usize,
+        init_of: &dyn Fn(&str) -> DefId,
+        has_init: &dyn Fn(&str) -> bool,
+    ) -> hd_base::StageResult<&'q [(DefId, &'a str)]> {
+        if query.bodies[c].is_none() {
+            let bodies = self.cycle_bodies(graph, query, c, init_of, has_init)?;
+            query.bodies[c] = Some(bodies);
+        }
+        Ok(query.bodies[c].as_deref().unwrap_or_default())
+    }
+
+    /// A test program's init units ([`hd_wasm::Entry::Tests`]): every
+    /// cycle some test module's group reaches, each once, the runtime's
+    /// first (`crates/hd_wasm/DESIGN.md` §23.16) and then the rest in the
+    /// global order, with each unit's direct dependencies and each group's
+    /// root units. A group's run order is its reached units by number:
+    /// the runtime's, then the global order restricted to the rest.
+    /// Cost: O(cycles + edges + roots) plus a sort of the reached cycles,
+    /// where a list per group cost O(groups x reached).
+    fn test_init_units<'a>(
         &'a self,
         graph: &InitGraph,
         query: &mut InitQuery<'a>,
-        roots: &[usize],
+        runtime: &str,
+        root_modules: &[String],
         init_of: &dyn Fn(&str) -> DefId,
         has_init: &dyn Fn(&str) -> bool,
-    ) -> hd_base::StageResult<Vec<(DefId, &'a str)>> {
-        query.now += 1;
-        let now = query.now;
-        let mut stack: Vec<usize> = Vec::new();
-        for &m in roots {
-            let c = graph.comp[m];
-            if query.mark[c] != now {
-                query.mark[c] = now;
-                stack.push(c);
+    ) -> hd_base::StageResult<TestUnits<'a>> {
+        let runtime_roots: Vec<usize> = self
+            .table
+            .module(runtime)
+            .map(ModuleId::idx)
+            .into_iter()
+            .collect();
+        let first = reached_cycles(graph, query, &runtime_roots);
+        let group_roots: Vec<Vec<usize>> =
+            root_modules.iter().map(|m| self.init_roots(m)).collect();
+        let all: Vec<usize> = group_roots.iter().flatten().copied().collect();
+        let rest = reached_cycles(graph, query, &all);
+        let mut unit_of = vec![u32::MAX; graph.cycles.len()];
+        let mut order: Vec<usize> = Vec::with_capacity(first.len() + rest.len());
+        for c in first.into_iter().chain(rest) {
+            if unit_of[c] == u32::MAX {
+                unit_of[c] = u32_of(order.len());
+                order.push(c);
             }
         }
-        let mut reached: Vec<usize> = Vec::new();
-        while let Some(c) = stack.pop() {
-            reached.push(c);
-            for &d in &graph.deps[c] {
-                if query.mark[d] != now {
-                    query.mark[d] = now;
-                    stack.push(d);
-                }
-            }
+        let deps = order
+            .iter()
+            .map(|c| graph.deps[*c].iter().map(|d| unit_of[*d]).collect())
+            .collect();
+        let groups = group_roots
+            .iter()
+            .map(|ms| {
+                let mut g: Vec<u32> = runtime_roots
+                    .iter()
+                    .chain(ms)
+                    .map(|m| unit_of[graph.comp[*m]])
+                    .collect();
+                g.sort_stable();
+                g.dedup();
+                g
+            })
+            .collect();
+        let mut bodies = Vec::with_capacity(order.len());
+        for c in order {
+            bodies.push(
+                self.cycle_bodies_once(graph, query, c, init_of, has_init)?
+                    .to_vec(),
+            );
         }
-        reached.sort_stable_by_key(|c| graph.pos[*c]);
-        let mut out = Vec::new();
-        for c in reached {
-            if query.bodies[c].is_none() {
-                let bodies = self.cycle_bodies(graph, query, c, init_of, has_init)?;
-                query.bodies[c] = Some(bodies);
-            }
-            if let Some(bodies) = &query.bodies[c] {
-                out.extend_from_slice(bodies);
-            }
-        }
-        Ok(out)
+        Ok(TestUnits {
+            bodies,
+            deps,
+            groups,
+        })
     }
 
     /// The init bodies of cycle `c`, in order, each with its module's path.
@@ -11260,15 +11336,22 @@ impl Run<'_> {
                 }
                 hd_wasm::Entry::Inputs(out)
             }
-            Roots::Tests { cases, inits } => hd_wasm::Entry::Tests {
+            Roots::Tests {
+                cases,
+                units,
+                deps,
+                groups,
+            } => hd_wasm::Entry::Tests {
                 cases: cases.clone(),
-                inits: inits.clone(),
+                units: units.clone(),
+                graph: test_graph_words(groups, deps),
+                unit_offsets: u32_of(groups.len() + groups.iter().map(Vec::len).sum::<usize>() + 1),
                 runtime_inits: {
                     // One pass over the instance table for the inits the
                     // groups name, not a scan of it per init.
                     let table = &c.collected.table;
                     let runtime = names.module("std.rt");
-                    let wanted: HashSet<Hash128> = inits.iter().flatten().copied().collect();
+                    let wanted: HashSet<Hash128> = units.iter().flatten().copied().collect();
                     table
                         .key
                         .iter()
@@ -11864,6 +11947,38 @@ fn encode_runs(cycles: &[Vec<InitRun>]) -> Vec<u8> {
     w.bytes
 }
 
+/// The cycles the modules `roots` reach, in initialization order
+/// (spec/lang/10-modules.md, "Initialization Order"): the global order
+/// of [`Self::init_graph`] restricted to them. Cost: O(r log r + e)
+/// for the r cycles reached and their e edges.
+fn reached_cycles(graph: &InitGraph, query: &mut InitQuery<'_>, roots: &[usize]) -> Vec<usize> {
+    query.now += 1;
+    let now = query.now;
+    let mut stack: Vec<usize> = Vec::new();
+    for &m in roots {
+        let c = graph.comp[m];
+        if query.mark[c] != now {
+            query.mark[c] = now;
+            stack.push(c);
+        }
+    }
+    let mut reached: Vec<usize> = Vec::new();
+    let mut edges = 0;
+    while let Some(c) = stack.pop() {
+        reached.push(c);
+        edges += graph.deps[c].len();
+        for &d in &graph.deps[c] {
+            if query.mark[d] != now {
+                query.mark[d] = now;
+                stack.push(d);
+            }
+        }
+    }
+    crate::work::init_order_steps(reached.len() + edges);
+    reached.sort_stable_by_key(|c| graph.pos[*c]);
+    reached
+}
+
 /// How many of a cycle's `runs` each module has: a module with one run
 /// runs its whole init. One pass, so a lookup per run is one probe.
 fn runs_per_module(runs: &[InitRun]) -> HashMap<&str, usize> {
@@ -11872,6 +11987,39 @@ fn runs_per_module(runs: &[InitRun]) -> HashMap<&str, usize> {
         *per_module.entry(r.module.as_str()).or_default() += 1;
     }
     per_module
+}
+
+/// A test program's unit graph as [`hd_wasm::Entry::Tests`] lays it out:
+/// the group offsets, the groups' root units, the unit offsets and the
+/// units' dependencies, each offset a word index. Linear in the groups,
+/// roots, units and edges.
+fn test_graph_words(groups: &[Vec<u32>], deps: &[Vec<u32>]) -> Vec<u32> {
+    let roots: usize = groups.iter().map(Vec::len).sum();
+    let edges: usize = deps.iter().map(Vec::len).sum();
+    let mut words: Vec<u32> = Vec::with_capacity(groups.len() + roots + deps.len() + edges + 2);
+    let mut next = groups.len() + 1;
+    for g in groups {
+        words.push(u32_of(next));
+        next += g.len();
+    }
+    words.push(u32_of(next));
+    words.extend(groups.iter().flatten());
+    let mut next = words.len() + deps.len() + 1;
+    for d in deps {
+        words.push(u32_of(next));
+        next += d.len();
+    }
+    words.push(u32_of(next));
+    words.extend(deps.iter().flatten());
+    words
+}
+
+/// A test program's init units ([`Run::test_init_units`]): each unit's
+/// init bodies, its direct dependencies, and each group's root units.
+struct TestUnits<'a> {
+    bodies: Vec<Vec<(DefId, &'a str)>>,
+    deps: Vec<Vec<u32>>,
+    groups: Vec<Vec<u32>>,
 }
 
 /// A program's module cycles and their one initialization order
@@ -11888,7 +12036,7 @@ struct InitGraph {
 }
 
 /// The state of the init order queries of one collect
-/// ([`Run::reached_init_order`]): a visit mark per cycle, so a query
+/// ([`reached_cycles`]): a visit mark per cycle, so a query
 /// costs what it reaches, and each cycle's bodies, computed once.
 struct InitQuery<'a> {
     /// The query that last reached each cycle.

@@ -286,12 +286,22 @@ pub enum Entry {
         report: Option<Hash128>,
     },
     /// A test program (`crates/hd_wasm/DESIGN.md` §15.4):
-    /// `hd.test.init(N)` runs module `N`'s `inits[N]`, each a forbidden
-    /// context, and `hd.test(N, ctx)` runs `cases[N]`, an item, its
-    /// instance key and the report of its result, as `hd.poll` runs `main`.
+    /// `hd.test.init(N)` runs the units group `N` reaches in `graph`, in
+    /// unit order, each init a forbidden context, and `hd.test(N, ctx)`
+    /// runs `cases[N]`, an item, its instance key and the report of its
+    /// result, as `hd.poll` runs `main`.
     Tests {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
-        inits: Vec<Vec<Hash128>>,
+        /// Each unit's inits (a module cycle's), in run order: a unit
+        /// runs after every unit it reaches.
+        units: Vec<Vec<Hash128>>,
+        /// The unit graph as `u32` words: per test module (group) an
+        /// offset (`groups + 1` words from word 0), each group's root
+        /// units, then per unit an offset (`units + 1` words from word
+        /// `unit_offsets`) and each unit's direct dependencies. Every
+        /// offset is a word index into `graph`.
+        graph: Vec<u32>,
+        unit_offsets: u32,
         /// The inits among `inits` of std's runtime modules, which
         /// checked mode's reset after a case never runs again (§23.24).
         runtime_inits: Vec<Hash128>,
