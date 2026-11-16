@@ -1,0 +1,35 @@
+# @dump: diagnostics
+# A trait goal whose argument holds a provider context with an undecided
+# row key (`$.Context[$ Gen[?T]]?`) is canonicalized through the context
+# and waits on its variable, as a union or a trait value does. The later
+# annotation decides it, and the goal then holds: `go` has no
+# diagnostic. Decided to a row no impl has (`go_other`), the goal fails.
+trait Takes[A]:
+    fn take(self) -> i32
+
+trait Gen[X]:
+    fn get(self) -> X
+
+impl Takes[($.Context[$ Gen[i32]])?] for i32:
+    fn take(self) -> i32: self
+
+fn need[A, T < Takes[A]](t: T, a: A) -> i32:
+    t.take()
+
+fn none_c[T]() -> ($.Context[$ Gen[T]])?:
+    .None
+
+fn go(n: i32) -> i32:
+    let c = none_c()
+    let r = need(n, c)
+    let fixed: ($.Context[$ Gen[i32]])? = c
+    r
+
+fn go_other(n: i32) -> i32:
+    let c = none_c()
+    let r = need(n, c)
+    let fixed: ($.Context[$ Gen[string]])? = c
+    r
+
+pub fn main() -> void:
+    pass

@@ -2013,6 +2013,9 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
             },
         ) if d1 == d2 => match_list(pool, owner, a1, a2, binds),
         _ if pat == t => M::Yes,
+        // A context's row holding a variable may equal the head's once
+        // the variable is decided (`req.context.row`).
+        (TyData::Context(_), TyData::Context(_)) if pool.has_infer(t) => M::Maybe,
         _ => M::No,
     }
 }
