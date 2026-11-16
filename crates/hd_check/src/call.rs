@@ -2449,7 +2449,20 @@ impl Ck<'_, '_> {
                 }
                 None => {
                     if !named_bad {
-                        let msg = takes_arguments(name, rest.len());
+                        // With a defaulted parameter the count is a range,
+                        // so name the parameter the call leaves out.
+                        let defaulted = formals.defaults.iter().skip(skip).any(|&d| d)
+                            || local.as_ref().is_some_and(|ld| {
+                                ld.defaults.iter().skip(skip).any(Option::is_some)
+                            });
+                        let msg = if defaulted {
+                            format!(
+                                "`{name}` needs an argument for `{}`",
+                                self.cx.names.text(rest[i].0)
+                            )
+                        } else {
+                            takes_arguments(name, rest.len())
+                        };
                         self.err(Code::ArgumentCount, n, &msg);
                     }
                     break;

@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# A call that leaves out a required argument of a callee with a defaulted
+# parameter names the parameter, since the count is a range: a top-level
+# function, a local function and a method. A callee without defaults
+# still gives its count.
+fn top(a: i32, c: i32, b: i32 = 1) -> i32: a + b + c
+
+fn plain(a: i32, c: i32) -> i32: a + c
+
+struct Meter:
+    base: i32
+
+impl Meter:
+    fn read(self, scale: i32, offset: i32 = 0) -> i32: self.base * scale + offset
+
+pub fn main() -> void:
+    fn local(a: i32, c: i32, b: i32 = 1) -> i32: a + b + c
+    _ := top(1)
+    _ := local(1)
+    _ := Meter { base: 2 }.read()
+    _ := plain(1)
