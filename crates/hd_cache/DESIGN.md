@@ -338,7 +338,7 @@ obj/
 - **Logical framing is unchanged.** Each range in a data pack is one complete
   HDCE frame: the same 64-byte header, 16-byte section rows, length-prefixed
   payloads and checksum as before. The driver still checks kind, key,
-  toolchain and layout; `LAYOUT_VERSION` remains 19. Pack IDs and offsets are
+  toolchain and layout; packs did not change `LAYOUT_VERSION`. Pack IDs and offsets are
   storage addresses, never semantic cache keys. The storage namespace
   (`pack-v3`) versions the container independently.
 - **One pending batch, one pack.** `DeferredStore` retains a command's writes

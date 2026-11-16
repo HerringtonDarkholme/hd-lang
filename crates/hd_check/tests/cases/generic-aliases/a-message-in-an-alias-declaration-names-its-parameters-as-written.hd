@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# A resolver message inside a generic alias's declaration names the
+# alias's parameters as it writes them, though its types name them by
+# position (#1984): `T`, as the function's message does, not the
+# positional owner.
+struct Grid[N < const i32]:
+    n: i32
+
+type G[T, N < const T] = Grid[N]
+
+fn f[T, N < const T](x: i32) -> void:
+    pass
+
+fn main() -> void:
+    pass

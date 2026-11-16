@@ -234,6 +234,21 @@ mention is exported from its folder, or is a hidden item of this folder;
 a failure is an internal compiler error naming the item. Debug builds
 decode the written bytes and compare them with the in-memory interface.
 
+**Alias parameters are positional.** An alias item's body, generics'
+bounds and defaults name the alias's own parameters as
+`ParamRef { owner: KnownItems::alias_params, index }`, one owner for
+every alias (a path no source names, `std.core.'alias`), as rustc's
+`ParamTy` is `{ index, name }` with no owner. So a use of an alias at
+another alias's own parameters in order, as `A[S]` in
+`type B[S] = (A[S], A[S])`, is `A`'s body itself (`instantiate_alias`,
+rustc's `EarlyBinder::instantiate_identity`), and a chain of `n` aliases
+interns `n` nodes, not each body again with each alias's parameter
+(#1984). Every other use substitutes by position. Parameter names stay
+recorded under the alias itself; the alias's lowering and its header
+check hold a `ShowAlias` scope, so their messages show the parameters by
+those names, and anywhere else one shows by position (`'alias#0`). An alias's parameters are written as that path in the
+blob; the encoding changed with `LAYOUT_VERSION` 38.
+
 **Row aliases and context types in interfaces.** A row alias is an alias
 item whose body is a row (`TyData::Row`). Every use in a header expands
 first (`req.row.alias.expand.first`), recursively, so headers store only

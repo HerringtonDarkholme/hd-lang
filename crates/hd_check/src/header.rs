@@ -18,7 +18,8 @@ use hd_base::{DefId, Fuel, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, Names};
 use hd_types::solver::{
-    Answer, BodyMemo, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver, TraitRef,
+    Answer, BodyMemo, EnvKey, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver,
+    TraitRef,
 };
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, Types};
 
@@ -400,11 +401,11 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         }
         ItemData::Fn(sig, _) => generics(it.def, &sig.generics, 0, &mut env),
         ItemData::Trait(_) => owner(it.def, &mut env),
+        ItemData::Alias { .. } => generics(cx.names.known.alias_params, &it.generics, 0, &mut env),
         ItemData::AssocType { .. }
         | ItemData::Struct(..)
         | ItemData::Enum { .. }
         | ItemData::Impl { .. }
-        | ItemData::Alias { .. }
         | ItemData::Newtype(..)
         | ItemData::Builtin => generics(it.def, &it.generics, 0, &mut env),
     }
@@ -413,11 +414,12 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
 
 /// A step of [`ItemCheck::check_ty`]'s walk: a type to check; a
 /// requirement key, whose key rule is checked first; or the end of a
-/// closed type's walk, with the number of findings when it began.
+/// type's walk under an environment, with the number of findings when it
+/// began.
 enum Work {
     Ty(Ty, u32),
     Key(Ty, u32),
-    Clean(Ty, usize),
+    Clean(Ty, EnvKey, usize),
 }
 
 /// One item's goals: its environment, memo and fuel.
@@ -428,6 +430,9 @@ struct ItemCheck<'c, 'a> {
     cycles: crate::value::ProjectionCycles<'static>,
     fuel: Fuel,
     item: DefId,
+    /// Whether the item is an alias, whose types name its parameters by
+    /// position.
+    alias: bool,
     out: &'c mut Vec<Finding>,
     /// Whether the fuel ran out: `item-too-complex` is reported, and no
     /// further goal is asked.
@@ -436,9 +441,14 @@ struct ItemCheck<'c, 'a> {
     /// `hd_base::limits::REFERENCES` is reported: one `type-too-large`
     /// per item.
     too_deep: bool,
-    /// The closed types whose check reported nothing, kept across the
-    /// items of one stage-B pass.
-    clean: hd_base::HashSet<Ty>,
+    /// The types whose check reported nothing, by the environment they
+    /// were checked under (`EnvKey::EMPTY` for a closed type, which no
+    /// environment changes), kept across the items of one stage-B pass.
+    /// Aliases with the same parameter bounds share an environment and,
+    /// naming their parameters by position, their bodies' nodes: a chain
+    /// `type A{i}[S < Source] = (A{i-1}[S], A{i-1}[S])` checks each node
+    /// once, not once per alias above it (#1984).
+    clean: hd_base::HashSet<(Ty, EnvKey)>,
     /// The value rule's decisions under this pass's lookup and its group
     /// reporters ([`crate::value::InlinePass`]), kept across the items of
     /// one stage-B pass.
@@ -479,6 +489,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             cycles: crate::value::ProjectionCycles::default(),
             fuel: Fuel::new(cx.fuel),
             item: it.def,
+            alias: matches!(it.data, ItemData::Alias { .. }),
             out,
             too_complex: false,
             too_deep: false,
@@ -495,7 +506,11 @@ impl<'a> ItemCheck<'_, 'a> {
         self.cx.names.pool.types()
     }
 
+    /// `t` for a message. An alias's types name its parameters by
+    /// position ([`hd_resolve::KnownItems::alias_params`]); they are shown
+    /// by the names the alias writes them with.
     fn show(&self, t: Ty) -> String {
+        let _shown = self.alias.then(|| hd_resolve::ShowAlias::enter(self.item));
         hd_resolve::show_ty(&self.cx.names, t)
     }
 
@@ -1571,9 +1586,9 @@ impl<'a> ItemCheck<'_, 'a> {
         let mut seen: hd_base::HashSet<(Ty, u32, bool)> = hd_base::HashSet::default();
         while let Some(w) = work.pop() {
             let (t, slot) = match w {
-                Work::Clean(t, mark) => {
+                Work::Clean(t, env, mark) => {
                     if self.out.len() == mark && !self.too_complex {
-                        self.clean.insert(t);
+                        self.clean.insert((t, env));
                     }
                     continue;
                 }
@@ -1595,11 +1610,16 @@ impl<'a> ItemCheck<'_, 'a> {
                 || pool.has_infer(t)
                 || pool.has_assoc(t)
                 || pool.has_opaque(t));
-            if closed {
-                if self.clean.contains(&t) {
+            let env = if closed {
+                Some(EnvKey::EMPTY)
+            } else {
+                self.env.key
+            };
+            if let Some(env) = env {
+                if self.clean.contains(&(t, env)) {
                     continue;
                 }
-                work.push(Work::Clean(t, self.out.len()));
+                work.push(Work::Clean(t, env, self.out.len()));
             }
             crate::work::header_type();
             self.check_ty_node(t, slot, &mut kids)?;

@@ -1,0 +1,15 @@
+{{! #1984: a chain of generic aliases, each naming the one before twice, so its type doubles per entry while the source grows by one line. }}
+trait Source:
+    type Item
+
+type A0000[S < Source] = S::Item
+{{#each items}}
+type A{{next}}[S < Source] = (A{{i}}[S], A{{i}}[S])
+{{/each}}
+
+fn id[S < Source](s: S, v: A{{last}}[S]) -> A{{last}}[S]: v
+
+pub fn main() -> void $ Console:
+    let t = +0
+    t = +0
+    println("$t")

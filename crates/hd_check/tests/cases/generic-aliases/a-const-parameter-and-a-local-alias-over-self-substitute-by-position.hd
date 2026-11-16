@@ -1,0 +1,34 @@
+# @dump: diagnostics
+# Two more forms of an alias's positional parameters (#1984): a const
+# parameter passed through a chain, and a local alias in a trait's
+# default method, which takes the trait's `Self` as its parameter 0. The
+# one finding is the wrong const argument.
+trait Shape:
+    fn area(self) -> i32
+    fn pair(self) -> (Self, Self):
+        type Two = (Self, Self)
+        let p: Two = (self, self)
+        p
+
+struct Sq:
+    n: i32
+
+impl Shape for Sq:
+    fn area(self) -> i32:
+        self.n
+
+struct Grid[N < const i32]:
+    n: i32
+
+type G[M < const i32] = Grid[M]
+type G2[M < const i32] = (G[M], G[M])
+
+fn grid(g: G2[3]) -> (Grid[3], Grid[3]):
+    g
+
+fn wrong(g: G2[3]) -> (Grid[4], Grid[3]):
+    g
+
+fn main() -> void:
+    let s = Sq { n: 2 }
+    let p = s.pair()

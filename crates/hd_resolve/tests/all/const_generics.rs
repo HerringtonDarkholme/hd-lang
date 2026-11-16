@@ -89,7 +89,12 @@ fn const_declarations_and_arguments_resolve_with_kind_errors() {
         panic!("`Four` is not an alias");
     };
     names.record_params(four);
+    // The body names `T` by position: shown by `Four`'s own name for it
+    // in `Four`'s messages, by position elsewhere.
+    assert_eq!(show_ty(&names, body), "Buffer['alias#0, 4]");
+    let shown = hd_resolve::ShowAlias::enter(four.def);
     assert_eq!(show_ty(&names, body), "Buffer[T, 4]");
+    drop(shown);
     let TyData::Adt { args, .. } = pool.get(body) else {
         panic!("not a struct type");
     };

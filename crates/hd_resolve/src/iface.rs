@@ -163,6 +163,12 @@ impl Names<'_> {
     /// where no declaration was recorded.
     #[must_use]
     pub fn param_name(&self, owner: DefId, index: u16) -> String {
+        let shown = SHOWN_ALIAS.with(std::cell::Cell::get);
+        let owner = if owner == self.known.alias_params && shown != DefId::NONE {
+            shown
+        } else {
+            owner
+        };
         self.paths
             .param_name(PathId::from_raw(owner.raw()), index)
             .unwrap_or_else(|| format!("{}#{index}", self.display_name(owner)))
@@ -371,6 +377,74 @@ pub fn fill_trait_args(
     pool.list(&v)
 }
 
+/// The owner of `item`'s parameters in its types: the item itself, or,
+/// for an alias, [`KnownItems::alias_params`], by which every alias names
+/// its parameters by position.
+#[must_use]
+pub fn params_owner(known: &KnownItems, item: &Item) -> DefId {
+    match item.data {
+        ItemData::Alias { .. } => known.alias_params,
+        _ => item.def,
+    }
+}
+
+/// An alias body, whose parameters are `alias_params` by position,
+/// applied to `args` (`types.alias.same`). Arguments that are the
+/// parameters themselves, in order, as `A[S]` inside `type B[S] = ...`,
+/// give the body itself in O(arguments), with no walk: rustc's
+/// `EarlyBinder::instantiate_identity`. Otherwise [`hd_types::Types::subst`],
+/// which walks each distinct node of the body once.
+#[must_use]
+pub fn instantiate_alias(pool: &InternPool, alias_params: DefId, body: Ty, args: &[Ty]) -> Ty {
+    let identity = args.iter().enumerate().all(|(i, &a)| {
+        let own = |owner: DefId, index: u16| owner == alias_params && usize::from(index) == i;
+        match pool.get(a) {
+            TyData::Param(p) => own(p.owner, p.index),
+            // A row parameter's argument is the row of it alone.
+            TyData::Row(r) => {
+                let r = pool.row_data(r);
+                r.keys.is_empty() && matches!(r.params[..], [p] if own(p.owner, p.index))
+            }
+            _ => false,
+        }
+    });
+    if identity {
+        return body;
+    }
+    pool.subst(body, &|p: ParamRef| {
+        (p.owner == alias_params)
+            .then(|| args.get(usize::from(p.index)).copied())
+            .flatten()
+    })
+}
+
+thread_local! {
+    /// The alias whose declaration is being lowered or checked on this
+    /// thread, whose positional parameters messages name ([`ShowAlias`]).
+    static SHOWN_ALIAS: std::cell::Cell<DefId> = const { std::cell::Cell::new(DefId::NONE) };
+}
+
+/// While held, messages on this thread show the positional alias
+/// parameters ([`KnownItems::alias_params`]) by the names alias `def`
+/// writes them with, as `T` in `type G[T, N < const T]`. An alias body
+/// keeps no owner of its own, so its declaration's lowering and header
+/// check, which report on it, hold one; anywhere else such a parameter
+/// is shown by position. O(1) to enter and to read.
+pub struct ShowAlias(DefId);
+
+impl ShowAlias {
+    #[must_use]
+    pub fn enter(def: DefId) -> Self {
+        ShowAlias(SHOWN_ALIAS.with(|c| c.replace(def)))
+    }
+}
+
+impl Drop for ShowAlias {
+    fn drop(&mut self) {
+        SHOWN_ALIAS.with(|c| c.set(self.0));
+    }
+}
+
 /// A written type constructor's arguments with the omitted trailing
 /// parameters filled from their defaults, in declaration order, each with
 /// the earlier arguments substituted (`types.generic.default.written`,
@@ -381,7 +455,12 @@ pub fn fill_trait_args(
 /// poisoned one (an error reported elsewhere): the caller keeps its own
 /// handling of a missing argument.
 #[must_use]
-pub fn fill_type_args(pool: &InternPool, def: DefId, generics: &[Generic], args: &[Ty]) -> Vec<Ty> {
+pub fn fill_type_args(
+    pool: &InternPool,
+    owner: DefId,
+    generics: &[Generic],
+    args: &[Ty],
+) -> Vec<Ty> {
     let mut v = args.to_vec();
     for g in generics.iter().skip(args.len()) {
         let Some(d) = g.default else { break };
@@ -389,7 +468,7 @@ pub fn fill_type_args(pool: &InternPool, def: DefId, generics: &[Generic], args:
             break;
         }
         let t = pool.subst(d, &|p: ParamRef| {
-            (p.owner == def)
+            (p.owner == owner)
                 .then(|| v.get(usize::from(p.index)).copied())
                 .flatten()
         });

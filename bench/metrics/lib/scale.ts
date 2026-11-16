@@ -137,6 +137,12 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   "generic-params": { construct: "type parameters of one function", n: 100 },
   "param-bounds": { construct: "bounds of one type parameter, each method called", n: 100 },
   "type-defaults": { construct: "defaulted type parameters" },
+  // Each alias doubles the type: 4n stays below the type depth limit of
+  // 1,000 (`types.limit.type-size`).
+  "alias-chain": {
+    construct: "a chain of generic aliases, each naming the one before twice",
+    n: 200,
+  },
   "row-chain": { construct: "requirement rows along a call chain" },
   "row-traits": { construct: "traits of one requirement row and `$.use`", n: 100 },
   // Statements and expressions.

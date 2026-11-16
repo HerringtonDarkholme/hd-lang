@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# A generic alias's errors after its parameters became positional
+# (#1984): a private type in a public generic alias, a generic alias that
+# expands to itself, and a wrong argument count in a generic alias body
+# each report as before, naming the alias.
+struct Hidden:
+    n: i32
+
+pub struct Pair[A, B]:
+    pub a: A
+    pub b: B
+
+pub type Leak[T] = Pair[Hidden, T]
+pub type Cyc[T] = Pair[T, Cyc[T]]
+type Many[T] = Pair[T, T, T]
+
+fn main() -> void:
+    pass

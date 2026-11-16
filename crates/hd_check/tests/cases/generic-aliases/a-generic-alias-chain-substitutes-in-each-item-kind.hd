@@ -1,0 +1,45 @@
+# @dump: diagnostics
+# A chain of generic aliases with swapped parameters, written in each item
+# kind that holds a type (#1984): an impl target, enum payloads, a struct
+# field and a trait method's result. Each substitutes by position: the
+# one finding is the impl's method asked on the pair it does not target.
+trait Named:
+    fn name(self) -> string
+
+struct Pair[A, B]:
+    a: A
+    b: B
+
+type Swap[X, Y] = Pair[Y, X]
+type Same[X, Y] = Swap[Y, X]
+
+impl[T] Named for Same[T, i32]:
+    fn name(self) -> string:
+        "pair"
+
+enum Shape[T]:
+    Dot(Same[T, string])
+    Line(Swap[T, string])
+
+struct Holder[T]:
+    p: Same[T, bool]
+
+trait Maker[T]:
+    fn make(self) -> Swap[T, i32]
+
+fn use_it(p: Pair[string, i32]) -> string:
+    p.name()
+
+fn wrong(p: Pair[i32, string]) -> string:
+    p.name()
+
+fn hold(h: Holder[i32]) -> Pair[i32, bool]:
+    h.p
+
+fn shape(s: Shape[i32]) -> i32:
+    match s:
+        Shape.Dot(p) => p.a
+        Shape.Line(p) => p.b
+
+fn main() -> void:
+    pass

@@ -1347,11 +1347,22 @@ impl Resolver<'_, '_> {
     /// The second result names the first type parameter left without an
     /// argument that has no default (`types.generic.default.written-missing`);
     /// the third is the number of parameters the declaration has
-    /// (`types.generic.too-long`).
-    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> (Vec<Ty>, Option<String>, Option<usize>) {
+    /// (`types.generic.too-long`). `alias` says `def` is an alias, whose
+    /// defaults name its parameters by position.
+    fn fill_type_args(
+        &self,
+        def: DefId,
+        alias: bool,
+        args: &[Ty],
+    ) -> (Vec<Ty>, Option<String>, Option<usize>) {
         let pool = self.cx.names.pool;
+        let owner = if alias {
+            self.cx.names.known.alias_params
+        } else {
+            def
+        };
         let fill = |generics: &[Generic]| {
-            let filled = fill_type_args(pool, def, generics, args);
+            let filled = fill_type_args(pool, owner, generics, args);
             let missing = generics
                 .iter()
                 .skip(filled.len())
@@ -2205,7 +2216,7 @@ struct Lower<'a, 'r, 'x> {
     outer: Outer,
     /// For a local declaration that names one of them: the generic lists
     /// of the declarations around it, whose type parameters lead its own
-    /// (`names.local-type.refs`, [`Lower::outer_generics`]).
+    /// (`names.local-type.refs`, [`Lower::outer_generics_at`]).
     outer_lists: Vec<hd_base::NodeIdx>,
     /// For a local declaration: the innermost impl or trait around it,
     /// whose `Self` it names when it has none of its own
@@ -2255,7 +2266,7 @@ impl Lower<'_, '_, '_> {
     /// type, const and row parameters of the declarations around it, local
     /// functions' included (`names.local-type.refs`). A local struct,
     /// enum, newtype or alias takes them as its leading parameters, as a
-    /// local impl of one does ([`Self::outer_generics`]).
+    /// local impl of one does ([`Self::outer_generics_at`]).
     fn enter(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
         let (lists, self_owner) = match h.local {
@@ -2388,13 +2399,16 @@ impl Lower<'_, '_, '_> {
     /// with the local declaration as their owner, so its header and body
     /// name them as its own. Their diagnostics are the enclosing
     /// declarations', reported there.
-    fn outer_generics(&mut self, def: DefId, gn: &mut Gen) -> Vec<Generic> {
-        self.outer_generics_at(def, 0, gn)
-    }
-
-    /// [`Self::outer_generics`] numbered from `base`: 1 for a trait, whose
-    /// parameter 0 is `Self`.
-    fn outer_generics_at(&mut self, def: DefId, base: u16, gn: &mut Gen) -> Vec<Generic> {
+    ///
+    /// Numbered from `base`: 1 for a trait, whose parameter 0 is `Self`.
+    /// `def` names the parameters, `owner` owns their types (see
+    /// [`Self::generics`]).
+    fn outer_generics_at(
+        &mut self,
+        (def, owner): (DefId, DefId),
+        base: u16,
+        gn: &mut Gen,
+    ) -> Vec<Generic> {
         let lists = std::mem::take(&mut self.outer_lists);
         let mark = self.diags.mark();
         let mut out: Vec<Generic> = Vec::new();
@@ -2408,14 +2422,14 @@ impl Lower<'_, '_, '_> {
             let t = self
                 .names
                 .pool
-                .intern_ty(&TyData::Param(ParamRef { owner: def, index }));
+                .intern_ty(&TyData::Param(ParamRef { owner, index }));
             gn.tys.push(TyParam::new(name, t));
             out.push(Generic::plain(name));
         }
         for &gl in &lists {
             let gl = self.src.parse.tree.node(gl);
             let offset = base.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
-            out.extend(self.generics(Some(gl), def, offset, gn));
+            out.extend(self.generics(Some(gl), (def, owner), offset, gn));
         }
         // The taken `Self` implements its trait, at the trait's parameters
         // as taken here, so a local impl's body can call its methods.
@@ -2456,9 +2470,21 @@ impl Lower<'_, '_, '_> {
     /// The parameters of a declaration: those it takes from around it,
     /// then its own list `gl`.
     fn own_generics(&mut self, gl: Option<NodeRef<'_>>, def: DefId, gn: &mut Gen) -> Vec<Generic> {
-        let mut out = self.outer_generics(def, gn);
+        self.own_generics_as(gl, (def, def), gn)
+    }
+
+    /// [`Self::own_generics`], with the parameters' types owned by `owner`
+    /// and named under `def`: an alias's are positional
+    /// ([`crate::KnownItems::alias_params`]).
+    fn own_generics_as(
+        &mut self,
+        gl: Option<NodeRef<'_>>,
+        (def, owner): (DefId, DefId),
+        gn: &mut Gen,
+    ) -> Vec<Generic> {
+        let mut out = self.outer_generics_at((def, owner), 0, gn);
         let offset = u16::try_from(out.len()).unwrap_or(u16::MAX);
-        out.extend(self.generics(gl, def, offset, gn));
+        out.extend(self.generics(gl, (def, owner), offset, gn));
         out
     }
 
@@ -3213,11 +3239,7 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::GenericKindMismatch, span, &msg);
             return Ty::POISON;
         }
-        pool.subst(body, &|p: ParamRef| {
-            (p.owner == def)
-                .then(|| args.get(p.index as usize).copied())
-                .flatten()
-        })
+        crate::instantiate_alias(pool, self.names.known.alias_params, body, args)
     }
 
     fn ctor(
@@ -3269,7 +3291,7 @@ impl Lower<'_, '_, '_> {
             with_outer = self.with_outer_args(def, gn, args, span);
             let args = with_outer.as_deref().unwrap_or(args);
             let taken = args.len() - written;
-            let (f, missing, arity) = self.r.fill_type_args(def, args);
+            let (f, missing, arity) = self.r.fill_type_args(def, kind == HeadKind::Alias, args);
             // `types.generic.too-long`: no more arguments than parameters.
             if let Some(max) = arity.filter(|max| args.len() > *max) {
                 self.too_many_args(def, max - taken, written, span);
@@ -3543,9 +3565,10 @@ impl Lower<'_, '_, '_> {
             return false;
         };
         let pool = self.names.pool.types();
+        let owner = self.names.known.alias_params;
         let answer = pool.ref_slots(body) == 0
             && slot_items(pool, body, rows.len(), |d| match d {
-                TyData::Param(p) if p.owner == def => Some(SlotItem::Param(p.index)),
+                TyData::Param(p) if p.owner == owner => Some(SlotItem::Param(p.index)),
                 _ => None,
             })
             .is_some_and(|seen| {
@@ -3577,7 +3600,7 @@ impl Lower<'_, '_, '_> {
         let Some(generics) = self.r.with_generics(def, <[Generic]>::to_vec) else {
             return false;
         };
-        let filled = self.r.fill_type_args(def, args).0;
+        let filled = self.r.fill_type_args(def, true, args).0;
         let pool = self.names.pool.types();
         let mut at = 0_usize;
         let mut slots_by_param = Vec::new();
@@ -3599,9 +3622,10 @@ impl Lower<'_, '_, '_> {
         // Each item adds at least one slot: a parameter whose argument
         // has none is left out, so there are no more items than slots.
         let want = pool.ref_slots(expanded);
+        let owner = self.names.known.alias_params;
         let Some(items) = slot_items(pool, body, want, |data| match data {
             TyData::Param(p)
-                if p.owner == def
+                if p.owner == owner
                     && slots_by_param
                         .get(usize::from(p.index))
                         .is_some_and(|s| !s.is_empty()) =>
@@ -4331,10 +4355,13 @@ impl Lower<'_, '_, '_> {
     /// A generic parameter list: names first, so bounds may name later
     /// parameters, then bounds and defaults. Each type parameter is `Copy`
     /// unless written `?Copy` (`ref.copy.generic.default`).
+    /// `def` is the declaration, under which the parameters' names are
+    /// recorded for messages; `owner` owns their types (`TyData::Param`),
+    /// `def` itself except for an alias.
     fn generics(
         &mut self,
         gl: Option<NodeRef<'_>>,
-        owner: DefId,
+        (def, owner): (DefId, DefId),
         offset: u16,
         gn: &mut Gen,
     ) -> Vec<Generic> {
@@ -4400,7 +4427,7 @@ impl Lower<'_, '_, '_> {
             }
             let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
             self.names.paths.set_param_name(
-                hd_base::PathId::from_raw(owner.raw()),
+                hd_base::PathId::from_raw(def.raw()),
                 index,
                 self.src.text(t),
             );
@@ -4859,7 +4886,7 @@ impl Lower<'_, '_, '_> {
     fn sig_in_scope(&mut self, f: NodeRef<'_>, owner: DefId, gn: &mut Gen) -> FnSig {
         let mut generics = self.generics(
             Src::child(f, SyntaxKind::GenericParameterList),
-            owner,
+            (owner, owner),
             0,
             gn,
         );
@@ -6652,9 +6679,9 @@ impl Lower<'_, '_, '_> {
         let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
         // A local trait's parameters from around it lead its own
         // (`names.local-type.refs`).
-        let mut generics = self.outer_generics_at(h.def, 1, &mut gn);
+        let mut generics = self.outer_generics_at((h.def, h.def), 1, &mut gn);
         let offset = 1 + u16::try_from(generics.len()).unwrap_or(u16::MAX - 1);
-        generics.extend(self.generics(gl, h.def, offset, &mut gn));
+        generics.extend(self.generics(gl, (h.def, h.def), offset, &mut gn));
         (self_ty, gn, generics)
     }
 
@@ -7140,7 +7167,14 @@ impl Lower<'_, '_, '_> {
         self.enter(h);
         let mut gn = Gen::default();
         let gl = Src::child(n, SyntaxKind::GenericParameterList);
-        let generics = self.own_generics(gl, h.def, &mut gn);
+        // The body names the alias's parameters by position
+        // (`KnownItems::alias_params`), so a use of another alias at
+        // them, as `A[S]` in `type B[S] = (A[S], A[S])`, is `A`'s body
+        // itself.
+        let owner = self.names.known.alias_params;
+        // Its messages name those parameters as the alias writes them.
+        let _shown = crate::ShowAlias::enter(h.def);
+        let generics = self.own_generics_as(gl, (h.def, owner), &mut gn);
         let body = n.children().find(|c| c.kind().is_type());
         let saved = std::mem::replace(
             &mut self.slots,

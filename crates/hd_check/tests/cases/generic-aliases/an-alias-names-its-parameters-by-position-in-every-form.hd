@@ -1,0 +1,62 @@
+# @dump: diagnostics
+# An alias names its own parameters by position, so `A[S]` inside
+# `type B[S] = ...` is `A`'s body itself (#1984). Each form still
+# substitutes its arguments: swapped and re-swapped parameters, a
+# projection through a chain, a defaulted parameter naming an earlier
+# one, a row parameter, a local alias over its function's parameter, and
+# aliases read from another folder's interface. A bound broken in an
+# alias body names the parameter as the alias writes it. The two errors
+# below are the only findings.
+# @file: a/defs.hd
+pub trait Source:
+    type Item
+
+pub trait Log:
+    fn line(self) -> string
+
+pub struct Pair[A, B]:
+    pub a: A
+    pub b: B
+
+pub struct Holder[S < Source]:
+    pub s: S
+
+pub type Swap[X, Y] = Pair[Y, X]
+pub type Same[X, Y] = Swap[Y, X]
+pub type Twice[S < Source] = (S::Item, S::Item)
+pub type Nested[S < Source] = (Twice[S], Twice[S])
+pub type Filled[T, U = List[T]] = Pair[T, U]
+pub type Held[T] = Holder[T]
+pub type WithLog[$ R] = $ R + Log
+pub type Job[$ R] = fn() -> void $ WithLog[$ R]
+# @file: main.hd
+use pkg.a.defs.{Source, Log, Pair, Swap, Same, Nested, Filled, Job}
+
+struct Words:
+    n: i32
+
+impl Source for Words:
+    type Item = string
+
+fn same(p: Same[i32, string]) -> Pair[i32, string]:
+    p
+
+fn swapped(p: Swap[i32, string]) -> Pair[i32, string]:
+    p
+
+fn nested[S < Source](v: Nested[S]) -> ((S::Item, S::Item), (S::Item, S::Item)):
+    v
+
+fn words(v: Nested[Words]) -> ((string, string), (string, string)):
+    v
+
+fn filled(p: Filled[i32]) -> Pair[i32, List[i32]]:
+    p
+
+fn job(j: Job[$()]) -> void:
+    let k: fn() -> void $ Log = j
+
+fn local[T](x: T) -> T:
+    type Mine = (T, T)
+    let p: Mine = (x, x)
+    p._0

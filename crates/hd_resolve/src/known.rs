@@ -41,6 +41,14 @@ pub struct KnownItems {
     /// The `'static` bound (`ref.generic.static`), a sealed trait no
     /// path names.
     pub static_bound: DefId,
+    /// The owner of every type alias's own parameters
+    /// (`types.alias.same`): an alias body names its parameter `k` as
+    /// `ParamRef { owner: alias_params, index: k }`, by position, as
+    /// rustc's `ParamTy` does. So `type B[S] = (A[S], A[S])` holds `A`'s
+    /// body itself, an identity instance, and a chain of aliases interns
+    /// one node per alias, not a copy of each body below it (#1984). No
+    /// path names it.
+    pub alias_params: DefId,
     /// `Facts`, whose `items` list may be inspected only after the value is
     /// proved to be declaration facts.
     pub facts: DefId,
@@ -283,6 +291,7 @@ impl KnownItems {
             structure,
             union_type,
             static_bound,
+            alias_params: item("std.core", "'alias"),
             facts: item("std.structure", "Facts"),
             facts_find: inherent_method("std.structure", "impl Facts", "find"),
             field: item("std.structure", "FieldRecord"),

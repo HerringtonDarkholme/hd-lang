@@ -411,11 +411,10 @@ impl Ck<'_, '_> {
         };
         let args = self.ctor_args(item, args, n);
         match &item.data {
-            ItemData::Alias { body, .. } => pool.subst(*body, &|p: ParamRef| {
-                (p.owner == def)
-                    .then(|| args.get(p.index as usize).copied())
-                    .flatten()
-            }),
+            ItemData::Alias { body, .. } => {
+                let alias_params = self.cx.names.known.alias_params;
+                hd_resolve::instantiate_alias(self.cx.names.pool, alias_params, *body, &args)
+            }
             ItemData::Struct(_, _)
             | ItemData::Enum { .. }
             | ItemData::Newtype(..)
@@ -525,7 +524,8 @@ impl Ck<'_, '_> {
         let args = with_outer.as_ref();
         // An omitted trailing argument takes its default with the earlier
         // arguments substituted (`types.generic.default.written`).
-        let mut args = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, args);
+        let owner = hd_resolve::params_owner(self.cx.names.known, item);
+        let mut args = hd_resolve::fill_type_args(self.cx.names.pool, owner, &item.generics, args);
         while let Some(g) = item.generics.get(args.len()) {
             // `ref.lifetime.struct`: a lifetime has its one argument.
             args.push(if g.lifetime {
@@ -888,8 +888,9 @@ impl Ck<'_, '_> {
         {
             let with_outer = self.with_outer_args(item, &args);
             self.report_untaken_outer(item, &with_outer, n);
+            let owner = hd_resolve::params_owner(self.cx.names.known, item);
             let filled =
-                hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, &with_outer);
+                hd_resolve::fill_type_args(self.cx.names.pool, owner, &item.generics, &with_outer);
             if let Some(g) = item
                 .generics
                 .iter()
