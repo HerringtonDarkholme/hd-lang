@@ -144,12 +144,14 @@ pub fn holds_drop_type(
     layout::holds_drop_in(pool, env, ty, memo)
 }
 
-/// Runs `f` with the layout cache in place (a link's, when `f` runs inside
-/// one): within it, [`counted_type`] and the other layout queries compute
-/// each type's layout once, so a long chain of types held by value costs
-/// its length, not its square, at every query.
-pub fn with_layout_cache<R>(f: impl FnOnce() -> R) -> R {
-    layout::cached_here(f)
+/// Runs `f` with the layout cache in place: a link's, when `f` runs
+/// inside one, else run `run`'s on this thread, shared by the run's
+/// bodies ([`layout::cached_for_run`]). Within it, [`counted_type`] and
+/// the other layout queries compute each type's layout once per run, so
+/// a long chain of types held by value costs its length, not its square,
+/// however many bodies hold it.
+pub fn with_layout_cache<R>(run: u64, f: impl FnOnce() -> R) -> R {
+    layout::cached_for_run(run, f)
 }
 
 /// The layout queries of the mutation scan (`hd_opt::whole`), which

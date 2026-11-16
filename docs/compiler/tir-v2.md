@@ -2835,7 +2835,8 @@ is worth deciding only if they are hot.
 
     The passes now run with the backend's layout cache in place
     (`hd_wasm::with_layout_cache`, a link's when they run inside
-    one): `OwnCx::counted` walked each new type's layout from scratch
+    one, else the run's on each thread, which the run's bodies share
+    since #2030): `OwnCx::counted` walked each new type's layout from scratch
     outside a link, so a chain of 1,500 types held by value cost its cube
     (`recursive_layouts::a_large_recursion_group_and_long_chains_of_types`,
     251 s before, 9 s after).

@@ -455,6 +455,7 @@ fn by_parts<T: Clone>(
             stack.extend(parts.into_iter().map(|p| (p, false)));
             continue;
         }
+        crate::work::layout_parts(1);
         let got = one(u, &|p| {
             done.get(&strip(pool, env, p))
                 .cloned()
@@ -546,15 +547,124 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     walk_plan::cached(|| crate::emit::ref_slots::cached(link))
 }
 
-/// [`cached`], unless a cache is in place already, which `link` then
-/// shares: the ownership passes run inside a link (a body it reaches
-/// first) or outside one (`Collect`).
-pub fn cached_here<R>(link: impl FnOnce() -> R) -> R {
-    if MEMS.with(|m| m.borrow().is_some()) {
-        link()
-    } else {
-        cached(link)
+/// A layout cache scope's state on its thread: the memo maps, the walk
+/// plans' store and the reference slot plans.
+struct Scope {
+    mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+    walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    drops: Option<hd_base::HashMap<Ty, bool>>,
+    thin_refs: Option<hd_base::HashMap<Ty, bool>>,
+    local_refs: Option<hd_base::HashMap<Ty, bool>>,
+    input_borrowed: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    input_owned: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
+    variants: Option<hd_base::HashMap<Ty, Option<VariantTypes>>>,
+    members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
+    walk_plans: walk_plan::Saved,
+    ref_slots: crate::emit::ref_slots::Saved,
+}
+
+impl Scope {
+    /// The thread's scope, leaving none in place.
+    fn take() -> Self {
+        Self {
+            mems: MEMS.take(),
+            walks: WALKS.take(),
+            count_walks: COUNT_WALKS.take(),
+            drops: DROPS.take(),
+            thin_refs: THIN_REFS.take(),
+            local_refs: LOCAL_REFS.take(),
+            input_borrowed: INPUT_BORROWED.take(),
+            input_owned: INPUT_OWNED.take(),
+            flats: FLATS.take(),
+            variants: VARIANTS.take(),
+            members: MEMBERS.take(),
+            walk_plans: walk_plan::Saved::take(),
+            ref_slots: crate::emit::ref_slots::Saved::take(),
+        }
     }
+
+    /// An empty scope.
+    fn fresh() -> Self {
+        Self {
+            mems: Some(hd_base::HashMap::default()),
+            walks: Some(hd_base::HashMap::default()),
+            count_walks: Some(hd_base::HashMap::default()),
+            drops: Some(hd_base::HashMap::default()),
+            thin_refs: Some(hd_base::HashMap::default()),
+            local_refs: Some(hd_base::HashMap::default()),
+            input_borrowed: Some(hd_base::HashMap::default()),
+            input_owned: Some(hd_base::HashMap::default()),
+            flats: Some(hd_base::HashMap::default()),
+            variants: Some(hd_base::HashMap::default()),
+            members: Some(hd_base::HashMap::default()),
+            walk_plans: walk_plan::Saved::fresh(),
+            ref_slots: crate::emit::ref_slots::Saved::fresh(),
+        }
+    }
+
+    /// Puts the scope in place on the thread.
+    fn put(self) {
+        MEMS.set(self.mems);
+        WALKS.set(self.walks);
+        COUNT_WALKS.set(self.count_walks);
+        DROPS.set(self.drops);
+        THIN_REFS.set(self.thin_refs);
+        LOCAL_REFS.set(self.local_refs);
+        INPUT_BORROWED.set(self.input_borrowed);
+        INPUT_OWNED.set(self.input_owned);
+        FLATS.set(self.flats);
+        VARIANTS.set(self.variants);
+        MEMBERS.set(self.members);
+        self.walk_plans.put();
+        self.ref_slots.put();
+    }
+}
+
+thread_local! {
+    /// The scope [`cached_for_run`] keeps on this thread between the
+    /// bodies of one run, with the run's key.
+    static RUN_SCOPE: std::cell::RefCell<Option<(u64, Scope)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `body` with the layout cache in place: a link's, when `body` runs
+/// inside one, else the cache of run `run` on this thread, which every
+/// body of that run on this thread shares (`Collect`). A type's layout is
+/// fixed for a run, as for a link: the run's types live in one pool, and
+/// what the program says of them does not change during it. The key is
+/// unique per run, so a body of another run never reads this one's
+/// layouts: a thread keeps one run's cache, which the next run's first
+/// body replaces. A panic in `body` drops the cache.
+pub fn cached_for_run<R>(run: u64, body: impl FnOnce() -> R) -> R {
+    struct Keep {
+        run: u64,
+        outer: Option<Scope>,
+    }
+    impl Drop for Keep {
+        fn drop(&mut self) {
+            let ours = Scope::take();
+            if let Some(outer) = self.outer.take() {
+                outer.put();
+            }
+            if !std::thread::panicking() {
+                RUN_SCOPE.set(Some((self.run, ours)));
+            }
+        }
+    }
+    if MEMS.with(|m| m.borrow().is_some()) {
+        return body();
+    }
+    let ours = match RUN_SCOPE.take() {
+        Some((key, scope)) if key == run => scope,
+        _ => Scope::fresh(),
+    };
+    let _keep = Keep {
+        run,
+        outer: Some(Scope::take()),
+    };
+    ours.put();
+    body()
 }
 
 /// [`by_parts`] over `memo`'s map when a link has one in place, else over
@@ -2455,6 +2565,47 @@ mod tests {
         });
     }
 
+    // #2030: outside a link, the bodies of one run on a thread share one
+    // cache; another run's key starts a fresh one, and a panic drops it.
+    #[test]
+    fn a_run_cache_is_shared_by_its_bodies_and_by_no_other_run() {
+        let builds = std::cell::Cell::new(0);
+        let query = |run| {
+            cached_for_run(run, || {
+                cached_variants(Ty::STRING, || {
+                    builds.set(builds.get() + 1);
+                    Some(vec![vec![Ty::VOID]])
+                })
+            })
+        };
+        let first = query(1);
+        let second = query(1);
+        assert!(matches!((&first, &second), (Some(a), Some(b)) if std::rc::Rc::ptr_eq(a, b)));
+        assert_eq!(builds.get(), 1, "one build for the run's two bodies");
+        assert!(
+            MEMS.with(|m| m.borrow().is_none()),
+            "no cache in place between bodies"
+        );
+        query(2);
+        assert_eq!(builds.get(), 2, "another run builds its own");
+        query(1);
+        assert_eq!(
+            builds.get(),
+            3,
+            "the thread kept run 2's cache, not run 1's"
+        );
+        let panicked = catch_unwind(AssertUnwindSafe(|| {
+            cached_for_run(1, || panic!("caught compiler panic"));
+        }));
+        assert!(panicked.is_err());
+        assert!(
+            MEMS.with(|m| m.borrow().is_none()),
+            "the panic leaves no cache in place"
+        );
+        query(1);
+        assert_eq!(builds.get(), 4, "a panic drops the run's cache");
+    }
+
     #[test]
     fn nested_variant_cache_restores_outer_state_on_return_and_unwind() {
         cached(|| {
@@ -2464,7 +2615,8 @@ mod tests {
                     cached(|| {
                         let inner = cached_variants(Ty::STRING, || Some(vec![vec![Ty::STRING]]));
                         assert_eq!(inner.as_deref(), Some(&vec![vec![Ty::STRING]]));
-                        let shared = cached_here(|| cached_variants(Ty::STRING, || None));
+                        let shared =
+                            cached_for_run(u64::MAX, || cached_variants(Ty::STRING, || None));
                         assert!(
                             matches!((&inner, &shared), (Some(a), Some(b)) if std::rc::Rc::ptr_eq(a, b))
                         );
@@ -2591,7 +2743,7 @@ mod tests {
         }));
         assert!(result.is_err());
 
-        let after = cached_here(|| tuple_mem(&later, later_ty)).expect("later layout");
+        let after = cached(|| tuple_mem(&later, later_ty)).expect("later layout");
         assert_eq!(after, clean);
     }
     fn i32m() -> Mem {

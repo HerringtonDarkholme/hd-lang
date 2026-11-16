@@ -106,6 +106,13 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
     n: 100,
   },
   "struct-chain": { construct: "structs holding the next by value", builds: false },
+  // Its build line is added by #2031 (the emitted code for a struct held
+  // by value grows with its leaves); #2030 made its layouts linear.
+  "struct-chain-values": {
+    construct: "structs holding the next by value, each built and read by its own functions",
+    n: 100,
+    builds: false,
+  },
   modules: {
     construct: "modules and `use`",
     files: (k) => {

@@ -2949,6 +2949,53 @@ fn same_name_trait_methods_ask_the_traits_with_rows_for_the_receiver() {
     });
 }
 
+/// `n` structs, each holding the one before by value, each with a
+/// constructor and a getter that reads the part before: #2030's shape.
+fn by_value_struct_chain(n: usize) -> String {
+    let mut s = String::from(
+        "struct T0:\n    v: i32\n\nfn mk0() -> T0: T0 { v: +1 }\nfn get0(t: T0) -> i32: t.v\n",
+    );
+    for i in 1..n {
+        let p = i - 1;
+        let _ = write!(
+            s,
+            "\nstruct T{i}:\n    inner: T{p}\n    v: i32\n\nfn mk{i}() -> T{i}: T{i} {{ inner: mk{p}(), v: +{i} }}\nfn get{i}(t: T{i}) -> i32: get{p}(t.inner) * 3 + 1\n"
+        );
+    }
+    let last = n - 1;
+    let _ = write!(
+        s,
+        "\npub fn main() -> void $ Console:\n    println(\"${{get{last}(mk{last}())}}\")\n"
+    );
+    s
+}
+
+// Driver and wasm: #2030, outside a link the ownership passes share one
+// layout cache per run on each thread, so each type of the chain is laid
+// out from its parts once per run: each body made a cache of its own and
+// laid out every part of the chain it touched again.
+#[test]
+fn a_by_value_struct_chain_is_laid_out_once_per_run() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |n: usize| {
+            let (out, work) =
+                hd_wasm::work::count_layout_parts(|| compile(&by_value_struct_chain(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (build(100), build(1_000));
+        // Per struct: its layout and walks from its parts, once per
+        // query kind, in Collect and in the link.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "layout parts for 100 and 1,000 structs: {small} and {large}"
+        );
+    });
+}
+
 /// One struct implementing `n` traits, each declaring its own method,
 /// and each method called once: #2029's shape.
 fn struct_of_many_traits(n: usize) -> String {

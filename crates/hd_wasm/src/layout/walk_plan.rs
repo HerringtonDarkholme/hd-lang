@@ -345,6 +345,22 @@ pub(super) fn cached<R>(f: impl FnOnce() -> R) -> R {
     let _reset = Reset(ACTIVE.replace(Some(Scope::default())));
     f()
 }
+/// A walk plan cache scope taken off its thread, to put back later
+/// ([`super::cached_for_run`]).
+pub(super) struct Saved(Option<Scope>);
+
+impl Saved {
+    pub(super) fn take() -> Self {
+        Self(ACTIVE.take())
+    }
+    pub(super) fn fresh() -> Self {
+        Self(Some(Scope::default()))
+    }
+    pub(super) fn put(self) {
+        ACTIVE.set(self.0);
+    }
+}
+
 pub(super) fn cached_here<R>(f: impl FnOnce() -> R) -> R {
     if ACTIVE.with_borrow(Option::is_some) {
         f()

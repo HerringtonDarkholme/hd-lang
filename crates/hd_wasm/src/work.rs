@@ -14,6 +14,7 @@ thread_local! {
     static STATIC_LOOKS: Cell<Option<u64>> = const { Cell::new(None) };
     static LIVENESS: Cell<Option<u64>> = const { Cell::new(None) };
     static ZERO_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
+    static LAYOUT_PARTS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -102,6 +103,17 @@ pub fn count_zero_facts<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn zero_facts(n: usize) {
     add(&ZERO_FACTS, n);
+}
+
+/// Counts the types the layout queries compute from their parts on this
+/// thread: one per type a [`crate::layout`] walk (`by_parts`) answers,
+/// which a cache in place answers once per scope.
+pub fn count_layout_parts<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&LAYOUT_PARTS, run)
+}
+
+pub(crate) fn layout_parts(n: usize) {
+    add(&LAYOUT_PARTS, n);
 }
 
 fn count<R>(

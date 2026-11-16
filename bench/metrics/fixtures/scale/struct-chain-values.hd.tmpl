@@ -1,0 +1,18 @@
+{{! A chain of structs, each holding the next by value, each with a constructor and a getter that reads the next (#2030). }}
+{{#each items}}
+struct C{{i}}:
+    a: i32
+    next: C{{next}}
+
+fn mk{{i}}() -> C{{i}}: C{{i}} { a: +1, next: mk{{next}}() }
+fn get{{i}}(c: C{{i}}) -> i32: get{{next}}(c.next) * 3 + 1
+
+{{/each}}
+struct C{{last}}:
+    a: i32
+
+fn mk{{last}}() -> C{{last}}: C{{last}} { a: +1 }
+fn get{{last}}(c: C{{last}}) -> i32: c.a
+
+pub fn main() -> void $ Console:
+    println("${get0000(mk0000())}")

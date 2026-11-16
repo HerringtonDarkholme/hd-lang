@@ -1719,8 +1719,9 @@ impl Env<'_> {
         let returns = summarize
             .then(|| hd_tir::own::returned_param(&body))
             .flatten();
-        // Each type's layout once per body, not once per query of it.
-        let (refused, summary) = hd_wasm::with_layout_cache(|| {
+        // Each type's layout once per run on this thread, not once per
+        // body or per query of it.
+        let (refused, summary) = hd_wasm::with_layout_cache(self.run.layout_key, || {
             let refused = hd_tir::own::run(&mut body, self, &mut scratch);
             let summary = (summarize && refused.is_ok())
                 .then(|| hd_tir::own::summary(&body, self, &scratch, returns))
@@ -2895,7 +2896,7 @@ impl Env<'_> {
             body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
         }
         self.root_across_pure_calls(&mut body);
-        let kept = hd_wasm::with_layout_cache(|| {
+        let kept = hd_wasm::with_layout_cache(self.run.layout_key, || {
             hd_tir::own::run(&mut body, self, &mut scratch).ok()?;
             hd_tir::own::summary(&body, self, &scratch, None).map(|s| s.kept)
         });

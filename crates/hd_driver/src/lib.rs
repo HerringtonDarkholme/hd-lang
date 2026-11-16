@@ -1610,6 +1610,10 @@ struct Run<'a> {
     verify_own: bool,
     /// Checked-body verification policy captured for this run.
     verify_tir: bool,
+    /// The run's key for the layout cache its bodies share on each
+    /// thread outside a link (`hd_wasm::with_layout_cache`): unique per
+    /// run in the process, so no body reads another run's layouts.
+    layout_key: u64,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a local reference or a counted owning reference.
@@ -2660,6 +2664,10 @@ fn build_packages_inner(
             packages.checked,
             packages.verify_tir,
         ),
+        layout_key: {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        },
         own_types: Mutex::new(HashMap::default()),
         own_place_parts: Mutex::new(HashMap::default()),
         own_place_substs: Mutex::new(HashMap::default()),
