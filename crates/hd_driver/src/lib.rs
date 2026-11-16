@@ -6786,12 +6786,20 @@ impl Run<'_> {
         // `grammar.tests.once`: a file's second and later `tests:` blocks.
         // `module.test.no-tests-block`: no block of a test module or an
         // integration test. Each offending block gets one diagnostic.
+        // An integration test module is any module under the test root
+        // (`module.test.integration`), at any depth; a test module is a
+        // `_test` file beside the code it tests.
+        let integration = hd_project::Root::of(&self.table.files[m]).0 == hd_project::Root::Test;
         for (i, block) in blocks.iter().enumerate() {
             if module.role == Role::Test {
                 diags.error(
                     Code::MisplacedTestsBlock,
                     *block,
-                    "a test module holds its test cases at top level; it has no `tests:` block",
+                    if integration {
+                        "an integration test module holds its test cases at top level; it has no `tests:` block"
+                    } else {
+                        "a test module holds its test cases at top level; it has no `tests:` block"
+                    },
                 );
             } else if i > 0 {
                 diags.error(

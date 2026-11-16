@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @main: src/main.hd
+# module.test.integration, module.test.no-tests-block: a module nested
+# below the test root is an integration test module too, so its block is
+# misplaced.
+pub fn double(n: i32) -> i32: n * 2
+# @file: tests/helpers/shared.hd
+tests:
+    it("first"):
+        pass
