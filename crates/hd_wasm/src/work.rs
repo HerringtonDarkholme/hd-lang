@@ -132,8 +132,10 @@ pub(crate) fn init_probes(n: usize) {
 
 /// Counts the work on moves out of parameters kept by address on this
 /// thread: each `Read move` the scan notes and each one emitted, one
-/// probe each, and each release plan step and moved path a drop's level
-/// visits ([`crate::emit`]'s `mem_moves`, `mem_read` and `mem_release`).
+/// probe each, each release plan step and moved path a drop's level
+/// visits, and each move flag a frame local's store clears
+/// ([`crate::emit`]'s `mem_moves`, `mem_read`, `mem_release` and
+/// `mem_arrive`).
 pub fn count_moved_paths<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&MOVED_PATHS, run)
 }

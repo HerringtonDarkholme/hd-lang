@@ -1510,6 +1510,9 @@ struct Em<'i, 'a, 'm> {
     /// per `Read move`.
     mem_move_flags: HashMap<(usize, Box<[u32]>), u32>,
     mem_dead: HashMap<usize, u32>,
+    /// Each counted frame local's live flag: set by its store, cleared
+    /// by its drop ([`Em::frame_locals`]).
+    mem_live: HashMap<usize, u32>,
     /// The frame block on the shadow stack holding the locals kept in
     /// memory: its address local and size. Reserved at entry and given
     /// back at every exit ([`indirect::stack_frame`]).
@@ -1770,6 +1773,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             mem_moved: HashMap::default(),
             mem_move_flags: HashMap::default(),
             mem_dead: HashMap::default(),
+            mem_live: HashMap::default(),
             stack_frame: None,
             frame_copies: Vec::new(),
             forward: hd_base::HashSet::default(),
@@ -2170,9 +2174,11 @@ impl Em<'_, '_, '_> {
             return Ok(ls.clone());
         }
         // ruled out: `indirect::params` keeps a parameter by address only
-        // when its every use is a field read, and `Em::frame_locals` a
-        // local only when it is stored whole once and read; `Em::mem_read`
-        // and `Em::mem_store` emit those without its locals.
+        // when its every use is a field read or its whole drop, and
+        // `Em::frame_locals` a local only when it is stored whole once,
+        // read by fields or whole and, a counted one, dropped whole;
+        // `Em::mem_read`, `Em::mem_store` and `Em::mem_release` emit those
+        // without its locals.
         assert!(
             !self.mem_locals.contains_key(&l),
             "a local kept in memory read as locals"

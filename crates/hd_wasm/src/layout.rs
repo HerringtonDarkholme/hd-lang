@@ -360,13 +360,6 @@ pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
 /// (owner, #2031).
 pub const INDIRECT: usize = 16;
 
-/// The layout of `t` when it passes by address ([`INDIRECT`]): a struct or
-/// tuple of more than [`INDIRECT`] values that holds no counted reference
-/// and nothing to drop, so its bits are the whole value.
-pub fn indirect(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Option<Mem>> {
-    Ok(by_address(pool, env, t)?.filter(|_| walk(pool, env, t).is_none()))
-}
-
 /// The layout of `t` when a parameter of it may pass by address (#2031,
 /// step 4): a struct or tuple of more than [`INDIRECT`] values with
 /// nothing to drop, which may hold counted references. Its counts move

@@ -1,0 +1,60 @@
+# @dump: wat
+# A local over 16 values holding a string stays in a slot of the frame
+# block when it is stored once and read only by fields (#2031, step 4b).
+# `moved`'s store (`mk`'s result written in place) sets the local's live
+# flag and clears its move flag; `keep(t.tag)` sets the flag; the exit
+# releases `t.inner` through `Big`'s release witness and `t.tag` inline
+# only while the flag is clear, all under the live flag. `early` returns
+# before the store with the flag clear, so its exit releases nothing.
+# `looped` stores once per round: each store sets the live flag again.
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    f16: i32
+    name: string
+
+struct Outer:
+    inner: Big
+    v: i32
+    tag: string
+
+fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "n${x}" }
+
+fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x), v: x * 2, tag: "t${x}" }
+
+fn keep(s: string) -> string: s
+
+fn moved(x: i32) -> i32:
+    let t = mk_outer(x)
+    let s = keep(t.tag)
+    t.v + i32(s.len())
+
+fn early(x: i32) -> i32:
+    if x > 3:
+        return 0
+    let t = mk(x)
+    t.f1 + i32(t.name.len())
+
+fn looped(n: i32) -> i32:
+    let acc = 0
+    for k in 0..n:
+        let t = mk(k)
+        acc += t.f2
+    acc
+
+pub fn main() -> void $ Console:
+    println("${moved(2)} ${early(1)} ${looped(3)}")

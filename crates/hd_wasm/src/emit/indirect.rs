@@ -2,8 +2,8 @@
 //! rustc's `PassMode::Indirect` with `rustc_codegen_ssa`'s
 //! `OperandValue::Ref`, and its `sret` pointer for a result).
 //!
-//! A struct or tuple of more than [`crate::layout::INDIRECT`] values that
-//! counts nothing ([`crate::layout::indirect`]) passes to an instance's
+//! A struct or tuple of more than [`crate::layout::INDIRECT`] values with
+//! nothing to drop ([`crate::layout::by_address`]) passes to an instance's
 //! *worker*, `Sym::Part(key, Part::Indirect)`, as one `i32`: the address of
 //! its bits in the shadow stack (memory [`STACK`]). The worker keeps the
 //! parameter there, as rustc keeps an indirect argument as its place: a
@@ -54,8 +54,10 @@
 //! runs its type's release witness from the address
 //! ([`crate::layout::ReleasePlan`], Swift's value-witness `destroy`),
 //! skipping a field a move took out under that field's flag (rustc's drop
-//! elaboration, [`Em::mem_moves`], [`Em::mem_release`]). Results and
-//! frame locals of such a type still take the leaf form. Cost: [`params`] visits the
+//! elaboration, [`Em::mem_moves`], [`Em::mem_release`]). A result of such
+//! a type is written into its caller's block, and a frame local of one
+//! kept in memory read only by fields and released from its slot while its
+//! live flag is set (step 4b). Cost: [`params`] visits the
 //! callee's body once, memoized per instance; [`Em::forwarded`] and
 //! [`Em::kept_results`] visit only the sub-body being emitted, and the
 //! value use counts they and [`Em::place_result`] read are counted once
@@ -70,7 +72,7 @@ use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
 
 use super::shape::u32_of;
 use super::{Em, Input, param_locals};
-use crate::layout::{Mem, ReleasePlan, ReleaseStep, by_address, indirect};
+use crate::layout::{Mem, ReleasePlan, ReleaseStep, by_address};
 use crate::module::{Func, Global, Module, Part, STACK, Sym, Val};
 use crate::op::Op as I;
 
@@ -119,7 +121,7 @@ fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
 }
 
 /// The result's layout when instance `id`, a plain function, returns a
-/// value [`indirect`] passes by address. A facts, handle or init body
+/// value [`by_address`] keeps. A facts, handle or init body
 /// keeps its result in a cell, and a coinductive flag method returns
 /// its flag early: those keep the leaf result.
 fn compute_ret(input: &Input<'_>, b: &hd_tir::ir::Body, id: InstId) -> Option<Mem> {
@@ -1008,8 +1010,15 @@ impl Em<'_, '_, '_> {
     /// Plans the locals this function keeps in memory (step 3 of #2031,
     /// rustc's `LocalRef::Place` for a local whose layout is not an
     /// immediate): a local, not a parameter, a capture, a cell or a slot,
-    /// of a type [`indirect`] passes by address, that the body stores
-    /// whole once and otherwise only reads, whole or by fields. Each gets
+    /// of a type [`by_address`] keeps, that the body stores
+    /// whole once and otherwise only reads, whole or by fields. A local
+    /// of a counted type [`by_address`] keeps (#2031 step 4b) is kept as
+    /// a counted parameter is: read only by fields, a move only through
+    /// fields passed by address, dropped whole; its one store writes its
+    /// value in place or moves it in from memory, sets its live flag and
+    /// clears its move flags, and its `Drop` or exit release runs its
+    /// type's release witness while the flag is set ([`Em::mem_release`]).
+    /// Each gets
     /// an 8-byte aligned slot in the frame block ([`stack_frame`]); its
     /// stored value, when that store is its one use, is planned in place
     /// there ([`Em::plan_in_place`]). One stored value means no read of
@@ -1025,6 +1034,14 @@ impl Em<'_, '_, '_> {
         // stored, or none once a use other than a read by fields or whole
         // rules it out.
         let mut seen: HashMap<usize, Option<(u32, u32)>> = HashMap::default();
+        // Per local, what keeping a counted value in memory depends on: a
+        // whole read rules it out (a copy needs counts of its own, a move
+        // a dead slot), as does a move not through fields passed by
+        // address (`far`, below); a whole drop rules out only a local
+        // that counts nothing.
+        let mut whole: HashSet<usize> = HashSet::default();
+        let mut moves: Vec<(usize, u32)> = Vec::new();
+        let mut dropped: HashSet<usize> = HashSet::default();
         for &i in self.rows.clone().iter() {
             let tag = b.tags[i];
             if !matches!(
@@ -1052,14 +1069,37 @@ impl Em<'_, '_, '_> {
             };
             let fields = p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
             match tag {
-                Tag::Read if fields => {}
+                Tag::Read if fields => {
+                    if p.proj.is_empty() {
+                        whole.insert(l.idx());
+                    } else if b.data[i][1] == ReadMode::Move as u32 {
+                        moves.push((l.idx(), u32_of(i)));
+                    }
+                }
                 Tag::Store if p.proj.is_empty() && b.data[i][1] != NONE => {
                     *stores += 1;
                     *value = b.data[i][1];
                 }
+                Tag::Drop if p.proj.is_empty() => {
+                    dropped.insert(l.idx());
+                }
                 _ => *entry = None,
             }
         }
+        // A move out of a counted local is skipped by its drop, which
+        // elaborates only fields passed by address (as `compute_params`).
+        let mut far: HashSet<usize> = HashSet::default();
+        for (l, i) in moves {
+            if far.contains(&l) || !self.tracked(self.ty(i)) {
+                continue;
+            }
+            let ty = self.sub(b.local_ty[l]);
+            let p = b.decode_place(b.data[i as usize][0]);
+            if !p.is_some_and(|p| moves_through_addresses(self.pool(), self.env(), ty, &p.proj)) {
+                far.insert(l);
+            }
+        }
+        let uses = self.slot_uses();
         let mut kept: Vec<(usize, Mem, u32)> = Vec::new();
         for (l, got) in seen {
             let Some((1, v)) = got else {
@@ -1089,16 +1129,31 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let ty = self.sub(b.local_ty[l]);
-            if let Ok(Some(m)) = indirect(self.pool(), self.env(), ty) {
-                kept.push((l, m, v));
+            let Ok(Some(m)) = by_address(self.pool(), self.env(), ty) else {
+                continue;
+            };
+            let counted = self.tracked(ty);
+            // A counted value lands with its counts: written in place, or
+            // moved in from memory, at its one use; a copy would need
+            // counts of its own.
+            let lands_counted = uses.get(&v) == Some(&1)
+                && (b.tags[v as usize] != Tag::Read
+                    || b.data[v as usize][1] == ReadMode::Move as u32);
+            let ruled_out = if counted {
+                whole.contains(&l) || far.contains(&l) || !lands_counted
+            } else {
+                dropped.contains(&l)
+            };
+            if ruled_out {
+                continue;
             }
+            kept.push((l, m, v));
         }
         if kept.is_empty() {
             return Ok(());
         }
         kept.sort_stable_by_key(|k| k.0);
         let base = self.f.local(Val::I32);
-        let uses = self.slot_uses();
         let mut size = 0u32;
         for (l, mem, v) in kept {
             // A read copies only from memory: an address parameter or a
@@ -1109,6 +1164,10 @@ impl Em<'_, '_, '_> {
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
             self.mem_locals.insert(l, (base, off, Rc::new(mem)));
+            if self.tracked(self.sub(b.local_ty[l])) {
+                let live = self.f.local(Val::I32);
+                self.mem_live.insert(l, live);
+            }
             if Ref(v).as_inst().is_some() && uses.get(&v) == Some(&1) {
                 self.frame_copies.push(v);
                 self.plan_in_place(v, base, off, &uses)?;
@@ -1145,6 +1204,7 @@ impl Em<'_, '_, '_> {
         let Some((base, off, mem)) = self.mem_locals.get(&l.idx()).cloned() else {
             return Ok(false);
         };
+        self.mem_arrive(l.idx());
         // ruled out: a diverging value reaches no `Store` (tried `let a:
         // Big = panic(..)` and a match whose other arm panics; TIR ends the
         // path before the store), so `v` has its values or its address.
@@ -1186,7 +1246,8 @@ impl Em<'_, '_, '_> {
             .keys()
             .copied()
             .filter(|l| {
-                self.parameter_positions.contains_key(l) && self.tracked(self.sub(b.local_ty[*l]))
+                (self.parameter_positions.contains_key(l) || self.mem_live.contains_key(l))
+                    && self.tracked(self.sub(b.local_ty[*l]))
             })
             .collect();
         if counted.is_empty() {
@@ -1233,7 +1294,8 @@ impl Em<'_, '_, '_> {
         let Some((at, off, _)) = self.mem_locals.get(&l).cloned() else {
             return Ok(false);
         };
-        if !self.parameter_positions.contains_key(&l) {
+        let live = self.mem_live.get(&l).copied();
+        if live.is_none() && !self.parameter_positions.contains_key(&l) {
             return Ok(false);
         }
         let ty = self.sub(self.b.local_ty[l]);
@@ -1242,15 +1304,23 @@ impl Em<'_, '_, '_> {
         let Some(plan) = plan else {
             return Ok(true);
         };
-        let dead = if let Some(&d) = self.mem_dead.get(&l) {
-            d
+        // A parameter arrives live and is dead once dropped; a frame
+        // local is live from its store ([`Em::mem_arrive`]) to its drop.
+        let flag = if let Some(live) = live {
+            self.f.get(live);
+            live
         } else {
-            let d = self.f.local(Val::I32);
-            self.mem_dead.insert(l, d);
-            d
+            let dead = if let Some(&d) = self.mem_dead.get(&l) {
+                d
+            } else {
+                let d = self.f.local(Val::I32);
+                self.mem_dead.insert(l, d);
+                d
+            };
+            self.f.get(dead);
+            self.f.op(I::I32Eqz);
+            dead
         };
-        self.f.get(dead);
-        self.f.op(I::I32Eqz);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));
         let moved = self.mem_moved.get(&l).cloned().unwrap_or_else(|| [].into());
         let mut todo = vec![Task::Level(off, plan, 0, (0..moved.len()).collect())];
@@ -1308,9 +1378,27 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-        self.f.i32(1);
-        self.f.set(dead);
+        self.f.i32(i32::from(live.is_none()));
+        self.f.set(flag);
         self.f.op(I::End);
         Ok(true)
+    }
+
+    /// The store of counted frame local `l` ([`Em::frame_locals`]): its
+    /// value is in its slot, so it is live and no field is moved out. A
+    /// store in a loop runs again after the last round's drop.
+    /// O(its moved paths).
+    fn mem_arrive(&mut self, l: usize) {
+        let Some(&live) = self.mem_live.get(&l) else {
+            return;
+        };
+        self.f.i32(1);
+        self.f.set(live);
+        let moved = self.mem_moved.get(&l).cloned().unwrap_or_else(|| [].into());
+        crate::work::moved_paths(moved.len());
+        for &(_, flag) in moved.iter() {
+            self.f.i32(0);
+            self.f.set(flag);
+        }
     }
 }
