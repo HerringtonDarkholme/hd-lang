@@ -6,6 +6,7 @@ use std::cell::Cell;
 
 thread_local! {
     static ROOT_LOOKUPS: Cell<Option<u64>> = const { Cell::new(None) };
+    static INIT_ORDER_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts the collect step's root lookups on this thread: each extra root
@@ -24,6 +25,27 @@ pub(crate) fn root_lookup() {
     ROOT_LOOKUPS.with(|c| {
         if let Some(n) = c.get() {
             c.set(Some(n + 1));
+        }
+    });
+}
+
+/// Counts the steps of the init order on this thread: each module, cycle
+/// and cycle edge the global order visits, and each cycle and edge a
+/// root's restriction of it visits.
+pub fn count_init_order_steps<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = INIT_ORDER_STEPS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = INIT_ORDER_STEPS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` steps of the init order.
+pub(crate) fn init_order_steps(n: usize) {
+    let n = u64::try_from(n).unwrap_or(u64::MAX);
+    hd_base::work::add(hd_base::work::Counter::InitOrderSteps, n);
+    INIT_ORDER_STEPS.with(|c| {
+        if let Some(k) = c.get() {
+            c.set(Some(k.saturating_add(n)));
         }
     });
 }

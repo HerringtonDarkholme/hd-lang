@@ -4222,6 +4222,7 @@ lang/modules/public-uses-and-visibility/pub-use-private-declaration.hd	type	reje
 lang/names/function-and-closure-scopes/sibling-method-generic-scopes.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.generic.params.visible
 lang/modules/public-uses-and-visibility/sibling-module-enum-and-trait.hd	runtime	accept	lang/10-modules.md#r-module.vis.variants
 lang/modules/module-initialization/init-ready-groups-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.ready-order
+lang/modules/module-initialization/init-test-uses-join-the-ready-order.hd	runtime	accept	lang/10-modules.md#r-module.init.tests
 lang/modules/module-initialization/initialization-implicit-a-derived-eq-reads-an-earlier-binding-through-a-field-impl.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
 std/iter/iterator-factory/initialization-implicit-a-for-loop-reaches-a-binding-its-iter-reads-after-it-is-set.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.fn-mut-noncopy
 lang/modules/module-initialization/initialization-implicit-a-question-mark-reads-an-earlier-binding-through-from.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit

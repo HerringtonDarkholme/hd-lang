@@ -1,0 +1,22 @@
+# test: the modules a `tests:` block uses initialize in the one ready order with the module's own uses, not after them
+# Spec 10 Entry Behavior: module.init.tests; Initialization Order: module.init.cycle.ready-order.
+# The tree's src/alpha.hd and src/beta.hd each record their name at top level
+# through src/log/mod.hd. Only the `tests:` block uses alpha, yet pkg.alpha
+# orders before pkg.beta and this module.
+# fixture-package-tree: init-order/src/report.hd
+use pkg.beta.{beta}
+use pkg.log.{record, recorded}
+
+record("report")
+
+tests:
+    use pkg.alpha.{alpha}
+    use std.testing.assert_equal
+
+    it("alpha initializes first"):
+        assert_equal(
+            recorded(),
+            ["alpha", "beta", "report"],
+            reason="pkg.alpha orders before pkg.beta and pkg.report",
+        )
+        assert_equal("${alpha()}${beta()}", "ab", reason="both modules are in use")

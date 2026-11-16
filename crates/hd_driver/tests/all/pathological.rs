@@ -4467,3 +4467,64 @@ fn collect_roots_look_up_each_root_once() {
         );
     });
 }
+
+// Driver: #2063, each root module rebuilt the whole use graph's edges and
+// components and ordered them again, so k test modules cost k times the
+// program there. The global init order is now built once per collect and
+// each root's order is its restriction.
+#[test]
+fn the_init_order_is_built_once_per_collect() {
+    on_test_stack(|| {
+        let goal = Goal::Tests {
+            module: None,
+            filter: None,
+        };
+        let run = |n: usize| {
+            let src = init_module_chain(n);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let (out, work) =
+                hd_driver::work::count_init_order_steps(|| build(&host, "app", &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            assert_eq!(out.tests.len(), n, "{n}: one case per test module");
+            work
+        };
+        let (small, large) = (run(20), run(200));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "init order steps for 20 and 200 test modules: {small} and {large}"
+        );
+    });
+}
+
+/// #2063's chain: `n` modules, each using the one before it and each with
+/// a top-level binding, and a test module for each.
+fn init_module_chain(n: usize) -> MemorySources {
+    let mut src = MemorySources::default();
+    src.insert("src/m0.hd", "base0 := +1\n\npub fn step0() -> i32: base0\n");
+    for i in 1..n {
+        let p = i - 1;
+        src.insert(
+            &format!("src/m{i}.hd"),
+            &format!(
+                "use pkg.m{p}.step{p}\n\nbase{i} := step{p}()\n\npub fn step{i}() -> i32: base{i} + 1\n"
+            ),
+        );
+    }
+    for i in 0..n {
+        src.insert(
+            &format!("src/m{i}_test.hd"),
+            &format!(
+                "use pkg.m{i}.step{i}\nuse std.testing.assert_equal\n\nit(\"chain {i}\"):\n    assert_equal(step{i}(), {}, reason=\"counts up\")\n",
+                i + 1
+            ),
+        );
+    }
+    src
+}

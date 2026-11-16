@@ -9343,10 +9343,12 @@ impl Run<'_> {
         // run (`module.init.cycle.step`).
         for cycles in self.init_runs.iter().filter_map(OnceLock::get) {
             for runs in cycles {
+                let per_module = runs_per_module(runs);
                 for r in runs {
                     let init =
                         hd_check::default_body_def(&names, names.item(&r.module, "init"), "init");
-                    let def = self.run_def(runs, r, &|_| init);
+                    let alone = per_module.get(r.module.as_str()) == Some(&1);
+                    let def = self.run_def(r, alone, &|_| init);
                     if def == init {
                         continue;
                     }
@@ -9950,18 +9952,21 @@ impl Run<'_> {
         // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
         // runs its module's inits first, in every root's group.
         let runtime = hd_wasm::runtime_module(self.checked());
-        let runtime_inits: Vec<DefId> = match self.root_init_order(runtime, &init_of, &has_init) {
-            Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
-            Err(e) => {
-                self.stage::<()>(Stage::Collect, Err(e));
-                return;
-            }
-        };
+        let graph = self.init_graph();
+        let mut query = InitQuery::new(&graph);
+        let runtime_inits: Vec<DefId> =
+            match self.root_init_order(&graph, &mut query, runtime, &init_of, &has_init) {
+                Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
+                Err(e) => {
+                    self.stage::<()>(Stage::Collect, Err(e));
+                    return;
+                }
+            };
         all_inits.extend(&runtime_inits);
         seen_inits.extend(runtime_inits.iter().copied());
         let runtime_set: HashSet<DefId> = runtime_inits.iter().copied().collect();
         for m in &root_modules {
-            let defs = match self.root_init_order(m, &init_of, &has_init) {
+            let defs = match self.root_init_order(&graph, &mut query, m, &init_of, &has_init) {
                 Ok(o) => o,
                 Err(e) => {
                     self.stage::<()>(Stage::Collect, Err(e));
@@ -10291,18 +10296,25 @@ impl Run<'_> {
         }
         let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
         let has_init = |m: &str| self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some();
+        // The runtime's inits first, then the module's; a set drops the
+        // ones both reach.
+        let graph = self.init_graph();
+        let mut query = InitQuery::new(&graph);
         let mut inits = Vec::new();
+        let mut seen: HashSet<DefId> = HashSet::default();
         for m in [hd_wasm::runtime_module(self.checked()), module] {
-            let Some(order) =
-                self.stage(Stage::Collect, self.root_init_order(m, &init_of, &has_init))
-            else {
+            let Some(order) = self.stage(
+                Stage::Collect,
+                self.root_init_order(&graph, &mut query, m, &init_of, &has_init),
+            ) else {
                 return;
             };
-            for (d, _) in order {
-                if !inits.contains(&d) {
-                    inits.push(d);
-                }
-            }
+            inits.extend(
+                order
+                    .into_iter()
+                    .map(|(d, _)| d)
+                    .filter(|d| seen.insert(*d)),
+            );
         }
         let result = hd_mono::collect_fixtures(
             &self.pool,
@@ -10615,140 +10627,213 @@ impl Run<'_> {
         Ok(out)
     }
 
-    /// The init bodies a program root module `entry` reaches
-    /// ([`Self::group_init_order`]). A test run also initializes the
-    /// modules its `tests:` block uses (`module.init.tests`), each after
-    /// the bodies before it, since those uses make no edge of the use
-    /// graph (`module.cycle.test-code`).
-    fn root_init_order(
-        &self,
-        entry: &str,
-        init_of: &dyn Fn(&str) -> DefId,
-        has_init: &dyn Fn(&str) -> bool,
-    ) -> hd_base::StageResult<Vec<(DefId, &str)>> {
-        let mut defs = self.group_init_order(entry, init_of, has_init)?;
-        let Some(m) = self.table.module(entry).map(ModuleId::idx) else {
-            return Ok(defs);
-        };
-        if !matches!(self.goal, Goal::Tests { .. }) || self.role(m) != "test" {
-            return Ok(defs);
-        }
-        for u in &self.skim_of(m).test_uses {
-            let Some(t) = self.table.module_of_use(u) else {
-                continue;
-            };
-            let path = self.table.modules[t.idx()].path.as_str();
-            for (d, module) in self.group_init_order(path, init_of, has_init)? {
-                if !defs.iter().any(|(e, _)| *e == d) {
-                    defs.push((d, module));
-                }
-            }
-        }
-        Ok(defs)
-    }
-
-    /// The init bodies the entry module reaches, in initialization order
-    /// (spec/lang/10-modules.md, "Initialization Order"): each module
-    /// cycle (a strongly connected component of the use graph) after the
-    /// cycles it uses (`module.init.cycle.once`); among ready cycles, the
-    /// one with the least module identity first
-    /// (`module.init.cycle.ready-order`). Inside a cycle whose statements
-    /// sit in several modules, `InitOrder`'s runs: a module's whole init
-    /// when its statements run together, else one body per run. Each body
-    /// comes with its module's path.
-    fn group_init_order(
-        &self,
-        entry: &str,
-        init_of: &dyn Fn(&str) -> DefId,
-        has_init: &dyn Fn(&str) -> bool,
-    ) -> hd_base::StageResult<Vec<(DefId, &str)>> {
-        let Some(start) = self.table.module(entry) else {
-            return Ok(Vec::new());
-        };
+    /// The program's module cycles (`module.init.cycle`) and one global
+    /// initialization order over them, built once per collect: each cycle
+    /// after the cycles it uses (`module.init.cycle.once`), ties by the
+    /// least module identity (`module.init.cycle.ready-order`). Every
+    /// root's order is this one restricted to the cycles the root reaches:
+    /// a cycle ready in the restriction is ready in the whole graph, since
+    /// it uses only reached cycles, so the least-identity choice is the
+    /// same in both. One pass over the use graph: Tarjan's components,
+    /// then Kahn's order with a heap keyed by each cycle's least identity.
+    /// Cost: O(modules + uses) for the edges and components, plus
+    /// O(cycles log cycles + edges log edges) for the heap and the
+    /// deduplicated cycle edges.
+    fn init_graph(&self) -> InitGraph {
         let n = self.table.modules.len();
         let edges: Vec<Vec<usize>> = (0..n).map(|m| self.use_edges(m)).collect();
-        let (groups, comp) = strongly_connected(&edges, &[start.idx()]);
-        // Kahn's order over the groups: dependencies first, ties by the
-        // least module identity.
-        let mut deps: Vec<std::collections::BTreeSet<usize>> =
-            vec![std::collections::BTreeSet::new(); groups.len()];
-        for (gi, g) in groups.iter().enumerate() {
-            for &m in g {
-                for &w in &edges[m] {
-                    if comp[w] != usize::MAX && comp[w] != gi {
-                        deps[gi].insert(comp[w]);
-                    }
-                }
-            }
-        }
-        let name = |g: usize| {
-            groups[g]
-                .iter()
-                .map(|m| self.table.modules[*m].path.as_str())
-                .min()
-                .unwrap_or("")
-        };
-        // Each group's count of dependencies not yet ordered, and the
-        // groups that wait on it; the ready groups by name.
-        let mut waiting: Vec<usize> = deps.iter().map(std::collections::BTreeSet::len).collect();
-        let mut users: Vec<Vec<usize>> = vec![Vec::new(); groups.len()];
-        for (g, ds) in deps.iter().enumerate() {
-            for &d in ds {
-                users[d].push(g);
-            }
-        }
-        let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<(&str, usize)>> = (0..groups
-            .len())
-            .filter(|g| waiting[*g] == 0)
-            .map(|g| std::cmp::Reverse((name(g), g)))
+        let starts: Vec<usize> = (0..n).collect();
+        let (cycles, comp) = strongly_connected(&edges, &starts);
+        let mut steps = n + cycles.len();
+        let deps: Vec<Vec<usize>> = cycles
+            .iter()
+            .enumerate()
+            .map(|(c, ms)| {
+                let mut d: Vec<usize> = ms
+                    .iter()
+                    .flat_map(|m| &edges[*m])
+                    .map(|w| comp[*w])
+                    .filter(|x| *x != c)
+                    .collect();
+                steps += d.len();
+                d.sort_stable();
+                d.dedup();
+                d
+            })
             .collect();
-        let mut out = Vec::new();
-        while let Some(std::cmp::Reverse((_, next))) = ready.pop() {
-            for &u in &users[next] {
+        let name: Vec<&str> = cycles
+            .iter()
+            .map(|ms| {
+                ms.iter()
+                    .map(|m| self.table.modules[*m].path.as_str())
+                    .min()
+                    .unwrap_or("")
+            })
+            .collect();
+        // Each cycle's count of dependencies not yet ordered, and the
+        // cycles that wait on it; the ready cycles by least identity.
+        let mut waiting: Vec<usize> = deps.iter().map(Vec::len).collect();
+        let mut users: Vec<Vec<usize>> = vec![Vec::new(); cycles.len()];
+        for (c, ds) in deps.iter().enumerate() {
+            for &d in ds {
+                users[d].push(c);
+            }
+        }
+        let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<(&str, usize)>> = (0..cycles
+            .len())
+            .filter(|c| waiting[*c] == 0)
+            .map(|c| std::cmp::Reverse((name[c], c)))
+            .collect();
+        let mut pos = vec![0; cycles.len()];
+        let mut next_pos = 0;
+        while let Some(std::cmp::Reverse((_, c))) = ready.pop() {
+            pos[c] = next_pos;
+            next_pos += 1;
+            for &u in &users[c] {
                 waiting[u] -= 1;
                 if waiting[u] == 0 {
-                    ready.push(std::cmp::Reverse((name(u), u)));
+                    ready.push(std::cmp::Reverse((name[u], u)));
                 }
             }
-            let mut paths: Vec<&str> = groups[next]
-                .iter()
-                .map(|m| self.table.modules[*m].path.as_str())
-                .collect();
-            paths.sort_stable();
-            if paths.iter().filter(|p| has_init(p)).count() < 2 {
-                out.extend(
-                    paths
-                        .iter()
-                        .filter(|p| has_init(p))
-                        .map(|p| (init_of(p), *p)),
-                );
-                continue;
-            }
-            let folder = self.table.modules[groups[next][0]].folder;
-            let runs = self.init_runs[folder.idx()]
-                .get()
-                .and_then(|cycles| {
-                    cycles.iter().find(|c| {
-                        c.first()
-                            .is_some_and(|r| paths.contains(&r.module.as_str()))
-                    })
-                })
-                .ok_or_else(|| {
-                    NotImplemented::new(Stage::Collect, "a module cycle without its init order")
-                })?;
-            out.extend(
-                runs.iter()
-                    .map(|r| (self.run_def(runs, r, init_of), r.module.as_str())),
+        }
+        crate::work::init_order_steps(steps);
+        InitGraph {
+            comp,
+            cycles,
+            deps,
+            pos,
+        }
+    }
+
+    /// The init bodies a program root module `entry` reaches
+    /// ([`Self::reached_init_order`]). A test run also initializes the
+    /// modules its `tests:` block uses (`module.init.tests`): those uses make no edge
+    /// of the use graph (`module.cycle.test-code`), so they are further
+    /// roots, and the union of what the roots reach runs in the one ready
+    /// order (`module.init.cycle.ready-order`).
+    fn root_init_order<'a>(
+        &'a self,
+        graph: &InitGraph,
+        query: &mut InitQuery<'a>,
+        entry: &str,
+        init_of: &dyn Fn(&str) -> DefId,
+        has_init: &dyn Fn(&str) -> bool,
+    ) -> hd_base::StageResult<Vec<(DefId, &'a str)>> {
+        let Some(m) = self.table.module(entry).map(ModuleId::idx) else {
+            return Ok(Vec::new());
+        };
+        let mut roots = vec![m];
+        if matches!(self.goal, Goal::Tests { .. }) && self.role(m) == "test" {
+            roots.extend(
+                self.skim_of(m)
+                    .test_uses
+                    .iter()
+                    .filter_map(|u| self.table.module_of_use(u))
+                    .map(ModuleId::idx),
             );
+        }
+        self.reached_init_order(graph, query, &roots, init_of, has_init)
+    }
+
+    /// The init bodies the modules `roots` reach, in initialization order
+    /// (spec/lang/10-modules.md, "Initialization Order"): the global order
+    /// of [`Self::init_graph`] restricted to the cycles the roots reach.
+    /// Inside a cycle whose statements sit in several modules,
+    /// `InitOrder`'s runs: a module's whole init when its statements run
+    /// together, else one body per run. Each body comes with its module's
+    /// path. Cost: O(r log r + e) for the r cycles reached and their e
+    /// edges; each cycle's bodies are computed once per collect.
+    fn reached_init_order<'a>(
+        &'a self,
+        graph: &InitGraph,
+        query: &mut InitQuery<'a>,
+        roots: &[usize],
+        init_of: &dyn Fn(&str) -> DefId,
+        has_init: &dyn Fn(&str) -> bool,
+    ) -> hd_base::StageResult<Vec<(DefId, &'a str)>> {
+        query.now += 1;
+        let now = query.now;
+        let mut stack: Vec<usize> = Vec::new();
+        for &m in roots {
+            let c = graph.comp[m];
+            if query.mark[c] != now {
+                query.mark[c] = now;
+                stack.push(c);
+            }
+        }
+        let mut reached: Vec<usize> = Vec::new();
+        while let Some(c) = stack.pop() {
+            reached.push(c);
+            for &d in &graph.deps[c] {
+                if query.mark[d] != now {
+                    query.mark[d] = now;
+                    stack.push(d);
+                }
+            }
+        }
+        reached.sort_stable_by_key(|c| graph.pos[*c]);
+        let mut out = Vec::new();
+        for c in reached {
+            if query.bodies[c].is_none() {
+                let bodies = self.cycle_bodies(graph, query, c, init_of, has_init)?;
+                query.bodies[c] = Some(bodies);
+            }
+            if let Some(bodies) = &query.bodies[c] {
+                out.extend_from_slice(bodies);
+            }
         }
         Ok(out)
     }
 
-    /// The body that runs `r`, one of a cycle's `runs`: its module's whole
-    /// init when it is the module's one run, else the run's own body.
-    fn run_def(&self, runs: &[InitRun], r: &InitRun, init_of: &dyn Fn(&str) -> DefId) -> DefId {
+    /// The init bodies of cycle `c`, in order, each with its module's path.
+    fn cycle_bodies<'a>(
+        &'a self,
+        graph: &InitGraph,
+        query: &mut InitQuery<'a>,
+        c: usize,
+        init_of: &dyn Fn(&str) -> DefId,
+        has_init: &dyn Fn(&str) -> bool,
+    ) -> hd_base::StageResult<Vec<(DefId, &'a str)>> {
+        let mut paths: Vec<&'a str> = graph.cycles[c]
+            .iter()
+            .map(|m| self.table.modules[*m].path.as_str())
+            .filter(|p| has_init(p))
+            .collect();
+        paths.sort_stable();
+        if paths.len() < 2 {
+            return Ok(paths.into_iter().map(|p| (init_of(p), p)).collect());
+        }
+        let folder = self.table.modules[graph.cycles[c][0]].folder.idx();
+        if query.indexed.insert(folder) {
+            // A folder's cycle runs, by the cycle of their first module.
+            for runs in self.init_runs[folder].get().into_iter().flatten() {
+                if let Some(m) = runs.first().and_then(|r| self.table.module(&r.module)) {
+                    query.runs_of.insert(graph.comp[m.idx()], runs);
+                }
+            }
+        }
+        let Some(&runs) = query.runs_of.get(&c) else {
+            return Err(NotImplemented::new(
+                Stage::Collect,
+                "a module cycle without its init order",
+            ));
+        };
+        let per_module = runs_per_module(runs);
+        Ok(runs
+            .iter()
+            .map(|r| {
+                let alone = per_module.get(r.module.as_str()) == Some(&1);
+                (self.run_def(r, alone, init_of), r.module.as_str())
+            })
+            .collect())
+    }
+
+    /// The body that runs `r`, one of a cycle's runs: its module's whole
+    /// init when it is the module's one run (`alone`), else the run's own
+    /// body.
+    fn run_def(&self, r: &InitRun, alone: bool, init_of: &dyn Fn(&str) -> DefId) -> DefId {
         let init = init_of(&r.module);
-        if runs.iter().filter(|x| x.module == r.module).count() == 1 {
+        if alone {
             return init;
         }
         self.names().member(
@@ -11757,6 +11842,57 @@ fn encode_runs(cycles: &[Vec<InitRun>]) -> Vec<u8> {
         }
     }
     w.bytes
+}
+
+/// How many of a cycle's `runs` each module has: a module with one run
+/// runs its whole init. One pass, so a lookup per run is one probe.
+fn runs_per_module(runs: &[InitRun]) -> HashMap<&str, usize> {
+    let mut per_module: HashMap<&str, usize> = HashMap::default();
+    for r in runs {
+        *per_module.entry(r.module.as_str()).or_default() += 1;
+    }
+    per_module
+}
+
+/// A program's module cycles and their one initialization order
+/// ([`Run::init_graph`]).
+struct InitGraph {
+    /// Each module's cycle.
+    comp: Vec<usize>,
+    /// Each cycle's modules.
+    cycles: Vec<Vec<usize>>,
+    /// The cycles each cycle uses directly, without repeats.
+    deps: Vec<Vec<usize>>,
+    /// Each cycle's position in the global initialization order.
+    pos: Vec<usize>,
+}
+
+/// The state of the init order queries of one collect
+/// ([`Run::reached_init_order`]): a visit mark per cycle, so a query
+/// costs what it reaches, and each cycle's bodies, computed once.
+struct InitQuery<'a> {
+    /// The query that last reached each cycle.
+    mark: Vec<usize>,
+    /// The current query.
+    now: usize,
+    /// Each cycle's init bodies, once computed.
+    bodies: Vec<Option<Vec<(DefId, &'a str)>>>,
+    /// The folders whose cycle runs `runs_of` holds.
+    indexed: HashSet<usize>,
+    /// A multi-module cycle's runs, by the cycle.
+    runs_of: HashMap<usize, &'a [InitRun]>,
+}
+
+impl InitQuery<'_> {
+    fn new(graph: &InitGraph) -> Self {
+        Self {
+            mark: vec![0; graph.cycles.len()],
+            now: 0,
+            bodies: vec![None; graph.cycles.len()],
+            indexed: HashSet::default(),
+            runs_of: HashMap::default(),
+        }
+    }
 }
 
 fn decode_runs(b: &[u8]) -> Option<Vec<Vec<InitRun>>> {
