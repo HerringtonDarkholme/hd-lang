@@ -67,7 +67,7 @@ fn every_row_runs_and_a_failing_row_hides_no_other() {
          <std>/testing.hd:LINE std.testing.assert\n    \
          src/lib.hd:7 test \"doubles\"\n    \
          <std>/testing.hd:LINE std.testing.each_case\n    \
-         src/lib.hd:6 test \"doubles\"\n    \
+         src/lib.hd:8 test \"doubles\"\n    \
          repro: hd test src/lib.hd --filter \"doubles[1]\"\n\
          test result: FAILED. 2 passed; 1 failed; 0 ignored\n"
     );
@@ -80,7 +80,7 @@ fn every_row_runs_and_a_failing_row_hides_no_other() {
          <std>/testing.hd:LINE std.testing.assert\n    \
          src/lib.hd:7 test \"doubles\"\n    \
          <std>/testing.hd:LINE std.testing.each_case\n    \
-         src/lib.hd:6 test \"doubles\"\n    \
+         src/lib.hd:8 test \"doubles\"\n    \
          repro: hd test src/lib.hd --filter \"doubles[1]\"\n\
          test result: FAILED. 0 passed; 1 failed; 0 ignored\n"
     );
@@ -120,7 +120,7 @@ fn a_failing_property_shrinks_saves_and_replays() {
              <std>/testing.hd:LINE std.testing.assert\n    \
              src/lib.hd:28 test \"points stay near\"\n    \
              <std>/testing.hd:LINE std.testing.prop_case\n    \
-             src/lib.hd:27 test \"points stay near\"\n    \
+             src/lib.hd:29 test \"points stay near\"\n    \
              input: Point {{ x: 50, y: 30 }}\n    \
              repro: hd test src/lib.hd --filter \"points stay near\" --seed {seed}\n"
         )
