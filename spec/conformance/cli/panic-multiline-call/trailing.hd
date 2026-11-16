@@ -1,0 +1,6 @@
+fn dispatch(action: fn() -> void) -> void:
+    action()
+
+pub fn main() -> void:
+    dispatch():
+        panic("trailing")

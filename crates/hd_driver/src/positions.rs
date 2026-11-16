@@ -199,6 +199,8 @@ impl Positions {
     /// The package-relative file and 1-based line of instruction `inst` in
     /// the body of the item with stable path `item` (`pkg/mod/f`, the path
     /// a function's name holds), or `None` when the run has no such body.
+    /// A call uses the end of its argument list; other instructions use
+    /// the start of their source expression.
     #[must_use]
     pub fn line(&self, item: &str, inst: u32) -> Option<(&str, u32)> {
         let (_, source) = self.module_of(item)?;
@@ -213,12 +215,29 @@ impl Positions {
             text,
             file: FileId::from_raw(0),
         };
-        let lo = src.span(module.parse.tree.node(node)).lo as usize;
-        let before = text.get(..lo.min(text.len()))?;
+        let node = module.parse.tree.node(node);
+        // A trailing callback has its own body positions; the invocation
+        // is located at the end of its header, before that callback.
+        let site = if node.kind() == hd_syntax::SyntaxKind::TrailingCallExpr {
+            node.children().next().unwrap_or(node)
+        } else {
+            node
+        };
+        let span = src.span(site);
+        // A call raises its panic after evaluating its arguments: on the
+        // call's closing line, where a conformance panic marker belongs.
+        let at = if matches!(
+            node.kind(),
+            hd_syntax::SyntaxKind::CallExpr | hd_syntax::SyntaxKind::TrailingCallExpr
+        ) {
+            span.hi.saturating_sub(1).max(span.lo)
+        } else {
+            span.lo
+        } as usize;
         let line = u32::try_from(
             module
                 .line_starts
-                .partition_point(|&start| start as usize <= before.len()),
+                .partition_point(|&start| start as usize <= at.min(text.len())),
         )
         .ok()?;
         Some((source.file.as_str(), line))
