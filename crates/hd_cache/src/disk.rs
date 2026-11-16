@@ -2458,6 +2458,8 @@ mod packed {
             count!(writer_locks, 1);
             if lock.try_lock().is_err() {
                 count!(lock_waits, 1);
+                #[cfg(test)]
+                self.pause("lock-wait");
                 lock.lock()?;
             }
             let path = self.log_path(shard);
@@ -4453,6 +4455,7 @@ mod packed {
 
         #[test]
         fn gc_respects_a_live_unpublished_lease_and_reclaims_a_crashed_one() {
+            let _no_spawns = no_spawns();
             let root = scratch("lease");
             let store = Store::new(&root);
             let mut lease = { store.lease(0).unwrap() };
@@ -4496,20 +4499,28 @@ mod packed {
         }
 
         /// Runs that share a shard wait only for each other's commit there,
-        /// counted.
+        /// counted. The holder lets go once the publisher has found the
+        /// lock taken, so the wait does not hang on the scheduler.
         #[test]
         fn a_publisher_sharing_a_shard_waits_for_its_commit_only() {
             let root = scratch("shared-shard");
             let store = Store::new(&root);
             store.publish(&[item(1, b"first")]).unwrap();
             let held = store.open_shard(0).unwrap();
+            let (waiting, waits) = std::sync::mpsc::channel();
+            let mut other = Store::new(&root);
+            other.on_pause = Some(Arc::new(move |at| {
+                if at == "lock-wait" {
+                    waiting.send(()).unwrap();
+                }
+            }));
             // cost: one test thread, one publication.
             let publisher = std::thread::spawn(move || {
                 cost::take();
-                Store::new(&root).publish(&[item(2, b"second")]).unwrap();
+                other.publish(&[item(2, b"second")]).unwrap();
                 cost::take()
             });
-            std::thread::sleep(Duration::from_millis(100));
+            waits.recv().unwrap();
             drop(held);
             let counts = publisher.join().unwrap();
             assert_eq!(
@@ -4907,6 +4918,7 @@ mod packed {
 
         #[test]
         fn the_previous_lock_protocol_stays_isolated_and_retires_only_when_idle() {
+            let _no_spawns = no_spawns();
             let root = scratch("retire-v2");
             let old = root.join("pack-v2");
             std::fs::create_dir_all(old.join("index/0")).unwrap();
@@ -4943,7 +4955,7 @@ mod packed {
             let root = scratch("unlocked-reader");
             let store = Store::new(&root);
             store.publish(&[item(1, b"readable")]).unwrap();
-            let _lock = store.open_shard(0).unwrap();
+            let lock = store.open_shard(0).unwrap();
             // Even advisory-lock hosts prove that the writer lock is not
             // on the data file. Release this probe before the reader runs.
             let data = OpenOptions::new()
@@ -4953,16 +4965,31 @@ mod packed {
                 .unwrap();
             data.try_lock().expect("writer exclusion is off the log");
             data.unlock().unwrap();
+            // The reader sends its read, or that it found a shard lock taken
+            // and is about to wait: whichever comes first is the verdict,
+            // with no clock. The lock drops after it, so a reader that
+            // waits still ends.
             let (tx, rx) = std::sync::mpsc::channel();
-            let reader = std::thread::spawn(move || {
-                tx.send(Store::new(&root).get(EntryKind::Check, &Hash128(1)))
-                    .unwrap();
+            let mut reader = Store::new(&root);
+            let waited = tx.clone();
+            reader.on_pause = Some(Arc::new(move |at| {
+                if at == "lock-wait" {
+                    let _ = waited.send(Err(at));
+                }
+            }));
+            // cost: one test thread, one read.
+            let reading = std::thread::spawn(move || {
+                let _ = tx.send(Ok(reader.get(EntryKind::Check, &Hash128(1))));
             });
+            let first = rx.recv().unwrap();
+            drop(lock);
+            reading.join().unwrap();
             assert_eq!(
-                rx.recv_timeout(Duration::from_secs(1)).unwrap().as_deref(),
+                first
+                    .expect("a reader waited for the writer lock")
+                    .as_deref(),
                 Some(b"readable".as_slice())
             );
-            reader.join().unwrap();
         }
 
         /// Asserts every row `root`'s index lists lies within its pack,
@@ -5229,9 +5256,13 @@ mod packed {
         /// A collection in another process never delays a publication
         /// (#1932). One store collects and stops at its walk, then at its
         /// compaction copy. At each stop the writer lock is free, and a
-        /// second store over the same cache publishes and reads back.
+        /// second store over the same cache publishes and reads back. The
+        /// stops end when the collection does: the collecting thread owns
+        /// the collector, whose drop closes the channel, so no stop is
+        /// awaited against the clock.
         #[test]
         fn publication_never_waits_for_a_collection() {
+            let _no_spawns = no_spawns();
             let root = scratch("gc-beside-publish");
             let data = [3; 4000];
             let writer = Store::new(&root);
@@ -5254,10 +5285,10 @@ mod packed {
             std::thread::scope(|scope| {
                 // Evicting key 1 leaves its pack a third dead: compacted.
                 // cost: one test thread, one collection of three entries.
-                let collecting = scope.spawn(|| collector.collect(14_000).unwrap());
+                let collecting = scope.spawn(move || collector.collect(14_000).unwrap());
                 let mut stops = Vec::new();
                 for key in 10.. {
-                    let Ok(stop) = stopped.recv_timeout(Duration::from_secs(2)) else {
+                    let Ok(stop) = stopped.recv() else {
                         break;
                     };
                     stops.push(stop);
@@ -5334,6 +5365,7 @@ mod packed {
         /// and marks, and it opens only the packs of its hits.
         #[test]
         fn a_command_does_no_more_work_with_the_cache_than_without() {
+            let _no_spawns = no_spawns();
             // The cache directory does not exist yet, as under a new HD_CACHE.
             let (cold, asked) = command(&scratch("no-cache").join("obj"), DEFAULT, u128::MAX);
             assert!(!asked, "an empty cache's total is known");
