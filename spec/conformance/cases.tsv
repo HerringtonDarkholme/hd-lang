@@ -150,7 +150,7 @@ std/time/clock/suspending-closures-a-shared-capture-is-written-on-both-sides-of-
 std/time/clock/suspending-closures-a-trailing-block-for-a-suspending-parameter-waits.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 std/time/clock/a-moved-cell-releases-storage-after-transferring-its-payload.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 std/collections/uniqlist/a-plain-parameter-copies-only-when-its-body-owns-it.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
-lang/functions/function-types-and-values/a-mutated-copy-keeps-its-callers-value.hd	runtime	accept	lang/07-functions.md#function-types-and-values
+lang/functions/function-types-and-values/a-mutated-copy-keeps-its-callers-value.hd	runtime	accept	lang/07-functions.md#r-fn.param.value-copy
 lang/functions/closures/a-closure-body-keeps-its-captured-edges-for-each-call.hd	runtime	accept	lang/07-functions.md#r-fn.capture.call.any
 std/time/clock/suspending-closures-closures-from-a-list-are-each-awaited-twice.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 std/time/clock/suspending-fn-weaken-a-weakened-value-constructs-and-drives-its-suspension.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
@@ -243,7 +243,7 @@ lang/traits/trait-implementations/implementation-ownership/impl-ownership-an-inh
 lang/traits/trait-implementations/implementation-ownership/impl-modules-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal.hd	type	reject:nonlocal-impl	lang/09-traits.md#implementation-modules
 lang/references/local-references/a-stored-bound-reference-to-a-local-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
 lang/functions/function-types-and-values/method-references/a-returned-bound-reference-to-a-local-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.fn-value-result
-lang/functions/function-types-and-values/method-references/bound-reference-to-an-interior-place-is-local.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.ref.bound.address
+lang/functions/function-types-and-values/method-references/bound-reference-to-an-interior-place-is-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
 lang/types/opaque-result-types/impl-trait-borrows-nothing.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.body
 lang/types/opaque-result-types/impl-trait-borrow-outlives-local.hd	type	reject:local-reference-outlives-local	lang/04-type-system.md#r-types.opaque.borrows.call
 lang/types/opaque-result-types/impl-trait-borrow-box.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.body
@@ -253,7 +253,7 @@ lang/types/anonymous-parameter-types/impl-trait-parameter-lifetime-outlives.hd	t
 lang/types/anonymous-parameter-types/impl-trait-parameter-lifetime.hd	type	accept	lang/04-type-system.md#r-types.impl-parameter.lifetime
 lang/types/anonymous-parameter-types/impl-trait-parameters.hd	runtime	accept	lang/04-type-system.md#r-types.impl-parameter.distinct
 lang/types/opaque-result-types/impl-trait-borrow-element.hd	type	accept	lang/04-type-system.md#r-types.opaque.borrows.holds
-lang/types/opaque-result-types/impl-trait-borrow-two-sources-local.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.source
+lang/types/opaque-result-types/impl-trait-borrow-two-sources-local.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.body
 lang/types/opaque-result-types/impl-trait-distinct-functions.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.distinct
 lang/types/opaque-result-types/impl-trait-generic-identities.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.identity-position
 lang/types/opaque-result-types/impl-trait-hidden-member.hd	type	reject:unknown-method	lang/04-type-system.md#r-types.opaque.no-leakage
@@ -682,20 +682,20 @@ lang/requirements/provider-scopes/context-values-a-provider-implementing-its-key
 lang/annotations/typed-derivation/derivation-blocks/member-metadata-a-trait-less-block-gives-a-defaulted-member-a-list.hd	type	accept	lang/14-annotations.md#r-annot.no-trait.no-omit
 lang/traits/trait-declarations/supertraits-a-child-trait-may-declare-its-own-associated-type.hd	type	accept	lang/09-traits.md#r-trait.super.no-redeclare.kinds
 lang/traits/trait-declarations/supertraits-a-child-trait-may-declare-its-own-members.hd	type	accept	lang/09-traits.md#trait-declarations
-lang/names/function-and-closure-scopes/parameter-names-a-closure-parameter-named-apart-from-a-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#function-and-closure-scopes
+lang/names/function-and-closure-scopes/parameter-names-a-closure-parameter-named-apart-from-a-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 lang/data/data-embedding/data-embedding-a-struct-may-embed-a-struct-without-a-cycle.hd	type	accept	lang/08-data-and-enums.md#r-data.embed.depth.self
 lang/data/data-embedding/data-embedding-a-generic-struct-may-embed-a-struct-without-a-cycle.hd	type	accept	lang/08-data-and-enums.md#r-data.embed.depth.self
 lang/data/construction-and-access/construction-a-literal-giving-each-field-once-is-valid.hd	type	accept	lang/08-data-and-enums.md#construction-and-access
-lang/names/function-and-closure-scopes/parameter-names-a-local-function-parameter-named-apart-from-a-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#function-and-closure-scopes
+lang/names/function-and-closure-scopes/parameter-names-a-local-function-parameter-named-apart-from-a-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 lang/annotations/typed-derivation/derivation-blocks/member-metadata-a-member-line-takes-a-list.hd	type	accept	lang/14-annotations.md#r-annot.line.right.not-list
-lang/names/function-and-closure-scopes/parameter-names-a-method-parameter-may-take-a-type-parameter-name-its-impl-does-not-declare.hd	type	accept	lang/03-names-and-scopes.md#function-and-closure-scopes
+lang/names/function-and-closure-scopes/parameter-names-a-method-parameter-may-take-a-type-parameter-name-its-impl-does-not-declare.hd	type	accept	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 lang/names/name-categories/type-parameter-names-a-method-type-parameter-named-apart-from-the-impl-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare.method
 lang/names/name-categories/declarations-module-level-functions-with-distinct-names-are-valid.hd	type	accept	lang/03-names-and-scopes.md#name-categories
 lang/data/shared-enum-constructor-data/shared-enum-data-a-payload-parameter-named-apart-from-the-shared-ones-is-valid.hd	type	accept	lang/08-data-and-enums.md#r-data.shared.payload-names
 lang/data/construction-and-access/field-shorthand-a-shorthand-field-counts-as-given.hd	type	accept	lang/08-data-and-enums.md#r-data.literal.shorthand.rules
 lang/traits/trait-declarations/supertraits-two-distinct-supertraits-are-each-listed-once.hd	type	accept	lang/09-traits.md#r-trait.super.unique
 lang/names/module-scope/tests-block-items-with-distinct-names-in-a-tests-block-are-valid.hd	type	accept	lang/03-names-and-scopes.md#r-names.tests.unique
-lang/names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#function-and-closure-scopes
+lang/names/function-and-closure-scopes/parameter-names-a-trait-method-parameter-named-apart-from-the-trait-type-parameter-is-valid.hd	type	accept	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 lang/data/data-embedding/data-embedding-a-struct-may-embed-another-with-a-field-of-the-same-name.hd	type	accept	lang/08-data-and-enums.md#r-data.embed.depth.self
 lang/names/name-categories/parameter-names-a-value-parameter-may-reuse-a-type-parameter-name-of-another-function.hd	type	accept	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 lang/annotations/typed-derivation/derivation-blocks/member-metadata-a-variant-line-takes-a-list.hd	type	accept	lang/14-annotations.md#r-annot.line.right.error
@@ -774,7 +774,7 @@ lang/functions/declarations/missing-return-value.hd	type	reject:missing-return-v
 lang/types/assignability-and-coercion/bindings.hd	type	accept	lang/04-type-system.md#assignability-and-coercion
 lang/expressions/comprehensions/collections.hd	type	accept	lang/05-expressions.md#comprehensions
 lang/types/generics/inference-from-several-arguments/generic-inference-two-integer-literals-join.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
-lang/types/generics/inference-from-several-arguments/generic-inference-an-optional-and-a-string-literal-join.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
+lang/types/generics/inference-from-several-arguments/generic-inference-an-optional-and-a-string-literal-join.hd	type	accept	lang/04-type-system.md#r-types.option.wrap
 lang/types/generics/inference-from-several-arguments/generic-inference-a-single-inferred-argument-solves-its-parameter.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
 lang/annotations/typed-derivation/walkers-describers-and-sources/walker-member-on-a-concrete-walker-is-callable.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
 lang/annotations/typed-derivation/walkers-describers-and-sources/walker-member-through-a-generic-structure-parameter-is-callable.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
@@ -798,7 +798,7 @@ lang/annotations/typed-derivation/misplaced-derivation-a-structure-block-without
 lang/annotations/typed-derivation/misplaced-derivation-a-trait-less-block-may-rename-the-type-parameter.hd	type	accept	lang/14-annotations.md#typed-derivation
 lang/annotations/typed-derivation/misplaced-derivation-a-template-in-its-traits-module-and-a-block-with-a-line-are-valid.hd	type	accept	lang/14-annotations.md#typed-derivation
 lang/annotations/typed-derivation/misplaced-derivation-a-trait-less-block-may-give-member-and-self-lines.hd	type	accept	lang/14-annotations.md#typed-derivation
-lang/types/generics/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd	type	accept	lang/04-type-system.md#generics
+lang/types/generics/generics-recursive-instantiation-at-run-time-reports-no-depth-error.hd	type	accept	lang/04-type-system.md#r-types.generic.call-cycle.fixed-callee
 lang/types/literal-types/literal-types-an-integer-literal-converts-to-a-display-value.hd	type	accept	lang/04-type-system.md#literal-types
 lang/types/literal-types/literal-types-a-float-literal-converts-to-a-trait-value-at-f64.hd	type	accept	lang/04-type-system.md#literal-types
 lang/types/literal-types/literal-types-a-negated-parenthesized-literal-is-signed.hd	type	accept	lang/04-type-system.md#literal-types
@@ -1353,7 +1353,7 @@ lang/expressions/unary-and-binary-operators/power-mixed-numeric-types.hd	type	re
 lang/expressions/unary-and-binary-operators/exponentiation/floating-power.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.within-ulp
 lang/expressions/unary-and-binary-operators/exponentiation/power-and-remainder-edges.hd	runtime	accept	lang/05-expressions.md#exponentiation
 lang/expressions/unary-and-binary-operators/exponentiation/power-any-unsigned-exponent-type-is-accepted.hd	runtime	accept	lang/05-expressions.md#r-expr.power.int.exponent
-lang/expressions/unary-and-binary-operators/exponentiation/power-float-powers-follow-ieee-pow.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.special
+lang/expressions/unary-and-binary-operators/exponentiation/power-float-powers-follow-ieee-pow.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.within-ulp
 lang/expressions/unary-and-binary-operators/exponentiation/power-float-within-one-ulp.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.within-ulp
 lang/expressions/unary-and-binary-operators/exponentiation/power-integer-powers-compute-in-the-base-type.hd	runtime	accept	lang/05-expressions.md#r-expr.power.int.exponent
 lang/names/local-bindings/reassign-short-binding-in-function.hd	type	reject:non-reassignable-binding	lang/03-names-and-scopes.md#local-bindings
@@ -1421,7 +1421,7 @@ lang/names/binding-expressions/definite-init-diverging-branch.hd	runtime	accept	
 lang/control-flow/for-loops/for-loops-lists-and-maps.hd	runtime	accept	lang/06-control-flow.md#for-loops
 lang/data/construction-and-access/data-fields-named-in-any-order.hd	runtime	accept	lang/08-data-and-enums.md#data-literals
 lang/references/places-and-new-objects/mutable-data-paths-share-identity.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.alias
-lang/types/collection-values/indexed-replacement-list-and-map.hd	runtime	accept	lang/04-type-system.md#r-types.coll.element-place
+lang/types/collection-values/indexed-replacement-list-and-map.hd	runtime	accept	lang/04-type-system.md#r-types.coll.map-value
 lang/functions/declarations/inferred-results-a-body-without-a-value-is-void.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 lang/functions/declarations/inferred-results-a-private-function-result-is-its-body-type.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
 lang/functions/declarations/inferred-results-a-private-method-infers-its-result.hd	runtime	accept	lang/07-functions.md#r-fn.decl.result-inferred
@@ -1774,7 +1774,7 @@ lang/functions/methods-and-receivers/method-receiver-before-arguments.hd	runtime
 lang/functions/methods-and-receivers/associated-function-qualified-call.hd	runtime	accept	lang/07-functions.md#methods-and-receivers
 lang/modules/entry-point/private-main-is-ordinary-function.hd	runtime	accept	lang/10-modules.md#entry-point
 lang/functions/multiple-inline-closures/multiple-inline-closures.hd	runtime	accept	lang/07-functions.md#multiple-inline-closures
-lang/functions/function-types-and-values/generic-function-value-instantiation.hd	runtime	accept	lang/07-functions.md#function-types-and-values
+lang/functions/function-types-and-values/generic-function-value-instantiation.hd	runtime	accept	lang/07-functions.md#r-fn.type.generic.instantiate-every
 lang/functions/function-types-and-values/function-value-no-default-arguments.hd	type	reject:argument-count	lang/07-functions.md#function-types-and-values
 lang/functions/trailing-callback-blocks/trailing-block-return-targets-callback.hd	runtime	accept	lang/07-functions.md#trailing-callback-blocks
 lang/names/control-flow-binding-scopes/loop-iteration-binding-capture.hd	runtime	accept	lang/03-names-and-scopes.md#loops
@@ -2219,7 +2219,7 @@ lang/traits/trait-implementations/implementation-targets/function-type-impl-meth
 lang/traits/runtime-type-identity/a-type-with-a-row-argument-is-inspectable.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.declared
 lang/traits/runtime-type-identity/spelled-function-type-not-inspectable.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.inspectable.not.function
 lang/expressions/postfix-expressions/propagation/test-block-propagation.hd	runtime	accept	lang/05-expressions.md#r-expr.try.test.with-try.reference-values
-lang/expressions/postfix-expressions/propagation/test-body-error-not-display.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.try.test.explicit-closure
+lang/expressions/postfix-expressions/propagation/test-body-error-not-display.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.try.test.explicit-result-error
 lang/expressions/postfix-expressions/propagation/test-body-optional-result.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.try.test.explicit-closure
 lang/modules/entry-point/entry-exit-code.hd	type	accept	lang/10-modules.md#exit-status
 lang/modules/entry-point/entry-result-not-termination.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.result-termination
@@ -3082,7 +3082,7 @@ std/testing/derived-arbitrary/arbitrary-with-generic-generator.hd	type	accept	st
 lang/annotations/typed-derivation/the-stdstructure-module/facts-find-generic-key.hd	type	accept	lang/14-annotations.md#r-annot.structure.find-key
 lang/annotations/typed-derivation/the-stdstructure-module/facts-find-unbounded-key.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.structure.find-key
 lang/modules/path-inferred-modules/integration-shared-use.hd	runtime	accept	lang/10-modules.md#r-module.test.integration.shared
-lang/modules/use-roots/integration-super-above-test-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.above-test-root
+lang/modules/use-roots/integration-super-above-test-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.root-file.super
 lang/modules/use-roots/single-file-self-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.single-file.roots
 lang/modules/path-inferred-modules/integration-program-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.test.integration.program-use
 lang/modules/use-roots/relative-self-current.hd	runtime	accept	lang/10-modules.md#r-module.relative.example.nested
@@ -3593,7 +3593,7 @@ std/num/fixed-point-text/num-to-fixed.hd	runtime	accept	std/num.md#fixed-point-t
 std/num/fixed-point-text/num-to-fixed-digits-range.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.to-fixed.digits-max
 std/collections/list-helpers/list-sorted-by-key.hd	runtime	accept	std/collections.md#r-std-collections.helper.sorted-by-key
 lang/expressions/primary-expressions/list-spread-empty-spreads-add-nothing.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread
-lang/expressions/primary-expressions/list-spread-operands-are-evaluated-once-in-element-order.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread
+lang/expressions/primary-expressions/list-spread-operands-are-evaluated-once-in-element-order.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.once
 lang/expressions/primary-expressions/list-spread-spreads-of-other-element-layouts.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread
 lang/expressions/primary-expressions/list-spread-the-result-is-a-fresh-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread
 lang/expressions/primary-expressions/a-list-spread-of-a-diverging-value-checks.hd	type	accept	lang/05-expressions.md#r-expr.list.spread
@@ -3768,9 +3768,9 @@ lang/types/literal-types/literal-receiver-params-differ.hd	type	reject:unknown-m
 lang/types/literal-types/literal-receiver-params-differ-annotated.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.form.receiver
 lang/expressions/postfix-expressions/calls/a-call-without-update-is-not-a-place-compound.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 lang/expressions/postfix-expressions/calls/a-callable-value-takes-no-arguments-store.hd	type	reject:argument-count	lang/05-expressions.md#callable-values
-lang/grammar/statements/a-chain-may-not-redeclare-a-name-in-its-last-link.hd	type	reject:duplicate-binding	lang/02-grammar.md#r-grammar.stmt.chain
+lang/grammar/statements/a-chain-may-not-redeclare-a-name-in-its-last-link.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.bind.no-redeclare
 lang/grammar/statements/a-chain-may-not-redeclare-a-name-in-its-first-link.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.bind.no-redeclare
-lang/grammar/statements/a-chained-name-is-not-reassignable-in-its-last-link.hd	type	reject:non-reassignable-binding	lang/02-grammar.md#r-grammar.stmt.chain
+lang/grammar/statements/a-chained-name-is-not-reassignable-in-its-last-link.hd	type	reject:non-reassignable-binding	lang/03-names-and-scopes.md#r-names.local.short
 lang/grammar/statements/a-chained-name-is-not-reassignable-in-its-first-link.hd	type	reject:non-reassignable-binding	lang/03-names-and-scopes.md#r-names.local.short
 lang/expressions/postfix-expressions/calls/a-compound-store-reads-through-apply-compound.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.assign.compound.call-read-apply
 lang/expressions/postfix-expressions/calls/a-compound-store-reads-a-local-through-apply.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.assign.compound.call-read-apply
@@ -5022,7 +5022,7 @@ lang/traits/dynamic-trait-values/bare-dyn-dereference.hd	type	reject:trait-used-
 lang/traits/dynamic-trait-values/bare-dyn-parameter.hd	type	reject:trait-used-as-type	lang/09-traits.md#r-trait.dyn.bare-value-rejected
 lang/traits/dynamic-trait-values/dyn-ref-value-shared.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
 lang/traits/dynamic-trait-values/dyn-ref-value-mutable.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
-lang/traits/dynamic-trait-values/dyn-ref-value-list-literal.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
+lang/traits/dynamic-trait-values/dyn-ref-value-list-literal.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.counted.new
 lang/traits/trait-implementations/comparison-traits/dyn-ref-value-hasher.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.hash.generic-hasher
 lang/traits/dynamic-trait-values/dyn-ref-member-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.ref.member.other.reference-values
 lang/types/trait-values-and-any/anyref-rejects-struct.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.sealed.anyref-members.counted
@@ -5218,7 +5218,7 @@ std/time/clock/wide-value-suspension.hd	runtime	accept	std/time.md#r-std-time.he
 lang/types/numeric-conversions/integer-remainder-native-widths.hd	runtime	accept	lang/04-type-system.md#integer-arithmetic
 lang/types/numeric-conversions/i32-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
 lang/types/numeric-conversions/i64-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
-lang/control-flow/match-expressions/owned-match-payloads-across-suspension.hd	runtime	accept	lang/06-control-flow.md#match-expressions
+lang/control-flow/match-expressions/owned-match-payloads-across-suspension.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership-copied
 lang/control-flow/for-loops/owned-temporary-collection-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 lang/grammar/inline-conditions-and-headers.hd	parse	accept	lang/02-grammar.md
 lang/grammar/declaration-defaults-and-bindings.hd	parse	accept	lang/02-grammar.md
@@ -5671,7 +5671,7 @@ lang/references/boxes/counted-reference-to-top-level.hd	type	reject:local-refere
 lang/references/boxes/counted-reference-to-element.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.object
 lang/references/boxes/counted-reference-to-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.object
 lang/references/boxes/box-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.local
-lang/references/boxes/box-local-reference-tuple.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.box.local
+lang/references/boxes/box-local-reference-tuple.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
 lang/references/boxes/box-local-reference-alias-write.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
 lang/references/local-references/counted-field-holding-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.holding.counted
 lang/references/boxes/a-box-holding-a-local-reference-is-local.hd	type	accept	lang/13-values-and-references.md#r-ref.box.local
@@ -5716,7 +5716,7 @@ lang/grammar/generic-parameters-and-bounds/lifetime-parameter-bound.hd	parse	rej
 lang/references/dependent-results/lifetime-variables/lifetime-counted-reference.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.lifetime.counted
 lang/references/dependent-results/lifetime-variables/lifetime-parameter-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.local-or-newtype-owner
 lang/references/dependent-results/lifetime-traits/trait-lifetimes-instantiate-in-an-impl-a-bound-and-a-trait-value.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.trait
-lang/references/dependent-results/lifetime-traits/lifetime-trait-result-outlives.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.trait.position
+lang/references/dependent-results/lifetime-traits/lifetime-trait-result-outlives.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.return
 lang/types/generics/lifetime-parameters/lifetime-unknown.hd	type	reject:unknown-lifetime	lang/04-type-system.md#r-types.lifetime.unknown
 lang/references/dependent-results/lifetime-variables/lifetime-alias-argument-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.alias
 lang/references/dependent-results/lifetime-aliases/alias-lifetime-arguments-instantiate-references-and-passed-lifetimes.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.alias
@@ -6208,7 +6208,7 @@ lang/control-flow/for-loops/a-range-loop-ends-where-its-kind-says.hd	runtime	acc
 lang/control-flow/for-loops/a-list-parameter-loop-keeps-its-elements-while-a-call-shrinks-the-source.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 lang/references/matching-through-a-reference/a-payload-reference-reads-and-writes-its-enum.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 lang/references/moves/a-part-moves-while-another-part-is-read-on.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
-lang/traits/dynamic-trait-values/a-method-with-its-own-type-parameter-through-a-dyn-value.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.type-param.hint
+lang/traits/dynamic-trait-values/a-method-with-its-own-type-parameter-through-a-dyn-value.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.unavailable.error
 lang/traits/dynamic-trait-values/a-method-with-its-own-row-parameter-through-a-dyn-value.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.row-parameter
 lang/traits/dynamic-trait-values/a-required-generic-method-keeps-a-dyn-value-from-its-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.dyn.bound.reference
 lang/traits/dynamic-trait-values/a-trait-with-a-generic-method-runs-its-other-methods-on-dyn.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.type-param.no-slot
