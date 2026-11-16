@@ -337,31 +337,6 @@ fn std_typed_signatures_compile_through_headers() {
     );
 }
 
-fn check(files: &[(&str, &str)]) -> String {
-    let mut s = MemorySources::default();
-    for (p, t) in files {
-        s.insert(p, t);
-    }
-    if !files.iter().any(|f| f.0 == "main.hd") {
-        s.insert(
-            "main.hd",
-            "pub fn main() -> void $ Console:\n    println(1)\n",
-        );
-    }
-    run(&s).render()
-}
-
-#[test]
-fn orphan_impl_overlapping_std_is_one_error() {
-    let r = check(&[(
-        "a/x.hd",
-        "impl Display for i32:\n    fn to_string(&self) -> string:\n        \"\"\n",
-    )]);
-    assert_eq!(r.lines().count(), 1, "{r}");
-    assert!(r.contains("error: a/x.hd:0..67: orphan-impl: "), "{r}");
-    assert!(!r.contains("overlapping-impl"), "{r}");
-}
-
 /// A signature's written lifetimes, one per local
 /// reference slot of the parameters and then the result, survive the
 /// interface blob, a list of local references' among them

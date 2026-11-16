@@ -1,8 +1,9 @@
 //! Function references (spec/lang/07-functions.md, Generic Function
-//! Values and Method References) through the checker: each kind's
-//! `ItemRef` and type, a bound reference's closure, and the errors. Then
-//! called through their adapters (`crates/hd_mono/DESIGN.md` §13.11), built by the driver
-//! and run on V8 (`host/run.ts`), as the conformance runner does.
+//! Values and Method References), called through their adapters
+//! (`crates/hd_mono/DESIGN.md` §13.11), built by the driver and run on V8
+//! (`host/run.ts`), and rebuilt warm with nothing re-emitted. Each kind's
+//! `ItemRef` type and the errors are stage cases
+//! (`hd_check/tests/cases/function-references/`).
 
 use std::path::Path;
 use std::process::Command;
@@ -13,20 +14,6 @@ use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
-
-fn analyze(main: &str, render: &[&str]) -> Output {
-    let mut src = MemorySources::default();
-    src.insert("main.hd", main);
-    let store = MemoryStore::default();
-    let host = Host {
-        render_tir: render,
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    build(&host, "app", &Goal::Analyze)
-}
 
 const COUNTER: &str = "struct Counter:
     value: i32
@@ -70,90 +57,6 @@ fn apply[A, B](value: A, f: fn(A) -> B) -> B:
 fn empty[C = i32]() -> Option[C]:
     .None
 ";
-
-/// The rendered TIR line of the body's first instruction with `tag`.
-fn line_of(out: &Output, body: &str, tag: &str) -> String {
-    let text = out
-        .tir_text
-        .get(body)
-        .unwrap_or_else(|| panic!("no body {body}; have {:?}", out.tir_text.keys()));
-    text.lines()
-        .find(|l| l.contains(&format!("= {tag} ")))
-        .unwrap_or_else(|| panic!("no {tag} in {body}:\n{text}"))
-        .to_owned()
-}
-
-/// Each kind of reference is an `ItemRef` of the member's function
-/// type: receiver first for a method, the member's own parameters for
-/// an associated function, `Self` from the expected type for a trait
-/// member, type arguments from the expected type, an explicit list or
-/// the call, and a default when nothing else solves one.
-#[test]
-fn unbound_references_have_their_function_types() {
-    let src = format!(
-        "{COUNTER}
-fn reader() -> fn(Counter) -> i32:
-    Counter::read
-
-fn stepper() -> fn(&mut Counter, i32) -> void:
-    Counter::bump
-
-fn maker() -> fn() -> Counter:
-    Counter::zero
-
-fn factory() -> fn() -> Counter:
-    Factory::create
-
-fn labels[T < Named](items: List[T]) -> fn(T) -> string:
-    T::label
-
-fn picker() -> fn(Counter, i32) -> i32:
-    Counter::pick::[i32]
-
-fn loader() -> fn!(Store, i32) -> i32:
-    Store::load
-
-fn counted() -> i32:
-    apply(3, identity)
-
-fn explicit() -> fn(string) -> string:
-    identity::[string]
-
-fn made() -> void:
-    make := empty
-"
-    );
-    let bodies = [
-        "app/main/reader",
-        "app/main/stepper",
-        "app/main/maker",
-        "app/main/factory",
-        "app/main/labels",
-        "app/main/picker",
-        "app/main/loader",
-        "app/main/counted",
-        "app/main/explicit",
-        "app/main/made",
-    ];
-    let out = analyze(&src, &bodies);
-    assert!(!out.diags.has_errors(), "{}", out.render());
-    let want = [
-        ("app/main/reader", ": fn(Counter) -> i32"),
-        ("app/main/stepper", ": fn(&mut Counter, i32) -> ()"),
-        ("app/main/maker", ": fn() -> Counter"),
-        ("app/main/factory", ": fn() -> Counter"),
-        ("app/main/labels", ": fn(T) -> string"),
-        ("app/main/picker", ": fn(Counter, i32) -> i32"),
-        ("app/main/loader", ": fn!(Store, i32) -> i32"),
-        ("app/main/counted", ": fn(i32) -> i32"),
-        ("app/main/explicit", ": fn(string) -> string"),
-        ("app/main/made", ": fn() -> i32?"),
-    ];
-    for (body, ty) in want {
-        let line = line_of(&out, body, "ItemRef");
-        assert!(line.ends_with(ty), "{body}: {line}");
-    }
-}
 
 fn build_program(store: &MemoryStore, main: &str) -> Output {
     let mut src = MemorySources::default();

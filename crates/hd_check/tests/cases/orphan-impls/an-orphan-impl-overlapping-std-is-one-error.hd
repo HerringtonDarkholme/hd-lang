@@ -1,0 +1,10 @@
+# @dump: diagnostics spans
+# An impl of std's `Display` for std's `i32` in a module of the package is
+# one `orphan-impl` spanning the impl, never also an `overlapping-impl`
+# with std's own impl.
+pub fn main() -> void $ Console:
+    println(1)
+# @file: a/x.hd
+impl Display for i32:
+    fn to_string(&self) -> string:
+        ""

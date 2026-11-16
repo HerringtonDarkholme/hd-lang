@@ -1,0 +1,78 @@
+# @dump: tir
+# Generic function values and method references (spec 07): each kind of
+# reference is an `ItemRef` of the member's function type: receiver first
+# for a method, the member's own parameters for an associated function,
+# `Self` from the expected type for a trait member, type arguments from
+# the expected type, an explicit list or the call, and a default when
+# nothing else solves one.
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(&mut self, by: i32) -> void:
+        self.value = self.value + by
+
+    fn read(self) -> i32:
+        self.value
+
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+    fn pick[V](self, value: V) -> V:
+        value
+
+trait Named:
+    fn label(self) -> string
+
+trait Factory:
+    fn create() -> Self
+
+impl Factory for Counter:
+    fn create() -> Counter:
+        Counter { value: 1 }
+
+struct Store:
+    name: string
+
+impl Store:
+    fn load!(self, key: i32) -> i32:
+        key
+
+fn identity[T](value: T) -> T:
+    value
+
+fn apply[A, B](value: A, f: fn(A) -> B) -> B:
+    f(value)
+
+fn empty[C = i32]() -> Option[C]:
+    .None
+
+fn reader() -> fn(Counter) -> i32:
+    Counter::read
+
+fn stepper() -> fn(&mut Counter, i32) -> void:
+    Counter::bump
+
+fn maker() -> fn() -> Counter:
+    Counter::zero
+
+fn factory() -> fn() -> Counter:
+    Factory::create
+
+fn labels[T < Named](items: List[T]) -> fn(T) -> string:
+    T::label
+
+fn picker() -> fn(Counter, i32) -> i32:
+    Counter::pick::[i32]
+
+fn loader() -> fn!(Store, i32) -> i32:
+    Store::load
+
+fn counted() -> i32:
+    apply(3, identity)
+
+fn explicit() -> fn(string) -> string:
+    identity::[string]
+
+fn made() -> void:
+    make := empty
