@@ -446,14 +446,13 @@ impl<'a> Impls<'a> {
         v.extra.unowned.has(trait_, key)
     }
 
-    /// The tables of this view with a row a goal on head key `key` may
-    /// take, for [`Self::traits_named`]. `None` when `key` is `Any` or
-    /// `Param`, which takes rows of every key.
+    /// The tables of this view with a row a goal on the head key codes
+    /// `codes` ([`crate::solver::key_codes`]) may take, for
+    /// [`Self::traits_named`].
     ///
     /// Cost: one probe per table of the view.
     #[must_use]
-    pub fn tables_at(self, key: HeadKey) -> Option<Vec<TableAt>> {
-        let codes = crate::solver::key_codes(key)?;
+    pub fn tables_at(self, codes: [Option<u64>; 3]) -> Vec<TableAt> {
         let Impls::Owned(v) = self;
         let mut out = Vec::new();
         if v.own.is_some_and(|t| t.has_rows_at(codes)) {
@@ -471,25 +470,23 @@ impl<'a> Impls<'a> {
         if v.extra.directory.has_rows_at(codes) {
             out.push(TableAt::Directory);
         }
-        Some(out)
+        out
     }
 
-    /// Appends the traits of table `at` with a row a goal on head key
-    /// `key` may take that declare a method `sym`, and those `names` does
+    /// Appends the traits of table `at` with a row a goal on the head key
+    /// codes `codes` ([`crate::solver::key_codes`]) may take that declare
+    /// a method `sym`, and those `names` does
     /// not know, from the table's name index, made on the table's first
     /// ask: one probe per key code. A folder's table is shared by the run,
     /// so its index is made once per run.
     pub fn traits_named(
         self,
         at: TableAt,
-        key: HeadKey,
+        codes: [Option<u64>; 3],
         sym: hd_base::Symbol,
         names: &crate::solver::TraitNames<'_>,
         out: &mut Vec<DefId>,
     ) {
-        let Some(codes) = crate::solver::key_codes(key) else {
-            return;
-        };
         let Impls::Owned(v) = self;
         match at {
             TableAt::Own => {
@@ -507,12 +504,10 @@ impl<'a> Impls<'a> {
         }
     }
 
-    /// Appends the traits of table `at` with a row a goal on head key `key`
-    /// may take: one probe per key code.
-    pub fn traits_at(self, at: TableAt, key: HeadKey, out: &mut Vec<DefId>) {
-        let Some(codes) = crate::solver::key_codes(key) else {
-            return;
-        };
+    /// Appends the traits of table `at` with a row a goal on the head key
+    /// codes `codes` ([`crate::solver::key_codes`]) may take: one probe
+    /// per key code.
+    pub fn traits_at(self, at: TableAt, codes: [Option<u64>; 3], out: &mut Vec<DefId>) {
         let Impls::Owned(v) = self;
         match at {
             TableAt::Own => {

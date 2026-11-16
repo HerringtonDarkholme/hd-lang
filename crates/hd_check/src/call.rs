@@ -4572,10 +4572,10 @@ impl Ck<'_, '_> {
                     None::<()>
                 },
             );
-        } else if let Some((key, tables)) = self.cx.head_tables(pool, t) {
+        } else if let Some((_, codes, tables)) = self.cx.head_tables(pool, t) {
             let impls = hd_types::solver::Impls::Owned(self.cx.impls);
             for &at in tables.iter() {
-                impls.traits_at(at, key, &mut traits);
+                impls.traits_at(at, codes, &mut traits);
             }
         }
         traits.extend(
@@ -4910,12 +4910,12 @@ impl Ck<'_, '_> {
     /// the solver reads, and the compiler-supplied ones, in the method
     /// index's order, available here or not ([`Self::traits_with_rows`]).
     fn traits_of_head(&self, t: Ty, sym: Symbol) -> Option<Vec<(DefId, DefId)>> {
-        let (key, tables) = self.cx.head_tables(self.pool(), t)?;
+        let (_, codes, tables) = self.cx.head_tables(self.pool(), t)?;
         let impls = hd_types::solver::Impls::Owned(self.cx.impls);
         let names = |tr: DefId, f: &mut dyn FnMut(Symbol)| self.cx.trait_names(tr, f);
         let mut found = Vec::new();
         for &at in tables.iter() {
-            impls.traits_named(at, key, sym, &names, &mut found);
+            impls.traits_named(at, codes, sym, &names, &mut found);
         }
         found.extend(
             self.cx
@@ -4940,7 +4940,7 @@ impl Ck<'_, '_> {
         if matches!(pool.get(t), TyData::TraitValue { .. }) {
             return true;
         }
-        let Some((key, tables)) = self.cx.head_tables(pool, t) else {
+        let Some((key, _, tables)) = self.cx.head_tables(pool, t) else {
             return true;
         };
         let impls = hd_types::solver::Impls::Owned(self.cx.impls);

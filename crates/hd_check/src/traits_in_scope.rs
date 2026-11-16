@@ -142,18 +142,27 @@ impl TraitsInScope {
     }
 }
 
+/// A receiver's head key, its key codes and the tables with rows for
+/// them ([`crate::body::BodyCx::head_tables`]).
+pub(crate) type HeadTables = (
+    hd_types::solver::HeadKey,
+    [Option<u64>; 3],
+    Arc<[hd_types::solver::TableAt]>,
+);
+
 impl crate::body::BodyCx<'_> {
-    /// The tables of the module's impl view with a row a goal on `t`'s
-    /// head key may take, made once per head key and module: one probe
-    /// per table of the view. `None` when the key reads rows of every key
+    /// `t`'s head key, its key codes ([`hd_types::solver::key_codes`])
+    /// and the tables of the module's impl view with a row a goal on that
+    /// key may take, made once per head key and module: one probe per
+    /// table of the view. `None` when the key reads rows of every key
     /// (`Any`, `Param`).
     pub(crate) fn head_tables(
         &self,
         pool: hd_types::Types<'_>,
         t: hd_types::Ty,
-    ) -> Option<(hd_types::solver::HeadKey, Arc<[hd_types::solver::TableAt]>)> {
+    ) -> Option<HeadTables> {
         let key = hd_types::solver::HeadKey::of(pool, t);
-        hd_types::solver::key_codes(key)?;
+        let codes = hd_types::solver::key_codes(key)?;
         // A panic while the lock was held leaves the map whole: an insert
         // is its only write.
         let lock = || {
@@ -163,13 +172,13 @@ impl crate::body::BodyCx<'_> {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
         };
         if let Some(known) = lock().get(&key) {
-            return Some((key, known.clone()));
+            return Some((key, codes, known.clone()));
         }
         let tables: Arc<[_]> = hd_types::solver::Impls::Owned(self.impls)
-            .tables_at(key)?
+            .tables_at(codes)
             .into();
         crate::work::scan_work(tables.len());
-        Some((key, lock().entry(key).or_insert(tables).clone()))
+        Some((key, codes, lock().entry(key).or_insert(tables).clone()))
     }
 
     /// Names a trait's methods from its declaration, for a table's name

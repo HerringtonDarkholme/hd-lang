@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# The "did you mean" hint names the receiver's methods from every table
+# with a row for its head key. `impl From[Item] for i32` is owned only by
+# its argument `Item`, so it sits in the candidate directory, not in the
+# table of `i32`'s or `From`'s folder: the misspelled call on an `i32`
+# reads the directory's traits too.
+use std.convert.From
+
+struct Item:
+    value: i32
+
+impl From[Item] for i32:
+    fn from(item: Item) -> i32: item.value
+
+fn misspelled(n: i32) -> i32:
+    n.form()
+
+pub fn main() -> void:
+    pass
