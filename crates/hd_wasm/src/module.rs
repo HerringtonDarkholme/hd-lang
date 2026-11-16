@@ -1190,6 +1190,10 @@ pub struct Module {
     /// (`emit/indirect.rs`, `layout::ReleasePlan`).
     pub(crate) release_plans:
         hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::layout::ReleasePlan>>>,
+    /// Per type kept by address that holds a `Drop` hook, its hook plan,
+    /// once (`emit/indirect.rs`, `rt::HookPlan`).
+    pub(crate) hook_plans:
+        hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::rt::HookPlan>>>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
@@ -1320,6 +1324,7 @@ impl Module {
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
             release_plans: hd_base::HashMap::default(),
+            hook_plans: hd_base::HashMap::default(),
             loan_uses: Vec::default(),
             frames: BTreeMap::default(),
             frame_spills: hd_base::HashMap::default(),

@@ -1,0 +1,68 @@
+# @dump: wat
+# @build: std
+# A struct over 16 values with a `Drop` hook passes by address (#2031).
+# `consume`'s exit copies its parameter into a heap frame
+# (`rt:heap_frame`, one `memory.copy`), runs `Big`'s hook witness there
+# (`rt:hooks_at`: its own hook, then `part`'s), copies it back and
+# releases `name` and `part.id` from the address.
+use std.rt.Drop
+
+struct Part:
+    id: string
+
+impl !Copy for Part
+
+impl Drop for Part:
+    fn drop(&mut self) -> void:
+        self.id = ""
+
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    name: string
+    part: Part
+
+impl !Copy for Big
+
+impl Drop for Big:
+    fn drop(&mut self) -> void:
+        self.name = "changed"
+
+struct Outer:
+    big: Big
+    tail: Part
+    v: i32
+
+impl !Copy for Outer
+
+impl Drop for Outer:
+    fn drop(&mut self) -> void:
+        self.v = 0
+
+fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, name: "n${x}", part: Part { id: "p" } }
+
+fn keep(p: Part) -> i32: i32(p.id.len())
+
+# subject
+fn consume(b: Big) -> i32: b.f0 + b.f15
+
+fn local(x: i32) -> i32:
+    let b = mk(x)
+    b.f2 + b.f3
+
+fn moved(o: Outer) -> i32:
+    keep(o.big.part) + o.v

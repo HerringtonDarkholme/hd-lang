@@ -1,0 +1,280 @@
+# A struct over 16 values with a `Drop` hook passes and lives by address
+# (#2031): its drop copies it into a heap frame, runs its hooks there,
+# the value's own first, then each field's in field order
+# (module.rt.drop.glue), and releases its fields from the copy the hooks
+# changed. A field moved out skips its own hooks and the hooks of every
+# value that encloses it (ref.move.field), on a parameter and on a frame
+# local; a field of a nested value kept by address moves by its own flag.
+# Each neighbour: a parameter dropped at exit, a local stored once, a
+# result written in place, a `?`, an early `return`, a loop, a generic
+# instance, and a callee that may panic. This module joins std because
+# only std may implement its runtime trait; checked runs find no leak.
+use std.rt.Drop
+use std.annotation.inline
+
+let trace: string = ""
+
+struct Part:
+    id: string
+    n: i32
+
+impl !Copy for Part
+
+impl Drop for Part:
+    fn drop(&mut self) -> void:
+        trace = "${trace} ${self.id}"
+
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    name: string
+    part: Part
+
+impl !Copy for Big
+
+impl Drop for Big:
+    fn drop(&mut self) -> void:
+        trace = "${trace} big:${self.name}"
+        self.name = "changed"
+        self.part.id = "${self.part.id}!"
+
+struct Outer:
+    big: Big
+    tail: Part
+    v: i32
+
+impl !Copy for Outer
+
+impl Drop for Outer:
+    fn drop(&mut self) -> void:
+        trace = "${trace} outer:${self.v}"
+
+struct Plain:
+    big: Big
+    w: i32
+
+impl !Copy for Plain
+
+# Counts nothing: its drop runs its hook and releases nothing.
+struct Quiet:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    f16: i32
+
+impl !Copy for Quiet
+
+impl Drop for Quiet:
+    fn drop(&mut self) -> void:
+        trace = "${trace} quiet:${self.f16}"
+
+@inline(.Never)
+fn mk_quiet(x: i32) -> Quiet: Quiet { f0: x, f1: x, f2: x, f3: x, f4: x, f5: x, f6: x, f7: x, f8: x, f9: x, f10: x, f11: x, f12: x, f13: x, f14: x, f15: x, f16: x + 1 }
+
+@inline(.Never)
+fn quiet(q: Quiet) -> i32: q.f0 + q.f16
+
+@inline(.Never)
+fn quiet_local(x: i32) -> i32:
+    let q = mk_quiet(x)
+    q.f3
+
+struct Gen[T]:
+    big: Big
+    extra: T
+
+impl[T] !Copy for Gen[T]
+
+@inline(.Never)
+fn mk(x: i32, n: string) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, name: "${n}${x}", part: Part { id: "p${n}", n: 2 } }
+
+@inline(.Never)
+fn mk_outer(x: i32) -> Outer: Outer { big: mk(x, "o"), tail: Part { id: "tail", n: 4 }, v: x }
+
+@inline(.Never)
+fn sum(b: Big) -> i32: b.f0 + b.f15 + i32(b.name.len())
+
+# Each returns what it takes, so a release build's whole-program pass
+# cannot lend the parameter and the field stays moved.
+@inline(.Never)
+fn keep(p: Part) -> Part: p
+
+@inline(.Never)
+fn keep_big(b: Big) -> Big: b
+
+@inline(.Never)
+fn parse(x: i32) -> Result[i32, string]:
+    if x < 0:
+        return .Err("neg")
+    .Ok(x)
+
+@inline(.Never)
+fn local(x: i32) -> i32:
+    let b = mk(x, "l")
+    b.f2 + b.f3
+
+@inline(.Never)
+fn early(x: i32) -> i32:
+    if x > 3:
+        return 0
+    let b = mk(x, "e")
+    if x > 1:
+        return b.f1
+    b.f2
+
+@inline(.Never)
+fn tried(x: i32) -> Result[i32, string]:
+    let b = mk(x, "q")
+    let y = parse(x - 2)?
+    .Ok(b.f3 + y)
+
+@inline(.Never)
+fn tried_value(x: i32) -> i32:
+    match tried(x):
+        .Ok(v) => v
+        .Err(_) => -1
+
+@inline(.Never)
+fn whole(o: Outer) -> i32:
+    o.v + o.big.f4
+
+@inline(.Never)
+fn moved_tail(o: Outer) -> i32:
+    let t = keep(o.tail)
+    t.n + o.v
+
+@inline(.Never)
+fn moved_big(o: Outer) -> i32:
+    let b = keep_big(o.big)
+    b.f1 + o.v
+
+@inline(.Never)
+fn moved_deep(o: Outer) -> i32:
+    let p = keep(o.big.part)
+    p.n + o.v
+
+@inline(.Never)
+fn moved_plain(p: Plain) -> i32:
+    let q = keep(p.big.part)
+    q.n + p.w
+
+@inline(.Never)
+fn local_moved(x: i32) -> i32:
+    let o = mk_outer(x)
+    if x > 1:
+        let b = keep_big(o.big)
+        return b.f1
+    o.v
+
+@inline(.Never)
+fn looped(n: i32) -> i32:
+    let acc = 0
+    for k in 0..n:
+        let o = mk_outer(k)
+        if k % 2 == 0:
+            let t = keep(o.tail)
+            acc += t.n
+        acc += o.v
+    acc
+
+@inline(.Never)
+fn gen[T](x: i32, e: T) -> i32:
+    let g = Gen { big: mk(x, "g"), extra: e }
+    g.big.f9
+
+@inline(.Never)
+fn boom(x: i32) -> i32:
+    let b = mk(x, "b")
+    if b.f0 > 100:
+        panic("boom")
+    b.f0
+
+fn taken() -> string:
+    let t = trace
+    trace = ""
+    t
+
+tests:
+    use std.testing.{assert_equal, it}
+
+    it("a parameter's hooks run outer first, then its fields, before the release"):
+        _ := taken()
+        assert_equal(sum(mk(1, "s")), 19)
+        assert_equal(taken(), " big:s1 ps!")
+        assert_equal(whole(mk_outer(2)), 8)
+        assert_equal(taken(), " outer:2 big:o2 po! tail")
+
+    it("a local stored once drops by its hooks at every exit"):
+        _ := taken()
+        assert_equal(local(2), 9)
+        assert_equal(taken(), " big:l2 pl!")
+        assert_equal(early(5), 0)
+        assert_equal(taken(), "")
+        assert_equal(early(2), 3)
+        assert_equal(taken(), " big:e2 pe!")
+        assert_equal(early(1), 3)
+        assert_equal(taken(), " big:e1 pe!")
+        assert_equal(tried_value(5), 11)
+        assert_equal(taken(), " big:q5 pq!")
+        assert_equal(tried_value(1), -1)
+        assert_equal(taken(), " big:q1 pq!")
+        assert_equal(boom(7), 7)
+        assert_equal(taken(), " big:b7 pb!")
+
+    it("a value that counts nothing runs its hook from the heap copy"):
+        _ := taken()
+        assert_equal(quiet(mk_quiet(3)), 7)
+        assert_equal(taken(), " quiet:4")
+        assert_equal(quiet_local(5), 5)
+        assert_equal(taken(), " quiet:6")
+
+    it("a moved field skips its hooks and every enclosing value's"):
+        _ := taken()
+        assert_equal(moved_tail(mk_outer(3)), 7)
+        assert_equal(taken(), " tail big:o3 po!")
+        assert_equal(moved_big(mk_outer(4)), 9)
+        assert_equal(taken(), " big:o4 po! tail")
+        assert_equal(moved_deep(mk_outer(5)), 7)
+        assert_equal(taken(), " po tail")
+        assert_equal(moved_plain(Plain { big: mk(6, "x"), w: 1 }), 3)
+        assert_equal(taken(), " px")
+
+    it("a frame local's moved field skips the same hooks"):
+        _ := taken()
+        assert_equal(local_moved(1), 1)
+        assert_equal(taken(), " outer:1 big:o1 po! tail")
+        assert_equal(local_moved(2), 3)
+        assert_equal(taken(), " big:o2 po! tail")
+        assert_equal(looped(3), 11)
+        assert_equal(taken(), " tail big:o0 po! outer:1 big:o1 po! tail tail big:o2 po!")
+        assert_equal(gen(4, "e"), 13)
+        assert_equal(taken(), " big:g4 pg!")
+        assert_equal(gen(5, 6), 14)
+        assert_equal(taken(), " big:g5 pg!")

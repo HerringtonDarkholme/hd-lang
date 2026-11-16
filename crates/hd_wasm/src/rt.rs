@@ -301,6 +301,16 @@ pub enum Helper {
     /// glue's result (Swift's value-witness `initializeWithCopy`, after
     /// the `memory.copy`).
     RetainAt(std::sync::Arc<crate::layout::ReleasePlan>),
+    /// `(address)`: the `Drop` hooks of a value at `address` in the heap,
+    /// its type's hook witness ([`HookPlan`], #2031).
+    HooksAt(std::sync::Arc<HookPlan>),
+    /// `(size) -> address`: reserves `size` bytes on the local stack, a
+    /// frame whose first [`crate::module::HEADER`] bytes are zero, and
+    /// gives the address past them: where a value kept on the shadow
+    /// stack is copied for its `Drop` hooks, whose `&mut self` is a heap
+    /// address. The caller gives the frame back by adding `size` to the
+    /// stack top. One function for every size.
+    HeapFrame,
     /// `(address)`: one count less on the object that holds `address`. At
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
@@ -782,6 +792,96 @@ impl Elem {
     #[must_use]
     pub fn needs_drop(&self) -> bool {
         self.walk.is_some() || !self.drops.is_empty()
+    }
+}
+
+/// The `Drop` hooks of a type kept by address (#2031): Swift's per-type
+/// value witness, as [`crate::layout::ReleasePlan`] is for counts. `own`
+/// is the type's own hooks (each newtype layer's, then the struct's) and
+/// `fields` each field's, in field order: an inline field's calls, or a
+/// field kept by address calling its type's plan. Run on a heap address,
+/// this is the pre-order of the leaf path's [`Helper::DropValue`] glue,
+/// so each type's code is O(its own fields) and a chain of K nested
+/// types O(K) in all. Equality, order and hash are by `key`, as a
+/// release plan's.
+#[derive(Debug)]
+pub struct HookPlan {
+    pub key: u128,
+    pub own: Vec<DropCall>,
+    pub fields: Vec<HookStep>,
+}
+
+/// One field's part of a [`HookPlan`]; `field` is its index among the
+/// type's members.
+#[derive(Clone, Debug)]
+pub enum HookStep {
+    /// The field's hook calls, offsets from the value's start.
+    Inline { field: u32, calls: Vec<DropCall> },
+    /// A field kept by address: its type's plan at `offset`.
+    Nested {
+        field: u32,
+        offset: u32,
+        plan: std::sync::Arc<HookPlan>,
+    },
+}
+
+impl HookStep {
+    /// The field's index among the type's members.
+    #[must_use]
+    pub fn field(&self) -> u32 {
+        match self {
+            Self::Inline { field, .. } | Self::Nested { field, .. } => *field,
+        }
+    }
+}
+
+impl HookPlan {
+    /// The plan of `own` and `fields`, keyed.
+    #[must_use]
+    pub fn new(own: Vec<DropCall>, fields: Vec<HookStep>) -> Self {
+        use std::hash::{Hash as _, Hasher as _};
+        let half = |seed: u8| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            seed.hash(&mut h);
+            own.hash(&mut h);
+            for s in &fields {
+                match s {
+                    HookStep::Inline { calls, .. } => {
+                        0u8.hash(&mut h);
+                        calls.hash(&mut h);
+                    }
+                    HookStep::Nested { offset, plan, .. } => {
+                        1u8.hash(&mut h);
+                        offset.hash(&mut h);
+                        plan.key.hash(&mut h);
+                    }
+                }
+            }
+            h.finish()
+        };
+        let key = (u128::from(half(0)) << 64) | u128::from(half(1));
+        Self { key, own, fields }
+    }
+}
+impl PartialEq for HookPlan {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+impl Eq for HookPlan {}
+impl PartialOrd for HookPlan {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for HookPlan {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+impl std::hash::Hash for HookPlan {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
     }
 }
 
@@ -2069,7 +2169,8 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::TestPollPart { .. } => (2, 1),
         H::RowAdapter(row) => (row.params.len(), row.results.len()),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
-        H::ReleaseAt(_) | H::RetainAt(_) => (1, 0),
+        H::ReleaseAt(_) | H::RetainAt(_) | H::HooksAt(_) => (1, 0),
+        H::HeapFrame => (1, 1),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
         H::MapHash { key, .. } => (key.len() + 1, 1),
@@ -2473,6 +2574,27 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RetainAt(plan) => {
             let mut f = m.func("rt:retain_at", vec![Val::I32], vec![]);
             retain_steps(m, &mut f, 0, &plan.steps);
+            f
+        }
+        Helper::HooksAt(plan) => {
+            let mut f = m.func("rt:hooks_at", vec![Val::I32], vec![]);
+            call_drops(&mut f, 0, &plan.own);
+            for step in &plan.fields {
+                hook_step(&mut f, 0, 0, step);
+            }
+            f
+        }
+        Helper::HeapFrame => {
+            let mut f = m.func("rt:heap_frame", vec![Val::I32], vec![Val::I32]);
+            let base = f.local(Val::I32);
+            let enter = crate::wide::frame_enter_sized(&mut f, base, 0);
+            f.body.extend(enter);
+            f.get(base);
+            f.op(Instruction::I64Const(0));
+            f.op(Instruction::I64Store(mem(HEAP, 0, 3)));
+            f.get(base);
+            f.u32(crate::module::HEADER);
+            f.op(Instruction::I32Add);
             f
         }
         Helper::ReleaseRef => release_ref(m, Addr::Ref),
@@ -3965,6 +4087,31 @@ pub(crate) fn call_drops(f: &mut Func, base: u32, drops: &[DropCall]) {
         f.call(Sym::Inst(drop.target));
         for _ in &drop.guards {
             f.op(Instruction::End);
+        }
+    }
+}
+
+/// One field's hooks of a [`HookPlan`] for a value `off` bytes past the
+/// heap address in local `base`: an inline field's calls, or a call of
+/// the nested type's witness at its offset.
+pub(crate) fn hook_step(f: &mut Func, base: u32, off: u32, step: &HookStep) {
+    match step {
+        HookStep::Inline { calls, .. } => {
+            if off == 0 {
+                call_drops(f, base, calls);
+            } else {
+                let shifted: Vec<DropCall> =
+                    calls.iter().cloned().map(|c| c.shifted(off)).collect();
+                call_drops(f, base, &shifted);
+            }
+        }
+        HookStep::Nested { offset, plan, .. } => {
+            f.get(base);
+            if off + offset != 0 {
+                f.u32(off + offset);
+                f.op(Instruction::I32Add);
+            }
+            f.helper(Helper::HooksAt(plan.clone()));
         }
     }
 }

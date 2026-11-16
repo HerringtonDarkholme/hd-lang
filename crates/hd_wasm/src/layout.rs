@@ -360,11 +360,12 @@ pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
 /// (owner, #2031).
 pub const INDIRECT: usize = 16;
 
-/// The layout of `t` when a parameter of it may pass by address (#2031,
-/// step 4): a struct or tuple of more than [`INDIRECT`] values with
-/// nothing to drop, which may hold counted references. Its counts move
+/// The layout of `t` when a value of it may live by address (#2031,
+/// steps 4 and 6): a struct or tuple of more than [`INDIRECT`] values,
+/// which may hold counted references and `Drop` hooks. Its counts move
 /// with its bits; a release walks them from the address
-/// ([`release_plan`]).
+/// (`emit/indirect.rs` `release_plan`), after its hooks ran on a heap
+/// copy (`rt::HookPlan`).
 pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Option<Mem>> {
     let t = strip(pool, env, t);
     let aggregate = match pool.get(t) {
@@ -380,7 +381,7 @@ pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult
         return Ok(None);
     }
     let m = mem(pool, env, t)?;
-    if m.leaves.len() <= INDIRECT || holds_drop(pool, env, t) {
+    if m.leaves.len() <= INDIRECT {
         return Ok(None);
     }
     Ok(Some(m))

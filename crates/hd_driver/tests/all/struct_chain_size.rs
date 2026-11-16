@@ -182,3 +182,114 @@ fn moved_fields_linear(local: bool) {
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));
 }
+
+/// The `Drop` variant (#2031): `T{i}` also holds a string and has a
+/// `Drop` hook, so it is a std module (only std may implement the
+/// runtime trait). Each `get{i}` takes its parameter by address and
+/// moves `inner` on; its drop copies the rest into a heap frame and runs
+/// `T{i}`'s own hook under `inner`'s move flag. A drop that keeps
+/// `inner` calls `T{i}`'s hook witness, which calls `T{i-1}`'s: per type
+/// O(its own fields).
+fn drop_program(k: usize) -> String {
+    let mut text = String::from(
+        "use std.rt.Drop\n\nlet seen: i32 = 0\n\n\
+         struct T0:\n    v: i32\n    s: string\n\n\
+         impl !Copy for T0\n\n\
+         impl Drop for T0:\n    fn drop(&mut self) -> void:\n        seen += self.v\n\n\
+         fn mk0() -> T0: T0 { v: +1, s: \"s\" }\nfn get0(t: T0) -> i32: t.v\n",
+    );
+    for i in 1..k {
+        let p = i - 1;
+        let _ = write!(
+            text,
+            "\nstruct T{i}:\n    inner: T{p}\n    v: i32\n    s: string\n\n\
+             impl !Copy for T{i}\n\n\
+             impl Drop for T{i}:\n    fn drop(&mut self) -> void:\n        seen += self.v\n\n\
+             fn mk{i}() -> T{i}: T{i} {{ inner: mk{p}(), v: +{i}, s: \"s\" }}\n\
+             fn get{i}(t: T{i}) -> i32: get{p}(t.inner) % 1000 + t.v\n\
+             fn all{i}(t: T{i}) -> i32: t.v\n"
+        );
+    }
+    let last = k - 1;
+    let _ = write!(
+        text,
+        "\npub fn main() -> void:\n    seen += get{last}(mk{last}()) + all{last}(mk{last}())\n"
+    );
+    text
+}
+
+/// `source` without its `Drop` and `!Copy` implementations: the same
+/// chain with nothing to run at a drop.
+fn without_drop(source: &str) -> String {
+    let mut out = String::new();
+    let mut skip = 0;
+    for line in source.lines() {
+        if line.starts_with("impl Drop") {
+            skip = 2;
+            continue;
+        }
+        if skip > 0 {
+            skip -= 1;
+            continue;
+        }
+        if !line.starts_with("impl !Copy") {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// [`build_bytes`] of `source` as std's module `rt_tests.chain`, a
+/// program from its `main`, so the linker drops unused wrappers.
+fn std_build_bytes(source: &str) -> usize {
+    let mut sources = hd_driver::std_sources();
+    sources.insert("rt_tests/chain.hd", source);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = Packages {
+        target: EngineTarget::V8,
+        std_leaf: Some("rt_tests/chain.hd"),
+        ..Packages::default()
+    };
+    let output = build_packages(
+        &host,
+        "std",
+        &packages,
+        &Goal::Program {
+            entry: "rt_tests.chain".into(),
+        },
+    );
+    assert!(!output.diags.has_errors(), "{}", output.render());
+    output.wasm.as_deref().map_or(0, <[u8]>::len)
+}
+
+#[test]
+fn drop_struct_chain_module_grows_linearly() {
+    // What the hooks add: the module less the same chain without them.
+    // The rest grows faster in a std build (the std inliner copies `mk{i}`
+    // into its callers, each loading its callee's leaves; Known:
+    // /tmp/lt142/std-chain-inlined-literals-load-leaves.md), with or without
+    // hooks, so the total does not measure the drop path.
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let added = |k: usize| {
+                let with = std_build_bytes(&drop_program(k));
+                let without = std_build_bytes(&without_drop(&drop_program(k)));
+                eprintln!("drop struct chain K={k}: {with} B, {without} B without hooks");
+                with.saturating_sub(without)
+            };
+            let (small, large) = (added(50), added(200));
+            eprintln!("drop hook bytes: K=50 {small}, K=200 {large}");
+            assert!(small > 0);
+            assert!(large * 2 <= small * 9, "K=50 {small}, K=200 {large}");
+        });
+    assert!(worker.is_ok_and(|w| w.join().is_ok()));
+}

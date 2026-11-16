@@ -274,42 +274,9 @@ pub(crate) fn exit(
 /// it does every page the allocator did not grow. Each frame gives back
 /// its own top, so a frame in a new segment needs no link to the last.
 pub fn locals_frame(f: &mut Func, base: u32, size: u32) {
-    let pages = size.div_ceil(1 << 16).max(1);
-    let size = i32::try_from(size).expect("frame size");
+    let (mut out, size) = frame_enter(f, base, size);
     let selector = f.local(Val::I32);
     let top = f.intern_global(Global::Locals);
-    let bottom = f.intern_global(Global::LocalsBase);
-    let mut out = vec![
-        Ins::GlobalGet(top),
-        Ins::GlobalGet(bottom),
-        Ins::Op(I::I32Sub),
-        Ins::Op(I::I32Const(size)),
-        Ins::Op(I::I32LtU),
-        Ins::Op(I::If(BlockType::Empty)),
-        Ins::Op(I::I32Const(pages.cast_signed())),
-        Ins::Op(I::MemoryGrow(crate::module::HEAP)),
-        Ins::Op(I::LocalTee(base)),
-        Ins::Op(I::I32Const(-1)),
-        Ins::Op(I::I32Eq),
-        Ins::Op(I::If(BlockType::Empty)),
-        Ins::Op(I::Unreachable),
-        Ins::Op(I::End),
-        Ins::Op(I::LocalGet(base)),
-        Ins::Op(I::I32Const(16)),
-        Ins::Op(I::I32Shl),
-        Ins::Op(I::LocalTee(base)),
-        Ins::GlobalSet(bottom),
-        Ins::Op(I::LocalGet(base)),
-        Ins::Op(I::I32Const((pages << 16).cast_signed())),
-        Ins::Op(I::I32Add),
-        Ins::GlobalSet(top),
-        Ins::Op(I::End),
-        Ins::GlobalGet(top),
-        Ins::Op(I::I32Const(size)),
-        Ins::Op(I::I32Sub),
-        Ins::Op(I::LocalTee(base)),
-        Ins::GlobalSet(top),
-    ];
     let restore = |out: &mut Vec<Ins>| {
         out.extend([
             Ins::Op(I::LocalGet(base)),
@@ -332,6 +299,81 @@ pub fn locals_frame(f: &mut Func, base: u32, size: u32) {
     origins.repeat(f.origin_root, out.len() - output_start);
     f.body = out;
     origins.finish(f);
+}
+
+/// The entry of a frame of `size` bytes on the local stack (§23.38),
+/// its address set in local `base`: [`locals_frame`]'s prologue, and the
+/// size as an `i32.const` takes it. O(1) code.
+pub fn frame_enter(f: &mut Func, base: u32, size: u32) -> (Vec<Ins>, i32) {
+    let pages = size.div_ceil(1 << 16).max(1);
+    let size = i32::try_from(size).expect("frame size");
+    let out = enter(
+        f,
+        base,
+        &[Ins::Op(I::I32Const(size))],
+        &[Ins::Op(I::I32Const(pages.cast_signed()))],
+        &[Ins::Op(I::I32Const((pages << 16).cast_signed()))],
+    );
+    (out, size)
+}
+
+/// [`frame_enter`] for a size in local `size`, nonzero, known only at run
+/// time: the body of `rt::Helper::HeapFrame`, one function for every
+/// size. O(1) code.
+pub fn frame_enter_sized(f: &mut Func, base: u32, size: u32) -> Vec<Ins> {
+    let get = Ins::Op(I::LocalGet(size));
+    let round = [get, Ins::Op(I::I32Const(0xffff)), Ins::Op(I::I32Add)];
+    let pages = [&round[..], &[Ins::Op(I::I32Const(16)), Ins::Op(I::I32ShrU)]].concat();
+    let bytes = [
+        &round[..],
+        &[Ins::Op(I::I32Const(-0x1_0000)), Ins::Op(I::I32And)],
+    ]
+    .concat();
+    enter(f, base, &[get], &pages, &bytes)
+}
+
+/// The prologue of a local-stack frame whose size, its pages and their
+/// bytes the given instructions push.
+fn enter(f: &mut Func, base: u32, size: &[Ins], pages: &[Ins], bytes: &[Ins]) -> Vec<Ins> {
+    let top = f.intern_global(Global::Locals);
+    let bottom = f.intern_global(Global::LocalsBase);
+    let mut out = vec![
+        Ins::GlobalGet(top),
+        Ins::GlobalGet(bottom),
+        Ins::Op(I::I32Sub),
+    ];
+    out.extend_from_slice(size);
+    out.extend([Ins::Op(I::I32LtU), Ins::Op(I::If(BlockType::Empty))]);
+    out.extend_from_slice(pages);
+    out.extend([
+        Ins::Op(I::MemoryGrow(crate::module::HEAP)),
+        Ins::Op(I::LocalTee(base)),
+        Ins::Op(I::I32Const(-1)),
+        Ins::Op(I::I32Eq),
+        Ins::Op(I::If(BlockType::Empty)),
+        Ins::Op(I::Unreachable),
+        Ins::Op(I::End),
+        Ins::Op(I::LocalGet(base)),
+        Ins::Op(I::I32Const(16)),
+        Ins::Op(I::I32Shl),
+        Ins::Op(I::LocalTee(base)),
+        Ins::GlobalSet(bottom),
+        Ins::Op(I::LocalGet(base)),
+    ]);
+    out.extend_from_slice(bytes);
+    out.extend([
+        Ins::Op(I::I32Add),
+        Ins::GlobalSet(top),
+        Ins::Op(I::End),
+        Ins::GlobalGet(top),
+    ]);
+    out.extend_from_slice(size);
+    out.extend([
+        Ins::Op(I::I32Sub),
+        Ins::Op(I::LocalTee(base)),
+        Ins::GlobalSet(top),
+    ]);
+    out
 }
 
 fn bug(what: &str) -> NotImplemented {
