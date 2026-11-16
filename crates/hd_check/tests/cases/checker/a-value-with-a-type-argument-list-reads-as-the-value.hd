@@ -1,0 +1,35 @@
+# @dump: diagnostics
+# A local (a parameter, `self`, a captured one) or a field of a value read with a type-argument list (`f::[i32]`,
+# `s.cb::[i32]`, `make().cb::[i32]`) is read as it is without the list: a
+# missing field is `unknown-field`, and a value takes no type arguments. A
+# module path that names nothing stays `unknown-name`.
+struct S:
+    v: i32
+    cb: fn() -> i32
+
+impl S:
+    fn helper[N < const usize](self) -> usize: 1
+    fn own(self) -> void:
+        let a = self.cb::[i32]
+
+fn one() -> i32: 1
+
+fn make() -> S: S { v: 1, cb: one }
+
+fn reads(s: S) -> void:
+    let f = one
+    let a = f::[i32]
+    let b = s.cb::[i32]
+    let c = make().cb::[i32]
+    let d = s.v::[i32]
+    let e = s.nope::[i32]
+    let g = make().helper::[3]
+    let h = nope.thing::[i32]
+
+fn captured(f: fn() -> i32) -> void:
+    let g = fn() -> void:
+        let h = f::[i32]
+    g()
+
+pub fn main() -> void:
+    pass

@@ -783,7 +783,21 @@ impl Ck<'_, '_> {
             return Ok(self.poison_value(n));
         }
         let Some(def) = self.resolve_path(&segs) else {
-            return Ok(self.undefined_path(&segs, n));
+            // A local, or a field of a value (`f::[i32]`, `s.cb::[i32]`,
+            // `make().cb::[i32]`): read as it is read without the list,
+            // which reports a missing field; a value has no type
+            // parameters (`argument-count`, as a function value's call).
+            let local = segs
+                .first()
+                .is_some_and(|s| self.find_local(self.cx.names.syms.intern(s)).is_some());
+            if !(segs.is_empty() || local) {
+                return Ok(self.undefined_path(&segs, n));
+            }
+            let (v, t) = self.expr(inner, want)?;
+            if t != Ty::POISON {
+                self.err(Code::ArgumentCount, tl, "a value takes no type arguments");
+            }
+            return Ok((v, t));
         };
         if let Some(ItemData::Fn(sig, _)) = self.cx.lookup.item(def).map(|i| &i.data) {
             let sig = sig.clone();
