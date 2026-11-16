@@ -1,0 +1,8 @@
+# @dump: stdout
+# A name nothing declares stays unknown inside a top-level closure.
+f := fn() -> i32:
+    nope
+later := +1
+
+pub fn main() -> void $ Console:
+    println(1)

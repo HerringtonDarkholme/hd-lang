@@ -1,0 +1,12 @@
+# @dump: stdout
+# `$.with` covers its keys in its block: the memory console takes the
+# print, so the program prints nothing.
+use std.console.MemoryConsole
+
+fn show() -> void:
+    let mut console = MemoryConsole.new()
+    $.with(Console = console):
+        println(1)
+
+pub fn main() -> void $ Console:
+    show()

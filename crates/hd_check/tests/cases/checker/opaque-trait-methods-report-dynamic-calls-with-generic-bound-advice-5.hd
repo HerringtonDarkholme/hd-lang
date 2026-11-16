@@ -1,0 +1,9 @@
+# @dump: diagnostics spans
+# trait.dyn.member.opaque-result: a trait method returning `impl Trait` is not
+# callable on a trait value (`&mut dyn Source`); the error names the method,
+# advises a generic bound, and spans the call or reference.
+trait Source:
+    fn custom_result(&self) -> impl Display
+
+fn read(source: &mut dyn Source) -> void:
+    _result := source.custom_result()

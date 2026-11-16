@@ -1,0 +1,22 @@
+# @dump: stdout
+# grammar.use: `use a.b as c` and `use a.{b as c}` reach the checker:
+# the renamed module, type and trait resolve in bodies.
+use std.cmp as order
+use std.cmp.Ordering as Order
+use std.format.{Display as Show}
+
+fn pick(o: Order) -> i32:
+    match o:
+        .Less => 1
+        .Equal => 2
+        .Greater => 3
+
+fn other(o: order.Ordering) -> i32:
+    pick(o)
+
+fn show[T < Show](x: T) -> string:
+    x.to_string()
+
+pub fn main() -> void $ Console:
+    println(other(.Less))
+    println(show(+4))

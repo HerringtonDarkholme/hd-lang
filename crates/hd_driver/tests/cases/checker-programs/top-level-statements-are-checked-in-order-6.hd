@@ -1,0 +1,9 @@
+# @dump: stdout
+# A closure parameter of the same name as a later binding is not that
+# binding.
+f := fn(later: i32) -> i32:
+    later
+later := +1
+
+pub fn main() -> void $ Console:
+    println(1)

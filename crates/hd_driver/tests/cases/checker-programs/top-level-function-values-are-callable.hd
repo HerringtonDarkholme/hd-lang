@@ -1,0 +1,15 @@
+# @dump: stdout
+# names.module.declarations, module.init.binding: a top-level binding
+# that holds a function value, plain or suspending, is callable by name
+# from a function body, with `f(x)`, `f!(x)` or as a value.
+twice := fn(n: i32) -> i32:
+    n * +2
+
+fetch := fn!(n: i32) -> i32:
+    n
+
+pub fn main!() -> void $ Console:
+    println(twice(+3))
+    println(fetch!(+4))
+    pending := fetch(+5)
+    println(pending!())

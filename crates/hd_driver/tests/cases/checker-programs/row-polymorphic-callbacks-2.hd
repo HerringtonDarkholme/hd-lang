@@ -1,0 +1,11 @@
+# @dump: stdout
+# req.poly.least: a caller whose row lacks the callback's `Console` is
+# rejected at the call.
+fn call[T, $R](f: fn() -> T $ R) -> T $ R:
+    f()
+
+pub fn quiet() -> void:
+    call(fn() -> void: println(1))
+
+pub fn main() -> void $ Console:
+    quiet()

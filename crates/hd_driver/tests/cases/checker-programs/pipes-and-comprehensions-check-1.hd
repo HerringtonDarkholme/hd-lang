@@ -1,0 +1,11 @@
+# @dump: stdout
+# Pipes with a placeholder, list and map comprehensions check and run.
+fn add(a: i32, b: i32) -> i32:
+    a + b
+
+pub fn main() -> void $ Console:
+    xs := [+1, 2, 3, 4]
+    y := 3 |> add(_, 1)
+    evens := [for x in xs if x % 2 == 0 => x * 10]
+    m := {for x in xs => "$x": x + y}
+    println(evens.len() + m.len())

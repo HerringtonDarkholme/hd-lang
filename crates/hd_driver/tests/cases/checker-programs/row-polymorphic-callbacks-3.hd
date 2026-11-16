@@ -1,0 +1,8 @@
+# @dump: stdout
+# A closure fits a wider expected row, never a narrower one: a printing
+# closure where a pure `fn() -> void` is expected is `type-mismatch`.
+fn run(f: fn() -> void) -> void:
+    f()
+
+pub fn main() -> void $ Console:
+    run(fn() -> void: println(1))

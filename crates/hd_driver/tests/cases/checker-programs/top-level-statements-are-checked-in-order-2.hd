@@ -1,0 +1,14 @@
+# @dump: stdout
+# A top-level statement whose transitive read set holds a later binding
+# is `top-level-read-before-initialization`.
+first := apply(first_name)
+let names: List[string] = ["Ada"]
+
+fn apply(callback: fn() -> string) -> string:
+    callback()
+
+fn first_name() -> string:
+    names[0]
+
+pub fn main() -> void $ Console:
+    println(first)

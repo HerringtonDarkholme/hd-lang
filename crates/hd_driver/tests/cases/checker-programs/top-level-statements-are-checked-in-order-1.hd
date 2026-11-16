@@ -1,0 +1,9 @@
+# @dump: stdout
+# module.init.binding: a top-level binding is visible to function bodies.
+limit := +10
+
+fn below(n: i32) -> bool:
+    n < limit
+
+pub fn main() -> void $ Console:
+    println(below(3))

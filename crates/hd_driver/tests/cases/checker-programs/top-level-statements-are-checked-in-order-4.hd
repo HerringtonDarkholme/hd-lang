@@ -1,0 +1,8 @@
+# @dump: stdout
+# A plain statement that names a binding declared below it reads it
+# before initialization.
+x := later
+later := +1
+
+pub fn main() -> void $ Console:
+    println(1)

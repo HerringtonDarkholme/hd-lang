@@ -1,0 +1,9 @@
+# @dump: stdout
+# req.with.type-or-ref: a provider that does not convert to the key's
+# trait value is `type-mismatch`.
+fn show() -> void:
+    $.with(Console = 5):
+        println(1)
+
+pub fn main() -> void $ Console:
+    show()

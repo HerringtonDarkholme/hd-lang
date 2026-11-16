@@ -1,0 +1,11 @@
+# @dump: stdout
+# req.poly.least: a row parameter takes the row of the callback a call
+# passes. A pure closure needs nothing; a printing closure needs
+# `Console` from its caller, and reads it from the context the call
+# passes.
+fn call[T, $R](f: fn() -> T $ R) -> T $ R:
+    f()
+
+pub fn main() -> void $ Console:
+    n := call(fn() -> i32: 7)
+    call(fn() -> void: println(n))

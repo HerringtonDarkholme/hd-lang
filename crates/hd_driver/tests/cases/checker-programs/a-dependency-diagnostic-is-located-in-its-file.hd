@@ -1,0 +1,13 @@
+# @dump: stdout
+# @main: src/main.hd
+# An error in a dependency's file is located in that file's own text,
+# not at `1:1` for want of the root package's source of it.
+use dep.ext.f
+
+pub fn main() -> void $ Console:
+    println(f())
+# @dependency: ext
+# @file: src/lib.hd
+pub fn f() -> i32:
+    _xs := []
+    1

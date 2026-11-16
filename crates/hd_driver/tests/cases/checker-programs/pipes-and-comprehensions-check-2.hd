@@ -1,0 +1,7 @@
+# @dump: stdout
+# A placeholder outside a pipe step is `placeholder-outside-pipe`.
+fn add(a: i32, b: i32) -> i32:
+    a + b
+
+pub fn main() -> void $ Console:
+    println(add(_, 1))
