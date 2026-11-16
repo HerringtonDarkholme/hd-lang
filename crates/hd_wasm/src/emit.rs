@@ -734,7 +734,7 @@ fn body_func<'a>(
         && tail != NONE
         && !em.diverges(tail)
     {
-        em.store_result(tail, base, &mem)?;
+        em.store_result(tail, base, &mem, None)?;
     }
     if !results.is_empty() {
         if tail == NONE || em.diverges(tail) {

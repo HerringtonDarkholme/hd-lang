@@ -268,7 +268,7 @@ impl Em<'_, '_, '_> {
         if let Some((base, mem)) = self.sret.clone()
             && a != NONE
         {
-            self.store_result(a, base, &mem)?;
+            self.store_result(a, base, &mem, Some(borrowed))?;
             return self.ret_value(NONE, borrowed);
         }
         let crossing = self.ctl.last_scope().is_some();

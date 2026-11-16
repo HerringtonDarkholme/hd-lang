@@ -4,8 +4,9 @@
 # `t.inner` on to `inner_sum`'s worker as its address plus offset and
 # sets that field's move flag; its drop releases `t.w` inline and calls
 # `Inner`'s release witness only while the flag is clear. `inner_sum`
-# reads `t.a` and `t.q` alone and releases `t.s` at exit; `main` stores
-# the literal in a block around the call.
+# reads `t.a` and `t.q` alone and releases `t.s` at exit. `mk` writes
+# its result, string included, into `main`'s block, which `main` loads
+# for the `Outer` literal and stores in a block around the call.
 struct Inner:
     a: i32
     b: i32

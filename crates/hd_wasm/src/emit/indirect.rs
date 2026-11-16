@@ -129,7 +129,7 @@ fn compute_ret(input: &Input<'_>, b: &hd_tir::ir::Body, id: InstId) -> Option<Me
     }
     let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
     let ret = input.env.ret(item)?;
-    indirect(
+    by_address(
         input.pool,
         input.env,
         subst(input.pool, input.env, item, args, ret),
@@ -780,9 +780,12 @@ impl Em<'_, '_, '_> {
                 self.copy_in(base, off + part.offset, at, from, mem.size);
                 continue;
             }
+            // Construction consumes its parts (`Em::new_data`): a counted
+            // one moves in or takes counts of its own.
+            let src = self.retain_src(&super::value::Src::Ref(r), ft)?;
             for (j, leaf) in mem.leaves.iter().enumerate() {
                 self.f.get(base);
-                self.comp(r, j)?;
+                self.src(&src, j)?;
                 self.f.op(leaf.store_in(STACK, off + part.offset));
             }
         }
@@ -792,11 +795,16 @@ impl Em<'_, '_, '_> {
 
     /// Stores value `r` as this worker's result, laid out as `mem`, into
     /// the block at `base`, unless it was written in place.
+    /// A counted result leaves with its count, as the leaf ABI's does:
+    /// the tail (`ret` none) moves out to the root, a `return` (`ret` is
+    /// whether it is borrowed) moves out at its only use or takes a count
+    /// for the caller.
     pub(super) fn store_result(
         &mut self,
         r: u32,
         base: u32,
         mem: &Mem,
+        ret: Option<bool>,
     ) -> hd_base::StageResult<()> {
         if self.written.contains(&r) {
             return Ok(());
@@ -805,10 +813,30 @@ impl Em<'_, '_, '_> {
             self.copy_in(base, 0, at, from, mem.size);
             return Ok(());
         }
+        let counted = self.counting && self.tracked(self.ty_of(r));
+        let (src, moved) = match ret {
+            _ if !counted => (super::value::Src::Ref(r), false),
+            None => {
+                let root = self.b.sub_root[self.sub_id as usize];
+                (super::value::Src::Ref(r), self.take_from(r, root))
+            }
+            Some(borrowed) => {
+                let moved = !borrowed && self.take(r);
+                let s = if moved || borrowed {
+                    super::value::Src::Ref(r)
+                } else {
+                    self.retain_ref(r)?
+                };
+                (s, moved)
+            }
+        };
         for (j, leaf) in mem.leaves.iter().enumerate() {
             self.f.get(base);
-            self.comp(r, j)?;
+            self.src(&src, j)?;
             self.f.op(leaf.store_in(STACK, 0));
+        }
+        if moved {
+            self.settle_value(r);
         }
         Ok(())
     }

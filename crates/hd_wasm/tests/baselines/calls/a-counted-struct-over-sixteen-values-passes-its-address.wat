@@ -11,7 +11,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack" (memory $stack 16 16))
   (func $outer (param $t1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64)
-    ;; 37 | fn outer(t: Outer) -> i32: inner_sum(t.inner) + t.v
+    ;; 38 | fn outer(t: Outer) -> i32: inner_sum(t.inner) + t.v
     i32.const 1
     local.set $t0
     local.get $t1
@@ -77,10 +77,58 @@
     end
     local.get $t2
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t19 i32) (local $t20 i64) (local $t21 i64) (local $t22 i32)
-    ;; 42 |     println("${outer(Outer { inner: mk(+1), v: +100, w: "w" })}")
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t19 i32) (local $t20 i64) (local $t21 i64) (local $t22 i32)
+    ;; 43 |     println("${outer(Outer { inner: mk(+1), v: +100, w: "w" })}")
+    global.get $stack
+    i32.const 80
+    i32.sub
+    local.tee $t0
+    global.set $stack
     i32.const 1
+    local.get $t0
     call $mk
+    local.get $t0
+    i32.load $stack offset=8
+    local.get $t0
+    i32.load $stack offset=12
+    local.get $t0
+    i32.load $stack offset=16
+    local.get $t0
+    i32.load $stack offset=20
+    local.get $t0
+    i32.load $stack offset=24
+    local.get $t0
+    i32.load $stack offset=28
+    local.get $t0
+    i32.load $stack offset=32
+    local.get $t0
+    i32.load $stack offset=36
+    local.get $t0
+    i32.load $stack offset=40
+    local.get $t0
+    i32.load $stack offset=44
+    local.get $t0
+    i32.load $stack offset=48
+    local.get $t0
+    i32.load $stack offset=52
+    local.get $t0
+    i32.load $stack offset=56
+    local.get $t0
+    i32.load $stack offset=60
+    local.get $t0
+    i32.load $stack offset=64
+    local.get $t0
+    i32.load $stack offset=68
+    local.get $t0
+    i32.load $stack offset=72
+    local.get $t0
+    i32.load $stack
+    local.get $t0
+    i32.load $stack offset=4
+    local.get $t0
+    i32.const 80
+    i32.add
+    global.set $stack
     local.set $t0
     local.set $t1
     local.set $t2
@@ -224,7 +272,7 @@
     call $"println[string]"
   )
   (func $inner_sum (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64)
-    ;; 35 | fn inner_sum(t: Inner) -> i32: t.a + t.q
+    ;; 36 | fn inner_sum(t: Inner) -> i32: t.a + t.q
     local.get $t0
     i32.load $stack offset=8
     local.get $t0
@@ -257,26 +305,64 @@
     end
     local.get $t1
   )
-  (func $mk (param $x i32) (result i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)
-    ;; 39 | fn mk(x: i32) -> Inner: Inner { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17, s: "s" }
+  (func $mk (param $x i32) (param $t0 i32)
+    ;; 40 | fn mk(x: i32) -> Inner: Inner { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17, s: "s" }
+    local.get $t0
     local.get $x
+    i32.store $stack offset=8
+    local.get $t0
     i32.const 2
+    i32.store $stack offset=12
+    local.get $t0
     i32.const 3
+    i32.store $stack offset=16
+    local.get $t0
     i32.const 4
+    i32.store $stack offset=20
+    local.get $t0
     i32.const 5
+    i32.store $stack offset=24
+    local.get $t0
     i32.const 6
+    i32.store $stack offset=28
+    local.get $t0
     i32.const 7
+    i32.store $stack offset=32
+    local.get $t0
     i32.const 8
+    i32.store $stack offset=36
+    local.get $t0
     i32.const 9
+    i32.store $stack offset=40
+    local.get $t0
     i32.const 10
+    i32.store $stack offset=44
+    local.get $t0
     i32.const 11
+    i32.store $stack offset=48
+    local.get $t0
     i32.const 12
+    i32.store $stack offset=52
+    local.get $t0
     i32.const 13
+    i32.store $stack offset=56
+    local.get $t0
     i32.const 14
+    i32.store $stack offset=60
+    local.get $t0
     i32.const 15
+    i32.store $stack offset=64
+    local.get $t0
     i32.const 16
+    i32.store $stack offset=68
+    local.get $t0
     i32.const 17
+    i32.store $stack offset=72
+    local.get $t0
     i32.const 114 ;; &"s"
+    i32.store $stack
+    local.get $t0
     i32.const 1
+    i32.store $stack offset=4
   )
 )

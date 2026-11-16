@@ -1,14 +1,17 @@
 # @dump: stdout
 # @build: dev | checked | release | release checked
 # A struct or tuple over 16 values that holds counted fields passes to
-# its callee's worker as one address when the callee owns it (#2031,
-# step 4); the callee's drop releases its counts from the address through
+# its callee's worker as one address when the callee owns it, and a
+# result of one is written into its caller's block (#2031, step 4); the callee's drop releases its counts from the address through
 # its type's release witness, skipping a field a move took out. Each
 # neighbour: a parameter only read (released at exit); a counted field
 # copied (one more count) and moved into a local; a field moved on to
 # another worker as its address; a field of a field moved (the drop
 # elaborates the nested plan); a move on one branch only (a drop flag);
-# around a `?`, an early `return`, a loop of many rounds, a match, a
+# results: a literal holding a worker's result in place and a string
+# used twice (a count each), an early `return` of a local, a result
+# taken from a parameter's field or the parameter itself, a result in
+# a `Result` after a `?`; around a `?`, an early `return`, a loop of many rounds, a match, a
 # closure that captures it (stays leaves), a tuple, a list field, a
 # move through a small struct field (stays leaves), a
 # generic instance, a function value (the leaf wrapper), and a callee
@@ -61,6 +64,23 @@ struct Gen[T]:
 fn mk(x: i32, n: string) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "${n}${x}" }
 
 fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x, "in"), v: x * 2, tag: "t${x}" }
+
+fn twice(n: string) -> Outer: Outer { inner: mk(1, n), v: 2, tag: n }
+
+fn picked(x: i32) -> Big:
+    let b = mk(x, "p")
+    if x > 3:
+        return b
+    mk(x + 1, "q")
+
+fn kept(t: Big, x: i32) -> Big:
+    if x > 0:
+        return mk(x, t.name)
+    t
+
+fn wrap(x: i32) -> Result[Big, string]:
+    let y = parse(x)?
+    .Ok(mk(y, "r"))
 
 fn sum(t: Big) -> i32: t.f0 + t.f16 + i32(t.name.len())
 
@@ -143,6 +163,11 @@ pub fn main() -> void $ Console:
         total += looped(mk(r % 3, "l"), 2) % 7
     println("${total} ${matched(mk_outer(1))} ${matched(mk_outer(2))} ${captured(mk(9, "k"))}")
     println("${tuple((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, "tu"))} ${listed(Listed { big: mk(3, "x"), xs: [1, 2, 3] })}")
+    let n = "n${1}"
+    println("${outer_sum(twice(n))} ${n} ${sum(picked(5))} ${sum(picked(1))} ${sum(kept(mk(2, "k"), 3))} ${sum(kept(mk(2, "k"), 0))}")
+    match wrap(4):
+        .Ok(b) => println("${sum(b)}")
+        .Err(e) => println(e)
     println("${through(Holder { big: mk(4, "h"), small: Small { s: "s${4}", n: 3 } })}")
     println("${gen(Gen { big: mk(1, "g"), extra: "gx" })} ${gen(Gen { big: mk(2, "h"), extra: 5 })} ${apply(sum, 10)}")
     println("${boom(mk(5, "b"))}")
