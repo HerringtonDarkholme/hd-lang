@@ -1013,3 +1013,21 @@ fn node_process_job_owns_descendants_and_preserves_output() {
         text(&out.stderr)
     );
 }
+
+/// The synchronous stdin reader joins each result once and searches each
+/// byte once, including a tenfold increase from 1 MiB to 10 MiB.
+#[test]
+fn node_stdin_reader_keeps_copy_and_search_work_linear() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let out = Command::new("node")
+        .args(["--test", "host/node-input.test.ts"])
+        .current_dir(root)
+        .output()
+        .expect("run counted stdin tests");
+    assert!(
+        out.status.success(),
+        "{}\n{}",
+        text(&out.stdout),
+        text(&out.stderr)
+    );
+}

@@ -222,8 +222,25 @@ export function lineReader(fd: number | null): LineReader {
     return none;
   }
   let pending = Buffer.alloc(0);
+  let parts: Buffer[] = [];
+  let length = 0;
   let ended = false;
-  const chunk = Buffer.alloc(65536);
+  let chunk = Buffer.allocUnsafe(65536);
+  // Retain complete fragments until one line (or all input) is requested.
+  // `pending` starts at the next unsearched byte; previous fragments are
+  // never searched again. Each byte is read once and joined at most once.
+  const retain = (bytes: Buffer) => {
+    if (bytes.length) {
+      parts.push(bytes);
+      length += bytes.length;
+    }
+  };
+  const take = () => {
+    const bytes = parts.length === 1 ? parts[0] : Buffer.concat(parts, length);
+    parts = [];
+    length = 0;
+    return bytes;
+  };
   const waiter = new Int32Array(new SharedArrayBuffer(4));
   // Fills `pending` from the descriptor: `false` when it cannot be read.
   const fill = () => {
@@ -244,7 +261,8 @@ export function lineReader(fd: number | null): LineReader {
     if (count === 0) {
       ended = true;
     } else {
-      pending = Buffer.concat([pending, chunk.subarray(0, count)]);
+      pending = chunk.subarray(0, count);
+      chunk = Buffer.allocUnsafe(65536);
     }
     return true;
   };
@@ -252,20 +270,18 @@ export function lineReader(fd: number | null): LineReader {
     for (;;) {
       const nl = pending.indexOf(10);
       if (nl >= 0) {
-        let line = pending.subarray(0, nl);
+        retain(pending.subarray(0, nl));
         pending = pending.subarray(nl + 1);
+        let line = take();
         if (line.length && line[line.length - 1] === 13) {
           line = line.subarray(0, line.length - 1);
         }
         return line.toString("utf8");
       }
+      retain(pending);
+      pending = Buffer.alloc(0);
       if (ended) {
-        if (!pending.length) {
-          return null;
-        }
-        const line = pending.toString("utf8");
-        pending = Buffer.alloc(0);
-        return line;
+        return length ? take().toString("utf8") : null;
       }
       if (!fill()) {
         return false;
@@ -275,14 +291,16 @@ export function lineReader(fd: number | null): LineReader {
   // The rest of the input as read, with `\r\n` read as `\n`
   // (std-console.input.read-all-host-coded-error).
   line.all = () => {
+    retain(pending);
+    pending = Buffer.alloc(0);
     while (!ended) {
       if (!fill()) {
         return false;
       }
+      retain(pending);
+      pending = Buffer.alloc(0);
     }
-    const text = pending.toString("utf8");
-    pending = Buffer.alloc(0);
-    return text.replaceAll("\r\n", "\n");
+    return take().toString("utf8").replaceAll("\r\n", "\n");
   };
   return line;
 }
