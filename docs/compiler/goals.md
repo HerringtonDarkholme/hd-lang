@@ -113,7 +113,6 @@ here.
 | `errors-per-run` | a file with N independent mistakes | all N reported, each once |
 | `diag-location` | mistake corpus: share of diagnostics whose line is the mistake's line | ≥ 95% |
 | `fixit-safety` | applying a fix-it (in a temporary copy) never adds a new error | 100% |
-| `lookup-latency` | canned program-database queries; N/A until the program database exists (#181) | p95 ≤ 100 ms |
 | `fmt` | `hd fmt` time on the 10k-line package, and idempotence | ≤ 200 ms; idempotent |
 | `check-cost` | runtime cost of overflow and shift checks: the same suite in the optimized pipeline with checks on (`hd test --release`) vs off (the wrapping release profile) | checked ≤ 1.3x unchecked |
 | `dev-speed` | the same suite in one profile, dev pipeline vs optimized pipeline, so tests don't crawl | ≤ 4x geomean; no case > 10x |

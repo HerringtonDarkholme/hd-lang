@@ -27,7 +27,6 @@ import { incrementalSoundness } from "./incremental-soundness.ts";
 import { ioPerCheck } from "./io-per-check.ts";
 import { longRunMemory } from "./long-run-memory.ts";
 import { longSession } from "./long-session.ts";
-import { lookupLatency } from "./lookup-latency.ts";
 import { mistakes } from "./mistakes.ts";
 import { parallelSpeedup } from "./parallel-speedup.ts";
 import { pathological } from "./pathological.ts";
@@ -57,7 +56,6 @@ export const METRICS: readonly Metric[] = [
   errorsPerRun,
   diagLocation,
   fixitSafety,
-  lookupLatency,
   fmt,
   checkCost,
   devSpeed,

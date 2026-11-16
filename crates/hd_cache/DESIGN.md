@@ -69,9 +69,8 @@ sections it needs.
   `InitOrder` instead about 8.4 µs. The earlier measurement, 7.1 µs
   cached against 1.0 µs, was of one entry per folder, gone since #249.
 
-Planned, not built: a `reads` section for early cutoff (§5.3.1), fact
-records for a program database (#181), a `pkgres` entry for a warm fast
-path (§5.3), and a no-emit `check` entry without TIR (header flag
+Planned, not built: a `reads` section for early cutoff (§5.3.1), a
+`pkgres` entry for a warm fast path (§5.3), and a no-emit `check` entry without TIR (header flag
 `HAS_TIR` clear) that a later build replaces under the same key.
 
 ### 5.3 Key Composition
