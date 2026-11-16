@@ -348,7 +348,7 @@ fn body_func<'a>(
     for (k, &l) in plocals.iter().enumerate() {
         if let Some(Some(mem)) = own.indirect.as_ref().map(|abi| abi.params[k].clone()) {
             let at = shape::u32_of(params.len());
-            em.mem_locals.insert(l, (at, mem));
+            em.mem_locals.insert(l, (at, 0, mem));
             params.push(Val::I32);
             continue;
         }
@@ -410,7 +410,11 @@ fn body_func<'a>(
         params.clone(),
         fres,
     );
-    em.forward = em.forwarded();
+    // A local over 16 values kept in memory takes a slot of the frame
+    // block (`indirect.rs`); a suspending body keeps its locals unpacked.
+    if !suspending && own.cold.is_none() {
+        em.frame_locals()?;
+    }
     em.borrow_init_flags();
     em.f.reason = Some(Reason::Conservative("entry"));
     em.f.names_counts = em.names_counts();
@@ -721,6 +725,8 @@ fn body_func<'a>(
     if !suspending {
         em.keep = em.kept_results();
     }
+    // After every plan that names a read copied into memory.
+    em.forward = em.forwarded();
     em.block_into(root, None)?;
     let tail = em.live_tail(root);
     if let Some((base, mem)) = em.sret.clone()
@@ -784,6 +790,9 @@ fn body_func<'a>(
     let Some(suspension) = em.susp.take() else {
         if let Some((base, size)) = em.frame.filter(|f| f.0 != NONE) {
             crate::wide::locals_frame(&mut em.f, base, size);
+        }
+        if let Some((base, size)) = em.stack_frame {
+            indirect::stack_frame(&mut em.f, base, size);
         }
         return Ok(em.f);
     };
@@ -1483,11 +1492,22 @@ struct Em<'i, 'a, 'm> {
     /// the read. Each arm's fields load where they are read
     /// ([`Em::lazy_borrow`]).
     lazy: HashMap<u32, Lazy>,
-    /// Each parameter local this worker takes by address (`indirect.rs`):
-    /// the Wasm local of its address and its layout.
-    mem_locals: HashMap<usize, (u32, crate::layout::Mem)>,
-    /// Each field read of such a parameter that only passes on as an
-    /// address argument ([`Em::forwarded`]).
+    /// Each local kept in memory (`indirect.rs`): a parameter this worker
+    /// takes by address, or a local in a slot of the frame block
+    /// ([`Em::frame_locals`]). The Wasm local of its address, its offset
+    /// there and its layout.
+    mem_locals: HashMap<usize, (u32, u32, crate::layout::Mem)>,
+    /// The frame block on the shadow stack holding the locals kept in
+    /// memory: its address local and size. Reserved at entry and given
+    /// back at every exit ([`indirect::stack_frame`]).
+    stack_frame: Option<(u32, u32)>,
+    /// Each value stored whole into such a local, a read of another value
+    /// kept in memory when [`Em::forwarded`] lets it pass as an address:
+    /// the store copies it with one `memory.copy`.
+    frame_copies: Vec<u32>,
+    /// Each read of such a local or of a parameter's fields that only
+    /// passes on as an address: an argument of a direct call to a worker
+    /// or a value copied into a local kept in memory ([`Em::forwarded`]).
     forward: hd_base::HashSet<u32>,
     /// Each such read's value: the address local and the field's offset.
     mem_vals: HashMap<u32, (u32, u32)>,
@@ -1586,6 +1606,8 @@ struct Em<'i, 'a, 'm> {
     /// The body's value-operand use counts, shared by its emitters
     /// ([`body_facts::BodyFacts::slot_uses`]).
     slot_uses: std::sync::Arc<std::sync::OnceLock<std::sync::Arc<HashMap<u32, u32>>>>,
+    /// Each local a closure of the body captures, shared.
+    captured: std::sync::Arc<hd_base::HashSet<usize>>,
     /// One local-use census shared by parameter and capture loan queries.
     loan_uses: LoanCell,
     /// The final body's shared block structure.
@@ -1731,6 +1753,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned_refs: hd_base::HashSet::default(),
             lazy: HashMap::default(),
             mem_locals: HashMap::default(),
+            stack_frame: None,
+            frame_copies: Vec::new(),
             forward: hd_base::HashSet::default(),
             mem_vals: HashMap::default(),
             sret: None,
@@ -1769,6 +1793,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             loan_uses,
             uses: std::sync::Arc::clone(&facts.uses),
             slot_uses: std::sync::Arc::clone(&facts.slot_uses),
+            captured: std::sync::Arc::clone(&facts.captured),
             topo: std::sync::Arc::clone(&facts.topo),
             tree: std::sync::Arc::clone(&facts.tree),
             hoisted: Vec::new(),
@@ -2128,11 +2153,12 @@ impl Em<'_, '_, '_> {
             return Ok(ls.clone());
         }
         // ruled out: `indirect::params` keeps a parameter by address only
-        // when its every use is a field read, which `Em::mem_read` emits
-        // without its locals.
+        // when its every use is a field read, and `Em::frame_locals` a
+        // local only when it is stored whole once and read; `Em::mem_read`
+        // and `Em::mem_store` emit those without its locals.
         assert!(
             !self.mem_locals.contains_key(&l),
-            "an address parameter read whole"
+            "a local kept in memory read as locals"
         );
         // A shared local is its cell's address (`closure.rs`).
         let vs = if self.is_cell(l) {
@@ -3006,6 +3032,10 @@ impl Em<'_, '_, '_> {
     /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
     /// locals, as the read's mode says ([`Em::own_local_read`]).
     fn local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
+        // A whole read of a local kept in memory (`indirect.rs`).
+        if self.mem_read(i)? {
+            return Ok(());
+        }
         self.own_local_read(i, l)
     }
 

@@ -35,6 +35,14 @@
 //! the result by address it passes the block on ([`Em::kept_results`]),
 //! else it loads the leaves (the *load* conversion again).
 //!
+//! A local of such a type kept in memory (step 3, rustc's
+//! `LocalRef::Place`) lives in a slot of one *frame block* on the shadow
+//! stack, reserved at the function's entry and given back at every exit
+//! ([`Em::frame_locals`], [`stack_frame`]). Its store writes a literal
+//! or a worker's result in place, copies a value read from memory with
+//! one `memory.copy`, or stores leaves; a read of it, whole or of fields,
+//! is an address like a parameter's.
+//!
 //! A parameter keeps the address form only when every use of it is a
 //! read of its fields ([`params`]); any other parameter stays leaves. The
 //! ownership passes write no `Drop` or `LoanEnd` for a type that counts
@@ -47,7 +55,7 @@
 
 use std::rc::Rc;
 
-use hd_base::{HashMap, HashSet, InstId};
+use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, subst};
 use hd_tir::ir::{NONE, PlaceRoot, Proj, Ref, Tag, Word, slots};
 
@@ -306,6 +314,12 @@ fn address(f: &mut Func, base: u32, off: u32) {
 }
 
 impl Em<'_, '_, '_> {
+    /// The members of struct or tuple type `t`, a literal planned in
+    /// place ([`Em::plan_in_place`]): one probe of the link's cache.
+    fn member_parts(&self, t: hd_types::Ty) -> hd_base::StageResult<Rc<crate::layout::Members>> {
+        crate::layout::members(self.pool(), self.env(), t)
+    }
+
     /// The body's value-operand use counts ([`value_uses`]), counted by the
     /// first of its emitters that asks: its instances and closure
     /// sub-bodies share one count.
@@ -328,10 +342,15 @@ impl Em<'_, '_, '_> {
     /// that argument. One visit of this sub-body's instructions.
     pub(super) fn forwarded(&mut self) -> HashSet<u32> {
         let b = self.b;
-        let mut candidates: Vec<u32> = Vec::new();
         if self.mem_locals.is_empty() {
             return HashSet::default();
         }
+        // A read of memory stored whole into a local kept in memory is
+        // copied there with one `memory.copy`.
+        let mut candidates: Vec<u32> = std::mem::take(&mut self.frame_copies)
+            .into_iter()
+            .filter(|&v| self.mem_field(v).is_some())
+            .collect();
         for &i in self.rows.clone().iter() {
             let i = u32_of(i);
             if b.tags[i as usize] != Tag::Call {
@@ -365,9 +384,9 @@ impl Em<'_, '_, '_> {
             .collect()
     }
 
-    /// For a `Read` `r` of fields of an address parameter: the parameter's
-    /// address local, its layout and the field path.
-    fn mem_field(&self, r: u32) -> Option<(u32, Mem, Vec<u32>, usize)> {
+    /// For a `Read` `r` of a local kept in memory, whole or of fields: the
+    /// local's address local and offset, its layout and the field path.
+    fn mem_field(&self, r: u32) -> Option<(u32, u32, Mem, Vec<u32>, usize)> {
         if self.b.tags.get(r as usize) != Some(&Tag::Read) {
             return None;
         }
@@ -375,7 +394,7 @@ impl Em<'_, '_, '_> {
         let PlaceRoot::Local(l) = p.root else {
             return None;
         };
-        let (at, mem) = self.mem_locals.get(&l.idx())?.clone();
+        let (at, off, mem) = self.mem_locals.get(&l.idx())?.clone();
         let fields = p
             .proj
             .iter()
@@ -384,25 +403,25 @@ impl Em<'_, '_, '_> {
                 _ => None,
             })
             .collect::<Option<Vec<u32>>>()?;
-        Some((at, mem, fields, l.idx()))
+        Some((at, off, mem, fields, l.idx()))
     }
 
-    /// Emits `Read` `i` when it reads fields of an address parameter: the
-    /// address of the field when it only passes on ([`Em::forwarded`]),
-    /// else the field's leaves loaded. Whether it did.
+    /// Emits `Read` `i` when it reads a local kept in memory: the address
+    /// of what it reads when that only passes on ([`Em::forwarded`]), else
+    /// the leaves loaded. Whether it did.
     pub(super) fn mem_read(&mut self, i: u32) -> hd_base::StageResult<bool> {
-        let Some((at, mem, fields, l)) = self.mem_field(i) else {
+        let Some((at, off, mem, fields, l)) = self.mem_field(i) else {
             return Ok(false);
         };
         let declared = self.sub(self.b.local_ty[l]);
         let (_, part) = self.fold_path(declared, &fields)?;
         if self.forward.contains(&i) {
-            self.mem_vals.insert(i, (at, part.offset));
+            self.mem_vals.insert(i, (at, off + part.offset));
             return Ok(true);
         }
         for leaf in &mem.leaves[part.first..part.first + part.count] {
             self.f.get(at);
-            self.f.op(leaf.load_in(STACK, 0));
+            self.f.op(leaf.load_in(STACK, off));
         }
         self.store(i)?;
         Ok(true)
@@ -500,15 +519,37 @@ impl Em<'_, '_, '_> {
         if tail == NONE || Ref(tail).as_inst().is_none() {
             return Ok(());
         }
-        let b = self.b;
         let uses = self.slot_uses();
         if uses.get(&tail).copied().unwrap_or(0) > 1 {
             return Ok(());
         }
-        let mut work = vec![(tail, 0u32)];
+        self.plan_in_place(tail, base, 0, &uses)
+    }
+
+    /// Plans `root`, headed for the block at `base` plus `off`, written in
+    /// place: a call to a worker that writes its result gets that address,
+    /// and a struct or tuple literal writes each field there, and so on
+    /// through each literal's fields with one use. A work list, not native
+    /// recursion, walks nested literals; each planned value is visited
+    /// once.
+    fn plan_in_place(
+        &mut self,
+        root: u32,
+        base: u32,
+        off: u32,
+        uses: &HashMap<u32, u32>,
+    ) -> hd_base::StageResult<()> {
+        let b = self.b;
+        let mut work = vec![(root, off)];
         while let Some((r, off)) = work.pop() {
             let tag = b.tags[r as usize];
             let members = match tag {
+                // A read of memory headed here is one `memory.copy`
+                // ([`Em::forwarded`]).
+                Tag::Read => {
+                    self.frame_copies.push(r);
+                    continue;
+                }
                 Tag::Call => {
                     if self.writes_result(r) {
                         self.placed.insert(r, (base, off));
@@ -520,12 +561,29 @@ impl Em<'_, '_, '_> {
                 _ => continue,
             };
             self.placed.insert(r, (base, off));
-            let t = self.ty(r);
+            // Only a member that can itself be written in place needs its
+            // offset: the type's members are read once, if at all.
+            let mut parts = None;
             for (k, &f) in members.iter().enumerate() {
-                if Ref(f).as_inst().is_some() && uses.get(&f) == Some(&1) {
-                    let (_, part) = self.fold_path(t, &[u32_of(k)])?;
-                    work.push((f, off + part.offset));
+                if Ref(f).as_inst().is_none() || uses.get(&f) != Some(&1) {
+                    continue;
                 }
+                // Its offset is read where the literal is written.
+                if b.tags[f as usize] == Tag::Read {
+                    self.frame_copies.push(f);
+                    continue;
+                }
+                if !matches!(
+                    b.tags[f as usize],
+                    Tag::Call | Tag::NewStruct | Tag::NewTuple
+                ) {
+                    continue;
+                }
+                let parts = match &parts {
+                    Some(p) => p,
+                    None => parts.insert(self.member_parts(self.ty(r))?),
+                };
+                work.push((f, off + parts.parts[k].offset));
             }
         }
         Ok(())
@@ -552,14 +610,24 @@ impl Em<'_, '_, '_> {
     pub(super) fn write_in_place(&mut self, i: u32, members: &[u32]) -> hd_base::StageResult<()> {
         let (base, off) = self.placed[&i];
         let t = self.ty(i);
+        let mut parts = None;
         for (k, &r) in members.iter().enumerate() {
             if self.written.contains(&r) {
                 continue;
             }
             // Only a field stored here lays out, so a literal costs the
-            // leaves it stores, not the whole value's.
-            let (ft, part) = self.fold_path(t, &[u32_of(k)])?;
+            // leaves it stores, not the whole value's; the type's members
+            // are read once.
+            let parts = match &parts {
+                Some(p) => p,
+                None => parts.insert(self.member_parts(t)?),
+            };
+            let (ft, part) = (parts.tys[k], parts.parts[k]);
             let mem = crate::layout::mem(self.pool(), self.env(), ft)?;
+            if let Some(&(at, from)) = self.mem_vals.get(&r) {
+                self.copy_in(base, off + part.offset, at, from, mem.size);
+                continue;
+            }
             for (j, leaf) in mem.leaves.iter().enumerate() {
                 self.f.get(base);
                 self.comp(r, j)?;
@@ -581,12 +649,25 @@ impl Em<'_, '_, '_> {
         if self.written.contains(&r) {
             return Ok(());
         }
+        if let Some(&(at, from)) = self.mem_vals.get(&r) {
+            self.copy_in(base, 0, at, from, mem.size);
+            return Ok(());
+        }
         for (j, leaf) in mem.leaves.iter().enumerate() {
             self.f.get(base);
             self.comp(r, j)?;
             self.f.op(leaf.store_in(STACK, 0));
         }
         Ok(())
+    }
+
+    /// Copies `size` bytes of the shadow stack from `at + from` to
+    /// `base + off`: one `memory.copy`, whatever the value's size.
+    fn copy_in(&mut self, base: u32, off: u32, at: u32, from: u32, size: u32) {
+        address(&mut self.f, base, off);
+        address(&mut self.f, at, from);
+        self.f.op(I::I32Const(size.cast_signed()));
+        self.f.push(crate::bulk::copy(STACK, STACK));
     }
 
     /// The block call `i`'s result goes to: its place in this worker's
@@ -700,5 +781,208 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
+    }
+}
+
+/// Reserves the frame block of `size` bytes at the entry of `f`, its
+/// address in local `base`, and gives it back at every exit: a `return`
+/// and every branch out of the function's own label, as
+/// [`crate::wide::locals_frame`] does for the local stack. A `?` or an
+/// early `return` is such an exit, and a loop reuses the block each
+/// round, so no path leaves it reserved.
+pub(crate) fn stack_frame(f: &mut Func, base: u32, size: u32) {
+    use crate::module::Ins;
+    let size = size.cast_signed();
+    let selector = f.local(Val::I32);
+    let stack = f.intern_global(Global::Stack);
+    let mut out = vec![
+        Ins::GlobalGet(stack),
+        Ins::Op(I::I32Const(size)),
+        Ins::Op(I::I32Sub),
+        Ins::Op(I::LocalTee(base)),
+        Ins::GlobalSet(stack),
+    ];
+    let restore = |out: &mut Vec<Ins>| {
+        out.extend([
+            Ins::Op(I::LocalGet(base)),
+            Ins::Op(I::I32Const(size)),
+            Ins::Op(I::I32Add),
+            Ins::GlobalSet(stack),
+        ]);
+    };
+    let mut origins = crate::origins::Remap::new(f.origins.as_deref());
+    origins.repeat(f.origin_root, out.len());
+    let body = std::mem::take(&mut f.body);
+    let mut depth = 0;
+    for (position, ins) in body.into_iter().enumerate() {
+        let start = out.len();
+        crate::wide::exit(f, ins, &mut depth, selector, &restore, &mut out);
+        origins.merged(position..position + 1, out.len() - start);
+    }
+    let start = out.len();
+    restore(&mut out);
+    origins.repeat(f.origin_root, out.len() - start);
+    f.body = out;
+    origins.finish(f);
+}
+
+impl Em<'_, '_, '_> {
+    /// Plans the locals this function keeps in memory (step 3 of #2031,
+    /// rustc's `LocalRef::Place` for a local whose layout is not an
+    /// immediate): a local, not a parameter, a capture, a cell or a slot,
+    /// of a type [`indirect`] passes by address, that the body stores
+    /// whole once and otherwise only reads, whole or by fields. Each gets
+    /// an 8-byte aligned slot in the frame block ([`stack_frame`]); its
+    /// stored value, when that store is its one use, is planned in place
+    /// there ([`Em::plan_in_place`]). One stored value means no read of
+    /// the local can see a later store before the use it passes on to,
+    /// so a read passes the slot's address. A captured local stays
+    /// leaves: its closure's environment copies them. Cost: one visit of
+    /// this sub-body's instructions; the body's captures and use counts
+    /// are counted once per body ([`Em::slot_uses`]), so a body with n
+    /// closures costs O(its size) in all.
+    pub(super) fn frame_locals(&mut self) -> hd_base::StageResult<()> {
+        let b = self.b;
+        // Per local of this sub-body: its whole stores and the last value
+        // stored, or none once a use other than a read by fields or whole
+        // rules it out.
+        let mut seen: HashMap<usize, Option<(u32, u32)>> = HashMap::default();
+        for &i in self.rows.clone().iter() {
+            let tag = b.tags[i];
+            if !matches!(
+                tag,
+                Tag::Read
+                    | Tag::Store
+                    | Tag::Ref
+                    | Tag::Drop
+                    | Tag::IsUnique
+                    | Tag::FlagSet
+                    | Tag::FlagClear
+                    | Tag::LoanEnd
+            ) {
+                continue;
+            }
+            let Some(p) = b.decode_place(b.data[i][0]) else {
+                continue;
+            };
+            let PlaceRoot::Local(l) = p.root else {
+                continue;
+            };
+            let entry = seen.entry(l.idx()).or_insert(Some((0, NONE)));
+            let Some((stores, value)) = entry.as_mut() else {
+                continue;
+            };
+            let fields = p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
+            match tag {
+                Tag::Read if fields => {}
+                Tag::Store if p.proj.is_empty() && b.data[i][1] != NONE => {
+                    *stores += 1;
+                    *value = b.data[i][1];
+                }
+                _ => *entry = None,
+            }
+        }
+        let mut kept: Vec<(usize, Mem, u32)> = Vec::new();
+        for (l, got) in seen {
+            let Some((1, v)) = got else {
+                continue;
+            };
+            // Memory pays when the value lands there without its leaves: a
+            // literal or a worker's result written in place, or a read of
+            // memory copied (checked below, in local order). A value
+            // computed as leaves (a match, a struct update, a read of
+            // leaves) would be stored and loaded again: it stays leaves.
+            if Ref(v).as_inst().is_none() {
+                continue;
+            }
+            let lands = matches!(
+                b.tags[v as usize],
+                Tag::Read | Tag::NewStruct | Tag::NewTuple
+            ) || b.tags[v as usize] == Tag::Call && self.writes_result(v);
+            if !lands {
+                continue;
+            }
+            if self.parameter_positions.contains_key(&l)
+                || self.mem_locals.contains_key(&l)
+                || self.captured.contains(&l)
+                || self.is_cell(l)
+                || self.slots.contains_key(&l)
+            {
+                continue;
+            }
+            let ty = self.sub(b.local_ty[l]);
+            if let Ok(Some(m)) = indirect(self.pool(), self.env(), ty) {
+                kept.push((l, m, v));
+            }
+        }
+        if kept.is_empty() {
+            return Ok(());
+        }
+        kept.sort_stable_by_key(|k| k.0);
+        let base = self.f.local(Val::I32);
+        let uses = self.slot_uses();
+        let mut size = 0u32;
+        for (l, mem, v) in kept {
+            // A read copies only from memory: an address parameter or a
+            // local kept before this one (a copy's source comes first).
+            if b.tags[v as usize] == Tag::Read && self.mem_source(v).is_none() {
+                continue;
+            }
+            let off = size;
+            size = (size + mem.size).next_multiple_of(8);
+            self.mem_locals.insert(l, (base, off, mem));
+            if Ref(v).as_inst().is_some() && uses.get(&v) == Some(&1) {
+                self.frame_copies.push(v);
+                self.plan_in_place(v, base, off, &uses)?;
+            }
+        }
+        self.stack_frame = Some((base, size));
+        Ok(())
+    }
+
+    /// The local kept in memory that `Read` `r` reads, whole or by fields.
+    fn mem_source(&self, r: u32) -> Option<usize> {
+        let p = self.b.decode_place(self.b.data[r as usize][0])?;
+        let PlaceRoot::Local(l) = p.root else {
+            return None;
+        };
+        let fields = p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
+        (fields && self.mem_locals.contains_key(&l.idx())).then_some(l.idx())
+    }
+
+    /// Emits `Store` `i` when it stores a local kept in memory whole
+    /// ([`Em::frame_locals`]): nothing when its value was written in place,
+    /// one `memory.copy` of the layout's size when the value is a read
+    /// that passes on its address, else its leaves. Whether it did.
+    pub(super) fn mem_store(&mut self, i: u32) -> hd_base::StageResult<bool> {
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return Ok(false);
+        };
+        let PlaceRoot::Local(l) = p.root else {
+            return Ok(false);
+        };
+        if !p.proj.is_empty() {
+            return Ok(false);
+        }
+        let Some((base, off, mem)) = self.mem_locals.get(&l.idx()).cloned() else {
+            return Ok(false);
+        };
+        // ruled out: a diverging value reaches no `Store` (tried `let a:
+        // Big = panic(..)` and a match whose other arm panics; TIR ends the
+        // path before the store), so `v` has its values or its address.
+        let v = self.b.data[i as usize][1];
+        if self.written.contains(&v) {
+            return Ok(true);
+        }
+        if let Some(&(at, from)) = self.mem_vals.get(&v) {
+            self.copy_in(base, off, at, from, mem.size);
+            return Ok(true);
+        }
+        for (j, leaf) in mem.leaves.iter().enumerate() {
+            self.f.get(base);
+            self.comp(v, j)?;
+            self.f.op(leaf.store_in(STACK, off));
+        }
+        Ok(true)
     }
 }

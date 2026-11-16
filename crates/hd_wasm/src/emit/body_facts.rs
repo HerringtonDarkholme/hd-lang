@@ -24,6 +24,8 @@ pub(crate) struct BodyFacts {
     /// emitter that asks (`indirect.rs`), once per body however many
     /// instances and closure sub-bodies it has.
     pub(super) slot_uses: Arc<OnceLock<Arc<HashMap<u32, u32>>>>,
+    /// Each local some closure of the body captures.
+    pub(super) captured: Arc<hd_base::HashSet<usize>>,
     pub(super) short_uses: OnceLock<hd_tir::own::short::Uses>,
     pub(super) rows: Vec<Arc<[usize]>>,
     pub(super) storage: Vec<Vec<(hd_base::LocalId, hd_tir::ir::Storage)>>,
@@ -80,6 +82,7 @@ impl BodyFacts {
             list: Arc::default(),
             borrow: Arc::default(),
             slot_uses: Arc::default(),
+            captured: Arc::new(b.cap_local.iter().map(|l| l.idx()).collect()),
             short_uses: OnceLock::new(),
             rows: rows.into_iter().map(Arc::from).collect(),
             closures,

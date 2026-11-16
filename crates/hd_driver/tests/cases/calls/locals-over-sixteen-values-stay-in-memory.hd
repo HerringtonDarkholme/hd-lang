@@ -1,0 +1,222 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Each form of a local holding a struct or tuple over 16 values (#2031):
+# it stays in a slot of the function's frame block, reserved at entry and
+# given back at every exit. A local copied (one `memory.copy`), moved on
+# to a worker as its address, read by fields and passed on by a field;
+# around a `?`, an early `return`, a loop of many rounds (a leaked frame
+# would overflow the 1 MiB shadow stack), a match, and a closure that
+# captures it (stays leaves); a field of an address parameter copied into
+# a local; a local of a closure's own body; a tuple; mixed leaves; a
+# generic instance; a local stored from an `if` (its leaves stored); a
+# local stored from a match whose other arm panics; a local copied from a
+# parameter read whole (leaves, so the local stays leaves); a local a reference
+# borrows (stays leaves); a local whose store a panic ends (no store); a
+# local returned whole and one placed in a returned literal (each one
+# `memory.copy` into the caller's block); a local stored twice (stays
+# leaves); and a struct holding a string (counts, so stays leaves).
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    f16: i32
+
+struct Outer:
+    inner: Big
+    v: i32
+
+struct Mixed:
+    a: i64
+    b: f64
+    c: u8
+    d: bool
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+struct Gen[T]:
+    big: Big
+    extra: T
+
+struct Named:
+    name: string
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    f16: i32
+
+fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16 }
+
+fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x), v: x * 2 }
+
+fn sum(t: Big) -> i32: t.f0 + t.f16
+
+fn outer_sum(t: Outer) -> i32: sum(t.inner) + t.v
+
+fn copied(x: i32) -> i32:
+    let a = mk(x)
+    let b = a
+    sum(a) + sum(b) + b.f3
+
+fn moved(x: i32) -> i32:
+    let o = mk_outer(x)
+    let i = o.inner
+    outer_sum(o) + sum(i) + sum(o.inner)
+
+fn from_param(t: Outer) -> i32:
+    let i = t.inner
+    sum(i) + i.f5
+
+fn early(x: i32) -> i32:
+    let a = mk(x)
+    if x > 5:
+        return sum(a)
+    a.f1
+
+fn parse(x: i32) -> Result[i32, string]:
+    if x < 0:
+        return .Err("neg")
+    .Ok(x)
+
+fn tried(x: i32) -> Result[i32, string]:
+    let a = mk(x)
+    let y = parse(a.f0 - 3)?
+    .Ok(sum(a) + y)
+
+fn looped(n: i32) -> i32:
+    let acc = 0
+    for k in 0..n:
+        let a = mk(k % 5)
+        let b = a
+        acc += sum(b)
+    acc
+
+fn matched(x: i32) -> i32:
+    let a = mk(x)
+    match x:
+        1 => sum(a)
+        _ => a.f2
+
+fn captured(x: i32) -> i32:
+    let a = mk(x)
+    let f: fn(i32) -> i32 = fn(y) -> i32:
+        a.f4 + y
+    f(1)
+
+fn inside(x: i32) -> i32:
+    let f: fn(i32) -> i32 = fn(y) -> i32:
+        let a = mk(y)
+        let b = a
+        sum(b)
+    f(x)
+
+fn tuple(x: i32) -> i32:
+    let t = (x, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, x + 17)
+    let u = t
+    u._0 + u._16 + t._1
+
+fn mixed(x: i32) -> f64:
+    let m = Mixed { a: i64(x), b: 0.5, c: 7, d: true, e: 5, f: 6, g: 7, h: 8, i: 9, j: 10, k: 11, l: 12, m: 13, n: 14, o: 15, p: 16, q: x }
+    let n = m
+    let flag: f64 = if n.d: 1.0 else: 0.0
+    f64(n.a) + n.b + f64(n.c) + flag + f64(n.q)
+
+fn gen[T](x: i32, extra: T) -> T:
+    let g = Gen { big: mk(x), extra: extra }
+    let h = g
+    h.extra
+
+fn picked(x: i32) -> i32:
+    let a = if x > 0: mk(x) else: mk(0 - x)
+    sum(a)
+
+fn returned(x: i32) -> Big:
+    let a = mk(x)
+    a
+
+fn wrapped(x: i32) -> Outer:
+    let a = mk(x)
+    Outer { inner: a, v: sum(a) }
+
+fn bail(x: i32) -> i32:
+    let a: Big = match x > 0:
+        true => mk(x)
+        false => panic("neg")
+    sum(a)
+
+fn unbuilt(x: i32) -> i32:
+    if x > 100:
+        let a: Big = panic("big")
+        return sum(a)
+    x
+
+fn leafy(t: Big) -> i32:
+    let a = t
+    sum(a) + a.f1 + sum(t)
+
+fn borrowed(x: i32) -> i32:
+    let a = mk(x)
+    let r = &a
+    r.f5 + sum(a)
+
+fn reassigned(x: i32) -> i32:
+    let a = mk(x)
+    a = mk(x + 1)
+    sum(a)
+
+fn named(x: i32) -> i32:
+    let n = Named { name: "n", f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16 }
+    let m = n
+    m.f0 + m.f16 + n.f1
+
+pub fn main() -> void $ Console:
+    println("${copied(1)} ${moved(2)} ${from_param(mk_outer(3))}")
+    println("${early(3)} ${early(9)}")
+    match tried(5):
+        .Ok(v) => println("${v}")
+        .Err(e) => println(e)
+    match tried(1):
+        .Ok(v) => println("${v}")
+        .Err(e) => println(e)
+    println("${looped(200000)} ${matched(1)} ${matched(2)}")
+    println("${captured(3)} ${inside(4)} ${tuple(5)} ${mixed(6)}")
+    let word = gen(7, "x")
+    println("${word} ${gen(8, 9)} ${picked(-9)} ${picked(10)}")
+    println("${sum(returned(4))} ${reassigned(5)} ${named(6)} ${outer_sum(wrapped(7))}")
+    println("${bail(8)} ${borrowed(9)} ${unbuilt(10)} ${leafy(mk(11))}")

@@ -1066,6 +1066,9 @@ impl Em<'_, '_, '_> {
     /// the write, as a cell does ([`Em::replace_late`]). The passes'
     /// `IsUnique` came before a store into an element.
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
+        if self.mem_store(i)? {
+            return Ok(());
+        }
         let v = self.b.data[i as usize][1];
         let p = self.place(self.b.data[i as usize][0]);
         let rooted = Self::rooted(&p);

@@ -88,12 +88,7 @@ export const KNOWN: ReadonlyMap<string, string> = new Map();
  * as `SHAPE COMMAND` to the limit and the decision. Each row names the
  * limit that caps the work and what the work costs at that limit.
  */
-export const BOUNDED: ReadonlyMap<string, string> = new Map([
-  [
-    "tuple-nest build",
-    "bounded by the parser's MAX_NESTING = 160 (owner 2026-11-15, #1924): +37 MB allocated at depth 150, no measured time",
-  ],
-]);
+export const BOUNDED: ReadonlyMap<string, string> = new Map();
 
 /** Each counter's total in one run. */
 export type Work = Readonly<Record<string, number>>;

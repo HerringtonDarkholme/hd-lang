@@ -3725,6 +3725,20 @@ fn tuple_nest(n: usize) -> String {
     )
 }
 
+/// A tuple type, value and pattern nested `n` deep with two values a
+/// level, `(i32, i32, (i32, i32, ...))`: over 16 values from 8 levels on.
+fn tuple_pair_nest(n: usize) -> String {
+    let ty = format!("{}i32{}", "(i32, i32, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, t, ".repeat(n), ")".repeat(n));
+    let mut pattern = String::from("z");
+    for i in (0..n).rev() {
+        pattern = format!("(a{i}, b{i}, {pattern})");
+    }
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = +1\n    let x: {ty} = {value}\n    let {pattern} = x\n    t = z\n    println(\"$t\")\n"
+    )
+}
+
 /// An option type, value and pattern nested `n` deep: the scale check's
 /// `option-nest`.
 fn option_nest(n: usize) -> String {
@@ -3965,11 +3979,18 @@ fn modules_in_many_folders_scan_their_view_once_per_head() {
 // tuple nest walked the `i` levels below it: O(depth^2). A part that
 // holds no `Drop` value is now skipped, by the link's memo of
 // `holds_drop`.
+//
+// The tuple nest holds two values a level, so at both sizes its tuple is
+// over the 16 values a local keeps in memory (#2031): one-value levels
+// put 13 values at 12 and 121 at 120, comparing a local of leaves with
+// one written in place, two code paths and not one at two sizes.
 #[test]
 fn drop_call_walks_skip_parts_without_a_drop_value() {
     on_test_stack(|| {
-        let shapes: [(&str, Generate); 2] =
-            [("tuple-nest", tuple_nest), ("option-nest", option_nest)];
+        let shapes: [(&str, Generate); 2] = [
+            ("tuple-pair-nest", tuple_pair_nest),
+            ("option-nest", option_nest),
+        ];
         let goal = Goal::Program {
             entry: "main".into(),
         };

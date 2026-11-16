@@ -1,0 +1,36 @@
+# @dump: wat
+# A local of a struct over 16 values that counts nothing stays in memory
+# (#2031): `copy` gives `a` and `b` slots of one frame block, reserved at
+# entry and given back at the exit; `mk` writes `a` in place, `b = a` is
+# one `memory.copy`, and each read of `a` or `b` passes on to `sum` as
+# the slot's address, with no leaf loaded or stored.
+struct Big:
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+fn mk(x: i32) -> Big: Big { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: x }
+
+fn sum(t: Big) -> i32: t.a + t.q
+
+fn copy(x: i32) -> i32:
+    let a = mk(x)
+    let b = a
+    sum(a) + sum(b) + b.c
+
+fn main():
+    println("${copy(+1)}")

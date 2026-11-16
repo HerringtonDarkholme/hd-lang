@@ -200,7 +200,7 @@ fn storage(f: &mut Func) -> StageResult<bool> {
 /// label at `depth`, conditional and table branches included. `depth`
 /// follows the blocks `ins` opens and closes; `selector` is an `i32`
 /// local that holds a branch's condition or index around the restore.
-fn exit(
+pub(crate) fn exit(
     f: &Func,
     ins: Ins,
     depth: &mut u32,
